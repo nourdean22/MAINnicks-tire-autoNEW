@@ -109,9 +109,23 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function readVerdict(metadata: unknown): DiscoveryVerdict | null {
+function isVerdict(v: unknown): v is DiscoveryVerdict {
+  return v === "investigate" || v === "known" || v === "noise";
+}
+
+/**
+ * Column first, `metadata` as the fallback.
+ *
+ * The column arrived in 20260823000000_brain_memory_discovery_columns and is
+ * dual-written from this wave on, but `metadata` remains the source of truth
+ * and the only thing code deployed BEFORE that migration writes. Reading both
+ * is what lets the old and new deployments overlap without a row judged by
+ * either one reading as unjudged.
+ */
+function readVerdict(metadata: unknown, column?: string | null): DiscoveryVerdict | null {
+  if (isVerdict(column)) return column;
   const v = asRecord(metadata).discoveryVerdict;
-  return v === "investigate" || v === "known" || v === "noise" ? v : null;
+  return isVerdict(v) ? v : null;
 }
 
 /**
@@ -119,9 +133,16 @@ function readVerdict(metadata: unknown): DiscoveryVerdict | null {
  * `metadata.origin = "orphan-restore-<date>"`. Matched on the PREFIX so a
  * future recovery run is classified without editing this predicate.
  */
-function readProvenance(metadata: unknown): "engine" | "restored" {
+function readProvenance(metadata: unknown, column?: string | null): "engine" | "restored" {
+  // "restored" wins from EITHER source, deliberately asymmetric. Column-first
+  // in both directions would let a row already stamped `engine` ignore a later
+  // `metadata.origin`, and showing a restored row as engine-found is the defect
+  // this field exists to prevent — whereas withholding one extra row is
+  // visible, counted and reversible by a toggle.
   const origin = asRecord(metadata).origin;
-  return typeof origin === "string" && origin.startsWith("orphan-restore") ? "restored" : "engine";
+  if (typeof origin === "string" && origin.startsWith("orphan-restore")) return "restored";
+  if (column === "restored") return "restored";
+  return "engine";
 }
 
 function readVerdictHistory(
@@ -291,14 +312,16 @@ export async function listDiscoveries(
         createdAt: true,
         lastSeen: true,
         metadata: true,
+        discoveryVerdict: true,
+        discoveryProvenance: true,
       },
     });
     if (rows.length === 0) break;
     scanned += rows.length;
 
     for (const r of rows) {
-      const provenance = readProvenance(r.metadata);
-      const verdict = readVerdict(r.metadata);
+      const provenance = readProvenance(r.metadata, r.discoveryProvenance);
+      const verdict = readVerdict(r.metadata, r.discoveryVerdict);
       if (provenance === "restored" && !opts.includeRestored) {
         // Withheld, never deleted — it is the operator's recovered data. Only
         // UNRATED restored rows count as hidden work; a judged one is done.
@@ -357,13 +380,56 @@ export async function listDiscoveries(
     ...ratedCards.slice(0, ratedShare),
   ];
 
+  // EXACT counts, straight from SQL. Until 2026-08-22 these were derived from
+  // whatever the bounded scan happened to reach, so `unrated` was a documented
+  // FLOOR — on prod it rendered 56 against a true 242, which is the defect the
+  // whole surface was judged on. The column added by
+  // 20260823000000_brain_memory_discovery_columns makes the predicate
+  // expressible in SQL, so a count() answers it exactly and cheaply.
+  //
+  // `discoveryVerdict: null` is IS NULL, which is well-defined — deliberately
+  // NOT the `not: "noise"` form, whose NULL comparison dropped 240 of 241 rows
+  // when measured against prod.
+  const countWhere = {
+    category: { in: [...DISCOVERY_CATEGORIES] },
+    deletedAt: null,
+    lastSeen: { gte: since },
+    discoveryVerdict: null,
+  };
+
+  const [exactUnrated, exactRestoredHidden] = await Promise.all([
+    prisma.brainMemory.count({
+      where: opts.includeRestored
+        ? countWhere
+        : {
+            ...countWhere,
+            // NOT the `NOT: { discoveryProvenance: "restored" }` form. That
+            // compiles to `NOT (col = 'restored')`, which is NULL — and so
+            // excludes the row — whenever the column is NULL. Any row written
+            // by a deployment that predates
+            // 20260823000000_brain_memory_discovery_columns has exactly that,
+            // so the trap would silently UNDERCOUNT the queue. Third sighting
+            // of this hazard in this feature; spelled out explicitly instead.
+            OR: [
+              { discoveryProvenance: null },
+              { discoveryProvenance: { not: "restored" } },
+            ],
+          },
+    }),
+    opts.includeRestored
+      ? Promise.resolve(0)
+      : prisma.brainMemory.count({
+          where: { ...countWhere, discoveryProvenance: "restored" },
+        }),
+  ]);
+
   return {
     items,
-    unrated: unrated.length,
+    unrated: exactUnrated,
     unratedClusters: unratedCards.length,
     scanned,
     truncated,
-    restoredHidden,
+    restoredHidden: exactRestoredHidden,
   };
 }
 
@@ -449,6 +515,13 @@ export async function rateDiscovery(
         // severity lives in the content string, not a column.
         discoveryVerdictSeverityRank: severityRankOf(row.content),
       } as never,
+      // 2026-08-22 · dual-write. `metadata` stays the source of truth; the
+      // columns are the SQL-queryable mirror added by
+      // 20260823000000_brain_memory_discovery_columns, which is what makes the
+      // feed's counts exact instead of the documented floor that rendered 56
+      // against a true 242.
+      discoveryVerdict: verdict,
+      discoveryRatedAt: new Date(),
       // A JUDGED row must never be garbage collected. Engine rows are created
       // with a 24h probationary `expiresAt` that the commit gateway can never
       // clear (see lib/brain/blind-spot-identity.ts), and pruneNoise +
@@ -567,7 +640,10 @@ export async function rateDiscoveryCluster(
 
   const candidates = await prisma.brainMemory.findMany({
     where: { id: { in: unique } },
-    select: { id: true, content: true, category: true, metadata: true, deletedAt: true },
+    select: {
+      id: true, content: true, category: true, metadata: true, deletedAt: true,
+      discoveryVerdict: true, discoveryProvenance: true,
+    },
   });
 
   const live = candidates.filter(
@@ -583,7 +659,7 @@ export async function rateDiscoveryCluster(
 
   // Elect a live head rather than trusting ids[0].
   const head = live[0];
-  const identity = `${readProvenance(head.metadata)}|${clusterKey(head.content)}`;
+  const identity = `${readProvenance(head.metadata, head.discoveryProvenance)}|${clusterKey(head.content)}`;
 
   // Re-derive full membership. Bounded by MAX_SCAN for the same reason the feed
   // is: an unbounded rate-everything would be a different, riskier operation
@@ -596,13 +672,17 @@ export async function rateDiscoveryCluster(
     },
     orderBy: { lastSeen: "desc" },
     take: MAX_SCAN,
-    select: { id: true, content: true, category: true, metadata: true },
+    select: {
+      id: true, content: true, category: true, metadata: true,
+      discoveryVerdict: true, discoveryProvenance: true,
+    },
   });
 
   const members = new Map<string, (typeof windowRows)[number]>();
   for (const r of windowRows) {
-    if (`${readProvenance(r.metadata)}|${clusterKey(r.content)}` !== identity) continue;
-    if (readVerdict(r.metadata) !== null) continue; // already judged on its own
+    if (`${readProvenance(r.metadata, r.discoveryProvenance)}|${clusterKey(r.content)}` !== identity)
+      continue;
+    if (readVerdict(r.metadata, r.discoveryVerdict) !== null) continue; // judged on its own
     members.set(r.id, r);
   }
   for (const r of live) members.set(r.id, r);
@@ -627,6 +707,8 @@ export async function rateDiscoveryCluster(
             // card, so the ledger must claim one judgement, not twelve.
             discoveryVerdictVia: head.id,
           } as never,
+          discoveryVerdict: verdict,
+          discoveryRatedAt: new Date(),
           // Same reason as rateDiscovery: a judged row must outlive the 24h
           // probationary TTL, or the suppression evaporates overnight.
           expiresAt: null,

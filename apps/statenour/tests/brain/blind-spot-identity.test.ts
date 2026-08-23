@@ -26,6 +26,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   brainMemory: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
     update: vi.fn(),
   },
   remember: vi.fn(),
@@ -64,10 +65,19 @@ const spot = (over: Partial<BlindSpot> = {}): BlindSpot => ({
 type Row = {
   id: string;
   key: string;
+  content: string;
   metadata: Record<string, unknown>;
   deletedAt: Date | null;
   lastSeen: Date;
   expiresAt: Date | null;
+  // THE COLUMNS. The first version of this fake omitted them, so all six
+  // recurrence tests scored green against a policy that did not execute: the
+  // resurface path cleared metadata.discoveryVerdict while every reader in the
+  // wave prefers the column. Modelling only what the code under test happens
+  // to write is how a fake certifies its own blind spot.
+  discoveryVerdict: string | null;
+  discoveryRatedAt: Date | null;
+  discoveryProvenance: string | null;
 };
 
 /**
@@ -126,11 +136,15 @@ function fakeStore(opts: { gatewayNoop?: boolean } = {}) {
       const row: Row = {
         id: `mem-${creates}`,
         key,
+        content,
         metadata: { ...meta },
         deletedAt: null,
         lastSeen: new Date(),
         // The 24h probation the create arm stamps (memory-manager.ts:501).
         expiresAt: new Date(Date.now() + 86_400_000),
+        discoveryVerdict: null,
+        discoveryRatedAt: null,
+        discoveryProvenance: null,
       };
       rows.set(key, row);
       contentByKey.set(key, content);
@@ -152,6 +166,10 @@ function fakeStore(opts: { gatewayNoop?: boolean } = {}) {
       if ("expiresAt" in data) row.expiresAt = data.expiresAt as Date | null;
       if ("deletedAt" in data) row.deletedAt = data.deletedAt as Date | null;
       if ("lastSeen" in data) row.lastSeen = data.lastSeen as Date;
+      if ("discoveryVerdict" in data) row.discoveryVerdict = data.discoveryVerdict as string | null;
+      if ("discoveryRatedAt" in data) row.discoveryRatedAt = data.discoveryRatedAt as Date | null;
+      if ("discoveryProvenance" in data)
+        row.discoveryProvenance = data.discoveryProvenance as string | null;
       return {};
     },
   );
@@ -183,6 +201,8 @@ function fakeStore(opts: { gatewayNoop?: boolean } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // No legacy verdict to inherit unless a test says otherwise.
+  mocks.brainMemory.findMany.mockResolvedValue([]);
 });
 
 describe("blindSpotKey — identity, not discovery time", () => {
@@ -281,6 +301,7 @@ describe("CANARY · idempotence is proven, not asserted", () => {
     const row = store.rows.get(key)!;
     row.metadata.discoveryVerdict = "noise";
     row.metadata.discoveryVerdictSeverityRank = SEVERITY_RANK.high;
+    row.discoveryVerdict = "noise";
 
     // Next night's run, same spot, same severity.
     await persistBlindSpot(spot());
@@ -386,14 +407,24 @@ describe("recurrence policy — suppress by default, resurface only on escalatio
     await persistBlindSpot(spot({ severity: "high" }));
     const key = blindSpotKey(spot());
     const row = store.rows.get(key)!;
+    // rateDiscovery dual-writes. Setting only metadata here is what made the
+    // column assertion below pass trivially against a broken implementation.
     row.metadata.discoveryVerdict = "noise";
     row.metadata.discoveryVerdictSeverityRank = SEVERITY_RANK.high;
     row.metadata.discoveryRatedAt = "2026-08-21T07:37:46.624Z";
+    row.discoveryVerdict = "noise";
+    row.discoveryRatedAt = new Date("2026-08-21T07:37:46.624Z");
 
     const res = await persistBlindSpot(spot({ severity: "critical" }));
 
     expect(res.resurfaced).toBe(true);
-    const after = store.rows.get(key)!.metadata;
+    const resurfacedRow = store.rows.get(key)!;
+    // THE COLUMN, first. Clearing only metadata made the whole recurrence
+    // policy a no-op in prod while this very test stayed green, because every
+    // reader in the wave prefers the column.
+    expect(resurfacedRow.discoveryVerdict).toBeNull();
+    expect(resurfacedRow.discoveryRatedAt).toBeNull();
+    const after = resurfacedRow.metadata;
     expect(after.discoveryVerdict).toBeNull();
     expect(after.discoveryResurfacedFromRank).toBe(SEVERITY_RANK.high);
     expect(after.discoveryResurfacedToRank).toBe(SEVERITY_RANK.critical);
@@ -417,6 +448,7 @@ describe("recurrence policy — suppress by default, resurface only on escalatio
     ] as const) {
       row.metadata.discoveryVerdict = "noise";
       row.metadata.discoveryVerdictSeverityRank = SEVERITY_RANK[judged];
+      row.discoveryVerdict = "noise";
       row.metadata.discoveryRatedAt = `2026-08-2${SEVERITY_RANK[judged]}T00:00:00.000Z`;
       await persistBlindSpot(spot({ severity: next }));
     }
@@ -465,5 +497,162 @@ describe("CANARY · digit normalisation must not merge distinct operator text", 
     expect(
       blindSpotKey(spot({ description: "3 unresolved drift alerts accumulating" })),
     ).toBe(blindSpotKey(spot({ description: "7 unresolved drift alerts accumulating" })));
+  });
+});
+
+
+/**
+ * VERDICT INHERITANCE across the key-scheme change.
+ *
+ * Changing the key does not retroactively unify the 255 rows already written
+ * as `blindspot_<domain>_<epoch>`. Without inheritance the fix would work
+ * going forward while permanently orphaning the only real labels there are:
+ * measured on prod 2026-08-22 the operator has FIVE labels in total, three of
+ * them on legacy blind-spot rows. Losing them is losing 60% of the signal.
+ *
+ * The 1:1 mapping was proven read-only against prod before this shipped — each
+ * of the three unjudged 08-22 rows matched EXACTLY ONE verdict-carrying legacy
+ * row, with the right verdict.
+ */
+describe("CANARY · a stable-key first sighting inherits the legacy verdict", () => {
+  const legacyRow = (over: Record<string, unknown> = {}) => ({
+    id: "legacy-1",
+    key: "blindspot_personal_1787281352755",
+    content: `[HIGH] ${spot().description}: Last updated 51 days ago.`,
+    discoveryVerdict: "noise",
+    discoveryRatedAt: new Date("2026-08-21T03:37:53.470Z"),
+    metadata: {},
+    ...over,
+  });
+
+  it("adopts the verdict onto BOTH the column and metadata", async () => {
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([legacyRow()]);
+
+    const res = await persistBlindSpot(spot());
+
+    expect(res.inheritedVerdictFrom).toBe("legacy-1");
+    const w = mocks.brainMemory.update.mock.calls.at(-1)![0].data;
+    expect(w.discoveryVerdict).toBe("noise");
+    expect(w.metadata.discoveryVerdict).toBe("noise");
+    expect(w.metadata.discoveryVerdictInheritedFrom).toBe("legacy-1");
+    expect(w.expiresAt).toBeNull();
+  });
+
+  it("CANARY · matches the two templates whose LEADING COUNT moves", async () => {
+    // These are the exact templates blindSpotIdentity's digit collapse exists
+    // for, and the first `content contains` bridge could never match them once
+    // the count changed. Inheritance is a one-shot gate, so that miss was
+    // permanent — the bridge failed precisely where it mattered most.
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([
+      legacyRow({
+        key: "blindspot_general_1787281352755",
+        content: "[MEDIUM] 9 decisions awaiting review: Decision replays matter.",
+      }),
+    ]);
+
+    const res = await persistBlindSpot(
+      spot({ domain: "general", description: "11 decisions awaiting review" }),
+    );
+
+    expect(res.inheritedVerdictFrom).toBe("legacy-1");
+    void store;
+  });
+
+  it("CANARY · does NOT adopt across a domain change", async () => {
+    // "Commitment overdue" / "Open loop untouched" do not embed the domain, so
+    // a task moved between missions gets a new identity. The first bridge
+    // filtered on neither domain nor frame and would adopt the old verdict.
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([
+      legacyRow({ key: "blindspot_revenue_1787281352755" }),
+    ]);
+
+    const res = await persistBlindSpot(spot({ domain: "general" }));
+
+    expect(res.inheritedVerdictFrom).toBeUndefined();
+    void store;
+  });
+
+  it("CANARY · treats % and _ as literals, not wildcards", async () => {
+    // Prisma's `contains` does not escape either. Both over-matching templates
+    // interpolate free operator text, so "Cut ad spend 20% this month" became a
+    // wildcard that matched a different task.
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([
+      legacyRow({
+        content: '[HIGH] Open loop untouched: "Cut ad spend 20 basis points": x',
+      }),
+    ]);
+
+    const res = await persistBlindSpot(
+      spot({ description: 'Open loop untouched: "Cut ad spend 20% this month"' }),
+    );
+
+    expect(res.inheritedVerdictFrom).toBeUndefined();
+    void store;
+  });
+
+  it("CANARY · takes the tier the verdict was GIVEN at, not today's", async () => {
+    // discoveryVerdictSeverityRank only started being written 2026-08-22 while
+    // the real legacy verdicts are from 08-21, so the old fallback to today's
+    // severity fired on 100% of the rows this bridge rescues — stamping them
+    // at the escalated tier and suppressing them forever.
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([
+      legacyRow({ content: `[LOW] ${spot().description}: was minor then.`, metadata: {} }),
+    ]);
+
+    const res = await persistBlindSpot(spot({ severity: "critical" }));
+
+    // LOW judged, CRITICAL now => the escalation already happened. It must be
+    // surfaced, not swallowed by adopting the verdict as still-current.
+    expect(res.resurfaced).toBe(true);
+    const w = mocks.brainMemory.update.mock.calls.at(-1)![0].data;
+    expect(w.discoveryVerdict).toBeNull();
+    expect(w.metadata.discoveryResurfacedFromRank).toBe(SEVERITY_RANK.low);
+    expect(w.metadata.discoveryResurfacedToRank).toBe(SEVERITY_RANK.critical);
+  });
+
+  it("CANARY · finds a verdict written only to metadata (deploy window)", async () => {
+    const store = fakeStore();
+    mocks.brainMemory.findMany.mockResolvedValue([
+      legacyRow({ discoveryVerdict: null, metadata: { discoveryVerdict: "known" } }),
+    ]);
+
+    const res = await persistBlindSpot(spot());
+
+    expect(res.inheritedVerdictFrom).toBe("legacy-1");
+    const w = mocks.brainMemory.update.mock.calls.at(-1)![0].data;
+    expect(w.discoveryVerdict).toBe("known");
+    void store;
+  });
+
+  it("orders NULLS LAST — a bare desc is NULLS FIRST on Postgres", async () => {
+    const store = fakeStore();
+    await persistBlindSpot(spot());
+    expect(mocks.brainMemory.findMany.mock.calls[0][0].orderBy).toEqual([
+      { discoveryRatedAt: { sort: "desc", nulls: "last" } },
+    ]);
+    void store;
+  });
+
+  it("includes soft-deleted legacy rows — a tombstone does not unmake a judgement", async () => {
+    const store = fakeStore();
+    await persistBlindSpot(spot());
+    expect(mocks.brainMemory.findMany.mock.calls[0][0].where.deletedAt).toBeUndefined();
+    void store;
+  });
+
+  it("inherits NOTHING when there is no legacy verdict — no invented label", async () => {
+    const store = fakeStore();
+    const res = await persistBlindSpot(spot());
+    expect(res.inheritedVerdictFrom).toBeUndefined();
+    expect(store.rows.size).toBe(1);
+    // Provenance is still stamped, or the column decays to all-NULL and
+    // restoredHidden silently reads zero.
+    const w = mocks.brainMemory.update.mock.calls.at(-1)![0].data;
+    expect(w.discoveryProvenance).toBe("engine");
   });
 });
