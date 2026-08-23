@@ -162,7 +162,36 @@ function readRepoFile(path) {
 }
 const hasRepoFile = (path) => (REF ? refBlobs.has(path) : existsSync(path));
 
-const docs = repoFiles.filter(
+/**
+ * HISTORICAL RECORDS are not current-truth claims, and must not be re-dated.
+ *
+ * A document whose own name or location stamps its frame -- `_archive/`,
+ * `90-archive/`, `research-packs/`, or an ISO date in the filename -- is a
+ * record of what was true THEN. "Nothing calls it" inside
+ * `db-cost-access-patterns-2026-05-12.md` is not a lying surface; it is a
+ * correctly-framed measurement from May.
+ *
+ * This matters because the obvious remedy is wrong. Of 58 flagged clauses, 19
+ * live in such files, and the mechanical fix -- append "as of 2026-08-23,
+ * measured N of M" -- would assert a measurement NOBODY MADE TODAY. That is a
+ * brand-new false claim, manufactured by the tool built to remove false claims,
+ * in the name of tidying the report. One filter is the correct fix for all 19.
+ *
+ * The frame must be in the NAME or the PATH, not merely somewhere in the prose:
+ * a date in the body is a claim like any other, and this rule would then be
+ * self-granting -- any doc could exempt itself by mentioning a date.
+ */
+function isHistoricalRecord(f) {
+  return (
+    f.includes("/_archive/") ||
+    f.startsWith("docs/90-archive/") ||
+    f.startsWith("research-packs/") ||
+    f.startsWith("AUDIT/") ||
+    /\d{4}-\d{2}-\d{2}/.test(f.split("/").pop())
+  );
+}
+
+const allDocs = repoFiles.filter(
   (f) =>
     f.endsWith(".md") &&
     !f.startsWith("node_modules/") &&
@@ -173,6 +202,8 @@ const docs = repoFiles.filter(
     !f.startsWith(".agents/") &&
     !f.includes("/skills/"),
 );
+const historicalDocs = allDocs.filter(isHistoricalRecord);
+const docs = allDocs.filter((f) => !isHistoricalRecord(f));
 
 /**
  * Files that decide whether something actually RUNS at a point in time.
@@ -575,11 +606,18 @@ if (show("count")) {
   if (findings.count.length > 25) console.log(`  … ${findings.count.length - 25} more\n`);
 }
 
+// MAKE THE SKIP LOUD (probe rule 5). A scan that excluded files prints the same
+// green as one that found nothing, so the exclusion is stated on every run --
+// never inferable only from a smaller number.
 console.log(
   `\nscanned ${docs.length} markdown files · ` +
     `gate ${findings.gate.length} (${unresolvedGates} unresolved) · ` +
-    `completeness ${findings.completeness.length} · count ${findings.count.length}`,
+    `completeness ${findings.completeness.length} · count ${findings.count.length}` +
+    `\nskipped ${historicalDocs.length} historical/archive files (date-stamped or archived: their frame is in the path, so re-dating them would assert a measurement nobody made). --show-skipped to list.`,
 );
+if (process.argv.includes("--show-skipped")) {
+  for (const f of historicalDocs) console.log(`  skipped: ${f}`);
+}
 
 if (STRICT && unresolvedGates > 0) {
   console.error(`\n✗ ${unresolvedGates} unresolved GATE claim(s). A doc that names a gate must resolve to one.`);

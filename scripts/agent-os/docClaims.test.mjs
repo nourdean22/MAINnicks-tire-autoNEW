@@ -68,6 +68,24 @@ function withCanaryCommit(path, contents, fn) {
   }
 }
 
+/** Same as withCanaryCommit, for fixtures that need more than one file. */
+function withTwoFiles(files, fn) {
+  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-multi-"));
+  try {
+    const env = { GIT_INDEX_FILE: join(scratch, "index") };
+    git(["read-tree", "HEAD"], env);
+    for (const [i, f] of files.entries()) {
+      const blobFile = join(scratch, `blob${i}`);
+      writeFileSync(blobFile, f.body);
+      const blob = git(["hash-object", "-w", blobFile]);
+      git(["update-index", "--add", "--cacheinfo", `100644,${blob},${f.path}`], env);
+    }
+    return fn(git(["write-tree"], env));
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 function git(argv, env = {}) {
   const r = spawnSync("git", argv, { cwd: ROOT, encoding: "utf8", env: { ...process.env, ...env } });
   assert.equal(r.status, 0, `git ${argv.join(" ")} failed: ${r.stderr}`);
@@ -166,6 +184,39 @@ test("negation: a truthful 'never runs in CI' is not reported, its positive twin
   );
   assert.match(out, /enforced in CI/, "the positive claim must still be detected");
   assert.doesNotMatch(out, /never runs in CI/, "the negated claim must not be reported");
+});
+
+test("historical records are skipped, live docs are not — same clause, both paths", () => {
+  /*
+   * A doc whose NAME or PATH stamps its frame (_archive/, 90-archive/,
+   * research-packs/, an ISO date in the filename) is a record of what was true
+   * then, not a current-truth claim. Re-dating one would assert a measurement
+   * nobody made -- a brand-new false claim manufactured by the tool built to
+   * remove them.
+   *
+   * Both directions in ONE fixture, because a test that only proves the archive
+   * copy is skipped cannot distinguish that from the detector having died: an
+   * identical clause at a live path must still be reported.
+   */
+  // Phrasing matters: COMPLETENESS matches `nothing\s+(else\s+)?calls`, so
+  // "Nothing in this repo ever calls" does NOT match. The first draft of this
+  // fixture used that phrasing and the test failed asserting the live copy was
+  // reported -- the fixture was wrong, not the filter. Recorded because a
+  // fixture that does not trigger the detector tests nothing at all.
+  const clause = "# fixture\n\nNothing calls `resumeStuckCampaigns()` any more.\n";
+  const live = "docs/agent-audit/.hist-fixture-live.md";
+  const archived = "docs/90-archive/.hist-fixture-archived.md";
+
+  const out = withTwoFiles(
+    [{ path: live, body: clause }, { path: archived, body: clause }],
+    (ref) => runChecker(["--only=completeness", `--ref=${ref}`]).out,
+  );
+
+  assert.match(out, /hist-fixture-live/, "the LIVE copy must still be reported");
+  assert.doesNotMatch(out, /hist-fixture-archived/, "the ARCHIVED copy must be skipped");
+  // The skip must be announced, not merely performed -- probe rule 5. A silent
+  // exclusion prints the same green as a clean sweep.
+  assert.match(out, /skipped \d+ historical\/archive files/);
 });
 
 test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () => {
