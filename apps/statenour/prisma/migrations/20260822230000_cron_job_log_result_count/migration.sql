@@ -1,0 +1,56 @@
+-- cron_job_logs · countable-result column · 2026-08-22
+-- APPLIED 2026-08-22, operator-authorized. Promoted here from migrations-pending/;
+-- the parked-migration ledger is ../../migrations-pending/README.md (NOT ../README.md,
+-- which does not exist). Recorded with `prisma migrate resolve --applied`.
+-- ADDITIVE · nullable · no backfill · no data loss.
+--
+-- WHY THIS EXISTS
+-- cron_job_logs has six columns (id, jobName, status, duration, error, createdAt)
+-- and NO result-count column, so a full ingest and a zero-result ingest are
+-- indistinguishable BY SCHEMA. No amount of monitoring discipline could have
+-- caught the difference, because the difference was not representable.
+--
+-- The alerting half is fixed without this column: `ingest-reviews` now throws on
+-- a zero fetch, and cron-heartbeat's new outcome lane pages when a job runs but
+-- never succeeds. That makes the ZERO case legible. It does NOT make MAGNITUDE
+-- legible — 1 review vs 500, or a feed quietly decaying over weeks, still look
+-- identical in this table. This column makes that half REPRESENTABLE and records
+-- it; no consumer selects it yet, so magnitude is not yet legible and no alert can
+-- fire on a decaying feed. That reader is follow-up scope.
+--
+-- NULL vs 0 IS LOAD-BEARING. DO NOT ADD A DEFAULT.
+--   NULL = this run reported no count. Every pre-migration row, and every job
+--          with no countable result, is honestly NULL.
+--   0    = the run happened and produced nothing. A different, real claim.
+-- DEFAULT 0 would backfill a manufactured "produced nothing" onto 66,529
+-- historical rows (counted 2026-08-22, immediately pre-apply) — inventing data
+-- to fill a column, which is the exact fabrication class the repo's
+-- unknown-is-not-zero rule exists to prevent.
+--
+-- COLUMN NAME — READ BEFORE "FIXING" THE CASING.
+-- The TABLE is "cron_job_logs" via @@map, but its COLUMNS are NOT mapped: they
+-- keep Prisma's camelCase spelling verbatim. Proof, from an already-applied
+-- migration in this repo — migrations/20260418001455_add_decay_and_watcher_indexes/
+-- migration.sql writes ON "cron_job_logs" ("jobName","status","createdAt").
+-- Hence "resultCount", double-quoted. A snake_case or unquoted spelling silently
+-- creates a SECOND, unreachable column. Two live queries already have that bug,
+-- both hidden behind a .catch: app/api/cron/data-cleanup/route.ts and
+-- lib/services/autonomic-orchestrator.ts, which reference job_name / created_at.
+--
+-- NO INDEX. Nothing filters or sorts on this column yet; the four existing
+-- indexes cover every read path. Add one when a real query needs it.
+--
+-- Single statement, IF NOT EXISTS so a re-run is a no-op. No DO $$ block: the
+-- apply route splits on ';' and would shatter one into invalid fragments while
+-- earlier statements still landed.
+--
+-- SHIPPED WITH ITS PRODUCER, as this file originally demanded.
+-- `countFrom(result)` in lib/services/cron-manager.ts is threaded into TWO of that
+-- file's three cronJobLog.create calls; the third is the THROW path and omits it on
+-- purpose, because a run that produced no answer is not a run that produced nothing.
+-- A fourth writer exists repo-wide, app/api/cron/mega/route.ts, which also omits it
+-- correctly: a slot-level fan-out heartbeat has no countable ingest result, so NULL
+-- ("made no claim") is the honest value there.
+-- tests/services/cron-manager-result-count.test.ts proves the column DISCRIMINATES.
+
+ALTER TABLE "cron_job_logs" ADD COLUMN IF NOT EXISTS "resultCount" INTEGER;

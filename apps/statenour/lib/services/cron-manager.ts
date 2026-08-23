@@ -40,6 +40,37 @@ function reportedFailureReason(result: unknown): string | null {
 }
 
 /**
+ * The countable result a handler explicitly claims, or null.
+ *
+ * Same rule as reportedFailureReason above, and for the same reason: ONLY AN
+ * EXPLICIT CLAIM COUNTS. A handler that returns no `resultCount` gets NULL, never
+ * 0 — because "produced nothing" and "did not say" are different facts, and
+ * cron_job_logs previously could represent neither.
+ *
+ * That distinction is the whole point of the column. `ingest-reviews` ran 4x/day
+ * for 16 days with a 100% failure rate (64 runs, 64 failures) and nothing could
+ * tell a full ingest from an empty one, because the table had no place to put the
+ * number. Defaulting a missing count to 0 here would re-manufacture exactly the
+ * fabrication the nullable column was chosen to avoid.
+ */
+function countFrom(result: unknown): number | null {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  const r = result as Record<string, unknown>;
+  // Number.isFinite is NOT enough. It admits 2.5, -1, and 1e12 — none of which a
+  // Postgres INTEGER can store. Any of them reaches prisma.cronJobLog.create, is
+  // rejected, and lands in the .catch below, which logs a warning and drops the
+  // write. The row does not arrive with a NULL count; THE WHOLE ROW DISAPPEARS.
+  // That is a strictly worse version of the condition this column exists to end:
+  // a cron run with no trace in the monitoring table. Not reachable from today's
+  // only producer (ingest-reviews passes an integer), but countFrom is deliberately
+  // generic, and the next handler returning a rate or an average would trip it.
+  const v = r.resultCount;
+  return typeof v === "number" && Number.isInteger(v) && Math.abs(v) <= 2147483647
+    ? v
+    : null;
+}
+
+/**
  * v10.0.20 · brain-bus producer wiring. Publish a durable event for the
  * dispatch registry to route. Dedupe key includes minute granularity so a
  * cron firing every 2-5min that fails back-to-back doesn't spam the bus.
@@ -90,19 +121,22 @@ export async function logCronRun(
     const reported = reportedFailureReason(result);
     if (reported) {
       await prisma.cronJobLog.create({
-        data: { jobName, status: "failed", duration: durationMs, error: reported },
+        data: { jobName, status: "failed", duration: durationMs, error: reported, resultCount: countFrom(result) },
       }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "reported-failure-row" }, "warn"));
       publishCronFailure(jobName, reported, durationMs);
       return { success: true, result, durationMs, reportedFailure: reported };
     }
     await prisma.cronJobLog.create({
-      data: { jobName, status: "success", duration: durationMs },
+      data: { jobName, status: "success", duration: durationMs, resultCount: countFrom(result) },
     }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "success-row" }, "warn"));
     return { success: true, result, durationMs };
   } catch (err) {
     const durationMs = Date.now() - start;
     const error = err instanceof Error ? err.message : String(err);
     await prisma.cronJobLog.create({
+      // No resultCount here on purpose: the handler THREW, so no result object
+      // exists and there is no claim to record. Writing 0 would assert "ran and
+      // produced nothing" about a run that produced no answer at all.
       data: { jobName, status: "failed", duration: durationMs, error },
     }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "failure-row" }, "warn"));
 

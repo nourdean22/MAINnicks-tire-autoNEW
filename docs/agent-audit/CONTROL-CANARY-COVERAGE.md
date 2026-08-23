@@ -79,11 +79,16 @@ complete — an unlisted control is not a covered one.
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
 | statenour `cron-heartbeat` **outcome lane** | 1 | **1** | Detects run-but-fail, which the silence check structurally cannot. Proven by `cron-heartbeat-failing-lane.test.ts` |
 | statenour `ingest-reviews` zero-fetch assert | 1 | **1** | A 200 with an empty payload now throws. Proven in `tests/cron/ingest-reviews.test.ts` |
-| **Total** | **50** | **7** | **14.0 %** |
+| `cron_job_logs.resultCount` producer | 1 | **1** | The schema can now tell a full ingest from a zero-result one, and `cron-manager-result-count.test.ts` proves it DISCRIMINATES rather than merely exists |
+| **Total** | **51** | **8** | **15.7 %** |
 
 ---
 
-## Proven — the three that fire
+## Proven — the ones that fire
+
+> The summary table above is the count; this section shows the shape. An earlier
+> heading said "the three that fire" and went stale the moment the total moved,
+> because the number canary matches DIGITS and cannot see a spelled-out word.
 
 | Control | Guards | Canary | Runs in |
 |---|---|---|---|
@@ -91,7 +96,7 @@ complete — an unlisted control is not a covered one.
 | `scripts/agent-os/check-adapters.mjs` (135 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 17 tests: 11 breaks, 3 spare-cases, a cap boundary pair, 1 invariant, 1 positive control | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
 
-All three share one shape worth copying: **they break the control AND assert an unbroken run still
+They share one shape worth copying: **they break the control AND assert an unbroken run still
 passes.** Without that second half, a control that failed unconditionally would score 100 %.
 
 ## Unproven — the rest
