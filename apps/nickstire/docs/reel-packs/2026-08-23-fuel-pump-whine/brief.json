@@ -1,0 +1,93 @@
+{
+  "topic": "Fuel pump whine getting louder over time: a wear signal, not just noise",
+  "campaignKeyword": "FUELPUMP",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-23",
+  "durationSec": 22,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "That whine under the back of your car when you start it up isn't just noise.",
+      "visualPrompt": "Close-up of a car dashboard fuel gauge, needle sitting low near E, warm ambient dash glow, static camera",
+      "stockSearchTerms": ["car fuel gauge low closeup", "dashboard fuel gauge near empty"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "A fuel pump normally hums steady. When it gets louder or changes pitch, that's wear talking.",
+      "visualPrompt": "Exterior close-up under the rear of a car near the fuel tank area, cool workshop lighting, slow push-in, no visible people",
+      "stockSearchTerms": ["car undercarriage fuel tank closeup", "automotive fuel tank exterior shop"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 14],
+      "narration": "Running low on gas makes it worse - the pump can overheat without fuel around it to cool down.",
+      "visualPrompt": "Close-up of a dashboard fuel gauge needle moving from low toward full, ambient light, static camera - visual callback to beat 1",
+      "stockSearchTerms": ["fuel gauge needle rising", "car dashboard fuel gauge filling"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [14, 18],
+      "narration": "Ignore it long enough, and it can fail without warning, not just get louder.",
+      "visualPrompt": "Wide shot of a car engine bay at idle, subtle heat shimmer above the engine, static camera, cool ambient light",
+      "stockSearchTerms": ["car engine bay idling heat shimmer", "automotive engine compartment running"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [18, 22],
+      "narration": "One whine isn't a diagnosis. Stop by and we'll check it before it leaves you stranded.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage/road-noise room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "low-fuel gauge closeup is a decent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "22s, at the studio's own REEL_OUTPUT_RULES ceiling and within the 15-60s generic range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (fuel gauge)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access), and a code grep for 'fuel pump' found no existing evidence row" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged 'can' phrasing throughout; no invented failure timeline" },
+      "keyword": { "score": 5, "max": 5, "note": "fuel pump, whine, stranded keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 22,
+    "ctaType": "SEND-oriented"
+  }
+}
