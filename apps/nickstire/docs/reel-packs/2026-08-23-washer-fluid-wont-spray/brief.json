@@ -1,0 +1,76 @@
+{
+  "topic": "Washer fluid won't spray: three checks in order (nozzle, hose, pump)",
+  "campaignKeyword": "WASHERJET",
+  "producedBy": "scheduled-task, no live operator present",
+  "producedAt": "2026-08-23",
+  "mode": "SCHEDULED/INTELLIGENCE - pack only, no generation/DB/publish call made",
+  "totalDurationSec": 22,
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "startSec": 0,
+      "endSec": 4,
+      "narration": "Washer fluid won't spray, but the reservoir isn't empty? It's usually not the pump.",
+      "visualPrompt": "Close-up under an open hood on a windshield-washer fluid reservoir, translucent plastic, fluid visible near full line, static camera",
+      "stockSearchTerms": ["car washer fluid reservoir closeup", "windshield washer tank under hood"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "startSec": 4,
+      "endSec": 9,
+      "narration": "Check the nozzles first. A clogged jet is the most common reason nothing comes out.",
+      "visualPrompt": "Extreme close-up on a windshield washer nozzle/jet mounted on the hood or cowl panel, static camera, morning dew on the hood",
+      "stockSearchTerms": ["windshield washer nozzle closeup", "car hood washer jet macro"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "startSec": 9,
+      "endSec": 14,
+      "narration": "Next, the line itself. A hose that cracked in a hard freeze can leak fluid before it reaches the nozzle.",
+      "visualPrompt": "Close-up following a washer fluid hose routed through the engine bay toward the firewall, static camera, cool workshop lighting",
+      "stockSearchTerms": ["car washer fluid hose engine bay", "automotive washer line closeup"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "startSec": 14,
+      "endSec": 18,
+      "narration": "Only after those two check out is the pump motor the likely cause.",
+      "visualPrompt": "Close-up on the washer pump motor housing at the base of the reservoir, static camera, neutral lighting",
+      "stockSearchTerms": ["washer pump motor reservoir base", "automotive washer pump closeup"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "startSec": 18,
+      "endSec": 22,
+      "narration": "Three checks, one order. Stop by and we'll find the right one fast.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "outOf": 75,
+    "note": "Self-check only, not calculateReelQualityScore() - that function was not invoked (no live app build in this session)"
+  },
+  "claimEvidence": "See README.md section 3 - all claims UNKNOWN against this repo's evidence store (no live DB read performed)",
+  "musicRights": "UNASSIGNED - no music-rights ledger exists in this repo, see README.md section 6",
+  "renderStatus": "NOT RENDERED - no motion route available this run (no ffmpeg, no Higgsfield credentials, no server process)",
+  "postingSpecs": {
+    "platforms": ["Instagram Reels", "Facebook"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "codec": "H.264",
+    "fps": 30,
+    "runtimeSec": 22,
+    "ctaFreezeHoldSec": 3,
+    "account": "@nicks_tire_euclid",
+    "ctaStyle": "SEND-oriented"
+  },
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}
