@@ -1178,8 +1178,14 @@ export function registerBridgeRoutes(app: Express): void {
   // Get cron status (read-only action)
   app.get("/api/bridge/cron-status", bridgeAuth, async (_req, res) => {
     try {
-      const { getJobStatuses } = await import("../cron/index");
-      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
+      // 2026-08-23 · was `getJobStatuses()` from the decommissioned cron/index
+      // registry. Its `lastRun` was permanently null, so this endpoint — whose
+      // BRIDGE_OPS summary promises "Status of scheduled cron jobs" and which
+      // statenour and agents query for exactly that — reported a fleet of
+      // never-run crons while the tiered scheduler ran ~288 jobs a day.
+      const { getCronStatus } = await import("../cron/cron-status");
+      const status = await getCronStatus();
+      res.json({ ...status, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
       log.error("[Bridge] Cron status error:", err);
       res.json({ jobs: [], error: "Internal error" });

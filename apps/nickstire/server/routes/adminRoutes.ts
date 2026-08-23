@@ -41,10 +41,21 @@ export function registerAdminRoutes(app: Express): void {
   }).catch(e => serverLog.warn("[server:init] SSE endpoint registration failed", { error: e instanceof Error ? e.message : String(e) }));
 
   // ─── Cron Status (admin) ──────────────────────────────
+  // 2026-08-23 · was `getJobStatuses()` from the decommissioned cron/index
+  // registry, whose `lastRun` was structurally always null — so this endpoint
+  // reported "nothing has ever run" for all 33 jobs while the tiered scheduler
+  // ran ~288 a day. `docs/ncsos-post-deploy-checklist.md` points the operator
+  // here to verify crons after a deploy, which made it the worst place in the
+  // app to be confidently wrong. Now reads cron_log, the only record of a run.
+  //
+  // `observable` is forwarded deliberately: false means cron_log could not be
+  // read, which is NOT "nothing ran". A caller that collapses the two
+  // reintroduces the ambiguity this endpoint just got rid of.
   app.get("/api/admin/cron-status", requireAdminApiKey, (req, res) => {
-    import("../cron/index").then(({ getJobStatuses }) => {
-      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
-    }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
+    import("../cron/cron-status").then(async ({ getCronStatus }) => {
+      const status = await getCronStatus();
+      res.json({ ...status, timestamp: new Date().toISOString() });
+    }).catch(() => res.json({ jobs: [], observable: false, schedulerStarted: false, error: "Failed to load cron status" }));
   });
 
   // ─── Run pending migrations (admin · idempotent) ──────
