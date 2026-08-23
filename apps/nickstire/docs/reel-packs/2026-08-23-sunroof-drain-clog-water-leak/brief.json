@@ -1,0 +1,110 @@
+{
+  "topic": "sunroof-drain-clog-water-leak",
+  "runMode": "INTELLIGENCE_SCHEDULED",
+  "generatedBy": "scheduled-task",
+  "generatedAt": "2026-08-23",
+  "liveGenerationInvoked": false,
+  "livePublishInvoked": false,
+  "prodDbReadInvoked": false,
+  "hook": "That water on your seat isn't from the roof.",
+  "aspectRatio": "9:16",
+  "durationSeconds": 33,
+  "faceless": true,
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "startSec": 0,
+      "endSec": 4,
+      "vo": "Water dripping from your headliner after it rains? Might not be a roof leak.",
+      "prompt": "macro slow motion water droplet forming and falling from a car headliner seam onto a fabric car seat, interior car cabin, soft window light, shallow depth of field, cinematic, photorealistic"
+    },
+    {
+      "index": 2,
+      "role": "context",
+      "startSec": 4,
+      "endSec": 9,
+      "vo": "Most sunroofs have four drain tubes that carry rainwater down through the pillars.",
+      "prompt": "close up exterior shot of car sunroof glass panel, rain droplets beading and running toward the front corner drain channel, wet reflective glass, overcast daylight, photorealistic"
+    },
+    {
+      "index": 3,
+      "role": "mechanism",
+      "startSec": 9,
+      "endSec": 14,
+      "vo": "Leaves and dirt can clog one, so water backs up instead of draining out.",
+      "prompt": "extreme close up of a narrow plastic drain tube opening inside a car door pillar, partially clogged with small leaf debris and dirt, water pooling against the blockage, macro detail, photorealistic"
+    },
+    {
+      "index": 4,
+      "role": "symptom",
+      "startSec": 14,
+      "endSec": 19,
+      "vo": "That backup finds the easiest way in — usually the headliner or a rear pillar.",
+      "prompt": "interior car cabin, water beading and dripping from a headliner corner trim piece onto a car seat cushion, a small dark water spot spreading on the carpet below, moody interior lighting, photorealistic"
+    },
+    {
+      "index": 5,
+      "role": "diagnostic_clue",
+      "startSec": 19,
+      "endSec": 24,
+      "vo": "One clue: it usually only happens after rain or a car wash — not all the time.",
+      "prompt": "close up of a small flexible plastic pick tool clearing leaf debris from a car drain tube opening with no hands or human figures visible, water then flowing freely through the cleared tube, macro detail, photorealistic"
+    },
+    {
+      "index": 6,
+      "role": "resolution",
+      "startSec": 24,
+      "endSec": 27,
+      "vo": "Worth checking before you assume it's a full roof leak.",
+      "prompt": "wide shot of a clean dry car sunroof track and headliner interior, cut to water flowing clearly out of a drain tube exit under the vehicle rocker panel onto pavement, photorealistic, cinematic"
+    },
+    {
+      "index": 7,
+      "role": "cta_save_freeze",
+      "startSec": 27,
+      "endSec": 33,
+      "vo": "Stop by and we'll take a look.",
+      "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame"
+    }
+  ],
+  "claimSafety": {
+    "phrasesUsed": ["might not be", "worth checking", "one clue", "stop by and we'll take a look"],
+    "priceClaims": false,
+    "guaranteeClaims": false,
+    "fearmongering": false
+  },
+  "evidence": {
+    "businessFactsCited": [],
+    "evidenceRecordsCited": [],
+    "note": "General automotive mechanism knowledge only, not a sourced businessFacts/EvidenceRecord claim. reel/social is not yet a FactChannel in this repo."
+  },
+  "qualityScoreEstimate": {
+    "isRealServerScore": false,
+    "totalExcludingTournament": 59,
+    "maxExcludingTournament": 70,
+    "passesFloorOf70": false,
+    "dimensions": {
+      "firstFrameScrollStop": 8,
+      "mutedFirst": 10,
+      "beatStructure": 5,
+      "length": 5,
+      "loopability": 3,
+      "sourcedFact": 4,
+      "faceless": 10,
+      "claimSafety": 10,
+      "keywordRelevance": 4
+    }
+  },
+  "musicRights": {
+    "status": "UNKNOWN",
+    "note": "No music-rights ledger exists in this repo. Human editor must select and license-verify a track at assembly time."
+  },
+  "repetitionCheck": {
+    "mergedPacksChecked": 78,
+    "openReelPackPrsChecked": 9,
+    "collisionFound": false
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
