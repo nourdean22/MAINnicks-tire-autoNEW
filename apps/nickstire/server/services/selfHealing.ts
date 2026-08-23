@@ -112,19 +112,58 @@ export function __resetAlertThrottleForTests(): void {
   lastAlertedAt.clear();
 }
 
+/**
+ * Pick the issues to deliver this pass, and hand back a `release` for the
+ * failure path.
+ *
+ * Two defects here were caught in review on #1805 before merge, both worth
+ * naming because both made the throttle quietly lose alerts:
+ *
+ * 1 · THROTTLE PER PASS, NOT PER ISSUE. The first draft stamped the category
+ *     inside the loop, so when one pass found several stale crons only the
+ *     FIRST was delivered and every later one in that category was treated as
+ *     already-throttled. Cadence iteration order is stable, so the same job
+ *     would be reported every hour while its siblings never reached Telegram
+ *     at all. A category admitted this pass now carries ALL of its messages.
+ *
+ * 2 · COMMIT AFTER DELIVERY, NOT BEFORE. The stamp was written before
+ *     `alertSystem` ran, and the caller only logs a rejected send — so one
+ *     transient Telegram failure suppressed the next eleven five-minute checks
+ *     for a still-active condition. `release()` restores the previous stamps
+ *     so a failed send stays retryable on the next pass.
+ */
 export function selectAlertableIssues(
   issues: readonly HealthIssue[],
   now: number = Date.now(),
-): HealthIssue[] {
-  const out: HealthIssue[] = [];
+): { issues: HealthIssue[]; release: () => void } {
+  // Decide admission per CATEGORY first, then take every message belonging to
+  // an admitted category.
+  const admitted = new Set<HealthIssueCategory>();
   for (const issue of issues) {
     if (ISSUE_DELIVERY[issue.category] !== "alert") continue;
+    if (admitted.has(issue.category)) continue;
     const last = lastAlertedAt.get(issue.category);
     if (last !== undefined && now - last < ALERT_THROTTLE_MS) continue;
-    lastAlertedAt.set(issue.category, now);
-    out.push(issue);
+    admitted.add(issue.category);
   }
-  return out;
+
+  // Remember prior stamps so a failed delivery can be rolled back rather than
+  // silently consuming the category's hour.
+  const previous = new Map<HealthIssueCategory, number | undefined>();
+  for (const category of admitted) {
+    previous.set(category, lastAlertedAt.get(category));
+    lastAlertedAt.set(category, now);
+  }
+
+  return {
+    issues: issues.filter((i) => admitted.has(i.category)),
+    release: () => {
+      for (const [category, prior] of previous) {
+        if (prior === undefined) lastAlertedAt.delete(category);
+        else lastAlertedAt.set(category, prior);
+      }
+    },
+  };
 }
 
 // `loadLastCompletions()` moved to cron/cron-status.ts on 2026-08-23 and is
@@ -341,11 +380,17 @@ export async function runSelfHealingChecks(): Promise<{
     // to alert. The throttle inside keeps a standing condition from paging every
     // five minutes.
     const alertable = selectAlertableIssues(issues);
-    if (alertable.length > 0) {
+    if (alertable.issues.length > 0) {
       alertSystem(
         "Self-Healing Alert",
-        [...alertable.map((i) => i.message), ...actions].join("\n")
-      ).catch((e) => { log.warn("[services/selfHealing] fire-and-forget failed:", e); });
+        [...alertable.issues.map((i) => i.message), ...actions].join("\n")
+      ).catch((e) => {
+        // Roll the throttle back. Without this a single transient Telegram
+        // failure suppresses the next eleven five-minute passes for a
+        // condition that is still active and was never reported.
+        alertable.release();
+        log.warn("[services/selfHealing] alert delivery failed — throttle released for retry:", e);
+      });
     }
   }
 

@@ -21,8 +21,8 @@ import { join } from "path";
 import {
   findCronWiringFaults,
   REGISTRY_TIER_ALIASES,
-  type RegistryTierAlias,
 } from "./cron/registry-tier-map";
+import { buildCronJobStatuses, type TierCadence } from "./cron/cron-status";
 import {
   HEALTH_ISSUE_CATEGORIES,
   ISSUE_DELIVERY,
@@ -154,7 +154,7 @@ describe("canary · self-healing alert routing", () => {
     // this asserts the runtime behaviour of that gap so the guarantee is not
     // purely compile-time — a `as any` cast anywhere would otherwise reopen it.
     const orphan = { category: "SOMETHING_NEW", message: "x" } as unknown as HealthIssue;
-    expect(selectAlertableIssues([orphan])).toEqual([]);
+    expect(selectAlertableIssues([orphan]).issues).toEqual([]);
     expect(Object.keys(ISSUE_DELIVERY)).not.toContain("SOMETHING_NEW");
   });
 
@@ -169,7 +169,7 @@ describe("canary · self-healing alert routing", () => {
 
   it("PASSES: all eleven categories currently reach the operator", () => {
     const issues: HealthIssue[] = HEALTH_ISSUE_CATEGORIES.map((category) => ({ category, message: `${category} fired` }));
-    expect(selectAlertableIssues(issues)).toHaveLength(HEALTH_ISSUE_CATEGORIES.length);
+    expect(selectAlertableIssues(issues).issues).toHaveLength(HEALTH_ISSUE_CATEGORIES.length);
   });
 
   it("the six formerly-mute categories are among them", () => {
@@ -184,30 +184,186 @@ describe("canary · self-healing alert routing", () => {
     ];
     for (const category of formerlyMute) {
       __resetAlertThrottleForTests();
-      expect(selectAlertableIssues([{ category, message: "x" }]), category).toHaveLength(1);
+      expect(selectAlertableIssues([{ category, message: "x" }]).issues, category).toHaveLength(1);
     }
   });
 
   it("throttles a standing condition to once an hour, per category", () => {
     const t0 = 1_000_000;
     const stale: HealthIssue = { category: "CRON_STALE", message: "a" };
-    expect(selectAlertableIssues([stale], t0)).toHaveLength(1);
-    expect(selectAlertableIssues([stale], t0 + 5 * 60_000)).toHaveLength(0);
-    expect(selectAlertableIssues([stale], t0 + 61 * 60_000)).toHaveLength(1);
+    expect(selectAlertableIssues([stale], t0).issues).toHaveLength(1);
+    expect(selectAlertableIssues([stale], t0 + 5 * 60_000).issues).toHaveLength(0);
+    expect(selectAlertableIssues([stale], t0 + 61 * 60_000).issues).toHaveLength(1);
   });
 
   it("the throttle is keyed on category, not message text", () => {
     // CRON_STALE messages carry a live minute count, so a text-keyed throttle
     // would let every pass through and the throttle would do nothing.
     const t0 = 2_000_000;
-    expect(selectAlertableIssues([{ category: "CRON_STALE", message: "stale 5min" }], t0)).toHaveLength(1);
-    expect(selectAlertableIssues([{ category: "CRON_STALE", message: "stale 10min" }], t0 + 60_000)).toHaveLength(0);
+    expect(selectAlertableIssues([{ category: "CRON_STALE", message: "stale 5min" }], t0).issues).toHaveLength(1);
+    expect(selectAlertableIssues([{ category: "CRON_STALE", message: "stale 10min" }], t0 + 60_000).issues).toHaveLength(0);
   });
 
   it("a throttled category does not suppress a DIFFERENT category", () => {
     const t0 = 3_000_000;
     selectAlertableIssues([{ category: "CRON_STALE", message: "a" }], t0);
-    expect(selectAlertableIssues([{ category: "DATABASE_DOWN", message: "b" }], t0 + 1000)).toHaveLength(1);
+    expect(selectAlertableIssues([{ category: "DATABASE_DOWN", message: "b" }], t0 + 1000).issues).toHaveLength(1);
+  });
+
+  // --- Regressions caught in review on #1805, before merge -----------------
+
+  it("BREAKS: several issues in ONE category all reach the operator in one pass", () => {
+    // The first draft stamped the category inside the loop, so only the FIRST
+    // stale cron was delivered and its siblings read as already-throttled.
+    // Cadence iteration order is stable, so the same job would be reported
+    // every hour while the others never reached Telegram at all.
+    const many: HealthIssue[] = [
+      { category: "CRON_STALE", message: "job-a stale" },
+      { category: "CRON_STALE", message: "job-b stale" },
+      { category: "CRON_STALE", message: "job-c stale" },
+    ];
+    const picked = selectAlertableIssues(many, 4_000_000);
+    expect(picked.issues.map((i) => i.message)).toEqual([
+      "job-a stale",
+      "job-b stale",
+      "job-c stale",
+    ]);
+  });
+
+  it("the NEXT pass is still throttled after a multi-issue batch", () => {
+    const t0 = 5_000_000;
+    selectAlertableIssues(
+      [{ category: "CRON_STALE", message: "a" }, { category: "CRON_STALE", message: "b" }],
+      t0,
+    );
+    expect(selectAlertableIssues([{ category: "CRON_STALE", message: "c" }], t0 + 60_000).issues)
+      .toHaveLength(0);
+  });
+
+  it("BREAKS: a failed delivery releases the throttle so the category retries", () => {
+    // The stamp used to be committed before alertSystem ran, and the caller
+    // only logs a rejection - so one transient Telegram failure suppressed the
+    // next eleven five-minute checks for a still-active condition.
+    const t0 = 6_000_000;
+    const first = selectAlertableIssues([{ category: "DATABASE_DOWN", message: "down" }], t0);
+    expect(first.issues).toHaveLength(1);
+
+    // Without release(), a pass one minute later is throttled...
+    expect(selectAlertableIssues([{ category: "DATABASE_DOWN", message: "down" }], t0 + 60_000).issues)
+      .toHaveLength(0);
+
+    // ...and after it, the category is retryable again.
+    first.release();
+    expect(selectAlertableIssues([{ category: "DATABASE_DOWN", message: "down" }], t0 + 60_000).issues)
+      .toHaveLength(1);
+  });
+
+  it("release() restores the PRIOR stamp rather than clearing the throttle", () => {
+    // A naive delete would let a category that alerted an hour ago fire
+    // immediately after any unrelated failed send.
+    const t0 = 7_000_000;
+    selectAlertableIssues([{ category: "MEMORY_HIGH", message: "1" }], t0);
+    const second = selectAlertableIssues([{ category: "MEMORY_HIGH", message: "2" }], t0 + 61 * 60_000);
+    expect(second.issues).toHaveLength(1);
+    second.release();
+    // Stamp is back at t0, so a pass 30 min after t0 is still inside the hour.
+    expect(selectAlertableIssues([{ category: "MEMORY_HIGH", message: "3" }], t0 + 30 * 60_000).issues)
+      .toHaveLength(0);
+  });
+});
+
+// -------------------------------------------------------------------------
+// 2b - Alias resolution on the status surface (review regression, #1805)
+// -------------------------------------------------------------------------
+describe("canary - cron status resolves aliases before declaring a job unwired", () => {
+  const CADENCE: TierCadence = {
+    intervalMin: 120,
+    businessHoursOnly: false,
+    oncePerShopDay: false,
+    tier: "hourly",
+  };
+  const ALIASES = [{ registryName: "retention-7day", coveredBy: "retention-all" }];
+
+  it("BREAKS: an aliased job must NOT be reported as tier: null", () => {
+    // The first draft unioned registry names with tier names and looked up
+    // cadence by exact name, so all six aliased names came back tier: null —
+    // which this module documents as "cannot run". Six permanent false wiring
+    // failures, introduced by the change that repaired the surface.
+    const [job] = buildCronJobStatuses(
+      [{ name: "retention-7day", enabled: true }],
+      new Map([["retention-all", CADENCE]]),
+      new Map([["retention-all", "2026-08-23T10:00:00.000Z"]]),
+      ALIASES,
+    ).filter((j) => j.name === "retention-7day");
+
+    expect(job.tier).toBe("hourly");
+    expect(job.intervalMin).toBe(120);
+    expect(job.coveredBy).toBe("retention-all");
+    // An alias has no cron_log rows of its own; the covering job's completion
+    // is the one that means anything.
+    expect(job.lastCompletedAt).toBe("2026-08-23T10:00:00.000Z");
+  });
+
+  it("a STALE alias still reads as unwired, not as covered", () => {
+    // Covering job deleted: the alias must NOT launder the gap into health.
+    const [job] = buildCronJobStatuses(
+      [{ name: "retention-7day", enabled: true }],
+      new Map(), // retention-all is GONE
+      new Map(),
+      ALIASES,
+    );
+    expect(job.tier).toBeNull();
+    expect(job.coveredBy).toBeNull();
+  });
+
+  it("a genuinely unwired job is still reported as tier: null", () => {
+    const [job] = buildCronJobStatuses(
+      [{ name: "campaign-resume", enabled: true }],
+      new Map([["retention-all", CADENCE]]),
+      new Map(),
+      ALIASES,
+    ).filter((j) => j.name === "campaign-resume");
+    expect(job.tier).toBeNull();
+    expect(job.coveredBy).toBeNull();
+  });
+
+  it("a directly-wired job reports its own tier and never a cover", () => {
+    const [job] = buildCronJobStatuses(
+      [{ name: "self-healing", enabled: true }],
+      new Map([["self-healing", { ...CADENCE, tier: "heartbeat", intervalMin: 5 }]]),
+      new Map([["self-healing", "2026-08-23T19:13:17.000Z"]]),
+      ALIASES,
+    );
+    expect(job.tier).toBe("heartbeat");
+    expect(job.coveredBy).toBeNull();
+    expect(job.lastCompletedAt).toBe("2026-08-23T19:13:17.000Z");
+  });
+
+  it("an unreadable cron_log yields null completions, never invented ones", () => {
+    const [job] = buildCronJobStatuses(
+      [{ name: "self-healing", enabled: true }],
+      new Map([["self-healing", CADENCE]]),
+      null, // cron_log unreadable
+      ALIASES,
+    );
+    expect(job.lastCompletedAt).toBeNull();
+    // The caller must branch on `observable` — this asserts the shape does not
+    // silently present "cannot tell" as "never ran".
+    expect(job.tier).toBe("hourly");
+  });
+
+  it("the rollback is WIRED, not merely available", () => {
+    // The tests above prove release() works. They do NOT prove anything calls
+    // it — delete the .catch() handler in runSelfHealingChecks and every one of
+    // them still passes. That is the built-tested-unwired shape this whole PR
+    // is about, reproduced inside its own canary; assert the consumer.
+    const src = read("server/services/selfHealing.ts");
+    const call = src.slice(src.indexOf("const alertable = selectAlertableIssues"));
+    const block = call.slice(0, call.indexOf("\n  }"));
+    expect(block, "alertSystem must be invoked with the selected issues").toContain("alertSystem(");
+    expect(block, "the rejection path must release the throttle").toMatch(
+      /\.catch\([\s\S]*alertable\.release\(\)/,
+    );
   });
 });
 

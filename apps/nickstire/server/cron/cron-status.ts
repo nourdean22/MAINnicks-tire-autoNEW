@@ -50,6 +50,18 @@ export interface CronJobStatus {
    * found — which is meaningful only when `observable` is true.
    */
   lastCompletedAt: string | null;
+  /**
+   * Set when this registry name is an ALIAS — the work runs under a
+   * differently-named tier job, and `tier` / `intervalMin` / `lastCompletedAt`
+   * above are that job's.
+   *
+   * Without this, the six aliased registry names (`retention-*`,
+   * `statenour-sync`) resolved to `tier: null` on both endpoints, which this
+   * module documents as "cannot run" — six permanent false wiring failures
+   * introduced by the very change that repaired the surface. Caught in review
+   * on #1805 before merge.
+   */
+  coveredBy: string | null;
 }
 
 export interface CronStatusReport {
@@ -116,32 +128,81 @@ export async function loadLastCompletions(): Promise<Map<string, string> | null>
  * `tier: null`. That is a WIRING fault and is exactly what the two crons
  * stranded on the retired `startAllJobs()` path looked like.
  */
-export async function getCronStatus(): Promise<CronStatusReport> {
-  const { getJobCadences } = await import("./scheduler");
-  const { getRegisteredJobNames } = await import("./index");
+/** Cadence shape returned by `getJobCadences()` in cron/scheduler.ts. */
+export interface TierCadence {
+  intervalMin: number;
+  businessHoursOnly: boolean;
+  oncePerShopDay: boolean;
+  tier: string;
+}
 
-  const cadences = getJobCadences();
-  const lastCompletions = await loadLastCompletions();
-  const observable = lastCompletions !== null;
+/**
+ * PURE. Kept separate from `getCronStatus()` so alias resolution can be tested
+ * by BEHAVIOUR rather than by grepping this file.
+ *
+ * That distinction is not academic: the first canary for this asserted the
+ * source contained "REGISTRY_TIER_ALIASES" and "coveredBy", and a mutation
+ * probe that replaced the whole resolution with `const coveredBy = null` left
+ * every one of those strings in place and stayed GREEN. A source-text
+ * assertion tests that code was written, never that it works.
+ */
+export function buildCronJobStatuses(
+  registryJobs: ReadonlyArray<{ name: string; enabled: boolean }>,
+  cadences: ReadonlyMap<string, TierCadence>,
+  lastCompletions: ReadonlyMap<string, string> | null,
+  aliases: readonly { registryName: string; coveredBy: string }[],
+): CronJobStatus[] {
+  const aliasByName = new Map(aliases.map((a) => [a.registryName, a.coveredBy]));
 
   // Union of both name sources so a job stranded in the registry is visible
   // rather than quietly absent from the report.
   const names = new Set<string>([
     ...cadences.keys(),
-    ...getRegisteredJobNames().filter((j) => j.enabled).map((j) => j.name),
+    ...registryJobs.filter((j) => j.enabled).map((j) => j.name),
   ]);
 
-  const jobs: CronJobStatus[] = [...names].sort().map((name) => {
-    const cadence = cadences.get(name);
+  return [...names].sort().map((name) => {
+    // Resolve aliases BEFORE concluding a job is unwired. Six registry names
+    // are covered by a differently-named tier job; reporting them as
+    // `tier: null` would mean "cannot run" on a surface whose whole purpose is
+    // to stop being confidently wrong. Their cadence and last completion are
+    // the COVERING job's, because that is the thing that actually runs.
+    const direct = cadences.get(name);
+    const alias = direct ? null : aliasByName.get(name) ?? null;
+    const cadence = direct ?? (alias ? cadences.get(alias) : undefined);
+    const effectiveName = direct ? name : alias ?? name;
+
     return {
       name,
       tier: cadence?.tier ?? null,
       intervalMin: cadence?.intervalMin ?? null,
       businessHoursOnly: cadence?.businessHoursOnly ?? false,
       oncePerShopDay: cadence?.oncePerShopDay ?? false,
-      lastCompletedAt: lastCompletions?.get(name) ?? null,
+      lastCompletedAt: lastCompletions?.get(effectiveName) ?? null,
+      // Only report a cover that actually resolved to a live tier. A stale
+      // alias (covering job deleted) must still surface as tier: null, i.e.
+      // as the wiring fault it is — findCronWiringFaults reports it by name.
+      coveredBy: cadence && alias ? alias : null,
     };
   });
+}
 
-  return { observable, schedulerStarted: cadences.size > 0, jobs };
+export async function getCronStatus(): Promise<CronStatusReport> {
+  const { getJobCadences } = await import("./scheduler");
+  const { getRegisteredJobNames } = await import("./index");
+  const { REGISTRY_TIER_ALIASES } = await import("./registry-tier-map");
+
+  const cadences = getJobCadences();
+  const lastCompletions = await loadLastCompletions();
+
+  return {
+    observable: lastCompletions !== null,
+    schedulerStarted: cadences.size > 0,
+    jobs: buildCronJobStatuses(
+      getRegisteredJobNames(),
+      cadences,
+      lastCompletions,
+      REGISTRY_TIER_ALIASES,
+    ),
+  };
 }
