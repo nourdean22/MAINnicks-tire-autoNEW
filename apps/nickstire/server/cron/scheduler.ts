@@ -535,6 +535,51 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // 2026-08-23 · WIRED. This job existed only in registerAllJobs()
+        // (cron/index.ts) and in no tier, so it had never run: production
+        // cron_log held ZERO rows for `campaign-resume` while control jobs in
+        // the same table showed 2,344 / 799 / 38 runs.
+        //
+        // It is the recovery net for a campaign whose dyno dies mid-blast —
+        // routers/campaigns.ts names it in five separate comments ("leave rows
+        // 'pending' and let resumeStuckCampaigns (5-min cron) pick the...").
+        // Without it, `sms_campaign_sends` rows stay 'pending' forever and
+        // those customers are permanently skipped.
+        //
+        // Measured blast radius at wiring time: ZERO. 0 pending rows; 2
+        // campaigns, both 'completed', none stranded 'active', newest 55 days
+        // old. The net has never been needed yet — it simply was not there.
+        // Wired now so it exists before the first campaign that needs it, not
+        // after. 5 min is the cadence the 90-second staleness heuristic in
+        // resumeStuckCampaigns was written against.
+        //
+        // ─── SMS SIDE EFFECT · why this is not agent-initiated outreach ───
+        //
+        // This job CAN send real SMS: for a campaign still 'active' with rows
+        // left 'pending', it calls processCampaignSends(). Root AGENTS.md bars
+        // customer-facing sends on agent initiative, so the distinction matters
+        // and is recorded here rather than left for the next reader to re-derive.
+        //
+        // Every recipient it texts is a row the OPERATOR created by launching
+        // the campaign. This job originates no audience, picks no message and
+        // adds no recipient — it finishes a blast the operator started and a
+        // dyno restart interrupted. `sms_campaigns.status` is
+        // ("draft" | "active" | "completed") with NO paused state, so 'active'
+        // means unambiguously "should be sending"; there is no operator intent
+        // this could misread as a pause.
+        //
+        // The behaviour change to know about: before this, a campaign stranded
+        // 'active' stayed stranded forever. Now it resumes within ~5 minutes.
+        // That is the fix, and it is also the only way this job is observable
+        // from the outside. Note SMS_KILL_SWITCH does NOT gate it — that switch
+        // is Twilio-only and the shop gateway path stays live (socialPipeline.ts).
+        name: "campaign-resume",
+        handler: async () => {
+          const { resumeStuckCampaigns } = await import("../routers/campaigns");
+          return resumeStuckCampaigns();
+        },
+      },
+      {
         name: "alg-mirror-health", // CRITICAL: detect stale ALG data fast
         businessHoursOnly: true,
         handler: async () => {
@@ -1502,6 +1547,33 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { runWeeklyRevenueDigest } = await import("./jobs/weeklyRevenueDigest");
           return runWeeklyRevenueDigest();
+        },
+      },
+      {
+        // 2026-08-23 · WIRED. Same defect as campaign-resume: registered in
+        // cron/index.ts, present in no tier, ZERO cron_log rows ever.
+        //
+        // It is the ONLY producer of `sms_learning_recommendations` rows
+        // (services/smsLearningEngine.ts). The consumer has been live the whole
+        // time — routers/smsOrchestrator.ts lists those rows and approves or
+        // rejects them — so the admin review panel showed an empty list, which
+        // reads as "the learning engine found nothing to recommend" when the
+        // truth was "the engine has never run". Production confirmed the
+        // prediction exactly: 0 rows, newest NULL.
+        //
+        // Declared cadence is weekly. It lives in THIS tier rather than the 24h
+        // one for the ROS-081 reason the digest above documents: the daily
+        // tier's phase can park outside business hours indefinitely, whereas
+        // here it gets several chances a day and oncePerShopDay keeps it to
+        // exactly one run. The weekday gate is inside the handler, matching
+        // weekly-strategic-insight.
+        name: "sms-learning-digest",
+        oncePerShopDay: true,
+        handler: async () => {
+          const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
+          if (dow !== "Monday") return { recordsProcessed: 0, details: `${dow}: weekly digest runs Mondays` };
+          const { processSmsLearningDigest } = await import("../services/smsLearningEngine");
+          return processSmsLearningDigest();
         },
       },
     ],

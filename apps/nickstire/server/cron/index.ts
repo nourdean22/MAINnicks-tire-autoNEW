@@ -10,14 +10,31 @@ import { randomUUID } from "crypto";
 import { BUSINESS } from "@shared/business";
 const log = createLogger("cron");
 
+/**
+ * A job in the LEGACY registry.
+ *
+ * This registry no longer schedules anything — `startTieredScheduler()` in
+ * cron/scheduler.ts owns execution. What survives here is the HTTP-trigger
+ * path (`runJobByName`, used by `/api/bridge/run-job`) and the cross-dyno
+ * lock helpers, both of which the scheduler imports.
+ *
+ * 2026-08-23 · `lastRun`, `running` and `intervalId` were DELETED. Each was
+ * written only by `runJob()`, which had zero call sites once `startAllJobs()`
+ * was decommissioned — so all three were permanently at their initial value
+ * while three consumers read them as if they were live. Deleting the fields
+ * with the execution path is the point: a decommission that leaves state
+ * readable is silent, and silence reads as health. Run state now comes from
+ * cron_log via cron/cron-status.ts, the only record of an actual run.
+ *
+ * `intervalMs` is retained ONLY as documentation of each job's intended
+ * cadence. It schedules nothing; the owning tier's interval is the real
+ * cadence and `getJobCadences()` is where to read it.
+ */
 interface CronJob {
   name: string;
   intervalMs: number;
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   enabled: boolean;
-  lastRun?: Date;
-  running?: boolean;
-  intervalId?: ReturnType<typeof setInterval>;
 }
 
 const registeredJobs = new Map<string, CronJob>();
@@ -38,16 +55,9 @@ export function startAllJobs(): void {
   throw new Error("startAllJobs() is decommissioned. Use startTieredScheduler() from cron/scheduler.ts instead.");
 }
 
-/** Stop all jobs */
-export function stopAllJobs(): void {
-  for (const [name, job] of registeredJobs) {
-    if (job.intervalId) {
-      clearInterval(job.intervalId);
-      job.intervalId = undefined;
-    }
-  }
-  log.info("All cron jobs stopped");
-}
+// `stopAllJobs()` was deleted 2026-08-23 alongside `runJob()`. It cleared
+// `job.intervalId`, a field only `startAllJobs()` ever set, and it had no
+// callers — shutdown goes through `stopTieredScheduler()` (_core/index.ts).
 
 const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
 // Lock TTL = 2× max job duration. If a dyno crashes without releasing,
@@ -168,73 +178,17 @@ export async function releaseCronLock(lock: Extract<LockResult, { status: "acqui
   }
 }
 
-/** Run a single job with logging (skip if already running to prevent overlap) */
-async function runJob(job: CronJob): Promise<void> {
-  // wave-168: two-tier lock. In-memory (fast path, prevents same-process
-  // overlap) PLUS DB-level (slow path, prevents cross-dyno overlap +
-  // self-heals after crash). If either layer says "someone else is on it"
-  // we skip.
-  if (job.running) {
-    const stuckMs = job.lastRun ? Date.now() - job.lastRun.getTime() : 0;
-    if (stuckMs > MAX_JOB_DURATION_MS * 2) {
-      log.warn(`Cron force-reset (stuck ${Math.round(stuckMs / 1000)}s): ${job.name}`);
-      job.running = false;
-    } else {
-      log.info(`Cron skipped (still running in-memory): ${job.name}`);
-      return;
-    }
-  }
-
-  // DB-level acquire. Three explicit outcomes:
-  //   acquired      → safe to run on this dyno
-  //   held-by-other → another dyno owns it, SKIP this tick (no double-fire)
-  //   fallback      → cron_locks table unavailable or DB error; proceed
-  //                   using only the in-memory lock so we don't stall cron
-  //                   when the wave-168 migration hasn't been hand-applied
-  //                   yet. The reason field discriminates "expected" from
-  //                   "real bug" for observability.
-  // We keep the full LockResult in scope (rather than collapsing to
-  // string | null) so releaseCronLock can take the typed variant.
-  const lockResult = await acquireCronLock(job.name);
-  if (lockResult.status === "held-by-other") {
-    log.info(`Cron skipped (held by another dyno): ${job.name}`);
-    return;
-  }
-
-  job.running = true;
-  const startedAt = new Date();
-
-  // Timeout race — prevent hung handlers from blocking forever
-  let jobTimeout: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    jobTimeout = setTimeout(() => reject(new Error(`Job timed out after ${MAX_JOB_DURATION_MS / 1000}s`)), MAX_JOB_DURATION_MS);
-  });
-
-  try {
-    const result = await Promise.race([job.handler(), timeoutPromise]);
-    const durationMs = Date.now() - startedAt.getTime();
-    job.lastRun = new Date();
-
-    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
-
-    if (result.recordsProcessed && result.recordsProcessed > 0) {
-      log.info(`Cron completed: ${job.name}`, { duration: durationMs, records: result.recordsProcessed });
-    }
-  } catch (err) {
-    const durationMs = Date.now() - startedAt.getTime();
-    const error = err instanceof Error ? err.message : String(err);
-    logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
-    log.error(`Cron failed: ${job.name}`, { duration: durationMs, error });
-  } finally {
-    if (jobTimeout) clearTimeout(jobTimeout);
-    job.running = false;
-    // Only release if we actually acquired the DB lock. Fallback path
-    // never wrote a row, so there's nothing to delete.
-    if (lockResult.status === "acquired") {
-      await releaseCronLock(lockResult);
-    }
-  }
-}
+// `runJob()` was DELETED 2026-08-23.
+//
+// It was the caller-less half of the decommission: `startAllJobs()` threw, so
+// nothing invoked runJob(), so the `lastRun` / `running` fields it wrote stayed
+// at their initial values forever while three surfaces reported them as live
+// cron health. Deleting the function is what allows those fields to be deleted
+// too - see the CronJob doc comment above.
+//
+// The surviving execution paths are runTier() in cron/scheduler.ts (the real
+// scheduler) and runJobByName() below (the /api/bridge/run-job HTTP trigger).
+// Both already carry the same cross-dyno lock contract runJob() had.
 
 async function logCronRun(jobName: string, status: string, durationMs: number, recordsProcessed?: number, details?: string): Promise<void> {
   try {
@@ -265,29 +219,37 @@ async function logCronRun(jobName: string, status: string, durationMs: number, r
   }
 }
 
-/** Get status of all registered jobs */
-export function getJobStatuses(): Array<{ name: string; enabled: boolean; intervalMin: number; lastRun: string | null }> {
-  // Ensure jobs are registered (tiered scheduler may have started instead of startAllJobs)
+/**
+ * REGISTRY MEMBERSHIP ONLY — never run state.
+ *
+ * Renamed from `getJobStatuses()` 2026-08-23. The old name and its `lastRun` /
+ * `intervalMin` fields promised cron health this registry has not been able to
+ * report since `startAllJobs()` was decommissioned: `lastRun` was structurally
+ * always null and `intervalMs` is documentation, not a schedule.
+ *
+ * The rename is load-bearing. Dropping the fields makes the compiler point at
+ * every consumer that believed them, which is how the admin and bridge
+ * `/cron-status` surfaces were found still reporting a dead registry.
+ *
+ * For "did this job run, and when", call `getCronStatus()` in
+ * cron/cron-status.ts. For "what cadence does it keep", call
+ * `getJobCadences()` in cron/scheduler.ts. This function answers exactly one
+ * question: which names does the HTTP-trigger registry know about.
+ */
+export function getRegisteredJobNames(): Array<{ name: string; enabled: boolean }> {
+  // Ensure jobs are registered (the tiered scheduler starts instead of startAllJobs)
   if (registeredJobs.size === 0) {
     registerAllJobs();
   }
-  return Array.from(registeredJobs.values()).map(j => ({
-    name: j.name,
-    enabled: j.enabled,
-    intervalMin: Math.round(j.intervalMs / 60000),
-    lastRun: j.lastRun?.toISOString() || null,
-  }));
+  return Array.from(registeredJobs.values()).map(j => ({ name: j.name, enabled: j.enabled }));
 }
 
-/** Reset the running flag for a stuck job — used by self-healing */
-export function resetJobRunningFlag(jobName: string): boolean {
-  const job = registeredJobs.get(jobName);
-  if (job && job.running) {
-    job.running = false;
-    return true;
-  }
-  return false;
-}
+// `resetJobRunningFlag()` was deleted 2026-08-23. Its predicate (`job.running`)
+// could only be true if `runJob()` had set it, and runJob() had no callers — so
+// it returned false on 100% of calls and the "AUTO-FIX: reset X running flag"
+// branch in selfHealing.ts was unreachable. The scheduler's real mutex is
+// `tier.running` (cron/scheduler.ts) plus the cron_locks row; neither was ever
+// reachable from here.
 
 /** Run a single job by name (used by Railway cron worker HTTP trigger) */
 export async function runJobByName(jobName: string): Promise<{ status: string; recordsProcessed?: number; details?: string }> {
@@ -387,8 +349,10 @@ export function registerAllJobs(): void {
   // wave-181.78 (week-audit · agent finding) · D7 + D14 tiers were
   // added to the tiered scheduler in wave-181.58 but never to this
   // registerAllJobs() function — meaning `/api/admin/cron/run` couldn't
-  // trigger them manually + getJobStatuses() didn't report them. Now
-  // wired alongside their D30/D90/D180/D365 siblings.
+  // trigger them manually. Now wired alongside their D30/D90/D180/D365
+  // siblings. (The reporting half of that note is stale: registry membership
+  // is no longer what the cron-status surfaces report — see
+  // getRegisteredJobNames() above.)
   // wave-181.84 · AgentPhone Confirmation Bot · runs daily at the
   // tier interval · cron itself short-circuits when AGENTPHONE_* env
   // vars + FEATURE_CONFIRMATION_CALLS=1 aren't all set (gate check
