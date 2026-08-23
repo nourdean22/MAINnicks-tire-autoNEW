@@ -29,6 +29,24 @@ asserts the break is detected** is the only construction that survives all four.
 
 ---
 
+## Stated rules
+
+Short enough to remember, each earned by an incident this file records.
+
+1. **Assert behaviour, never presence.** A canary that checks a control exists is defeated by
+   all four shapes above. One that breaks the control and asserts the break is detected is not.
+2. **A ratio computed inside a filtered population is not a finding about the population.**
+   State the base rate beside it, always. This was violated twice on 2026-08-23 alone — by a
+   session and by its reviewer — after already having cost a misdirected investigation on
+   2026-08-08, when "72% of failed calls are short" turned out to be an 18% base rate and a
+   mechanism that one measurement refuted outright. Recent examples: `energyRequired` is 0.00
+   bits across the 12-row subtask population and **0.82 bits across all tasks**; `blind_spot` is
+   98.3% of the unjudged in-window queue and **75.7%** of all discovery rows ever.
+3. **Plant a positive before believing a zero.** "Nothing happened" and "I cannot see" render
+   identically until you do.
+4. **A real symptom is not a diagnosis.** See the recorded NO below — a genuine incident pointed
+   confidently at the wrong root cause, and only measurement separated them.
+
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
 They are **complementary, not overlapping**, and the split is deliberate:
@@ -331,3 +349,54 @@ signatures; the last two are shape 3 and shape 4:
   rendered date.
 - Any column you are about to branch on: read its values first, and measure its entropy.
 - Any log or metrics table consulted for a NEGATIVE conclusion: confirm it can see a positive.
+
+---
+
+# Recorded decisions
+
+A measured NO is worth as much as a fix: it stops the next person relitigating it from the same
+intuition. Record the reasoning, not just the verdict.
+
+## REJECTED 2026-08-23 · migrate all `timestamp` columns to `timestamptz`
+
+**Proposed because of a real incident.** On 2026-08-23 a 13-hour-old write was read as ~6
+minutes old, and a rollback of a healthy production migration was very nearly ordered on it.
+Storing UTC in `timestamp without time zone` is on PostgreSQL's own
+[Don't Do This](https://wiki.postgresql.org/wiki/Don%27t_Do_This) list. The story was good.
+
+**Rejected because the story pointed at the wrong layer.** Measured, not argued:
+
+| reader | same row | vs `now()` = 14:26:02Z |
+|---|---|---|
+| **Prisma** | `2026-08-23T13:45:04.469Z` | 0.68 h — **correct** |
+| **node-pg** | `2026-08-23T17:45:04.469Z` | 3.32 h — **+4 h skew** |
+
+**Prisma's engine parses these columns as UTC. The application was never affected.** The skew
+lives entirely in raw-`pg` tooling, and `TZ=UTC` on the process removes it — reproduced
+directly: without the pin the newest write appears **3.91 h in the future**; with it, 5 minutes
+ago.
+
+**What the migration would have cost**, measured against prod:
+
+- **272 columns across 103 tables, 4,155 MB** (`vector_embeddings` alone is 2,881 MB).
+- The form matters and the obvious form is the expensive one. Three trials on a 50,000-row
+  scratch table, PostgreSQL 17.11, server TimeZone `GMT`:
+
+  | variant | rewrite? | time | values |
+  |---|---|---|---|
+  | `USING at AT TIME ZONE 'UTC'`, TZ=UTC | **YES** — full table + index rebuild | 117 ms | correct |
+  | no `USING`, TZ=UTC | **NO** — metadata-only | 60 ms | correct |
+  | no `USING`, TZ=`America/New_York` | **YES** | 117 ms | **WRONG, silently — off by 4 h** |
+
+- That third row is the disqualifier: **getting the session timezone wrong produces wrong
+  instants with no error.** A 4 GB migration whose failure mode is silent data corruption,
+  against a problem that only manifests in raw psql output.
+
+**Decision:** pin the reader, not the schema. `process.env.TZ = "UTC"` in
+`scripts/apply-pending-migration.ts` and `scripts/probe-bdn310-preflight.ts`, each carrying the
+reasoning inline so the naive columns do not re-trigger the proposal in six months.
+
+**What makes this worth recording:** the incident was real, the anti-pattern is real, and the
+proposed fix was still wrong. Symptom, anti-pattern and root cause were three different things,
+and only a measurement separated them. That is shape 4 operating on the diagnosis itself — a
+confident, well-formed reading of the wrong quantity.

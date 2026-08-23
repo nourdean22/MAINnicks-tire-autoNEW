@@ -27,6 +27,38 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
 
+// ─────────────────────────────────────────────────────────────────
+// TZ=UTC — PIN THE READER, NOT THE SCHEMA. Read this before "fixing"
+// the columns instead.
+//
+// Most timestamp columns in this database are `timestamp without time
+// zone` holding UTC. That is a PostgreSQL anti-pattern on paper, and on
+// 2026-08-23 it produced a real incident: a 13-hour-old write was read
+// as ~6 minutes old and a rollback of a healthy production migration
+// was nearly ordered on it.
+//
+// The obvious conclusion — migrate everything to timestamptz — is
+// WRONG, and it was measured wrong rather than argued wrong:
+//
+//   · Prisma's engine parses these columns as UTC CORRECTLY. The
+//     application has never been affected. Measured on one row:
+//     Prisma 13:45:04Z vs node-pg 17:45:04Z against a now() of
+//     14:26:02Z.
+//   · node-pg parses `timestamp without time zone` in the PROCESS's
+//     local zone. On ET that is +4h. The skew is entirely in raw-pg
+//     tooling — scripts like this one — not in the app.
+//   · The migration would touch 272 columns / 103 tables / 4,155 MB,
+//     and its failure mode is silent: converting with the session TZ
+//     set wrong writes wrong instants with no error.
+//
+// So the fix is one line in the reader, not 4 GB of rewrites. Setting
+// TZ here makes every Date this script builds a true instant.
+//
+// Rejected proposal recorded in full, with the measurements, at
+// docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md.
+// ─────────────────────────────────────────────────────────────────
+process.env.TZ = "UTC";
+
 const { Client } = pg;
 
 async function main() {
