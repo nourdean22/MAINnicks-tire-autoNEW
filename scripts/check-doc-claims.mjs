@@ -189,11 +189,19 @@ const docs = repoFiles.filter(
  *                a dozen checks). A reference here means it runs when that
  *                composite runs. The KEY side never counts as coverage.
  */
-const INVOKERS = [
-  "lefthook.yml",
-  ...repoFiles.filter((f) => f.startsWith(".github/workflows/")),
-].filter(hasRepoFile);
-const invokerText = INVOKERS.map((f) => readRepoFile(f)).join(String.fromCharCode(10));
+const HOOK_FILES = ["lefthook.yml", ".husky/pre-push", ".husky/pre-commit"].filter(hasRepoFile);
+const CI_FILES = repoFiles.filter((f) => f.startsWith(".github/workflows/")).filter(hasRepoFile);
+const INVOKERS = [...HOOK_FILES, ...CI_FILES];
+
+// Kept SEPARATE on purpose. Pooling them is the defect review caught: a claim
+// of CI enforcement must not be satisfiable by a pre-push hook, nor a
+// push-time claim by a workflow.
+const surfaceText = {
+  hook: HOOK_FILES.map((f) => readRepoFile(f)).join(String.fromCharCode(10)),
+  ci: CI_FILES.map((f) => readRepoFile(f)).join(String.fromCharCode(10)),
+};
+surfaceText.any = [surfaceText.hook, surfaceText.ci].join(String.fromCharCode(10));
+const invokerText = surfaceText.any;
 
 const PKGS = repoFiles.filter((f) => f.endsWith("package.json") && !f.includes("node_modules"));
 
@@ -259,12 +267,23 @@ function reachableFrom(roots) {
   return seen;
 }
 
-// Roots that something OTHER than a human decides to run.
-const automaticRoots = [...scripts.keys()].filter((a) => {
-  const escaped = a.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + "$&");
-  return new RegExp("(?:pnpm|npm|yarn)(?:\\s+run)?\\s+(?:--filter\\s+\\S+\\s+)?" + escaped + "(?:\\s|$)").test(invokerText);
-});
-const automaticAliases = reachableFrom(automaticRoots);
+// Roots that something OTHER than a human decides to run -- computed PER
+// SURFACE, so "enforced in CI" cannot be satisfied by a pre-push hook.
+function rootsIn(text) {
+  return [...scripts.keys()].filter((a) => {
+    const escaped = a.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + "$&");
+    return new RegExp("(?:pnpm|npm|yarn)(?:\\s+run)?\\s+(?:--filter\\s+\\S+\\s+)?" + escaped + "(?:\\s|$)").test(text);
+  });
+}
+const surfaceRoots = { hook: rootsIn(surfaceText.hook), ci: rootsIn(surfaceText.ci) };
+surfaceRoots.any = [...new Set([...surfaceRoots.hook, ...surfaceRoots.ci])];
+const surfaceAliases = {
+  hook: reachableFrom(surfaceRoots.hook),
+  ci: reachableFrom(surfaceRoots.ci),
+  any: reachableFrom(surfaceRoots.any),
+};
+const automaticRoots = surfaceRoots.any;
+const automaticAliases = surfaceAliases.any;
 const allAliases = reachableFrom([...scripts.keys()]);
 
 /** Which alias set does a given needle (a script FILE name) end up inside? */
@@ -307,6 +326,38 @@ const COMPLETENESS =
   /\b(every\s+(job|jobs|caller|callers|reader|readers|writer|writers|consumer|consumers|route|routes|script|scripts|gate|gates|hook|hooks|test|tests|file|files|column|columns|table|tables|endpoint|endpoints|migration|migrations|check|checks|producer|producers)\b[^.\n]{0,50}\b(except|but|apart from)|the only\s+(job|jobs|caller|callers|reader|readers|writer|writers|consumer|consumers|route|routes|script|scripts|gate|gates|hook|hooks|test|tests|file|files|column|columns|table|tables|endpoint|endpoints|migration|migrations|check|checks|producer|producers)\b|no other\s+(job|jobs|caller|callers|reader|readers|writer|writers|consumer|consumers|route|routes|script|scripts|gate|gates|hook|hooks|test|tests|file|files|column|columns|table|tables|endpoint|endpoints|migration|migrations|check|checks|producer|producers)\b|nothing\s+(else\s+)?(reads|writes|calls|references|consumes|emits)\b|all\s+\d+\s+(job|jobs|caller|callers|reader|readers|writer|writers|consumer|consumers|route|routes|script|scripts|gate|gates|hook|hooks|test|tests|file|files|column|columns|table|tables|endpoint|endpoints|migration|migrations|check|checks|producer|producers)\b)/i;
 const GATE =
   /\b(verified|enforced|gated|blocked|checked|runs|validated)\b[^.\n]{0,60}\b(at push time|on push|pre-push|at commit time|on commit|pre-commit|in CI|by CI)\b/i;
+
+/**
+ * NEGATION -- a truthful statement that something is ABSENT is not a false
+ * gate claim, and gating on it would punish the most honest sentences in the
+ * repo. Raised in review against `CONSOLIDATION-PLAN-2026-05-16.md:84`, which
+ * says E2E "never runs in CI" and was being reported as an unresolved claim.
+ * Once --strict is wired, accurate documentation saying a check is missing
+ * would hold the gate red exactly like a stale enforcement claim.
+ *
+ * Scoped to the words BETWEEN the verb and the surface, plus a short lead-in,
+ * so "never runs in CI" is excluded while "runs in CI" is not.
+ */
+const NEGATED =
+  /\b(never|not|no longer|does not|doesn't|isn't|is not|are not|aren't|without|fails to|cannot|can't|nothing)\b/i;
+
+/**
+ * WHICH SURFACE DID THE CLAIM NAME?
+ *
+ * Raised in review, and it is the sharpest finding against this script: the
+ * resolver POOLED every reference, so "`foo.sh` is enforced in CI" resolved
+ * when foo.sh was wired only to pre-push, and "verified at push time" resolved
+ * from an uninvoked composite. An instrument that answers "it runs SOMEWHERE"
+ * to the question "does it run HERE" reports green for precisely the false
+ * claims it was built to catch.
+ *
+ * So a claim is now resolved only against the surface it actually named.
+ */
+function claimedSurface(line) {
+  if (/\b(in CI|by CI|in the CI|workflow|pipeline|on PRs?|pull request)\b/i.test(line)) return "ci";
+  if (/\b(at push time|on push|pre-push|at commit time|on commit|pre-commit|hook)\b/i.test(line)) return "hook";
+  return "any";
+}
 /**
  * COUNT, narrowed to asserted tallies. The first draft matched any 'N of M'
  * and returned 972 hits -- dates, version ranges, table rows. A count claim
@@ -352,7 +403,7 @@ const KNOWN_FALSE = [
 ];
 
 /** Does the named thing actually appear in a gate definition? */
-function resolveGate(target) {
+function resolveGate(target, surface = "any") {
   if (!target) return { resolved: false, why: "claim names no script or alias to resolve" };
   const needle = target.kind === "script" ? target.value.split("/").pop() : target.value;
 
@@ -363,14 +414,34 @@ function resolveGate(target) {
     if (!found) return { resolved: false, why: `script ${target.value} does not exist` };
   }
 
-  // Named directly by a hook or workflow, without going through an alias.
-  if (invokerText.includes(needle)) {
-    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs directly from a hook or workflow` };
+  // Resolve ONLY against the surface the claim named. `surface` is "hook",
+  // "ci", or "any" -- see claimedSurface().
+  const label = { hook: "a git hook", ci: "a CI workflow", any: "a hook or workflow" }[surface];
+
+  if (surfaceText[surface].includes(needle)) {
+    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs directly from ${label}` };
   }
 
-  const auto = aliasesRunning(needle, automaticAliases);
+  const auto = aliasesRunning(needle, surfaceAliases[surface]);
   if (auto.length) {
-    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs via ${auto.join(", ")}, reachable from a hook or workflow` };
+    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs via ${auto.join(", ")}, reachable from ${label}` };
+  }
+
+  // Reachable automatically, but from the OTHER surface. This is the case that
+  // used to false-green: the claim says CI and the wiring is pre-push, or the
+  // reverse. Named explicitly so the reader sees what is actually true.
+  const other = surface === "hook" ? "ci" : surface === "ci" ? "hook" : null;
+  if (other) {
+    const elsewhere = surfaceText[other].includes(needle)
+      ? [needle]
+      : aliasesRunning(needle, surfaceAliases[other]);
+    if (elsewhere.length) {
+      return {
+        resolved: false,
+        tier: "WRONG-SURFACE",
+        why: `${needle} IS automatic, but from ${other === "ci" ? "a CI workflow" : "a git hook"} -- the claim says ${surface === "ci" ? "CI" : "push/commit time"}`,
+      };
+    }
   }
 
   const manual = entryPointsFor(needle);
@@ -403,9 +474,17 @@ for (const doc of docs) {
     if (!trimmed || trimmed.startsWith(">")) return;
 
     if (GATE.test(line)) {
-      const target = namedTarget(line);
-      const r = resolveGate(target);
-      findings.gate.push({ at, line: trimmed.slice(0, 150), ...r });
+      // A truthful NEGATIVE is not a false claim. Skipping it here rather than
+      // in the resolver keeps it out of the reported inventory entirely -- it
+      // is not a finding at all, and listing it would train readers to ignore
+      // the list.
+      const m = line.match(GATE);
+      const span = line.slice(Math.max(0, m.index - 24), m.index + m[0].length);
+      if (!NEGATED.test(span)) {
+        const target = namedTarget(line);
+        const r = resolveGate(target, claimedSurface(line));
+        findings.gate.push({ at, line: trimmed.slice(0, 150), ...r });
+      }
     }
     if (COMPLETENESS.test(line)) {
       const dated = /\bas of\b|\bmeasured\b|\d{4}-\d{2}-\d{2}/i.test(line);
@@ -541,11 +620,30 @@ if (process.argv.includes("--selftest")) {
       tier: undefined,
       why: "does not exist",
     },
+    {
+      // SURFACE MATCHING, the case review reproduced against the pooled
+      // resolver: `build:affected` is in lefthook pre-push and in NO workflow.
+      // A push-time claim about it is TRUE...
+      target: { kind: "alias", value: "build:affected" },
+      surface: "hook",
+      tier: "AUTOMATIC",
+      mentions: "a git hook",
+    },
+    {
+      // ...and the identical script claimed as CI enforcement is FALSE. The
+      // pooled resolver returned AUTOMATIC for both and exited 0 under
+      // --strict, reporting green for exactly the false claim it exists to
+      // catch. WRONG-SURFACE is the answer that distinguishes them.
+      target: { kind: "alias", value: "build:affected" },
+      surface: "ci",
+      tier: "WRONG-SURFACE",
+      mentions: "the claim says CI",
+    },
   ];
 
   let failed = 0;
   for (const c of cases) {
-    const got = resolveGate(c.target);
+    const got = resolveGate(c.target, c.surface ?? "any");
     const tierOk = got.tier === c.tier;
     const whyOk = c.mentions ? got.why.includes(c.mentions) : got.why.includes(c.why);
     if (!tierOk || !whyOk) {

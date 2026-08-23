@@ -43,6 +43,28 @@ function runChecker(args) {
   return { code: r.status, out: (r.stdout ?? "") + (r.stderr ?? "") };
 }
 
+/**
+ * Run `fn` against a throwaway commit = HEAD + one extra file. Nothing is
+ * written into the working tree and the shared index is never opened; the
+ * commit is never referenced, so git garbage-collects it.
+ */
+function withCanaryCommit(path, contents, fn) {
+  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-fixture-"));
+  try {
+    const blobFile = join(scratch, "blob");
+    writeFileSync(blobFile, contents);
+    const blob = git(["hash-object", "-w", blobFile]);
+    const env = { GIT_INDEX_FILE: join(scratch, "index") };
+    git(["read-tree", "HEAD"], env);
+    git(["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`], env);
+    const tree = git(["write-tree"], env);
+    const ref = git(["commit-tree", tree, "-p", "HEAD", "-m", "doc-claim fixture (throwaway)"]);
+    return fn(ref);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 function git(argv, env = {}) {
   const r = spawnSync("git", argv, { cwd: ROOT, encoding: "utf8", env: { ...process.env, ...env } });
   assert.equal(r.status, 0, `git ${argv.join(" ")} failed: ${r.stderr}`);
@@ -108,6 +130,40 @@ test("BREAKS: a planted false gate claim makes --strict exit 1", () => {
   // without this, a permanently-red gate would satisfy the arm above forever.
   const disarmed = runChecker(["--strict", "--ref=HEAD"]);
   assert.equal(disarmed.code, 0, `still red without the canary:\n${disarmed.out}`);
+});
+
+test("negation: a truthful 'never runs in CI' is not reported, its positive twin is", () => {
+  /*
+   * Raised in review: the GATE regex classified truthful NEGATIVE statements as
+   * enforcement claims. `CONSOLIDATION-PLAN-2026-05-16.md:84` says E2E "never
+   * runs in CI" and was reported unresolved -- so once --strict is wired, the
+   * most honest sentences in the repo would hold the gate red exactly like
+   * stale enforcement claims.
+   *
+   * Both directions in ONE fixture, because a test that only proves the
+   * negative is suppressed cannot tell suppression apart from the detector
+   * having stopped working altogether.
+   */
+  const fixture = [
+    "# fixture",
+    "",
+    "The e2e suite **never runs in CI** via `scripts/check-anti-slop.sh`.",
+    "The anti-slop check is **enforced in CI** via `scripts/check-anti-slop.sh`.",
+    "",
+  ].join("\n");
+
+  const { out, code } = withCanaryCommit("docs/agent-audit/.negation-fixture.md", fixture, (ref) =>
+    runChecker(["--only=gate", `--ref=${ref}`]),
+  );
+  void code;
+  const lines = out.split("\n").filter((l) => l.includes(".negation-fixture.md"));
+  assert.equal(
+    lines.length,
+    1,
+    `expected exactly ONE finding (the positive claim); got ${lines.length}:\n${lines.join("\n")}`,
+  );
+  assert.match(out, /enforced in CI/, "the positive claim must still be detected");
+  assert.doesNotMatch(out, /never runs in CI/, "the negated claim must not be reported");
 });
 
 test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () => {
