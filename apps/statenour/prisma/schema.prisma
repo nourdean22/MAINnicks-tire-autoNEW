@@ -1690,6 +1690,30 @@ model BrainMemory {
   /// collapsing into one broader one.
   supersededBy   BrainMemory?  @relation("MemorySupersession", fields: [supersededById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   supersedes     BrainMemory[] @relation("MemorySupersession")
+  /// 2026-08-22 · Discover verdicts, promoted out of `metadata` jsonb.
+  ///
+  /// These three are DERIVED mirrors of `metadata.discoveryVerdict` /
+  /// `.discoveryRatedAt` / `.origin`, not a new source of truth — which is why
+  /// the backfill that populates them is reversible by setting them back to
+  /// NULL. They exist because the jsonb original could not be filtered in SQL:
+  ///
+  ///  · `listDiscoveries` had to PAGE up to 300 rows and filter in JS, so its
+  ///    `unrated` count was a documented FLOOR. On prod that floor read 56
+  ///    against a true 242 — the feature's headline defect.
+  ///  · the obvious Prisma predicate `NOT: { metadata: { path:
+  ///    ["discoveryVerdict"], equals: "noise" } }` compiles to a NULL
+  ///    comparison for rows lacking the key and silently dropped 240 of 241
+  ///    live blind_spot rows when measured against prod.
+  ///
+  /// All three nullable with no default, so code deployed before this
+  /// migration keeps working unchanged through the window.
+  discoveryVerdict    String?   @map("discovery_verdict") @db.VarChar(16)
+  discoveryRatedAt    DateTime? @map("discovery_rated_at")
+  /// "engine" | "restored". `restored` marks a row recreated by
+  /// scripts/restore-orphaned-memories.ts, whose createdAt/lastSeen are
+  /// RESTORE time rather than discovery time — so it must not compete on a
+  /// recency-ordered feed as though it were new.
+  discoveryProvenance String?   @map("discovery_provenance") @db.VarChar(16)
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 

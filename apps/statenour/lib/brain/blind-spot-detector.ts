@@ -468,16 +468,27 @@ export async function getBlindSpotContext(): Promise<string> {
       where: { deletedAt: null, category: BRAIN_CATEGORIES.BLIND_SPOT }, // v9.1.18
       orderBy: { lastSeen: "desc" },
       take: 25,
-      select: { content: true, metadata: true },
+      select: { content: true, metadata: true, discoveryVerdict: true },
     });
 
+    // Column first, metadata as fallback. The column arrived in
+    // 20260823000000_brain_memory_discovery_columns; metadata is still what
+    // code deployed before it writes, so both are read for the overlap window.
+    // Still filtered in JS rather than SQL: the `not: "noise"` predicate is a
+    // NULL comparison for unjudged rows and dropped 240 of 241 live rows when
+    // measured against prod. tests/brain/blind-spot-context.test.ts pins that.
     const spots = candidates
       .filter((m) => {
-        const meta = m.metadata;
+        // An explicitly PRESENT metadata key wins, including an explicit null.
+        // Column-first let a stale `noise` mirror outlive a resurface that
+        // cleared only metadata — during a rollback or a migration-first
+        // deploy the spot would stay out of the prompt permanently.
+        const meta =
+          m.metadata && typeof m.metadata === "object" && !Array.isArray(m.metadata)
+            ? (m.metadata as Record<string, unknown>)
+            : {};
         const verdict =
-          meta && typeof meta === "object" && !Array.isArray(meta)
-            ? (meta as Record<string, unknown>).discoveryVerdict
-            : null;
+          "discoveryVerdict" in meta ? meta.discoveryVerdict : m.discoveryVerdict;
         return verdict !== "noise";
       })
       .slice(0, 5);
