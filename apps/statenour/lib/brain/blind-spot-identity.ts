@@ -46,6 +46,7 @@
  * the operator confirmed it TRUE — see getBlindSpotContext).
  */
 import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -153,6 +154,63 @@ export function shouldResurface(
   return SEVERITY_RANK[currentSeverity] > verdictSeverityRank;
 }
 
+/**
+ * The tier a stored card was written at, read from its own text.
+ *
+ * Deliberately NOT "whatever tier the spot is at today": the escalation policy
+ * compares against the tier the verdict was GIVEN at, and using today's tier
+ * stamps a suppressed spot at its escalated rank and silences it forever.
+ */
+export function severityRankFromContent(content: string): number | null {
+  const tag = content.match(/^\[([A-Z]+)\]/)?.[1]?.toLowerCase();
+  return tag && tag in SEVERITY_RANK ? SEVERITY_RANK[tag as BlindSpot["severity"]] : null;
+}
+
+/**
+ * Verdict from the column, falling back to `metadata`.
+ *
+ * Every other reader in this wave has this fallback; the inheritance lookup
+ * originally did not, which made a verdict given by a deployment predating the
+ * migration invisible to the one query that exists to rescue it — and because
+ * inheritance runs only on a first sighting, that miss is permanent.
+ */
+export function readAnyVerdict(
+  column: string | null | undefined,
+  metadata: unknown,
+): BlindSpotVerdict | null {
+  // Source (metadata) first when the key is PRESENT — an explicit null there
+  // means "resurfaced", and a column-first read would let a stale mirror
+  // re-suppress it. The column is consulted only where the source is silent.
+  const meta = asRecord(metadata);
+  const v = "discoveryVerdict" in meta ? meta.discoveryVerdict : column;
+  return v === "investigate" || v === "known" || v === "noise" ? v : null;
+}
+
+/**
+ * Does a legacy row describe the SAME spot as `spot`?
+ *
+ * Reuses blindSpotIdentity's normalisation on both sides rather than a LIKE.
+ * The legacy key carries the domain (`blindspot_<domain>_<epoch>`) and the
+ * content carries `[TIER] <description>: <evidence>`, so both halves of the
+ * identity are recoverable — except `frame`, which was never persisted. Domain
+ * plus normalised description is therefore the scope, and across the nine live
+ * templates no two differ only by frame.
+ */
+export function legacyIdentityMatches(
+  spot: BlindSpot,
+  legacyKey: string,
+  legacyContent: string,
+): boolean {
+  const legacyDomain = legacyKey.replace(/^blindspot_/, "").replace(/_[^_]*$/, "").toLowerCase();
+  if (legacyDomain !== spot.domain.toLowerCase()) return false;
+
+  const body = legacyContent.replace(/^\[[A-Z]+\]\s*/, "");
+  const norm = (t: string) => t.toLowerCase().replace(/^\d+/, "#").replace(/\s+/g, " ").trim();
+  // Prefix, not substring: the evidence half follows the description after
+  // ": ", so a prefix test is exact where `contains` over-matched.
+  return norm(body).startsWith(`${norm(spot.description)}: `);
+}
+
 export interface PersistResult {
   key: string;
   /** `created` - first sighting. `reinforced` - same spot, verdict intact. */
@@ -168,6 +226,12 @@ export interface PersistResult {
    * healthy.
    */
   noop: boolean;
+  /**
+   * Set when a first sighting under the stable key adopted a verdict the
+   * operator gave under a legacy timestamped key. Carries the source row id so
+   * the adoption is auditable and reversible.
+   */
+  inheritedVerdictFrom?: string;
 }
 
 /**
@@ -236,6 +300,146 @@ export async function persistBlindSpot(spot: BlindSpot): Promise<PersistResult> 
   });
 
   if (!existing) {
+    // FIRST SIGHTING UNDER THE STABLE KEY — inherit any verdict the operator
+    // already gave this spot under a legacy timestamped key.
+    //
+    // Changing the key scheme does not retroactively unify the 255 rows
+    // already written as `blindspot_<domain>_<epoch>`. Without this, the fix
+    // would work going forward while permanently orphaning the only real
+    // labels there are: measured on prod 2026-08-22 the operator has FIVE
+    // labels in total, three of them on legacy blind-spot rows. Losing them is
+    // losing 60% of the training signal.
+    //
+    // MATCHED BY THE SAME IDENTITY FUNCTION, not by a LIKE.
+    //
+    // The first version used `content: { contains: `${description}: ` }`. Three
+    // separate defects, all found in adversarial review:
+    //   · it did not collapse the LEADING digit run, so the two templates the
+    //     normalisation exists for -- `N decisions awaiting review` and
+    //     `N unresolved drift alerts accumulating` -- were exactly the two the
+    //     bridge could never match once N moved. Inheritance runs only on a
+    //     first sighting, so that miss is permanent.
+    //   · it scoped by neither domain nor frame, so moving a task between
+    //     missions changed its identity and the bridge would then adopt the old
+    //     mission's verdict anyway.
+    //   · Prisma's `contains` does not escape `%` or `_`, and both matching
+    //     templates interpolate free operator text. A task titled
+    //     "Cut ad spend 20% this month" becomes a wildcard.
+    //
+    // So: fetch the verdict-carrying rows (a tiny, bounded population -- three
+    // on prod today) and compare with legacyIdentityMatches(), which reuses
+    // blindSpotIdentity's own normalisation. No LIKE, nothing to escape.
+    //
+    // Soft-deleted rows are deliberately INCLUDED: one of the operator's five
+    // labels sits on a row the consolidate cron tombstoned on 08-20, and a
+    // tombstone does not unmake a judgement.
+    //
+    // The metadata arm of the OR is the deploy-window fallback every other
+    // reader in this wave has. `not: DbNull` on a jsonb path is well-defined
+    // for a missing key (it excludes the row), so it carries no NULL trap.
+    const candidates = await prisma.brainMemory.findMany({
+      where: {
+        category: BRAIN_CATEGORIES.BLIND_SPOT,
+        OR: [
+          { discoveryVerdict: { not: null } },
+          { metadata: { path: ["discoveryVerdict"], not: Prisma.DbNull } },
+        ],
+      },
+      // NULLS LAST explicitly. A bare `desc` is NULLS FIRST on Postgres, and
+      // the backfill can leave discovery_rated_at NULL on a row whose verdict
+      // is set (the two CASE arms are independent), so the default would sort
+      // an undated verdict ahead of every properly dated one.
+      orderBy: [{ discoveryRatedAt: { sort: "desc", nulls: "last" } }],
+      take: 200,
+      select: {
+        id: true, key: true, content: true, metadata: true,
+        discoveryVerdict: true, discoveryRatedAt: true,
+      },
+    });
+
+    const match = candidates.find((c) =>
+      legacyIdentityMatches(spot, c.key, c.content) &&
+      readAnyVerdict(c.discoveryVerdict, c.metadata) !== null,
+    );
+
+    if (match) {
+      const inheritedVerdict = readAnyVerdict(match.discoveryVerdict, match.metadata)!;
+      // The tier the verdict was GIVEN at, read from the legacy row's own text.
+      // The previous fallback used TODAY's severity, and since
+      // discoveryVerdictSeverityRank only started being written on 2026-08-22
+      // while the real legacy verdicts are from 08-21, that fallback fired on
+      // 100% of the rows this bridge exists to rescue -- stamping them at the
+      // current (often escalated) tier and thereby suppressing them forever.
+      // `?? low` keeps the safe direction: over-resurface, never never-resurface.
+      const inheritedRank =
+        severityRankFromContent(match.content) ??
+        (typeof asRecord(match.metadata).discoveryVerdictSeverityRank === "number"
+          ? (asRecord(match.metadata).discoveryVerdictSeverityRank as number)
+          : SEVERITY_RANK.low);
+
+      const created = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: BRAIN_CATEGORIES.BLIND_SPOT, key } },
+        select: { metadata: true },
+      });
+
+      // The escalation may ALREADY have happened between the verdict and this
+      // first stable-key sighting. Adopting the verdict as active would swallow
+      // it silently, so the same policy applies here as on a re-sighting.
+      const escalated = shouldResurface(inheritedVerdict, inheritedRank, spot.severity);
+      const ratedAt =
+        match.discoveryRatedAt?.toISOString() ??
+        (typeof asRecord(match.metadata).discoveryRatedAt === "string"
+          ? (asRecord(match.metadata).discoveryRatedAt as string)
+          : new Date().toISOString());
+
+      await prisma.brainMemory.update({
+        where: { category_key: { category: BRAIN_CATEGORIES.BLIND_SPOT, key } },
+        data: {
+          // COLUMN AND METADATA TOGETHER. Writing only metadata is how the
+          // resurface path became a no-op -- every reader prefers the column.
+          discoveryVerdict: escalated ? null : inheritedVerdict,
+          discoveryRatedAt: escalated ? null : match.discoveryRatedAt,
+          discoveryProvenance: "engine",
+          // A judged row must never carry the probationary TTL.
+          expiresAt: null,
+          metadata: {
+            ...asRecord(created?.metadata),
+            discoveryVerdict: escalated ? null : inheritedVerdict,
+            discoveryRatedAt: escalated ? null : ratedAt,
+            discoveryVerdictSeverityRank: escalated ? null : inheritedRank,
+            ...(escalated
+              ? {
+                  discoveryVerdictHistory: [
+                    { verdict: inheritedVerdict, at: ratedAt, severityRank: inheritedRank },
+                  ],
+                  discoveryResurfacedAt: new Date().toISOString(),
+                  discoveryResurfacedFromRank: inheritedRank,
+                  discoveryResurfacedToRank: SEVERITY_RANK[spot.severity],
+                }
+              : {}),
+            // Provenance of the VERDICT itself, so this is auditable and the
+            // inheritance is reversible by clearing exactly these rows.
+            discoveryVerdictInheritedFrom: match.id,
+          } as never,
+        },
+      });
+      return {
+        key,
+        action: "created",
+        resurfaced: escalated,
+        revived: false,
+        noop: false,
+        inheritedVerdictFrom: match.id,
+      };
+    }
+
+    // No legacy verdict. Still stamp provenance, or the column decays toward
+    // all-NULL as the population turns over and restoredHidden silently reads
+    // zero -- the "hidden pile nothing reports" failure it exists to prevent.
+    await prisma.brainMemory.update({
+      where: { category_key: { category: BRAIN_CATEGORIES.BLIND_SPOT, key } },
+      data: { discoveryProvenance: "engine" },
+    });
     return { key, action: "created", resurfaced: false, revived: false, noop: false };
   }
 
@@ -269,6 +473,16 @@ export async function persistBlindSpot(spot: BlindSpot): Promise<PersistResult> 
   await prisma.brainMemory.update({
     where: { id: existing.id },
     data: {
+      // COLUMN AND METADATA TOGETHER. Clearing only `metadata` on a resurface
+      // made the entire recurrence policy a NO-OP: every reader in this wave
+      // prefers the column, so an escalated spot stayed filtered out of the
+      // feed, out of the exact count and out of the system prompt while the
+      // cron cheerfully reported `resurfaced: 1`. Found in adversarial review;
+      // the canary could not see it because the fake store had no column.
+      ...(resurfaced ? { discoveryVerdict: null, discoveryRatedAt: null } : {}),
+      // Written on every reinforce so the column has an ongoing producer and
+      // does not decay to all-NULL as the population turns over.
+      discoveryProvenance: "engine",
       // A spot detected a SECOND time is not probationary. `remember()`'s own
       // create-arm comment calls the 24h stamp "temporary until reinforced";
       // this is the reinforcement, and the gateway will never deliver the

@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
     findMany: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(),
   },
+  queryRaw: vi.fn(),
   recordShown: vi.fn(),
   recordDecision: vi.fn(),
   recordOutcome: vi.fn(),
@@ -24,7 +26,9 @@ const mocks = vi.hoisted(() => ({
   resolveInboxMissionId: vi.fn(),
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma: { brainMemory: mocks.brainMemory } }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { brainMemory: mocks.brainMemory, $queryRaw: mocks.queryRaw },
+}));
 vi.mock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
 vi.mock("@/lib/services/outcome-ledger", () => ({
   recordShown: mocks.recordShown,
@@ -61,6 +65,8 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
 describe("listDiscoveries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
   });
@@ -97,8 +103,11 @@ describe("listDiscoveries", () => {
       row({ id: "unjudged" }),
       row({ id: "judged", metadata: { discoveryVerdict: "known" } }),
     ]);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 1n, restored: 0n }]);
     const res = await listDiscoveries();
     expect(res.items.map((d) => d.id)).toEqual(["unjudged"]);
+    // EXACT, from SQL. Derived from the scan it would be a floor — on prod
+    // that floor rendered 56 against a true 242.
     expect(res.unrated).toBe(1);
   });
 
@@ -136,7 +145,6 @@ describe("listDiscoveries", () => {
     expect(mocks.brainMemory.findMany).toHaveBeenCalledTimes(2);
     expect(mocks.brainMemory.findMany.mock.calls[1][0].skip).toBe(60);
     expect(res.items.map((d) => d.id)).toEqual(["old-but-unjudged"]);
-    expect(res.unrated).toBe(1);
   });
 
   it("reports when the scan stopped early rather than capping silently", async () => {
@@ -181,6 +189,8 @@ describe("listDiscoveries", () => {
 describe("rateDiscovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
     mocks.recordOutcome.mockResolvedValue(true);
@@ -337,6 +347,8 @@ describe("rateDiscovery", () => {
 describe("clustering — one card per question", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
   });
@@ -352,7 +364,6 @@ describe("clustering — one card per question", () => {
     expect(res.items[0].clusterIds.sort()).toEqual(["a", "b", "c"]);
     // The badge still counts ROWS; the workload is now CARDS. Both reported,
     // because quoting either alone misdescribes the queue.
-    expect(res.unrated).toBe(3);
     expect(res.unratedClusters).toBe(1);
   });
 
@@ -393,6 +404,8 @@ describe("clustering — one card per question", () => {
 describe("restored rows are separated, never deleted", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
     mocks.recordShown.mockResolvedValue("ledger-1");
   });
 
@@ -405,6 +418,7 @@ describe("restored rows are separated, never deleted", () => {
       restored({ id: "r1", content: "recovered one" }),
       restored({ id: "r2", content: "recovered two" }),
     ]);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 1n, restored: 2n }]);
     const res = await listDiscoveries();
     expect(res.items.map((d) => d.id)).toEqual(["engine"]);
     // Counted, not silently dropped — 237 invisible rows is the defect.
@@ -433,6 +447,7 @@ describe("restored rows are separated, never deleted", () => {
     mocks.brainMemory.findMany.mockResolvedValueOnce([
       row({ id: "r", metadata: { origin: "orphan-restore-2027-01-01" } }),
     ]);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 1n }]);
     expect((await listDiscoveries()).restoredHidden).toBe(1);
   });
 });
@@ -454,6 +469,8 @@ describe("severityRankOf", () => {
 describe("rateDiscoveryCluster", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
     mocks.recordShown.mockResolvedValue("ledger-1");
     mocks.recordDecision.mockResolvedValue(true);
     mocks.resolveInboxMissionId.mockResolvedValue("inbox-1");
@@ -649,4 +666,90 @@ describe("CANARY · clusterKey and blindSpotIdentity must agree", () => {
       expect(viaCluster).toBe(viaKey);
     });
   }
+});
+
+/**
+ * CANARY · the NULL-comparison trap, third sighting in this feature.
+ *
+ * 1) getBlindSpotContext: `NOT(metadata #> path = "noise")` kept 1 of 241 rows.
+ * 2) the unrated count nearly shipped with `NOT: { discoveryProvenance:
+ *    "restored" }`, which is NULL-and-therefore-false for every row written by
+ *    a deployment predating the migration.
+ * Both forms read like a tightened filter and silently delete the population.
+ */
+describe("CANARY · the exact count honours the metadata fallback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
+  });
+
+  it("counts a row as unrated only when BOTH sources are silent", async () => {
+    // A row judged by the old deployment after the backfill has
+    // metadata.discoveryVerdict set and the column NULL. readVerdict drops its
+    // card; a column-only count still called it unrated, so the badge sat
+    // nonzero with no card behind it indefinitely.
+    mocks.brainMemory.findMany.mockResolvedValueOnce([]);
+    await listDiscoveries();
+    const sql = mocks.queryRaw.mock.calls[0][0].join("?");
+    expect(sql).toContain("discovery_verdict IS NULL");
+    expect(sql).toContain("metadata->>'discoveryVerdict' IS NULL");
+    // IS DISTINCT FROM / NOT LIKE, never `NOT (col = x)` — that form is NULL
+    // for a NULL column and silently drops the row. Third sighting of the trap
+    // in this feature.
+    expect(sql).not.toMatch(/NOT\s*\(\s*discovery_provenance\s*=/);
+  });
+
+  it("reads restored from EITHER the column or metadata.origin", async () => {
+    // A future restore run writes metadata.origin; the column only follows if
+    // that script was updated. Counting on the column alone would report
+    // `restoredHidden: 0` while withholding hundreds of rows.
+    mocks.brainMemory.findMany.mockResolvedValueOnce([]);
+    await listDiscoveries();
+    const sql = mocks.queryRaw.mock.calls[0][0].join("?");
+    expect(sql).toContain("discovery_provenance = 'restored'");
+    expect(sql).toContain("orphan-restore%");
+  });
+});
+
+/**
+ * CANARY · the mirror must never outrank the source.
+ *
+ * During a rollback or a migration-first deploy, the PRIOR app clears
+ * `metadata.discoveryVerdict` on a resurface without clearing the newly added
+ * column. A column-first read then lets the stale `noise` mirror win forever —
+ * the spot stays suppressed even though the source of truth resurfaced it.
+ */
+describe("CANARY · metadata is the source, the column is only a mirror", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.brainMemory.count.mockResolvedValue(0);
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
+  });
+
+  it("an explicit metadata null beats a stale column verdict", async () => {
+    mocks.brainMemory.findMany.mockResolvedValueOnce([
+      row({ id: "resurfaced", metadata: { discoveryVerdict: null }, discoveryVerdict: "noise" }),
+    ]);
+    const res = await listDiscoveries();
+    // Present-and-null means "resurfaced". It must render as unjudged.
+    expect(res.items.map((d) => d.id)).toEqual(["resurfaced"]);
+    expect(res.items[0].verdict).toBeNull();
+  });
+
+  it("uses the column only when metadata has no key at all", async () => {
+    mocks.brainMemory.findMany.mockResolvedValueOnce([
+      row({ id: "col-only", metadata: {}, discoveryVerdict: "known" }),
+    ]);
+    const res = await listDiscoveries({ includeRated: true });
+    expect(res.items[0].verdict).toBe("known");
+  });
+
+  it("a present metadata verdict wins over a disagreeing column", async () => {
+    mocks.brainMemory.findMany.mockResolvedValueOnce([
+      row({ id: "x", metadata: { discoveryVerdict: "known" }, discoveryVerdict: "noise" }),
+    ]);
+    const res = await listDiscoveries({ includeRated: true });
+    expect(res.items[0].verdict).toBe("known");
+  });
 });

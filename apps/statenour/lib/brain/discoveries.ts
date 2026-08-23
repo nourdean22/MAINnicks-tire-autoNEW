@@ -22,6 +22,7 @@
  * without it no novelty tuning can ever be justified. See
  * lib/services/outcome-ledger.ts and lib/brain/recall-eval.ts.
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
@@ -109,9 +110,33 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function readVerdict(metadata: unknown): DiscoveryVerdict | null {
-  const v = asRecord(metadata).discoveryVerdict;
-  return v === "investigate" || v === "known" || v === "noise" ? v : null;
+function isVerdict(v: unknown): v is DiscoveryVerdict {
+  return v === "investigate" || v === "known" || v === "noise";
+}
+
+/**
+ * Column first, `metadata` as the fallback.
+ *
+ * The column arrived in 20260823000000_brain_memory_discovery_columns and is
+ * dual-written from this wave on, but `metadata` remains the source of truth
+ * and the only thing code deployed BEFORE that migration writes. Reading both
+ * is what lets the old and new deployments overlap without a row judged by
+ * either one reading as unjudged.
+ */
+function readVerdict(metadata: unknown, column?: string | null): DiscoveryVerdict | null {
+  // An explicitly PRESENT metadata key wins — including an explicit `null`.
+  // Column-first was wrong in one direction that matters: during a rollback or
+  // a migration-first deploy window, the prior app clears
+  // metadata.discoveryVerdict on a resurface without clearing the newly added
+  // column, and a column-first read then lets the stale `noise` mirror win
+  // permanently — the spot stays suppressed even though the source of truth
+  // resurfaced it. `metadata` is the source; the column is the mirror, and a
+  // mirror is only consulted where the source says nothing at all.
+  const meta = asRecord(metadata);
+  if ("discoveryVerdict" in meta) {
+    return isVerdict(meta.discoveryVerdict) ? meta.discoveryVerdict : null;
+  }
+  return isVerdict(column) ? column : null;
 }
 
 /**
@@ -119,9 +144,16 @@ function readVerdict(metadata: unknown): DiscoveryVerdict | null {
  * `metadata.origin = "orphan-restore-<date>"`. Matched on the PREFIX so a
  * future recovery run is classified without editing this predicate.
  */
-function readProvenance(metadata: unknown): "engine" | "restored" {
+function readProvenance(metadata: unknown, column?: string | null): "engine" | "restored" {
+  // "restored" wins from EITHER source, deliberately asymmetric. Column-first
+  // in both directions would let a row already stamped `engine` ignore a later
+  // `metadata.origin`, and showing a restored row as engine-found is the defect
+  // this field exists to prevent — whereas withholding one extra row is
+  // visible, counted and reversible by a toggle.
   const origin = asRecord(metadata).origin;
-  return typeof origin === "string" && origin.startsWith("orphan-restore") ? "restored" : "engine";
+  if (typeof origin === "string" && origin.startsWith("orphan-restore")) return "restored";
+  if (column === "restored") return "restored";
+  return "engine";
 }
 
 function readVerdictHistory(
@@ -188,18 +220,26 @@ export interface ListDiscoveriesResult {
   /**
    * Distinct QUESTIONS behind `unrated` — the number of taps actually needed.
    * `unrated` counts rows; one tap now rates a whole cluster, so quoting rows
-   * as the workload overstates it.
+   * as the workload overstates it. This one IS bounded by the card scan, so it
+   * is a floor whenever `truncated` is true — unlike `unrated`.
    */
   unratedClusters: number;
   /** Rows examined this call. */
   scanned: number;
-  /** True when the scan stopped early — `unrated` is then a lower bound. */
+  /**
+   * True when the CARD scan stopped early — `items` is then a partial page.
+   *
+   * Scoped to `items` ONLY since 2026-08-22. `unrated` and `restoredHidden` are
+   * exact SQL counts and are never floors, so a consumer that appends "+" to
+   * them on this flag turns an exact 242 into "242+". The card list is the only
+   * thing this bounds.
+   */
   truncated: boolean;
   /**
    * Unrated rows withheld because they are restored, not engine-found. Named
    * and counted rather than silently dropped — the operator's data stays his,
    * and a hidden pile that nothing reports is how 237 rows became invisible in
-   * the first place.
+   * the first place. EXACT, never a floor.
    */
   restoredHidden: number;
 }
@@ -291,14 +331,16 @@ export async function listDiscoveries(
         createdAt: true,
         lastSeen: true,
         metadata: true,
+        discoveryVerdict: true,
+        discoveryProvenance: true,
       },
     });
     if (rows.length === 0) break;
     scanned += rows.length;
 
     for (const r of rows) {
-      const provenance = readProvenance(r.metadata);
-      const verdict = readVerdict(r.metadata);
+      const provenance = readProvenance(r.metadata, r.discoveryProvenance);
+      const verdict = readVerdict(r.metadata, r.discoveryVerdict);
       if (provenance === "restored" && !opts.includeRestored) {
         // Withheld, never deleted — it is the operator's recovered data. Only
         // UNRATED restored rows count as hidden work; a judged one is done.
@@ -357,13 +399,51 @@ export async function listDiscoveries(
     ...ratedCards.slice(0, ratedShare),
   ];
 
+  // EXACT counts, straight from SQL. Until 2026-08-22 these were derived from
+  // whatever the bounded scan happened to reach, so `unrated` was a documented
+  // FLOOR — on prod it rendered 56 against a true 242, the defect the whole
+  // surface was judged on.
+  //
+  // Raw SQL, not a Prisma predicate, for one reason: the count has to honour
+  // the SAME metadata fallback readVerdict() does. A row judged by the old
+  // deployment after the backfill but before this code is live has
+  // metadata.discoveryVerdict set and the column NULL — readVerdict correctly
+  // treats it as judged and drops its card, but a column-only count still
+  // reports it unrated, so the badge sits nonzero with no card behind it
+  // indefinitely. `metadata->>'discoveryVerdict' IS NULL` is well-defined for
+  // both an absent key and a JSON null, and carries none of the NULL-comparison
+  // hazard that `NOT (... = 'x')` does.
+  const sinceIso = since.toISOString();
+  const cats = [...DISCOVERY_CATEGORIES];
+  const countRows = await prisma.$queryRaw<Array<{ unrated: bigint; restored: bigint }>>`
+    SELECT
+      count(*) FILTER (
+        WHERE ${opts.includeRestored ? Prisma.sql`TRUE` : Prisma.sql`(
+          discovery_provenance IS DISTINCT FROM 'restored'
+          AND coalesce(metadata->>'origin', '') NOT LIKE 'orphan-restore%'
+        )`}
+      ) AS unrated,
+      count(*) FILTER (
+        WHERE discovery_provenance = 'restored'
+           OR coalesce(metadata->>'origin', '') LIKE 'orphan-restore%'
+      ) AS restored
+    FROM brain_memories
+    WHERE category = ANY(${cats})
+      AND deleted_at IS NULL
+      AND last_seen >= ${sinceIso}::timestamp
+      AND discovery_verdict IS NULL
+      AND metadata->>'discoveryVerdict' IS NULL
+  `;
+  const exactUnrated = Number(countRows[0]?.unrated ?? 0);
+  const exactRestoredHidden = opts.includeRestored ? 0 : Number(countRows[0]?.restored ?? 0);
+
   return {
     items,
-    unrated: unrated.length,
+    unrated: exactUnrated,
     unratedClusters: unratedCards.length,
     scanned,
     truncated,
-    restoredHidden,
+    restoredHidden: exactRestoredHidden,
   };
 }
 
@@ -449,6 +529,13 @@ export async function rateDiscovery(
         // severity lives in the content string, not a column.
         discoveryVerdictSeverityRank: severityRankOf(row.content),
       } as never,
+      // 2026-08-22 · dual-write. `metadata` stays the source of truth; the
+      // columns are the SQL-queryable mirror added by
+      // 20260823000000_brain_memory_discovery_columns, which is what makes the
+      // feed's counts exact instead of the documented floor that rendered 56
+      // against a true 242.
+      discoveryVerdict: verdict,
+      discoveryRatedAt: new Date(),
       // A JUDGED row must never be garbage collected. Engine rows are created
       // with a 24h probationary `expiresAt` that the commit gateway can never
       // clear (see lib/brain/blind-spot-identity.ts), and pruneNoise +
@@ -567,7 +654,10 @@ export async function rateDiscoveryCluster(
 
   const candidates = await prisma.brainMemory.findMany({
     where: { id: { in: unique } },
-    select: { id: true, content: true, category: true, metadata: true, deletedAt: true },
+    select: {
+      id: true, content: true, category: true, metadata: true, deletedAt: true,
+      discoveryVerdict: true, discoveryProvenance: true,
+    },
   });
 
   const live = candidates.filter(
@@ -583,7 +673,7 @@ export async function rateDiscoveryCluster(
 
   // Elect a live head rather than trusting ids[0].
   const head = live[0];
-  const identity = `${readProvenance(head.metadata)}|${clusterKey(head.content)}`;
+  const identity = `${readProvenance(head.metadata, head.discoveryProvenance)}|${clusterKey(head.content)}`;
 
   // Re-derive full membership. Bounded by MAX_SCAN for the same reason the feed
   // is: an unbounded rate-everything would be a different, riskier operation
@@ -596,13 +686,17 @@ export async function rateDiscoveryCluster(
     },
     orderBy: { lastSeen: "desc" },
     take: MAX_SCAN,
-    select: { id: true, content: true, category: true, metadata: true },
+    select: {
+      id: true, content: true, category: true, metadata: true,
+      discoveryVerdict: true, discoveryProvenance: true,
+    },
   });
 
   const members = new Map<string, (typeof windowRows)[number]>();
   for (const r of windowRows) {
-    if (`${readProvenance(r.metadata)}|${clusterKey(r.content)}` !== identity) continue;
-    if (readVerdict(r.metadata) !== null) continue; // already judged on its own
+    if (`${readProvenance(r.metadata, r.discoveryProvenance)}|${clusterKey(r.content)}` !== identity)
+      continue;
+    if (readVerdict(r.metadata, r.discoveryVerdict) !== null) continue; // judged on its own
     members.set(r.id, r);
   }
   for (const r of live) members.set(r.id, r);
@@ -627,6 +721,8 @@ export async function rateDiscoveryCluster(
             // card, so the ledger must claim one judgement, not twelve.
             discoveryVerdictVia: head.id,
           } as never,
+          discoveryVerdict: verdict,
+          discoveryRatedAt: new Date(),
           // Same reason as rateDiscovery: a judged row must outlive the 24h
           // probationary TTL, or the suppression evaporates overnight.
           expiresAt: null,

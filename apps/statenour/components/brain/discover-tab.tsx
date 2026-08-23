@@ -236,9 +236,10 @@ export function DiscoverTab() {
 
       {unrated > unratedClusters && (
         <p className="text-[11px] text-fg-secondary">
-          {unratedClusters} question{unratedClusters === 1 ? "" : "s"} across {unrated} row
+          {unratedClusters}
+          {truncated ? "+" : ""} question{unratedClusters === 1 ? "" : "s"} across {unrated} row
           {unrated === 1 ? "" : "s"}
-          {truncated ? " so far — the scan stopped early, so both are floors" : ""}.
+          {truncated ? " — the row count is exact; the card scan stopped early, so the question count is a floor" : ""}.
         </p>
       )}
 
@@ -247,10 +248,10 @@ export function DiscoverTab() {
           onClick={() => setShowRestored(true)}
           className="min-h-[48px] w-full rounded-lg border border-glass bg-white/[0.02] px-3 text-left text-[11px] text-fg-secondary transition hover:text-fg"
         >
-          <span className="font-mono uppercase tracking-wider">
-            {restoredHidden}
-            {truncated ? "+" : ""} hidden
-          </span>{" "}
+          {/* EXACT, not a floor: restoredHidden is its own scoped SQL count and
+              is unaffected by where the card scan stopped. Appending "+" here
+              presented an exact 237 as a lower bound. */}
+          <span className="font-mono uppercase tracking-wider">{restoredHidden} hidden</span>{" "}
           — recovered by the 2026-08-16 embedding rescue, not found by an engine. Their dates are
           restore time, so they would sort as if they were new. Tap to include them.
         </button>
