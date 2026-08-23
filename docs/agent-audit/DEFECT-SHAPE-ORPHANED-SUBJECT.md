@@ -4,16 +4,17 @@
 > grew into the taxonomy. The name is kept because `CONTROL-CANARY-COVERAGE.md` and the
 > agent-memory index already point at it; renaming breaks both for no gain.
 
-**Status:** five shapes as of 2026-08-23. Shape 4 has seven recorded instances.
+**Status:** five shapes as of 2026-08-23. Shape 4 has seven recorded instances; shape 5 has five doc instances plus one product instance.
 
 ---
 
 ## The argument, first
 
-Four defect shapes. Four different detection heuristics. **Each heuristic independently scores
-its own shape GREEN.** Existence, readership, non-nullness and a clean log are four ways of
-asking "is something there?" -- and all four are answered *yes* by a defect that is completely
-dead. That is the whole case for why a canary must **assert behaviour, never presence**.
+Five defect shapes. Five different detection heuristics. **Each heuristic independently scores
+its own shape GREEN.** Existence, readership, non-nullness, a clean log and a confident sentence
+are five ways of asking "is something there?" -- and all five are answered *yes* by a defect that
+is completely dead. That is the whole case for why a canary must **assert behaviour, never
+presence**.
 
 **The shape table lives in
 [`CONTROL-CANARY-COVERAGE.md` -> "Four shapes, and the heuristic each one defeats"](CONTROL-CANARY-COVERAGE.md).**
@@ -32,7 +33,7 @@ the recorded decisions, neither of which belongs in a per-control ledger.
 Short enough to remember, each earned by an incident this file records.
 
 1. **Assert behaviour, never presence.** A canary that checks a control exists is defeated by
-   all four shapes above. One that breaks the control and asserts the break is detected is not.
+   every shape in this file. One that breaks the control and asserts the break is detected is not.
 2. **A ratio computed inside a filtered population is not a finding about the population.**
    State the base rate beside it, always. This was violated twice on 2026-08-23 alone — by a
    session and by its reviewer — after already having cost a misdirected investigation on
@@ -77,9 +78,11 @@ They are **complementary, not overlapping**, and the split is deliberate:
 That file is the register; this one is the field guide. A shape described here should end up
 *used* there — its "Writing one" section is where a canary for one of these shapes gets built.
 
-**The reciprocal cross-link is not yet in that file.** It is owned by a concurrent session and
-was last written by #1791; adding a line to it from here would race them. Whoever next edits it
-should add a pointer back to this file under its shape discussion.
+**The reciprocal cross-link now exists** -- that file points back here at its line 84 (landed
+in #1810). This paragraph previously said the link was still missing and asked the next editor
+to add it; it was stale from the moment it shipped, in the file about stale claims. Corrected
+rather than deleted, because "a TODO nobody retired after doing the thing" is its own small
+instance of shape 5.
 
 ---
 
@@ -468,6 +471,31 @@ git diff --name-only <deployed-sha> origin/main              # what is queued, b
 Report the deployed SHA beside the merged SHA, or say the gap was not measured. **A merge SHA is a
 claim about a branch; only a deployment record is a claim about the operator's screen.**
 
+**The standing rule both sessions now hold:** after each merge, verify live — or state explicitly
+*"merged, not yet verified deployed."* The second half matters as much as the first, because it is
+what makes the two states render differently (Stated Rule 6).
+
+### The corollary, found by applying that rule retroactively
+
+A concurrent session ran the new rule against its own merged PRs and found one it **cannot**
+verify that way: a **zero-ingest gate**, which by construction only fires observably during a
+total ingest outage. Waiting for the gate to prove itself means waiting for the failure it exists
+to prevent.
+
+> **A gate you can only observe by having the failure it prevents is a gate you cannot verify.**
+> It needs a proxy signal or a forced probe. There is no third option, and "it hasn't fired, so
+> it's fine" is not one — that is indistinguishable from the gate being dead.
+
+That session chose a proxy: `intelligence_claims` **continuity** — the gate is working if the
+thing it protects keeps flowing. Correct, and worth naming precisely because a proxy is a weaker
+instrument than a forced probe and should be labelled as such rather than quietly treated as
+equivalent. The forced probe (deliberately starve ingest in a scratch environment and assert the
+gate fires) remains the stronger option if it can ever be afforded.
+
+This is the same family as **plant a positive** (probe 1) and the NUL-byte canary: in all three,
+the fix is to *manufacture* the condition rather than wait for it, because waiting cannot
+distinguish "never happened" from "cannot see".
+
 ## Session completion is a blind instrument
 
 **The self-referential instance — this audit found the defect in its own execution, not only in
@@ -616,15 +644,56 @@ confident, well-formed reading of the wrong quantity.
 
 ---
 
-# Shape 5 · the lying surface (doc-facing)
+# Shape 5 · the lying surface
 
-**Named 2026-08-23.** Five instances in one sweep.
+**Named 2026-08-23.** Five doc instances in one sweep, plus one **product** instance — the only
+defect recorded here that reached the operator's daily use rather than his instrumentation.
 
 > **A doc claim is an unwired control — and worse, because a doc actively stops people looking.**
 
 An unwired control is merely absent. A false doc claim asserts a mechanism, nothing verifies the
 assertion, and a reader who finds the sentence stops searching. **The aggravating factor: a false
 COMPLETENESS claim does not just mislead, it closes a search.**
+
+## The product instance — the completion-frame disagreement
+
+**2026-08-23, found in live prod.** Two surfaces read the same tasks and disagree about whether
+the operator finished his morning. Measured read-only against prod, 90 minutes after the events:
+
+| current `Task.status` | `completed` event in `task_events` | task |
+|---|---|---|
+| **WAITING** | 90 min ago | **Workout** |
+| DONE | 90 min ago | Warm up on treadmill |
+| DONE | 90 min ago | Complete 10 rounds on bag with push-ups |
+| DONE | 90 min ago | Stretch and finish workout |
+| **WAITING** | 90 min ago | Drink water — 6+ bottles |
+| **WAITING** | 90 min ago | Wake up routine: gratitude, meds |
+| **WAITING** | 89 min ago | Want less, less expectations |
+
+Across every task that has ever emitted `completed`: **4 WAITING, 4 DONE.** The split is exactly
+recurring vs one-off, which is what identifies the mechanism rather than leaving it a guess.
+
+**Nobody wrote anything false, and that is the entire point.** A recurring task *does* return to
+`WAITING` after completing — that is correct behaviour, not a bug. `task_events` is an append-only
+**event** log: "this was completed at 09:14" stays true forever. `Task.status` is **current state**:
+"this is due again" is also true. A surface reading the first says done; a surface reading the
+second says waiting. Both are correct **in their own frame**, and the operator — who finished his
+workout — sees a board that says WAITING, with its own three sub-steps sitting at DONE directly
+underneath it.
+
+> **Any surface displaying completion state must declare which frame it is in.**
+> Event ("was completed at T") and state ("is currently due") are different facts. Rendering
+> either as a bare "done / not done" discards the frame, and a reader supplies the wrong one.
+
+**Why this is the cleanest illustration in the document.** Every other instance here has a wrong
+artifact somewhere — a stale count, an unwired script, a key with a clock in it. This one has
+**no incorrect data, no incorrect code, and no incorrect sentence**, and still produces a false
+impression at the only place that matters. It is the proof that *"nothing is wrong"* and
+*"everything feels broken"* are fully compatible, and that auditing the parts can return all-green
+while the composition lies.
+
+It is also the first defect of the day to reach the operator's **use** rather than his
+instrumentation — which is a comment on where the day's attention went, not only on the code.
 
 ## The worked example
 
