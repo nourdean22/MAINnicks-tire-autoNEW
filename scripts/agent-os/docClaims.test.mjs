@@ -57,9 +57,12 @@ function withCanaryCommit(path, contents, fn) {
     const env = { GIT_INDEX_FILE: join(scratch, "index") };
     git(["read-tree", "HEAD"], env);
     git(["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`], env);
-    const tree = git(["write-tree"], env);
-    const ref = git(["commit-tree", tree, "-p", "HEAD", "-m", "doc-claim fixture (throwaway)"]);
-    return fn(ref);
+    // A TREE, not a commit. `git commit-tree` needs an author identity, which
+    // CI runners do not have -- it failed there with "Author identity unknown"
+    // while passing locally: the third local-vs-CI divergence in this file's
+    // short life. ls-tree and cat-file both accept a tree-ish, so the commit
+    // object was never needed in the first place.
+    return fn(git(["write-tree"], env));
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -112,8 +115,7 @@ test("BREAKS: a planted false gate claim makes --strict exit 1", () => {
     const env = { GIT_INDEX_FILE: indexFile };
     git(["read-tree", "HEAD"], env);
     git(["update-index", "--add", "--cacheinfo", `100644,${blob},docs/agent-audit/.claim-canary.md`], env);
-    const tree = git(["write-tree"], env);
-    armedRef = git(["commit-tree", tree, "-p", "HEAD", "-m", "doc-claim canary (throwaway, never referenced)"]);
+    armedRef = git(["write-tree"], env); // tree-ish; see withCanaryCommit
 
     const armed = runChecker(["--strict", `--ref=${armedRef}`]);
     assert.equal(armed.code, 1, `the gate did NOT bite on a planted false claim:\n${armed.out}`);
@@ -190,8 +192,7 @@ test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () =>
     const env = { GIT_INDEX_FILE: indexFile };
     git(["read-tree", "HEAD"], env);
     git(["update-index", "--add", "--cacheinfo", `100644,${blob},apps/statenour/docs/DESIGN.md`], env);
-    const tree = git(["write-tree"], env);
-    const ref = git(["commit-tree", tree, "-p", "HEAD", "-m", "redundancy canary (throwaway)"]);
+    const ref = git(["write-tree"], env); // tree-ish; see withCanaryCommit
 
     const r = runChecker(["--strict", `--ref=${ref}`]);
     assert.equal(r.code, 1, `a redundant KNOWN_FALSE entry did NOT fail the run:\n${r.out}`);
