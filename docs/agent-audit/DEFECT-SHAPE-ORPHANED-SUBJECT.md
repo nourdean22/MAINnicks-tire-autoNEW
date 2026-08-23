@@ -1,14 +1,67 @@
-# Defect shape · the orphaned subject
+# Defect shapes · a field guide
 
-**Status:** new shape, first confirmed 2026-08-22 (statenour `/brain` → Discover).
-**Adjacent to** [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md), which tracks
-per-control canary coverage. This file describes a defect *class* that the coverage table's
-question ("does this control have a canary?") does not detect. The two want reconciling; they
-are deliberately separate files because they were written by concurrent sessions.
+> **Filename is historical.** This began as one shape (the orphaned subject, 2026-08-22) and
+> grew into the taxonomy. The name is kept because `CONTROL-CANARY-COVERAGE.md` and the
+> agent-memory index already point at it; renaming breaks both for no gain.
+
+**Status:** four shapes as of 2026-08-23.
 
 ---
 
-## The shape
+## The argument, first
+
+Four defect shapes. Four different detection heuristics. **Each heuristic independently scores
+its own shape GREEN.**
+
+| Shape | The heuristic it defeats | Why the heuristic fails |
+|---|---|---|
+| **Unwired control** | *"does the code exist?"* | It exists, reads correctly, and never runs |
+| **Orphaned subject** | *"grep for readers"* | Readers exist — the row the signal attached to is gone |
+| **Populated-but-unused** | *"is the column null?"* | It is populated, and the contents are meaningless |
+| **Blind instrument** | *"check the logs"* | The instrument reports success while structurally unable to observe its subject |
+
+That table is the whole case for why the canary rule says **assert behaviour, never presence**.
+Existence, readership, non-nullness and a clean log are four different ways of asking "is
+something there?" — and all four are answered "yes" by a defect that is completely dead.
+
+A canary asserting a control *exists* proves nothing. A canary that **breaks the control and
+asserts the break is detected** is the only construction that survives all four.
+
+---
+
+## How this file relates to CONTROL-CANARY-COVERAGE.md
+
+They are **complementary, not overlapping**, and the split is deliberate:
+
+| | [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) | this file |
+|---|---|---|
+| Unit | one **control** (a hook, gate, lint, guard, probe) | one **defect shape** |
+| Question | "does this control have a canary that breaks it?" | "what kind of wrong is this, and what probe finds it?" |
+| Output | an instance ledger — Proven / Unproven, counted | a detection procedure per shape |
+
+That file is the register; this one is the field guide. A shape described here should end up
+*used* there — its "Writing one" section is where a canary for one of these shapes gets built.
+
+**The reciprocal cross-link is not yet in that file.** It is owned by a concurrent session and
+was last written by #1791; adding a line to it from here would race them. Whoever next edits it
+should add a pointer back to this file under its shape discussion.
+
+---
+
+# Shape 1 · the unwired control
+
+The dominant class in this repo — eleven confirmed instances on 2026-08-21 alone. A correct
+control that was never connected to anything. Fully covered in
+[`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md); recorded here only so the four
+heuristics can be compared side by side.
+
+**Defeats:** *"does the code exist?"* — it does, it is correct, and it never runs.
+
+---
+
+# Shape 2 · the orphaned subject
+
+**First confirmed 2026-08-22 (statenour `/brain` -> Discover).**
 
 > **A feedback loop whose write survives, but whose subject does not.**
 
@@ -100,27 +153,6 @@ rows — so a harness that cannot see the failure cannot score green either.
 This generalises: **an idempotence test that does not advance whatever the key is derived from
 is not an idempotence test.**
 
-## Relationship to the known shapes
-
-| Shape | Question that detects it | Detects this one? |
-|---|---|---|
-| Control wired to nothing | Does anything read what it writes? | **No** — readers exist |
-| Gate that fails open | Does a broken input still score green? | **No** — no gate involved |
-| BUILT-TESTED-UNWIRED | Does a route import the surface? | **No** — fully wired and mounted |
-| Fixture-only test | Does the test see real data? | **No** — the ledger row was real |
-| **Orphaned subject** | **Do producer and consumer agree on identity?** | — |
-
-## Where else to look
-
-Any writer that stores operator state on a row it does not own the identity of. Candidates
-worth the four-step probe, not yet audited:
-
-- Every `remember()` call site whose key is built with a template literal — a key containing an
-  expression rather than a stable referent is the signature.
-- Ack / mute / snooze / dismiss flags stored in `metadata` on rows a cron regenerates.
-- Any `contentHash` dedup where the hashed content includes a timestamp, a count, or a
-  rendered date.
-
 ## Fix landed
 
 `lib/brain/blind-spot-identity.ts` — identity-derived stable key, plus an explicit recurrence
@@ -129,3 +161,173 @@ its lifetime, per Ancker et al. PMC5387195 on repeat-alert override). Canaries:
 `tests/brain/blind-spot-identity.test.ts` (idempotence proven across a 24h boundary, with the
 breaking arm) and `tests/brain/blind-spot-context.test.ts` (verdict-aware prompt read, with a
 canary for the Prisma JSON-path null trap that kept 1 of 241 rows).
+
+
+---
+
+# Shape 3 · populated-but-unused
+
+**Named 2026-08-23.** Credit to the concurrent session, which caught it *before* building on it.
+
+> **A column's name is a claim about its contents. A populated column is not a used column.**
+
+The field exists, is non-null, and type-checks. Schema inspection scores it GREEN. A null-check
+scores it GREEN. And the contents carry no information — or state the opposite of what the name
+implies.
+
+## The worked example — `Mission.successMetric`
+
+The sibling was about to gate a progress bar on whether a mission has a `successMetric`. It read
+the values first. Verified independently against prod, 2026-08-23:
+
+| mission | successMetric |
+|---|---|
+| Nick's Tire Revenue Recovery | `Recover $18k in dormant customer revenue this month.` |
+| STATENOUR OS MVP Launch | `Ship the first live operating console.` |
+| GENERAL PERSONAL | `Catch-all for personal tasks with no specific project.` |
+| GENERAL MIND | `Catch-all for mind tasks with no specific project.` |
+| GENERAL SOCIAL | `Catch-all for social tasks with no specific project.` |
+| GENERAL BUSINESS | `Catch-all for business tasks with no specific project.` |
+
+**9 missions · 6 populated · 4 of those 6 literally declare there is no project.**
+
+The column is used as a free-text *description*, not a metric. Gating a completion bar on
+non-null would have rendered a progress bar on exactly the missions stating they have no
+completion. A null-check cannot see this. Only reading the values can.
+
+## The second instance — `Task.energyRequired`, with its base rate
+
+Across **subtasks** (`parent_task_id IS NOT NULL`): **12 rows, 1 distinct value, all `MEDIUM` —
+exactly 0.00 bits.** Alive in the schema, inert in the data.
+
+**State the base rate beside it** (`base-rate-check`): across *all* tasks the distribution is
+`MEDIUM` 82.7% · `LOW` 11.8% · `HIGH` 5.5% ~= **0.82 bits**. So "0.00 bits" is true of the
+subtask population and **not** true of tasks generally. A ratio computed inside a filtered
+population is not a finding about the population — the same discipline that turned a
+"72% of failed calls" claim into an 18% base rate.
+
+## Retroactive reclassification
+
+Two findings from 2026-08-22 were this shape, recorded under the vaguer label "uniform labels":
+
+- **The Discover priority tag.** 92.5% of all blind spots ever written carry `CRITICAL` or
+  `HIGH` — ~0.4 bits. Populated on every row, non-null, nearly information-free. Dropped from
+  display and demoted to the recurrence threshold, where it does real work.
+- **The energy tags above.**
+
+Naming the class is what makes them one finding instead of two anecdotes.
+
+## The probe
+
+1. **Read the values before building on the column** — not the schema, not the null-rate, a
+   sample of actual contents.
+2. **Measure the entropy.** One distinct value across the population = zero bits = inert,
+   whatever the type says.
+3. **Check whether the contents contradict the name.** `successMetric` containing
+   "no specific project" is the signature.
+4. **State the base rate beside any in-population ratio.**
+
+---
+
+# Shape 4 · the blind instrument
+
+**Named 2026-08-23.** Four instances in one day, which is what forced the name. All four surfaced
+during the /task completion incident; none came from Discover.
+
+> **A measuring device that cannot observe its own subject — and reports success anyway.**
+
+This is a *nastier* failure than an unwired control, and the difference is worth being precise
+about. An unwired control is silent: it produces no signal, and a careful reader notices the
+absence. A blind instrument produces a **confident, well-formed, wrong** signal. It does not fail
+to answer; it answers, and the answer is about something other than what you asked.
+
+Shape 2 is a defect in a *loop*. This is a defect in a *measurement*. They compound: a blind
+instrument is exactly what lets an orphaned subject survive an audit.
+
+## The instances, 2026-08-23
+
+| Instrument | Appeared to measure | Actually measured | Receipt |
+|---|---|---|---|
+| `task_events` | task completions | everything except completions | 294 rows, 5 kinds (`created` 119 · `revived` 74 · `reframed` 56 · `started` 43 · `snoozed` 2), **`completed` = 0, ever** |
+| `error_logs` | server errors on the failing path | errors on routes that go through `apiHandler` | the tRPC path converts to `TRPCError`; `lib/trpc/` has no equivalent global write |
+| `api_request_logs` | HTTP traffic | a **10% production sample** of `apiHandler`-wrapped routes | `/api/tasks%` -> **0 rows, all time** |
+| The clock | UTC timestamps | local time | `timestamp without time zone` in the reader's zone: **+4 h on ET** |
+
+Three corrections, all of which are themselves instances of the shape:
+
+**`task_events` is not unwired — it is alive and specifically blind to one kind.** The table
+takes writes (latest 2026-08-23 09:00) and a producer exists at `lib/services/tasks.ts:1038`
+(`emitTaskEventAsync({ kind: "completed" })`). So "no call site emits it" is refuted by code.
+The truth is narrower and worse: the emitter exists, the table works, and `completed` has
+**never** landed. An unwired-control diagnosis would have sent someone to write a producer that
+was already there.
+
+**`api_request_logs` — right conclusion, wrong mechanism.** An earlier draft of this file said it
+"instruments five path prefixes". There is no prefix list. The writer is `apiHandler`
+(`lib/utils/http.ts:243`) and it logs whatever route it wraps, gated by
+`duration_ms > 1000 || Math.random() < 0.1`. `/api/tasks/*` **is** wrapped. The blinding is (a)
+routes that bypass `apiHandler` entirely — the pattern already documented at
+`lib/services/diagnose-chat.ts:17-20` — and (b) a 10% sampler that makes any low-volume path
+invisible in a short window. The empirical claim held (0 rows for `/api/tasks%`); the stated
+reason was invented. **A field guide against blind instruments that misreads an instrument's
+blinding mechanism is the shape it names.**
+
+**The count differs from the sibling ledger, deliberately.**
+[`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) lists `task_events`, `error_logs`,
+**`reality_gap_writeback_failed`** and the clock, and counts **three** blind instruments because
+it holds that the clock "is not a control". Both are defensible and the divergence is real:
+
+- That file counts by CONTROL, so a clock is out of scope for it. This file counts by SHAPE, and
+  a clock that reports the wrong frame is the purest instance of the shape — so it is counted here.
+- `reality_gap_writeback_failed` is listed there as having "exactly one reference repo-wide: its
+  own writer. Nothing read it." That is the **unwired-control** shape, not this one. It is
+  correctly in that ledger and correctly absent from this table.
+- `api_request_logs` appears here and not there because it surfaced during the /task incident
+  after that file was last written (#1791).
+
+**Do not reconcile these to one number without re-reading both definitions.** Four by shape,
+three by control, and the sets are not the same members.
+
+## The probe
+
+For any instrument you are about to trust:
+
+1. **Plant a positive.** Before believing a zero, produce one known-true row and confirm the
+   instrument sees it. `task_events` returning zero and `task_events` being unwired are the same
+   observation until you do this.
+2. **Read the instrument's own scope, not its name.** `api_request_logs` sounds total. Its
+   filter list is five path prefixes. The name is a claim; the filter is the fact.
+3. **Ask what frame the number is in.** Timezone, unit, currency, sample window, filtered
+   population. A number without its frame is not yet evidence — see
+   `base-rate-check` for the denominator half of the same discipline.
+4. **Check whether absence is distinguishable from silence.** If "nothing happened" and "I
+   cannot see" render identically, the instrument cannot support a negative conclusion.
+
+## Count as of 2026-08-23
+
+Twelve-plus confirmed instances of the dominant unwired-control class
+([`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) is authoritative — it counts by
+control, this file counts by shape, so the two numbers are **not** interchangeable), plus one
+orthaned subject, two populated-but-unused columns, and four blind instruments BY SHAPE
+(three by control — see the divergence note in shape 4; the sets differ in membership, not just
+in count).
+
+The blind instruments all landed on **one day**, which is the finding. Four independent
+measuring devices, none broken, none reporting an error, all incapable of observing the thing
+they were consulted about. That rate suggests the class is under-counted historically rather
+than newly common — nobody was looking for it, because a blind instrument never raises its hand.
+
+---
+
+## Where else to look
+
+Candidates for the probes above, not yet audited. The first three are orphaned-subject
+signatures; the last two are shape 3 and shape 4:
+
+- Every `remember()` call site whose key is built with a template literal — a key containing an
+  expression rather than a stable referent is the signature.
+- Ack / mute / snooze / dismiss flags stored in `metadata` on rows a cron regenerates.
+- Any `contentHash` dedup where the hashed content includes a timestamp, a count, or a
+  rendered date.
+- Any column you are about to branch on: read its values first, and measure its entropy.
+- Any log or metrics table consulted for a NEGATIVE conclusion: confirm it can see a positive.
