@@ -301,16 +301,48 @@ Return ONLY a JSON array, no commentary:
   };
 }
 
+// The contract the prompt cannot enforce on its own.
+import { filterGeneratedSubtasks } from "@/lib/services/subtask-validator";
+
 const subtaskShape = z.object({
   title: z.string().min(1).max(500),
   nextAction: z.string().min(1).max(500),
   effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
   context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+  // 2026-08-23 · energyRequired used to be HARDCODED "MEDIUM" at the insert and
+  // never asked for here, so every AI-GENERATED subtask carried the same tag:
+  // 12 of 12 MEDIUM, 0.00 bits. That is not a miscalibrated estimate, it is a
+  // placeholder rendered as if it were a measurement. Now the model states it, so
+  // the value is a claim that can be right or wrong instead of a constant.
+  //
+  // WITH ITS DENOMINATOR, because the figure above is computed inside a filtered
+  // population and is worthless without one: across ALL tasks the column is
+  // MEDIUM 82.7% / LOW 11.8% / HIGH 5.5%, about 0.82 bits. The COLUMN is alive
+  // and genuinely varies — it was only the generator's rows that were constant.
+  // Reading 0.00 bits as a fact about energyRequired would be the same error as
+  // the 2026-08-08 call-failure call, where "72% of failed calls are short" was
+  // quoted at an 18% base rate and aimed a week at working code.
+  energy: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
 });
 
 export type AiSubtaskOut = z.infer<typeof subtaskShape>;
 
-export async function decomposeTaskWithAi(taskId: string): Promise<{ ok: boolean; subtasksCount: number }> {
+/**
+ * Decompose a task into subtasks.
+ *
+ * `{ ok: true, subtasksCount: 0 }` is returned on two DIFFERENT paths and
+ * callers must distinguish them: the model legitimately planning nothing, and
+ * the next-action gate refusing what it produced. `suppressed` marks the
+ * second. Callers that act on success — flipping status, posting a coach event,
+ * rendering "Successfully created N subtasks" — must check subtasksCount, not
+ * ok alone.
+ */
+export async function decomposeTaskWithAi(taskId: string): Promise<{
+  ok: boolean;
+  subtasksCount: number;
+  suppressed?: boolean;
+  suppressedReason?: "none" | "too_few_actions" | "alternatives_not_steps";
+}> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: { mission: true },
@@ -339,9 +371,24 @@ Each subtask must have:
 - nextAction: the immediate physical first step
 - effort: M5, M15, M30, H1, or H2PLUS (estimate of time)
 - context: DESK, PHONE, SHOP, CAR, HOME, or ANYWHERE
+- energy: LOW, MEDIUM, or HIGH (mental energy the step demands, NOT its duration —
+  a 5-minute phone call you are dreading is HIGH; 30 minutes of filing is LOW)
+
+Every title must be a NEXT PHYSICAL ACTION — something you could watch someone do.
+Do NOT emit steps that begin with Decide, Determine, Consider, Review, Evaluate,
+Assess, or Figure out: those are decisions, and a decision restated as a subtask
+leaves the original loop open. Do NOT emit steps about updating this tracker.
+If the parent genuinely needs a DECISION before any physical action exists, return
+an empty array [] rather than inventing steps.
+
+Subtasks are CONJUNCTIVE: the operator will see a checklist and is expected to do
+ALL of them. Never emit alternatives as siblings. "Close it", "Delegate it" and
+"Schedule it" are three ways of resolving the same item, not three steps — offering
+them together asks for three contradictory things at once. If the honest answer is
+a choice between dispositions, return [] and let the operator choose.
 
 Return ONLY a JSON array, no commentary:
-[{"title":"...","nextAction":"...","effort":"M30","context":"DESK"}]`,
+[{"title":"...","nextAction":"...","effort":"M30","context":"DESK","energy":"MEDIUM"}]`,
       },
     ],
     "extract",
@@ -374,10 +421,57 @@ Return ONLY a JSON array, no commentary:
     return { ok: true, subtasksCount: 0 };
   }
 
+  // THE GATE. A prompt is a request; this is the contract. The prompt above already
+  // asked for "specific physical steps" and the live artefact that prompted this was
+  // still "Decide on action for the open loop" — the original problem restated as a
+  // child of itself, shipped as one of five children with a progress bar over them.
+  //
+  // Fewer, better, or nothing: if what survives validation is not a decomposition,
+  // create NOTHING and let the operator decide. Five wrong checkboxes are worse than
+  // zero — they bury the actual decision under busywork and render a bar that cannot
+  // legitimately reach 100%. Two batch outcomes are possible: too few real actions
+  // survived, or the survivors were mutually exclusive dispositions (a menu of exits
+  // rather than a plan). Both create nothing; they are logged distinctly.
+  const gate = filterGeneratedSubtasks(subtasks);
+  for (const r of gate.rejected) {
+    log.warn("subtask_rejected_not_a_next_action", { taskId, title: r.title, reason: r.reason });
+  }
+  // Distinct event: these PASSED the next-action check and were dropped because
+  // of the company they kept. Logging them under the rejection event would
+  // record the opposite of what was found.
+  for (const d of gate.droppedByBatchRule) {
+    log.warn("subtask_dropped_alternative_not_step", { taskId, title: d.title, reason: d.reason });
+  }
+  if (gate.suppressed) {
+    log.warn("subtask_generation_suppressed", {
+      taskId,
+      generated: subtasks.length,
+      rejected: gate.rejected.length,
+      droppedAsAlternatives: gate.droppedByBatchRule.length,
+      reason: gate.suppressedReason,
+      note:
+        gate.suppressedReason === "alternatives_not_steps"
+          ? "the batch was a menu of mutually exclusive dispositions, not a plan; the choice is the operator's"
+          : "too few real next actions survived; created none rather than shipping decisions as checkboxes",
+    });
+    return {
+      ok: true,
+      subtasksCount: 0,
+      // The caller MUST be able to tell "the gate refused" from "the model
+      // planned nothing" — they are the same shape otherwise, and
+      // autonomic-orchestrator.ts:453 flips the parent to WAITING and posts a
+      // P1 "Task Healed" on ok:true alone. A stalled task with zero children
+      // then stops matching the healer's own selector (status: DOING) and is
+      // parked forever, announced as fixed.
+      suppressed: true as const,
+      suppressedReason: gate.suppressedReason,
+    };
+  }
+
   // Create subtasks in the database
   const created = [];
-  for (let i = 0; i < subtasks.length; i++) {
-    const st = subtasks[i];
+  for (let i = 0; i < gate.kept.length; i++) {
+    const st = gate.kept[i];
     const sub = await prisma.task.create({
       data: {
         title: st.title,
@@ -389,7 +483,7 @@ Return ONLY a JSON array, no commentary:
         status: "READY",
         roiScore: Math.max(10, (task.roiScore ?? 50) - 5 - i * 5),
         frictionScore: 30,
-        energyRequired: "MEDIUM",
+        energyRequired: st.energy,
         finishCondition: "",
       },
     });

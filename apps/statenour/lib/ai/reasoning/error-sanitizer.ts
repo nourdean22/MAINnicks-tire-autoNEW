@@ -109,6 +109,45 @@ async function persistToErrorLog(entry: {
 
 function classifyForOperator(rawMsg: string): string {
   const m = rawMsg.toLowerCase();
+
+  // STRUCTURAL FIRST — a schema error is NOT a hiccup, and this ordering is the fix.
+  // "Database hiccup · try again in a moment" implies transient and retryable. For a
+  // month, `42P01 relation "drift_alerts" does not exist` matched the /prisma/ branch
+  // below and told the operator to retry something that could never succeed: 814
+  // occurrences, nobody investigating, because the copy said "flaky" about a table
+  // that had been dropped. Retrying is not a remedy for a missing relation.
+  //
+  // Postgres class 42 = syntax/access-rule violation. Every one of these means the
+  // code and the schema disagree, which a human must reconcile.
+  //   42P01 undefined_table · 42703 undefined_column
+  //   42883 undefined_function · 42P02 undefined_parameter · 42P07 duplicate_table
+  //
+  // P2021/P2022 are Prisma's OWN table-does-not-exist / column-does-not-exist
+  // codes. They were falling to the `p2\d+` alternative in the branch below and
+  // reading "Database hiccup · try again in a moment" — the exact same lie about
+  // a different code path. P2025 (record not found) is deliberately NOT here: a
+  // missing ROW is a normal, retryable condition, not a schema disagreement.
+  //
+  // ANCHORED TO A DATABASE OBJECT ON PURPOSE. A first pass matched the bare
+  // phrase "does not exist", which is not a database signal — it is English.
+  // This function is the GLOBAL tRPC errorFormatter (lib/trpc/trpc.ts:43), so a
+  // bare match rewrote the copy for every procedure in the app: the canonical
+  // provider body `The model \`x\` does not exist or you do not have access to
+  // it` classified as structural and told the operator to write a migration for
+  // a model-name typo. That is the same defect as the bug being fixed, pointed
+  // the other way. Same anchoring pgvector.ts:309 already uses.
+  //
+  // `function` is deliberately NOT in the object list — "tool function X does
+  // not exist" is an AI-provider message. Postgres always pairs its version
+  // with SQLSTATE 42883, which is matched above.
+  if (
+    /42p01|42703|42883|42p02|42p07|p2021|p2022|(relation|column|table|constraint|index|sequence)\s+"?[\w.$]*"?\s*does not exist|undefined (table|column|function)/i.test(
+      m,
+    )
+  ) {
+    return "Structural error · the code and the database schema disagree. This will NOT fix itself on retry — it needs a fix or a migration.";
+  }
+
   if (/prisma|p2\d+|database|connection|ecconrefused|timeout.*db/i.test(m)) {
     return "Database hiccup · the engine couldn't reach state. Try again in a moment.";
   }
@@ -121,7 +160,14 @@ function classifyForOperator(rawMsg: string): string {
   if (/rate.?limit|429|quota/i.test(m)) {
     return "Provider rate limit hit. Wait ~60s and re-try.";
   }
-  if (/openai|anthropic|venice|ollama|provider/i.test(m)) {
+  // `model … does not exist` added 2026-08-23. The canonical model-not-found body
+  // names no provider, so it fell all the way through to "Internal engine error.
+  // The team has been notified." — which is both unhelpful and untrue. This is the
+  // branch the over-broad structural regex above was shadowing, so it is the same
+  // gap rather than new scope. Bounded to 40 chars between the words so
+  // "data model validation failed" and "zod schema parse error on model output"
+  // still fall through to their own branches.
+  if (/openai|anthropic|venice|ollama|provider|model .{0,40}does not exist|model not found|no such model/i.test(m)) {
     return "AI provider error. The engine will route through the fallback chain on retry.";
   }
   if (/parse|json|schema|validation|zod/i.test(m)) {

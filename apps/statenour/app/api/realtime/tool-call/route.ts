@@ -207,7 +207,13 @@ export async function POST(req: NextRequest) {
         // no goal lift, no brain-bus emit, used UTC day-math for streaks,
         // and killed WEEKLY loops by flipping them to permanent DONE.
         // checkTask handles all four loop kinds + same-day idempotency.
-        const res = await checkTask({ id: target.id, action: "complete" });
+        const res = await checkTask({
+          id: target.id,
+          action: "complete",
+          // Attribution travels INTO the spine rather than a second emit after
+          // it. See below for why.
+          eventSource: "voice:completeTask",
+        });
 
         if (res.idempotent) {
           return NextResponse.json({
@@ -216,14 +222,15 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // checkTask does not emit a TaskEvent itself — keep the voice
-        // source attribution the history/pattern views rely on.
-        emitTaskEventAsync({
-          taskId: target.id,
-          kind: "completed",
-          source: "voice:completeTask",
-          ...(res.task?.streakCount != null ? { payload: { streakCount: res.task.streakCount } } : {}),
-        });
+        // 2026-08-23 · the emit that used to live here is GONE. Its comment read
+        // "checkTask does not emit a TaskEvent itself", which stopped being true
+        // when the completion event was wired into the spine — so this path was
+        // about to write TWO rows per voice completion. They would not have
+        // collided on the 60s idempotency key either, because that key hashes the
+        // payload and the two payloads differed. getDoneTodayCount() and
+        // task-signals.ts:79 both COUNT completed rows, so every voice check-off
+        // would have inflated the operator's own completion stats by one.
+        // The voice attribution is preserved via eventSource above.
 
         if (target.loopKind === "DAILY" || target.loopKind === "WEEKLY") {
           const streak = res.task?.streakCount ?? 1;

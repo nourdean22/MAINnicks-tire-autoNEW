@@ -126,18 +126,24 @@ export async function buildSystemHub() {
 
     getPowerSettings().catch(() => null),
 
-    safeQuery(
-      async () => {
-        const rows = await prisma.$queryRaw<Array<{ c: bigint }>>`
-          SELECT COUNT(*)::bigint AS c
-          FROM drift_alerts
-          WHERE resolved = false
-        `;
-        return Number(rows[0]?.c ?? 0);
-      },
-      null,
-      { label: "hub.pulse" },
-    ),
+    // 2026-08-23 · THE TABLE IS GONE. `model DriftAlert` was removed from
+    // schema.prisma, `prisma.driftAlert` has zero callers, and nothing writes
+    // drift_alerts any more. The raw query here outlived the model because raw
+    // SQL is not typechecked — the "a DROP must prune every re-apply path"
+    // failure the statenour-migration skill documents.
+    //
+    // It threw `42P01 relation "drift_alerts" does not exist` 814 times over a
+    // month. safeQuery swallows ONLY quota errors and rethrows everything else,
+    // so this did not degrade the pulse sub-rollup — it failed the ENTIRE
+    // system.hub payload, every time, and surfaced as "Database hiccup".
+    //
+    // No query and NO GUARD: a guarded call to a table that will never exist is
+    // dead code with a pulse. The slot stays only to hold the array position the
+    // destructure depends on. null means UNMEASURED, which is not the same claim
+    // as 0 — the feature moved to BrainMemory-backed storage (getUnresolvedAlerts
+    // reads prisma.brainMemory); re-point this at that if the chip is ever wanted
+    // back.
+    Promise.resolve<number | null>(null),
 
     safeQuery(
       async () => {

@@ -23,6 +23,12 @@ export interface Project {
   domain?: string | null;
   description?: string | null;
   deadline?: string | null;
+  /** Operator-declared "this is what finished looks like". Already returned by
+   *  listMissions (findMany+include selects every scalar); it was simply never
+   *  declared here, so the client could not see it. MissionCard gates the
+   *  completion percentage on it via missionHasEndState — a bucket with no
+   *  declared end has no meaningful 100%. */
+  completionCriteria?: unknown;
   planData?: unknown;
   /** Wave AJ · 2026-05-28 · operator-set sort rank · lower = higher in
    *  the missions list · nulls sink to bottom. MissionFeed sorts by

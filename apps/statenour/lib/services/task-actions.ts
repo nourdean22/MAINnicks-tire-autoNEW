@@ -37,6 +37,10 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { auditUpdate } from "@/lib/db/actor";
 import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
+// Sync, guarded (`if (prisma?.errorLog?.create)`) and documented "never throws,
+// never blocks" — so a direct call is strictly safer here than the dynamic
+// import this replaced, which added a chunk-load rejection path inside a catch.
+import { logError } from "@/lib/utils/error-log";
 import { createTask as createTaskService, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import type { TaskReward } from "@/lib/mastery/task-reward";
@@ -90,7 +94,15 @@ export interface CheckTaskResult {
  */
 export async function checkTask(args: {
   id: string;
-  action?: string;
+  /** 2026-08-23 · narrowed from `string`. Line ~116 coerces ANY value that is
+   *  not the literal "break" into "complete", so an in-process caller passing
+   *  "uncheck", "skip" or a typo silently marked the task DONE. The tRPC edge
+   *  validates with z.enum(["complete","break"]), but the three in-process
+   *  callers (chat/persist-user-turn, services/tasks, realtime/tool-call) go
+   *  straight to this function and bypass zod entirely. The union makes the
+   *  compiler the guard. No caller passes anything else today — this closes a
+   *  latent hazard, not an active bug. */
+  action?: CheckAction;
   /** 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · when the
    *  operator completes a parent task with open children, the UI
    *  prompts "complete N subtasks too?" and passes cascadeChildren
@@ -102,12 +114,17 @@ export async function checkTask(args: {
    *  children stay open · half-state allowed). Skipped for DAILY
    *  (DAILY just bumps streak · cascade semantics don't apply). */
   cascadeChildren?: boolean;
+  /** Attribution for the emitted "completed" TaskEvent. Defaults to
+   *  "service:checkTask". Callers that front this spine on the operator's
+   *  behalf (the voice tool route) pass their own surface so the history and
+   *  pattern views keep the attribution they read. */
+  eventSource?: string;
   completionNote?: string | null;
   outcomeScore?: number | null;
   outcomeRating?: OutcomeRating | null;
   outcomeLesson?: string | null;
 }): Promise<CheckTaskResult> {
-  const { id } = args;
+  const { id, eventSource } = args;
   const action: CheckAction = args.action === "break" ? "break" : "complete";
   const cascadeChildren = args.cascadeChildren === true;
 
@@ -311,6 +328,26 @@ export async function checkTask(args: {
       });
     }
 
+    // A recurring completion IS a completion — it bumps the streak and credits
+    // XP and stats a few lines above. This branch returns ~300 lines before the
+    // emit at the tail of the function, so the first version of this fix left
+    // every DAILY and WEEKLY check-off unrecorded: the same blind instrument,
+    // one layer down, in the lane /missions actually routes recurring work
+    // through. Reached only past the same-day idempotency guard, so a double
+    // tap on a habit still emits nothing.
+    emitTaskEventAsync({
+      taskId: id,
+      kind: "completed",
+      source: eventSource ?? "service:checkTask",
+      payload: {
+        action: "complete",
+        loopKind: task.loopKind ?? null,
+        childrenCascaded: 0,
+        streakCount: nextStreak,
+        recurring: true,
+      },
+    });
+
     return {
       ok: true,
       task: updated,
@@ -322,6 +359,25 @@ export async function checkTask(args: {
         streak: updated.streakCount,
       },
     };
+  }
+
+  // 2026-08-23 · ADJACENT FIX, found by the audit of which paths reach the
+  // completion emit. "break" is only meaningful for a PROMISE loop, but nothing
+  // enforced that: the DAILY/WEEKLY guard above requires action === "complete"
+  // and the PROMISE guard below requires loopKind === "PROMISE", so a DAILY task
+  // sent action:"break" matched NEITHER and fell into the ONCE completion path —
+  // status DONE, startedAt nulled, the recurrence permanently destroyed — and now
+  // also emits a "completed" event whose own payload says action:"break".
+  //
+  // Reachable from the tRPC mutation, whose input validates `action` and `id`
+  // independently with no loopKind cross-check. No caller passes it today, so
+  // this converts silent destruction into a 400 rather than changing any live
+  // behaviour. Breaking a promise is not completing a habit.
+  if (action === "break" && task.loopKind !== "PROMISE") {
+    throw new ServiceError(
+      `"break" applies only to PROMISE loops — this task is ${task.loopKind ?? "ONCE"}. Complete or archive it instead.`,
+      400,
+    );
   }
 
   // ── PROMISE broken ──
@@ -553,6 +609,22 @@ export async function checkTask(args: {
         });
       }
     } catch (e) {
+      // 2026-08-23 · This catch is CORRECT to swallow - a failed effort-band writeback
+      // must never break a completion, and verifiably cannot: there is no $transaction
+      // in this file, so the task update has already committed.
+      //
+      // But "reality_gap_writeback_failed" had exactly ONE reference repo-wide: this
+      // line. Nothing read it, nothing alerted on it, no surface counted it. Every
+      // failure here silently dropped a piece of the reality-gap data - the
+      // job-is-green-with-zero-rows pattern, one layer down. It now also lands in
+      // error_logs, which is queryable, so the loss is observable rather than
+      // logged into the void.
+      logError(
+        "service.checkTask",
+        e,
+        { fn: "reality_gap_writeback", taskId: id, lost: "effort-band average" },
+        "warn",
+      );
       log.warn("reality_gap_writeback_failed", {
         taskId: id,
         err: e instanceof Error ? e.message.slice(0, 200) : String(e),
@@ -581,6 +653,36 @@ export async function checkTask(args: {
       });
     }
   })();
+
+  // 2026-08-23 · THE EVENT THAT NEVER LANDED. `"completed"` has been in the
+  // TaskEventKind union since the log was built and task_events held ZERO of them:
+  // 294 rows across created / revived / reframed / started / snoozed, not one
+  // completion. During the 2026-08-23 incident that silence was read as evidence no
+  // completion had been attempted.
+  //
+  // Two emitters DID exist — the claim "no call site emitted it" is wrong and was
+  // corrected here. tasks.ts:1038 is annotated in-source as UNREACHABLE (every real
+  // TODO→DONE PATCH short-circuits into checkTask at tasks.ts:891), and
+  // app/api/realtime/tool-call/route.ts only fires on a voice completion. Neither
+  // produced a row. The gap was this spine, which every UI route funnels through.
+  //
+  // ONE emit per completion, from ONE place. The voice route used to emit its own
+  // under the comment "checkTask does not emit a TaskEvent itself"; that is now
+  // false, so it passes eventSource instead and its duplicate was removed. Two rows
+  // with different payloads do NOT collide on the 60s idempotency key, and
+  // getDoneTodayCount + task-signals.ts:79 both COUNT these rows — a double emit
+  // would have inflated the operator's completion stats on every voice check-off.
+  emitTaskEventAsync({
+    taskId: id,
+    kind: "completed",
+    source: eventSource ?? "service:checkTask",
+    payload: {
+      action: action ?? "complete",
+      loopKind: task.loopKind ?? null,
+      childrenCascaded,
+      outcomeRating: outcomeRating ?? null,
+    },
+  });
 
   return {
     ok: true,

@@ -61,6 +61,28 @@ export interface TaskEventInput {
   source?: string;
   /** Optional structured detail (e.g. priority_changed → {from, to}). */
   payload?: Record<string, unknown>;
+  /**
+   * OPT IN to the witnessed-commitment resolver below. Default false.
+   *
+   * This flag exists because `kind: "completed"` used to carry a hidden data
+   * mutation: it scanned EVERY ACTIVE WITNESSED_COMMITMENT agenda item and set
+   * any fuzzy title match to RESOLVED. That contradicts this module's own
+   * contract three lines from the top — "Append-only. Never updated, never
+   * deleted" — and it means an emit added for observability silently rewrote
+   * the operator's personal commitments.
+   *
+   * It had never run. Measured 2026-08-23: task_events held 294 rows across
+   * created/revived/reframed/started/snoozed and ZERO "completed", and
+   * agenda_items held ZERO rows in any RESOLVED state. Wiring the first
+   * completed-emit would therefore have been the first execution of dormant
+   * code, in production, against 35 live commitments — the "repairing a no-op
+   * re-arms every dormant path behind it" failure this repo has recorded before.
+   *
+   * Defaulting to false preserves the observed behaviour EXACTLY (it has never
+   * fired, and it still will not) while making arming it a deliberate,
+   * operator-visible decision rather than a side effect of adding a log line.
+   */
+  resolveWitnessedCommitments?: boolean;
 }
 
 /**
@@ -95,7 +117,14 @@ export async function emitTaskEvent(input: TaskEventInput): Promise<void> {
       },
     });
 
-    if (input.kind === "completed") {
+    // Opt-in only — see resolveWitnessedCommitments on TaskEventInput. The
+    // match below is `a.includes(b) || b.includes(a)` over titles with NO
+    // taskId scoping, so a short commitment title resolves every task whose
+    // title contains it. Simulated against live data 2026-08-23: 5 matches
+    // across 110 tasks x 35 commitments, and 0 of the 5 matched on the
+    // intended `meta.taskId` link — the fuzzy branch does 100% of the work.
+    // Whether that is wanted is the operator's call, not a logger's.
+    if (input.kind === "completed" && input.resolveWitnessedCommitments === true) {
       try {
         const task = await prisma.task.findUnique({
           where: { id: input.taskId },
