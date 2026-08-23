@@ -33,5 +33,33 @@ export const maxDuration = 60;
 export const GET = cronHandler(async () => {
   const result = await fetchAndStoreReviews();
   log.info("reviews ingested", { fetched: result.fetched, newCount: result.newCount });
+
+  // ZERO FETCHED IS AN OUTAGE, NOT A QUIET DAY.
+  // A live Place ID always re-reads its most recent five reviews, so `fetched: 0`
+  // means the call came back empty. NOT from REQUEST_DENIED — google-reviews.ts:78
+  // THROWS on that (`status !== "OK" && status !== "ZERO_RESULTS"`), and an earlier
+  // draft of this comment had that exactly backwards. What line 78 lets through as
+  // a non-error is `ZERO_RESULTS` and a MISSING status field, and `data.result
+  // ?.reviews ?? []` turns either into an empty array. Those are the two shapes
+  // that reach here as a silent zero.
+  //
+  // Keyed on `fetched`, NEVER on `newCount`. `newCount` is rows WRITTEN and is
+  // legitimately 0 on most days (the same five reviews, already stored) — the
+  // route comment above records that as a deliberate decision. Asserting on it
+  // would page nightly and get the assertion deleted within a week.
+  //
+  // Residual honesty gap, stated rather than discovered later: a shop that
+  // genuinely has no Google reviews would now throw every day. That is the right
+  // trade for THIS shop, which has them; it is the wrong default to copy blindly
+  // into a route for a place that might not.
+  if (result.fetched === 0) {
+    throw new Error(
+      "ingest-reviews: Places returned 0 reviews for the configured place. " +
+        "A live Place ID always re-reads its most recent five, so zero means the " +
+        "feed is broken: ZERO_RESULTS, or a 200 whose body carries no `status` and " +
+        "no `result.reviews`. A REQUEST_DENIED would have thrown upstream with a " +
+        "different message, so do not go looking for one.",
+    );
+  }
   return result;
 });

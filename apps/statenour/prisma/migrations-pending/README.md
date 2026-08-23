@@ -53,6 +53,27 @@ them back when ready.
 
 ## Parked migrations
 
+### `20260822230000_cron_job_log_result_count` — ⏸ PARKED, not applied
+
+Adds a nullable `"resultCount" INTEGER` to `cron_job_logs`. Additive, no backfill,
+no data loss; `rollback.sql` drops it.
+
+**Why.** The table has six columns and no result count, so a full ingest and a
+zero-result ingest are indistinguishable BY SCHEMA — no amount of monitoring
+discipline could have caught the difference, because the difference was not
+representable. `ingest-reviews` ran 4x/day for 16 days with a 100% failure rate
+(measured: 64 runs, 64 failures, 2026-08-04 → 08-19) and nothing paged.
+
+**Do not apply this alone.** A column nothing writes is the BUILT-TESTED-UNWIRED
+pattern this repo has hit four times. Its producer — a `countFrom(result)` helper
+in `lib/services/cron-manager.ts` threaded into the three `cronJobLog.create`
+calls, plus each ingest route returning a `resultCount` — is NOT written yet.
+Land column + producer + canary together, or not at all.
+
+**NULL vs 0 is load-bearing:** NULL = this run reported no count (every existing
+row). 0 = ran and produced nothing. A `DEFAULT 0` would backfill a manufactured
+"produced nothing" onto ~66,000 historical rows.
+
 ### `20260806120000_drop_duplicate_indexes` — ✅ APPLIED 2026-08-06 (directly, one transaction)
 
 Dropped 42 duplicate indexes across 24 tables (~18.7 MB). Indexes only — no data touched.

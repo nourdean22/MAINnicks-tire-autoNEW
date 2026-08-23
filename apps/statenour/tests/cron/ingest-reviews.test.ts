@@ -69,9 +69,38 @@ describe("ingest-reviews cron · failures must propagate", () => {
     // Zero NEW reviews is a real answer — the shop simply had none today. Only
     // a rejection is a failure. Conflating them would trade a silent failure
     // for a nightly false alarm.
+    //
+    // 2026-08-22 · THIS IS THE POSITIVE CONTROL for the fetched===0 assertion
+    // added below. The assertion keys on `fetched`, never on `newCount`, exactly
+    // so this case keeps resolving. If a later change makes this test fail, the
+    // assertion has been re-keyed onto rows-written and will page nightly.
     fetchAndStoreReviews.mockResolvedValueOnce({ fetched: 5, newCount: 0 });
     const { GET } = await loadRoute();
     await expect(GET(new Request("http://x/api/cron/ingest-reviews"), {} as never))
       .resolves.toEqual({ fetched: 5, newCount: 0 });
+  });
+
+  it("a zero-FETCH cycle throws — the 16-day silent failure this route now refuses", async () => {
+    // 2026-08-04 → 08-19: this job failed at 0 ms, four times a day, ~64 times,
+    // each filed as status "failed". Nothing paged, because the only cron
+    // watchdog read MAX(createdAt) with no status filter — a failed row counted
+    // as a run. That half is fixed in cron-heartbeat. This half covers the OTHER
+    // shape: a call that returns 200 with an empty payload, which would have been
+    // recorded as a clean success and been invisible to both checks.
+    fetchAndStoreReviews.mockResolvedValueOnce({ fetched: 0, newCount: 0 });
+    const { GET } = await loadRoute();
+    // ONE call. `mockResolvedValueOnce` primes a single invocation, so a second
+    // GET would resolve `undefined` and throw a TypeError — the test would still
+    // go red, but for the wrong reason, and would keep passing if the assertion
+    // were deleted. Assert both substrings against the same rejection.
+    const err = await GET(new Request("http://x/api/cron/ingest-reviews"), {} as never).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    expect(err, "a zero-fetch cycle must reject, not resolve").toBeInstanceOf(Error);
+    expect(err!.message).toMatch(/0 reviews/);
+    expect(err!.message, "the alert must name the job or it is unactionable").toMatch(
+      /ingest-reviews/,
+    );
   });
 });
