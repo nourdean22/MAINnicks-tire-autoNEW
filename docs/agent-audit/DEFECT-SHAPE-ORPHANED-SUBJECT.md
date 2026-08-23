@@ -620,13 +620,42 @@ Every "verified at push time" claim in the repo except that one is false.
 ## The probe
 
 `scripts/check-doc-claims.mjs` resolves three claim kinds across both apps. It **caught its own
-defect twice while being written**, which is the argument for it: v1 cleared `DESIGN.md:5` because
-the script appears in `package.json` (an npm alias is not a gate); v2 still cleared it because
-`"check:anti-slop": "bash scripts/check-anti-slop.sh"` is a script *value*. A composite must
-actually chain (`&&`). **Defining a script is not running it.**
+defect four times while being written**, which is the argument for it. v1 cleared `DESIGN.md:5`
+because the script appears in `package.json` — an npm alias is not a gate. v2 still cleared it,
+because `"check:anti-slop": "bash scripts/check-anti-slop.sh"` is a script *value*; a composite
+must actually chain (`&&`). **Defining a script is not running it.**
 
-1. **GATE claims** — the named script must exist AND appear in a hook, workflow, or composite.
-   Mechanically decidable; `--strict` gates on these.
+v3 fixed that and broke the mirror image. Composites name **aliases, not files**: `verify:hard`
+says `pnpm check:anti-slop`, so scanning composite values for `check-anti-slop.sh` finds nothing,
+and v3 reported the script "appears in no hook, workflow or composite gate". The *verdict* was
+right — the doc claimed push-time verification, which is false — but the *mechanism* was invented,
+and that is the identical error this file records against `api_request_logs` two sections above,
+committed a second time by the session writing the correction. A right answer with a fabricated
+reason is not a lesser defect; it is the one that survives review.
+
+v4 therefore walks the script graph and classifies by **entry point**, because the question a
+reader actually has is not "is it reachable" but "does anything run it without a human deciding
+to":
+
+| Tier | Meaning | What a doc may claim |
+|---|---|---|
+| **AUTOMATIC** | reachable from a hook or workflow | "verified at push time", "gated", "enforced" |
+| **MANUAL** | reachable only from a composite nothing invokes | "run `pnpm verify:hard` to check" — **never** "enforced" |
+| **UNWIRED** | reachable from nothing | nothing |
+
+`check-anti-slop.sh` is **MANUAL**: real coverage via `verify:hard` / `release:full`, zero
+enforcement, because no hook or workflow reaches any of them. That is a more useful and more
+honest answer than either "covered" or "unwired", and neither of the first three versions could
+express it.
+
+1. **GATE claims** — the named script must exist AND resolve to a tier. `--strict` fails on
+   **UNRESOLVED** (names a script that does not reach a gate) and deliberately does *not* fail on
+   **VAGUE** (asserts gating, names nothing checkable). That split is why it could ship: of 8 gate
+   findings, 6 were vague — an unchecked `- [ ]` TODO, a dated session log, a historical plan
+   table, an adoption-register row, a *proposed* edit quoted inside a proposal, and one claim that
+   is simply true. **A 75% false-positive rate is not a stricter gate; it is an inventory nobody
+   can act on.** The vague bucket is kept and reported, because "this is enforced" naming no
+   enforcer is a real lying surface — just one a human has to adjudicate.
 2. **COMPLETENESS clauses** — either a script keeps the question open, or the sentence is rewritten
    as a dated measurement: *"as of \<date\>, measured N of M."*
 3. **COUNT claims** — flagged unless the reproducing command sits nearby. A number without its
@@ -647,3 +676,34 @@ permission slip:
 
 Any second implementation of this idea in this repo is where the next drift starts. Extend that
 script; do not write another.
+
+## The checker is WIRED — and that was the last thing standing
+
+A report-only checker whose entire subject is controls that claim to run and do not would have
+been the next instance of its own class. It is now gated:
+
+`scripts/agent-os/docClaims.test.mjs` → auto-discovered by `scripts/agent-os/verify.mjs` →
+`pnpm agent:verify` → `.github/workflows/agent-policy.yml`, **every PR**. No CI edit was needed;
+the runner discovers `scripts/agent-os/*.test.mjs` by design, so the test file *is* the wiring.
+
+Three arms, per this repo's ship-the-canary rule:
+
+1. `--selftest` passes, and pins the **mechanism** — `check-anti-slop.sh -> MANUAL`, naming
+   `verify:hard`. A verdict-only assertion would have passed v3's invented reason too.
+2. `--strict` is green against the repo as it stands.
+3. **BREAKS:** a false gate claim is planted into a *scratch* `GIT_INDEX_FILE` (the checker
+   discovers files via `git ls-files`, so a temp index makes the canary visible without staging
+   anything into a checkout shared with concurrent sessions), and `--strict` must exit 1 naming
+   `[MANUAL]`. Then it is removed and `--strict` must return to 0 — without that disarm, a
+   permanently-red gate would satisfy arm 3 forever.
+
+Receipts: 33 agent-os canaries, 32 pass. The one failure is unrelated and **not** on `origin/main`
+— a sibling session has locally added an 18th link to `verify:hard` (`pnpm check:anti-slop`, which
+is how `DESIGN.md` stops being a false claim), and `coverage-doc.test.mjs` correctly wants the
+count in [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md) moved 17 → 18 when that lands.
+`origin/main` reads 17 in both places and is self-consistent.
+
+**Known blind spot, stated rather than discovered later.** `git ls-files` means an **untracked**
+markdown file is invisible to the checker. As a gate that is harmless — staged files are in the
+index — but an ad-hoc run against a brand-new doc reports a clean zero it did not earn. This was
+found the way the file recommends: by planting a positive and watching the canary *fail to fire*.

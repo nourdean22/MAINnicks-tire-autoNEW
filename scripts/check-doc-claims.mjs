@@ -91,22 +91,103 @@ const INVOKERS = [
 const invokerText = INVOKERS.map((f) => readFileSync(f, "utf8")).join(String.fromCharCode(10));
 
 const PKGS = repoFiles.filter((f) => f.endsWith("package.json") && !f.includes("node_modules"));
-const compositeText = PKGS.filter(existsSync)
-  .map((f) => {
-    // COMPOSITES ONLY. A script value that runs exactly one command is that
-    // script's own alias, not coverage of it -- counting it is how the second
-    // version of this checker STILL cleared DESIGN.md:5:
-    //   "check:anti-slop": "bash scripts/check-anti-slop.sh"
-    // contains the filename, so a naive value-scan says "covered". A composite
-    // chains (&&), which is what makes membership in it mean something.
-    try {
-      return Object.values(JSON.parse(readFileSync(f, "utf8")).scripts ?? {})
-        .filter((v) => typeof v === "string" && v.includes("&&"))
-        .join(String.fromCharCode(10));
+
+/**
+ * THE SCRIPT GRAPH, and why a flat text scan is not enough.
+ *
+ * v3 of this checker filtered composites to values containing `&&`, to stop a
+ * script's own one-line alias counting as coverage of itself. That was right,
+ * and it broke the opposite case. Composites name ALIASES, not files:
+ *
+ *   "verify:hard":      "... && pnpm check:anti-slop && ..."
+ *   "check:anti-slop":  "bash scripts/check-anti-slop.sh"
+ *
+ * Scanning composite VALUES for `check-anti-slop.sh` finds nothing, because the
+ * composite says `check:anti-slop`. v3 therefore reported the script "appears
+ * in no hook, workflow or composite gate" -- a RIGHT verdict (the doc claimed
+ * push-time verification, which is false) reached through a WRONG mechanism
+ * (it is in a composite; that composite is just never run automatically).
+ * Shipping a right conclusion with an invented mechanism is the specific error
+ * this repo already records against `api_request_logs`, and v3 repeated it.
+ *
+ * So: build the graph and WALK it, then classify by ENTRY POINT, because the
+ * distinction that matters to a reader is not "is it reachable" but "does
+ * anything run it without a human deciding to".
+ *
+ *   AUTOMATIC - reachable from a hook or workflow. A push or a PR runs it.
+ *   MANUAL    - reachable only from a composite nothing invokes (`verify:hard`).
+ *               Real coverage, zero enforcement. A doc may say "run X to check";
+ *               it may NOT say "verified at push time".
+ *   UNWIRED   - not reachable at all.
+ */
+const scripts = new Map(); // alias -> value, first definition wins
+for (const f of PKGS.filter(existsSync)) {
+  try {
+    for (const [k, v] of Object.entries(JSON.parse(readFileSync(f, "utf8")).scripts ?? {})) {
+      if (typeof v === "string" && !scripts.has(k)) scripts.set(k, v);
     }
-    catch { return ""; }
-  })
-  .join(String.fromCharCode(10));
+  } catch { /* unparseable package.json is not a claim about docs */ }
+}
+
+/** Aliases named inside a script value. Deliberately loose: `pnpm run x`, `pnpm x`, `npm run x`. */
+function aliasesIn(value) {
+  const out = new Set();
+  for (const alias of scripts.keys()) {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + "$&");
+    if (new RegExp("(?:^|[\\s&|;])(?:pnpm|npm|yarn)(?:\\s+run)?\\s+" + escaped + "(?:\\s|$|&|;)").test(value)) {
+      out.add(alias);
+    }
+  }
+  return out;
+}
+
+/** Every alias transitively reachable from a set of roots. */
+function reachableFrom(roots) {
+  const seen = new Set();
+  const queue = [...roots];
+  while (queue.length) {
+    const a = queue.pop();
+    if (seen.has(a) || !scripts.has(a)) continue;
+    seen.add(a);
+    for (const next of aliasesIn(scripts.get(a))) queue.push(next);
+  }
+  return seen;
+}
+
+// Roots that something OTHER than a human decides to run.
+const automaticRoots = [...scripts.keys()].filter((a) => {
+  const escaped = a.replace(/[.*+?^${}()|[\]\\]/g, String.fromCharCode(92) + "$&");
+  return new RegExp("(?:pnpm|npm|yarn)(?:\\s+run)?\\s+(?:--filter\\s+\\S+\\s+)?" + escaped + "(?:\\s|$)").test(invokerText);
+});
+const automaticAliases = reachableFrom(automaticRoots);
+const allAliases = reachableFrom([...scripts.keys()]);
+
+/** Which alias set does a given needle (a script FILE name) end up inside? */
+function aliasesRunning(needle, set) {
+  return [...set].filter((a) => (scripts.get(a) ?? "").includes(needle));
+}
+
+/**
+ * The aliases a HUMAN would type to reach `needle` -- i.e. every alias whose
+ * transitive closure contains one of the leaf aliases that names the file.
+ *
+ * Reporting only the leaf is technically true and useless: "check-anti-slop.sh
+ * runs via check:anti-slop" tells a reader nothing they did not already infer
+ * from the filename. The actionable fact is that `verify:hard` reaches it, so
+ * the honest doc sentence is "run pnpm verify:hard", not "verified at push
+ * time". The selftest below pins this, because the first version of the message
+ * passed the tier check while carrying no usable information.
+ */
+function entryPointsFor(needle) {
+  const leaves = aliasesRunning(needle, allAliases);
+  if (!leaves.length) return [];
+  const entries = [...scripts.keys()].filter((a) => {
+    if (leaves.includes(a)) return false;
+    const closure = reachableFrom([a]);
+    return leaves.some((leaf) => closure.has(leaf));
+  });
+  return [...leaves, ...entries];
+}
 
 /**
  * COMPLETENESS, narrowed to claims about REPO STATE.
@@ -151,25 +232,28 @@ function resolveGate(target) {
     if (!found) return { resolved: false, why: `script ${target.value} does not exist` };
   }
 
+  // Named directly by a hook or workflow, without going through an alias.
   if (invokerText.includes(needle)) {
-    return { resolved: true, why: `${needle} runs from a hook or workflow` };
+    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs directly from a hook or workflow` };
   }
-  if (compositeText.includes(needle)) {
-    return { resolved: true, why: `${needle} runs inside a composite npm script` };
+
+  const auto = aliasesRunning(needle, automaticAliases);
+  if (auto.length) {
+    return { resolved: true, tier: "AUTOMATIC", why: `${needle} runs via ${auto.join(", ")}, reachable from a hook or workflow` };
   }
-  const aliased = PKGS.some((f) => {
-    try {
-      return Object.keys(JSON.parse(readFileSync(f, "utf8")).scripts ?? {}).some(
-        (k) => k === target.value || k.includes(needle.replace(/\.(sh|ts|mjs|js)$/, "")),
-      );
-    } catch { return false; }
-  });
-  return {
-    resolved: false,
-    why: aliased
-      ? `${needle} EXISTS and has an npm alias, but runs from NO hook, workflow or composite gate -- defining is not running`
-      : `${needle} appears in no hook, workflow or composite gate`,
-  };
+
+  const manual = entryPointsFor(needle);
+  if (manual.length) {
+    // Reachable, but only if a human types it. Enough to justify "run X"; never
+    // enough to justify "verified at push time" / "enforced" / "gated".
+    return {
+      resolved: false,
+      tier: "MANUAL",
+      why: `${needle} runs via ${manual.join(", ")}, but NO hook or workflow reaches those -- real coverage, zero enforcement`,
+    };
+  }
+
+  return { resolved: false, tier: "UNWIRED", why: `${needle} is reachable from no npm script, hook or workflow` };
 }
 
 const findings = { completeness: [], gate: [], count: [] };
@@ -207,10 +291,38 @@ const show = (k) => KIND === "all" || KIND === k;
 let unresolvedGates = 0;
 
 if (show("gate")) {
-  const bad = findings.gate.filter((f) => !f.resolved);
+  /*
+   * TWO KINDS OF "unresolved", and conflating them is why --strict could not
+   * ship. Measured 2026-08-23: 8 gate findings, and 6 of the 8 bailed at
+   * "claim names no script or alias to resolve" -- an unchecked `- [ ]` TODO,
+   * a dated session log, a historical plan table, an UPSTREAMS adoption row, a
+   * *proposed* edit quoted inside a proposal, and one claim that is simply
+   * TRUE. A 75% false-positive rate is not a stricter gate, it is an inventory
+   * nobody can act on: the same failure mode as a lint that flags everything.
+   *
+   *   UNRESOLVED - the claim NAMES a script, and that script does not resolve
+   *                to a gate. Mechanically decidable, so --strict fails on it.
+   *   VAGUE      - the sentence asserts gating but names nothing to check.
+   *                Reported, never gated. Cannot be decided by this tool, and
+   *                pretending otherwise is how a checker becomes noise.
+   *
+   * Do NOT "fix" the false-positive rate by deleting the VAGUE bucket. A doc
+   * that says "this is enforced" while naming no enforcer is a real lying
+   * surface -- it is just one a human has to adjudicate.
+   */
+  const bad = findings.gate.filter((f) => !f.resolved && f.tier);
+  const vague = findings.gate.filter((f) => !f.resolved && !f.tier);
   unresolvedGates = bad.length;
-  console.log(`\n── GATE claims ── ${findings.gate.length} found, ${bad.length} UNRESOLVED\n`);
-  for (const f of bad) console.log(`  ✗ ${f.at}\n      ${f.line}\n      -> ${f.why}\n`);
+
+  console.log(
+    `\n── GATE claims ── ${findings.gate.length} found · ` +
+      `${bad.length} UNRESOLVED (gated by --strict) · ${vague.length} vague (reported only)\n`,
+  );
+  for (const f of bad) console.log(`  ✗ ${f.at}\n      ${f.line}\n      -> [${f.tier}] ${f.why}\n`);
+  if (vague.length) {
+    console.log(`  -- vague: asserts a gate, names no script. Human call, not a machine one.\n`);
+    for (const f of vague) console.log(`  ? ${f.at}\n      ${f.line}\n`);
+  }
 }
 
 if (show("completeness")) {
@@ -240,4 +352,83 @@ console.log(
 if (STRICT && unresolvedGates > 0) {
   console.error(`\n✗ ${unresolvedGates} unresolved GATE claim(s). A doc that names a gate must resolve to one.`);
   process.exit(1);
+}
+
+/**
+ * SELF-TEST (`--selftest`). Runs the resolver against facts measured by hand,
+ * because the sweep above exercised NONE of it: every surviving gate finding
+ * bailed at "claim names no script or alias to resolve", so the three-tier walk
+ * never executed. A run where the interesting branch is never taken is not
+ * evidence the branch works -- it is the blind-instrument shape one level up.
+ * See docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md, shape 4.
+ *
+ * Each case names the tier AND the reason, so a refactor that keeps the verdict
+ * while losing the mechanism still fails -- that mechanism-vs-verdict split is
+ * exactly what v3 got wrong.
+ */
+if (process.argv.includes("--selftest")) {
+  const cases = [
+    {
+      // MANUAL: reachable only through verify:hard, which no hook or workflow runs.
+      // This is the case v3 misreported as "appears in no composite".
+      target: { kind: "script", value: "scripts/check-anti-slop.sh" },
+      tier: "MANUAL",
+      mentions: "verify:hard",
+    },
+    {
+      // UNWIRED vs MISSING are different answers; a named script that does not
+      // exist must not be reported as merely unwired.
+      target: { kind: "script", value: "scripts/pre-push-check.sh" },
+      tier: undefined,
+      why: "does not exist",
+    },
+  ];
+
+  let failed = 0;
+  for (const c of cases) {
+    const got = resolveGate(c.target);
+    const tierOk = got.tier === c.tier;
+    const whyOk = c.mentions ? got.why.includes(c.mentions) : got.why.includes(c.why);
+    if (!tierOk || !whyOk) {
+      failed++;
+      console.error(`  SELFTEST FAIL ${c.target.value}`);
+      console.error(`    tier  expected ${c.tier} got ${got.tier}`);
+      console.error(`    why   ${got.why}`);
+    } else {
+      console.log(`  selftest ok  ${c.target.value} -> ${got.tier ?? "MISSING"} (${got.why})`);
+    }
+  }
+
+  // BREAKING ARM -- and the first version of it did not bite.
+  //
+  // It asserted `automaticAliases.size > 0`. But reachableFrom() seeds the queue
+  // with its roots and adds them before walking, so a completely dead walk
+  // (aliasesIn returning nothing) STILL reports 16 automatic aliases: the roots
+  // themselves. The guard reported healthy against a walk that traversed zero
+  // edges -- a canary that cannot fail is the thing this file exists to catch.
+  //
+  // The second version asserted the AUTOMATIC closure must be strictly larger
+  // than its root set. That failed against an unbroken repo: all 16 hook- and
+  // CI-invoked aliases call leaf tasks directly (`pnpm --filter x lint`), so
+  // they chain to nothing and traversal is legitimately 0. The arm was encoding
+  // an assumption about CI's shape, not a property of the walk -- and it took
+  // running the CONTROL to find that out, which is the whole argument for
+  // running the control every time instead of only the broken arms.
+  //
+  // Third version asserts a specific edge measured by hand: verify:hard names
+  // check:anti-slop, so the closure of verify:hard must contain it. That dies
+  // if aliasesIn stops matching, and it makes no claim about CI's topology.
+  const KNOWN_EDGE = { from: "verify:hard", to: "check:anti-slop" };
+  if (!scripts.has(KNOWN_EDGE.from)) {
+    failed++;
+    console.error(`  SELFTEST FAIL: ${KNOWN_EDGE.from} is gone -- re-measure the known edge, do not delete this arm`);
+  } else if (!reachableFrom([KNOWN_EDGE.from]).has(KNOWN_EDGE.to)) {
+    failed++;
+    console.error(`  SELFTEST FAIL: the walk cannot get from ${KNOWN_EDGE.from} to ${KNOWN_EDGE.to} -- the walk is broken, not the repo`);
+  } else {
+    console.log(`  selftest ok  walk traverses ${KNOWN_EDGE.from} -> ${KNOWN_EDGE.to} (${automaticRoots.length} automatic roots, ${allAliases.size} aliases known)`);
+  }
+
+  if (failed) { console.error(`\n✗ ${failed} selftest failure(s)`); process.exit(1); }
+  console.log(`\n✓ selftest passed`);
 }
