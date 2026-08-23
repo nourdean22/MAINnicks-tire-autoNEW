@@ -11,23 +11,21 @@
 ## The argument, first
 
 Four defect shapes. Four different detection heuristics. **Each heuristic independently scores
-its own shape GREEN.**
+its own shape GREEN.** Existence, readership, non-nullness and a clean log are four ways of
+asking "is something there?" -- and all four are answered *yes* by a defect that is completely
+dead. That is the whole case for why a canary must **assert behaviour, never presence**.
 
-| Shape | The heuristic it defeats | Why the heuristic fails |
-|---|---|---|
-| **Unwired control** | *"does the code exist?"* | It exists, reads correctly, and never runs |
-| **Orphaned subject** | *"grep for readers"* | Readers exist — the row the signal attached to is gone |
-| **Populated-but-unused** | *"is the column null?"* | It is populated, and the contents are meaningless |
-| **Blind instrument** | *"check the logs"* | The instrument reports success while structurally unable to observe its subject |
+**The shape table lives in
+[`CONTROL-CANARY-COVERAGE.md` -> "Four shapes, and the heuristic each one defeats"](CONTROL-CANARY-COVERAGE.md).**
+It is canonical there and deliberately NOT repeated here. Both files carried their own copy for
+part of 2026-08-23, which is how the next drift starts -- two statements of one idea, diverging
+on the first edit. That file is linked from root `AGENTS.md` and is the one a reader reaches
+first, so it keeps the summary.
 
-That table is the whole case for why the canary rule says **assert behaviour, never presence**.
-Existence, readership, non-nullness and a clean log are four different ways of asking "is
-something there?" — and all four are answered "yes" by a defect that is completely dead.
-
-A canary asserting a control *exists* proves nothing. A canary that **breaks the control and
-asserts the break is detected** is the only construction that survives all four.
-
----
+**What THIS file adds, and why it is separate:** the summary tells you a shape exists; it does not
+tell you how to find one. Below, per shape: the probe that detects it, the worked example with
+receipts, and the traps that defeated the first attempt at each probe. Plus the stated rules and
+the recorded decisions, neither of which belongs in a per-control ledger.
 
 ## Stated rules
 
@@ -46,6 +44,17 @@ Short enough to remember, each earned by an incident this file records.
    identically until you do.
 4. **A real symptom is not a diagnosis.** See the recorded NO below — a genuine incident pointed
    confidently at the wrong root cause, and only measurement separated them.
+
+5. **A rate over time is not a finding about a contiguous window — and a rate over a population
+   containing a REPLAY is not a rate about the schedule.** Sibling to rule 2: both are aggregation
+   destroying the signal. `ingest-reviews` failed **4 of 4 runs every day for 16 consecutive days**
+   (2026-08-04 -> 08-19), a 100% in-window outage. Its lifetime rate is 2.49% (64/2,572) against an
+   estate rate of 5.4% counting `failed` only, or 9.23% counting `partial` too -- so **by rate the
+   totally-broken job looks better than average.** Worse, the lifetime denominator is dominated by a
+   single backfill: 2026-08-20 alone contributed **2,505 runs at 400-470/hour** to a job scheduled
+   4x/day. Excluding that replay, the real rate on scheduled runs is **64/67 = 95.5%**. The
+   aggregate inverted the truth by 38x. Before quoting a rate, ask what window it spans and whether
+   anything in the denominator was not a scheduled run.
 
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
@@ -306,6 +315,55 @@ it holds that the clock "is not a control". Both are defensible and the divergen
 **Do not reconcile these to one number without re-reading both definitions.** Four by shape,
 three by control, and the sets are not the same members.
 
+## Worked example — the alerting question (four instruments, three blind)
+
+> **A second, distinct incident.** [`CONTROL-CANARY-COVERAGE.md`](CONTROL-CANARY-COVERAGE.md)
+> carries its own four-blind-instruments example from the **/task completion** incident
+> (`task_events`, `error_logs`, `reality_gap_writeback_failed`, `api_request_logs`, the clock).
+> This one is a different question, different instruments, same shape — which is the point: two
+> independent incidents on one day each needed four sources and each found three that could not
+> speak.
+
+One question, 2026-08-23: **"did anything alert on those 64 failures?"** Answering it needed four
+sources. Three could not speak, and each was blind in a different way.
+
+| instrument | what it should have answered | why it could not |
+|---|---|---|
+| `automation_policies.lastFiredAt` | when the alerter last ran | its write path changed the same day — unreliable by construction |
+| `cron_job_logs` | did an alert job run | **0 rows for any telegram/alert/notify job**, while other jobs log normally in the same table. Blind *specifically to the alerters* — the worst possible blind spot for an alerting question |
+| `automation_policies.lastResult` | is the job healthy | reads **`'success'`**. It tracks the most recent run, not the streak, so a job failing 4/4 daily for 16 days could never have shown the outage while it was happening |
+| `AuditEvent` | what was actually delivered | **the only one that could answer** — it records deliveries, not intentions |
+
+That is *"check the logs"* failing four different ways on one question.
+
+### And the finding underneath it
+
+Over the 16-day, 100%-broken window the system sent **32 push notifications**, in exactly three
+distinct titles:
+
+| title | count |
+|---|---|
+| `high: Morning brief` | 16 |
+| `high: Daily Executive Brief` | 15 |
+| **`critical: 5 crons not firing`** | **1** |
+
+**0 of 32 name `ingest-reviews`.**
+
+State this precisely, because the loose version is wrong in three ways and the precise version is
+worse. It is NOT true that "nothing alerted" — one alert fired. It is NOT true that "every push was
+the daily brief". And they were not stamped `Drift: CRITICAL` — the severity prefixes are `high:`
+(31) and `critical:` (1).
+
+What IS true: **31 of 32 pushes during a total outage were routine briefs, and the single alert
+fired once, never repeated across sixteen days, and never named the failing job.** That is worse
+than silence, because it looks like coverage. An alerting system that fires once and then goes
+quiet through a continuing fault has reported "handled" for a fault it never identified.
+
+> A first pass at this filtered pushes with `detail ILIKE '%fail%' OR payload::text ILIKE '%fail%'`
+> and got 32 of 32 — a filter matching everything, which cannot support a negative. The refined
+> query (`ILIKE '%ingest-reviews%'`) returned 0. **A negative finding from an unvalidated filter is
+> shape 4 on your own query.**
+
 ## The probe
 
 For any instrument you are about to trust:
@@ -400,3 +458,79 @@ reasoning inline so the naive columns do not re-trigger the proposal in six mont
 proposed fix was still wrong. Symptom, anti-pattern and root cause were three different things,
 and only a measurement separated them. That is shape 4 operating on the diagnosis itself — a
 confident, well-formed reading of the wrong quantity.
+
+---
+
+# Shape 5 · the lying surface (doc-facing)
+
+**Named 2026-08-23.** Five instances in one sweep.
+
+> **A doc claim is an unwired control — and worse, because a doc actively stops people looking.**
+
+An unwired control is merely absent. A false doc claim asserts a mechanism, nothing verifies the
+assertion, and a reader who finds the sentence stops searching. **The aggravating factor: a false
+COMPLETENESS claim does not just mislead, it closes a search.**
+
+## The worked example
+
+`apps/nickstire/docs/admin-surface-audit/code-underneath-audit-logic.md:37`:
+
+> "every job in it duplicates a tiered job EXCEPT the two above."
+
+Measured against origin/main 2026-08-23: **33 registered jobs, 8 absent from every tier by name.**
+Six are name-mismatches with real coverage (`retention-all` at `scheduler.ts:1675` imports all six
+`processRetention*`; `statenour-live-sync` at `:863`). **Two are genuinely dead** —
+`campaign-resume` (`index.ts:347`, calls `resumeStuckCampaigns()`, so stuck SMS campaigns are never
+recovered after a restart) and `sms-learning-digest` (`index.ts:368`).
+
+**That one sentence converted an incomplete search into a closed question, and the class stopped
+being swept.**
+
+The same table is stale a second way: its headline row says `confirmation-calls` and
+`voice-recovery` "never fire on a timer". Both are now tiered — `scheduler.ts:992` and `:1003`,
+with a comment reading "MOVED to the hourly tier". The doc records a defect that has since been
+fixed, and the completeness clause is anchored to those two, so the sentence is wrong on both
+halves.
+
+## The other four
+
+| claim | reality |
+|---|---|
+| `apps/statenour/docs/DESIGN.md:5` — "Anti-slop **verified at push time**… (gate 13/13)" | script exists; in **no hook, workflow or composite gate** |
+| `apps/statenour/scripts/check-anti-slop.sh:76` — prints `emergency override: ANTI_SLOP_GATE_SOFT=1 git push` | advertises a push hook that does not exist |
+| `agent-os/standards/nourcity/enforced-gates.md:32` — lists `check:anti-slop` | file is titled **Enforced Gates** and opens "These scripts are codified standards… not optional" |
+| `apps/statenour/docs/SECURITY.md:234` — "`pnpm audit` runs in `pre-push-check.sh`" | that script **is not in the tree** |
+
+**Ground truth: `lefthook.yml` pre-push runs exactly one command — `pnpm run build:affected`.**
+Every "verified at push time" claim in the repo except that one is false.
+
+## The probe
+
+`scripts/check-doc-claims.mjs` resolves three claim kinds across both apps. It **caught its own
+defect twice while being written**, which is the argument for it: v1 cleared `DESIGN.md:5` because
+the script appears in `package.json` (an npm alias is not a gate); v2 still cleared it because
+`"check:anti-slop": "bash scripts/check-anti-slop.sh"` is a script *value*. A composite must
+actually chain (`&&`). **Defining a script is not running it.**
+
+1. **GATE claims** — the named script must exist AND appear in a hook, workflow, or composite.
+   Mechanically decidable; `--strict` gates on these.
+2. **COMPLETENESS clauses** — either a script keeps the question open, or the sentence is rewritten
+   as a dated measurement: *"as of \<date\>, measured N of M."*
+3. **COUNT claims** — flagged unless the reproducing command sits nearby. A number without its
+   command is a cache with no invalidation.
+
+## Turning a clause into a check — reuse, do not reinvent
+
+The nickstire half of this is already shipped in **PR #1808**
+(`apps/nickstire/scripts/lint-cron-wiring.ts` + `server/cron/registry-tier-map.ts`). Its allowlist
+design is the pattern to copy, and its two refinements are what make it a guard rather than a
+permission slip:
+
+- **each entry names the tier job that actually covers it**, and the check verifies *that* job is
+  itself wired — so an entry cannot outlive its justification;
+- **a redundant entry is rejected**, so the list cannot accumulate permanent excuses;
+- **exact names only** — a `retention-*` pattern would have silently absorbed a genuinely stranded
+  `retention-30day`.
+
+Any second implementation of this idea in this repo is where the next drift starts. Extend that
+script; do not write another.
