@@ -32,6 +32,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { describeCompletion } from "@/lib/services/completion-frame";
 import type { Task } from "@/components/actions/shared";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 import { StreakBadge } from "@/components/missions/streak-badge";
@@ -156,6 +157,24 @@ export function MissionTaskRow({
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
+
+  // 2026-08-23 · the operator finished his workout and this row read WAITING.
+  // Nothing shown was false — WAITING is a correct answer to a question he was
+  // not asking. describeCompletion returns a label AND the frame it is spoken
+  // in, so a recurring task completed today reads "done today · back at 6am"
+  // instead of collapsing two true facts into the less useful one. Measured:
+  // all four live WAITING dailies carry a real snoozedUntil seven hours out.
+  const completionDisplay = describeCompletion(
+    {
+      status: task.status,
+      loopKind: (task as unknown as { loopKind?: string | null }).loopKind ?? null,
+      lastCompletedAt:
+        (task as unknown as { lastCompletedAt?: string | null }).lastCompletedAt ?? null,
+      snoozedUntil: typeof snoozedUntil === "string" ? snoozedUntil : null,
+    },
+    new Date(),
+  );
+  const showsCompletionFrame = completionDisplay.frame === "both";
 
   const isComplex = (() => {
     if (indent !== 0 || isDone) return false;
@@ -312,6 +331,17 @@ export function MissionTaskRow({
         >
           {task.title}
         </p>
+        {/* The completion frame, rendered as TEXT and not only as a tooltip:
+          *  statenour is a standalone iOS PWA, where a title= attribute is dead.
+          *  A recurring task completed today reads "done today · back at 6am"
+          *  instead of the bare WAITING that started this. Shown only when the
+          *  frame is "both" — the case where one fact alone misleads; a one-off
+          *  DONE already says everything with a line-through. */}
+        {showsCompletionFrame && (
+          <p className="mt-0.5 text-[10px] font-mono tracking-[0.06em] text-[var(--gold)]">
+            {completionDisplay.label}
+          </p>
+        )}
         {(dueHint ||
           task.energyRequired ||
           task.effort ||
