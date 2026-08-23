@@ -54,14 +54,6 @@ export interface ReviewIdentityInput {
 /** Marks a key derived without a provider timestamp, so these are greppable. */
 export const NO_TIME_PREFIX = "notime_";
 
-/**
- * Separator between author and text in the hashed material. A literal so it
- * cannot be typed as an invisible control character: the first draft of this
- * file had a NUL byte here instead of a space, which compiled fine and made
- * the whole file read as BINARY to grep and to every text-scanning lint.
- */
-const MATERIAL_SEPARATOR = "|";
-
 export function stableReviewId(review: ReviewIdentityInput): string {
   // Exact reproduction of `review.time?.toString()`: any non-nullish value is
   // stringified, and only an empty result falls through - matching the old
@@ -77,7 +69,15 @@ export function stableReviewId(review: ReviewIdentityInput): string {
   // days - so the text participates. Two reviews identical in both author and
   // text are indistinguishable to us and collapsing them is the correct
   // outcome, not a loss.
-  const material = `${review.author_name ?? ""}${MATERIAL_SEPARATOR}${review.text ?? ""}`;
+  // JSON.stringify, NOT a delimiter join. Caught in review on the first PR:
+  // joining on a separator makes distinct reviews collide whenever a field
+  // contains that separator - {author: "a|b", text: "c"} and
+  // {author: "a", text: "b|c"} both produce "a|b|c". The consequence is a
+  // review silently treated as already-seen: no draft, no event dispatch, no
+  // low-rating alert. That is precisely the failure this helper exists to
+  // remove, reintroduced inside the fix. JSON escapes the quotes and the array
+  // structure carries the field boundary, so no field content can forge one.
+  const material = JSON.stringify([review.author_name ?? "", review.text ?? ""]);
   const digest = createHash("sha1").update(material, "utf8").digest("hex").slice(0, 32);
   return `${NO_TIME_PREFIX}${digest}`;
 }

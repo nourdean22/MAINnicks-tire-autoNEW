@@ -39,6 +39,33 @@ describe("canary - review identity is stable across runs", () => {
     expect(id).not.toMatch(/\d{13}/);
   });
 
+  it("BREAKS: field contents cannot forge a boundary (delimiter collision)", () => {
+    // Caught in review on the first PR. A separator join made distinct reviews
+    // collide whenever a field contained the separator - both of these hashed
+    // the material "a|b|c" and the second was silently treated as already
+    // processed: no draft, no event dispatch, no low-rating alert. That is the
+    // exact failure this helper exists to remove, reintroduced inside the fix.
+    const left = stableReviewId({ author_name: "a|b", text: "c" });
+    const right = stableReviewId({ author_name: "a", text: "b|c" });
+    expect(left).not.toBe(right);
+  });
+
+  it("no separator character can forge a boundary", () => {
+    // Not just the pipe - any character a naive join might have used.
+    for (const sep of ["|", ":", ",", "-", " ", ""]) {
+      const left = stableReviewId({ author_name: `a${sep}b`, text: "c" });
+      const right = stableReviewId({ author_name: "a", text: `b${sep}c` });
+      expect(left, `separator ${JSON.stringify(sep)} collides`).not.toBe(right);
+    }
+  });
+
+  it("a quote in a field cannot forge a boundary either", () => {
+    // JSON escapes quotes; this pins that the escaping is actually relied on.
+    const left = stableReviewId({ author_name: 'a","b', text: "c" });
+    const right = stableReviewId({ author_name: "a", text: "b\",\"c" });
+    expect(left).not.toBe(right);
+  });
+
   it("different reviews get different ids", () => {
     const one = stableReviewId({ author_name: "Dana R.", text: "Brakes." });
     const two = stableReviewId({ author_name: "Dana R.", text: "Tires." });
