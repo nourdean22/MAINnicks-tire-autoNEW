@@ -207,13 +207,30 @@ test("historical records are skipped, live docs are not — same clause, both pa
   const live = "docs/agent-audit/.hist-fixture-live.md";
   const archived = "docs/90-archive/.hist-fixture-archived.md";
 
+  const datedDir = "docs/reel-packs/2026-08-17-dated-dir-fixture/README.md";
+
   const out = withTwoFiles(
-    [{ path: live, body: clause }, { path: archived, body: clause }],
+    [
+      { path: live, body: clause },
+      { path: archived, body: clause },
+      { path: datedDir, body: clause },
+    ],
     (ref) => runChecker(["--only=completeness", `--ref=${ref}`]).out,
   );
 
   assert.match(out, /hist-fixture-live/, "the LIVE copy must still be reported");
   assert.doesNotMatch(out, /hist-fixture-archived/, "the ARCHIVED copy must be skipped");
+  // DATED DIRECTORY, raised in review against the first draft. The frame is
+  // often carried by a PARENT DIRECTORY -- `docs/reel-packs/2026-08-17-slug/
+  // README.md` -- and a basename-only test sees only "README.md" and lets the
+  // record into the live scan. Asserted separately from the path-prefix case
+  // above because they are different mechanisms and one passing says nothing
+  // about the other.
+  assert.doesNotMatch(
+    out,
+    /dated-dir-fixture/,
+    "a record under a DATED DIRECTORY must be skipped even though its basename carries no date",
+  );
   // The skip must be announced, not merely performed -- probe rule 5. A silent
   // exclusion prints the same green as a clean sweep.
   assert.match(out, /skipped \d+ historical\/archive files/);
