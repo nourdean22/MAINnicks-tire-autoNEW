@@ -96,7 +96,7 @@ import {
   harvestBeliefs,
 } from "@/lib/brain/belief-harvester";
 import { computeNudges, dismissNudge } from "@/lib/brain/cross-system-nudge";
-import { listDiscoveries, rateDiscovery, rateDiscoveryCluster } from "@/lib/brain/discoveries";
+import { listDiscoveries, rateDiscoveryCluster } from "@/lib/brain/discoveries";
 import {
   loadCurrentPatterns,
   runPatternClustering,
@@ -688,42 +688,18 @@ export const brainRouter = router({
       return result;
     }),
 
-  /**
-   * 2026-08-16 · owner-only · judge a discovery. "known" is the important
-   * one: it is the only measurement of "you told me something I already
-   * knew", and therefore the only evidence that can ever justify tuning the
-   * novelty axis (NICK_NOVELTY_RECALL).
-   */
-  rateDiscovery: operatorProcedure
-    .input(
-      z.object({
-        id: z.string().min(1).max(64),
-        verdict: z.enum(["investigate", "known", "noise"]),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const result = await rateDiscovery(input.id, input.verdict);
-      // 2026-08-16 self-review · rateDiscovery RESOLVES with { ok: false } when
-      // the row is gone, soft-deleted, or out of category — it never throws. The
-      // client awaits mutateAsync and only has a catch, so a refused verdict
-      // arrived as HTTP 200, wrote nothing to metadata OR the outcome ledger,
-      // showed no error, and then vanished from the list on invalidate: pixel
-      // identical to success. The precondition is routine, not exotic — the
-      // nightly consolidate cron soft-deletes merged duplicates and none of the
-      // four discovery categories is in CONSOLIDATION_EXCLUDE_CATEGORIES, while
-      // refetchOnWindowFocus is off app-wide so a stale card can sit on screen
-      // for hours. Losing the "already knew" tap silently is exactly the
-      // failure class this whole change set exists to remove.
-      // `resolveContradiction` two procedures down already maps a missing row to
-      // NOT_FOUND; match it rather than inventing a second contract.
-      if (!result.ok) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "That discovery is no longer available — it may have been consolidated or expired.",
-        });
-      }
-      return result;
-    }),
+  // 2026-08-23 · `rateDiscovery` (single id) REMOVED. Its JSDoc went with it;
+  // the rationale it carried — that "known" is the important verdict, being the
+  // only measurement of "you told me something I already knew" and therefore
+  // the only evidence that could justify tuning the novelty axis
+  // (NICK_NOVELTY_RECALL) — now lives on rateDiscoveryCluster below. It had zero callers after
+  // the feed moved to one-card-per-question: `rateDiscoveryCluster` with a
+  // single id is exactly equivalent — it elects a live head from `ids`, runs
+  // the full ledger + task side effects on it, and finds no siblings to sweep.
+  // The service function lib/brain/discoveries.ts#rateDiscovery is untouched
+  // and still does all the work; only the unreachable tRPC surface is gone.
+  // Kept as a comment rather than silently deleted so the next reader does not
+  // re-add it looking for a single-id entry point.
 
   /**
    * 2026-08-22 · judge a whole cluster in one tap. The feed now shows one card

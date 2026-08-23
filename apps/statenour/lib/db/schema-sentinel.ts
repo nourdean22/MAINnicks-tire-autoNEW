@@ -126,18 +126,53 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     reason: "duplicate-assistant race guard — DB-level backstop for the persist dedup check",
   },
   {
-    // 2026-08-22 · 20260823000000_brain_memory_discovery_columns.
-    // Partial index (WHERE deleted_at IS NULL) backing the Discover feed's
+    // 2026-08-22 · 20260823000000_brain_memory_discovery_columns, narrowed
+    // 2026-08-23 by migrations-pending/20260823010000+010001. The original
+    // predicate was `deleted_at IS NULL` alone, so it indexed all 92,228 live
+    // rows to serve 246 — measured 5144 kB. Rebuilt scoped to the four
+    // discovery categories: 32 kB, and the plan improved from 508 buffers /
+    // 0.572 ms to 118 / 0.485 ms on the same 239 rows.
+    //
+    // NOTE for a FRESH database: `migrate deploy` replays
+    // 20260823000000, which creates the BROAD index; the narrowing lives in
+    // migrations-pending because CREATE/DROP INDEX CONCURRENTLY cannot run
+    // inside Prisma's transaction wrap. This expectation is what catches that —
+    // a fresh env will fail it until both pending steps are applied.
+    //
+    // Partial index backing the Discover feed's
     // EXACT unrated/restoredHidden counts. Prisma cannot model a partial
     // index, so it is absent from schema.prisma and a `db push` would drop it
     // silently — same gap this file was written for. Without it the two
-    // count() calls per feed load degrade to a seq scan over ~93k live rows,
+    // count() query per feed load (ONE raw statement with two FILTER aggregates,
+    // not two calls) degrades to a bitmap scan over ~93k live rows,
     // which is slow rather than wrong, so this is a performance guard, not a
     // correctness one. Stated that way on purpose.
     kind: "index_exists",
     table: "brain_memories",
-    indexName: "brain_memories_discovery_verdict_idx",
+    indexName: "brain_memories_discovery_scoped_idx",
     reason: "Discover exact-count index — partial, unmodellable in Prisma, silent-drop risk",
+  },
+  {
+    // THE PREDICATE, asserted separately — and this is the entry that matters.
+    // The one above checks only that an index of that NAME exists, which is the
+    // wrong fact: the whole point of this wave is the predicate (32 kB scoped
+    // vs 5144 kB broad). Recreate it under the same name with
+    // `WHERE deleted_at IS NULL` alone and the name check still passes while
+    // the 99.7% write amplification is back.
+    //
+    // Same correction the hnsw entry below already carries: it was upgraded
+    // from a name match to matchByDefinition because "every HNSW index could be
+    // dropped and this expectation still passed". Identical reasoning, applied
+    // here rather than re-learned.
+    //
+    // matchByDefinition makes `indexName` a case-insensitive SUBSTRING match
+    // against indexdef, so this asserts the category list is in the WHERE
+    // clause of SOME index on brain_memories — the fact, not the label.
+    kind: "index_exists",
+    table: "brain_memories",
+    indexName: "counter_intuitive",
+    matchByDefinition: true,
+    reason: "Discover index must stay category-scoped — a broad rebuild silently restores 5 MB of write amplification",
   },
   // Note: Mission and Task have NO @@map in prisma/schema.prisma so
   // Prisma's default lowercases-the-model-name rule applies — the

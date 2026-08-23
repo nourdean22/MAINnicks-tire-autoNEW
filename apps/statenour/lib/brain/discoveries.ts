@@ -27,7 +27,18 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
 
-/** The four categories the nightly creative engines write to. */
+/**
+ * The four categories the nightly creative engines write to.
+ *
+ * ⚠ COUPLED TO A PARTIAL INDEX. `brain_memories_discovery_scoped_idx`
+ * (migrations-pending/20260823010000) hardcodes these four literals in its
+ * WHERE clause. Adding a fifth engine here WITHOUT extending that predicate
+ * silently un-indexes the exact-count query below: `category = ANY(...)` would
+ * no longer imply the index predicate, and the count falls back to a bitmap
+ * scan over ~93k live rows. Measured fallback cost: 394 buffers / 0.976 ms
+ * versus 118 / 0.243 ms. Slow rather than wrong — which is why it needs a
+ * comment: nothing will fail.
+ */
 export const DISCOVERY_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.COUNTER_INTUITIVE,
   BRAIN_CATEGORIES.HIDDEN_CORRELATION,
