@@ -1,0 +1,59 @@
+{
+  "topic": "Fuel gauge reads wrong or bounces around: the sending unit, not the tank",
+  "campaignKeyword": "GAUGEFLOAT",
+  "mode": "PRODUCTION (pack only, no live reel-canary call)",
+  "durationSeconds": 29,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "window": "0:00-0:04",
+      "narration": "Your fuel gauge says empty right after you filled up, or it bounces around while you drive.",
+      "visualPrompt": "Macro shot, dashboard fuel gauge cluster, needle sitting near empty, subtle backlight glow, slow push-in, no hands or driver visible, shallow depth of field",
+      "stockSearchTerms": ["car fuel gauge dashboard closeup", "dashboard needle empty macro"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "window": "0:04-0:09",
+      "narration": "That's usually not the tank. It's the sending unit, the float that tells the gauge how much fuel is left.",
+      "visualPrompt": "Cutaway-style macro shot of a fuel tank sending unit assembly on a workbench, float arm and resistor strip visible, static locked shot with subtle rack-focus shift, no hands",
+      "stockSearchTerms": ["fuel sending unit float arm", "fuel pump module resistor strip"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "window": "0:09-0:18",
+      "narration": "Inside the tank, a float rides the fuel level and moves a resistor. Years of fuel and vibration wear down that resistor's contact points, so the signal skips or reads wrong.",
+      "visualPrompt": "Close macro orbit around the sending unit's resistor strip and float arm, slight worn/oxidized texture visible on contact points, slow orbital camera move, no hands or text",
+      "stockSearchTerms": ["fuel sender resistor wear closeup", "fuel float arm mechanism macro"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "window": "0:18-0:24",
+      "narration": "A quick check: if the needle jumps when you hit a bump or take a turn, that's the sending unit talking, not a tank problem.",
+      "visualPrompt": "Macro shot of dashboard fuel needle mid-flutter, subtle vibration blur on the needle, car interior softly lit, no hands, no on-screen text",
+      "stockSearchTerms": ["fuel needle flutter dashboard", "car gauge cluster vibration macro"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "window": "0:24-0:29",
+      "narration": "Don't just live with guessing your fuel level. Nick's Tire and Auto can check the sending unit and confirm it before you're stuck guessing at the pump.",
+      "visualPrompt": "Wide, warm-lit shot of a shop garage bay entrance, clean and inviting, static locked shot with subtle ambient depth-of-field breathing, no faces or logos",
+      "stockSearchTerms": ["auto repair shop garage bay wide", "tire shop entrance warm light"]
+    }
+  ],
+  "audio": {
+    "voiceover": "Not generated this run — no TTS route connected in this session. Narration column is the exact script to feed reelVoice.ts at real render time.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (real gap, see README.md section 6). Ambient garage room-tone only.",
+    "mutedFirst": "Captions carry full meaning without audio, per the pipeline's muted-first scoring dimension."
+  },
+  "selfEstimatedQualityScore": {
+    "value": 48,
+    "outOf": 75,
+    "note": "Self-estimate only — NOT calculateReelQualityScore()'s output, which was not invoked this run (no live server/DB). Weak dimensions: loop (CTA wide shop shot does not feed back into the HOOK dashboard macro), sourced fact (no EvidenceRecord backs the sending-unit claim), winning concept (scoreReelConcept() not invoked, scored 0 rather than assumed passing)."
+  }
+}
