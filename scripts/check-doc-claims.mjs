@@ -394,12 +394,7 @@ function namedTarget(line) {
  * session is mid-fix on from blocking an unrelated PR.
  */
 const KNOWN_FALSE = [
-  {
-    at: "apps/statenour/docs/DESIGN.md:5",
-    why: "check-anti-slop.sh is MANUAL (reachable only from verify:hard, which no hook or workflow runs), so 'verified at push time' is false. lefthook pre-push runs exactly one command: pnpm run build:affected.",
-    until:
-      "a concurrent session commits the DESIGN.md rewrite it already has in the working tree ('gate-checked by ... which runs inside pnpm verify:hard'). Not taken here because two sessions editing one line is the drift this repo keeps recording.",
-  },
+
 ];
 
 /** Does the named thing actually appear in a gate definition? */
