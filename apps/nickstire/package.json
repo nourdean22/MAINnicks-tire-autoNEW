@@ -149,7 +149,7 @@
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.28.2",
     "jsdom": "^29.0.2",
-    "mysql-memory-server": "1.15.0",
+    "mysql-memory-server": "1.16.0",
     "pnpm": "^10.34.5",
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",
