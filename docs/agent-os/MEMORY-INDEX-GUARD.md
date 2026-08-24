@@ -31,7 +31,7 @@ checkout. CI cannot see it. `lefthook` cannot see it. `pnpm agent:verify` cannot
 
 | # | Check | Failure means |
 |---|---|---|
-| 1 | The **INDEX-END sentinel** is the last non-empty line | The marker can no longer prove a complete read — it was removed, or entries were appended after it |
+| 1 | The file ends with a comment block **containing INDEX-END** | The marker can no longer prove a complete read — removed, entries appended after it, or replaced by an unrelated trailing comment |
 | 2 | **Headroom** — warn ≥80%, fail ≥92% | Truncation is imminent and will be silent |
 | 3 | **Reachability** — every topic file is referenced by `MEMORY.md` or `settled-index.md` | A memory nothing points at is written, stored, and never recalled |
 
@@ -77,7 +77,7 @@ adding the line worked:
 ```bash
 node scripts/agent-os/check-memory-index.mjs              # expect exit 0 today
 node scripts/agent-os/check-memory-index.mjs --dir /nope  # expect exit 2, "CANNOT CHECK"
-node --test scripts/agent-os/memoryIndex.test.mjs         # 7 canaries, 7 pass
+node --test scripts/agent-os/memoryIndex.test.mjs         # 10 canaries, 10 pass (re-count; do not trust this number)
 ```
 
 Then start a session and confirm the hook actually fired. A hook line present in a settings file
