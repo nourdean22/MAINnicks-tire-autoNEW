@@ -236,6 +236,39 @@ test("historical records are skipped, live docs are not — same clause, both pa
   assert.match(out, /skipped \d+ historical\/archive files/);
 });
 
+test("a ledger row CITING a false claim is not itself a claim — but a bare one still is", () => {
+  /*
+   * The agent-audit ledgers quote false claims in `| claim | reality |` tables
+   * in order to document them. Reading those as fresh claims made this gate go
+   * RED on the very document that defines it — caught by CI, not locally.
+   *
+   * Scoped to a table row whose FIRST CELL is a backticked `path:line`. Both
+   * directions in one fixture, because a filter proven only on the thing it
+   * suppresses cannot be told apart from a dead detector.
+   */
+  const fixture = [
+    "# fixture",
+    "",
+    "| claim | reality |",
+    "|---|---|",
+    "| `apps/x/docs/CITED.md:5` — \"Anti-slop **verified at push time** via `scripts/check-anti-slop.sh`\" | false |",
+    "",
+    "Anti-slop is **verified at push time** via `scripts/check-anti-slop.sh`.",
+    "",
+  ].join("\n");
+
+  const out = withCanaryCommit("docs/agent-audit/.citation-fixture.md", fixture, (ref) =>
+    runChecker(["--only=gate", `--ref=${ref}`]).out,
+  );
+  const hits = out.split("\n").filter((l) => l.includes(".citation-fixture.md"));
+  assert.equal(
+    hits.length,
+    1,
+    `expected exactly ONE finding (the bare claim, not the cited one); got ${hits.length}: ${hits.join(" | ")}`,
+  );
+  assert.doesNotMatch(out, /CITED\.md/, "the cited path must not surface as a finding of its own");
+});
+
 test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () => {
   // The allowlist rule copied from PR #1808: a REDUNDANT entry is an error, not
   // a shrug. Simulated by pointing the checker at a ref where the held claim is
