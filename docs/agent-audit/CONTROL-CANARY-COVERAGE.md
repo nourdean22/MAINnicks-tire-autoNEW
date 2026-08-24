@@ -44,6 +44,43 @@ it complain.
 
 ---
 
+## The criterion — every canary must prove it can SEE the failure
+
+This is the rule that separates a canary from a test that happens to be green,
+and it is what the counted coverage in this document is counting.
+
+**A test has to be able to see the defect before its silence means anything.**
+
+The sharpest instance, 2026-08-23. The ET-clock canary asserts that the hour reads
+17 under every process timezone. That assertion is *vacuous on its own* — it also
+passes on a machine where the buggy call and the correct call happen to agree,
+which is precisely the machine that does not have the bug. So it additionally
+asserts that the BARE form genuinely differs by zone: `bareUtc === 21`,
+`bareEt === 17`, and the two are not equal. Only then does the first assertion
+carry information.
+
+That is the general form of every blind instrument catalogued below, stated
+positively:
+
+| the instrument | what it could not see |
+|---|---|
+| `task_events` | a completion — the emitting call sites were unreachable |
+| `error_logs` | a completion FAILURE — that path could not write to it |
+| `cron_job_logs` | the alerters — they log nowhere in it |
+| a text-scanning lint | a NUL-byte file — it reads as binary and is skipped |
+| the ET-clock assertion, without its control | a UTC clock, on a UTC machine |
+
+Each was wired, running, and structurally incapable of observing its subject, so
+its silence got read as a clean result. The remedy is the same in every case and
+costs one extra assertion: **break the thing, or plant the failure, and prove the
+instrument goes red.** A canary without that step is a control nobody has shown is
+connected.
+
+**Applies to a category, not only an instance.** A gate's blanket exemptions need
+the same treatment as its individual entries — the exemption is what a future
+reader is most likely to remove as an oversight. `check-et-clock.mjs` states the
+reasoning for each exemption class inside the script, not only in its PR.
+
 ## Four shapes, and the heuristic each one defeats
 
 Everything found on 2026-08-23 — across this session and the Brain session working the same estate —
@@ -444,6 +481,41 @@ has never fired and still will not — while making arming it a deliberate decis
 effect of adding a log line. Whether the operator wants completions to resolve commitments, and
 whether a bidirectional title `includes()` is the right matcher for that, are product questions.
 A canary asserts the emit does not set the flag.
+
+### ET-weekday reading on UTC-anchored date arithmetic — named, open
+
+The 2026-08-23 clock fix converted 57 sites to `hourET()` / `weekdayET()`, which
+closes the fires-a-day-early class. It did NOT close everything, and the residual
+has a specific shape worth writing down so it does not become a second
+74%-adopted situation:
+
+```
+d.setDate(d.getDate() - weekdayET(d));
+```
+
+The READING is ET; `getDate()` and `setDate()` are still UTC-anchored. Between 8pm
+and midnight ET the two disagree about which calendar day it is, so a start-of-week
+or day-offset computation can still land one day out inside that four-hour window.
+Closing it needs an ET-anchored date helper — `startOfWeekET`, `addDaysET` — which
+is a larger change than the reading swap and was deliberately not bundled.
+
+`check-et-clock.mjs` does NOT catch this: the call it forbids is already gone. A
+gate that passes over a known residual is fine as long as the residual is written
+down; this is that writing-down.
+
+### A test that fails for a reason unrelated to its subject
+
+`auto-learn-llm.test.ts` mocked `@/lib/utils/datetime` with only `today`. The day
+the file under test imported `hourET` from the same module, the helper was
+`undefined`, the call threw inside an async path, and three tests failed with:
+
+> expected "spy" to be called 1 times, but got 0 times
+
+A message pointing nowhere near the cause. This is a blind instrument pointed the
+other way: not a green over a real failure, but a red that describes the wrong
+thing, which costs the same debugging time and erodes trust in the suite faster.
+Fixed by making the mock partial via `importOriginal`, so the next import added to
+the subject cannot silently break it.
 
 ### Two disclosures carried forward, still open
 

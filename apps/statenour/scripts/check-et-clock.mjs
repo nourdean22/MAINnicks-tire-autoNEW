@@ -35,6 +35,24 @@
  * ALLOWLIST POLICY: a UTC clock is legitimate when the value IS a UTC quantity —
  * a duration, an expiry offset, a bucket key over already-UTC data. Each entry
  * states why. An unexplained entry is how a gate becomes theatre.
+ *
+ * THE SAME RULE APPLIES TO THE EXEMPTION CATEGORIES BELOW, not only to individual
+ * entries, because a category exemption is the one a future reader is most likely
+ * to "fix". Each is stated with its reasoning at the point it is applied:
+ *
+ *   · CLIENT COMPONENTS — the important one. In the browser `getHours()` returns
+ *     the OPERATOR'S OWN local time, which is exactly what a UI should render.
+ *     Forcing ET there would plant this very bug for anyone outside Cleveland,
+ *     and would do it in the surface the operator looks at most. The defect is
+ *     server-side only: the identical call means different things across the
+ *     wire. Anyone reading this exemption and thinking "that looks like an
+ *     oversight" should read this paragraph twice before removing it.
+ *   · setHours(x.getHours() + n) — a DURATION, not a wall-clock reading. The
+ *     value never leaves the arithmetic.
+ *   · getUTCHours / getUTCDay — explicitly UTC, therefore deliberate.
+ *   · COMMENTS — a comment describing the hazard is not the hazard.
+ *     command-center-state.ts documents this exact trap and was being reported
+ *     for saying so, which is how a gate teaches people to stop writing warnings.
  */
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
