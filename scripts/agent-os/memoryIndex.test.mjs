@@ -71,6 +71,48 @@ test("BREAKS: entries appended AFTER the sentinel fail", () => {
   assert.match(out, /sentinel is not the last thing/);
 });
 
+test("BREAKS: an unrelated trailing comment does NOT pass as the sentinel", () => {
+  // Raised in review. The first draft accepted any trailing `-->`, so deleting
+  // INDEX-END and leaving any other comment last printed "sentinel present" --
+  // a truncation check a stray comment satisfies, inside the guard against
+  // exactly that. Distinct from the missing-sentinel case: there the file ends
+  // with prose, here it ends with a well-formed comment that is the WRONG one.
+  const { code, out } = run({
+    ...healthy,
+    index: healthy.index.replace(SENTINEL, "<!-- unrelated trailing note -->"),
+  });
+  assert.equal(code, 1, `a decoy trailing comment passed as the sentinel: ${out}`);
+  assert.match(out, /sentinel is not the last thing/);
+});
+
+test("a MULTILINE sentinel still passes", () => {
+  // The real index uses a multiline sentinel whose last line ends the comment
+  // without repeating the marker. The fix must not break it -- that is why the
+  // loose `-->` alternative existed in the first place.
+  const multi = [
+    "<!-- INDEX-END. If you cannot see this line the index truncated.",
+    "     Move old entries to settled-index.md past 80%. -->",
+  ].join("\n");
+  const { code, out } = run({ ...healthy, index: healthy.index.replace(SENTINEL, multi) });
+  assert.equal(code, 0, `the multiline sentinel was rejected: ${out}`);
+});
+
+test("--quiet suppresses the healthy line but NEVER the capacity warning", () => {
+  // Raised in review: the documented SessionStart install uses --quiet, and the
+  // first draft gated the 80% warning on it too -- so the operator would first
+  // hear about capacity when the guard FAILED at 92%. An early-warning system
+  // that only speaks once it is too late, inside the guard written against that.
+  const filler = "- [x](alpha.md) - " + "y".repeat(200) + "\n";
+  const warnIndex = "# Memory index\n\n" + filler.repeat(98) + SENTINEL + "\n";
+  // files scoped to alpha.md only: the filler references alpha, so carrying
+  // healthy's beta.md would orphan it and fail this test for an unrelated
+  // reason — a fixture defect masquerading as a guard defect.
+  const quiet = run({ index: warnIndex, files: { "alpha.md": "a\n" } }, ["--quiet"]);
+  assert.equal(quiet.code, 0, `warn-band fixture should still exit 0: ${quiet.out}`);
+  assert.match(quiet.out, /WARNING/, "--quiet must not swallow the capacity warning");
+  assert.doesNotMatch(quiet.out, /all reachable, sentinel present/, "--quiet must suppress the healthy line");
+});
+
 test("BREAKS: a memory reachable from no index fails", () => {
   const { code, out } = run({ ...healthy, files: { ...healthy.files, "orphan.md": "x\n" } });
   assert.equal(code, 1, `an orphaned memory did not fail:\n${out}`);

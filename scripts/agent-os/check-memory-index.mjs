@@ -78,10 +78,24 @@ const bytes = Buffer.byteLength(index, "utf8");
 const pct = (bytes / READ_LIMIT) * 100;
 const problems = [];
 
-// 1 · SENTINEL
-const lines = index.split("\n").filter((l) => l.trim());
-const last = lines[lines.length - 1] ?? "";
-if (!/INDEX-END/.test(last) && !/-->\s*$/.test(last)) {
+/*
+ * 1 · SENTINEL — it must be the ACTUAL INDEX-END comment, not merely "the file
+ * ends with a comment".
+ *
+ * Raised in review against the first draft, which tested the last LINE for
+ * `INDEX-END` OR a trailing `-->`. The `-->` alternative existed so the
+ * multiline sentinel would pass — its last line ends the comment without
+ * repeating the marker — and it accepted ANY trailing HTML comment. Delete
+ * INDEX-END, leave any other comment last, and the guard printed "sentinel
+ * present". A truncation check that a stray comment satisfies is precisely the
+ * shape it guards against, shipped inside the guard.
+ *
+ * Corrected: find the LAST comment block and require INDEX-END inside it.
+ */
+const trimmedIndex = index.trimEnd();
+const lastCommentOpen = trimmedIndex.lastIndexOf("<!--");
+const lastComment = lastCommentOpen === -1 ? "" : trimmedIndex.slice(lastCommentOpen);
+if (!trimmedIndex.endsWith("-->") || !lastComment.includes("INDEX-END")) {
   problems.push(
     "the INDEX-END sentinel is not the last thing in the file. Either it was removed, or entries " +
       "were appended after it — either way it can no longer prove the index was read whole.",
@@ -95,7 +109,13 @@ if (pct >= FAIL_PCT) {
       "Past this point truncation is imminent and SILENT. Move the oldest ACTIVE entries into " +
       "settled-index.md — do not compact sentences again; that has been spent twice already.",
   );
-} else if (pct >= WARN_PCT && !QUIET) {
+} else if (pct >= WARN_PCT) {
+  // NOT gated on QUIET. --quiet suppresses the HEALTHY summary only; a capacity
+  // warning is the whole early-warning value of the hook, and the documented
+  // install command uses --quiet. The first draft gated this too, which would
+  // have meant the operator first heard about capacity when the guard FAILED at
+  // 92% -- an early-warning system that only speaks once it is too late, inside
+  // the guard written against exactly that failure.
   console.warn(
     `[memory-index] WARNING ${bytes} bytes = ${pct.toFixed(1)}% of ~${READ_LIMIT}. ` +
       `Headroom ${READ_LIMIT - bytes} bytes. Plan the migration to settled-index.md now, ` +

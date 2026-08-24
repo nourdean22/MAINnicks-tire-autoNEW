@@ -56,8 +56,20 @@ Add a second entry to the existing `SessionStart` array in `.claude/settings.jso
 }
 ```
 
-`--quiet` suppresses the healthy line so a normal session start stays clean; warnings and failures
-still print. Drop `--quiet` to see the size on every start.
+`--quiet` suppresses the healthy line so a normal session start stays clean; **warnings and
+failures still print.** Drop `--quiet` to see the size on every start.
+
+> **This sentence was false when first written, and review caught it.** The code gated the 80%
+> warning on `--quiet` as well, so the documented install command would have suppressed the early
+> warning entirely and the operator would first have heard about capacity when the guard *failed*
+> at 92% — an early-warning system that only speaks once it is too late, inside the guard written
+> against exactly that. The code now matches this sentence, and a canary asserts it: `--quiet`
+> must emit `WARNING` and must not emit the healthy line.
+>
+> Worth noting which artifact was right. The **doc** described the intended behaviour correctly;
+> the **code** did not implement it. The usual failure in this repo is the reverse, and it is why
+> "read the service, not the doc" is the standing advice — but the rule underneath is *measure*,
+> not *prefer the code*.
 
 **Verify the install the way this repo verifies anything** — plant a positive, do not trust that
 adding the line worked:
