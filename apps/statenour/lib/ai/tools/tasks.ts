@@ -22,7 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
-import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, hourET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { goalsTools } from "@/lib/ai/tools/goals";
 import { missionsTools } from "@/lib/ai/tools/missions";
@@ -1072,8 +1072,8 @@ const tasksCoreTools = {
     }),
     execute: async ({ decision, stakes, reversible }) => {
       const now = new Date();
-      const hour = now.getHours();
-      const dayOfWeek = now.getDay();
+      const hour = hourET(now);
+      const dayOfWeek = weekdayET(now);
 
       // Check recent emotional state
       // v10.0.54 · Replaces retired DailyScore lookup. Source is now

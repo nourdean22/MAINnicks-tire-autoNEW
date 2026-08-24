@@ -147,7 +147,8 @@ complete — an unlisted control is not a covered one.
 | Brief operator-queue gate — `deriveThreatLevel` + `stripInventedSeverity` | 1 | 1 | behavioural; 7 mutations killed, and the sanitizer has a positive control so it cannot mangle an ordinary brief |
 | Source files are text — no NUL bytes | 1 | 1 | proves its own detector fires on a planted NUL BEFORE trusting any zero |
 | statenour `check:anti-slop` | 1 | 1 | wired into `verify:hard` after running nowhere at all; canary asserts the doc claims only the three patterns it greps |
-| **Total** | **61** | **17** | **27.9 %** |
+| statenour `check:et-clock` — bare `getHours()`/`getDay()` | 1 | 1 | forced-TZ test in a child process, plus a canary that reintroduces a bare reading and asserts the lint goes red |
+| **Total** | **62** | **18** | **29.0 %** |
 
 ---
 
@@ -272,7 +273,7 @@ The failure class in its purest form: **a control that works correctly, whose ha
 2026-05-10, and which has never once run inside a gate.**
 
 `apps/statenour/scripts/check-policy-coverage.ts` was defined as `check:policy-coverage` in
-`package.json` and invoked by **nothing** — not `verify:hard` (18 links today; it was 16, then 17, and none of
+`package.json` and invoked by **nothing** — not `verify:hard` (19 links today; it was 16, then 17, then 18, and none of
 them was this), not `.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exited **1**
 immediately. Verbatim, not reconstructed:
 

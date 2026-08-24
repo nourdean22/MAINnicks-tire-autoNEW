@@ -1,3 +1,4 @@
+import { weekdayET } from "@/lib/utils/datetime";
 /**
  * 2026-06-06 · WEEKLY task recurrence · pure weekday math (no deps, testable).
  */
@@ -16,7 +17,7 @@ export function nextWeekdayOccurrence(days: number[], from: Date): Date | null {
   if (set.size === 0) return null;
   for (let i = 1; i <= 7; i++) {
     const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
-    if (set.has(d.getDay())) return d;
+    if (set.has(weekdayET(d))) return d;
   }
   return null;
 }

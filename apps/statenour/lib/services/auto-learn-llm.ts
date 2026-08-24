@@ -41,7 +41,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createStructuredAiResponse, AiUnavailableError } from "@/lib/ai/structured";
 import { getActiveProviderInfo } from "@/lib/ai/provider";
-import { today } from "@/lib/utils/datetime";
+import { hourET, today } from "@/lib/utils/datetime";
 import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 
 const log = logger.withSurface("auto-learn-llm");
@@ -125,7 +125,7 @@ async function consumeBudget(scope: "hourly" | "daily", cap: number): Promise<bo
   const now = new Date();
   const windowKey =
     scope === "hourly"
-      ? `${today()}-${String(now.getHours()).padStart(2, "0")}`
+      ? `${today()}-${String(hourET(now)).padStart(2, "0")}`
       : today();
   const key = `${scope}:${windowKey}`;
 

@@ -28,6 +28,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -249,7 +250,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       });
     } else {
       // Before noon, nudge that MIT isn't set
-      const h = new Date().getHours();
+      const h = hourET();
       if (h >= 7 && h < 12) {
         items.push({
           id: "mit-unset",

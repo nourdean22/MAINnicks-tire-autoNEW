@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
 import {
   KNOWN_BRAIN_CATEGORIES,
@@ -944,7 +945,7 @@ export async function recordPageVisit(args: {
   referrer?: string | null;
 }): Promise<PageVisitResult> {
   try {
-    const hour = new Date().getHours();
+    const hour = hourET();
     const dayOfWeek = new Date().toLocaleDateString("en-US", {
       weekday: "short",
       timeZone: "America/New_York",

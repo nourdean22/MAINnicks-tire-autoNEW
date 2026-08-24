@@ -16,7 +16,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { daysAgo, today, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, hourET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
@@ -174,7 +174,7 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const byDow: Record<number, number[]> = {};
     for (const j of jobs) {
-      const dow = j.jobDate.getDay();
+      const dow = weekdayET(j.jobDate);
       if (!byDow[dow]) byDow[dow] = [];
       byDow[dow].push(Number(j.totalRevenue));
     }
@@ -291,9 +291,9 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
 
   // ── Weekend Workout → Monday Performance ──
   if (scores.length >= 14) {
-    const mondays = scores.filter(s => new Date(s.date + "T12:00:00").getDay() === 1);
-    const saturdays = scores.filter(s => new Date(s.date + "T12:00:00").getDay() === 6);
-    const sundays = scores.filter(s => new Date(s.date + "T12:00:00").getDay() === 0);
+    const mondays = scores.filter(s => weekdayET(new Date(s.date + "T12:00:00")) === 1);
+    const saturdays = scores.filter(s => weekdayET(new Date(s.date + "T12:00:00")) === 6);
+    const sundays = scores.filter(s => weekdayET(new Date(s.date + "T12:00:00")) === 0);
 
     // Build weekend workout map
     const weekendWorkoutMap = new Map<string, boolean>();
@@ -301,7 +301,7 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
       if (!s.workoutDone) continue;
       // Find the following Monday
       const d = new Date(s.date + "T12:00:00");
-      const daysToMon = (8 - d.getDay()) % 7 || 7;
+      const daysToMon = (8 - weekdayET(d)) % 7 || 7;
       const monday = new Date(d.getTime() + daysToMon * 86400000).toISOString().split("T")[0];
       weekendWorkoutMap.set(monday, true);
     }
@@ -378,11 +378,11 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
   // ── Lead Response by Time of Day ──
   if (leads.length >= 15) {
     const morningLeads = leads.filter(l => {
-      const hr = new Date(l.createdAt).getHours();
+      const hr = hourET(new Date(l.createdAt));
       return hr >= 8 && hr < 12;
     });
     const afternoonLeads = leads.filter(l => {
-      const hr = new Date(l.createdAt).getHours();
+      const hr = hourET(new Date(l.createdAt));
       return hr >= 12 && hr < 17;
     });
 

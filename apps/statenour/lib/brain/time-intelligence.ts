@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { daysAgo, today } from "@/lib/utils/datetime";
+import { daysAgo, hourET, today, weekdayET } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopJobs } from "@/lib/brain/legacy-shims";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -81,14 +81,14 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   for (const s of scores) {
-    const dayIdx = new Date(s.date + "T12:00:00").getDay();
+    const dayIdx = weekdayET(new Date(s.date + "T12:00:00"));
     const day = dayNames[dayIdx];
     if (!dayOfWeekPatterns[day]) dayOfWeekPatterns[day] = { scores: [], revenue: 0 };
     dayOfWeekPatterns[day].scores.push(s.overallScore ?? 0);
   }
 
   for (const j of jobs) {
-    const dayIdx = new Date(j.createdAt).getDay();
+    const dayIdx = weekdayET(new Date(j.createdAt));
     const day = dayNames[dayIdx];
     if (!dayOfWeekPatterns[day]) dayOfWeekPatterns[day] = { scores: [], revenue: 0 };
     dayOfWeekPatterns[day].revenue += Number(j.totalRevenue ?? 0);
@@ -134,11 +134,11 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
 
   // Decision quality by time
   const morningDecisions = decisions.filter((d) => {
-    const h = new Date(d.createdAt).getHours();
+    const h = hourET(new Date(d.createdAt));
     return h >= 6 && h < 12;
   });
   const eveningDecisions = decisions.filter((d) => {
-    const h = new Date(d.createdAt).getHours();
+    const h = hourET(new Date(d.createdAt));
     return h >= 18;
   });
 
