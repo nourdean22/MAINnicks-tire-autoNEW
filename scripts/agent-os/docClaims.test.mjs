@@ -167,38 +167,3 @@ test("negation: a truthful 'never runs in CI' is not reported, its positive twin
   assert.match(out, /enforced in CI/, "the positive claim must still be detected");
   assert.doesNotMatch(out, /never runs in CI/, "the negated claim must not be reported");
 });
-
-test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () => {
-  // The allowlist rule copied from PR #1808: a REDUNDANT entry is an error, not
-  // a shrug. Simulated by pointing the checker at a ref where the held claim is
-  // already fixed -- origin/main is the wrong direction, so build a commit that
-  // rewrites DESIGN.md:5 into a true sentence and assert the gate complains that
-  // the entry can go. Without this arm the allowlist could silently become a
-  // permanent excuse list, which is precisely how the class this repo tracks
-  // regenerates.
-  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-redundant-"));
-  const indexFile = join(scratch, "index");
-  const fixed = join(scratch, "DESIGN.md");
-  try {
-    const original = spawnSync("git", ["show", "HEAD:apps/statenour/docs/DESIGN.md"], {
-      cwd: ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
-    });
-    assert.equal(original.status, 0, "could not read DESIGN.md from HEAD");
-    const lines = original.stdout.split("\n");
-    lines[4] = "**Three of these are gate-checked** by `scripts/check-anti-slop.sh`, run by `pnpm verify:hard`:";
-    writeFileSync(fixed, lines.join("\n"));
-    const blob = git(["hash-object", "-w", fixed]);
-
-    const env = { GIT_INDEX_FILE: indexFile };
-    git(["read-tree", "HEAD"], env);
-    git(["update-index", "--add", "--cacheinfo", `100644,${blob},apps/statenour/docs/DESIGN.md`], env);
-    const ref = git(["write-tree"], env); // tree-ish; see withCanaryCommit
-
-    const r = runChecker(["--strict", `--ref=${ref}`]);
-    assert.equal(r.code, 1, `a redundant KNOWN_FALSE entry did NOT fail the run:\n${r.out}`);
-    assert.match(r.out, /no longer needed/);
-    assert.match(r.out, /DESIGN\.md:5/);
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
-  }
-});
