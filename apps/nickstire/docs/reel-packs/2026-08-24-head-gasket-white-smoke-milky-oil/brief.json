@@ -1,0 +1,112 @@
+{
+  "topic": "head-gasket-white-smoke-milky-oil",
+  "title": "White smoke + milky oil cap: head gasket warning signs",
+  "createdDate": "2026-08-24",
+  "mode": "INTELLIGENCE",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "faceless": true,
+  "aspectRatio": "9:16",
+  "durationSeconds": 33,
+  "freezeSeconds": 3,
+  "selfEstimatedQualityScore": {
+    "total": 61,
+    "max": 70,
+    "passesFloor": false,
+    "floor": 70,
+    "note": "Self-estimate only, not the real server-side calculateReelQualityScore(). Below the 70-point floor, mainly on the sourced-fact dimension (no EvidenceRecord/businessFacts citation)."
+  },
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "startSeconds": 0,
+      "endSeconds": 4,
+      "shot": "Close-up: thick white smoke rolling continuously from a car tailpipe at idle, cold morning light",
+      "prompt": "close up shot of a car tailpipe at idle, thick white smoke rolling out continuously, cold morning light, condensation visible, photorealistic, cinematic",
+      "vo": "White smoke from your tailpipe that doesn't stop after a minute? Worth checking before you drive further."
+    },
+    {
+      "index": 2,
+      "role": "BODY",
+      "startSeconds": 4,
+      "endSeconds": 9,
+      "shot": "Close-up: engine oil filler cap being lifted off, revealing pale frothy milkshake-colored residue under the cap",
+      "prompt": "extreme close up of a car engine oil filler cap being lifted off, the underside coated in pale frothy milkshake-colored residue, engine bay lighting, macro detail, photorealistic",
+      "vo": "One clue: pop the oil cap. If it looks like a milkshake instead of black oil, that's coolant mixing in."
+    },
+    {
+      "index": 3,
+      "role": "BODY",
+      "startSeconds": 9,
+      "endSeconds": 14,
+      "shot": "Macro cutaway-style shot: cross-section of a head gasket surface with a visible gap between cylinder and coolant passage",
+      "prompt": "macro cutaway diagram-style shot of an engine cylinder head gasket surface, a visible thin gap between the cylinder bore and an adjacent coolant passage, clean technical lighting, photorealistic illustration style",
+      "vo": "The head gasket seals coolant and combustion completely apart. When it fails, the two start mixing."
+    },
+    {
+      "index": 4,
+      "role": "BODY",
+      "startSeconds": 14,
+      "endSeconds": 19,
+      "shot": "Close-up: coolant reservoir tank with unusual bubbling / rising fluid level at idle",
+      "prompt": "close up of a translucent car coolant reservoir tank, coolant fluid visibly bubbling and slowly rising with the engine idling, engine bay background, photorealistic",
+      "vo": "Coolant that keeps disappearing, or bubbles in the overflow tank at idle, is a second clue pointing the same direction."
+    },
+    {
+      "index": 5,
+      "role": "BODY",
+      "startSeconds": 19,
+      "endSeconds": 24,
+      "shot": "Close-up: exhaust tailpipe again, sweet-smelling steam-like vapor distinct from normal exhaust, sunlight backlighting the vapor",
+      "prompt": "close up backlit shot of vapor and light smoke exiting a car exhaust tailpipe, sunlight catching the vapor trail, outdoor daylight, photorealistic",
+      "vo": "Sweet-smelling white vapor, not black or blue smoke — that's the coolant burning off inside the cylinder."
+    },
+    {
+      "index": 6,
+      "role": "BODY",
+      "startSeconds": 24,
+      "endSeconds": 27,
+      "shot": "Close-up: dipstick pulled and wiped clean against a white cloth, showing the oil's true color and texture",
+      "prompt": "close up of an engine oil dipstick being wiped against a white cloth, showing oil color and texture, garage lighting, photorealistic, no hands or human figures visible",
+      "vo": "One clue alone doesn't confirm it — we check both the oil and the coolant before we guess."
+    },
+    {
+      "index": 7,
+      "role": "CTA_FREEZE",
+      "startSeconds": 27,
+      "endSeconds": 33,
+      "shot": "Wide static hold: clean, dry automotive service bay under bright shop lighting, no signage/logo visible",
+      "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame",
+      "vo": "Stop by and we'll take a look."
+    }
+  ],
+  "captions": "captions.srt",
+  "ig_fb_copy": {
+    "primaryCaption": "White smoke from your tailpipe that doesn't clear after a minute? Check your oil cap — if it looks like a milkshake instead of black oil, that's coolant mixing in. One clue alone doesn't confirm it, but both together are worth a look. Stop by and we'll take a look.",
+    "hashtags": ["CarMaintenance", "HeadGasket", "CarCare", "EuclidOhio", "NicksTireAndAuto", "CarProblems", "AutoRepair", "EngineTrouble"],
+    "adVariants": [
+      {
+        "label": "curiosity",
+        "hook": "That white smoke isn't always the weather.",
+        "caption": "Persistent white smoke plus a milky oil cap can point to coolant and oil mixing where they shouldn't. Two clues, one quick check.",
+        "cta": "Stop by and we'll take a look — no guessing."
+      },
+      {
+        "label": "relatability",
+        "hook": "Pop your oil cap before your next oil change.",
+        "caption": "Frothy, pale residue under the cap is a clue worth checking — especially paired with white smoke at startup.",
+        "cta": "Worth a quick look — swing by."
+      }
+    ]
+  },
+  "gaps": {
+    "musicRights": "no ledger in this repo — royalty-free bed to be chosen and license-screenshotted by human editor at assembly",
+    "evidenceRecords": "none cited; script uses general automotive mechanism knowledge only",
+    "capabilityCheck": {
+      "envCredentials": "none present (Higgsfield/ADMIN_API_KEY/DATABASE_URL/META/INSTAGRAM/OPENAI/ELEVEN/TTS all unset)",
+      "ffmpeg": "not installed in this session",
+      "capcut": "not installed in this session"
+    }
+  }
+}
