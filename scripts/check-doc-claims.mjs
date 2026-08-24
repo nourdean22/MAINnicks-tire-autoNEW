@@ -546,9 +546,28 @@ for (const doc of docs) {
       // in the resolver keeps it out of the reported inventory entirely -- it
       // is not a finding at all, and listing it would train readers to ignore
       // the list.
+      /*
+       * A LEDGER ROW CITING ANOTHER FILE'S CLAIM IS NOT MAKING ONE.
+       *
+       * Scoped hard: a markdown table row whose FIRST CELL is a backticked
+       * `path:line`. That is the shape the agent-audit ledgers use to quote a
+       * false claim in order to document it — `| claim | reality |` tables —
+       * and reading those as fresh claims made this gate red on the very
+       * document that defines it.
+       *
+       * Stated Rule 7 rejected a BROAD version of this ("any line citing a
+       * path:line is a citation"), because it would also have dropped
+       * STATENOUR-ARCHITECTURE-INTELLIGENCE-REPORT.md:23, a genuine finding.
+       * That rejection stands, and this is not it: that line is a numbered list
+       * item, not a table row, and lives in the COMPLETENESS lane which this
+       * filter does not touch. The stopping condition is "the first true
+       * positive you lose", not "never narrow again" — the discipline is to
+       * name which true positive a filter would cost and check it survives.
+       */
+      const isLedgerCitation = /^\|\s*`[\w./@-]+:\d+`/.test(trimmed);
       const m = line.match(GATE);
       const span = line.slice(Math.max(0, m.index - 24), m.index + m[0].length);
-      if (!NEGATED.test(span)) {
+      if (!NEGATED.test(span) && !isLedgerCitation) {
         const target = namedTarget(line);
         const r = resolveGate(target, claimedSurface(line));
         findings.gate.push({ at, line: trimmed.slice(0, 150), ...r });
