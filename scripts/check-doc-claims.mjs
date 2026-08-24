@@ -162,7 +162,45 @@ function readRepoFile(path) {
 }
 const hasRepoFile = (path) => (REF ? refBlobs.has(path) : existsSync(path));
 
-const docs = repoFiles.filter(
+/**
+ * HISTORICAL RECORDS are not current-truth claims, and must not be re-dated.
+ *
+ * A document whose own name or location stamps its frame -- `_archive/`,
+ * `90-archive/`, `research-packs/`, or an ISO date in the filename -- is a
+ * record of what was true THEN. "Nothing calls it" inside
+ * `db-cost-access-patterns-2026-05-12.md` is not a lying surface; it is a
+ * correctly-framed measurement from May.
+ *
+ * This matters because the obvious remedy is wrong. Of 58 flagged clauses, 19
+ * live in such files, and the mechanical fix -- append "as of 2026-08-23,
+ * measured N of M" -- would assert a measurement NOBODY MADE TODAY. That is a
+ * brand-new false claim, manufactured by the tool built to remove false claims,
+ * in the name of tidying the report. One filter is the correct fix for all 19.
+ *
+ * The frame must be in the NAME or the PATH, not merely somewhere in the prose:
+ * a date in the body is a claim like any other, and this rule would then be
+ * self-granting -- any doc could exempt itself by mentioning a date.
+ */
+function isHistoricalRecord(f) {
+  return (
+    f.includes("/_archive/") ||
+    f.startsWith("docs/90-archive/") ||
+    f.startsWith("research-packs/") ||
+    f.startsWith("AUDIT/") ||
+    // ANY path SEGMENT, not just the filename. The first version tested only
+    // `f.split("/").pop()` and missed
+    // `docs/reel-packs/2026-08-17-road-salt-brake-lines/README.md`, where the
+    // date frames the whole directory and the file is a bare README. A dated
+    // folder stamps its contents exactly as a dated filename does.
+    //
+    // Segments only -- never the file BODY. A date in prose is a claim like any
+    // other, and keying off it would let any document exempt itself by
+    // mentioning a date.
+    f.split("/").some((seg) => /\d{4}-\d{2}-\d{2}/.test(seg))
+  );
+}
+
+const allDocs = repoFiles.filter(
   (f) =>
     f.endsWith(".md") &&
     !f.startsWith("node_modules/") &&
@@ -173,6 +211,8 @@ const docs = repoFiles.filter(
     !f.startsWith(".agents/") &&
     !f.includes("/skills/"),
 );
+const historicalDocs = allDocs.filter(isHistoricalRecord);
+const docs = allDocs.filter((f) => !isHistoricalRecord(f));
 
 /**
  * Files that decide whether something actually RUNS at a point in time.
@@ -338,6 +378,34 @@ const GATE =
  * Scoped to the words BETWEEN the verb and the surface, plus a short lead-in,
  * so "never runs in CI" is excluded while "runs in CI" is not.
  */
+/**
+ * NOT-A-CLAIM. Three families that match the COMPLETENESS regex while asserting
+ * nothing about current repo state. Found by reading all 26 surviving hits
+ * rather than trusting the count -- the same discipline that cut the GATE lane
+ * from 8 to 2 real findings.
+ *
+ * Dating these would be worse than leaving them: "as of 2026-08-23" on a rule
+ * ("Don't ship columns the UI reads but nothing writes") turns a timeless
+ * instruction into a stale-looking measurement.
+ *
+ *   1. GUIDANCE -- teaches about the claim class or forbids a pattern. Includes
+ *      docs/UPSTREAMS.md:177, which warns that a grep is "not evidence that
+ *      nothing calls it" -- prose ABOUT false completeness claims, flagged as
+ *      one. The checker cannot read its own doctrine.
+ *   2. PAST TENSE -- describes a defect already fixed. truth_os.md:214, "the
+ *      declined-work picker WAS READING a column nothing writes", is a repaired
+ *      bug; re-dating it would assert the bug is current.
+ *   3. AUDIT SELF-DESCRIPTION -- "the only file written is this document"
+ *      is a statement about the audit session, not about the repo.
+ */
+const NOT_A_CLAIM = [
+  /^\s*[-*]?\s*(don't|do not|never|avoid)\b/i,
+  /\bnot evidence that\b|\bis not proof\b|\bdoes not prove\b/i,
+  /\bif nothing else\b|\bif nothing\b.{0,20}\b(consumes|reads|calls)\b/i,
+  /\b(was|were)\s+\w+ing\b|\bused to\b|\bno longer\b|\bpreviously\b|\bhas since been\b/i,
+  /\bthe only file written\b|\bno code was changed\b|\bread-only audit\b/i,
+];
+
 const NEGATED =
   /\b(never|not|no longer|does not|doesn't|isn't|is not|are not|aren't|without|fails to|cannot|can't|nothing)\b/i;
 
@@ -486,7 +554,7 @@ for (const doc of docs) {
         findings.gate.push({ at, line: trimmed.slice(0, 150), ...r });
       }
     }
-    if (COMPLETENESS.test(line)) {
+    if (COMPLETENESS.test(line) && !NOT_A_CLAIM.some((re) => re.test(line))) {
       const dated = /\bas of\b|\bmeasured\b|\d{4}-\d{2}-\d{2}/i.test(line);
       findings.completeness.push({ at, line: trimmed.slice(0, 150), dated });
     }
@@ -575,11 +643,18 @@ if (show("count")) {
   if (findings.count.length > 25) console.log(`  … ${findings.count.length - 25} more\n`);
 }
 
+// MAKE THE SKIP LOUD (probe rule 5). A scan that excluded files prints the same
+// green as one that found nothing, so the exclusion is stated on every run --
+// never inferable only from a smaller number.
 console.log(
   `\nscanned ${docs.length} markdown files · ` +
     `gate ${findings.gate.length} (${unresolvedGates} unresolved) · ` +
-    `completeness ${findings.completeness.length} · count ${findings.count.length}`,
+    `completeness ${findings.completeness.length} · count ${findings.count.length}` +
+    `\nskipped ${historicalDocs.length} historical/archive files (date-stamped or archived: their frame is in the path, so re-dating them would assert a measurement nobody made). --show-skipped to list.`,
 );
+if (process.argv.includes("--show-skipped")) {
+  for (const f of historicalDocs) console.log(`  skipped: ${f}`);
+}
 
 if (STRICT && unresolvedGates > 0) {
   console.error(`\n✗ ${unresolvedGates} unresolved GATE claim(s). A doc that names a gate must resolve to one.`);
