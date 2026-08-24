@@ -539,6 +539,27 @@ above 80%. The shipped version carries no figure at all and says why, naming `wc
 live claims, **one** false. It overstated the problem in the document arguing that overstatement
 is the problem. Corrected above with the measurement inline.
 
+**4 · `head -6` on a grep, reported as an exhaustive answer.** Checking whether `canClaimDone()`
+had production callers, the query was
+`git grep -nE "canClaimDone\(" -- apps/statenour | grep -v test | head -6`. Paths sort
+alphabetically, `docs/` precedes `lib/`, and six doc hits filled the window — so the output showed
+**only documentation** and the conclusion drawn was "no production call sites, the code comment is
+false". Both real call sites were in the result set, below the cut.
+
+The corrected query — no `head`, scoped to `lib/` and `app/` — returns
+`persist-assistant-message.ts:172` and `deferred-background-work.ts:381`. **A truncated result set
+and an empty one render identically once the truncation scrolls past**, which is Stated Rule 6
+applied to one's own shell pipeline, and it was one sentence away from publishing a refutation of
+a true statement.
+
+What it did find is worth more than what it nearly got wrong: **two sources carried opposite wrong
+answers about the same function for six weeks.** The audit called it "orphaned — zero production
+call sites" as its highest-severity item; the code header called it "LIVE at 4 call sites in
+persist-assistant-turn.ts", a file containing zero references to any of it. Truth: two call sites,
+in two other files. And the header got wrong *because* a 2026-07-11 review corrected it from a
+true "not yet wired" to a false specific — **for a good stated reason**, which is what makes it
+worth recording. Being specific made it more credible, not more true.
+
 **Why these are the most persuasive entries here.** Every other instance is a defect found in
 someone else's code by an auditor with the advantage of distance. These were found in the
 auditor's own output, minutes old, under full attention, by cross-checking rather than by
