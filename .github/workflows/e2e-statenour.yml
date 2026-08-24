@@ -175,6 +175,7 @@ jobs:
           # either (Next 16 defaults to Turbopack and the script passes no
           # bundler flag). The real type gate is `tsc --noEmit`, run by the
           # turbo-affected sweep in test.yml. Corrected 2026-07-28.
+          rm -rf .next
           NODE_OPTIONS="--max-old-space-size=4096" \
             nohup pnpm exec next dev -p 3001 > /tmp/next-start.log 2>&1 &
           # Stream the server's own output so a crash or heap abort is
