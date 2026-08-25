@@ -238,3 +238,54 @@ describe("canary - internal lines are withheld as their OWN category", () => {
     expect(seen.size).toBe(2);
   });
 });
+
+/**
+ * The reminder ladder is one-directional.
+ *
+ * Reimplemented here from the cron's own expression so the RULE can be driven
+ * with synthetic ages and claim states. A source canary below pins that the
+ * cron still carries the guard, so the two cannot drift apart silently.
+ */
+function touchFor(ageDays: number, a7: boolean, a30: boolean): "7d" | "30d" | null {
+  if (ageDays >= 30 && !a30) return "30d";
+  if (ageDays >= 7 && !a7 && !a30) return "7d";
+  return null;
+}
+
+describe("canary - an escalated invoice never drops back to the earlier touch", () => {
+  it("BREAKS: after a 30d touch, the 7d touch is NOT sent the next day", () => {
+    // The real case, 2026-08-25: a 73-day-old invoice took the 30d touch,
+    // which left the 7d slot unclaimed. Without the guard the next run sent a
+    // SECOND message about the same bill, in the softer earlier wording.
+    expect(touchFor(73, false, true)).toBeNull();
+    expect(touchFor(31, false, true)).toBeNull();
+  });
+
+  it("an invoice that ages normally still gets 7d then 30d, in order", () => {
+    expect(touchFor(7, false, false)).toBe("7d");   // first touch
+    expect(touchFor(30, true, false)).toBe("30d");  // escalates later
+    expect(touchFor(45, true, true)).toBeNull();    // both spent
+  });
+
+  it("younger than 7 days gets nothing - the courtesy delay is real", () => {
+    expect(touchFor(6, false, false)).toBeNull();
+    expect(touchFor(0, false, false)).toBeNull();
+  });
+
+  it("POSITIVE CONTROL: the ladder can return all three outcomes", () => {
+    // Without this, a touchFor that always returned null would satisfy every
+    // "sends nothing" assertion above.
+    expect(new Set([touchFor(7, false, false), touchFor(35, true, false), touchFor(5, false, false)]).size).toBe(3);
+  });
+
+  it("BREAKS: the cron itself still carries the !reminder30d guard", () => {
+    // The rule above is a local reimplementation; this is what pins it to the
+    // shipped code. Without it the canary could stay green while the cron
+    // regressed.
+    const cron = stripComments(
+      readFileSync(join(process.cwd(), "server/cron/jobs/unpaidInvoiceRecovery.ts"), "utf-8"),
+    );
+    expect(cron).toContain("else if (ageDays >= 7 && !inv.reminder7d && !inv.reminder30d) touch = \"7d\";");
+  });
+});
+
