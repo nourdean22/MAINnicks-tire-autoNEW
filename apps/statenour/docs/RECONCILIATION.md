@@ -44,9 +44,22 @@
 > take — all 71 ACTIVE agenda_items (oldest June 28) render into EVERY turn = 2,646 tok, 21% of
 > the prompt, growing monotonically. Four levers ranked with savings + eval gates; zero edits.
 >
+> **#1862 · same-day follow-through: the prune's first slice + lever 1 executed.** (1) The one
+> population with an honest denominator TODAY — CORE/ACTION_CORE tools are offered on ~every turn
+> since the telemetry epoch 2026-05-12 (>=2,000 opportunities each; the INVERSE of the census
+> confound) — gave a corrected-number prune: setTaskPriority (0 calls ever), syncKnowledge (0),
+> runDeviceCommand (1, day-one) DEMOTED from always-on to on-demand, each with four paths back
+> (new device + knowledge-sync keyword families, semantic, exact-name, recovery lane). Review's
+> 82-conf catch adopted: short device phrasings ("lights off" is exactly 10 chars — under the
+> route's embedding gate) now covered. (2) Agenda block BOUNDED at the source: AGENDA_PROMPT_CAP=18
+> deadline-first + renderer overflow disclosure; v1 duplicate (zero importers) deleted. Measured:
+> default prompt 49,344 -> 41,448 chars (~-1,974 tok/turn); the 21% section fell out of the top 10.
+>
 > **Flagged · NOT fixed (deliberately):**
-> - The tool PRUNE itself — gated on surfaced-data accrual (instrument live since 16:45Z).
-> - The unbounded agenda query — lever 1 of #1849, operator picks; behavior-visible.
+> - The BROAD catalog prune — still gated on surfaced-data accrual (instrument live since 16:45Z);
+>   #1862 pruned only the always-surfaced population whose denominator needed no accrual.
+> - Prompt levers 2/3 (Processing-intake compression · persona dedupe) — behavior surfaces with no
+>   A/B provenance; operator picks, live persona replay first (the 2026-08-15 lesson).
 > - Langfuse activation — operator-side Railway env edit; wiring complete and proven.
 > - BRAINTRUST_API_KEY still set in Railway — unused by the app; operator may delete.
 > - `ai_generations.prompt_tokens` coverage is 8.1% (62/764) and lane-biased — the per-request
