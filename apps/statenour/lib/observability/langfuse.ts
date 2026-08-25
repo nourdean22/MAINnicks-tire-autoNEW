@@ -37,8 +37,27 @@ const log = rootLogger.withSurface("observability/langfuse");
 
 type TracingStatus = "started" | "skipped" | "failed" | "uninitialized";
 
-let status: TracingStatus = "uninitialized";
-let processor: { forceFlush(): Promise<void> } | null = null;
+/**
+ * 2026-08-25 · state lives on globalThis, NOT at module level — proven
+ * necessary on prod the same day the module shipped. Next.js compiles
+ * instrumentation.ts as its OWN entry, so this module exists twice at
+ * runtime: the instrumentation copy ran init (boot log said
+ * langfuse_skipped) while the app-bundle copy that healthSummary reads
+ * stayed "uninitialized" — /system showed "not initialized" over a lane
+ * that had in fact initialized. Module-level singletons don't cross
+ * bundle boundaries; globalThis does (the OTel provider itself is
+ * process-global via @opentelemetry/api for the same reason, which is
+ * why TRACING worked while the STATUS lied).
+ */
+interface LangfuseGlobalState {
+  status: TracingStatus;
+  processor: { forceFlush(): Promise<void> } | null;
+}
+const g = globalThis as typeof globalThis & { __langfuseTracing?: LangfuseGlobalState };
+function state(): LangfuseGlobalState {
+  g.__langfuseTracing ??= { status: "uninitialized", processor: null };
+  return g.__langfuseTracing;
+}
 
 export function isLangfuseConfigured(): boolean {
   return Boolean(
@@ -58,11 +77,11 @@ export function isLangfuseConfigured(): boolean {
  * leaves the process without an explicit, named decision.
  */
 export function isLangfuseTelemetryEnabled(privateMode?: boolean): boolean {
-  return status === "started" && !privateMode;
+  return state().status === "started" && !privateMode;
 }
 
 export function langfuseTracingStatus(): TracingStatus {
-  return status;
+  return state().status;
 }
 
 /**
@@ -70,14 +89,15 @@ export function langfuseTracingStatus(): TracingStatus {
  * NEXT_RUNTIME === "nodejs" guard. Idempotent.
  */
 export async function initLangfuseTracing(): Promise<TracingStatus> {
-  if (status !== "uninitialized") return status;
+  const st = state();
+  if (st.status !== "uninitialized") return st.status;
   if (!isLangfuseConfigured()) {
-    status = "skipped";
+    st.status = "skipped";
     log.info("langfuse_skipped", {
       reason: "LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY unset",
       hint: "set both (plus LANGFUSE_BASE_URL for a region/self-host) on Railway statenour-web to activate tracing",
     });
-    return status;
+    return st.status;
   }
   try {
     // Const-specifier imports, deliberately: this repo's junctioned
@@ -100,8 +120,8 @@ export async function initLangfuseTracing(): Promise<TracingStatus> {
     const spanProcessor = new LangfuseSpanProcessor();
     const sdk = new NodeSDK({ spanProcessors: [spanProcessor] });
     sdk.start();
-    processor = spanProcessor;
-    status = "started";
+    st.processor = spanProcessor;
+    st.status = "started";
     // Railway redeploys SIGTERM the container; without a drain the batch
     // processor's tail buffer (up to one flush interval of spans) dies
     // with it. once-guarded by the status singleton above.
@@ -112,21 +132,20 @@ export async function initLangfuseTracing(): Promise<TracingStatus> {
       baseUrl: process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com (SDK default)",
     });
   } catch (err) {
-    status = "failed";
+    st.status = "failed";
     log.error("langfuse_init_failed", {
       error: err instanceof Error ? err.message.slice(0, 300) : String(err),
     });
   }
-  return status;
+  return st.status;
 }
 
 /** Drain pending spans — for probe scripts and graceful shutdown. */
 export async function flushLangfuseTraces(): Promise<void> {
-  await processor?.forceFlush();
+  await state().processor?.forceFlush();
 }
 
 /** Test seam — resets module state so gating paths can be exercised. */
 export function __resetLangfuseForTests(): void {
-  status = "uninitialized";
-  processor = null;
+  g.__langfuseTracing = { status: "uninitialized", processor: null };
 }

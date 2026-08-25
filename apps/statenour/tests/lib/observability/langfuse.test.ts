@@ -126,6 +126,22 @@ describe("initLangfuseTracing", () => {
   });
 });
 
+describe("cross-bundle status visibility", () => {
+  it("a FRESH module instance reads the status an earlier instance set (the instrumentation-vs-app-bundle split)", async () => {
+    // Prod bug this pins (found on /system the day the module shipped):
+    // Next compiles instrumentation.ts as its own entry, so this module
+    // exists twice; module-level state left healthSummary reading
+    // "uninitialized" while boot logs said "skipped". State lives on
+    // globalThis now — a re-imported instance must see the settled
+    // status WITHOUT running init itself.
+    await initLangfuseTracing(); // no keys in env → "skipped"
+    expect(langfuseTracingStatus()).toBe("skipped");
+    vi.resetModules(); // simulate the second bundle: fresh module scope
+    const fresh = await import("@/lib/observability/langfuse");
+    expect(fresh.langfuseTracingStatus()).toBe("skipped");
+  });
+});
+
 describe("flushLangfuseTraces", () => {
   it("drains the live processor, and is a no-op before init", async () => {
     await flushLangfuseTraces();
