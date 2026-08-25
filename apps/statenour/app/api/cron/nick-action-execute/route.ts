@@ -24,7 +24,7 @@
  * second layer of idempotency · the query above filters NULL only.
  *
  * The Telegram digest is best-effort · if the bot's down the work
- * still happened. The /system/approvals page reads executedAt + result
+ * still happened. The /system/actions page reads executedAt + result
  * so the operator's audit trail is in the DB regardless.
  */
 
@@ -65,7 +65,7 @@ export const GET = cronHandler(async () => {
     try {
       const { sendTelegram } = await import("@/lib/services/telegram");
       await sendTelegram(
-        `🚨 <b>Nick executor FAILED · ${today}</b>\n\n${msg}\n\n<i>Approved actions stay pending · /system/approvals shows them · audit /system/logs for the stack.</i>`,
+        `🚨 <b>Nick executor FAILED · ${today}</b>\n\n${msg}\n\n<i>Approved actions stay pending · /system/actions shows them · audit /system/logs for the stack.</i>`,
         undefined,
         "HTML",
       );

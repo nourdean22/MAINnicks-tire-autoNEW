@@ -382,7 +382,11 @@ export function DailyBriefSection() {
                 )}
                 {pulse.topLens && (
                   <Link
-                    href="/system/lens-stats"
+                    /* /system/lens-stats was never built. The lens summary
+                        this chip previews is rendered on /system/health — see
+                        its own comment at :389 describing the click-through
+                        that never shipped. */
+                    href="/system/health"
                     className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/15 transition-colors"
                     title={`Top-fired lens today · ${pulse.topLensCount}× · tap for breakdown`}
                   >
@@ -394,7 +398,9 @@ export function DailyBriefSection() {
                 )}
                 {pulse.voiceCallsToday > 0 && (
                   <Link
-                    href="/system/vapi-calls"
+                    /* /system/vapi-calls was never built; the VAPI voice-call
+                        summary lives on /system/health (:435). */
+                    href="/system/health"
                     className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/5 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-300 hover:bg-amber-500/15 transition-colors"
                     title={`Voice calls today · tap for detail`}
                   >

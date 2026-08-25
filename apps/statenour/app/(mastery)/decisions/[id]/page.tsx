@@ -23,7 +23,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 // misc-pages slice (2026-05-22) · the detail read + grade-save moved
 // off authedFetch onto trpc.operator.decisionDetail / gradeDecision.
 import { trpc } from "@/lib/trpc/client";
@@ -524,12 +523,11 @@ export default function DecisionDetailPage() {
             <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
               anti-patterns in {d.domain}
             </p>
-            <Link
-              href="/system/quality?view=lessons"
-              className="text-[10px] font-mono tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)]"
-            >
-              full library →
-            </Link>
+            {/* "full library →" pointed at /system/quality?view=lessons, which
+                does not exist — and QualityLessonsView, the component that would
+                render it, has ZERO importers. There is no library to open, so
+                the affordance is removed rather than repointed: a link to the
+                wrong page is worse than no link. */}
           </header>
           <div className="space-y-2">
             {lineage.antiPatterns.map((ap) => {
