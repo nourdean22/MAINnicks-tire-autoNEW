@@ -58,21 +58,32 @@ function sourceFiles(): string[] {
 }
 
 /**
- * Live dead links this change did not create and cannot responsibly fix: where
- * `/system/lens-stats` OUGHT to point is a product decision, and guessing a
- * destination is worse than naming the breakage.
+ * NO DEFERRALS, and that is the whole change here.
  *
- * Deferred WITH A REVERSE CANARY (below) that asserts each entry is still
- * broken. Fix one and the test fails, telling you to delete the line — so this
- * list cannot outlive its reason the way a plain exemption list does.
+ * This block used to carry a five-entry KNOWN_DEAD list behind a reverse canary,
+ * because where each link OUGHT to point was a product decision I had no
+ * evidence for. The operator's answer: find the real destination, and where the
+ * page genuinely does not exist REMOVE the link — a link to the wrong page is
+ * worse than no link, and this is the class that had him tapping a push
+ * notification into a page saying nothing existed.
+ *
+ * All five resolved, so the sweep below is unconditional:
+ *
+ *   /system/lens-stats   -> /system/health  · health renders it; health:389
+ *                           even describes the click-through that never shipped
+ *   /system/vapi-calls   -> /system/health  · health:435, same story
+ *   /system/brain-bus    -> /system/fleet   · QueueRow name="brain-bus"
+ *   /system/quality      -> REMOVED · QualityLessonsView has ZERO importers,
+ *                           so there is no library page to open
+ *   /system/eval-results -> REMOVED · no page, no /api/system/eval-results
+ *                           route either, and use-observability.ts:69 records
+ *                           that NO producer writes eval_result rows. The
+ *                           drilldown would have opened on nothing.
+ *
+ * The reverse canary earned its keep on the way out: fixing the links turned its
+ * own deferral list stale and it failed, naming the entries to delete. That is
+ * the behaviour an exemption list can never have.
  */
-const KNOWN_DEAD: Record<string, string> = {
-  "/system/quality": "app/(mastery)/decisions/[id]/page.tsx — href=/system/quality?view=lessons",
-  "/system/lens-stats": "components/actions/daily-brief-section.tsx",
-  "/system/vapi-calls": "components/actions/daily-brief-section.tsx",
-  "/system/brain-bus": "components/mastery/bridge-shell.tsx — also rendered as visible link TEXT",
-  "/system/eval-results": "components/ultron/observability/eval-pass-rate-tile.tsx",
-};
 
 describe("system nav targets · a clickable link must resolve", () => {
   const pages = () => realSystemPages();
@@ -109,30 +120,13 @@ describe("system nav targets · a clickable link must resolve", () => {
     const realPages = pages();
     const files = sourceFiles();
     expect(files.length, "git ls-files returned nothing — the sweep had no subject").toBeGreaterThan(100);
-    const offenders = files.flatMap((f) => {
-      const bad = brokenNavTargets(readFileSync(f, "utf8"), realPages).filter(
-        (t) => !(t in KNOWN_DEAD),
-      );
-      return bad.map((t) => `${f} -> ${t}`);
-    });
+    const offenders = files.flatMap((f) =>
+      brokenNavTargets(readFileSync(f, "utf8"), realPages).map((target) => `${f} -> ${target}`),
+    );
     expect(
       offenders,
       "these link somewhere that does not exist. Either create the page, add a " +
         "next.config redirect, or repoint the link:\n  " + offenders.join("\n  "),
-    ).toEqual([]);
-  });
-
-  it("REVERSE CANARY: every KNOWN_DEAD entry is still actually dead", () => {
-    // Fails when one gets fixed (or the page gets created), naming the entry to
-    // delete. Without this the five below quietly become permanent.
-    const realPages = pages();
-    const stillDead = new Set(
-      sourceFiles().flatMap((f) => brokenNavTargets(readFileSync(f, "utf8"), realPages)),
-    );
-    const resolved = Object.keys(KNOWN_DEAD).filter((t) => !stillDead.has(t));
-    expect(
-      resolved,
-      "these are no longer dead — remove them from KNOWN_DEAD above:\n  " + resolved.join("\n  "),
     ).toEqual([]);
   });
 });
