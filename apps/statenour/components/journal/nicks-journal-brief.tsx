@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 export function NicksJournalBrief() {
   const [brief, setBrief] = useState<string | null>(null);
@@ -30,13 +31,11 @@ export function NicksJournalBrief() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/ai/journal-brief", {
+        const data = await rawFetch<{ brief: string }>("/api/ai/journal-brief", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        if (!res.ok) throw new Error("journal_brief_failed");
-        const data = (await res.json()) as { brief: string };
         if (!cancelled) setBrief(data.brief?.trim() || null);
       } catch {
         // Silent · page renders without it.

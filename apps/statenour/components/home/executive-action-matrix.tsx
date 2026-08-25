@@ -9,6 +9,7 @@ import { InboxTasksTriage } from "./inbox-tasks-triage";
 import { InboxTriageCard } from "./inbox-triage-card";
 import { HomeOneTapMoves } from "./home-one-tap-moves";
 import type { Task } from "@/components/actions/shared";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface StatLevel {
   key: string;
@@ -56,9 +57,9 @@ export function ExecutiveActionMatrix() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/ai/home-moves", { credentials: "include" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { moves?: unknown[] };
+        const data = await rawFetch<{ moves?: unknown[] }>("/api/ai/home-moves", {
+          credentials: "include",
+        });
         if (!cancelled) setMovesCount(data.moves?.length ?? 0);
       } catch {
         // Fallback silently

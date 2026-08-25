@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Brain } from "lucide-react";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface NicksRelationshipsBriefProps {
   /** Count of active people · the gate condition for the fetch. Passed
@@ -37,16 +38,19 @@ export function NicksRelationshipsBrief({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/ai/relationships-morning-brief", {
+        const data = await rawFetch<{ brief: string }>("/api/ai/relationships-morning-brief", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        if (!res.ok) throw new Error("brief_request_failed");
-        const data = (await res.json()) as { brief: string };
         if (!cancelled) setBrief(data.brief?.trim() || null);
       } catch {
-        // Silent · the brief is non-essential UX. Section self-hides.
+        // PRE-EXISTING, fixed in passing because it is the same defect as
+        // nicks-morning-brief and this file is already in the diff. The effect
+        // re-runs on `shouldFetch`, so a failed refetch left the previous
+        // brief on screen — a stale summary shown as current. Clearing is what
+        // "the section self-hides" always claimed to do but did not.
+        if (!cancelled) setBrief(null);
       }
     })();
     return () => {

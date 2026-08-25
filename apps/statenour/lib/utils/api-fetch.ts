@@ -28,8 +28,10 @@
  *
  * WHY `rawFetch` EXISTS, and why it is not a loophole. 143 of 381 routes do not
  * envelope (measured 2026-08-24: 238 do, 62%). A caller hitting one of those
- * legitimately needs the parsed body as-is. `rawFetch` is how you say so, out
- * loud, in a name a reviewer can grep. The lint that forbids bare `res.json()`
+ * legitimately needs the parsed body as-is. `rawFetch` is how you say so out
+ * loud — and unlike a cast, it CHECKS: it throws the moment that route starts
+ * enveloping, which is the only reason converting a correct cast to it is worth
+ * doing at all. See its own header. The lint that forbids bare `res.json()`
  * has NO exemption list — it requires you to pick one of these two and thereby
  * to state which contract you believe you are calling. That is the same move as
  * the completion-frame `frame` field: the guard does not ban the hard case, it
@@ -106,15 +108,43 @@ export async function apiFetch<T>(input: string, init: ApiFetchInit = {}): Promi
 }
 
 /**
- * Fetch a route that does NOT envelope, and say so.
+ * Fetch a route that does NOT envelope, and say so — then hold it to that.
  *
- * Not an escape hatch — a declaration. 143 of 381 routes return a bare body, and
- * a caller hitting one of them is doing something correct that the lint would
- * otherwise flag. Using this name is how that correctness becomes visible to the
- * next reader instead of looking like the bug above.
+ * Not an escape hatch. A declaration WITH A CHECK, and the check is the whole
+ * reason this function is worth calling.
+ *
+ * MEASURED 2026-08-24: of the 18 remaining unchecked casts on our own `/api/`
+ * routes, ZERO are live defects — every one hits a route that genuinely does
+ * not envelope. So converting them is not a bug fix. Its value is entirely
+ * prospective, and it only exists if this function does something a cast does
+ * not:
+ *
+ *     someone wraps `/api/ai/goals-brief` in `apiHandler` — a one-line,
+ *     obviously-correct change, the direction 62% of routes have already gone —
+ *     and `nicks-goals-brief.tsx` starts rendering an empty brief forever, on a
+ *     200, with nothing red anywhere.
+ *
+ * A plain `as T` cannot see that happen. Neither could a `rawFetch` that merely
+ * renamed the cast. So this one THROWS when the body is an envelope, naming the
+ * route and the fix. The failure moves from "silent, weeks later, found by a
+ * human noticing a blank panel" to "loud, immediate, at the commit that caused
+ * it".
+ *
+ * THE ASYMMETRY IS DELIBERATE. `apiFetch` is tolerant — a non-enveloped body
+ * passes through, so it stays usable mid-migration. `rawFetch` is strict — it
+ * asserts the route still does not envelope. Tolerant in the direction that is
+ * safe; strict in the direction that silently corrupts a render.
  */
 export async function rawFetch<T>(input: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(input, { credentials: "include", ...init });
   if (!res.ok) throw new ApiError(`HTTP ${res.status}`, res.status);
-  return (await res.json()) as T;
+  const body: unknown = await res.json();
+  if (isEnvelope(body)) {
+    throw new ApiError(
+      `${input} now returns the API envelope — switch this call to apiFetch<T>()`,
+      res.status,
+      body,
+    );
+  }
+  return body as T;
 }

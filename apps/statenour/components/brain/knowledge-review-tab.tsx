@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, RefreshCw, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { GlassCard } from "@/components/ui/glass-card";
+import { apiFetch } from "@/lib/utils/api-fetch";
 
 interface PendingCandidate {
   id: string;
@@ -26,13 +27,6 @@ interface CandidateList {
   items: PendingCandidate[];
 }
 
-function unwrap<T>(payload: unknown): T {
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
 function formatReason(reason: string): string {
   return reason.replaceAll("_", " ");
 }
@@ -45,10 +39,9 @@ export function KnowledgeReviewTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/knowledge/candidates?limit=50", { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error?.message ?? "Unable to load knowledge candidates.");
-      setData(unwrap<CandidateList>(payload));
+      // See knowledge-action-outcomes: `error` is a string, so the old
+      // `payload?.error?.message` was always undefined. apiFetch surfaces it.
+      setData(await apiFetch<CandidateList>("/api/knowledge/candidates?limit=50", { cache: "no-store" }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to load knowledge candidates.");
     } finally {
@@ -63,13 +56,11 @@ export function KnowledgeReviewTab() {
   const review = async (memoryId: string, decision: "accept" | "reject") => {
     setActingId(memoryId);
     try {
-      const response = await fetch("/api/knowledge/candidates", {
+      await apiFetch("/api/knowledge/candidates", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "review", memoryId, decision }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error?.message ?? `Unable to ${decision} candidate.`);
       toast.success(decision === "accept" ? "Knowledge approved." : "Candidate rejected.");
       await load();
     } catch (error) {

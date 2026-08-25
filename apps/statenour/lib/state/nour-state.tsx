@@ -16,6 +16,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
+import { apiFetch } from "@/lib/utils/api-fetch";
 
 // hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
 // NourStateProvider's `loadAll` fans out across FOUR heterogeneous
@@ -223,30 +224,37 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
     try {
       // Parallel fetch ALL data sources (business revenue-aging
       // removed Apr 17 — shop data lives in nickstire)
-      const [healthRaw, habitsRaw, streaksRaw, commandRaw] = await Promise.all([
-        fetch("/api/health", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        fetch(`/api/habits?date=${todayStr}`, { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        fetch("/api/habits/streaks", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        fetch("/api/command/data", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+      // Each call degrades to null rather than failing the batch — the
+      // dashboard renders with whatever arrived.
+      //
+      // The local `unwrap` this replaces was the fifth copy of the same
+      // `o.data ?? o` in the tree. Its comment was right that "API responses are
+      // inconsistently wrapped", and MEASURED that is literally true of these
+      // four: /api/health and /api/habits are apiHandler-wrapped, while
+      // /api/habits/streaks and /api/command/data return a bare body. One call
+      // shape covers all four because `apiFetch` unwraps an envelope where there
+      // is one and passes a bare body through where there is not.
+      //
+      // Shapes stay `any` deliberately — these are four different endpoints and
+      // typing each is a separate job from removing the duplicate helper.
+      const soft = <T,>(p: Promise<T>): Promise<T | null> => p.catch((): null => null);
+      const [health, habitsData, streaksData, cmd] = await Promise.all([
+        soft(apiFetch<any>("/api/health")),
+        soft(apiFetch<any>(`/api/habits?date=${todayStr}`)),
+        soft(apiFetch<any>("/api/habits/streaks")),
+        soft(apiFetch<any>("/api/command/data")),
       ]);
-      const agingRaw = null;
-
-      // API responses are inconsistently wrapped — unwrap if present.
-      // The shapes are inherently dynamic (different endpoints return
-      // different structures) so we use `any` here deliberately rather
-      // than typing each endpoint's response.
-       
-      const unwrap = (x: unknown): any => {
-        if (!x || typeof x !== "object") return null;
-         
-        const o = x as any;
-        return o.data ?? o;
-      };
-      const health = unwrap(healthRaw);
-      const habitsData = unwrap(habitsRaw);
-      const streaksData = unwrap(streaksRaw);
-      const cmd = unwrap(commandRaw);
-      const aging = unwrap(agingRaw);
+      // Revenue-aging was removed 2026-04-17 — shop data lives in nickstire.
+      // Its source has been a hard-coded null ever since, so every consumer
+      // below has been taking its fallback branch the whole time. Left explicit
+      // rather than deleted: removing those consumers is a separate change from
+      // removing a duplicate helper, and conflating the two hides both.
+      const aging = null as {
+        rawPipelineValue?: number;
+        decayRate?: number;
+        agingItems?: AgingItem[];
+        criticalCount?: number;
+      } | null;
 
       const habits = habitsData?.habits ?? [];
       const habitsDone = habits.filter((h: Habit) => h.completed).length;

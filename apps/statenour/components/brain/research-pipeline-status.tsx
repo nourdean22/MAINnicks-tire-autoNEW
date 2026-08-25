@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { apiFetch } from "@/lib/utils/api-fetch";
 
 interface PipelineStatus {
   totalClaims: number | null;
@@ -29,13 +30,6 @@ interface PipelineStatus {
   degraded: string[];
 }
 
-function unwrap<T>(payload: unknown): T {
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
 export function ResearchPipelineStatus() {
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -45,12 +39,10 @@ export function ResearchPipelineStatus() {
     const timeout = setTimeout(() => controller.abort(), 10_000);
     (async () => {
       try {
-        const res = await fetch("/api/knowledge/pipeline-status", {
+        setStatus(await apiFetch<PipelineStatus>("/api/knowledge/pipeline-status", {
           cache: "no-store",
           signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        setStatus(unwrap<PipelineStatus>(await res.json()));
+        }));
         setState("ready");
       } catch {
         setState("error");

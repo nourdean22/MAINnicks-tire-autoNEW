@@ -61,6 +61,7 @@ import {
   RelationshipXpChip,
   OpenPromisesPanel,
 } from "@/components/power-atlas/PersonInsights";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface PersonRow {
   id: string;
@@ -184,11 +185,9 @@ export default function RelationshipsPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/relationships/watchlist", {
+        const data = await rawFetch<{ items: WatchlistItem[] }>("/api/relationships/watchlist", {
           credentials: "include",
         });
-        if (!res.ok) throw new Error("watchlist_failed");
-        const data = (await res.json()) as { items: WatchlistItem[] };
         if (!cancelled) setWatchlist(data.items ?? []);
       } catch {
         if (!cancelled) setWatchlist([]);

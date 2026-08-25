@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface ContextualLaw {
   key: string;
@@ -57,12 +58,12 @@ export function ContextualGreeneSidebar({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(
+        // `ApiError.message` is `HTTP <status>` on a failed response, so the
+        // error text this surfaces is unchanged from the hand-rolled throw.
+        const body = await rawFetch<ContextualLawsResponse>(
           `/api/relationships/${encodeURIComponent(personId)}/contextual-laws`,
           { credentials: "include" },
         );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as ContextualLawsResponse;
         if (!cancelled) setData(body);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "fetch_failed");
