@@ -2838,40 +2838,6 @@
     }
   },
   {
-    "name": "recallFromSession",
-    "description": "Search the operator's captured session recordings within a date range. Same as searchSessionRecordings but constrained to sessions captured between {sinceDate, untilDate}. Use when the operator says 'in last week's session', 'yesterday on screen', 'show me what I saw on Tuesday', or any recall question with a time window. Dates are ISO YYYY-MM-DD. If VIDEO_DB_API_KEY is missing, returns code='missing_api_key'.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "limit": {
-          "description": "How many hits. Default 5.",
-          "maximum": 10,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "query": {
-          "description": "What to find.",
-          "maxLength": 500,
-          "minLength": 2,
-          "type": "string"
-        },
-        "sinceDate": {
-          "description": "Earliest capture date (YYYY-MM-DD). Inclusive. Use today() - 7 if the operator says 'this week'.",
-          "type": "string"
-        },
-        "untilDate": {
-          "description": "Latest capture date (YYYY-MM-DD). Inclusive. Defaults to today.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "query",
-        "sinceDate"
-      ],
-      "type": "object"
-    }
-  },
-  {
     "name": "recommendNextMove",
     "description": "Tactician: compose the single best concrete next move for a power/negotiation/rivalry situation — verbatim moves from the Greene corpus plus live person power-state when the other party is tracked. Use when the operator asks 'what's my move' / 'how do I play this' / 'how do I counter'.",
     "inputSchema": {
@@ -3486,31 +3452,6 @@
         },
         "startDate": {
           "description": "Start date filter (YYYY-MM-DD). Inclusive.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "query"
-      ],
-      "type": "object"
-    }
-  },
-  {
-    "name": "searchSessionRecordings",
-    "description": "Search across the operator's captured session recordings (their own chat + computer-use sessions). Returns up to 5 hits with sessionId, videoId, timestamp (seconds), snippet, and similarity. Use when the operator says 'what did I see on screen', 'from that recording', 'in that session', 'recall from video', or 'earlier on screen'. If VIDEO_DB_API_KEY is missing, returns code='missing_api_key' · surface that to the operator instead of pretending to search.",
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "limit": {
-          "description": "How many top hits to return. Default 5.",
-          "maximum": 10,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "query": {
-          "description": "Natural-language query · what to find in the recordings.",
-          "maxLength": 500,
-          "minLength": 2,
           "type": "string"
         }
       },

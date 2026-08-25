@@ -8,23 +8,14 @@
  * and docs aren't readable yet." So the app could RENDER media it
  * refused to let the operator ATTACH. This module is the widened gate.
  *
- * VIDEO: WAS REFUSED, NOW ROUTED (BDN-319, 2026-08-14)
- * Attachments here were inlined as `data:` URLs into the message parts
- * and stored with the message, and no upload route existed — so video
- * was refused outright, with the refusal naming that constraint rather
- * than pretending the type was unsupported. The constraint is now gone:
- * /api/ai/chat/media-upload puts the bytes in VideoDB and returns a
- * stream URL.
- *
- * Video is therefore ACCEPTED on the `upload` lane, never `inline`.
- * That distinction is load-bearing: accepting video without it would
- * silently send it down the base64 path — exactly the outcome the
- * original refusal existed to prevent, and what the plan warns against
- * ("do not send huge base64 files through the chat message").
- *
- * ★ The old refusal message was updated in the same commit as the route.
- * A rejection that outlives its constraint is how "Images only for now"
- * survived long past the day PDFs became renderable.
+ * VIDEO: REFUSED → ROUTED (BDN-319) → REFUSED AGAIN (2026-08-25)
+ * BDN-319 accepted video onto an `upload` lane backed by VideoDB. That
+ * backend was retired with ZERO successful uploads ever (four wire bugs
+ * found by live probe, then a $0 account) — so the lane's constraint is
+ * back, and the refusal names it honestly, exactly as the original
+ * refusal did. The lane vocabulary below stays: the inline-vs-upload
+ * distinction is load-bearing for any future storage backend, and
+ * base64-ing video into the message body remains forbidden.
  *
  * SIZE CAPS ARE DELIBERATELY CONSERVATIVE
  * base64 inflates ~33%, and the encoded string is persisted per message.
@@ -62,13 +53,18 @@ export const MAX_BYTES_BY_KIND: Record<AttachmentKind, number> = {
   image: 10 * 1024 * 1024,
   audio: 8 * 1024 * 1024,
   pdf: 8 * 1024 * 1024,
-  // Video never touches the message body, so the ceiling is the upload
-  // route's, not base64's. Matches the session-capture route.
+  // Unreachable while video is refused (no storage backend) — kept for
+  // Record<AttachmentKind, …> completeness.
   video: 500 * 1024 * 1024,
 };
 
-/** Kinds whose bytes must go through the upload route. */
-export const UPLOAD_LANE_KINDS: readonly AttachmentKind[] = ["video"];
+/**
+ * Kinds whose bytes must go through an upload route. EMPTY since
+ * 2026-08-25: video (the only member) is refused outright until a real
+ * storage backend exists. The lane vocabulary stays — the distinction
+ * is load-bearing for any future re-enable.
+ */
+export const UPLOAD_LANE_KINDS: readonly AttachmentKind[] = [];
 
 export function laneFor(kind: AttachmentKind): AttachmentLane {
   return UPLOAD_LANE_KINDS.includes(kind) ? "upload" : "inline";
@@ -88,9 +84,8 @@ export const ACCEPT_ATTRIBUTE = [
   "audio/ogg",
   "audio/x-m4a",
   "application/pdf",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
+  // video/* deliberately absent — decideAttachment refuses video while
+  // no storage backend exists; advertising it would invite a refusal.
 ].join(",");
 
 export type AttachmentDecision =
@@ -141,7 +136,20 @@ export function decideAttachment(candidate: AttachmentCandidate): AttachmentDeci
   if (kind === null) {
     return {
       accepted: false,
-      reason: `${candidate.type || "That file type"} isn't supported — images, audio, video and PDFs only.`,
+      reason: `${candidate.type || "That file type"} isn't supported — images, audio and PDFs only.`,
+    };
+  }
+
+  // 2026-08-25 · video attach REFUSED again — honestly this time. The
+  // upload lane's backend (VideoDB) was retired with zero successful
+  // uploads ever (account $0, collection empty since v10.0.349), and no
+  // S3-compatible store is wired in this app yet. Refusing at attach
+  // time with the reason beats a send-time "upload failed (404)".
+  if (kind === "video") {
+    return {
+      accepted: false,
+      reason:
+        "Video attach is disabled — the upload backend was retired (it never worked). Audio, images and PDFs still attach; video needs a storage backend first.",
     };
   }
 

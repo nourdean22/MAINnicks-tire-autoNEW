@@ -278,7 +278,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   last30days: { family: "integration-arsenal", description: "Search and research a topic across live social platforms (Reddit, Hacker News, Polymarket, GitHub, YouTube)…", mutates: false, cost: "cheap" },
   moneyprinter: { family: "integration-arsenal", description: "Generate high-definition short videos automatically from a subject topic or a custom script. Uses MoneyPrin…", mutates: false, cost: "medium" },
   queueDeepResearch: { family: "integration-arsenal", description: "Queue deep research to run in the background — returns immediately; the cited report arrives as a push noti…", mutates: false, cost: "cheap" },
-  recallFromSession: { family: "integration-arsenal", description: "Search the operator's captured session recordings within a date range. Same as searchSessionRecordings but…", mutates: false, cost: "cheap" },
   scrapeWebPage: { family: "integration-arsenal", description: "Scrape a web page and convert it to clean markdown. Use when the operator shares a URL and says 'read this'…", mutates: false, cost: "cheap" },
   getTopDecisions: { family: "integration-arsenal", description: "Top revenue decisions from the nickstire opportunity queue (due-aware, consent-filtered, same read as the admin Decision Inbox). Read-only.", mutates: false, cost: "cheap" },
   draftOpportunitySms: { family: "integration-arsenal", description: "Deterministic evidence-only SMS draft for a Decision-Inbox opportunity (masked identity, risk label; call-first types refuse). Read-only.", mutates: false, cost: "cheap" },
@@ -287,7 +286,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   fetchVideoTranscript: { family: "integration-arsenal", description: "English transcript + metadata of an allowlisted YouTube video via the policy-guarded yt-dlp lane. Fenced untrusted content.", mutates: false, cost: "cheap" },
   searchBuildYourOwnX: { family: "integration-arsenal", description: "Search the Build Your Own X tutorial catalog (450+ curated step-by-step guides for re-creating canonical te…", mutates: false, cost: "cheap" },
   searchDocuments: { family: "integration-arsenal", description: "Search across documents the operator has uploaded (PDFs, Word docs, spreadsheets, text files). Returns the…", mutates: false, cost: "cheap" },
-  searchSessionRecordings: { family: "integration-arsenal", description: "Search across the operator's captured session recordings (their own chat + computer-use sessions). Returns…", mutates: false, cost: "cheap" },
   searchWebVerified: { family: "integration-arsenal", description: "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexic…", mutates: false, cost: "medium" },
 
   // ── backfill 2026-07-11 · integration-telegram ──

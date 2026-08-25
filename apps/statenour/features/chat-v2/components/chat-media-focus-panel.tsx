@@ -4,7 +4,6 @@ import { PanelRightClose, SkipForward, X } from "lucide-react";
 import { useMediaDockStore } from "../stores/media-dock-store";
 import { MediaPlayerSurface } from "./chat-media-surface";
 import { SaveMomentButton } from "./media-save-moment";
-import { MediaTranscriptPane } from "./media-transcript-pane";
 import { SavedMomentsList } from "./media-saved-moments";
 
 /**
@@ -94,14 +93,6 @@ export function ChatMediaFocusPanel() {
           there are none — an empty block on every clip is noise. */}
       <SavedMomentsList />
 
-      {/* BDN-320 · the transcript pane the split-screen sketch called
-          for. Correctly withheld until BDN-318 made getTranscript
-          preserve `word_timestamps` — before that it could only have
-          been an unclickable wall. Now every segment seeks the player
-          through the same requestSeek the timestamp bar uses. */}
-      {/* key: remount on media change so transcript state cannot leak
-          from one clip to the next. */}
-      <MediaTranscriptPane key={item.id} />
     </aside>
   );
 }
