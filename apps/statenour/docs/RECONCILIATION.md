@@ -1,5 +1,58 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-25 · The chat-stack wave · measure first, then 5 ships (#1836 #1843 #1846 #1848 #1849)
+>
+> Operator directive: upgrade the Nick chat/tool/observability/media layer, every decision cited
+> to a measurement, competing AI recommendation graded rather than trusted. Phase-0 verdicts
+> (mine + a sibling session's, reconciled): the 181 tools are in-process AI SDK functions (1 MCP
+> client of 181; ToolHive's premise DOES NOT APPLY) · the pruned tool layer is ~10-13% of a
+> request (NOT the cost problem) · Anthropic defer_loading is inapplicable (chat runs
+> Ollama/minimax-m3) · the prompt is the cost center.
+>
+> **#1836 · tool-surfacing telemetry.** tool_telemetry counted CHOSEN tools; nothing recorded
+> OFFERED ones, so the census's 40/181 "never invoked" was pruner-confounded by its own caveat.
+> prepare-tools now records the final offered set per turn (`tool.surfaced` system_metrics row,
+> zero DDL); the census splits "offered-never-chosen" (model's verdict, the actionable prune
+> list) from "never surfaced" (pruner's blind spot), only once turns > 0. Canary red-green
+> proven. VERIFIED POPULATING on prod: one live chat turn → row with 26 tool names, 16:45:53Z.
+> **No prune shipped** — that waits for accrued corrected data, by design.
+>
+> **#1843 · Langfuse tracing, wired at both ends, dormant until keys.** The anti-braintrust
+> design: boot init in instrumentation.ts + experimental_telemetry at the single streamText
+> choke point, private-mode turns never traced, status = measured init OUTCOME. Offline wire
+> proof 7/7 (real OTLP POST to /api/public/otel/v1/traces, Basic auth, gen_ai spans). UPSTREAMS
+> Langfuse REJECT superseded (premise fell: "native receipts cover the need" — operator says no
+> working observability); the SELF-host sizing objection honored — adoption is Cloud Hobby $0
+> (5-13k units/mo measured vs 50k free). Deployed 16:30Z; prod boot log says langfuse_skipped
+> with the exact activation env vars. Activation = 3 operator-set Railway vars.
+>
+> **#1846 · VideoDB removed — zero successful uses ever.** $0 account, empty collection, 0
+> session rows, 0 metrics; 10 files deleted, catalog 181→179, both contract snapshots
+> regenerated under their flags. Audio file-drop REWRITTEN to whisper-1 verbose_json (real timed
+> segments, rate-capped now that it reaches a WORKING metered API); mic-path dead fallback →
+> loud 502; video attach refused at attach time with the storage-backend reason. FFmpeg/
+> whisper.cpp/Vidstack NOT added — nothing depended on the lane.
+>
+> **#1848 · dormant observability is VISIBLE; braintrust-wrap deleted.** The wrap sat 3 months
+> key-set with ZERO call sites and no surface said so (its README runbook pointed at an ADR that
+> never existed). /system now renders the tracing lane's real state (started / DORMANT-with-env-
+> vars / failed); Braintrust renders as static retired truth. braintrust npm dep stays (manual
+> eval-dataset scripts only).
+>
+> **#1849 · prompt-cost measurement (report only).** Built prompt 12,336 tok live; 72% is
+> dynamic blocks; ROOT CAUSE behind the top line item: nick-prime-context's agenda query has NO
+> take — all 71 ACTIVE agenda_items (oldest June 28) render into EVERY turn = 2,646 tok, 21% of
+> the prompt, growing monotonically. Four levers ranked with savings + eval gates; zero edits.
+>
+> **Flagged · NOT fixed (deliberately):**
+> - The tool PRUNE itself — gated on surfaced-data accrual (instrument live since 16:45Z).
+> - The unbounded agenda query — lever 1 of #1849, operator picks; behavior-visible.
+> - Langfuse activation — operator-side Railway env edit; wiring complete and proven.
+> - BRAINTRUST_API_KEY still set in Railway — unused by the app; operator may delete.
+> - `ai_generations.prompt_tokens` coverage is 8.1% (62/764) and lane-biased — the per-request
+>   cost numbers carry that caveat until coverage widens.
+> - page.tsx:148 pre-existing react-hooks warning — untouched, not mine to silently fix.
+
 > ## 2026-08-22/23 · The Discover verdict loop, and five defect shapes (4 PRs)
 >
 > **#1787 · the verdict had nothing to attach to.** `/brain` -> Discover asks the operator to
@@ -830,7 +883,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-21 (manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-25 (chat-stack wave #1836/#1843/#1846/#1848/#1849; prior: manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1358,7 +1411,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-21 (manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-25 (chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
