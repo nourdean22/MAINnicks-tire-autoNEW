@@ -1,0 +1,91 @@
+{
+  "topic": "AC compressor clutch not engaging — low-pressure cutoff switch",
+  "slug": "ac-compressor-clutch-not-engaging",
+  "createdAt": "2026-08-25",
+  "mode": "PRODUCTION_PACK_NO_RENDER",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "totalDurationSeconds": 43,
+  "voSeconds": 40,
+  "freezeSeconds": 3,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "startSeconds": 0,
+      "endSeconds": 4,
+      "vo": "Your AC blows warm. You assume it's just low on Freon.",
+      "visualPrompt": "Static shot inside a parked car on a hot sunny day, dashboard air vents in close-up blasting visible heat-shimmer air, sun glare through the windshield, warm color grade, shallow depth of field, cinematic automotive macro, 9:16 vertical."
+    },
+    {
+      "index": 2,
+      "startSeconds": 4,
+      "endSeconds": 11,
+      "vo": "But if the compressor clutch never engages, adding more refrigerant won't fix a thing.",
+      "visualPrompt": "Close-up macro shot under the hood of a car: serpentine belt and AC compressor pulley, the pulley spinning but the center clutch plate not engaging, metallic reflections, daylight, shallow depth of field, 9:16 vertical."
+    },
+    {
+      "index": 3,
+      "startSeconds": 11,
+      "endSeconds": 19,
+      "vo": "A low-pressure cutoff switch can shut the compressor off on purpose, to protect it from running dry.",
+      "visualPrompt": "Extreme macro shot of a small AC low-pressure cutoff switch mounted on a refrigerant line under the hood, condensation beads on the metal line, cool blue-tinted highlights against a warm engine bay, 9:16 vertical."
+    },
+    {
+      "index": 4,
+      "startSeconds": 19,
+      "endSeconds": 27,
+      "vo": "A low gauge reading alone can point to a leak, or a switch doing exactly what it's built to do.",
+      "visualPrompt": "Macro shot of an automotive AC gauge manifold, analog dial needles, low-side gauge needle resting near the low end, hoses connected to a service port, garage bay lighting, shallow depth of field, 9:16 vertical."
+    },
+    {
+      "index": 5,
+      "startSeconds": 27,
+      "endSeconds": 34,
+      "vo": "That's one clue worth checking, not a diagnosis you make from the driver's seat.",
+      "visualPrompt": "Wide shot of a car raised on a hydraulic lift inside a clean auto repair bay, a diagnostic scan tool cable connected near the dash, bay lighting, no people in frame, 9:16 vertical."
+    },
+    {
+      "index": 6,
+      "startSeconds": 34,
+      "endSeconds": 40,
+      "vo": "Stop by and we'll take a look before you add anything to the system.",
+      "visualPrompt": "Exterior static shot of a tire and auto repair shop storefront in late-afternoon light, signage visible, parked cars in the lot, warm inviting color grade, 9:16 vertical."
+    }
+  ],
+  "saveFreeze": {
+    "startSeconds": 40,
+    "endSeconds": 43,
+    "note": "silent freeze-hold on beat 6's final frame; end-card text added in post, not in generation",
+    "overlayText": "Nick's Tire & Auto — Save this for next time"
+  },
+  "claimEvidence": {
+    "businessFactsUsed": [],
+    "evidenceRecordsQueried": false,
+    "evidenceRecordsReason": "prod DB read skipped on a scheduled/non-live firing per prod-db-guard",
+    "mechanicalClaimEntailment": "not_evaluated",
+    "approvedHedgePhrasesUsed": ["can point to", "one clue", "worth checking", "stop by and we'll take a look"]
+  },
+  "audioRights": {
+    "musicBedLicensed": "UNKNOWN",
+    "note": "no music-rights ledger exists in this repo; operator must confirm a cleared source before publish"
+  },
+  "renderAttempted": false,
+  "publishAttempted": false,
+  "ig_fb_copy": {
+    "primary": "AC blowing warm doesn't always mean you're out of Freon. Sometimes it means the system's built-in safety switch is doing exactly what it's supposed to. One clue isn't a diagnosis — stop by and we'll check it under pressure before anything gets added.",
+    "hashtags": ["#ClevelandOhio", "#EuclidOhio", "#AutoRepair", "#CarAC", "#NicksTireAndAuto", "#CarCareTips"]
+  },
+  "adVariants": [
+    {
+      "hook": "Adding Freon to a warm AC might not fix anything.",
+      "cta": "Book a free AC check — link in bio."
+    },
+    {
+      "hook": "Your AC's 'broken' compressor might just be protecting itself.",
+      "cta": "Stop by Nick's Tire & Auto on Euclid Ave — no guesswork, just gauges."
+    }
+  ]
+}
