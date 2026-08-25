@@ -77,6 +77,62 @@ export function buildMessage(touch: "7d" | "30d", name: string): string {
   return `Hey ${name}, Nick’s Tire & Auto here. We still have an invoice follow-up open for you. No pressure — just call or stop by when you can (Mon-Sat 8-6, Sun 9-4) and we’ll help get it handled. (216) 862-0005.`;
 }
 
+/**
+ * Name the invoices that have aged past the collections ceiling.
+ *
+ * Alerts at most once per calendar day via the same cron_alerts_fired claim
+ * vapiLatencySync uses - chosen because that table demonstrably records live
+ * alerts (69 rows / 4 families / 88 days), unlike notification_messages which
+ * holds zero. Never throws: this runs inside a cron handler.
+ *
+ * Deliberately NOT an SMS. Texting a 138-day-old invoice is a customer-facing
+ * side effect and needs the operator's explicit say-so; this hands them the
+ * list and lets them decide.
+ */
+async function reportAgedOutInvoices(d: NonNullable<Awaited<ReturnType<typeof db>>>): Promise<void> {
+  try {
+    const { sql } = await import("drizzle-orm");
+    const { COLLECTIONS_MAX_AGE_DAYS } = await import("../../services/collectionsWindow");
+
+    const [rows] = await d.execute(sql`
+      SELECT COUNT(*) AS n, COALESCE(SUM(totalAmount), 0) AS cents,
+             MAX(TIMESTAMPDIFF(DAY, invoiceDate, NOW())) AS oldestDays
+        FROM invoices
+       WHERE paymentStatus IN ('pending','partial')
+         AND TIMESTAMPDIFF(DAY, invoiceDate, NOW()) > ${sql.raw(String(COLLECTIONS_MAX_AGE_DAYS))}
+    `);
+    const r = (rows as Array<Record<string, unknown>>)[0] ?? {};
+    const n = Number(r.n ?? 0);
+    if (n === 0) return;
+
+    const cents = Number(r.cents ?? 0);
+    const oldestDays = Number(r.oldestDays ?? 0);
+
+    const [claim] = await d.execute(sql`
+      INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
+      VALUES ('unpaid_aged_out', CURDATE(), NOW(), ${JSON.stringify({ n, cents, oldestDays })})
+    `);
+    if (((claim as { affectedRows?: number })?.affectedRows ?? 0) !== 1) return;
+
+    const { sendTelegram } = await import("../../services/telegram");
+    await sendTelegram(
+      `⏰ ${n} unpaid invoice(s) have AGED OUT of collections — $${(cents / 100).toFixed(2)}, ` +
+        `oldest ${oldestDays} days.
+
+` +
+        `The recovery cron only selects ${COLLECTIONS_MAX_AGE_DAYS} days back, so these are no longer ` +
+        `picked up by anything. They need a call, not a text.`,
+    );
+    log.warn("unpaid invoices aged out of collections", {
+      count: n, cents, oldestDays, errorId: "UNPAID_AGED_OUT",
+    });
+  } catch (err) {
+    log.warn("[unpaid-invoice-recovery] aged-out report failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<RecoveryResult> {
   const d = await db();
   if (!d) return { recordsProcessed: 0, details: "DB unavailable" };
@@ -208,6 +264,16 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
       // continue — one bad row never kills the batch
     }
   }
+
+  // ESCALATION PAST THE UPPER BOUND.
+  //
+  // The query above is bounded at BOTH ends, so an invoice that crosses 90
+  // days stops being selected and nothing ever mentions it again. Measured
+  // 2026-08-25: three invoices, $1,606.62, aged 108/128/138 days, silently
+  // outside collections. This does NOT text them - a customer-facing send on
+  // an aged invoice is a protected operation and the operator's call. It names
+  // them to a human, once, which is the thing that was missing.
+  await reportAgedOutInvoices(d);
 
   const total = sent7d + sent30d;
   if (total > 0) {
