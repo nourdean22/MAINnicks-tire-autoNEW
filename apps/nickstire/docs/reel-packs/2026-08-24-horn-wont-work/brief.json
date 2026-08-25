@@ -1,0 +1,93 @@
+{
+  "topic": "Horn suddenly stops working: fuse, relay, or clockspring, in that order",
+  "campaignKeyword": "HORNOUT",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-24",
+  "durationSec": 20,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 3],
+      "narration": "You press the horn. Nothing happens.",
+      "visualPrompt": "Close-up of a steering wheel horn pad/center emblem, static camera, soft interior light, nothing else moving",
+      "stockSearchTerms": ["steering wheel horn button closeup", "car steering wheel center emblem"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [3, 8],
+      "narration": "That silence usually points to one of three things: a blown fuse, a bad relay, or a worn clockspring.",
+      "visualPrompt": "Close-up of a car fuse box panel with a puller tool resting nearby, one fuse slightly pulled out, workshop lighting",
+      "stockSearchTerms": ["car fuse box closeup", "automotive fuse panel diagnostic"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [8, 13],
+      "narration": "The clockspring is the coiled ribbon behind your steering wheel - it lets power reach the horn button while the wheel turns.",
+      "visualPrompt": "Close-up of a steering column with the wheel removed, coiled ribbon cable (clockspring) visible, cool workshop lighting, slow push-in",
+      "stockSearchTerms": ["steering column clockspring closeup", "car steering wheel removed ribbon cable"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [13, 17],
+      "narration": "Years of turning can wear that ribbon out, and once it's gone, the horn just goes quiet.",
+      "visualPrompt": "Close-up of the same clockspring ribbon, slight visual wear/fraying emphasis via lighting angle, static camera - visual callback to beat 3",
+      "stockSearchTerms": ["worn ribbon cable closeup", "steering column component wear"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [17, 20],
+      "narration": "Check the cheap parts first. If it's still silent, stop by and we'll trace it.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient garage room-tone under beats 2-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "horn-button closeup is a decent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "20s, within the studio's own 15-22s ceiling and the 15-60s generic range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (horn button)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access), and a code grep for 'horn' found no existing evidence row" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged 'usually'/'can' phrasing throughout; no invented failure timeline" },
+      "keyword": { "score": 5, "max": 5, "note": "horn, fuse, relay, clockspring keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 20,
+    "ctaType": "SEND-oriented"
+  }
+}
