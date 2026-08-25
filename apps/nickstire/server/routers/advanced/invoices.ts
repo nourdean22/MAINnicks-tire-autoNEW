@@ -130,8 +130,8 @@ export const invoicesRouter = router({
     // guards against with `unknown is not zero`; it just failed in the other
     // direction. The excluded rows are REPORTED, not silently dropped, so the
     // number shrinking is explainable rather than mysterious.
-    const { partitionTestRows } = await import("../../services/testRowFilter");
-    const split = partitionTestRows<(typeof items)[number]>(items);
+    const { partitionNonCustomers } = await import("../../services/nonCustomerFilter");
+    const split = partitionNonCustomers<(typeof items)[number]>(items);
 
     const now = new Date();
     const decorated = split.real.map((r: (typeof items)[number]) => {
@@ -169,7 +169,7 @@ export const invoicesRouter = router({
          * the operator can see WHY the figure is lower than the raw unpaid
          * count rather than wondering where the money went.
          */
-        excludedTestRows: split.excluded.length,
+        excludedNonCustomers: split.excluded.length,
         excludedReasons: split.excluded.map((e: { reason: string }) => e.reason),
       },
     };
