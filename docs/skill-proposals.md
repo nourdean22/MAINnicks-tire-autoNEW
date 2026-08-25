@@ -888,3 +888,36 @@ statenour primitives documented (existence re-verified at
   git-restore any missing route dirs (`git checkout -- prerendered/<route>`) before committing."
 - **Confidence:** high (witnessed both failure classes in one session, receipts in #1709 body)
 - **Status:** proposed
+
+
+## 2026-08-25 · ChatGPT-handoff audit + landing #1809/#1830
+
+### P1 · nickstire-verify (completion-authority section)
+- **Trigger (witnessed):** the `completion-authority` check on PR #1830 went red FOUR times, each a
+  different sub-gate behind one check name: (1) stale per-diff `.completion/evidence.json` entry,
+  (2) unresolved P1 review threads from the Codex connector bot (review gate), (3) capability-ledger
+  cross-axis rule (`operator_only` requires ≥ `integration_verified`), (4) un-rendered
+  `REALITY-LEDGER.md` diff. Four fix-push-poll cycles, ~50 minutes, because the skill documents only
+  failure (1).
+- **Cost:** ~50 min of serial CI round-trips on one PR; each red read as "the same gate again".
+- **Proposed edit:** extend the "DoD compiler" paragraph to name all four sub-gates and their
+  one-line fixes: rewrite the per-diff evidence entry · resolve review threads via GraphQL
+  `resolveReviewThread` after replying · obey the ledger ladder (fix the LABEL, never inflate the
+  state) · always run `scripts/render-reality-ledger.mjs` and commit the .md beside the .json.
+- **Confidence:** high (four distinct reds witnessed in one session)
+- **Status:** proposed
+
+### P2 · guard-red-team
+- **Trigger (witnessed):** my staging canary asserted `registerAllJobs()` membership and CALLED it
+  reachability; the actual trigger path (`/api/bridge/run-job`) 403'd both staged names via
+  `BRIDGE_RUN_JOB_ALLOWLIST`. Codex review caught it (PR #1830 P1). Same session, second instance
+  of the class: ChatGPT's deleted canary on #1809 was a permanent control coupled to a temporary
+  datum — both are "the check watches a proxy for the subject".
+- **Cost:** a false "fire it by name and it runs" claim shipped in a commit body and PR body; a
+  review round to retract it.
+- **Proposed edit:** add to the red-team checklist: "For any 'X is reachable/triggerable' claim,
+  trace the FULL chain to the entry point that will actually be used (route → auth gate → allowlist
+  → runner) and canary the chain, not the registry. Membership in a lookup table is never
+  reachability."
+- **Confidence:** medium (one clear instance this session, plus the ChatGPT variant of the class)
+- **Status:** proposed
