@@ -16,11 +16,16 @@ import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-type Bucket = "highFailure" | "neverInvoked" | "stale";
+type Bucket = "highFailure" | "neverInvoked" | "surfacedNeverChosen" | "neverSurfaced" | "stale";
 
-const BUCKETS: Array<{ key: Bucket; label: string; tone: string }> = [
+const BUCKETS: Array<{ key: Bucket; label: string; tone: string; needsSurfacing?: boolean }> = [
   { key: "highFailure", label: "failing", tone: "text-rose-300" },
   { key: "neverInvoked", label: "never invoked", tone: "text-amber-300" },
+  // 2026-08-25 · the confound split. Only rendered once `tool.surfaced`
+  // rows exist (surfacedWindow.turns > 0) — an absent instrument must not
+  // read as a measured zero.
+  { key: "surfacedNeverChosen", label: "offered, never chosen", tone: "text-amber-300", needsSurfacing: true },
+  { key: "neverSurfaced", label: "never offered", tone: "text-zinc-400", needsSurfacing: true },
   { key: "stale", label: "stale 30d+", tone: "text-zinc-400" },
 ];
 
@@ -48,6 +53,8 @@ export function ToolUsageCensusPanel() {
   }
 
   const c = censusQ.data;
+  const hasSurfacing = c.surfacedWindow.turns > 0;
+  const visibleBuckets = BUCKETS.filter((b) => !b.needsSurfacing || hasSurfacing);
   const rows = c[bucket];
 
   return (
@@ -65,7 +72,7 @@ export function ToolUsageCensusPanel() {
       </div>
 
       <div className="flex gap-1.5" role="tablist" aria-label="census buckets">
-        {BUCKETS.map((b) => (
+        {visibleBuckets.map((b) => (
           <button
             key={b.key}
             role="tab"
@@ -105,6 +112,11 @@ export function ToolUsageCensusPanel() {
                       {t.successRatePct}% ok · {t.totalCalls} calls
                     </span>
                   )}
+                  {t.surfacedCount !== null && (
+                    <span className="text-[8px] font-mono text-zinc-500">
+                      offered {t.surfacedCount}×
+                    </span>
+                  )}
                 </div>
                 {t.lastError && (
                   <p className="text-[10px] text-zinc-500 leading-snug mt-0.5 break-words line-clamp-2">
@@ -117,7 +129,16 @@ export function ToolUsageCensusPanel() {
         </ul>
       )}
 
-      <p className="border-t border-white/6 pt-2 text-[9px] text-zinc-600 leading-snug">{c.caveat}</p>
+      <p className="border-t border-white/6 pt-2 text-[9px] text-zinc-600 leading-snug">
+        {hasSurfacing ? (
+          <>
+            Surfacing measured over {c.surfacedWindow.turns} turns / {c.surfacedWindow.windowDays}d
+            {c.surfacedWindow.since ? ` since ${c.surfacedWindow.since.slice(0, 10)}` : ""} · {c.caveat}
+          </>
+        ) : (
+          c.caveat
+        )}
+      </p>
     </section>
   );
 }
