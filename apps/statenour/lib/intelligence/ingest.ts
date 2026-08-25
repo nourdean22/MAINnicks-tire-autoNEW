@@ -3,7 +3,6 @@
  * Orchestrates: Fetching -> Document Storage -> Claims Extraction -> Semantic Grounding -> Claims Storage
  */
 import { prisma } from "@/lib/prisma";
-import { fetchFREDIndicators } from "./connectors/fred";
 import { fetchNHTSARecalls } from "./connectors/nhtsa";
 import { fetchGSCAndGBPMetrics } from "./connectors/gsc";
 import { fetchCompetitorAndSECData } from "./connectors/sec";
@@ -43,19 +42,24 @@ export async function runIngestion(sourceId: string): Promise<IngestionResult> {
 
     // 2. Fetch raw content based on domain & config
     if (source.domain === "macro") {
-      const indicators = await fetchFREDIndicators();
-      rawContent = `# FRED Macro Economic Report
-Generated: ${new Date().toISOString()}
-Source: ${source.url}
-
-Key observations:
-${indicators.length > 0 ? indicators
-  .map(
-    (ind) =>
-      `- **${ind.name}** (${ind.seriesId}): value of **${ind.value}${ind.unit}** (Observed: ${ind.date})`
-  )
-  .join("\n") : "- No verified macro data available."}
-`;
+      // 2026-08-25 · multi-source macro (FRED + BLS + BEA + Census). The
+      // 2026-08-12 outage proved a single-credential macro view: FRED's key
+      // expired and macro went dark entirely. Chains, attribution and the
+      // dormant-provider status footer live in connectors/macro.ts.
+      const { fetchMacroIndicators, renderMacroReport, macroFetchFailure } = await import(
+        "./connectors/macro"
+      );
+      const { result, unresolved } = await fetchMacroIndicators();
+      // Zero series is a FAILURE, not a quiet day — same rule as the brief's
+      // zero-ingest assert. The reasons chain names every provider's state
+      // ("FRED: HTTP 400 | BLS: ... | BEA: dormant — set BEA_API_KEY"), so
+      // the alert says WHICH credential died, not just that macro is empty.
+      const failure = macroFetchFailure(result);
+      if (failure) {
+        log.warn(`Macro ingestion failed loudly: ${failure}`);
+        return { success: false, documentId: null, claimsCount: 0, message: failure };
+      }
+      rawContent = renderMacroReport(result, unresolved, new Date().toISOString(), source.url);
     } else if (source.domain === "automotive") {
       const vehicles = [
         { make: "Ford", model: "F-150", year: 2020 },

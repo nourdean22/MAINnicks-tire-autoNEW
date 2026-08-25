@@ -473,7 +473,7 @@ Format using these exact sections:
 # Weekly Strategic Brief · [Date]
 
 ## 📈 Macro Indicator Trends
-Summarize interest rate or price trends observed from FRED and macro sources.
+Summarize interest rate or price trends observed from the macro sources (FRED/BLS/BEA/Census — the report names which served).
 
 ## ⚔️ Competitor & Market Shifts
 Analyze competitor movements and SEO rankings.

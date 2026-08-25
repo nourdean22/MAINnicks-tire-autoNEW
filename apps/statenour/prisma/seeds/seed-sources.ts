@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 export async function seedSources(prisma: PrismaClient) {
   const sources = [
     {
-      name: "FRED Macro Indicator API",
+      name: "Macro Indicators (FRED/BLS/BEA/Census)",
       url: "https://api.stlouisfed.org",
       domain: "macro",
       sourceType: "official",
