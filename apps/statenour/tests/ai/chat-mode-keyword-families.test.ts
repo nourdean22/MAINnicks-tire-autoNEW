@@ -432,7 +432,7 @@ describe("2026-07-15 social/web-trends family", () => {
 // keep matching setTaskPriority via /task/i.
 const P_DEVICE = {
   trigger:
-    /\b(lock|unlock|front door|garage|thermostat|shop lights?|(turn|switch) (on|off)|dim the|device command|ring (doorbell|camera)|eufy|tuya)\b/i,
+    /\b(lock|unlock|front door|garage|thermostat|lights?|dim|snapshot|take a (photo|picture|pic)|(turn|switch) (on|off)|device command|ring (doorbell|camera)|eufy|tuya)\b/i,
   attach: /runDeviceCommand|device/i,
 };
 const P_KNOWLEDGE_SYNC = {
@@ -450,12 +450,21 @@ describe("device family (runDeviceCommand demotion cover)", () => {
     "open the garage",
     "set the thermostat to 68",
     "check the ring doorbell",
+    // Review-fix phrasings — incl. the tool description's own example
+    // ("take a snapshot") and the <=10-char case where the route's
+    // embedding gate leaves the family as the ONLY recall path
+    // ("lights off").
+    "lights off",
+    "dim it",
+    "take a snapshot",
+    "take a pic of the bay",
   ])("fires on: %s", (q) => expect(P_DEVICE.trigger.test(q)).toBe(true));
 
   it.each([
     "what tasks do I have today",
     "how did revenue look last week",
     "turn this idea into a mission",
+    "highlight the wins from this week", // \b keeps lights? out of "highlight"
   ])("does NOT fire on: %s", (q) => expect(P_DEVICE.trigger.test(q)).toBe(false));
 
   it("attach pattern reaches runDeviceCommand", () => {

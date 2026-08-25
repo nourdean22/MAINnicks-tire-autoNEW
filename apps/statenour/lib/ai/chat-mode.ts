@@ -160,7 +160,12 @@ export async function pruneTools(
   // CORE_TOOLS — see the demotion note there). Deterministic trigger for
   // the phrasings the always-on slot existed for. MIRRORED in
   // tests/ai/chat-mode-keyword-families.test.ts.
-  if (/\b(lock|unlock|front door|garage|thermostat|shop lights?|(turn|switch) (on|off)|dim the|device command|ring (doorbell|camera)|eufy|tuya)\b/.test(text)) {
+  // Review fix (same day): "lights off" / "dim it" / "take a snapshot"
+  // missed the first cut — and messages <=10 chars skip the embedding
+  // fallback entirely (route.ts embedding gate), so the family is the
+  // ONLY path for the shortest device phrasings. Bare lights?/dim/
+  // snapshot added; over-attach is this file's accepted trade-off.
+  if (/\b(lock|unlock|front door|garage|thermostat|lights?|dim|snapshot|take a (photo|picture|pic)|(turn|switch) (on|off)|device command|ring (doorbell|camera)|eufy|tuya)\b/.test(text)) {
     addMatching(/runDeviceCommand|device/i);
   }
 
