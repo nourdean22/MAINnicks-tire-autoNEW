@@ -29,7 +29,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -269,36 +269,74 @@ test("a ledger row CITING a false claim is not itself a claim — but a bare one
   assert.doesNotMatch(out, /CITED\.md/, "the cited path must not surface as a finding of its own");
 });
 
-test("BREAKS: a KNOWN_FALSE entry that is no longer needed fails the run", () => {
-  // The allowlist rule copied from PR #1808: a REDUNDANT entry is an error, not
-  // a shrug. Simulated by pointing the checker at a ref where the held claim is
-  // already fixed -- origin/main is the wrong direction, so build a commit that
-  // rewrites DESIGN.md:5 into a true sentence and assert the gate complains that
-  // the entry can go. Without this arm the allowlist could silently become a
-  // permanent excuse list, which is precisely how the class this repo tracks
-  // regenerates.
-  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-redundant-"));
-  const indexFile = join(scratch, "index");
-  const fixed = join(scratch, "DESIGN.md");
+test("BREAKS: a redundant KNOWN_FALSE entry is reported, a needed one is spared", () => {
+  /*
+   * REWRITTEN 2026-08-25, and the rewrite is the point.
+   *
+   * The previous version of this canary asserted against the ONE real entry in
+   * KNOWN_FALSE -- DESIGN.md:5. It built a tree where that claim was fixed and
+   * required the checker to say "no longer needed". So the day the claim was
+   * actually fixed and the entry correctly removed (rule 2: a redundant entry
+   * is an ERROR), this test could not pass in any form. It was deleted to get
+   * the gate green, and the redundancy rule -- the thing that stops the
+   * allowlist becoming a permanent excuse list -- was left with no coverage.
+   *
+   * Read the failure honestly: the deletion was the visible half, but the
+   * design was the cause. A PERMANENT control had been wired to a TEMPORARY
+   * datum, so it was guaranteed to die on that datum's success and hand
+   * whoever hit it a choice between a red gate and a deleted test.
+   *
+   * The rule is permanent, so its canary is now driven by fixtures that outlive
+   * every entry the list will ever hold. KNOWN_FALSE is empty as of this commit
+   * and this test does not care.
+   */
+  const r = runChecker(["--selftest"]);
+  assert.equal(r.code, 0, `--selftest failed:\n${r.out}`);
+  assert.match(
+    r.out,
+    /selftest ok {2}an entry whose claim now resolves is reported redundant/,
+    "the REDUNDANT direction must be exercised",
+  );
+  assert.match(
+    r.out,
+    /selftest ok {2}a still-false claim keeps its KNOWN_FALSE entry/,
+    "the SPARED direction must be exercised -- without it the check could flag everything and still pass",
+  );
+  assert.match(
+    r.out,
+    /selftest ok {2}an empty KNOWN_FALSE reports nothing/,
+    "the empty list is the live state on main and must be quiet",
+  );
+});
+
+test("BREAKS: the redundancy arms are load-bearing, not decorative", () => {
+  /*
+   * The test above asserts three lines of output. Output lines are a claim like
+   * any other -- if the arms were deleted and the strings left behind as
+   * console.log noise, it would still pass. So: mutate the checker in a scratch
+   * copy so the redundancy function always returns [] (the "flags nothing"
+   * failure, which is how an allowlist rots silently), and require --selftest to
+   * exit non-zero and name the failure.
+   *
+   * A scratch COPY, never the real file: a sibling session shares this
+   * checkout, and a canary that mutates a tracked file to prove a point is one
+   * crashed process away from committing the mutation.
+   */
+  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-redundancy-"));
   try {
-    const original = spawnSync("git", ["show", "HEAD:apps/statenour/docs/DESIGN.md"], {
-      cwd: ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
-    });
-    assert.equal(original.status, 0, "could not read DESIGN.md from HEAD");
-    const lines = original.stdout.split("\n");
-    lines[4] = "**Three of these are gate-checked** by `scripts/check-anti-slop.sh`, run by `pnpm verify:hard`:";
-    writeFileSync(fixed, lines.join("\n"));
-    const blob = git(["hash-object", "-w", fixed]);
+    const original = readFileSync(CHECKER, "utf8");
+    const broken = original.replace(
+      /function findRedundantKnownFalse\(knownFalse, liveFindings\) \{\n[^}]*\n\}/,
+      "function findRedundantKnownFalse(knownFalse, liveFindings) {\n  return [];\n}",
+    );
+    assert.notEqual(broken, original, "the mutation did not apply — findRedundantKnownFalse was renamed or reshaped");
 
-    const env = { GIT_INDEX_FILE: indexFile };
-    git(["read-tree", "HEAD"], env);
-    git(["update-index", "--add", "--cacheinfo", `100644,${blob},apps/statenour/docs/DESIGN.md`], env);
-    const ref = git(["write-tree"], env); // tree-ish; see withCanaryCommit
-
-    const r = runChecker(["--strict", `--ref=${ref}`]);
-    assert.equal(r.code, 1, `a redundant KNOWN_FALSE entry did NOT fail the run:\n${r.out}`);
-    assert.match(r.out, /no longer needed/);
-    assert.match(r.out, /DESIGN\.md:5/);
+    const copy = join(scratch, "check-doc-claims.mjs");
+    writeFileSync(copy, broken);
+    const r = spawnSync(process.execPath, [copy, "--selftest"], { cwd: ROOT, encoding: "utf8" });
+    const out = (r.stdout ?? "") + (r.stderr ?? "");
+    assert.equal(r.status, 1, `a redundancy check that reports NOTHING still passed --selftest:\n${out}`);
+    assert.match(out, /was not reported/, "the failure must name what broke");
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

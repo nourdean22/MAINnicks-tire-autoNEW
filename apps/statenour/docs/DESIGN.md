@@ -2,12 +2,30 @@
 
 **Aesthetic stance:** Dark Industrial Command Center · void black · gold accents · glass depth · information density.
 
-**Anti-slop verified at push time** via `scripts/check-anti-slop.sh` (gate [13/13]):
+**Three of these are gate-checked** by `scripts/check-anti-slop.sh`, which runs
+inside `pnpm verify:hard`:
+
 - ❌ No Inter as primary (Inter exists only as a fallback after Geist Sans)
 - ❌ No Roboto / Arial as primary
 - ❌ No purple-on-white SaaS gradients (gold-on-dark is the brand)
+
+**The two below are conventions, not gate-checked.** They are real rules and worth
+following; nothing verifies them, so treat them as your responsibility:
+
 - ❌ No uniform rounded corners (rounded-2xl on cards, lg on rails, full on dots — intentional contrast)
 - ❌ No symmetrical centered layouts (asymmetric weight is the rule)
+
+> **Corrected 2026-08-23.** This block previously read "Anti-slop verified at push
+> time … (gate [13/13])" and listed all five bullets under it. Three things were
+> wrong: the script was wired into no gate, hook or workflow at all — it existed
+> only as a `package.json` script nothing called; "push time" was never true, since
+> the pre-push hook runs `build:affected`; and the gate greps for exactly three
+> patterns (Inter, Roboto/Arial, purple gradients), so crediting it with corner
+> radius and layout symmetry claimed enforcement that did not exist. It is now
+> wired into `verify:hard` and the claim matches what it checks. Found by the
+> nickstire sweep session, which ran the three greps and confirmed the repo passes
+> today — zero accumulated drift, which is why this is a truth fix and not a
+> rescue. A doc asserting a mechanism nothing verifies is its own defect shape.
 
 ---
 

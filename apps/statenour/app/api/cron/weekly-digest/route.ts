@@ -5,7 +5,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("cron/weekly-digest");
 
-import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, toDateString, today, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
@@ -16,7 +16,7 @@ function getResend(): Resend | null {
 
 function getWeekStart(): string {
   const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
+  d.setDate(d.getDate() - weekdayET(d));
   return toDateString(d);
 }
 
@@ -26,7 +26,7 @@ function getWeekStart(): string {
 // earlier Sunday slot beats this week's review into existence.
 function getRecentMondays(): [string, string] {
   const now = new Date();
-  const day = now.getDay();
+  const day = weekdayET(now);
   const diff = day === 0 ? 6 : day - 1;
   const thisMonday = new Date(now);
   thisMonday.setDate(now.getDate() - diff);

@@ -25,7 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("decision-patterns");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
-import { daysAgo, today } from "@/lib/utils/datetime";
+import { daysAgo, hourET, today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
 
@@ -69,7 +69,7 @@ async function mathAnalysis(
   for (const d of decisions) {
     const gradeVal = gradeToNumber(d.grade);
     if (gradeVal === null) continue;
-    const hour = d.createdAt.getHours();
+    const hour = hourET(d.createdAt);
     if (hour >= 6 && hour < 12) morningDecisions.push(gradeVal);
     else if (hour >= 12 && hour < 18) afternoonDecisions.push(gradeVal);
     else eveningDecisions.push(gradeVal);
@@ -282,7 +282,7 @@ export async function analyzeDecisionPatterns(): Promise<{
     try {
       const decisionContext = decisions.slice(0, 20).map(d => {
         const dayScore = scores.find(s => s.date === d.date);
-        const hour = d.createdAt ? new Date(d.createdAt).getHours() : null;
+        const hour = d.createdAt ? hourET(new Date(d.createdAt)) : null;
         return `${d.date} ${hour ? `@${hour}:00` : ""}: "${d.title}" (${d.stakes}) → grade: ${d.grade || "?"} | energy ${dayScore?.energyLevel ?? "?"}, discipline ${dayScore?.disciplineScore ?? "?"}`;
       });
 

@@ -32,7 +32,7 @@ import { prisma } from "@/lib/prisma";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("learning-journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, hourET, toDateString, today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
 
@@ -274,7 +274,7 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
   let stagnationAlert: string | null = null;
   if (learningTrend === "decelerating" && memoriesThisWeek < memoriesLastWeek * 0.5) {
     stagnationAlert = `Learning rate dropped ${Math.round((1 - memoriesThisWeek / memoriesLastWeek) * 100)}% this week. Are you engaging with Nick less? Fewer brain dumps? The system learns from your input.`;
-  } else if (memoriesCreated === 0 && new Date().getHours() >= 18) {
+  } else if (memoriesCreated === 0 && hourET() >= 18) {
     stagnationAlert = "Zero new memories today. The brain didn't learn anything. Log a score, talk to Nick, or do a brain dump.";
   } else if (weakSpots.length >= 3) {
     stagnationAlert = `${weakSpots.length} domains have gone quiet: ${weakSpots.map(w => w.domain).join(", ")}. Blind spots forming.`;

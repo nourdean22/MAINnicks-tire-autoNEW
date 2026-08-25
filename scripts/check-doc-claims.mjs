@@ -462,13 +462,32 @@ function namedTarget(line) {
  * session is mid-fix on from blocking an unrelated PR.
  */
 const KNOWN_FALSE = [
-  {
-    at: "apps/statenour/docs/DESIGN.md:5",
-    why: "check-anti-slop.sh is MANUAL (reachable only from verify:hard, which no hook or workflow runs), so 'verified at push time' is false. lefthook pre-push runs exactly one command: pnpm run build:affected.",
-    until:
-      "a concurrent session commits the DESIGN.md rewrite it already has in the working tree ('gate-checked by ... which runs inside pnpm verify:hard'). Not taken here because two sessions editing one line is the drift this repo keeps recording.",
-  },
+
 ];
+
+/**
+ * Which held entries no longer have a live finding to hold?
+ *
+ * Extracted 2026-08-25 so its canary can be driven with SYNTHETIC inputs. The
+ * original canary asserted against the one real entry in the list above --
+ * DESIGN.md:5 -- so the moment that entry was correctly removed (the claim was
+ * fixed, and rule 2 says a redundant entry is an ERROR) the test could not pass
+ * in any form and was deleted to get the gate green.
+ *
+ * That is the defect, and it is not "someone deleted a canary": it is a
+ * PERMANENT CONTROL WIRED TO A TEMPORARY DATUM. The rule is permanent; the
+ * entry was always meant to be short-lived. Coupling them meant the control
+ * died on the entry's success, and the first person to hit it had a choice
+ * between a red gate and a deleted test. Neither is a good option, and the
+ * design handed them nothing else.
+ *
+ * A pure function over both inputs has no such lifetime. It is used at the real
+ * call site below, and `--selftest` exercises it in both directions against
+ * fixtures that outlive every entry the list will ever carry.
+ */
+function findRedundantKnownFalse(knownFalse, liveFindings) {
+  return knownFalse.filter((k) => !liveFindings.some((f) => f.at === k.at));
+}
 
 /** Does the named thing actually appear in a gate definition? */
 function resolveGate(target, surface = "any") {
@@ -619,7 +638,7 @@ if (show("gate")) {
    * already fixed becomes a permanent excuse list; making redundancy an ERROR
    * is what stops it. So an entry whose claim now RESOLVES fails the run.
    */
-  const stale = KNOWN_FALSE.filter((k) => !all.some((f) => f.at === k.at));
+  const stale = findRedundantKnownFalse(KNOWN_FALSE, all);
   if (stale.length) {
     console.error(`\n  ✗ ${stale.length} KNOWN_FALSE entr(y/ies) no longer needed -- delete them:\n`);
     for (const k of stale) console.error(`      ${k.at} now resolves. ${k.until}`);
@@ -781,6 +800,49 @@ if (process.argv.includes("--selftest")) {
     console.error(`  SELFTEST FAIL: the walk cannot get from ${KNOWN_EDGE.from} to ${KNOWN_EDGE.to} -- the walk is broken, not the repo`);
   } else {
     console.log(`  selftest ok  walk traverses ${KNOWN_EDGE.from} -> ${KNOWN_EDGE.to} (${automaticRoots.length} automatic roots, ${allAliases.size} aliases known)`);
+  }
+
+  /*
+   * KNOWN_FALSE REDUNDANCY, on fixtures rather than on the live list.
+   *
+   * Both directions, because each alone is indistinguishable from a dead
+   * function: a check that only proves redundancy is caught passes just as
+   * happily if it flags everything, and one that only proves a needed entry is
+   * spared passes if it flags nothing. The pair pins the actual behaviour.
+   *
+   * Deliberately synthetic. KNOWN_FALSE is empty today and will be empty again
+   * between fixes -- an arm that needed a real entry would be dead for most of
+   * this file's life, which is exactly how the previous canary died.
+   */
+  const HELD = { at: "apps/fixture/docs/FIXTURE.md:5", until: "the fixture is fixed" };
+  const stillLive = [{ at: "apps/fixture/docs/FIXTURE.md:5" }, { at: "apps/other/docs/OTHER.md:9" }];
+  const nowResolved = [{ at: "apps/other/docs/OTHER.md:9" }];
+
+  const spared = findRedundantKnownFalse([HELD], stillLive);
+  if (spared.length !== 0) {
+    failed++;
+    console.error(`  SELFTEST FAIL: a NEEDED KNOWN_FALSE entry was reported redundant -- the check flags everything`);
+  } else {
+    console.log(`  selftest ok  a still-false claim keeps its KNOWN_FALSE entry`);
+  }
+
+  const caught = findRedundantKnownFalse([HELD], nowResolved);
+  if (caught.length !== 1 || caught[0].at !== HELD.at) {
+    failed++;
+    console.error(`  SELFTEST FAIL: a REDUNDANT KNOWN_FALSE entry was not reported -- the allowlist can become a permanent excuse list`);
+  } else {
+    console.log(`  selftest ok  an entry whose claim now resolves is reported redundant`);
+  }
+
+  // The empty list must be quiet, not merely non-crashing. This arm exists
+  // because KNOWN_FALSE is empty on main right now: if the empty case threw or
+  // reported a phantom, every run of the gate would be red for a reason that
+  // has nothing to do with any document.
+  if (findRedundantKnownFalse([], stillLive).length !== 0) {
+    failed++;
+    console.error(`  SELFTEST FAIL: an EMPTY KNOWN_FALSE reported a redundant entry`);
+  } else {
+    console.log(`  selftest ok  an empty KNOWN_FALSE reports nothing`);
   }
 
   if (failed) { console.error(`\n✗ ${failed} selftest failure(s)`); process.exit(1); }

@@ -17,6 +17,7 @@
  */
 
 import type { SystemPulse } from "@/lib/hooks/use-system-pulse";
+import { hourET } from "@/lib/utils/datetime";
 
 export type SmartNowUrgency = "high" | "medium" | "low";
 
@@ -38,7 +39,7 @@ export function pickSmartNow(args: {
   hour?: number; // override for tests · default = current hour
 }): SmartNowSuggestion | null {
   const { pathname, pulse } = args;
-  const hour = args.hour ?? new Date().getHours();
+  const hour = args.hour ?? hourET();
 
   // ── 1. CRITICAL · fatal errors or cron failures ──
   if (pulse) {

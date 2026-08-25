@@ -19,6 +19,7 @@
  * the exact prompt to fill the input when Nour taps.
  */
 import { apiHandler } from "@/lib/utils/http";
+import { hourET } from "@/lib/utils/datetime";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -249,7 +250,7 @@ export const GET = apiHandler(
 
     // 5b. Top Mission — surrogate MIT. High ROI + active missions
     //     get surfaced as an opener tuned to phase of day.
-    const phase = phaseOfDay(new Date().getHours());
+    const phase = phaseOfDay(hourET());
     if (topMission && openers.length < 3) {
       const title = topMission.title.slice(0, 50);
       const domain = topMission.domain.toLowerCase();

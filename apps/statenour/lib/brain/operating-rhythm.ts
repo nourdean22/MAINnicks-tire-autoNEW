@@ -26,7 +26,7 @@ import { sendTelegram } from "@/lib/services/telegram";
 import { queryNick } from "@/lib/nickstire/query";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today } from "@/lib/utils/datetime";
+import { today, weekdayET } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -275,7 +275,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       // alarm. Now: red banner at the top so the eye lands on it.
       // Weekends skipped (revenue legitimately zero).
       {
-        const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat (UTC OK · close enough at 11am ET)
+        const dayOfWeek = weekdayET(); // 0=Sun, 6=Sat (UTC OK · close enough at 11am ET)
         const isWeekday = dayOfWeek !== 0 && dayOfWeek !== 6;
         const cliffBanner =
           isWeekday && todayRevenue === 0 && todayJobCount === 0

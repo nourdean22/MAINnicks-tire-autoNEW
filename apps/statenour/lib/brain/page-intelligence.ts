@@ -9,6 +9,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 
 interface PagePattern {
   topPages: Array<{ page: string; count: number }>;
@@ -56,7 +57,7 @@ async function analyzePagePatterns(): Promise<PagePattern> {
     }
 
     const payload = v.payload as any;
-    const hour = payload?.hour ?? v.createdAt.getHours();
+    const hour = payload?.hour ?? hourET(v.createdAt);
     if (hour >= 23 || hour <= 4) lateNightCount++;
 
     uniqueDays.add(v.createdAt.toISOString().slice(0, 10));

@@ -15,7 +15,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { daysAgo } from "@/lib/utils/datetime";
+import { daysAgo, hourET } from "@/lib/utils/datetime";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { logError } from "@/lib/utils/error-log";
 
@@ -209,7 +209,7 @@ export async function analyzeAttentionPatterns(): Promise<AttentionProfile> {
   const evening: Record<string, number> = {};
 
   for (const msg of recentMessages) {
-    const hour = msg.createdAt.getHours();
+    const hour = hourET(msg.createdAt);
     const lower = msg.content.toLowerCase();
     for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
       if (keywords.some(kw => lower.includes(kw))) {

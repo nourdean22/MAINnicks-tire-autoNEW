@@ -399,7 +399,6 @@ jobs:
           NICKSTIRE_HEALTH_URL: ${{ vars.NICKSTIRE_HEALTH_URL }}
           STATENOUR_HEALTH_URL: ${{ vars.STATENOUR_HEALTH_URL }}
           WORKER_HEALTH_URL: ${{ vars.WORKER_HEALTH_URL }}
-          VOICE_HEALTH_URL: ${{ vars.VOICE_HEALTH_URL }}
           RAILWAY_SMOKE_STRICT: ${{ vars.RAILWAY_SMOKE_STRICT }}
         run: |
           check_url() {
@@ -424,7 +423,12 @@ jobs:
           check_url "Nick's Tire" "$NICKSTIRE_HEALTH_URL"
           check_url "Statenour" "$STATENOUR_HEALTH_URL"
           check_url "Worker" "$WORKER_HEALTH_URL"
-          check_url "Voice" "$VOICE_HEALTH_URL"
+          # 2026-08-23 - the Voice probe is GONE. apps/voice was deleted (0 tracked
+          # files, confirmed via git ls-files; the directory survives checkouts only
+          # because git does not track empty dirs) and AGENTS.md lists the service as
+          # retired. The probe was inert only because RAILWAY_SMOKE_STRICT gates
+          # check_url - had that ever been set, CI would have failed on a service that
+          # does not exist. Removed rather than left as a dormant tripwire.
 
   # 2026-07-26 · two changes here, one of them a correction.
   #

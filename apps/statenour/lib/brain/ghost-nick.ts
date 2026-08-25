@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
 import { loadActiveSkills } from "./skill-extractor";
 
@@ -59,7 +60,7 @@ const HORIZON_HOURS = 6;
 // ── Compute ──────────────────────────────────────────────────────────
 
 function hourBucket(d = new Date()): "morning" | "afternoon" | "evening" | "night" {
-  const h = d.getHours();
+  const h = hourET(d);
   if (h >= 5 && h < 12) return "morning";
   if (h >= 12 && h < 17) return "afternoon";
   if (h >= 17 && h < 22) return "evening";
@@ -70,7 +71,7 @@ async function dominantSignature(): Promise<{ signature: string; evidence: strin
   const since = new Date(Date.now() - 14 * 86400_000);
   const now = new Date();
   const bucket = hourBucket(now);
-  const dow = now.getDay();
+  const dow = weekdayET(now);
 
   const tasks = await prisma.task.findMany({
     where: { status: "DONE", updatedAt: { gte: since }, deletedAt: null },
@@ -90,7 +91,7 @@ async function dominantSignature(): Promise<{ signature: string; evidence: strin
   // Filter to same bucket + day-of-week bias (loose: same or adjacent bucket)
   const filtered = tasks.filter((t) => {
     const hb = hourBucket(new Date(t.updatedAt));
-    return hb === bucket || t.updatedAt.getDay() === dow;
+    return hb === bucket || weekdayET(t.updatedAt) === dow;
   });
   const pool = filtered.length >= 5 ? filtered : tasks;
 

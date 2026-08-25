@@ -30,7 +30,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { sendTelegram } from "@/lib/services/telegram";
-import { today } from "@/lib/utils/datetime";
+import { hourET, today } from "@/lib/utils/datetime";
 
 const CAMERA_EVENT_TYPES = [
   "motion_detected",
@@ -89,7 +89,7 @@ export async function analyzeCameraData(): Promise<{
   metrics = Object.keys(byCamera).length;
 
   // ── 2. After-hours security detection ──────────────────────
-  const hour = new Date().getHours();
+  const hour = hourET();
   const isShopClosed = hour >= 20 || hour < 7; // 8pm-7am
 
   if (isShopClosed) {
@@ -165,7 +165,7 @@ export async function analyzeCameraData(): Promise<{
     // the most people+vehicle detections.
     const hourCounts = new Map<number, { p: number; v: number }>();
     for (const e of todayEvents) {
-      const h = e.timestamp.getHours();
+      const h = hourET(e.timestamp);
       const cur = hourCounts.get(h) ?? { p: 0, v: 0 };
       if (e.event === "person_detected") cur.p++;
       else if (e.event === "vehicle_detected") cur.v++;
@@ -200,7 +200,7 @@ export async function analyzeCameraData(): Promise<{
   const morningWindow = hour >= 7 && hour <= 9;
   if (morningWindow) {
     const morningPerson = shopPersonEvents.filter(
-      (e) => e.timestamp.getHours() >= 7 && e.timestamp.getHours() <= 9,
+      (e) => hourET(e.timestamp) >= 7 && hourET(e.timestamp) <= 9,
     );
 
     if (morningPerson.length > 0) {
@@ -255,7 +255,7 @@ export async function getCameraIntelligence(): Promise<{
   const hourCounts = new Map<number, number>();
   for (const e of todayEvents) {
     if (e.event !== "person_detected" && e.event !== "vehicle_detected") continue;
-    hourCounts.set(e.timestamp.getHours(), (hourCounts.get(e.timestamp.getHours()) ?? 0) + 1);
+    hourCounts.set(hourET(e.timestamp), (hourCounts.get(hourET(e.timestamp)) ?? 0) + 1);
   }
   let peakHour = 0;
   let peakCount = -1;
@@ -285,7 +285,7 @@ export async function getCameraIntelligence(): Promise<{
   // Bay utilization — fraction of active hours in the day. With no
   // bayOccupied flag in deviceEvent, we approximate as the ratio of
   // hours with shop activity over the day's elapsed hours.
-  const elapsedHours = Math.max(1, new Date().getHours() + 1);
+  const elapsedHours = Math.max(1, hourET() + 1);
   const activeHours = hourCounts.size;
   const bayUtilization = Math.round((activeHours / elapsedHours) * 100);
 

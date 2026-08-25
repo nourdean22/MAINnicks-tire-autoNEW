@@ -34,7 +34,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("pipeline-controller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
-import { today } from "@/lib/utils/datetime";
+import { hourET, today } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { sanitizeDeadline } from "@/lib/services/commitments";
 
@@ -63,7 +63,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   switch (event.type) {
     case "booking": {
       // Track booking patterns
-      const hour = new Date().getHours();
+      const hour = hourET();
       await brainMemory.remember(
         "pattern",
         `booking_hour_${hour}`,
@@ -232,7 +232,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         "pipeline_analysis"
       );
       actions.push("alert.lead_surge");
-    } else if (todayCount === 0 && new Date().getHours() > 14) {
+    } else if (todayCount === 0 && hourET() > 14) {
       await brainMemory.remember(
         "business_alert",
         `lead_drought_${today()}`,
@@ -354,8 +354,8 @@ Return empty arrays if nothing found. Be specific, not generic.`,
     ) {
       await brainMemory.remember(
         "emotional_state",
-        `mood_${today()}_${new Date().getHours()}`,
-        `Emotional state at ${new Date().getHours()}:00: ${intel.emotionalSignals.toLowerCase()}`,
+        `mood_${today()}_${hourET()}`,
+        `Emotional state at ${hourET()}:00: ${intel.emotionalSignals.toLowerCase()}`,
         "conversation_analysis"
       );
     }
@@ -455,7 +455,7 @@ export async function proactiveAlerts(): Promise<{ alerts: string[] }> {
   // (the nickstire sync gives us a count of new/un-replied callbacks ·
   // pre-Wave-58 this used a separate `unansweredLeads` field that
   // didn't exist · using `newCallbacks` is the closest live signal).
-  const hour = new Date().getHours();
+  const hour = hourET();
   if (hour >= 8 && hour <= 18) {
     const unansweredLeads = ceo?.newCallbacks ?? 0;
 

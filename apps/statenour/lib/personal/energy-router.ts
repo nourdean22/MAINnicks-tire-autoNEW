@@ -13,6 +13,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 
 interface TaskTelemetry {
   // The hour-of-day when each completed task was finished
@@ -81,7 +82,7 @@ export async function buildEnergyProfile(): Promise<EnergyProfile> {
   };
 
   for (const t of tasks) {
-    const window = windowForHour(t.updatedAt.getHours());
+    const window = windowForHour(hourET(t.updatedAt));
     if (!(window in windows)) continue;
     const exp = expected[t.effort] ?? 30;
     const overage = t.actualMinutes - exp;
