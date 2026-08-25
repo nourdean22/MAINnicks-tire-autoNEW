@@ -22,7 +22,7 @@
  *    "ask"`), the side effect is DEFERRED — the matched item is
  *    written to `AutonomousAction.payload.deferredItem` with
  *    `approval="pending"`, and only executes once the operator
- *    approves at /system/approvals (→ executeApprovedAction).
+ *    approves at /system/actions (→ executeApprovedAction).
  *
  *    ⚠ FAIL-CLOSED since v10.0.157: a rule with NO seeded policy row
  *    DEFERS to approval (missing policy → pending — see the resolution

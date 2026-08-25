@@ -125,8 +125,18 @@ export async function initLangfuseTracing(): Promise<TracingStatus> {
     // Railway redeploys SIGTERM the container; without a drain the batch
     // processor's tail buffer (up to one flush interval of spans) dies
     // with it. once-guarded by the status singleton above.
+    //
+    // 2026-08-25 (same-day fix) · Promise.resolve() wrap, load-bearing:
+    // `.catch` chained directly on the call assumes forceFlush() returns
+    // a promise. Under vitest the handler outlives the test that
+    // registered it, and the torn-down mock returns undefined — so the
+    // bare `.catch` THREW inside the SIGTERM handler and put a
+    // deterministic `Errors 1 error` in every statenour suite run
+    // (4 sibling PRs red on 6,10x-passed suites). Promise.resolve()
+    // absorbs any thenable-or-not return. Canaried in langfuse.test.ts
+    // with a synthetic undefined-returning teardown.
     process.once("SIGTERM", () => {
-      void spanProcessor.forceFlush().catch(() => {});
+      void Promise.resolve(spanProcessor.forceFlush()).catch(() => {});
     });
     log.info("langfuse_started", {
       baseUrl: process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com (SDK default)",

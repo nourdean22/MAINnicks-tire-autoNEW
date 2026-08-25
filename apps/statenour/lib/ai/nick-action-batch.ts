@@ -175,7 +175,7 @@ export async function runNickActionBatch(opts: {
     (skipped > 0 ? ` · ${skipped} skipped` : "") +
     `\n\n` +
     digestLines.join("\n") +
-    `\n\n<i>Audit: bdnick.info/system/approvals</i>`;
+    `\n\n<i>Audit: bdnick.info/system/actions</i>`;
 
   let telegramOk = false;
   try {
@@ -194,7 +194,7 @@ export async function runNickActionBatch(opts: {
  * Payload merge · the proposer attached intent (rationale, queueIndex,
  * priority, etc.) and the executor returns outcome meta. We READ the
  * existing row's payload first, then SHALLOW-MERGE the result so the
- * /system/approvals viewer surfaces both intent + outcome.
+ * /system/actions viewer surfaces both intent + outcome.
  */
 async function stampRow(
   id: string,

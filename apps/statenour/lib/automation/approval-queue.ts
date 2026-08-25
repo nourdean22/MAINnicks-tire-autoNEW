@@ -3,7 +3,7 @@
  *
  * Operator-facing layer over AutonomousAction rows where
  * approval = "pending". Provides the read/write spine for the
- * /system/approvals surface — list, approve, reject — that the
+ * /system/actions surface — list, approve, reject — that the
  * v10.0.148 policy registry was meant to unblock.
  *
  * Per kaizen + JIT: the AutonomousAction table already carries every

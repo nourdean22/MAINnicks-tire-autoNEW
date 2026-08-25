@@ -25,6 +25,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     agendaItem: {
       findMany: vi.fn().mockResolvedValue([]),
+      // 2026-08-25 · the agenda block is bounded now; the builder also
+      // counts the full population for the renderer's overflow line.
+      count: vi.fn().mockResolvedValue(0),
     },
   },
 }));
@@ -48,7 +51,9 @@ import {
 import {
   buildNickPrimeContext,
   nickContextFromState,
+  AGENDA_PROMPT_CAP,
 } from "@/lib/ai/context/nick-prime-context";
+import { prisma } from "@/lib/prisma";
 
 const FIXTURE_STATE: CommandCenterState = {
   generatedAt: "2026-04-30T12:00:00.000Z",
@@ -292,8 +297,14 @@ describe("v9.0-alpha · command-center state contract", () => {
     expect(ctx.systemHealth.crons.active).toBe(34);
     expect(ctx.systemHealth.memory.embeddingCoveragePct).toBeCloseTo(87.4);
 
-    // Agenda Items
+    // Agenda Items — bounded at the source (2026-08-25): the query must
+    // carry the cap and deadline-first ordering, and the count query
+    // feeds the renderer's overflow denominator.
     expect(Array.isArray(ctx.agendaItems)).toBe(true);
+    expect(ctx.agendaItemsTotal).toBe(0);
+    const agendaCall = (prisma.agendaItem.findMany as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(agendaCall.take).toBe(AGENDA_PROMPT_CAP);
+    expect(agendaCall.orderBy[0]).toEqual({ dueDate: { sort: "asc", nulls: "last" } });
   });
 
   it("nickContextFromState is a pure projection (same input → same output)", () => {

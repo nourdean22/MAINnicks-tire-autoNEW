@@ -11,7 +11,7 @@
  * FAIL-CLOSED · this NEVER executes or sends anything. It writes a
  * single AutonomousAction(approval="pending") row — exactly the same
  * shape the 8am proposer writes — and stops. The operator approves
- * via /qa (Telegram) or /system/approvals; only THEN does the
+ * via /qa (Telegram) or /system/actions; only THEN does the
  * autonomous-engine execute the deferred side effect. Mirrors the
  * proposer's contract (see app/api/cron/nick-action-proposal/route.ts).
  *
@@ -60,7 +60,7 @@ export interface UrgentSignalData {
   signal: string;
   /** One-line "what fired" for the queue row's trigger column. */
   trigger: string;
-  /** Operator-facing rationale rendered in /qa + /system/approvals. */
+  /** Operator-facing rationale rendered in /qa + /system/actions. */
   rationale: string;
 }
 
