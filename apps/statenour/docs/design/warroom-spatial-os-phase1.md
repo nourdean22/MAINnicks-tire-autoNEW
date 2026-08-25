@@ -84,6 +84,22 @@ Window `x/y/z/w/h` → **localStorage**. No `DesktopLayout` Prisma table in Phas
 - **No migration** — every field already on `ApprovalRequest` (`schema.prisma:2799`): `toolId`, `payload`, `status`, `executedAt`, `resultPayload`; existing `@@index([status])` covers the claim.
 
 **The 6 required corrections** (from adversarial verify — `holds:false` until all done):
+
+> **PARTIALLY SHIPPED — spot-measured 2026-08-23 against `origin/main`.** This list is written
+> as pending work and at least two items are done, so it reads as a live backlog when it is not.
+> Reproduce with `git grep -n "status: \"executing\"" -- apps/statenour/lib`:
+>
+> - **#2 (sweeper) DONE** — `lib/inngest/functions/approval-sweeper.ts:41` claims
+>   `status='executing'` rows past a stale TTL, which is the durable-delivery upgrade the item
+>   asked for.
+> - **#4 (CAS is the only writer) DONE** — `lib/tools/guardian.ts:79-92` uses
+>   `updateMany({ where: { id, OR: [approved, executing-past-TTL] }, data: { status: "executing" } })`
+>   and returns early on `claim.count !== 1`. That is a compare-and-set, and there is no
+>   unconditional update beside it.
+>
+> **Items 1, 3, 5 and 6 were NOT checked** and are not claimed either way. Saying "the corrections
+> shipped" on the strength of two spot checks would be the same overstatement this repo keeps
+> recording — the honest status is *two verified done, four unmeasured*.
 1. ⚠ **Auth regression** — `shop.sendSms` is `owner_required` (`tool-registry.ts:540`) but the approve mutation only owner-gates `riskClass==='critical'` (`actions.ts:38`), and the lead-audit producer hardcodes `require_approval/high`. **Fix:** gate `approveApprovalRequest` on `require_owner || riskClass IN ('critical','high')` requiring `session.role==='owner'`, **or** explicitly downgrade `shop.sendSms` and document operator-approval intent. Make code match registry intent.
 2. ⚠ **Silent liveness hole** — `void executeApprovedToolAsync` is fire-and-forget across a process boundary; pod death after approve-commit strands the row `approved`, nothing claims it, silent non-delivery. **Fix (required for "actually executes"):** add an **Inngest/cron sweeper** that claims `status='approved'` (and `status='executing'` past a TTL) via the same atomic CAS and drives `executeApprovedToolAsync`. This is what upgrades "durable intent" → "durable delivery."
 3. ⚠ **Failure misclassification** — `executeActionWithoutTracing` returns soft `{success:false}` (no throw). **Fix:** branch on `result.success` → `status='failed'` on false; `executed` only on true.

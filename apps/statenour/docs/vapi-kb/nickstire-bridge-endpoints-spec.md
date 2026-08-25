@@ -14,6 +14,23 @@ outage.
 
 ---
 
+> ## UNBUILT SPEC — measured 2026-08-23, none of these endpoints exist
+>
+> Reproduce: `git ls-tree -r --name-only origin/main | grep api/bridge` -> exactly one route,
+> `apps/statenour/app/api/bridge/health/route.ts`. **`/api/bridge/dropoff`,
+> `/api/bridge/callback` and `/api/bridge/shop-snapshot` return 0 route files and 0 code
+> references.** `lib/bridge-auth.ts` exists and has exactly one consumer: `bridge/health`.
+>
+> This document is written in the present indicative — "All 3 endpoints authenticate via…",
+> "already set", "the existing read-bridge" — which reads as live API surface. A nickstire
+> developer could implement a client against it and get 404s. It is a **proposal that was never
+> built**, and the only thing wrong with it is the tense.
+>
+> Left in place rather than deleted: the shapes are still the design, and `BRIDGE_API_KEY` +
+> `bridge-auth.ts` are real, so this is the spec to build from if the lane is revived. But the
+> header now says so, because "already set" and "existing" are exactly the phrases that stop a
+> reader checking.
+
 ## Auth
 
 All 3 endpoints authenticate via `X-Bridge-Key` header. The shared key

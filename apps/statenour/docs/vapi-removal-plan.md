@@ -17,7 +17,18 @@ Total VAPI/voice-shaped code in statenour-os @ `63f4146`: **18 files · ~3,471 L
 
 ## Tier 1 · SAFE TO DELETE (15 files · ~2,485 LOC)
 
-Pure VAPI surfaces. No other callers. Verified via grep + dependency walk.
+Pure VAPI surfaces. No other callers. Verified via grep + dependency walk at the time of writing.
+
+> **EXECUTED — measured 2026-08-23 against `origin/main`.** Reproduce with
+> `git ls-tree -r --name-only origin/main -- apps/statenour/app/api/vapi | wc -l`
+> -> **0**. Every Tier-1 file listed below is gone; this section is a record of a
+> completed deletion, not a pending one.
+>
+> **One item did NOT ship:** `VoiceLatencyEvent` is still present in
+> `prisma/schema.prisma` (1 match) and its migration is still parked. The plan
+> called it "parked", and parked it remains — so the survey's file count is
+> historical while its Prisma line is still live. Stated because "the VAPI removal
+> shipped" would otherwise close the question on the half that did not.
 
 ```
 app/api/vapi/check-used-tire-stock/route.ts        221 LOC
