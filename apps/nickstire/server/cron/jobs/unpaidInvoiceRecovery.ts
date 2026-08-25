@@ -248,10 +248,25 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
     if (!inv.customerPhone) continue;
     try {
       const ageDays = Math.floor((now - new Date(inv.invoiceDate).getTime()) / DAY);
-      // One touch per invoice per run — 30d takes priority over 7d.
+      // One touch per invoice per run, and the two touches are an ESCALATING
+      // SEQUENCE - never go backwards.
+      //
+      // THE BUG THIS FIXES, caught 2026-08-25 by simulating the next run
+      // rather than reasoning about it. The 7d branch only tested
+      // `!inv.reminder7d`. An invoice that enters the window ALREADY past 30
+      // days takes the 30d touch first, which leaves the 7d slot unclaimed -
+      // so the very next run fell through to the 7d branch and sent a SECOND
+      // message. Measured on a real customer: a 73-day-old invoice was texted
+      // the 30d copy, and the following day's run would have texted him the
+      // 7d copy as well. Two messages about one bill on consecutive days,
+      // the second one the earlier-stage wording.
+      //
+      // Guarding the 7d branch on `!inv.reminder30d` makes the ladder
+      // one-directional: once escalated, an invoice never receives the softer
+      // earlier touch.
       let touch: "7d" | "30d" | null = null;
       if (ageDays >= 30 && !inv.reminder30d) touch = "30d";
-      else if (ageDays >= 7 && !inv.reminder7d) touch = "7d";
+      else if (ageDays >= 7 && !inv.reminder7d && !inv.reminder30d) touch = "7d";
       if (!touch) {
         skippedNoTouch++;
         continue;
