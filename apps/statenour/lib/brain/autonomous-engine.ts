@@ -1268,25 +1268,30 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
                 payload: {
                   deferredItem: item,
                   ...(planRecord ? { plannedOutcome: planRecord } : {}),
-                  // A lane with NO policy row and a lane an operator deliberately set
-                  // to "pending" are identical here — both defer — so a bootstrap gap
-                  // looked exactly like a normal approval nobody had got to yet. That
-                  // is how 17 rules parked every match for months with no signal.
-                  // `result` stays "pending_approval" on purpose: action-receipt-feed
-                  // classifies on it, and a new value would silently drop these rows
-                  // out of the approvals queue. The marker rides in payload instead.
-                  ...(policyApproval === null
-                    ? {
-                        policyBootstrap: {
-                          missing: true,
-                          policyId,
-                          reason:
-                            "blocked-needs-bootstrap — no AutomationPolicy row exists for this rule, " +
-                            "so the fail-closed engine defers every match indefinitely. Run " +
-                            "`pnpm tsx scripts/seed-policies.ts` to create the derived baseline.",
-                        },
-                      }
-                    : {}),
+                  // REMOVED 2026-08-25 · the `policyBootstrap` marker.
+                  //
+                  // It was written here whenever a rule had no AutomationPolicy
+                  // row, to distinguish a bootstrap gap from an ordinary
+                  // pending approval. It had ZERO readers — one mention in the
+                  // whole repo, this writer. So did the parallel signal
+                  // `PendingActionRow.policyApprovalClass`, computed on read and
+                  // documented as "helps triage": also never read. Two signals
+                  // for one fact, neither reaching a human, because nothing
+                  // renders approval rows at all — both consumers of the
+                  // approvals query use `rows.length` for a badge count.
+                  //
+                  // A signal with no reader is the defect this codebase spent
+                  // the day removing, and building an approvals surface to
+                  // justify a marker nobody asked for is the tail wagging the
+                  // dog. THE GATE IS THE PROTECTION: check-policy-coverage.ts
+                  // fails the push when a rule has no policy (widened
+                  // 2026-08-22 to cover all 20), and its reverse direction — a
+                  // policy naming no rule — is covered by
+                  // tests/brain/policy-seed-orphans.test.ts. The gap is caught
+                  // before it can park anything, which is strictly better than
+                  // labelling rows after it already has.
+                  //
+                  // If a reader is ever wanted, hang it off the gate.
                 } as Prisma.InputJsonValue,
               },
             })
