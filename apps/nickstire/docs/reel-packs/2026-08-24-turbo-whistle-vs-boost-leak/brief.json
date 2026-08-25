@@ -1,0 +1,93 @@
+{
+  "topic": "Turbo whistle vs boost leak hiss: not every turbo sound means the turbo is fine",
+  "campaignKeyword": "BOOSTLEAK",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-24",
+  "durationSec": 22,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "That high-pitched whistle when you accelerate? Not every turbo sound means the turbo is fine.",
+      "visualPrompt": "Close-up of a car turbocharger in the engine bay, faint heat haze rising, static camera, dusk ambient lighting",
+      "stockSearchTerms": ["turbocharger engine bay closeup", "car turbo under hood"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "A turbo spooling up makes a smooth rising whine. A hissing or spitting sound is different - that's air escaping where it shouldn't.",
+      "visualPrompt": "Wide rear three-quarter shot of a car accelerating away on a quiet road, motion blur on the wheels, no visible driver",
+      "stockSearchTerms": ["car accelerating rear view road", "vehicle accelerating highway rear shot"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 14],
+      "narration": "A boost leak means the engine loses power, and it can trigger a check engine light even with no other symptoms.",
+      "visualPrompt": "Close-up of a dashboard check engine light illuminating against a dim instrument cluster, static camera",
+      "stockSearchTerms": ["check engine light dashboard closeup", "car dashboard warning light glowing"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [14, 18],
+      "narration": "Ignore it, and the turbo can run hotter than it should, wearing down parts that aren't cheap to replace.",
+      "visualPrompt": "Close-up of an engine bay near the turbo and exhaust manifold, subtle heat shimmer, static camera, cool ambient light",
+      "stockSearchTerms": ["engine bay heat shimmer closeup", "hot engine compartment turbo heat"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [18, 22],
+      "narration": "One sound doesn't confirm a diagnosis. Stop by and we'll listen and check it properly.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient engine-bay/road-noise room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "turbo closeup with heat haze is a decent but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "22s, at the studio's own REEL_OUTPUT_RULES ceiling and within the 15-60s generic range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (turbo closeup)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access), and a code grep for 'turbo' or 'boost leak' found no existing evidence row" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged 'can' phrasing throughout; no invented failure timeline" },
+      "keyword": { "score": 5, "max": 5, "note": "turbo, boost leak, check engine light keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 22,
+    "ctaType": "SEND-oriented"
+  }
+}
