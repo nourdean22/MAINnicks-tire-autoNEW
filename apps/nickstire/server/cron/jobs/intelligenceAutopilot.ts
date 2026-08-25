@@ -35,6 +35,24 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       analyzeDeclinedWork,
     } = await import("../../services/intelligenceEngines");
 
+    // ── 0. Cost-detail coverage ────────────────────────────
+    // The data feeding every margin number in this file. ShopDriver stopped
+    // sending parts/labor in April 2026 and nothing noticed for four months;
+    // a margin of 76% sat on a covered basis of 7%. Hosted HERE rather than in
+    // checkMirrorHealth because that job skipped 1,141 of its last 1,274 runs
+    // on the SHOP-PROTECT `admin inactive` guard, and this check needs no ALG
+    // session. Self-dedupes to one alert per day; never throws.
+    try {
+      const { checkCostDetailCoverage } = await import("../../services/costDetailCoverage");
+      const { reading } = await checkCostDetailCoverage();
+      if (reading?.verdict === "below-threshold") {
+        alerts.push(
+          `🔴 COST DETAIL MISSING: only ${reading.withDetail}/${reading.invoices} ShopDriver invoices ` +
+            `in ${reading.windowDays}d carry parts/labor (${reading.coveragePct}%). Margin reporting is suppressed.`,
+        );
+      }
+    } catch (e) { log.warn("[jobs/intelligenceAutopilot] coverage check failed:", e); }
+
     // ── 1. Revenue Pacing ──────────────────────────────────
     try {
       const forecast = await forecastRevenue();
