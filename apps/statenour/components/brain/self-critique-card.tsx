@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/utils/api-fetch";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 
@@ -49,15 +50,13 @@ export function SelfCritiqueCard() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(
+        // /api/brain/memories is apiHandler-wrapped, so res.json() is the
+        // ENVELOPE. The old cast said CritiqueMemory[]; Array.isArray(envelope)
+        // is false, the guard fell through to [], and this panel rendered
+        // NOTHING on a 200. A cast is an assertion, not a check — nothing failed.
+        const data = await apiFetch<CritiqueMemory[]>(
           "/api/brain/memories?category=reply_to_improve&limit=5",
-          { credentials: "include" },
         );
-        if (!res.ok) {
-          if (!cancelled) setRows([]);
-          return;
-        }
-        const data = (await res.json()) as CritiqueMemory[];
         if (!cancelled) setRows(Array.isArray(data) ? data : []);
       } catch {
         if (!cancelled) setRows([]);

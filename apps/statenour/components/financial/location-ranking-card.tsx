@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/utils/api-fetch";
 import { GlassCard } from "@/components/ui/glass-card";
 
 interface LocationRanking {
@@ -45,14 +46,9 @@ export function LocationRankingCard() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/business/location-ranking", {
-          credentials: "include",
-        });
-        if (!res.ok) {
-          if (!cancelled) setData({ monthKey: "", found: false, content: null, updatedAt: null });
-          return;
-        }
-        const json = (await res.json()) as LocationRanking;
+        // apiHandler-wrapped: res.json() was the envelope, so `found` was
+        // undefined and this card read "not found" on every successful 200.
+        const json = await apiFetch<LocationRanking>("/api/business/location-ranking");
         if (!cancelled) setData(json);
       } catch {
         if (!cancelled) setData({ monthKey: "", found: false, content: null, updatedAt: null });
