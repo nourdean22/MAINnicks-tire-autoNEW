@@ -109,14 +109,15 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/prisma.ts",
   },
 
-  // ── Wave-200 substrates · pending activation ────────────────
+  // ── Wave-200 substrates ────────────────
   {
     key: "BRAINTRUST_API_KEY",
-    description: "Enables Mastra agent trace export to Braintrust dashboard. Present-implies-on (no truthy check) · just needs the key.",
-    status: "experimental",
+    description:
+      "UNUSED since 2026-08-25: braintrust-wrap.ts was deleted after three months with zero call sites — the key never enabled anything despite sitting set in Railway (the 'present-implies-on' claim this entry used to make was never true end-to-end). Eval-dataset scripts (scripts/export-eval-datasets.ts) are the only remaining Braintrust surface and read this key at manual-upload time only. Operator may delete the Railway var; tracing is Langfuse (LANGFUSE_* keys).",
+    status: "deprecated",
     onValue: "<any-non-empty-string>",
-    defaultBehavior: "Traces stay local · no Braintrust export.",
-    ownerDoc: "lib/ai/braintrust-wrap.ts",
+    defaultBehavior: "No effect on the running app either way.",
+    ownerDoc: "apps/statenour/docs/integrations/langfuse-observability.md",
   },
 
   // ── Wave AG · BGE rerank backend (HF Inference) ────────────────

@@ -10,7 +10,8 @@
  *
  * LOCAL + NO-SEND by design: writes JSONL under eval-datasets/
  * (gitignored). Braintrust upload stays a deliberate manual step —
- * the braintrust dep is live (braintrust-wrap.ts) but nothing leaves
+ * the braintrust dep exists for THESE scripts only (the tracing wrap
+ * was deleted 2026-08-25 with zero callers ever) and nothing leaves
  * the machine from this script. Each line carries the metadata fields
  * the register row prescribes: app, feature, source, exported_at.
  *
