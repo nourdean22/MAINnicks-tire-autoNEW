@@ -1,9 +1,28 @@
-# Memory-index guard — install proposal
+# Memory-index guard — installed
 
-**Status: written and tested, NOT installed.** The script and its canaries are in the repo; the
-hook line is not. Installing it is one edit to `.claude/settings.json`, below. Until that edit
-lands, `check-memory-index.mjs` is an **unwired control** — shape 1 — and this file says so rather
-than implying coverage that does not exist.
+**Status: INSTALLED 2026-08-25.** Wired into `.claude/settings.json` `SessionStart`, and the
+wiring is canaried by `scripts/agent-os/memoryHook.test.mjs`.
+
+> This file said "written and tested, NOT installed — an unwired control" for two days. That was
+> true when written and is the reason the sentence existed: a doc claiming coverage it does not
+> have is worse than no doc. It is updated here rather than left to rot, because a *stale* status
+> line is the same defect pointed the other way — and this one would have read as an open action
+> item forever.
+
+**Verified by running it, not by reading the config.** The exact command string was extracted from
+`settings.json`, `${CLAUDE_PROJECT_DIR}` resolved as the harness resolves it, and executed:
+
+```
+CONTROL   (real index)     exit 0   [memory-index] WARNING 20922 bytes = 85.7% … Headroom 3478
+POSITIVE  (oversized)      exit 1   index is 114.7% of the read limit … move entries to settled-index.md
+CANNOT-SEE(missing dir)    exit 2   CANNOT CHECK
+```
+
+The first line is not a rehearsal: the real index has grown **19,541 → 20,922 bytes (80.1% →
+85.7%) in one day**, so the warning was earning its place the moment it was installed. Its own
+first exit-code reading was wrong — `$?` after a pipe is the *pipe's* status, not the command's —
+which is the trap `AGENTS.md` records about `tail`; the codes above were re-measured without a
+pipe.
 
 ## The defect
 
@@ -92,10 +111,29 @@ already holds 66 files and every topic file is reachable through one index or th
 pointer to **one line with its directive** — `do NOT re-propose X` — and let the detail live in
 the topic file, which is what the index header has always said.
 
-## What the canaries do and do not prove
+## What the canaries prove — both halves, now
 
-`scripts/agent-os/memoryIndex.test.mjs` is fixture-only: every case builds a throwaway directory
-and passes `--dir`. It proves the guard's **logic**. It cannot prove the guard ever **runs**
-against the real index — that is what the hook does. A passing suite around an uninvoked guard is
-shape 1, and pointing at the test as if it were coverage would be the exact substitution this
-repo keeps recording.
+`scripts/agent-os/memoryIndex.test.mjs` is fixture-only and proves the guard's **logic**.
+
+`scripts/agent-os/memoryHook.test.mjs` proves the **wiring**, and closes the gap this section used
+to describe as open. Its behavioural cases run the command string taken **from `settings.json`**
+with `${CLAUDE_PROJECT_DIR}` resolved — not a command the test invents — so it catches the failure
+that actually matters: a hook still present in the config but edited into something that no longer
+detects anything.
+
+Verified by breaking the config three ways, control first:
+
+| config state | canary |
+|---|---|
+| unbroken | passes, 0 failures |
+| hook removed from `SessionStart` | **8 failures** |
+| hook present but command replaced with a no-op | **4 failures** |
+| `timeout` deleted (a hang would stall every session start) | **2 failures** |
+
+The middle row is the point. A wiring test asserting a hard-coded command would have passed
+happily while the configured one was inert — asserting presence instead of behaviour, which is
+Stated Rule 1 and the reason this file exists.
+
+**If the hook is ever removed on purpose, delete `memoryHook.test.mjs` in the same commit.** A
+canary left standing over a deliberate removal is Stated Rule 9's failure mode, and it is exactly
+how the doc-claim redundancy canary died.
