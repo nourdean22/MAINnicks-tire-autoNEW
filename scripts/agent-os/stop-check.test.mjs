@@ -30,7 +30,19 @@ import assert from "node:assert/strict";
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), "stop-check.mjs");
 
 function sh(args, cwd) {
-  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  // 2026-08-25 · GIT-ENV HYGIENE, learned the hard way. Under a git hook
+  // (lefthook pre-commit runs these canaries via agent-os-verify), git
+  // exports GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE to child processes —
+  // and an inherited GIT_DIR makes the fixture's `git init --bare` RE-
+  // INITIALIZE THE REAL REPO'S .git AS BARE instead of the tmpdir
+  // remote. Every linked worktree then dies with "this operation must
+  // be run in a work tree" until someone unsets core.bare. Reproduced
+  // deterministically both ways (commit context and GIT_DIR-injected
+  // standalone). Strip the git-context vars so fixture repos are always
+  // resolved from cwd alone.
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+  return execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 /** A repo with an `origin` it can actually push to, because the check reads refs/remotes. */

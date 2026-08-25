@@ -56,7 +56,13 @@ import { readFileSync } from "node:fs";
 function git(args, cwd) {
   // 5 s per call: two sequential calls must finish inside the hook's 15 s budget
   // with headroom (a hook timeout is fail-open — the worst place to spend it).
-  return execFileSync("git", args, { cwd, encoding: "utf8", timeout: 5000 }).trim();
+  // Same GIT-env hygiene as the canary (see stop-check.test.mjs sh()):
+  // an inherited GIT_DIR would make this read some OTHER repo's state
+  // and answer the main-with-uncommitted-changes question about the
+  // wrong tree. cwd must be the only thing that picks the repo.
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+  return execFileSync("git", args, { cwd, env, encoding: "utf8", timeout: 5000 }).trim();
 }
 
 try {
