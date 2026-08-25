@@ -168,6 +168,17 @@ function renderAgendaItems(ctx: NickPrimeContext): string {
     }
   }
 
+  // 2026-08-25 · the source query is capped (AGENDA_PROMPT_CAP, see
+  // nick-prime-context.ts). Disclose the overflow so nothing silently
+  // disappears from the accountability surface — the model can offer
+  // the full list instead of not knowing it exists.
+  const total = ctx.agendaItemsTotal ?? items.length;
+  if (total > items.length) {
+    lines.push(
+      `…and ${total - items.length} more active agenda items not shown (deadline-soonest are above). If Nour asks about the full agenda, list them via the agenda tools rather than assuming these are all.`,
+    );
+  }
+
   return lines.join("\n");
 }
 

@@ -44,6 +44,14 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 
+/**
+ * 2026-08-25 · agenda rows the prompt carries per turn. Chosen against
+ * the measured 71-row / 2,646-tok unbounded block: 18 deadline-first
+ * rows keep the accountability surface (~680 tok) and the renderer
+ * names the overflow. Tune here, not in the renderer.
+ */
+export const AGENDA_PROMPT_CAP = 18;
+
 export interface AgendaItemSummary {
   id: string;
   title: string;
@@ -88,6 +96,8 @@ export interface NickPrimeContext {
   followUps: string[];
   anticipatedQuestions: string[];
   agendaItems: AgendaItemSummary[];
+  /** Total ACTIVE/SNOOZED rows — the renderer's overflow denominator. */
+  agendaItemsTotal: number;
 }
 
 /**
@@ -104,7 +114,7 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
   
   const { getWeeklyReviewContext } = await import("@/lib/brain/weekly-review-context");
   
-  const [weeklyReview, recentDigests, anticipated, agendaItems] = await Promise.all([
+  const [weeklyReview, recentDigests, anticipated, agendaItems, agendaItemsTotal] = await Promise.all([
     getWeeklyReviewContext().catch((): string => ""),
     prisma.auditEvent.findMany({
       where: { eventType: "conversation_digest" },
@@ -113,11 +123,24 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
       select: { payload: true },
     }).catch((): any[] => []),
     getTodaysAnticipated().catch(() => null),
+    // 2026-08-25 · BOUNDED (was unbounded — the #1 prompt line item).
+    // Measured: 71 ACTIVE rows (oldest 2026-06-28) all rendered into
+    // EVERY turn = 10,583 chars / ~2,646 tok, 21% of the built prompt,
+    // growing monotonically (docs/audits/PROMPT-COST-MEASUREMENT-
+    // 2026-08-25.md). The jit-sections A/B proved the SECTION earns its
+    // place on grounded turns — unbounded SIZE was never part of that
+    // result. Deadline-soonest first (nulls last), then newest; the
+    // renderer discloses the overflow count so nothing silently
+    // disappears.
     prisma.agendaItem.findMany({
       where: { status: { in: ["ACTIVE", "SNOOZED"] } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+      take: AGENDA_PROMPT_CAP,
       select: { id: true, title: true, description: true, category: true, createdAt: true, dueDate: true }
     }).catch(() => []),
+    prisma.agendaItem.count({
+      where: { status: { in: ["ACTIVE", "SNOOZED"] } },
+    }).catch(() => 0),
   ]);
 
   ctx.weeklyReview = weeklyReview;
@@ -129,6 +152,7 @@ export async function buildNickPrimeContext(): Promise<NickPrimeContext> {
     createdAt: item.createdAt.toISOString(),
     dueDate: item.dueDate ? item.dueDate.toISOString() : null,
   }));
+  ctx.agendaItemsTotal = agendaItemsTotal;
 
   const followUps: string[] = [];
   for (const row of recentDigests) {
@@ -180,5 +204,6 @@ export function nickContextFromState(state: CommandCenterState): NickPrimeContex
     followUps: [],
     anticipatedQuestions: [],
     agendaItems: [],
+    agendaItemsTotal: 0,
   };
 }
