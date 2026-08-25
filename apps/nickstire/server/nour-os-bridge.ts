@@ -774,8 +774,19 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
     let declinedData: Record<string, unknown> = {};
     try {
       const { getDeclinedWorkStats } = await import("./services/declinedWorkRecovery");
+      const { declinedWorkSourceState, isMeasured, sourceNote } = await import("./services/declinedWorkSource");
       const declined = await getDeclinedWorkStats();
-      declinedData = { declinedValue30d: declined.totalDeclinedValue, declinedItems30d: declined.totalDeclinedItems };
+      // Same reason as statenourSync: these totals read work_order_items,
+      // which held zero declined rows when measured, so a 0 here is an
+      // artifact of an unpopulated subsystem rather than a finding. The
+      // existing keys are unchanged; the flag says whether to believe them.
+      const declinedSource = await declinedWorkSourceState();
+      declinedData = {
+        declinedValue30d: declined.totalDeclinedValue,
+        declinedItems30d: declined.totalDeclinedItems,
+        declinedMeasured30d: isMeasured(declinedSource),
+        declinedSourceNote30d: sourceNote(declinedSource),
+      };
     } catch (err) {
       log.error("[NourOSBridge] Declined work stats fetch failed:", err instanceof Error ? err.message : err);
     }
