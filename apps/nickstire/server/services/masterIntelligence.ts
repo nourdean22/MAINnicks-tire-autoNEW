@@ -247,10 +247,35 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   }
 
   // 5. Margin health (±8)
+  //
+  // 2026-08-25 · the `|| 50` that stood here was the single most consequential
+  // line in this file. num() returns 0 for a missing or non-numeric key, so an
+  // unknown margin became 50, and clamp(round((50-30)*0.4), -8, 8) awards the
+  // FULL +8 - the maximum score for this component - while printing
+  // "50% average margin" as though it were measured. Unknown rendered as
+  // best-possible, on the operator's morning brief.
+  //
+  // analyzeProfitMargins now returns `overallMargin: null` with a `basis` of
+  // "insufficient-coverage" or "unavailable" rather than a number it cannot
+  // stand behind. A component we cannot measure scores ZERO and is flagged
+  // hasData:false - it neither rewards nor punishes the shop for a data gap.
+  // Measured at the time of the change: real coverage 25.2%, so this branch is
+  // the live one, and the honest margin on the covered basis is 7% (which
+  // would score -8), not the 76% the old code reported (which scored +8).
   if (margins) {
-    const avgMargin = num(margins, "averageMargin", "overallMargin") || 50;
-    const pts = clamp(Math.round((avgMargin - 30) * 0.4), -8, 8);
-    record("Margin health", pts, 8, `${avgMargin}% average margin (target 30%+)`);
+    const avgMargin = margins.overallMargin;
+    if (typeof avgMargin === "number") {
+      const pts = clamp(Math.round((avgMargin - 30) * 0.4), -8, 8);
+      const covered = num(margins, "costDetailCount");
+      const total = num(margins, "invoiceCount");
+      record("Margin health", pts, 8, `${avgMargin}% average margin (target 30%+) — on the ${covered}/${total} invoices carrying cost detail`);
+    } else {
+      const basis = typeof margins.basis === "string" ? margins.basis : "unavailable";
+      const reason = basis === "unavailable"
+        ? "margin unavailable — the revenue query failed"
+        : `margin unavailable — insufficient cost-detail coverage (${num(margins, "coveragePct")}%)`;
+      record("Margin health", 0, 8, reason, false);
+    }
   }
 
   // ═══ NEW: ADVANCED SIGNALS (8 more components) ═══
