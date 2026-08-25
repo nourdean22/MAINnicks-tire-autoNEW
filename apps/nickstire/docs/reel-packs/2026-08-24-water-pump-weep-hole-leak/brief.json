@@ -1,0 +1,132 @@
+{
+  "topic": "water-pump-weep-hole-leak",
+  "title": "Water pump weep hole leak (colored drip under the engine)",
+  "mode": "INTELLIGENCE_SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "generatedAt": "2026-08-24",
+  "capabilities": {
+    "ttsConnected": false,
+    "motionGenerationConnected": false,
+    "capcutConnected": false,
+    "metaPostingConnected": false,
+    "higgsfieldAccountHealth": "UNKNOWN",
+    "reelVideoProvider": "UNKNOWN",
+    "reelGenerationEnabled": "UNKNOWN",
+    "prodDbAccess": false
+  },
+  "repetitionCheck": {
+    "mergedPacksScanned": 91,
+    "openPrDraftsScanned": [
+      "heater-core-sweet-smell",
+      "horn-fuse-relay-clockspring",
+      "turbo-whistle-vs-boost-leak",
+      "trunk-hatch-gas-strut",
+      "washer-fluid-nozzle-order"
+    ],
+    "collision": false
+  },
+  "estimatedQualityScore": {
+    "total": 59,
+    "max70": true,
+    "passesFloor": false,
+    "dimensions": {
+      "firstFrameScrollStop": 8,
+      "mutedFirst": 10,
+      "beatStructure": 5,
+      "length": 5,
+      "loopability": 3,
+      "sourcedFact": 4,
+      "faceless": 10,
+      "claimSafety": 10,
+      "keywordRelevance": 4
+    }
+  },
+  "runtimeSeconds": 33,
+  "aspectRatio": "9:16",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "startSec": 0,
+      "endSec": 4,
+      "shot": "Macro close-up: colored fluid drips from under a parked engine bay onto clean concrete",
+      "prompt": "macro close up shot of colored coolant fluid dripping slowly from the underside of a car engine bay onto a clean concrete garage floor, shallow depth of field, cinematic lighting, photorealistic",
+      "vo": "A few drops of colored fluid under the front of your engine isn't always the radiator."
+    },
+    {
+      "index": 2,
+      "startSec": 4,
+      "endSec": 9,
+      "shot": "Engine bay wide shot pushing toward the front-center pulley and serpentine belt driving the water pump",
+      "prompt": "wide shot of a car engine bay pushing in toward the front center pulley and serpentine belt assembly driving a water pump, bright shop lighting, photorealistic, cinematic camera movement",
+      "vo": "Water pumps have a tiny weep hole built in — it's designed to leak a little before it fails."
+    },
+    {
+      "index": 3,
+      "startSec": 9,
+      "endSec": 14,
+      "shot": "Extreme macro of the weep hole on the water pump housing with a faint drip trail",
+      "prompt": "extreme macro close up of a small drain weep hole on a car water pump housing, a faint colored drip trail visible below it, engine bay detail, photorealistic",
+      "vo": "That hole lets coolant escape early, instead of the seal blowing out with no warning."
+    },
+    {
+      "index": 4,
+      "startSec": 14,
+      "endSec": 19,
+      "shot": "Close-up of the translucent coolant overflow reservoir with a light residue stain near the cap",
+      "prompt": "close up of a translucent car coolant overflow reservoir tank showing colored fluid level inside, a faint dried residue stain around the cap on the outside, engine bay lighting, photorealistic",
+      "vo": "One clue: it's colored and sticky — not clear water like AC condensation."
+    },
+    {
+      "index": 5,
+      "startSec": 19,
+      "endSec": 24,
+      "shot": "Macro of dried, crusty residue near a pump housing bolt, no active drip",
+      "prompt": "macro close up of dried crusty mineral residue buildup trailing down from a car water pump housing bolt, no active dripping, engine bay detail, photorealistic",
+      "vo": "You might also see a dried, crusty residue trail near the pump before a puddle ever shows up."
+    },
+    {
+      "index": 6,
+      "startSec": 24,
+      "endSec": 27,
+      "shot": "Dash close-up: temperature gauge needle drifting toward hot",
+      "prompt": "close up of a car dashboard temperature gauge needle slowly drifting from the normal center position toward the hot zone, dim interior lighting, photorealistic",
+      "vo": "Ignore it long enough and the engine can overheat with no warning."
+    },
+    {
+      "index": 7,
+      "role": "cta_save_freeze",
+      "startSec": 27,
+      "endSec": 33,
+      "shot": "Wide static hold: clean automotive service bay, no signage/logo",
+      "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame",
+      "vo": "Stop by and we'll take a look."
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "claimSafety": {
+    "usesPriceClaim": false,
+    "usesWarrantyOrGuarantee": false,
+    "approvedPhrasesUsed": ["might not be", "one clue", "worth checking", "stop by and we'll take a look"]
+  },
+  "musicRights": {
+    "status": "UNKNOWN",
+    "note": "No music-rights ledger exists in this repo; human editor must select and license-clear a royalty-free bed at assembly time."
+  },
+  "igfbCopy": {
+    "primaryCaption": "A few drops of colored fluid under the front of your engine isn't always \"just the radiator.\" Water pumps are built with a tiny weep hole that leaks a little before the seal fails for good. Catch it early and it's a simple fix — ignore it and it can mean overheating on the road. Stop by and we'll take a look.",
+    "hashtags": ["#CarMaintenance", "#CoolantLeak", "#WaterPump", "#CarCare", "#EuclidOhio", "#NicksTireAndAuto", "#AutoRepair", "#DIYCarCheck"],
+    "adVariants": [
+      {
+        "hook": "That small puddle under your car might be a built-in warning.",
+        "caption": "Water pumps have a weep hole on purpose — it drips a little before the seal fails completely. Catching it now beats a tow later.",
+        "cta": "Stop by and we'll take a look — no guessing."
+      },
+      {
+        "hook": "Colored drops under the engine, not under the AC?",
+        "caption": "That's coolant, not condensation — and it's often the first sign a water pump seal is wearing out. One clue: it's sticky, not clear.",
+        "cta": "Worth a quick look — swing by."
+      }
+    ]
+  }
+}
