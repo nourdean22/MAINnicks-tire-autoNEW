@@ -14,22 +14,24 @@ outage.
 
 ---
 
-> ## UNBUILT SPEC — measured 2026-08-23, none of these endpoints exist
+> ## LIVE — corrected 2026-08-23, after this header first said the opposite
 >
-> Reproduce: `git ls-tree -r --name-only origin/main | grep api/bridge` -> exactly one route,
-> `apps/statenour/app/api/bridge/health/route.ts`. **`/api/bridge/dropoff`,
-> `/api/bridge/callback` and `/api/bridge/shop-snapshot` return 0 route files and 0 code
-> references.** `lib/bridge-auth.ts` exists and has exactly one consumer: `bridge/health`.
+> All three endpoints **exist and are served**, by Express in *nickstire*, not by Next.js in
+> statenour — `apps/nickstire/server/_core/bridge-routes.ts`:
+> `GET /api/bridge/shop-snapshot` (`:460`), `POST /api/bridge/dropoff` (`:614`),
+> `POST /api/bridge/callback` (`:652`), each behind `bridgeAuth`. And statenour really does call
+> one: `lib/services/bridge.ts:73` fetches the snapshot with an `X-Bridge-Key` header.
 >
-> This document is written in the present indicative — "All 3 endpoints authenticate via…",
-> "already set", "the existing read-bridge" — which reads as live API surface. A nickstire
-> developer could implement a client against it and get 404s. It is a **proposal that was never
-> built**, and the only thing wrong with it is the tense.
+> **The first version of this header declared all three UNBUILT.** It was produced by
+> `git ls-tree -r --name-only origin/main | grep api/bridge`, which searches statenour's Next.js
+> route tree — the wrong app entirely. This spec's own audience line says "the session/dev working
+> on `nickstire.org/admin`", so the target app was stated two paragraphs above the search that
+> missed it. A zero from a search of the wrong subject is not evidence of absence; it is the
+> instrument failing to see its subject, and here it would have told a developer to rebuild live,
+> authenticated API surface.
 >
-> Left in place rather than deleted: the shapes are still the design, and `BRIDGE_API_KEY` +
-> `bridge-auth.ts` are real, so this is the spec to build from if the lane is revived. But the
-> header now says so, because "already set" and "existing" are exactly the phrases that stop a
-> reader checking.
+> Left on the record rather than quietly deleted: this is a doc-truth sweep, and the sweep
+> manufacturing a false claim on the surface it is auditing is the most useful thing it produced.
 
 ## Auth
 

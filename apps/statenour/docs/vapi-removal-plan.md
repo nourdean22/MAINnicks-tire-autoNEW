@@ -19,16 +19,25 @@ Total VAPI/voice-shaped code in statenour-os @ `63f4146`: **18 files · ~3,471 L
 
 Pure VAPI surfaces. No other callers. Verified via grep + dependency walk at the time of writing.
 
-> **EXECUTED — measured 2026-08-23 against `origin/main`.** Reproduce with
-> `git ls-tree -r --name-only origin/main -- apps/statenour/app/api/vapi | wc -l`
-> -> **0**. Every Tier-1 file listed below is gone; this section is a record of a
-> completed deletion, not a pending one.
+> **PARTIALLY EXECUTED — corrected 2026-08-23.** The `app/api/vapi/**` routes are gone
+> (`git ls-tree -r --name-only origin/main -- apps/statenour/app/api/vapi` -> 0), but Tier 1 spans
+> more than that directory and **three of its files are still present**:
 >
-> **One item did NOT ship:** `VoiceLatencyEvent` is still present in
-> `prisma/schema.prisma` (1 match) and its migration is still parked. The plan
-> called it "parked", and parked it remains — so the survey's file count is
-> historical while its Prisma line is still live. Stated because "the VAPI removal
-> shipped" would otherwise close the question on the half that did not.
+> | path | state |
+> |---|---|
+> | `lib/services/voice-latency.ts` | 12,133 bytes — present |
+> | `scripts/audit-vapi-assistant.ts` | 6,511 bytes — present |
+> | `tests/services/voice-latency.test.ts` | 9,116 bytes — present |
+>
+> And the migration is **applied, not parked**: it sits at
+> `prisma/migrations/20260512_v526_voice_latency/`, not in `migrations-pending/`. A sibling copy
+> exists at `apps/nickstire/drizzle/0038_wave181_voice_latency.sql`.
+>
+> **An earlier version of this note said "Every Tier-1 file listed below is gone" and called the
+> migration parked.** Both were wrong, from counting ONE directory and generalising to an inventory
+> that spans several — the file-count matched, so the check felt done. A completeness claim proved
+> by sampling a subset is the exact defect this sweep exists to remove, manufactured by the sweep.
+> Re-verify per path, not by directory:
 
 ```
 app/api/vapi/check-used-tire-stock/route.ts        221 LOC
