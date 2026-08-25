@@ -299,12 +299,184 @@ export async function estimateMarketShare(): Promise<{
 // #40 PROFIT MARGIN ANALYSIS
 // ═══════════════════════════════════════════════════════════
 
-export async function analyzeProfitMargins(): Promise<{
-  byService: Array<{ service: string; revenue: number; partsCost: number; laborCost: number; margin: number; marginPercent: number }>;
-  overallMargin: number;
+/**
+ * Minimum share of in-window invoices that must carry cost detail before a
+ * margin is a measurement rather than an artefact of missing data.
+ *
+ * 0.80 is not a taste call. Treating an invoice with no parts/labor as a
+ * non-responding unit, OMB Statistical Policy Directive No. 2 ("Standards and
+ * Guidelines for Statistical Surveys", 2006) requires a nonresponse-bias
+ * analysis before publishing an estimate whose unit response rate is below
+ * 80%. We have no such analysis, so below 80% we publish nothing. It is also
+ * the same threshold the cost-detail coverage alarm uses, deliberately: one
+ * number, so the alarm fires at exactly the point the margin stops rendering.
+ */
+export const MIN_COST_DETAIL_COVERAGE = 0.8;
+
+/** Why a margin is absent. `null` margin without this is indistinguishable from zero. */
+export type MarginBasis =
+  /** Enough invoices carry cost detail; the number is real. */
+  | "cost-detail"
+  /** Data loaded fine, but too few invoices carry cost detail to divide by. */
+  | "insufficient-coverage"
+  /** The query failed. NOT the same as low coverage, and NOT the same as 0%. */
+  | "unavailable";
+
+/**
+ * Profit margin, or an honest refusal to state one.
+ *
+ * ─── Why this refuses ──────────────────────────────────────────────────
+ *
+ * The prior version computed `revenue - parts - labor` over every row with no
+ * coverage guard. Measured against production 2026-08-25, in this function's
+ * exact 6-month window: 711 paid invoices, of which only 179 (25.2%) carried
+ * any cost detail. The unguarded formula reported **76%**; the same maths
+ * restricted to invoices that actually carry cost detail gives **7%**. The 532
+ * invoices with partsCost=0 AND laborCost=0 each contribute a free 100% margin
+ * to the average.
+ *
+ * Root cause is upstream and dated: ShopDriver-sourced invoices carried cost
+ * detail at ~100% through 2026-03, then collapsed across April 2026 (33/56 ->
+ * 9/31 -> 1/33 -> 0/23 by week) and have been at 0% since May. `manual`
+ * invoices still carry detail. This function cannot fix that; it can refuse to
+ * launder it into a confident number.
+ *
+ * ─── Why it reuses weeklyRevenueDigest's shape ─────────────────────────
+ *
+ * cron/jobs/weeklyRevenueDigest.ts already solved this on 2026-08-08 with
+ * `marginPct: number | null` plus covered* basis fields, under the comment
+ * "reporting margin without it is a LIE". That fix was applied to one sibling
+ * and not the other, which is the whole reason this defect survived. The
+ * field names here mirror it on purpose - a second, differently-shaped
+ * solution is how the next reader ends up fixing only one of them again.
+ */
+/** One paid invoice, as the margin maths needs it. Cents, straight from the row. */
+export interface MarginInvoiceRow {
+  totalAmount: number | null;
+  partsCost: number | null;
+  laborCost: number | null;
+  serviceDescription: string | null;
+}
+
+export interface MarginSummary {
+  byService: Array<{ service: string; revenue: number; partsCost: number; laborCost: number; margin: number | null; marginPercent: number | null }>;
+  /** Null when `basis` is not "cost-detail". Never 0-as-unknown. */
+  overallMargin: number | null;
+  basis: MarginBasis;
+  /** 0-100. Share of invoices carrying partsCost>0 OR laborCost>0. */
+  coveragePct: number;
+  costDetailCount: number;
+  invoiceCount: number;
+  /** Revenue restricted to invoices carrying cost detail - the margin's real basis. */
+  coveredRevenue: number;
   bestMarginService: string;
   worstMarginService: string;
-}> {
+}
+
+/**
+ * PURE. Separated from the query so the canary can drive it with a synthetic
+ * fixture instead of live data - a margin guard tested against whatever
+ * production happens to hold today would stop testing anything the moment
+ * coverage recovers.
+ */
+export function summariseMargins(rows: MarginInvoiceRow[]): MarginSummary {
+  // Per-category totals track COVERED and TOTAL separately. Dividing covered
+  // parts by total revenue was the mistake weeklyRevenueDigest's first fix
+  // made: with 1 of 32 invoices covered it still rendered ~99%, inflating
+  // margin in exact proportion to how much data was missing.
+  const catTotals: Record<string, { revenue: number; coveredRevenue: number; parts: number; labor: number; covered: number; uncovered: number }> = {};
+  let coveredRevenue = 0;
+  let coveredCost = 0;
+  let costDetailCount = 0;
+
+  for (const inv of rows) {
+    const rev = (inv.totalAmount || 0) / 100;
+    const parts = (inv.partsCost || 0) / 100;
+    const labor = (inv.laborCost || 0) / 100;
+    const hasCostDetail = parts > 0 || labor > 0;
+
+    if (hasCostDetail) {
+      costDetailCount++;
+      coveredRevenue += rev;
+      coveredCost += parts + labor;
+    }
+
+    const cats = categorizeService(inv.serviceDescription || "");
+    const effectiveCats = cats.length > 0 ? cats : ["other"];
+    for (const cat of effectiveCats) {
+      if (!catTotals[cat]) catTotals[cat] = { revenue: 0, coveredRevenue: 0, parts: 0, labor: 0, covered: 0, uncovered: 0 };
+      catTotals[cat].revenue += rev;
+      if (hasCostDetail) {
+        catTotals[cat].covered++;
+        catTotals[cat].coveredRevenue += rev;
+        catTotals[cat].parts += parts;
+        catTotals[cat].labor += labor;
+      } else {
+        catTotals[cat].uncovered++;
+      }
+    }
+  }
+
+  const invoiceCount = rows.length;
+  const coverage = invoiceCount > 0 ? costDetailCount / invoiceCount : 0;
+  const coveragePct = Math.round(coverage * 100);
+
+  // A per-service margin is subject to the SAME floor as the overall one.
+  //
+  // Self-audit caught this: the first draft published a category margin as soon
+  // as ANY invoice in it carried cost detail, so a category with 1 of 50 covered
+  // would still print a confident number - the identical defect this function
+  // exists to remove, reproduced one level down. And because byService is
+  // returned in BOTH branches, those numbers were reachable even when the
+  // overall basis was "insufficient-coverage".
+  const byService = Object.entries(catTotals).map(([service, data]) => {
+    const serviceInvoices = data.covered + (data.uncovered ?? 0);
+    const serviceCovered = serviceInvoices > 0 ? data.covered / serviceInvoices : 0;
+    const measurable = data.coveredRevenue > 0 && serviceCovered >= MIN_COST_DETAIL_COVERAGE;
+    const serviceCoverage = data.coveredRevenue;
+    const margin = measurable ? serviceCoverage - data.parts - data.labor : null;
+    return {
+      service,
+      revenue: Math.round(data.revenue),
+      partsCost: Math.round(data.parts),
+      laborCost: Math.round(data.labor),
+      margin: margin === null ? null : Math.round(margin),
+      marginPercent: margin === null ? null : Math.round((margin / serviceCoverage) * 100),
+    };
+  }).sort((a, b) => (b.marginPercent ?? -Infinity) - (a.marginPercent ?? -Infinity));
+
+  const measurable = byService.filter((s) => s.marginPercent !== null);
+  const bestMarginService = measurable.length > 0 ? measurable[0].service : "N/A";
+  const worstMarginService = measurable.length > 0 ? measurable[measurable.length - 1].service : "N/A";
+
+  if (coverage < MIN_COST_DETAIL_COVERAGE || coveredRevenue <= 0) {
+    return {
+      byService,
+      overallMargin: null,
+      basis: "insufficient-coverage" as const,
+      coveragePct,
+      costDetailCount,
+      invoiceCount,
+      coveredRevenue: Math.round(coveredRevenue),
+      bestMarginService,
+      worstMarginService,
+    };
+  }
+
+  return {
+    byService,
+    overallMargin: Math.round(((coveredRevenue - coveredCost) / coveredRevenue) * 100),
+    basis: "cost-detail" as const,
+    coveragePct,
+    costDetailCount,
+    invoiceCount,
+    coveredRevenue: Math.round(coveredRevenue),
+    bestMarginService,
+    worstMarginService,
+  };
+}
+
+export async function analyzeProfitMargins(): Promise<MarginSummary> {
   try {
     const rows = await (await db()).select({
       totalAmount: invoices.totalAmount,
@@ -318,47 +490,22 @@ export async function analyzeProfitMargins(): Promise<{
         eq(invoices.paymentStatus, "paid")
       ));
 
-    const catTotals: Record<string, { revenue: number; parts: number; labor: number }> = {};
-    let overallRev = 0;
-    let overallCost = 0;
-
-    for (const inv of rows) {
-      const rev = (inv.totalAmount || 0) / 100;
-      const parts = (inv.partsCost || 0) / 100;
-      const labor = (inv.laborCost || 0) / 100;
-      overallRev += rev;
-      overallCost += parts + labor;
-
-      const cats = categorizeService(inv.serviceDescription || "");
-      const effectiveCats = cats.length > 0 ? cats : ["other"];
-      for (const cat of effectiveCats) {
-        if (!catTotals[cat]) catTotals[cat] = { revenue: 0, parts: 0, labor: 0 };
-        catTotals[cat].revenue += rev;
-        catTotals[cat].parts += parts;
-        catTotals[cat].labor += labor;
-      }
-    }
-
-    const byService = Object.entries(catTotals).map(([service, data]) => {
-      const margin = data.revenue - data.parts - data.labor;
-      const marginPercent = data.revenue > 0 ? Math.round((margin / data.revenue) * 100) : 0;
-      return {
-        service,
-        revenue: Math.round(data.revenue),
-        partsCost: Math.round(data.parts),
-        laborCost: Math.round(data.labor),
-        margin: Math.round(margin),
-        marginPercent,
-      };
-    }).sort((a, b) => b.marginPercent - a.marginPercent);
-
-    const overallMargin = overallRev > 0 ? Math.round(((overallRev - overallCost) / overallRev) * 100) : 0;
-    const bestMarginService = byService.length > 0 ? byService[0].service : "N/A";
-    const worstMarginService = byService.length > 0 ? byService[byService.length - 1].service : "N/A";
-
-    return { byService, overallMargin, bestMarginService, worstMarginService };
+    return summariseMargins(rows);
   } catch {
-    return { byService: [], overallMargin: 0, bestMarginService: "N/A", worstMarginService: "N/A" };
+    // "unavailable", never 0. The prior version returned overallMargin: 0 here,
+    // so a DB failure and a genuinely zero-margin shop rendered identically -
+    // and downstream `|| 50` then turned that 0 into a confident "50%".
+    return {
+      byService: [],
+      overallMargin: null,
+      basis: "unavailable" as const,
+      coveragePct: 0,
+      costDetailCount: 0,
+      invoiceCount: 0,
+      coveredRevenue: 0,
+      bestMarginService: "N/A",
+      worstMarginService: "N/A",
+    };
   }
 }
 
