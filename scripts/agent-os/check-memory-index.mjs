@@ -43,19 +43,54 @@
  *   node scripts/agent-os/check-memory-index.mjs --quiet        # only on problems
  */
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
-const READ_LIMIT = 24_400; // observed truncation point
+/**
+ * `--limit <bytes>` exists FOR THE CANARIES, and that is a design decision, not
+ * a convenience.
+ *
+ * Without it, a fixture proving the fail-threshold has to be sized against the
+ * live READ_LIMIT — so the canary silently depends on a constant it does not
+ * own. Move the limit for a good reason and the canary fails while the guard is
+ * correct, which is how a control ends up deleted instead of fixed. A test must
+ * assert against a fixture it controls end to end, including the threshold.
+ */
+const argLimit = process.argv.indexOf("--limit");
+const READ_LIMIT = argLimit !== -1 ? Number(process.argv[argLimit + 1]) : 24_400; // observed truncation point
 const WARN_PCT = 80;
 const FAIL_PCT = 92;
 
+if (!Number.isFinite(READ_LIMIT) || READ_LIMIT <= 0) {
+  console.error(`[memory-index] CANNOT CHECK: --limit must be a positive number, got ${process.argv[argLimit + 1]}`);
+  process.exit(2);
+}
+
 const argDir = process.argv.indexOf("--dir");
 const QUIET = process.argv.includes("--quiet");
+
+/**
+ * DERIVE the project slug; do not hard-code it.
+ *
+ * The first version wrote `C--Users-nourd-NOURCITY` as a literal — one
+ * machine's path, baked into a repo file. That is the same coupling this
+ * repo now has a rule against: a control bound to a datum that can
+ * legitimately change (a moved checkout, a second machine, a renamed drive).
+ * It fails SAFE here — a wrong slug exits 2, "CANNOT CHECK", never 0 — but
+ * "fails loudly on every session for a reason nobody can act on" is how a
+ * guard gets disabled.
+ *
+ * The harness builds the slug by replacing path separators and `:` with `-`.
+ */
+function projectSlug(repoRoot) {
+  return repoRoot.replace(/[\\/:]/g, "-");
+}
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DIR =
   argDir !== -1
     ? process.argv[argDir + 1]
-    : join(homedir(), ".claude", "projects", "C--Users-nourd-NOURCITY", "memory");
+    : join(homedir(), ".claude", "projects", projectSlug(REPO_ROOT), "memory");
 
 function bail(msg) {
   console.error(`[memory-index] CANNOT CHECK: ${msg}`);
