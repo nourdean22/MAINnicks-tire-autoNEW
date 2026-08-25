@@ -12,6 +12,13 @@
 - **Why:** the suggestion-loop has captured operator reactions since ~2026-05-19, but
   nothing consumes them — the loop is open. This closes it, the same way `improve-agent`
   closed the reply-judgment loop.
+  **SHIPPED -- verified 2026-08-23.** `lib/brain/suggestion-improve.ts` plus
+  `lib/inngest/functions/suggestion-improve.ts`, exported as `suggestionImproveWeekly`
+  (`inngest/functions/index.ts:71`) on `cron: "30 13 * * 1"`. Checked the EXPORT
+  deliberately, not just the file: that same index records at `:68` that this function
+  once "shipped tested with zero importers" -- the repo's BUILT-TESTED-UNWIRED shape.
+  Defined is not wired; wired is what was measured. The "loop is open" clause above is
+  therefore the MOTIVATION as of ~2026-05-19, not current state.
 - **Who:** the operator — reads hypotheses on `/brain/wisdom`, decides whether to retune
   the `/api/nick/suggest` aggregator.
 - **Unit:** per suggestion *kind* (weak-axis, stuck-task, overdue, stalled-goal, pattern,

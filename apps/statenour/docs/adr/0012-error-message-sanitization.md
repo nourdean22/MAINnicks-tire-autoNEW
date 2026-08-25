@@ -81,7 +81,13 @@ complete list).
   without exposing credentials.
 - One central regex pack · adding a new leak vector touches one file
   not 26. The v529.8 broadening proved this loop works (one regex
-  edit covered all 26 routes).
+  edit covered all 26 routes **at that time -- measured 2026-08-23 the
+  count is 29**; reproduce with
+  `git grep -lE "sanitizeError|error-sanitizer" -- apps/statenour/app/api | wc -l`.
+  The number moved BECAUSE the argument works: new routes adopt the
+  central pack without touching it. Recorded as a dated observation
+  rather than silently bumped to 29 -- a count in prose is a cache with
+  no invalidation, and the ADR's reasoning does not depend on the value).
 - Pure function with no DB / I/O dependency · trivially testable.
   Tests at `tests/utils/sanitize-error.test.ts` cover all 6 vectors.
 - Composable with `apiHandler` · routes that adopt the wrapper get the

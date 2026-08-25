@@ -51,8 +51,11 @@ COULD be lifted out without project-specific entanglement.
 
 **In** (52 files → ~50 OSS files):
 - `types.ts` (rename to `index.d.ts` for an npm package)
-- `frameworks/*.ts` (all 49 files · the actual lens content · this
+- `frameworks/*.ts` (**49 files when this was scoped; 60 as of 2026-08-23** · the actual lens content · this
   is the valuable IP being shared)
+  (reproduce: `git ls-tree -r --name-only origin/main | grep -cE 'lenses/src/frameworks/.*[.]ts$'`.
+  The scope is "all of them", so the count is descriptive, not load-bearing -- dated
+  rather than bumped, because it drifts every time a lens is added.)
 - `index.ts` (dispatch · re-export of the registry)
 - Plus added at publish time: `LICENSE` · `README.md` · `package.json`
 
