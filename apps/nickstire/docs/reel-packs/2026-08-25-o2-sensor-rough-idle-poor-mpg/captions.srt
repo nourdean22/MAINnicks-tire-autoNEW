@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+Your gas mileage is dropping
+
+2
+00:00:02,000 --> 00:00:04,000
+and you don't know why.
+
+3
+00:00:04,000 --> 00:00:06,500
+Idle feels a little rough.
+
+4
+00:00:06,500 --> 00:00:09,000
+Check engine light comes on, then maybe goes off.
+
+5
+00:00:09,000 --> 00:00:11,500
+One clue: a failing oxygen sensor.
+
+6
+00:00:11,500 --> 00:00:15,000
+It can send the wrong reading to the engine computer.
+
+7
+00:00:15,000 --> 00:00:18,000
+That can richen the fuel mix —
+
+8
+00:00:18,000 --> 00:00:21,000
+burning more gas than you need to.
+
+9
+00:00:21,000 --> 00:00:23,500
+Don't guess which part it is.
+
+10
+00:00:23,500 --> 00:00:26,000
+A scan tool can help narrow it down.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before it costs you more at the pump.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
