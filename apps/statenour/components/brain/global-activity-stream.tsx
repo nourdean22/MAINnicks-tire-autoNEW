@@ -74,9 +74,14 @@ export function GlobalActivityStream({ limit = 30 }: { limit?: number }) {
     { limit: windowSize },
     { refetchInterval: 60_000 },
   );
-  const entries =
-    (activityQuery.data?.entries as ActivityEntry[] | undefined) ??
-    (activityQuery.isError ? [] : null);
+  // LATENT, not live: `?? (isError ? [] : null)` was safe here only because the
+  // `if (error)` return below fires first. It is removed because the safety was
+  // ACCIDENTAL — reorder or drop that guard and a failed read instantly renders
+  // "No recorded activity yet", a confident zero about data never received.
+  // Four sibling panels in components/brain/ had this same idiom WITHOUT an
+  // error guard and were doing exactly that (fixed in #1840). Null is the
+  // honest value for "not read".
+  const entries = (activityQuery.data?.entries as ActivityEntry[] | undefined) ?? null;
   const loading = activityQuery.isLoading;
   const error = activityQuery.isError
     ? activityQuery.error.message
