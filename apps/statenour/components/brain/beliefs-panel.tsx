@@ -44,11 +44,13 @@ export function BeliefsPanel() {
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
-  const active = (beliefsQuery.data?.active as StoredBelief[] | undefined) ??
-    (beliefsQuery.isError ? [] : null);
+  // A FAILED READ IS NOT A ZERO. These previously ended `?? (isError ? [] : null)`,
+  // so a failed query produced an empty array and the panel rendered a confident
+  // "No active beliefs yet" — a measured claim about data it never received.
+  // Null now means "no reading", and the empty state below says which.
+  const active = (beliefsQuery.data?.active as StoredBelief[] | undefined) ?? null;
   const candidates =
-    (beliefsQuery.data?.candidates as StoredBelief[] | undefined) ??
-    (beliefsQuery.isError ? [] : null);
+    (beliefsQuery.data?.candidates as StoredBelief[] | undefined) ?? null;
   const loading = beliefsQuery.isLoading;
   const loadedAt = beliefsQuery.dataUpdatedAt || null;
   const harvesting = harvestMutation.isPending;
@@ -263,9 +265,20 @@ export function BeliefsPanel() {
           <EmptyState
             icon={BookOpen}
             title="No active beliefs yet"
+            provenance="ZERO"
             why="Beliefs are curated stated-positions that get injected into every chat turn so Nick reasons from your actual operating truths — not generic defaults."
             unlock="Promote a candidate from the list above, or run Harvest now to surface new ones from recent brain dumps."
             tone="neutral"
+          />
+        )}
+        {!active && !loading && (
+          <EmptyState
+            icon={BookOpen}
+            title={beliefsQuery.isError ? "Beliefs unavailable" : "Beliefs not read"}
+            provenance={beliefsQuery.isError ? "ERROR" : "UNMEASURED"}
+            tone="warning"
+            why="Nothing is known about your active beliefs right now — this is not the same as having none. Chat turns are still being injected with whatever the server last had."
+            unlock="Reload the panel. If it keeps failing, check the brain router."
           />
         )}
       </div>

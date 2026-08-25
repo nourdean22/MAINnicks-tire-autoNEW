@@ -60,9 +60,13 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
   });
   const resolveMutation = trpc.brain.resolveContradiction.useMutation();
 
+  // A FAILED READ IS NOT A ZERO — and here it was the worst version of that.
+  // This ended `?? (isError ? [] : null)`, so a failed query fell straight into
+  // the empty branch and rendered a GREEN "Clean ledger · Nick's stated
+  // positions are internally consistent". A read that failed was reported as
+  // proof the self-model is coherent.
   const rows =
-    (contraQuery.data?.contradictions as StoredContradiction[] | undefined) ??
-    (contraQuery.isError ? [] : null);
+    (contraQuery.data?.contradictions as StoredContradiction[] | undefined) ?? null;
   const loading = contraQuery.isLoading;
   const loadedAt = contraQuery.dataUpdatedAt || null;
 
@@ -289,19 +293,31 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
           );
         })}
 
-        {!loading && visible.length === 0 && (
+        {!loading && !rows && (
+          <EmptyState
+            icon={Split}
+            title={contraQuery.isError ? "Contradictions unavailable" : "Ledger not read"}
+            provenance={contraQuery.isError ? "ERROR" : "UNMEASURED"}
+            tone="warning"
+            why="The contradiction ledger could not be read, so nothing is known about whether the self-model is consistent. That is NOT a clean ledger."
+            unlock="Reload above. If it keeps failing, check the brain router."
+          />
+        )}
+        {!loading && rows && visible.length === 0 && (
           tab === "unresolved" ? (
             <EmptyState
               icon={Check}
               title="Clean ledger"
+              provenance="ZERO"
               why="No new memory contradicts any old one right now. Nick's stated positions are internally consistent."
-              unlock="Contradictions surface automatically when a new memory semantically flips an older one (negation, reversal, antonym). This state means either you've been coherent or the detector hasn't seen friction yet."
+              unlock="Contradictions surface when a new memory semantically flips an older one (negation, reversal, antonym). A measured zero says the LEDGER is empty — it does not say whether the detector has seen enough traffic to have an opinion."
               tone="positive"
             />
           ) : (
             <EmptyState
               icon={Split}
               title="No resolved contradictions yet"
+              provenance="ZERO"
               why="Every resolution gets logged here — current wins, old wins, both valid, or dismissed."
               unlock="Switch to Unresolved, work through the list, then come back."
               tone="neutral"

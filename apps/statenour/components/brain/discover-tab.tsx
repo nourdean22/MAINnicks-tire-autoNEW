@@ -271,7 +271,8 @@ export function DiscoverTab() {
         <EmptyState
           icon={Sparkles}
           title="Nothing new to judge"
-          why="Every recent discovery has a verdict, or the engines found nothing this cycle."
+          provenance="ZERO"
+          why="This surface read successfully and the queue is genuinely empty. What it CANNOT tell you is which upstream cause produced that: every recent discovery already has a verdict, or the engines found nothing this cycle. Both are real zeros here."
           unlock="The brain-intelligence cron runs nightly — check back tomorrow, or include judged items above."
         />
       ) : (
