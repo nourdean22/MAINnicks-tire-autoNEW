@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { safeQuery } from "@/lib/db/safe-prisma";
 import { getDoneTodayCount } from "@/lib/brain/task-events";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
@@ -85,7 +86,7 @@ async function estimateCapacityRemainingMin(): Promise<number> {
     const fullDayCapacity = Math.round(baseCapacityMin * ratio);
     // Project remaining waking hours. Roughly: 8am → 11pm = 15h.
     const now = new Date();
-    const hour = now.getHours();
+    const hour = hourET(now);
     const remainingFraction = Math.max(0, Math.min(1, (23 - hour) / 15));
     return Math.round(fullDayCapacity * remainingFraction);
   } catch {
@@ -191,8 +192,8 @@ export async function gatherTaskSignals(): Promise<TaskSignals> {
   const agg = aggregate(tasks as TaskAggregate[]);
 
   return {
-    hour: now.getHours(),
-    dayOfWeek: now.getDay(),
+    hour: hourET(now),
+    dayOfWeek: weekdayET(now),
     state,
     doneToday,
     openCount: agg.openCount,

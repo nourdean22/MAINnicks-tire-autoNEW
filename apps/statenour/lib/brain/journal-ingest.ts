@@ -23,7 +23,7 @@ import { resolveInboxMissionId } from "@/lib/services/missions";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("journal-ingest", "journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today } from "@/lib/utils/datetime";
+import { hourET, today } from "@/lib/utils/datetime";
 import { sendTelegram } from "@/lib/services/telegram";
 import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import { getJournalSettings } from "@/lib/journal/settings";
@@ -566,7 +566,7 @@ ${rawText}`,
       if (data.mood && VALID_MOODS.has(data.mood.toLowerCase())) {
         await brainMemory.remember(
           "emotional_state",
-          `journal_mood_${dateStr}_${new Date().getHours()}`,
+          `journal_mood_${dateStr}_${hourET()}`,
           `Journal mood at ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}: ${data.mood.toLowerCase()}. ${data.summary || ""}`,
           "journal_pipeline"
         );

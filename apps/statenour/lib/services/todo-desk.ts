@@ -22,6 +22,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 import { cached } from "@/lib/utils/cache";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -116,7 +117,7 @@ const EFFORT_MINUTES: Record<string, number> = {
 };
 
 function detectWindow(): { kind: WorkWindow; label: string } {
-  const h = new Date().getHours();
+  const h = hourET();
   if (h >= 6 && h < 12) return { kind: "deep", label: "deep work window" };
   if (h >= 12 && h < 17) return { kind: "ops", label: "ops window" };
   if (h >= 17 && h < 22) return { kind: "review", label: "review window" };

@@ -80,6 +80,35 @@ Short enough to remember, each earned by an incident this file records.
    state: these are caches with no invalidation the moment they are written into prose. Name the
    probe instead. Violated during the fix for exactly this class — see the worked example below.
 
+9. **A canary must assert against a fixture it controls, never against live config, live data, or
+   a live count.** A control coupled to a temporary datum dies when the datum correctly changes:
+   the test fails, the failure is *legitimate*, and the canary is now standing between a correct
+   fix and a green build. At that point someone deletes it — and they are not entirely wrong to,
+   which is what makes this failure mode different from ordinary rot.
+
+   **It has already cost this repo a canary.** The doc-claim redundancy canary was hard-coded
+   against the live `DESIGN.md:5` allowlist entry. When that entry was legitimately removed the
+   test could not pass as written, and it was deleted to turn a red gate green. The fair reading
+   is that the deletion was the *second* error and the design was the first: every other canary in
+   that file builds a throwaway fixture, and that one reached out to a datum with a lifespan
+   measured in days.
+
+   **The tell** is any assertion naming something that exists today for a reason unrelated to the
+   control: a specific allowlist entry, a cron name, a row count, a version, a threshold constant
+   the test does not own. **The fix** is to construct the condition instead of borrowing it —
+   synthetic fixture, injected threshold, generated fixture data.
+
+   Applied here 2026-08-23: `memoryIndex.test.mjs` asserted the literal `~24400` read limit and
+   sized two fixtures against it. `--limit` was added to the guard *for the canaries*, so each
+   fixture now owns its own threshold. **Verified by breaking it deliberately** — with `READ_LIMIT`
+   moved 24,400 → 99,000, all 10 canaries still pass; before the change, two would have failed
+   against a guard that was entirely correct.
+
+   The distinction that matters: **a parity canary is not this defect.** `coverage-doc.test.mjs`
+   asserts a doc's derived counts match their live source and is *supposed* to fire when they
+   diverge — comparing two things that must agree is its whole purpose. The defect is asserting a
+   live value as a *constant*, where the correct response to a divergence is to edit the test.
+
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
 They are **complementary, not overlapping**, and the split is deliberate:

@@ -23,6 +23,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { weekdayET } from "@/lib/utils/datetime";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 // v10.0.529.37 · Arc B F7 expansion · day-plan generator uses
 // operator-tuned style so block titles + framing inherit voice tells.
@@ -285,7 +286,7 @@ function dayBoundaryDate(dayLabel: string, edge: "start" | "end"): Date {
     target.setDate(target.getDate() + 1);
   } else if (dayLabel === "saturday") {
     target = new Date();
-    const daysUntilSaturday = (6 - target.getDay() + 7) % 7 || 7;
+    const daysUntilSaturday = (6 - weekdayET(target) + 7) % 7 || 7;
     target.setDate(target.getDate() + daysUntilSaturday);
   } else if (dayLabel === "this-week") {
     target = now;
@@ -298,7 +299,7 @@ function dayBoundaryDate(dayLabel: string, edge: "start" | "end"): Date {
   } else {
     target.setHours(23, 59, 59, 999);
     if (dayLabel === "this-week") {
-      const daysToSunday = 7 - target.getDay();
+      const daysToSunday = 7 - weekdayET(target);
       target.setDate(target.getDate() + daysToSunday);
     }
   }

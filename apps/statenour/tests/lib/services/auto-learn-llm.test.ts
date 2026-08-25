@@ -30,7 +30,16 @@ vi.mock("@/lib/brain/embedding-utils", () => ({
   storeMemoryEmbedding: mocks.storeMemoryEmbedding,
 }));
 
-vi.mock("@/lib/utils/datetime", () => ({ today: mocks.today }));
+// Partial mock via importOriginal, NOT a replacement object. The previous form
+// returned ONLY `today`, so the day this file started importing `hourET` from
+// the same module the helper was undefined, the call threw inside an async path,
+// and three tests failed with "expected spy to be called 1 times, but got 0" —
+// a message pointing nowhere near the cause. A whole-module stub silently breaks
+// on the next import added to the file under test.
+vi.mock("@/lib/utils/datetime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/utils/datetime")>()),
+  today: mocks.today,
+}));
 
 import { enrichInsightAsync } from "@/lib/services/auto-learn-llm";
 

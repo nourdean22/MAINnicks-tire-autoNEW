@@ -14,7 +14,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { daysAgo } from "@/lib/utils/datetime";
+import { daysAgo, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
@@ -189,7 +189,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
   if (jobs.length >= 20) {
     const byDow: Record<number, { total: number; count: number }> = {};
     for (const j of jobs) {
-      const dow = j.jobDate.getDay();
+      const dow = weekdayET(j.jobDate);
       if (!byDow[dow]) byDow[dow] = { total: 0, count: 0 };
       byDow[dow].total += Number(j.totalRevenue);
       byDow[dow].count++;
@@ -396,11 +396,11 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
   // ── Weekend leads vs weekday conversion ──
   if (leads.length >= 20) {
     const weekendLeads = leads.filter((l) => {
-      const day = new Date(l.createdAt).getDay();
+      const day = weekdayET(new Date(l.createdAt));
       return day === 0 || day === 6;
     });
     const weekdayLeads = leads.filter((l) => {
-      const day = new Date(l.createdAt).getDay();
+      const day = weekdayET(new Date(l.createdAt));
       return day >= 1 && day <= 5;
     });
 

@@ -1,0 +1,119 @@
+{
+  "packId": "2026-08-25-misfire-shudder-coil-vs-plug",
+  "generatedAt": "2026-08-25",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "no slate file backs this topic — chosen ad hoc from the repetition-avoidance check in README §1/§2, not from REEL-SLATE-2026-07-31.md",
+  "campaignKeyword": "MISFIRE-SHUDDER",
+  "hookText": "Car shakes when you hit the gas?",
+  "ctaText": "Nick's Tire & Auto — Euclid Ave, Cleveland. Stop by and we'll take a look.",
+  "ctaTypeNote": "SAVE/informational close, not a SEND push — matches this directory's dominant convention (e.g. 2026-08-16-check-engine-light) rather than inventing a new CTA shape.",
+  "durationSeconds": 32,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Car shakes when you hit the gas?",
+      "onScreenText": "",
+      "providerScene": "Macro shot from behind the steering wheel looking at the tachometer needle, needle visibly stuttering/bouncing as the driver's foot (out of frame) presses the accelerator, shallow depth of field, subtle cabin vibration, dim interior ambient light, cinematic automotive commercial look, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "That jolt is called a misfire — one cylinder skipping a beat.",
+      "onScreenText": "",
+      "providerScene": "Engine bay wide shot, hood open, engine idling with a visible slight roughness/vibration in the block, warm daylight, slow push-in dolly toward the cylinder head, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 13,
+      "narration": "A worn spark plug or a tired ignition coil can point to it.",
+      "onScreenText": "",
+      "providerScene": "Split-feel sequence: extreme macro of a spark plug being lifted from its socket showing worn/rounded electrode, cross-fade-free hard cut to extreme macro of an ignition coil pack being unclipped from its cylinder, both under a bright work-light, shallow depth of field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 13,
+      "endSecond": 18,
+      "narration": "Steady check engine light: one clue, still fine to drive over.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro on a dashboard check-engine icon, steady non-blinking amber glow, static hold, soft key light reflecting off the gauge glass, calm mood, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "VALUE",
+      "startSecond": 18,
+      "endSecond": 24,
+      "narration": "Blinking? Stop — that level of misfire can damage your catalytic converter.",
+      "onScreenText": "",
+      "providerScene": "Same check-engine icon now strobing rapidly, color grade shifts warmer/more urgent, slight handheld shake for urgency, hard cut to an under-car shot of the exhaust catalytic converter housing with heat-shimmer haze, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 6,
+      "intent": "CTA",
+      "startSecond": 24,
+      "endSecond": 29,
+      "narration": "Do not guess which part it is. We pull the code and check the coil — free check, written quote before any work.",
+      "onScreenText": "",
+      "providerScene": "Diagnostic scan tool plugged into the OBD-II port under the dash, screen showing a generic fault-code readout (no real DTC asserted, illustrative only), technician's gloved hand (no face) operating the tool, warm garage lighting, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 7,
+      "intent": "CTA_FREEZE",
+      "startSecond": 29,
+      "endSecond": 32,
+      "narration": "Nick's Tire & Auto — Euclid Ave, Cleveland. Stop by and we'll take a look.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold — SAVE freeze frame per the render-integrity contract's 3s end-hold convention, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §5)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient cabin/engine-bay room-tone only, royalty-free",
+    "sfxNotes": "optional single subtle diagnostic-tool 'beep' under beat 6 (scan-tool plug-in) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "claimSafetyVerification": {
+    "method": "FORBIDDEN_CLAIM_PATTERNS / OVERDIAGNOSIS_PATTERNS / FEARMONGER_PATTERNS / GENERIC_MARKETING_PATTERNS / PRICE_CLAIM_PATTERN regexes copied verbatim from client/src/lib/facelessReelStudio.ts and run standalone against the full narration text via node — a real regex execution, not a human read-through. Not the same as invoking the module's exported detectors directly (no live import was run), and not the same as the server's real runSafetyChecks() call.",
+    "result": "clean — zero block or warn findings across all five pattern banks checked. 'free check' does not trip no-free-claims (negative-lookahead exempts it); 'can point to' / 'one clue' / 'do not guess' / 'stop by and we'll take a look' are drawn directly from the approved soft-diagnostic phrase list."
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 7, "detail": "a stuttering tachometer needle behind the wheel is a relatable, mildly puzzling hook, but less visceral than a sound- or light-based hook already used elsewhere in this directory" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2, "detail": "CTA freeze frame (garage wide shot) does not loop back into the hook frame (tachometer macro) — same structural weakness noted in every prior pack in this directory using the SAVE-freeze ending" },
+      "sourcedFact": { "max": 10, "score": 6, "detail": "misfire → worn plug/coil, and misfire → catalytic-converter damage, are standard automotive mechanical knowledge, hedged with 'can point to' (approved soft-diagnostic phrasing); no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run (would be a prod DB read)" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9, "detail": "clears all five real pattern banks (see claimSafetyVerification above); not full marks because entailment status for the mechanical claims is 'not_evaluated', not 'supported'" },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (59/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "59/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}

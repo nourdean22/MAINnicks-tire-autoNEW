@@ -1,3 +1,4 @@
+import { hourET } from "@/lib/utils/datetime";
 /**
  * Pure-function helpers extracted from lib/brain/attention-tracker.ts
  * so they can be unit-tested without mocking Prisma.
@@ -87,7 +88,7 @@ export function computeAttentionVelocity(
 export type TimeBucket = "morning" | "afternoon" | "evening";
 
 export function timeOfDayBucket(d: Date): TimeBucket {
-  const h = d.getHours();
+  const h = hourET(d);
   if (h < 12) return "morning";
   if (h < 18) return "afternoon";
   return "evening";

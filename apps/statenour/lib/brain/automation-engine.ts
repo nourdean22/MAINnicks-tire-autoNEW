@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
 import type { AutomationRule } from "@prisma/client";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -162,8 +163,8 @@ export class AutomationEngine {
     return {
       devices,
       time: now,
-      dayOfWeek: now.getDay(),
-      hour: now.getHours(),
+      dayOfWeek: weekdayET(now),
+      hour: hourET(now),
     };
   }
 }

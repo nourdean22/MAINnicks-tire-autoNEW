@@ -1,0 +1,74 @@
+{
+  "topic": "AC blows cold on one side, warm on the other: blend door actuator, not the compressor",
+  "campaignKeyword": "BLENDCHECK",
+  "runDate": "2026-08-25",
+  "mode": "PRODUCTION",
+  "durationSeconds": 28,
+  "selfEstimatedQualityScore": {
+    "value": 49,
+    "outOf": 75,
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() — that function was not called this run (no server process, no live route). Weak dimensions: sourced-fact and claim-safety points withheld pending human evidence review; see README.md section 3."
+  },
+  "beats": [
+    {
+      "id": 1,
+      "label": "HOOK",
+      "window": "0:00-0:04",
+      "narration": "One side of your AC blows ice cold. The other stays warm.",
+      "visualPrompt": "Extreme macro shot of two adjacent dashboard AC vents side by side, one vent with a faint cold mist/condensation effect drifting from its slats, the other with a subtle warm heat-shimmer, static locked composition, cool-to-warm color split lighting, no visible hands or faces, photorealistic automotive macro cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["car dashboard AC vents macro", "car air vent cold mist", "dual zone climate vents close up"]
+    },
+    {
+      "id": 2,
+      "label": "SETUP",
+      "window": "0:04-0:09",
+      "narration": "That's rarely the compressor. It's usually a blend door actuator stuck between hot and cold.",
+      "visualPrompt": "Macro push-in on a dual-zone climate control panel display on a car dashboard, soft blue glow on one side and warm amber glow on the other, slow static or gentle forward dolly, no visible hands or faces, photorealistic automotive interior cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["dual zone climate control panel", "car dashboard temperature display", "car AC control macro"]
+    },
+    {
+      "id": 3,
+      "label": "VALUE",
+      "window": "0:09-0:16",
+      "narration": "A small motor behind your dash aims a flap that mixes hot and cold air for each side. When it fails, one side gets stuck.",
+      "visualPrompt": "Extreme macro cutaway-style shot inside a dashboard duct assembly, a small mechanical flap and gear mechanism visible in warm engineering light, slow orbital camera move, shallow depth of field, no visible hands or faces, photorealistic mechanical macro cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["HVAC blend door mechanism macro", "car dashboard duct interior", "automotive actuator gear macro"]
+    },
+    {
+      "id": 4,
+      "label": "VALUE",
+      "window": "0:16-0:23",
+      "narration": "Hear a clicking or ticking from the dash when you adjust the temperature? That's the motor straining against a stuck door.",
+      "visualPrompt": "Extreme macro of a small electric actuator motor mounted to dashboard ductwork, subtle vibration and micro-motion, moody cool garage light, rack focus from motor housing to gear teeth, no visible hands or faces, photorealistic automotive macro cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["car actuator motor macro", "dashboard electric motor close up", "automotive HVAC actuator"]
+    },
+    {
+      "id": 5,
+      "label": "CTA",
+      "window": "0:23-0:28",
+      "narration": "Don't let it turn into a full dash-apart repair. Nick's Tire and Auto can check it before it gets worse.",
+      "visualPrompt": "Wide establishing shot of a clean, well-lit tire and auto shop bay, warm inviting color grade, slow static or subtle push-in, organized tools and a lift in the background, no visible faces in focus, photorealistic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["auto repair shop bay wide shot", "clean garage interior wide", "tire shop bay establishing shot"]
+    }
+  ],
+  "audioNotes": {
+    "voiceover": "Not generated this run — no TTS route connected in this session. Narration column above is the exact script to feed reelVoice.ts at real render time.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (real gap, see README.md section 6). Voiceover + captions + optional ambient garage room-tone only.",
+    "mutedFirstCompliant": true
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "codec": "H.264",
+    "fps": 30,
+    "durationSeconds": 28,
+    "ctaType": "SEND-oriented"
+  }
+}

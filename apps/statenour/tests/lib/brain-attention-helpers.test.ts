@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { hourET } from "@/lib/utils/datetime";
 import {
   ATTENTION_DOMAIN_KEYWORDS,
   classifyMessageDomain,
@@ -114,33 +115,37 @@ describe("computeAttentionVelocity", () => {
 });
 
 describe("timeOfDayBucket", () => {
+  // ET-ANCHORED FIXTURES. These used `new Date(); d.setHours(H)` — LOCAL hour H,
+  // which is 16:00Z on an ET laptop and 12:00Z in CI. timeOfDayBucket reads the
+  // ET hour, so the two agreed only when the machine happened to be in ET: the
+  // suite passed locally and failed in CI on the same commit. A test whose result
+  // depends on where it runs cannot tell you anything about the code.
+  //
+  // August is EDT (UTC-4), so ET hour H is UTC hour H+4 on this date. Constructed
+  // with Date.UTC so no local zone enters the fixture at all.
+  const atEtHour = (h: number) => new Date(Date.UTC(2026, 7, 23, h + 4, 0, 0));
+
+  it("the fixture itself is ET-correct in any zone", () => {
+    // The positive control. Without it, a broken `atEtHour` would make every
+    // assertion below meaningless while they all still passed.
+    expect(hourET(atEtHour(6))).toBe(6);
+    expect(hourET(atEtHour(12))).toBe(12);
+    expect(hourET(atEtHour(18))).toBe(18);
+  });
+
   it("maps 6am to morning", () => {
-    const d = new Date();
-    d.setHours(6, 0, 0, 0);
-    expect(timeOfDayBucket(d)).toBe("morning");
+    expect(timeOfDayBucket(atEtHour(6))).toBe("morning");
   });
 
   it("maps noon to afternoon (not morning)", () => {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    expect(timeOfDayBucket(d)).toBe("afternoon");
+    expect(timeOfDayBucket(atEtHour(12))).toBe("afternoon");
   });
 
   it("maps 5pm to afternoon", () => {
-    const d = new Date();
-    d.setHours(17, 0, 0, 0);
-    expect(timeOfDayBucket(d)).toBe("afternoon");
+    expect(timeOfDayBucket(atEtHour(17))).toBe("afternoon");
   });
 
   it("maps 6pm to evening", () => {
-    const d = new Date();
-    d.setHours(18, 0, 0, 0);
-    expect(timeOfDayBucket(d)).toBe("evening");
-  });
-
-  it("maps 11pm to evening", () => {
-    const d = new Date();
-    d.setHours(23, 0, 0, 0);
-    expect(timeOfDayBucket(d)).toBe("evening");
+    expect(timeOfDayBucket(atEtHour(18))).toBe("evening");
   });
 });

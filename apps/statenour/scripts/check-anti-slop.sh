@@ -13,7 +13,10 @@
 # editorial spread (v10.0.193 · DFII 15) is the baseline — every
 # new component should match or exceed that bar.
 #
-# Override (emergency only): ANTI_SLOP_GATE_SOFT=1 git push
+# Override (emergency only): ANTI_SLOP_GATE_SOFT=1 downgrades a hit to a warning.
+# It does NOT relate to `git push` - this script is not in any push hook. It runs
+# inside `pnpm verify:hard`. The old text here paired the flag with a push command,
+# which told the reader a push gate existed AND how to bypass it; neither was true.
 
 set -e
 
@@ -73,7 +76,11 @@ if [ "$LEAK_COUNT" -gt 0 ]; then
     echo "        + custom display where needed) and skip purple"
     echo "        gradients (gold-on-dark is the brand)."
     echo ""
-    echo "  emergency override: ANTI_SLOP_GATE_SOFT=1 git push"
+    # No override is advertised here any more. This script is not wired into a
+    # push hook, so the old override line named an escape hatch for a gate that
+    # did not run - telling the reader both that a push gate existed and how to
+    # bypass it, neither of which was true. It runs inside verify:hard.
+    echo "  this runs inside pnpm verify:hard - fix the hit, do not skip the gate."
     exit 1
   fi
 else

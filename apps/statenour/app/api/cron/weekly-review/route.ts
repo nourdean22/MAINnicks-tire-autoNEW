@@ -9,13 +9,13 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("cron/weekly-review");
 
-import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, toDateString, weekdayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
 function getWeekStartMonday(): string {
   const now = new Date();
-  const day = now.getDay();
+  const day = weekdayET(now);
   const diff = day === 0 ? 6 : day - 1;
   const monday = new Date(now);
   monday.setDate(now.getDate() - diff);

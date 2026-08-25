@@ -122,7 +122,8 @@ Receipt: `#102` firstName in Railway logs · `#128` raw PII in venice prompt siz
 - Roboto / Arial system-font imports
 
 Baseline to match or beat: the link-review editorial spread (DFII 15). Emergency
-override only: `ANTI_SLOP_GATE_SOFT=1`.
+override only: `ANTI_SLOP_GATE_SOFT=1`, which downgrades a hit to a warning inside
+`pnpm verify:hard`. It is not a push-hook flag - this gate has never run at push time.
 
 ## No dialog globals in client code
 

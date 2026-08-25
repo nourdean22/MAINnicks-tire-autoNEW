@@ -36,6 +36,7 @@
  */
 
 import { parseQuickAdd as parseTokens } from "@/components/actions/shared";
+import { weekdayET } from "@/lib/utils/datetime";
 
 export type LoopKind = "ONCE" | "DAILY" | "PROMISE";
 
@@ -68,7 +69,7 @@ function parseByClause(raw: string): Date | null {
   if (s === "tomorrow") return endOfDay(addDays(now, 1));
   if (s === "next week") return endOfDay(addDays(now, 7));
   if (s === "end of week" || s === "eow") {
-    const daysUntilFriday = (5 - now.getDay() + 7) % 7 || 7;
+    const daysUntilFriday = (5 - weekdayET(now) + 7) % 7 || 7;
     return endOfDay(addDays(now, daysUntilFriday));
   }
 
@@ -77,7 +78,7 @@ function parseByClause(raw: string): Date | null {
   if (dayMatch) {
     const targetIdx = dayNames.indexOf(dayMatch[2]);
     if (targetIdx >= 0) {
-      let diff = (targetIdx - now.getDay() + 7) % 7;
+      let diff = (targetIdx - weekdayET(now) + 7) % 7;
       if (diff === 0) diff = 7; // always future
       if (dayMatch[1]) diff += 7; // "next friday" = +7 days past next occurrence
       return endOfDay(addDays(now, diff));
