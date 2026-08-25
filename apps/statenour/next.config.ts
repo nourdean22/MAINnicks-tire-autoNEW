@@ -77,7 +77,10 @@ const nextConfig: NextConfig = {
   // file tracer carries the packages + transitive deps into the runtime image —
   // the Dockerfile ships ONLY .next/standalone, so an untraced dep simply does
   // not exist in prod (lib/integrations/stagehand.ts has the full story).
-  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js", "@browserbasehq/stagehand", "playwright-core"],
+  // 2026-08-25 · @langfuse/otel + @opentelemetry/sdk-node stay external:
+  // the OTel SDK misbehaves when bundled (patching/require semantics), and
+  // lib/observability/langfuse.ts loads them via runtime require anyway.
+  serverExternalPackages: ["@prisma/client", "@resvg/resvg-js", "@browserbasehq/stagehand", "playwright-core", "@langfuse/otel", "@opentelemetry/sdk-node"],
 
   // v10.0.290 · 3D layer.
   // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The

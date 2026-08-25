@@ -30,6 +30,7 @@ import { stepCountIs } from "ai";
 import { GEMINI_SAFETY_OFF, type ProviderName } from "@/lib/ai/provider";
 import { inferProviderName } from "@/lib/ai/stream-with-fallback";
 import { claude5EffortForAttempt } from "@/lib/ai/vnext/effort-policy";
+import { isLangfuseTelemetryEnabled } from "@/lib/observability/langfuse";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -106,6 +107,22 @@ export function buildStreamConfigFactory(deps: {
 
     return ({
       model: __fbModel,
+      // 2026-08-25 · Langfuse tracing (docs/integrations/langfuse-
+      // observability.md). isEnabled is a REAL gate: true only when the
+      // LangfuseSpanProcessor actually started at boot AND the turn is not
+      // private-mode (spans carry prompt + completion content; private turns
+      // never leave the process). With no started processor the flag is
+      // false and the AI SDK builds no spans at all — zero overhead.
+      experimental_telemetry: {
+        isEnabled: isLangfuseTelemetryEnabled(privateMode),
+        functionId: "nick-chat",
+        metadata: {
+          mode,
+          modelId: fbModelId,
+          provider: fbProvider,
+          ...(conversationId ? { sessionId: conversationId } : {}),
+        },
+      },
       // 2026-07-06 · disable Gemini's default safety filters (per-call, via
       // providerOptions.google — the @ai-sdk/google v3 API). Ignored by
       // non-Google providers. Gemini's defaults can truncate a reply

@@ -79,6 +79,19 @@ export async function register() {
       // never let embedding warm-up break server boot
     }
 
+    // 2026-08-25 · Langfuse tracing init. Registers a LangfuseSpanProcessor
+    // on the global OTel provider (NodeSDK) so streamText calls carrying
+    // `experimental_telemetry` emit gen_ai spans to Langfuse. No-op unless
+    // LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY are set; fail-open on init
+    // error — observability must never break boot. Same wrapped-if edge-graph
+    // rules as everything above: literal dynamic import inside the if-body.
+    try {
+      const { initLangfuseTracing } = await import("@/lib/observability/langfuse");
+      await initLangfuseTracing();
+    } catch {
+      // never let tracing init break server boot
+    }
+
     // 2026-07-28 cron-truth hardening · Inngest deploy-time self-sync.
     // Railway has no Inngest deploy hook, so the Cloud function manifest
     // only updated on MANUAL PUTs — and drifted for weeks, leaving ~16
