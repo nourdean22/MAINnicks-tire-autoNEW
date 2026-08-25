@@ -1,0 +1,74 @@
+{
+  "topic": "Lower radiator hose collapsing under vacuum: car overheats only at highway speed, not at idle",
+  "campaignKeyword": "HOSECOLLAPSE",
+  "runDate": "2026-08-25",
+  "mode": "PRODUCTION",
+  "durationSeconds": 27,
+  "selfEstimatedQualityScore": {
+    "value": 50,
+    "outOf": 75,
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() — that function was not called this run (no server process, no live route). Weak dimensions called out explicitly in README.md section 9."
+  },
+  "beats": [
+    {
+      "id": 1,
+      "label": "HOOK",
+      "window": "0:00-0:04",
+      "narration": "Your car's fine at idle but overheats once you hit highway speed.",
+      "visualPrompt": "Dashboard-level shot through a windshield of a highway lane blurring past at speed, temperature gauge needle visible on the dash climbing toward hot, warm afternoon light, slow forward camera drift, no visible driver or hands on the wheel, photorealistic automotive cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["car dashboard temperature gauge driving", "highway driving pov windshield", "car temperature gauge climbing"]
+    },
+    {
+      "id": 2,
+      "label": "SETUP",
+      "window": "0:04-0:08",
+      "narration": "That's not always the fan or the thermostat. Check the lower radiator hose.",
+      "visualPrompt": "Hood of a car popping open, camera pushes in toward the open engine bay, cool blue-toned garage lighting, slow forward dolly, no visible hands or faces, photorealistic automotive macro cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["car hood opening engine bay", "engine bay reveal shot", "garage bay overhead light"]
+    },
+    {
+      "id": 3,
+      "label": "VALUE",
+      "window": "0:08-0:17",
+      "narration": "It can collapse from the inside as the water pump pulls coolant through it, once the rubber's lining has broken down with age.",
+      "visualPrompt": "Extreme macro of a black rubber lower radiator hose running from the radiator to the engine block, subtle heat shimmer, warm engine glow, slow orbital camera move tracing the length of the hose, no visible hands or faces, photorealistic automotive macro cinematography",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["radiator hose engine bay macro", "engine bay coolant hose detail", "car cooling system hose close up"]
+    },
+    {
+      "id": 4,
+      "label": "VALUE",
+      "window": "0:17-0:23",
+      "narration": "With the engine cold, squeeze it. It should have some give — if it's already caved in or mushy, that's your hose.",
+      "visualPrompt": "Extreme macro split composition: a firm, round black radiator hose lit cleanly beside a visibly collapsed, pinched-in section of hose, static locked shot with a subtle rack-focus shift between the two, clean neutral studio-style lighting, no visible hands or faces",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["collapsed radiator hose comparison", "hose cross section macro", "automotive rubber hose close up"]
+    },
+    {
+      "id": 5,
+      "label": "CTA",
+      "window": "0:23-0:27",
+      "narration": "A collapsed hose is a simple fix. Nick's Tire and Auto checks your cooling system free before anything bigger.",
+      "visualPrompt": "Wide establishing shot of a clean, well-lit tire and auto shop bay, warm inviting color grade, slow static or subtle push-in, organized tools and a lift in the background, no visible faces in focus, photorealistic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "stockSearchTerms": ["auto repair shop bay wide shot", "clean garage interior wide", "tire shop bay establishing shot"]
+    }
+  ],
+  "audioNotes": {
+    "voiceover": "Not generated this run — no TTS route connected in this session. Narration column above is the exact script to feed reelVoice.ts at real render time.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (real gap, see README.md section 6). Voiceover + captions + optional ambient engine-bay room-tone only.",
+    "mutedFirstCompliant": true
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "codec": "H.264",
+    "fps": 30,
+    "durationSeconds": 27,
+    "ctaType": "SEND-oriented"
+  }
+}
