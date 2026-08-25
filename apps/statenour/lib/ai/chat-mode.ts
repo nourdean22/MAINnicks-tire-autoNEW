@@ -294,15 +294,6 @@ export async function pruneTools(
     addMatching(/surfaceAntiPatterns|antiPattern/);
   }
 
-  // v10.0.525 · Session-recording recall (VideoDB). Operator captures
-  // own chat + computer-use sessions externally and references them
-  // later · "what did I see on screen yesterday", "from that recording",
-  // "in last week's session", "recall from video", "earlier on screen",
-  // "the part where I", "did I do X in that session".
-  if (/\b(what did i see|on screen|recording|recall from (video|session)|in (last week'?s|that|the|yesterday'?s) session|earlier on screen|from that (video|recording|session)|in the video|in that video|the part where i|did i (do|see|click|run|type)|screen capture|video archive|session capture)\b/.test(text)) {
-    addMatching(/searchSessionRecordings|recallFromSession/);
-  }
-
   // v10.0.526 · Arc C · F7 · Second-location feasibility. Operator
   // mentions expansion · scoring an address · evaluating a candidate ·
   // "score this location", "evaluate <city> address", "second shop",

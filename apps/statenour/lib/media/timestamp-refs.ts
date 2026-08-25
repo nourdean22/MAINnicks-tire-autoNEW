@@ -10,13 +10,13 @@
  *
  * WHY PARSING AND NOT A STRUCTURED FIELD
  * A structured citation field would be better and is the right endpoint.
- * It is not reachable yet: `getTranscript` (lib/videodb/client.ts) reads
- * only `json.transcript ?? json.text` and returns a FLAT STRING, so no
- * segment or word-level timing survives the client today. Until that
- * changes there is nothing for the model to cite from, and inventing a
- * citation schema the pipeline cannot populate would be building a
- * receipt with no evidence behind it. Parsing what the model actually
- * writes is the honest interim.
+ * It is not reachable yet: the model is handed transcript TEXT, not a
+ * per-segment citation structure (audio-transcribe now returns whisper
+ * verbose_json segments, but the chat pipeline does not yet thread them
+ * to the model as citable evidence). Inventing a citation schema the
+ * pipeline cannot populate would be building a receipt with no evidence
+ * behind it. Parsing what the model actually writes is the honest
+ * interim.
  *
  * FALSE POSITIVES ARE THE WHOLE DIFFICULTY
  * "3:1" is a ratio. "John 3:16" is a verse. "10:30am" is a clock time.

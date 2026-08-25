@@ -25,9 +25,13 @@ vi.mock("@/lib/feature-flags", async (importOriginal) => {
 });
 
 describe("Tool Registry Completeness", () => {
-  it("has all 26 core tool capabilities registered", () => {
+  it("has every core tool capability registered", () => {
     const list = getToolCapabilities();
-    expect(list.length).toBeGreaterThanOrEqual(26);
+    // 2026-08-25 · media.session_search + media.session_recall left this
+    // registry with the VideoDB retirement (zero successful uses ever).
+    // The REAL membership guard is the expected[] walk below; the floor
+    // is derived from it so it can never silently go loose again (the
+    // old hand-written floor of 26 sat under an actual count of 31).
 
     const ids = list.map((t: ToolCapability) => t.id);
     const expected = [
@@ -35,8 +39,6 @@ describe("Tool Registry Completeness", () => {
       "web.search.arsenal",
       "document.ingest_url",
       "document.drive_read",
-      "media.session_search",
-      "media.session_recall",
       "browser.navigate",
       "browser.observe",
       "browser.extract",
@@ -62,6 +64,7 @@ describe("Tool Registry Completeness", () => {
     for (const id of expected) {
       expect(ids).toContain(id);
     }
+    expect(list.length).toBeGreaterThanOrEqual(expected.length);
   });
 
   it("retrieves individual tools correctly", () => {

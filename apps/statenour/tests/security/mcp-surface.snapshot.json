@@ -1450,19 +1450,6 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
-    "name": "recall_from_session",
-    "camelName": "recallFromSession",
-    "category": "research",
-    "riskClass": "low",
-    "riskDeclared": true,
-    "sideEffecting": false,
-    "requiredEnv": [
-      "VIDEO_DB_API_KEY"
-    ],
-    "descriptionSha256": "dea3a626ea044cdf",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
     "name": "recommend_next_move",
     "camelName": "recommendNextMove",
     "category": "brain",
@@ -1690,19 +1677,6 @@
     "sideEffecting": false,
     "requiredEnv": [],
     "descriptionSha256": "1aa56b13744c30d5",
-    "inputSchemaSha256": "efddc7bd8bbcef73"
-  },
-  {
-    "name": "search_session_recordings",
-    "camelName": "searchSessionRecordings",
-    "category": "research",
-    "riskClass": "low",
-    "riskDeclared": true,
-    "sideEffecting": false,
-    "requiredEnv": [
-      "VIDEO_DB_API_KEY"
-    ],
-    "descriptionSha256": "9ad3042ba5c30237",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
