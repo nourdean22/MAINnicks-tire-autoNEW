@@ -31,7 +31,7 @@ export function BridgeShell({ title, state }: BridgeShellProps) {
         {state === "down" ? (
           <p className="mt-4 text-sm text-[var(--text-tertiary)]">
             Bridge to nickstire unavailable · the data lives there. Check
-            the bridge status on <a className="underline" href="/system/brain-bus">/system/brain-bus</a>.
+            the bridge status on <a className="underline" href="/system/fleet">/system/fleet</a>.
           </p>
         ) : (
           <p className="mt-4 text-sm text-[var(--text-tertiary)]/70 animate-pulse">

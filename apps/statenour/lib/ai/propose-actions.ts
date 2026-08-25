@@ -59,7 +59,7 @@ export interface NickActionDraft {
   targetId: string;
   /** Action params · executor-specific Json shape. */
   payload: Record<string, unknown>;
-  /** 1-line Nick rationale rendered in Telegram + /system/approvals. */
+  /** 1-line Nick rationale rendered in Telegram + /system/actions. */
   rationale: string;
   /** Ranking signal · P0 first. */
   priority: NickActionPriority;
