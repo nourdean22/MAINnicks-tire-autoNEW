@@ -29,7 +29,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +62,24 @@ function withCanaryCommit(path, contents, fn) {
     // while passing locally: the third local-vs-CI divergence in this file's
     // short life. ls-tree and cat-file both accept a tree-ish, so the commit
     // object was never needed in the first place.
+    return fn(git(["write-tree"], env));
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+/** Same as withCanaryCommit, for fixtures that need more than one file. */
+function withTwoFiles(files, fn) {
+  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-multi-"));
+  try {
+    const env = { GIT_INDEX_FILE: join(scratch, "index") };
+    git(["read-tree", "HEAD"], env);
+    for (const [i, f] of files.entries()) {
+      const blobFile = join(scratch, `blob${i}`);
+      writeFileSync(blobFile, f.body);
+      const blob = git(["hash-object", "-w", blobFile]);
+      git(["update-index", "--add", "--cacheinfo", `100644,${blob},${f.path}`], env);
+    }
     return fn(git(["write-tree"], env));
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -166,4 +184,160 @@ test("negation: a truthful 'never runs in CI' is not reported, its positive twin
   );
   assert.match(out, /enforced in CI/, "the positive claim must still be detected");
   assert.doesNotMatch(out, /never runs in CI/, "the negated claim must not be reported");
+});
+
+test("historical records are skipped, live docs are not — same clause, both paths", () => {
+  /*
+   * A doc whose NAME or PATH stamps its frame (_archive/, 90-archive/,
+   * research-packs/, an ISO date in the filename) is a record of what was true
+   * then, not a current-truth claim. Re-dating one would assert a measurement
+   * nobody made -- a brand-new false claim manufactured by the tool built to
+   * remove them.
+   *
+   * Both directions in ONE fixture, because a test that only proves the archive
+   * copy is skipped cannot distinguish that from the detector having died: an
+   * identical clause at a live path must still be reported.
+   */
+  // Phrasing matters: COMPLETENESS matches `nothing\s+(else\s+)?calls`, so
+  // "Nothing in this repo ever calls" does NOT match. The first draft of this
+  // fixture used that phrasing and the test failed asserting the live copy was
+  // reported -- the fixture was wrong, not the filter. Recorded because a
+  // fixture that does not trigger the detector tests nothing at all.
+  const clause = "# fixture\n\nNothing calls `resumeStuckCampaigns()` any more.\n";
+  const live = "docs/agent-audit/.hist-fixture-live.md";
+  const archived = "docs/90-archive/.hist-fixture-archived.md";
+
+  const datedDir = "docs/reel-packs/2026-08-17-dated-dir-fixture/README.md";
+
+  const out = withTwoFiles(
+    [
+      { path: live, body: clause },
+      { path: archived, body: clause },
+      { path: datedDir, body: clause },
+    ],
+    (ref) => runChecker(["--only=completeness", `--ref=${ref}`]).out,
+  );
+
+  assert.match(out, /hist-fixture-live/, "the LIVE copy must still be reported");
+  assert.doesNotMatch(out, /hist-fixture-archived/, "the ARCHIVED copy must be skipped");
+  // DATED DIRECTORY, raised in review against the first draft. The frame is
+  // often carried by a PARENT DIRECTORY -- `docs/reel-packs/2026-08-17-slug/
+  // README.md` -- and a basename-only test sees only "README.md" and lets the
+  // record into the live scan. Asserted separately from the path-prefix case
+  // above because they are different mechanisms and one passing says nothing
+  // about the other.
+  assert.doesNotMatch(
+    out,
+    /dated-dir-fixture/,
+    "a record under a DATED DIRECTORY must be skipped even though its basename carries no date",
+  );
+  // The skip must be announced, not merely performed -- probe rule 5. A silent
+  // exclusion prints the same green as a clean sweep.
+  assert.match(out, /skipped \d+ historical\/archive files/);
+});
+
+test("a ledger row CITING a false claim is not itself a claim — but a bare one still is", () => {
+  /*
+   * The agent-audit ledgers quote false claims in `| claim | reality |` tables
+   * in order to document them. Reading those as fresh claims made this gate go
+   * RED on the very document that defines it — caught by CI, not locally.
+   *
+   * Scoped to a table row whose FIRST CELL is a backticked `path:line`. Both
+   * directions in one fixture, because a filter proven only on the thing it
+   * suppresses cannot be told apart from a dead detector.
+   */
+  const fixture = [
+    "# fixture",
+    "",
+    "| claim | reality |",
+    "|---|---|",
+    "| `apps/x/docs/CITED.md:5` — \"Anti-slop **verified at push time** via `scripts/check-anti-slop.sh`\" | false |",
+    "",
+    "Anti-slop is **verified at push time** via `scripts/check-anti-slop.sh`.",
+    "",
+  ].join("\n");
+
+  const out = withCanaryCommit("docs/agent-audit/.citation-fixture.md", fixture, (ref) =>
+    runChecker(["--only=gate", `--ref=${ref}`]).out,
+  );
+  const hits = out.split("\n").filter((l) => l.includes(".citation-fixture.md"));
+  assert.equal(
+    hits.length,
+    1,
+    `expected exactly ONE finding (the bare claim, not the cited one); got ${hits.length}: ${hits.join(" | ")}`,
+  );
+  assert.doesNotMatch(out, /CITED\.md/, "the cited path must not surface as a finding of its own");
+});
+
+test("BREAKS: a redundant KNOWN_FALSE entry is reported, a needed one is spared", () => {
+  /*
+   * REWRITTEN 2026-08-25, and the rewrite is the point.
+   *
+   * The previous version of this canary asserted against the ONE real entry in
+   * KNOWN_FALSE -- DESIGN.md:5. It built a tree where that claim was fixed and
+   * required the checker to say "no longer needed". So the day the claim was
+   * actually fixed and the entry correctly removed (rule 2: a redundant entry
+   * is an ERROR), this test could not pass in any form. It was deleted to get
+   * the gate green, and the redundancy rule -- the thing that stops the
+   * allowlist becoming a permanent excuse list -- was left with no coverage.
+   *
+   * Read the failure honestly: the deletion was the visible half, but the
+   * design was the cause. A PERMANENT control had been wired to a TEMPORARY
+   * datum, so it was guaranteed to die on that datum's success and hand
+   * whoever hit it a choice between a red gate and a deleted test.
+   *
+   * The rule is permanent, so its canary is now driven by fixtures that outlive
+   * every entry the list will ever hold. KNOWN_FALSE is empty as of this commit
+   * and this test does not care.
+   */
+  const r = runChecker(["--selftest"]);
+  assert.equal(r.code, 0, `--selftest failed:\n${r.out}`);
+  assert.match(
+    r.out,
+    /selftest ok {2}an entry whose claim now resolves is reported redundant/,
+    "the REDUNDANT direction must be exercised",
+  );
+  assert.match(
+    r.out,
+    /selftest ok {2}a still-false claim keeps its KNOWN_FALSE entry/,
+    "the SPARED direction must be exercised -- without it the check could flag everything and still pass",
+  );
+  assert.match(
+    r.out,
+    /selftest ok {2}an empty KNOWN_FALSE reports nothing/,
+    "the empty list is the live state on main and must be quiet",
+  );
+});
+
+test("BREAKS: the redundancy arms are load-bearing, not decorative", () => {
+  /*
+   * The test above asserts three lines of output. Output lines are a claim like
+   * any other -- if the arms were deleted and the strings left behind as
+   * console.log noise, it would still pass. So: mutate the checker in a scratch
+   * copy so the redundancy function always returns [] (the "flags nothing"
+   * failure, which is how an allowlist rots silently), and require --selftest to
+   * exit non-zero and name the failure.
+   *
+   * A scratch COPY, never the real file: a sibling session shares this
+   * checkout, and a canary that mutates a tracked file to prove a point is one
+   * crashed process away from committing the mutation.
+   */
+  const scratch = mkdtempSync(join(tmpdir(), "doc-claim-redundancy-"));
+  try {
+    const original = readFileSync(CHECKER, "utf8");
+    const broken = original.replace(
+      /function findRedundantKnownFalse\(knownFalse, liveFindings\) \{\n[^}]*\n\}/,
+      "function findRedundantKnownFalse(knownFalse, liveFindings) {\n  return [];\n}",
+    );
+    assert.notEqual(broken, original, "the mutation did not apply — findRedundantKnownFalse was renamed or reshaped");
+
+    const copy = join(scratch, "check-doc-claims.mjs");
+    writeFileSync(copy, broken);
+    const r = spawnSync(process.execPath, [copy, "--selftest"], { cwd: ROOT, encoding: "utf8" });
+    const out = (r.stdout ?? "") + (r.stderr ?? "");
+    assert.equal(r.status, 1, `a redundancy check that reports NOTHING still passed --selftest:\n${out}`);
+    assert.match(out, /was not reported/, "the failure must name what broke");
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });

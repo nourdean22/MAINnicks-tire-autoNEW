@@ -11,10 +11,22 @@
  *   · side-effecting-ness comes from the tool catalog (getToolMeta) for SDK
  *     tools, or MUTATION_ACTIONS for action blocks (task.create, etc.).
  *
- * Pure — no IO, no DB. LIVE: canClaimDone/toReceipt are wired into the
- * finalize seam at 4 call sites in lib/services/chat/persist-assistant-turn.ts
- * (2026-07-11 review corrected this header — it previously claimed "not yet
- * wired", which risked a future editor treating the path as dead).
+ * Pure — no IO, no DB. LIVE: canClaimDone/toReceipt are wired at TWO call sites
+ * — lib/services/chat/persist-assistant-message.ts:172 and
+ * lib/services/chat/deferred-background-work.ts:381.
+ *
+ * Corrected 2026-08-23. This header previously said "4 call sites in
+ * lib/services/chat/persist-assistant-turn.ts" — a file that exists and
+ * contains ZERO references to any of this. Note the history: a 2026-07-11
+ * review changed the header from "not yet wired" to that wrong specific, for a
+ * good stated reason ("risked a future editor treating the path as dead"). The
+ * correction was right about the direction and wrong about the facts, and being
+ * specific made it more credible, not more true. Meanwhile
+ * docs/audits/STATENOUR-ARCHITECTURE-INTELLIGENCE-REPORT.md carried the OPPOSITE
+ * error — "zero production call sites" — as its highest-severity finding. Two
+ * sources, two contradictory wrong answers, about one function, for six weeks.
+ *
+ * Re-measure rather than trust either: `git grep -nE "canClaimDone\s*\(" -- apps/statenour`.
  * See docs/runbooks/action-honesty-and-receipts.md.
  */
 

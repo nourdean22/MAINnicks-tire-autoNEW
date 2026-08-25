@@ -65,6 +65,21 @@ Short enough to remember, each earned by an incident this file records.
    standing rule that every turn ends with an explicit remaining-queue line, and the probe rule
    that every scanner reports what it skipped.
 
+7. **Detector tuning has a stopping condition, and it is the first true positive you lose.**
+   Narrowing a noisy detector is real work — the GATE lane went from 8 findings to 2 real ones,
+   completeness from 41 to 19 — and every step felt like progress. The stopping point is not "the
+   number looks clean"; it is the first filter that would cost a true finding. Concretely: a rule
+   treating any line citing a `path:line` as a citation rather than a claim would have correctly
+   dropped three rows of this file's own table, and would **also** have dropped
+   `STATENOUR-ARCHITECTURE-INTELLIGENCE-REPORT.md:23`, where "zero production call sites" is a
+   genuine live finding. **Three false positives are not worth one true negative.** Past that
+   point, tuning stops removing noise and starts destroying evidence — and the report gets
+   cleaner while the instrument gets blinder, which is indistinguishable from success.
+
+8. **Never assert a runtime value from a document.** A flag's live value, a row count, a deploy
+   state: these are caches with no invalidation the moment they are written into prose. Name the
+   probe instead. Violated during the fix for exactly this class — see the worked example below.
+
 ## How this file relates to CONTROL-CANARY-COVERAGE.md
 
 They are **complementary, not overlapping**, and the split is deliberate:
@@ -496,6 +511,61 @@ This is the same family as **plant a positive** (probe 1) and the NUL-byte canar
 the fix is to *manufacture* the condition rather than wait for it, because waiting cannot
 distinguish "never happened" from "cannot see".
 
+## Three self-catches, because the file's credibility rests on not exempting itself
+
+All three happened **inside fixes for the class each one instantiates**, which is the pattern
+worth internalising: the moment of greatest confidence is writing the correction.
+
+**1 · Asserting an unmeasured runtime value, on the customer-SMS path.** The correction to
+`apps/nickstire/docs/customer-confirmation-notifications.md` — itself a fix for three false
+claims about whether customer messages can be sent — asserted that
+`ENABLE_CUSTOMER_CONFIRMATIONS` *"is not set to `true`"*. That is a **live env value nobody
+measured**, written into prose while fixing unverified claims, on the one surface where being
+wrong sends real SMS to real customers. The repo already records that `.env` is not production
+and that 9 of 10 external-side-effect flags were found armed. The resolution is not a better
+guess: the doc now states explicitly that it does **not** assert the flag's value and names
+`scripts/probe-live-send-flags.mjs`, which exists for the question. **Stated Rule 8.**
+
+**2 · A self-staling number inside the anti-staleness sentinel.** The agent-memory index sits
+under a read limit past which it truncates silently, so it gained an END sentinel: *if you cannot
+see this line, entries are missing*. The first draft of that sentinel embedded `21.2 KB of ~24.4
+KB (87%)` — **a byte count in prose, which is a cache with no invalidation, inside the one
+artifact whose entire job is to defeat silent staleness.** It was also self-refuting on arrival:
+adding it pushed the file to 89.9% while the same sentinel instructed the next reader to migrate
+above 80%. The shipped version carries no figure at all and says why, naming `wc -c` instead.
+
+**3 · A completeness claim about completeness claims, unmeasured.** This file asserted *"Every
+'verified at push time' claim in the repo except that one is false."* One grep settles it: three
+live claims, **one** false. It overstated the problem in the document arguing that overstatement
+is the problem. Corrected above with the measurement inline.
+
+**4 · `head -6` on a grep, reported as an exhaustive answer.** Checking whether `canClaimDone()`
+had production callers, the query was
+`git grep -nE "canClaimDone\(" -- apps/statenour | grep -v test | head -6`. Paths sort
+alphabetically, `docs/` precedes `lib/`, and six doc hits filled the window — so the output showed
+**only documentation** and the conclusion drawn was "no production call sites, the code comment is
+false". Both real call sites were in the result set, below the cut.
+
+The corrected query — no `head`, scoped to `lib/` and `app/` — returns
+`persist-assistant-message.ts:172` and `deferred-background-work.ts:381`. **A truncated result set
+and an empty one render identically once the truncation scrolls past**, which is Stated Rule 6
+applied to one's own shell pipeline, and it was one sentence away from publishing a refutation of
+a true statement.
+
+What it did find is worth more than what it nearly got wrong: **two sources carried opposite wrong
+answers about the same function for six weeks.** The audit called it "orphaned — zero production
+call sites" as its highest-severity item; the code header called it "LIVE at 4 call sites in
+persist-assistant-turn.ts", a file containing zero references to any of it. Truth: two call sites,
+in two other files. And the header got wrong *because* a 2026-07-11 review corrected it from a
+true "not yet wired" to a false specific — **for a good stated reason**, which is what makes it
+worth recording. Being specific made it more credible, not more true.
+
+**Why these are the most persuasive entries here.** Every other instance is a defect found in
+someone else's code by an auditor with the advantage of distance. These were found in the
+auditor's own output, minutes old, under full attention, by cross-checking rather than by
+reasoning — which is the whole argument for cross-checking. A taxonomy that catches its own users
+is stronger evidence than one that only catches the codebase.
+
 ## Session completion is a blind instrument
 
 **The self-referential instance — this audit found the defect in its own execution, not only in
@@ -720,13 +790,29 @@ halves.
 
 | claim | reality |
 |---|---|
-| `apps/statenour/docs/DESIGN.md:5` — "Anti-slop **verified at push time**… (gate 13/13)" | script exists; in **no hook, workflow or composite gate** |
+| `apps/statenour/docs/DESIGN.md:5` — "Anti-slop **verified at push time**… (gate 13/13)" | script exists and IS reachable — `verify:hard` -> `check:anti-slop` -> the script — but **no hook or workflow runs `verify:hard`**, so it is MANUAL, not enforced. *(This cell previously read "in no hook, workflow or composite gate", which was the v3 resolver's invented mechanism, reproduced here in the very table that documents it. Corrected 2026-08-23.)* |
 | `apps/statenour/scripts/check-anti-slop.sh:76` — prints `emergency override: ANTI_SLOP_GATE_SOFT=1 git push` | advertises a push hook that does not exist |
 | `agent-os/standards/nourcity/enforced-gates.md:32` — lists `check:anti-slop` | file is titled **Enforced Gates** and opens "These scripts are codified standards… not optional" |
-| `apps/statenour/docs/SECURITY.md:234` — "`pnpm audit` runs in `pre-push-check.sh`" | that script **is not in the tree** |
+| `apps/statenour/docs/SECURITY.md:234` — "`pnpm audit` runs in `pre-push-check.sh`" | that script **is not in the tree**. **FIXED 2026-08-23**: rewritten as a measured table of the two real CI steps, with the retraction left visible. |
 
 **Ground truth: `lefthook.yml` pre-push runs exactly one command — `pnpm run build:affected`.**
-Every "verified at push time" claim in the repo except that one is false.
+**Measured 2026-08-23 against `origin/main`, and the first version of this sentence was
+itself false.** It read: *"Every 'verified at push time' claim in the repo except that one is
+false."* Reproduce with
+`git grep -nEi "(verified|enforced|gated|runs|checked)[^.]{0,50}(at push time|on push|pre-push)" -- "*.md"`.
+
+Five matches outside the agent-audit docs. Excluding a dated session log (historical) and this
+file's own retraction of the SECURITY.md line, **three are live claims and only ONE is false**:
+
+| Claim | Verdict |
+|---|---|
+| `DESIGN.md:5` — anti-slop verified at push time | **FALSE** — MANUAL, see above |
+| `trpc-migration-roadmap.md:29` — "build-verified by the pre-push `turbo build` hook" | **TRUE** — lefthook `pre-push` runs `pnpm run build:affected` |
+| `skill-proposals.md:223` — "`git push` runs the pre-push build gate" | **TRUE**, same mechanism |
+
+So the ratio is 1-of-3 false, not all-but-one. The original sentence overstated the problem in
+the file arguing that overstatement is the problem — a completeness claim about completeness
+claims, asserted without the one grep that settles it. Recorded rather than quietly replaced.
 
 ## The probe
 
