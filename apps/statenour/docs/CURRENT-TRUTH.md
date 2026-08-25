@@ -127,6 +127,10 @@
 - **Persona work (BDN-301/302)**: `CONFIDENCE_CUES` split into `ESTIMATIVE_LIKELIHOOD` (ODNI seven-point scale) + `ANALYTIC_CONFIDENCE`; the old rule stays exported but is NO LONGER INJECTED. Per-lane persona census over stored `reply_judgment` rows. Verbalized-Sampling SPAR variant behind `NICK_SPAR_VS` (default off).
 - **BDN-307 prompt trim REFUTED by measurement**, not deferred: Layer 1 is 13,274 chars / ~3,319 tokens against a 40,000-char guard. `scripts/measure-static-layer.ts` measures it offline (the live `measure-prompt-size.ts` is gated as a prod lane).
 - **BDN-310 memory supersession: APPLIED to prod Neon 2026-08-14** via `prisma migrate deploy`. `brain_memories` now carries `valid_from` / `valid_until` / `last_verified_at` / `superseded_by_id`, the self-FK (`ON DELETE SET NULL`), and three indexes. Verified after apply: 4/4 columns, FK and all 3 indexes present · **25,381 rows unchanged** · **pgvector still installed** · `migrate status` = "Database schema is up to date!". ★ The first draft of that migration targeted `"BrainMemory"` — the Prisma model carries `@@map("brain_memories")`, so every statement would have FAILED against prod. A read-only preflight (`scripts/probe-bdn310-preflight.ts`) caught it before any DDL ran. No code reads the new columns yet; the schema is ahead of the app on purpose.
+  **CONFIRMED 2026-08-23** against `origin/main`: `validFrom` / `validUntil` are present in
+  `prisma/schema.prisma:1682-1683` (mapped `valid_from` / `valid_until`) with an index on
+  `validUntil:1724`. Re-check with
+  `git grep -n 'valid_until' -- apps/statenour/prisma/schema.prisma` rather than trusting this line.
 - **Unwired instruments (self-audit, honest status):** `summarizePersonaByLane` and `summarizeEstimativeCompliance` have no in-app caller; `scripts/report-nick-instruments.ts` is the read-only runner. `toEvidenceRef` / `canSupportAlone` / `reopenTargetFromKey` have NO caller outside tests — media does not actually mint evidence yet, despite the PR wording. `taskClass` has no producer anywhere, so the census refuses to call an all-unknown comparison comparable.
 
 ## Where this runs

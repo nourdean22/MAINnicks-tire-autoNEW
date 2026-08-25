@@ -27,6 +27,9 @@
 
 Slices ship one per commit · each gated (typecheck · `eslint .` · full
 test suite) · build-verified by the pre-push `turbo build` hook.
+  **VERIFIED 2026-08-23** -- this one is TRUE, and worth recording as such because most
+  "verified at push time" claims in this repo are not. `lefthook.yml` `pre-push` runs exactly one
+  command, `pnpm run build:affected`, which is `turbo run build --affected`.
 
 | Slice | Domain | Commit | Status |
 |---|---|---|---|

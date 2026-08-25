@@ -37,6 +37,17 @@ existing primitives already solve**.
 | "Build script mutates DB" | Fixed in v8.25. `build` is `prisma generate && next build`; the dangerous variant is `build:push-schema`. |
 | "Too many truth centers" | [`RECONCILIATION.md`](../RECONCILIATION.md) was created in v8.25 specifically to fix this. |
 | "Auth coverage gate needed" | Shipped v8.26 in fail-closed mode. 51 routes retrofitted. Gate 8/8. |
+
+> **Count is historical — measured 2026-08-23 it is 113, not 51.**
+> `git grep -l requireSession -- apps/statenour/app/api | wc -l`. The retrofit succeeded and the
+> surface kept growing, so the figure records the v8.26 moment, not the estate. Dated rather than
+> bumped: it will drift with every new route, and the plan's point is that the gate is fail-closed,
+> not that it covers a particular number.
+>
+> A first pass at this measurement grepped `getAuthedUser|requireAuth|withAuth` and returned **0**,
+> which would have read as "auth is gone". The helper is `requireSession` (`lib/auth-guard`). A zero
+> from a pattern that never matched anything is not a finding -- it is the instrument failing to see
+> its subject, and it was one step from being reported as a regression.
 | "Move AI to `lib/nick-prime/`" | Busywork — we already have clean separation. |
 
 The high-leverage pieces from the external plan that we **should keep**
