@@ -1,5 +1,3 @@
-import { statusToneMap } from "@/lib/domain";
-import { toSentenceCase } from "@/lib/utils/format";
 import { ParentBackLink } from "./parent-back-link";
 
 type PageHeaderProps = {
@@ -22,17 +20,6 @@ type PageHeaderProps = {
   parentLabel?: string;
 };
 
-const toneClassMap: Record<string, string> = {
-  amber: "badge-amber",
-  blue: "badge-blue",
-  lime: "badge-lime",
-  orange: "badge-orange",
-  purple: "badge-purple",
-  rose: "badge-rose",
-  slate: "badge-slate",
-  violet: "badge-violet",
-  zinc: "badge-zinc"
-};
 
 export function PageHeader({ eyebrow, title, description, actions, parentHref, parentLabel }: PageHeaderProps) {
   return (
@@ -80,14 +67,19 @@ export function PanelHeader({
   );
 }
 
-export function StatusBadge({ value }: { value: string | null | undefined }) {
-  if (!value) {
-    return <span className="badge badge-zinc">Unknown</span>;
-  }
-
-  const tone = toneClassMap[statusToneMap[value] || "slate"] || "badge-slate";
-  return <span className={`badge ${tone}`}>{toSentenceCase(value)}</span>;
-}
+// REMOVED 2026-08-25: `StatusBadge({ value })` — zero importers, and a second
+// door for exactly what the completion-frame work closed. It rendered a raw
+// status word with NO frame, so a recurring task completed today would have
+// read a bare "Waiting" through it — the operator's original complaint. Worse,
+// a null value rendered the word "Unknown", which is a frameless claim of its
+// own: it cannot distinguish "no status" from "status not read".
+//
+// The canonical path is describeCompletion() in lib/services/completion-frame.ts,
+// which returns a label AND the frame it is spoken in.
+//
+// Second removal from this file in as many days — its dead `EmptyState({title,
+// copy})` came out in #1840 for the same reason. A required field is only
+// required while there is no other door.
 
 // REMOVED 2026-08-24: a second `EmptyState` taking only { title, copy }.
 // Exported, zero importers, and it was the loophole — a component could render

@@ -117,9 +117,11 @@ export function PinnedContextPanel() {
 
   // `listPins` returns `{ pins, count, stats? }` as a loose record · the
   // panel's local PinRow / PinStats interfaces pin the shape it renders.
-  const pins =
-    (ccStateQuery.data?.brainAnchors?.pinned as PinRow[] | undefined) ??
-    (ccStateQuery.isError ? [] : null);
+  // LATENT, not live: the empty state at the bottom is gated on `!error`, so
+  // the old `?? (isError ? [] : null)` never surfaced. Removed anyway — that
+  // safety depends on a guard three hundred lines away, and the same idiom
+  // without one was rendering false zeros in four sibling panels (#1840).
+  const pins = (ccStateQuery.data?.brainAnchors?.pinned as PinRow[] | undefined) ?? null;
   const brainRules = ccStateQuery.data?.brainAnchors?.rules ?? null;
   const loading = ccStateQuery.isLoading;
   const loadedAt = ccStateQuery.dataUpdatedAt || null;
