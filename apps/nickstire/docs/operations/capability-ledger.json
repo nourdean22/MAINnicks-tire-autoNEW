@@ -1481,6 +1481,24 @@
         "No npm dependency added - the official SDK exists but installs are policy-blocked in harness worktrees, so this speaks plain HTTP/JSON. Swapping the SDK in later replaces one file and no callers.",
         "REEL_VIDEO_PROVIDER is still template_stock in prod, so this lane is not the active generator. Flipping it is a separate, operator-authorized step that must follow this deploy."
       ]
+    },
+    {
+      "capabilityId": "staged-cron-manual-trigger",
+      "name": "Staged crons: enabled:false holds a tier job off the scheduler; POST /api/admin/run-staged-cron is the only reachable trigger",
+      "owner": "nickstire",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-08-25",
+      "evidence": {
+        "codeCommit": "server/cron/scheduler.ts (enabled:false on campaign-resume + sms-learning-digest, scheduledAutomatically in getJobCadences), server/cron/registry-tier-map.ts (MANUAL_TRIGGER_STAGED with mandatory why/promote), server/routes/adminRoutes.ts (POST /api/admin/run-staged-cron, requireAdminApiKey, MANUAL_TRIGGER_STAGED names only, runs via runJobByName so the run lands in cron_log), server/services/selfHealing.ts (cronStalenessIssues extracted pure; staged jobs skipped in stale AND never-observed branches). NOT via /api/bridge/run-job: BRIDGE_RUN_JOB_ALLOWLIST deliberately excludes SMS-capable jobs and a canary asserts the staged names never enter it.",
+        "tests": [
+          "server/cronControlPlane.test.ts 46/46 — describe 'crons staged behind the manual trigger': staged-vs-promoted parser both directions, decoy enabled:true, list<->scheduler drift both directions, manual runners must not gate on enabled, registry stays enabled (a false there blinds findCronWiringFaults), /cron-status scheduledAutomatically staged+live fixture, staleness skip staged+live fixture in both branches, REACHABLE IN FACT (admin route gated + MANUAL_TRIGGER_STAGED-validated + runJobByName; bridge allowlist clean)",
+          "8 mutation probes, every one red on the break and green on restore — enabled flip, entry deletion, runner gate, hardcoded status, registry disable, staleness-skip deletion, admin-gate unhook, bridge-allowlist plant",
+          "pnpm run verify all 15 links: 488 test files passed / 2 skipped (490), 5,962 tests passed / 48 skipped / 1 todo (6,011), 0 failure markers, exit 0"
+        ],
+        "operationalNote": "exposure internal + operationalState unit_verified, BOTH deliberate and the validator's own ladder is why: exposure operator_only requires >= integration_verified, and this endpoint has never been exercised beyond unit level — no HTTP-level test, never deployed, never invoked. The first attempt at this entry claimed operator_only over unit_verified and check-capability-ledger correctly rejected it; the fix is the honest label, not an inflated state. Prod measurement 2026-08-25 (read-only): 0 pending sends, 0 recommendations — neither staged job has ever exercised its real work, so 561 green cron_log rows are evidence of cadence, not correctness. ADVANCES when the operator fires the observed first run named in MANUAL_TRIGGER_STAGED[].promote: that run is live verification of the trigger AND the exposure event, so the entry moves to operator_only + live_verified together, with the cron_log row id as evidence."
+      }
     }
   ],
   "axes": {

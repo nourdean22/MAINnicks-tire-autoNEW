@@ -573,7 +573,43 @@ export function startTieredScheduler(): void {
         // That is the fix, and it is also the only way this job is observable
         // from the outside. Note SMS_KILL_SWITCH does NOT gate it — that switch
         // is Twilio-only and the shop gateway path stays live (socialPipeline.ts).
+        //
+        // ─── 2026-08-25 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // `enabled: false` stops the SCHEDULER ONLY. It is not a decommission:
+        // the tier loop is the single automatic path (`startAllJobs()` throws —
+        // cron/index.ts:55 — so the legacy registry schedules nothing), and
+        // neither manual runner consults this flag. `runTierJobByName`
+        // (scheduler.ts) and `runJobByName` (cron/index.ts) both look the job
+        // up and call its handler directly. Fire it via
+        // POST /api/admin/run-staged-cron.
+        //
+        // NOT via /api/bridge/run-job: the staging commit first documented that
+        // path, and it is a locked door — BRIDGE_RUN_JOB_ALLOWLIST
+        // (_core/bridge-routes.ts) deliberately excludes SMS-capable jobs and
+        // contains neither staged name. Found by review on PR #1830; the
+        // admin endpoint exists because widening the bridge allowlist to an
+        // SMS-capable job would weaken a 2026-07-05 audit control.
+        //
+        // WHY, and it is the SMS: this job can call processCampaignSends() for
+        // a campaign still 'active' with rows left 'pending'. SMS_KILL_SWITCH
+        // does NOT gate it — that switch is Twilio-only and the shop gateway
+        // path stays live. A job that reaches customers gets an observed first
+        // run, not an unattended one.
+        //
+        // Measured before staging (prod cron_log + tables, 2026-08-25):
+        // 558 runs 2026-08-23 16:11Z → 2026-08-25 14:19Z, every one
+        // status='completed' with records_processed=0 and no error. Newest
+        // sms_campaign_sends.sentAt is 2026-07-08, 46 days BEFORE it was
+        // wired; 0 rows sent on/after 2026-08-23; 0 rows 'pending'. So it has
+        // never had anything to do and has sent nothing. Staging costs nothing
+        // today and buys an observed first real run.
+        //
+        // TO PROMOTE TO AUTOMATIC: delete the `enabled: false` line, and delete
+        // this job's entry from MANUAL_TRIGGER_STAGED in
+        // cron/registry-tier-map.ts — the canary fails until both move together.
         name: "campaign-resume",
+        enabled: false,
         handler: async () => {
           const { resumeStuckCampaigns } = await import("../routers/campaigns");
           return resumeStuckCampaigns();
@@ -1567,7 +1603,32 @@ export function startTieredScheduler(): void {
         // here it gets several chances a day and oncePerShopDay keeps it to
         // exactly one run. The weekday gate is inside the handler, matching
         // weekly-strategic-insight.
+        //
+        // ─── 2026-08-25 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // Same mechanism as campaign-resume above: `enabled: false` stops the
+        // scheduler only; POST /api/admin/run-staged-cron reaches it (the
+        // bridge allowlist does NOT — see campaign-resume above).
+        //
+        // The reason here is NOT a customer side effect — this job writes
+        // sms_learning_recommendations rows for an admin panel and texts
+        // nobody. It is staged because its first real run is the one worth
+        // watching: it is the ONLY producer for that table, the panel has been
+        // rendering an empty list since it shipped, and an operator seeing the
+        // first batch of recommendations appear unattended cannot tell a good
+        // batch from a bad one after the fact.
+        //
+        // Measured before staging (prod, 2026-08-25): 3 runs — 2026-08-23
+        // 18:46Z (Sunday, skipped), 2026-08-24 12:35Z (Monday, ran the real
+        // digest: "no threshold crossed — dataset 0 example(s), 0 edit(s)
+        // analysed"), 2026-08-25 12:35Z (Tuesday, skipped). 0 records
+        // processed, 0 errors. sms_learning_recommendations: 0 rows.
+        //
+        // TO PROMOTE TO AUTOMATIC: delete the `enabled: false` line, and delete
+        // this job's entry from MANUAL_TRIGGER_STAGED in
+        // cron/registry-tier-map.ts — the canary fails until both move together.
         name: "sms-learning-digest",
+        enabled: false,
         oncePerShopDay: true,
         handler: async () => {
           const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
@@ -2572,11 +2633,23 @@ export function stopTieredScheduler(): void {
  */
 export function getJobCadences(): Map<
   string,
-  { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+  {
+    intervalMin: number;
+    businessHoursOnly: boolean;
+    oncePerShopDay: boolean;
+    tier: string;
+    scheduledAutomatically: boolean;
+  }
 > {
   const out = new Map<
     string,
-    { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+    {
+      intervalMin: number;
+      businessHoursOnly: boolean;
+      oncePerShopDay: boolean;
+      tier: string;
+      scheduledAutomatically: boolean;
+    }
   >();
   for (const t of tiers) {
     for (const j of t.jobs) {
@@ -2585,6 +2658,23 @@ export function getJobCadences(): Map<
         businessHoursOnly: j.businessHoursOnly === true,
         oncePerShopDay: j.oncePerShopDay === true,
         tier: t.name,
+        /*
+         * 2026-08-25 · ADDED WITH THE STAGING FLAG, because without it every
+         * consumer of this map reports a staged job as a live scheduled one.
+         *
+         * The cron-status surface renders tier + intervalMin + lastCompletedAt.
+         * For campaign-resume that would have read "heartbeat tier, every 5
+         * min, last completed 2026-08-25 14:19" -- forever, since the last
+         * automatic run is frozen in cron_log and nothing will ever update it.
+         * A job that cannot fire, displayed as one that fires every 5 minutes
+         * and recently did.
+         *
+         * `enabled` is deliberately NOT the field name here. cron/index.ts has
+         * its own `enabled` on the legacy registry, defaulting to true and
+         * meaning something else entirely; two flags of the same name that
+         * disagree is how the next reader gets it wrong.
+         */
+        scheduledAutomatically: j.enabled !== false,
       });
     }
   }

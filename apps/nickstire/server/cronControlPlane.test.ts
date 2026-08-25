@@ -22,12 +22,15 @@ import {
   findCronWiringFaults,
   extractRegistryJobNames,
   extractTierJobNames,
+  extractDisabledTierJobNames,
+  MANUAL_TRIGGER_STAGED,
   REGISTRY_TIER_ALIASES,
 } from "./cron/registry-tier-map";
 import { buildCronJobStatuses, type TierCadence } from "./cron/cron-status";
 import {
   HEALTH_ISSUE_CATEGORIES,
   ISSUE_DELIVERY,
+  cronStalenessIssues,
   selectAlertableIssues,
   __resetAlertThrottleForTests,
   type HealthIssue,
@@ -437,5 +440,276 @@ describe("canary · cron status reads the live source", () => {
     const files = ["server/cron/cron-status.ts", "server/services/selfHealing.ts", "server/cron/observer.ts"];
     const defining = files.filter((f) => /MAX\(completed_at\)\s+AS\s+lastCompletedAt/i.test(read(f)));
     expect(defining).toEqual(["server/cron/cron-status.ts"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4 · Manual-trigger staging (2026-08-25)
+//
+// campaign-resume and sms-learning-digest were wired into tiers on 2026-08-23
+// and began firing automatically. campaign-resume can send real SMS and
+// SMS_KILL_SWITCH does not gate it, so both are now held OFF the scheduler
+// and reachable only by hand.
+//
+// A staging flag has TWO ways to be wrong, and a test that checks one of them
+// is worse than useless because it reads as coverage:
+//
+//   · it stops working  -> the job goes automatic again, unwatched
+//   · it works too well -> the job becomes unreachable, which is a decommission
+//                          wearing a staging label, and nobody notices until
+//                          the day the recovery net is actually needed
+//
+// Both directions are asserted below.
+// ─────────────────────────────────────────────────────────────────────────
+describe("canary · crons staged behind the manual trigger", () => {
+  const SCHEDULER = read("server/cron/scheduler.ts");
+
+  it("BREAKS: a job that loses its `enabled: false` is no longer seen as staged", () => {
+    // The positive control, and the load-bearing one. If the parser returned
+    // the same set either way, every assertion below would be vacuous and
+    // would pass over a job that had quietly gone automatic.
+    const staged = `{\n  name: "campaign-resume",\n  enabled: false,\n  handler: x,\n},`;
+    const promoted = `{\n  name: "campaign-resume",\n  handler: x,\n},`;
+    expect(extractDisabledTierJobNames(staged).has("campaign-resume")).toBe(true);
+    expect(extractDisabledTierJobNames(promoted).has("campaign-resume")).toBe(false);
+  });
+
+  it("BREAKS: a decoy `enabled: true` does not read as staged", () => {
+    // Distinct from the case above: there the flag is absent, here it is
+    // present and says the opposite. A substring check for "enabled" would
+    // pass both and guard nothing.
+    const src = `{\n  name: "campaign-resume",\n  enabled: true,\n  handler: x,\n},`;
+    expect(extractDisabledTierJobNames(src).has("campaign-resume")).toBe(false);
+  });
+
+  it("every staged job really is disabled in the live scheduler", () => {
+    const disabled = extractDisabledTierJobNames(SCHEDULER);
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(disabled.has(job.name), `${job.name} is listed as staged but the scheduler will run it`).toBe(true);
+    }
+  });
+
+  it("no job is disabled without an entry saying why", () => {
+    // The other direction. `enabled: false` alone is indistinguishable from
+    // someone parking a broken job and forgetting it; the list is what makes
+    // the intent legible, so drift in either direction is a failure.
+    const listed = new Set(MANUAL_TRIGGER_STAGED.map((j) => j.name));
+    for (const name of extractDisabledTierJobNames(SCHEDULER)) {
+      expect(listed.has(name), `${name} is disabled in scheduler.ts with no MANUAL_TRIGGER_STAGED entry`).toBe(true);
+    }
+  });
+
+  it("every entry states a reason and a promotion condition", () => {
+    // Copied from the alias rule above: an entry cannot outlive its
+    // justification if it is required to carry one.
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(job.why.length, `${job.name} needs a why`).toBeGreaterThan(30);
+      expect(job.promote.length, `${job.name} needs a promotion condition`).toBeGreaterThan(30);
+    }
+  });
+
+  it("STAGED, NOT DECOMMISSIONED: the manual runners ignore `enabled`", () => {
+    // Without this, the change above is an unwired control — the recovery net
+    // would be gone rather than held, and the automatic path and the manual
+    // path would both be shut. Assert the mechanism, not the intent: slice
+    // each runner's body and require no `enabled` read inside it.
+    const body = (src: string, fn: string) => {
+      const start = src.indexOf(`export async function ${fn}(`);
+      expect(start, `${fn} not found — the manual path was renamed or deleted`).toBeGreaterThan(-1);
+      const next = src.indexOf("\nexport ", start + 1);
+      return src.slice(start, next === -1 ? undefined : next);
+    };
+    const tierRunner = body(SCHEDULER, "runTierJobByName");
+    expect(tierRunner).toContain("job.handler()");
+    expect(tierRunner, "runTierJobByName must not gate on enabled").not.toMatch(/\benabled\b/);
+
+    const REGISTRY = read("server/cron/index.ts");
+    const httpRunner = body(REGISTRY, "runJobByName");
+    expect(httpRunner).toContain("job.handler()");
+    expect(httpRunner, "runJobByName must not gate on enabled").not.toMatch(/\benabled\b/);
+  });
+
+  it("REACHABLE BY NAME: every staged job is still in registerAllJobs()", () => {
+    // runJobByName resolves against the legacy registry, not the tiers, so a
+    // staged job missing from registerAllJobs() is unreachable no matter what
+    // the tier says.
+    const registry = new Set(extractRegistryJobNames(read("server/cron/index.ts")));
+    const tiers = extractTierJobNames(SCHEDULER);
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(registry.has(job.name), `${job.name} is not in registerAllJobs() — runJobByName cannot find it`).toBe(true);
+      expect(tiers.has(job.name), `${job.name} vanished from the tiers`).toBe(true);
+    }
+  });
+
+  it("REACHABLE IN FACT: an owner-gated route fires staged jobs, and the bridge does NOT", () => {
+    // The first version of this suite asserted registry membership and called
+    // it reachability. Review proved that false: /api/bridge/run-job 403s on
+    // any name outside BRIDGE_RUN_JOB_ALLOWLIST, which deliberately excludes
+    // SMS-capable jobs and contained neither staged name — so "fire it by name
+    // and it runs" pointed at a locked door and staging was a decommission in
+    // fact. Registry membership is necessary, not sufficient; this test pins
+    // the whole chain the previous one skipped.
+    const ADMIN = read("server/routes/adminRoutes.ts");
+
+    // The dedicated route exists, sits behind the admin gate on the SAME
+    // registration line (a gate on a nearby line guards a different route),
+    // validates against MANUAL_TRIGGER_STAGED, and executes via runJobByName —
+    // the runner that WRITES cron_log, because an unobservable first run
+    // defeats the purpose of staging.
+    expect(ADMIN).toMatch(/app\.post\("\/api\/admin\/run-staged-cron",\s*requireAdminApiKey/);
+    const route = ADMIN.slice(ADMIN.indexOf('app.post("/api/admin/run-staged-cron"'));
+    const routeBody = route.slice(0, route.indexOf("app.", 10));
+    expect(routeBody, "the route must gate on MANUAL_TRIGGER_STAGED, not accept any name").toContain("MANUAL_TRIGGER_STAGED");
+    expect(routeBody, "must refuse non-staged names").toMatch(/status\(403\)/);
+    expect(routeBody, "must run via runJobByName so the run lands in cron_log").toContain("runJobByName");
+
+    // And the bridge allowlist must NOT grow the SMS-capable staged jobs —
+    // that list is a control from the 2026-07-05 adversarial audit, reachable
+    // by the Custom GPT and any leaked X-Bridge-Key. Widening it is the
+    // tempting one-line "fix" for the reachability gap, and it is the wrong
+    // one. Parse the literal Set, not the whole file, so mentions in comments
+    // do not count.
+    const BRIDGE = read("server/_core/bridge-routes.ts");
+    const listStart = BRIDGE.indexOf("BRIDGE_RUN_JOB_ALLOWLIST = new Set([");
+    expect(listStart, "BRIDGE_RUN_JOB_ALLOWLIST not found — if renamed, re-verify reachability from scratch").toBeGreaterThan(-1);
+    const list = BRIDGE.slice(listStart, BRIDGE.indexOf("])", listStart));
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(list, `${job.name} must NOT enter the bridge allowlist — use /api/admin/run-staged-cron`).not.toContain(`"${job.name}"`);
+    }
+  });
+
+  it("BREAKS: a staged job is never judged stale; the same job live IS", () => {
+    // Review finding two, verified before fixing: cronStalenessIssues judged
+    // every tier job, so campaign-resume — whose last cron_log row is frozen
+    // at its final automatic run — would go CRON_STALE ~15 minutes after the
+    // staging deploy and re-alert on every hourly throttle window, forever.
+    // An unsilenceable false alarm teaches the operator to ignore the channel,
+    // which un-guards everything else the channel carries.
+    //
+    // Same fixture both ways: identical cadence, identical ancient completion;
+    // only the flag differs. Without the live arm this cannot be told apart
+    // from a staleness check that stopped firing entirely.
+    const NOW = Date.parse("2026-08-25T18:00:00Z");
+    const cadence = { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat" };
+    const ancient = new Map([["campaign-resume", "2026-08-25T14:19:51Z"]]); // ~3.7h > 15min allowance
+
+    const staged = cronStalenessIssues(
+      new Map([["campaign-resume", { ...cadence, scheduledAutomatically: false }]]),
+      ancient, NOW, 10 * 60 * 60 * 1000,
+    );
+    expect(staged, `staged job produced: ${JSON.stringify(staged)}`).toEqual([]);
+
+    const live = cronStalenessIssues(
+      new Map([["campaign-resume", { ...cadence, scheduledAutomatically: true }]]),
+      ancient, NOW, 10 * 60 * 60 * 1000,
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0].category).toBe("CRON_STALE");
+  });
+
+  it("a staged job that has NEVER run is not reported either — that is its designed state", () => {
+    // The never-observed branch, separately: before the first manual run
+    // sms-learning-digest has produced nothing, and long uptime would
+    // otherwise flip it to CRON_NEVER_OBSERVED. A live never-run job with the
+    // same uptime must still be reported, or this skip has eaten the watchdog.
+    const NOW = Date.parse("2026-08-25T18:00:00Z");
+    const cadence = { intervalMin: 120, businessHoursOnly: false, oncePerShopDay: true, tier: "briefings" };
+    const empty = new Map<string, string>();
+    const longUptime = 72 * 60 * 60 * 1000; // > the 48h oncePerShopDay allowance
+
+    expect(
+      cronStalenessIssues(new Map([["sms-learning-digest", { ...cadence, scheduledAutomatically: false }]]), empty, NOW, longUptime),
+    ).toEqual([]);
+    const live = cronStalenessIssues(
+      new Map([["sms-learning-digest", { ...cadence, scheduledAutomatically: true }]]), empty, NOW, longUptime,
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0].category).toBe("CRON_NEVER_OBSERVED");
+  });
+
+  it("BREAKS: the cron-status surface must not show a staged job as live", () => {
+    // Found by adversarially re-reading my own diff, not by a failing test.
+    // buildCronJobStatuses renders tier + intervalMin + lastCompletedAt. With
+    // no scheduledAutomatically field, campaign-resume would have read
+    // "heartbeat, every 5 min, last completed 2026-08-25 14:19" forever — the
+    // timestamp frozen at its last automatic run, because nothing will ever
+    // write another. A job that cannot fire, displayed as one that fires every
+    // five minutes and recently did.
+    //
+    // Both directions in one fixture: a staged job and a live one, identical
+    // in every other field. A test with only the staged row could not tell
+    // this apart from the field being hardcoded false.
+    const cadences = new Map<string, TierCadence>([
+      ["campaign-resume", { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat", scheduledAutomatically: false }],
+      ["self-healing", { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat", scheduledAutomatically: true }],
+    ]);
+    const rows = buildCronJobStatuses(
+      [{ name: "campaign-resume", enabled: true }, { name: "self-healing", enabled: true }],
+      cadences,
+      new Map([["campaign-resume", "2026-08-25T14:19:51Z"], ["self-healing", "2026-08-25T14:19:50Z"]]),
+      [],
+    );
+    const staged = rows.find((r) => r.name === "campaign-resume");
+    const live = rows.find((r) => r.name === "self-healing");
+    expect(staged?.scheduledAutomatically, "a staged job must not report as automatically scheduled").toBe(false);
+    expect(live?.scheduledAutomatically, "a live job in the same tier must still report true").toBe(true);
+    // The misleading fields are still populated on purpose — the tier and the
+    // stale timestamp are real facts. The new flag is what stops them being
+    // read as liveness.
+    expect(staged?.tier).toBe("heartbeat");
+    expect(staged?.lastCompletedAt).toBe("2026-08-25T14:19:51Z");
+  });
+
+  it("a job in NO tier reports scheduledAutomatically false, not undefined", () => {
+    // The `?? false` default. An unwired job is not automatically scheduled
+    // either, and `undefined` on a boolean field renders as absent, which a
+    // consumer reads as "unknown" — the one answer this surface must never give.
+    const rows = buildCronJobStatuses(
+      [{ name: "stranded-job", enabled: true }],
+      new Map<string, TierCadence>(),
+      new Map(),
+      [],
+    );
+    expect(rows[0].tier).toBeNull();
+    expect(rows[0].scheduledAutomatically).toBe(false);
+  });
+
+  it("staged jobs stay ENABLED in the legacy registry — the second flag is a trap", () => {
+    // Two `enabled` flags now exist and mean different things. The tier's is
+    // the staging switch. The registry's gates findCronWiringFaults, which
+    // does `if (!job.enabled) continue` — so setting the registry flag false
+    // would BLIND the wiring check to these two jobs while disabling nothing,
+    // since runJobByName never reads it.
+    //
+    // The tidy-up that causes this is obvious and wrong: "I staged it in the
+    // tier, I should stage it in the registry too." Assert the registry
+    // registration stays bare so that edit fails here instead of silently
+    // removing wiring coverage.
+    const REGISTRY = read("server/cron/index.ts");
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      const call = REGISTRY.slice(REGISTRY.indexOf(`registerJob("${job.name}"`));
+      const end = call.indexOf("});");
+      expect(end, `registerJob("${job.name}") not found`).toBeGreaterThan(-1);
+      expect(
+        call.slice(0, end),
+        `${job.name} must stay enabled in the legacy registry — a false there blinds findCronWiringFaults without disabling anything`,
+      ).not.toMatch(/,\s*false\s*\)/);
+    }
+  });
+
+  it("the ONLY automatic path is the tier loop", () => {
+    // If startAllJobs() ever came back, `enabled: false` on a tier job would
+    // stop one scheduler while the legacy registry ran the same job on a
+    // setInterval — staging that stages nothing.
+    const REGISTRY = read("server/cron/index.ts");
+    expect(REGISTRY).toMatch(/startAllJobs\(\) is decommissioned/);
+    // Strip comments first — the same false-positive the getJobStatuses check
+    // above guards against, and it fired here on the first run: this file's
+    // header still said "Uses setInterval", describing a scheduler removed
+    // months earlier. The claim was corrected rather than the check loosened,
+    // but the check must still read CODE, because the next true sentence about
+    // setInterval will also be a comment.
+    const code = REGISTRY.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(code, "the legacy registry must not schedule anything").not.toMatch(/setInterval\s*\(/);
   });
 });
