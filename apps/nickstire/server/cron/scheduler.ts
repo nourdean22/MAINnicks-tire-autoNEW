@@ -2625,11 +2625,23 @@ export function stopTieredScheduler(): void {
  */
 export function getJobCadences(): Map<
   string,
-  { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+  {
+    intervalMin: number;
+    businessHoursOnly: boolean;
+    oncePerShopDay: boolean;
+    tier: string;
+    scheduledAutomatically: boolean;
+  }
 > {
   const out = new Map<
     string,
-    { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string }
+    {
+      intervalMin: number;
+      businessHoursOnly: boolean;
+      oncePerShopDay: boolean;
+      tier: string;
+      scheduledAutomatically: boolean;
+    }
   >();
   for (const t of tiers) {
     for (const j of t.jobs) {
@@ -2638,6 +2650,23 @@ export function getJobCadences(): Map<
         businessHoursOnly: j.businessHoursOnly === true,
         oncePerShopDay: j.oncePerShopDay === true,
         tier: t.name,
+        /*
+         * 2026-08-25 · ADDED WITH THE STAGING FLAG, because without it every
+         * consumer of this map reports a staged job as a live scheduled one.
+         *
+         * The cron-status surface renders tier + intervalMin + lastCompletedAt.
+         * For campaign-resume that would have read "heartbeat tier, every 5
+         * min, last completed 2026-08-25 14:19" -- forever, since the last
+         * automatic run is frozen in cron_log and nothing will ever update it.
+         * A job that cannot fire, displayed as one that fires every 5 minutes
+         * and recently did.
+         *
+         * `enabled` is deliberately NOT the field name here. cron/index.ts has
+         * its own `enabled` on the legacy registry, defaulting to true and
+         * meaning something else entirely; two flags of the same name that
+         * disagree is how the next reader gets it wrong.
+         */
+        scheduledAutomatically: j.enabled !== false,
       });
     }
   }

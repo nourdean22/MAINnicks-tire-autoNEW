@@ -46,6 +46,17 @@ export interface CronJobStatus {
   businessHoursOnly: boolean;
   oncePerShopDay: boolean;
   /**
+   * FALSE = the job is in a tier but the scheduler will not fire it; it runs
+   * only when triggered by name via /api/bridge/run-job.
+   *
+   * Added 2026-08-25 with the staging flag. Without it this report showed
+   * `tier` + `intervalMin` + a recent `lastCompletedAt` for a job that can no
+   * longer fire -- and `lastCompletedAt` is frozen at the last automatic run,
+   * so it would have read as healthy indefinitely. A staged job and a live one
+   * were indistinguishable on the one surface built to tell them apart.
+   */
+  scheduledAutomatically: boolean;
+  /**
    * Last COMPLETED run from cron_log. `null` means no completed row was
    * found — which is meaningful only when `observable` is true.
    */
@@ -134,6 +145,8 @@ export interface TierCadence {
   businessHoursOnly: boolean;
   oncePerShopDay: boolean;
   tier: string;
+  /** False when the tier job carries `enabled: false` -- staged, manual-trigger only. */
+  scheduledAutomatically: boolean;
 }
 
 /**
@@ -178,6 +191,9 @@ export function buildCronJobStatuses(
       intervalMin: cadence?.intervalMin ?? null,
       businessHoursOnly: cadence?.businessHoursOnly ?? false,
       oncePerShopDay: cadence?.oncePerShopDay ?? false,
+      // No cadence at all means no tier owns it, so it is not automatically
+      // scheduled either -- false is the honest default, not a fallback.
+      scheduledAutomatically: cadence?.scheduledAutomatically ?? false,
       lastCompletedAt: lastCompletions?.get(effectiveName) ?? null,
       // Only report a cover that actually resolved to a live tier. A stale
       // alias (covering job deleted) must still surface as tier: null, i.e.

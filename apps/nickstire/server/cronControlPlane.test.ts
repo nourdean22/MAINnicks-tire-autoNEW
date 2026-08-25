@@ -540,6 +540,76 @@ describe("canary · crons staged behind the manual trigger", () => {
     }
   });
 
+  it("BREAKS: the cron-status surface must not show a staged job as live", () => {
+    // Found by adversarially re-reading my own diff, not by a failing test.
+    // buildCronJobStatuses renders tier + intervalMin + lastCompletedAt. With
+    // no scheduledAutomatically field, campaign-resume would have read
+    // "heartbeat, every 5 min, last completed 2026-08-25 14:19" forever — the
+    // timestamp frozen at its last automatic run, because nothing will ever
+    // write another. A job that cannot fire, displayed as one that fires every
+    // five minutes and recently did.
+    //
+    // Both directions in one fixture: a staged job and a live one, identical
+    // in every other field. A test with only the staged row could not tell
+    // this apart from the field being hardcoded false.
+    const cadences = new Map<string, TierCadence>([
+      ["campaign-resume", { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat", scheduledAutomatically: false }],
+      ["self-healing", { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat", scheduledAutomatically: true }],
+    ]);
+    const rows = buildCronJobStatuses(
+      [{ name: "campaign-resume", enabled: true }, { name: "self-healing", enabled: true }],
+      cadences,
+      new Map([["campaign-resume", "2026-08-25T14:19:51Z"], ["self-healing", "2026-08-25T14:19:50Z"]]),
+      [],
+    );
+    const staged = rows.find((r) => r.name === "campaign-resume");
+    const live = rows.find((r) => r.name === "self-healing");
+    expect(staged?.scheduledAutomatically, "a staged job must not report as automatically scheduled").toBe(false);
+    expect(live?.scheduledAutomatically, "a live job in the same tier must still report true").toBe(true);
+    // The misleading fields are still populated on purpose — the tier and the
+    // stale timestamp are real facts. The new flag is what stops them being
+    // read as liveness.
+    expect(staged?.tier).toBe("heartbeat");
+    expect(staged?.lastCompletedAt).toBe("2026-08-25T14:19:51Z");
+  });
+
+  it("a job in NO tier reports scheduledAutomatically false, not undefined", () => {
+    // The `?? false` default. An unwired job is not automatically scheduled
+    // either, and `undefined` on a boolean field renders as absent, which a
+    // consumer reads as "unknown" — the one answer this surface must never give.
+    const rows = buildCronJobStatuses(
+      [{ name: "stranded-job", enabled: true }],
+      new Map<string, TierCadence>(),
+      new Map(),
+      [],
+    );
+    expect(rows[0].tier).toBeNull();
+    expect(rows[0].scheduledAutomatically).toBe(false);
+  });
+
+  it("staged jobs stay ENABLED in the legacy registry — the second flag is a trap", () => {
+    // Two `enabled` flags now exist and mean different things. The tier's is
+    // the staging switch. The registry's gates findCronWiringFaults, which
+    // does `if (!job.enabled) continue` — so setting the registry flag false
+    // would BLIND the wiring check to these two jobs while disabling nothing,
+    // since runJobByName never reads it.
+    //
+    // The tidy-up that causes this is obvious and wrong: "I staged it in the
+    // tier, I should stage it in the registry too." Assert the registry
+    // registration stays bare so that edit fails here instead of silently
+    // removing wiring coverage.
+    const REGISTRY = read("server/cron/index.ts");
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      const call = REGISTRY.slice(REGISTRY.indexOf(`registerJob("${job.name}"`));
+      const end = call.indexOf("});");
+      expect(end, `registerJob("${job.name}") not found`).toBeGreaterThan(-1);
+      expect(
+        call.slice(0, end),
+        `${job.name} must stay enabled in the legacy registry — a false there blinds findCronWiringFaults without disabling anything`,
+      ).not.toMatch(/,\s*false\s*\)/);
+    }
+  });
+
   it("the ONLY automatic path is the tier loop", () => {
     // If startAllJobs() ever came back, `enabled: false` on a tier job would
     // stop one scheduler while the legacy registry ran the same job on a
