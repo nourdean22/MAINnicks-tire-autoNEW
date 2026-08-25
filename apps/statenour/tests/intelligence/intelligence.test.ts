@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchFREDIndicators } from "@/lib/intelligence/connectors/fred";
 import { fetchNHTSARecalls } from "@/lib/intelligence/connectors/nhtsa";
 import { calculateOpportunityScore } from "@/lib/intelligence/scoring";
 import { groundClaim } from "@/lib/intelligence/grounding";
@@ -106,15 +105,16 @@ describe("Intelligence OS System Tests", () => {
     // AG-02 · Fabrication purge: connectors must emit EMPTY data when their
     // upstream is unavailable — never invented indicators or recalls. These
     // tests pin that contract (and no longer touch the live network).
-    it("should emit NO indicators when FRED API key is missing (no mock fallback)", async () => {
-      const originalKey = process.env.FRED_API_KEY;
-      delete process.env.FRED_API_KEY;
-
-      const indicators = await fetchFREDIndicators();
-      expect(indicators).toHaveLength(0);
-
-      // Restore key
-      process.env.FRED_API_KEY = originalKey;
+    it("should emit NO FRED points when the API key is missing (no mock fallback)", async () => {
+      // fred.ts was folded into connectors/macro.ts on 2026-08-25 (multi-source
+      // macro). Same AG-02 contract, same assertion, new home: keyless FRED
+      // serves nothing and says why, rather than fabricating indicators.
+      const { fetchFredSeries } = await import("@/lib/intelligence/connectors/macro");
+      const { points, reason } = await fetchFredSeries(["CPIAUCSL"], undefined, (() => {
+        throw new Error("fetch must not be called when the key is absent");
+      }) as unknown as typeof fetch);
+      expect(points.size).toBe(0);
+      expect(reason).toContain("FRED_API_KEY");
     });
 
     it("should emit NO recalls when the NHTSA API is unreachable (no mock fallback)", async () => {

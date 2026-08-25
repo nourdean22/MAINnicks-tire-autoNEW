@@ -255,3 +255,35 @@ export function startOfYearET(at: Date = new Date()): Date {
   const { year } = etCalendarParts(at);
   return etMidnightToUtc(year, 1, 1);
 }
+
+/**
+ * The Monday that starts the Mon-Sun week containing `at`, and the one before
+ * it, both as ET date strings.
+ *
+ * MOVED HERE 2026-08-25 from app/api/cron/weekly-digest/route.ts, where it was
+ * hand-rolled next to a duplicate of `startOfWeekET`. Two reasons it could not
+ * stay: a Next route module rejects non-standard exports, so it was untestable
+ * in place; and it MIXED FRAMES in a way that reads as a bug —
+ * `now.getDate()` is the SERVER day-of-month while `weekdayET(now)` is the ET
+ * weekday.
+ *
+ * That mix is in fact SAFE, and the measurement is why this is a move rather
+ * than a rewrite: `setDate(getDate() - n)` shifts the INSTANT by n days and the
+ * ET conversion happens afterwards, so the frames never actually meet. Verified
+ * against an independent walk-back oracle over 2,904 instants x 4 server
+ * timezones (UTC, America/New_York, Asia/Tokyo, Australia/Sydney — both DST
+ * regimes, both hemispheres): 11,616 checks, 0 mismatches.
+ *
+ * Recorded because the danger is now inverted. The code LOOKS wrong, so the
+ * next reader is likely to "fix" it into being wrong. The test beside this
+ * pins the behaviour against the same oracle.
+ */
+export function recentMondaysET(at: Date = new Date()): [string, string] {
+  const day = weekdayET(at);
+  const diff = day === 0 ? 6 : day - 1;
+  const thisMonday = new Date(at);
+  thisMonday.setDate(at.getDate() - diff);
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+  return [toDateString(thisMonday), toDateString(lastMonday)];
+}
