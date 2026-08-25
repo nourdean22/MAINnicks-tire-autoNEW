@@ -102,12 +102,14 @@ test("--quiet suppresses the healthy line but NEVER the capacity warning", () =>
   // first draft gated the 80% warning on it too -- so the operator would first
   // hear about capacity when the guard FAILED at 92%. An early-warning system
   // that only speaks once it is too late, inside the guard written against that.
-  const filler = "- [x](alpha.md) - " + "y".repeat(200) + "\n";
-  const warnIndex = "# Memory index\n\n" + filler.repeat(98) + SENTINEL + "\n";
-  // files scoped to alpha.md only: the filler references alpha, so carrying
-  // healthy's beta.md would orphan it and fail this test for an unrelated
-  // reason — a fixture defect masquerading as a guard defect.
-  const quiet = run({ index: warnIndex, files: { "alpha.md": "a\n" } }, ["--quiet"]);
+  // THE FIXTURE OWNS ITS THRESHOLD. This previously sized a filler index against
+  // the live READ_LIMIT to land in the 80–92% band, coupling the canary to a
+  // constant it does not control. `--limit` is now computed from the fixture's
+  // own byte length, so moving the production limit cannot break this test while
+  // the guard is correct.
+  const warnIndex = healthy.index;
+  const warnLimit = Math.ceil(Buffer.byteLength(warnIndex, "utf8") / 0.85); // ~85% — inside the warn band
+  const quiet = run({ index: warnIndex, files: healthy.files }, ["--quiet", "--limit", String(warnLimit)]);
   assert.equal(quiet.code, 0, `warn-band fixture should still exit 0: ${quiet.out}`);
   assert.match(quiet.out, /WARNING/, "--quiet must not swallow the capacity warning");
   assert.doesNotMatch(quiet.out, /all reachable, sentinel present/, "--quiet must suppress the healthy line");
@@ -136,10 +138,18 @@ test("a memory reachable only via the SECOND-level index passes", () => {
 });
 
 test("BREAKS: past the fail threshold it fails, and names the right remedy", () => {
-  const filler = "- [x](alpha.md) - " + "y".repeat(200) + "\n";
-  const { code, out } = run({ ...healthy, index: `# Memory index\n\n${filler.repeat(120)}${SENTINEL}\n` });
+  // Same discipline: a --limit smaller than the fixture puts it past FAIL_PCT
+  // without any dependence on the production constant.
+  const { code, out } = run(healthy, ["--limit", "50"]);
   assert.equal(code, 1, `an oversized index did not fail:\n${out}`);
-  assert.match(out, /% of the ~24400-byte read limit/);
+  // SHAPE, not the value. This asserted `~24400` literally, which couples the
+  // canary to READ_LIMIT — a constant that can legitimately change if the
+  // harness's read limit moves. The canary would then fail while the guard is
+  // correct, standing between a right fix and a green build, which is exactly
+  // how a canary gets deleted rather than fixed. See the stated rule in
+  // CONTROL-CANARY-COVERAGE.md: assert against a fixture you control, never a
+  // live datum.
+  assert.match(out, /% of the ~\d+-byte read limit/);
   // The remedy matters as much as the alarm: compaction has been spent twice
   // and buys weeks; the migration buys years.
   assert.match(out, /settled-index\.md/);
