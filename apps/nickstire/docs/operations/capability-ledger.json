@@ -1488,7 +1488,7 @@
       "owner": "nickstire",
       "codeState": "merged",
       "operationalState": "unit_verified",
-      "exposure": "operator_only",
+      "exposure": "internal",
       "lastVerifiedAt": "2026-08-25",
       "evidence": {
         "codeCommit": "server/cron/scheduler.ts (enabled:false on campaign-resume + sms-learning-digest, scheduledAutomatically in getJobCadences), server/cron/registry-tier-map.ts (MANUAL_TRIGGER_STAGED with mandatory why/promote), server/routes/adminRoutes.ts (POST /api/admin/run-staged-cron, requireAdminApiKey, MANUAL_TRIGGER_STAGED names only, runs via runJobByName so the run lands in cron_log), server/services/selfHealing.ts (cronStalenessIssues extracted pure; staged jobs skipped in stale AND never-observed branches). NOT via /api/bridge/run-job: BRIDGE_RUN_JOB_ALLOWLIST deliberately excludes SMS-capable jobs and a canary asserts the staged names never enter it.",
@@ -1497,7 +1497,7 @@
           "8 mutation probes, every one red on the break and green on restore — enabled flip, entry deletion, runner gate, hardcoded status, registry disable, staleness-skip deletion, admin-gate unhook, bridge-allowlist plant",
           "pnpm run verify all 15 links: 488 test files passed / 2 skipped (490), 5,962 tests passed / 48 skipped / 1 todo (6,011), 0 failure markers, exit 0"
         ],
-        "operationalNote": "operationalState stays unit_verified DELIBERATELY: prod measurement 2026-08-25 (read-only) found 0 pending sends and 0 recommendations, so neither staged job has ever exercised its real work. Promotion to automatic requires the observed first run recorded in MANUAL_TRIGGER_STAGED[].promote — until then 561 green cron_log rows are evidence of cadence, not correctness."
+        "operationalNote": "exposure internal + operationalState unit_verified, BOTH deliberate and the validator's own ladder is why: exposure operator_only requires >= integration_verified, and this endpoint has never been exercised beyond unit level — no HTTP-level test, never deployed, never invoked. The first attempt at this entry claimed operator_only over unit_verified and check-capability-ledger correctly rejected it; the fix is the honest label, not an inflated state. Prod measurement 2026-08-25 (read-only): 0 pending sends, 0 recommendations — neither staged job has ever exercised its real work, so 561 green cron_log rows are evidence of cadence, not correctness. ADVANCES when the operator fires the observed first run named in MANUAL_TRIGGER_STAGED[].promote: that run is live verification of the trigger AND the exposure event, so the entry moves to operator_only + live_verified together, with the cron_log row id as evidence."
       }
     }
   ],
