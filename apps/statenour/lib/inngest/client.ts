@@ -63,7 +63,7 @@ export function getInngest(): Inngest {
  * Whether Inngest is "fully wired" (both event key + signing key set).
  * Used by the serve endpoint to decide whether to enforce signing.
  *
- * Same defensive pattern as `isBraintrustActive()` — we ship the code
+ * Same defensive pattern as lib/observability/langfuse.ts — we ship the code
  * before the operator pastes the credentials, and we degrade gracefully.
  */
 export function isInngestFullyConfigured(): boolean {
