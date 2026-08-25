@@ -101,14 +101,20 @@ describe("every label declares its frame — the invariant", () => {
 });
 
 describe("the row actually RENDERS it — a computed label nobody reads is not a fix", () => {
-  const src = readRowSource();
+  // Resolved lazily inside each test, not at collection. When the frame is
+  // unwired entirely `readRowSource()` throws, and doing that at module scope
+  // takes the whole FILE down with it — nineteen unrelated assertions
+  // disappearing behind one error is a worse report than one red test that
+  // names the problem.
 
-  it("mission-task-row calls describeCompletion", () => {
+  it("a surface calls describeCompletion", () => {
+    const src = readRowSource();
     expect(src).toContain("describeCompletion(");
     expect(src).toContain("completion-frame");
   });
 
   it("the label reaches the DOM, not just a title= attribute", () => {
+    const src = readRowSource();
     // statenour is a standalone iOS PWA (AGENTS.md → Frontend conventions):
     // hover does not exist, so a tooltip is a dead affordance. The operator has
     // to be able to READ it.
@@ -119,6 +125,7 @@ describe("the row actually RENDERS it — a computed label nobody reads is not a
   });
 
   it("it is gated on the frame, not on loopKind", () => {
+    const src = readRowSource();
     // Keying on loopKind would show the chip on a recurring task he has NOT
     // completed, which claims a completion that did not happen.
     expect(src).toMatch(/showsCompletionFrame\s*&&/);
@@ -178,8 +185,87 @@ describe("POSITIVE CONTROLS · the ordinary cases must stay ordinary", () => {
   });
 });
 
+function firstPartySurfaces(): string[] {
+  const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+  return execFileSync("git", ["ls-files", "--", "components", "app", "features"], {
+    encoding: "utf8",
+    maxBuffer: 32e6,
+  })
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((f) => f.endsWith(".tsx"));
+}
+
+/**
+ * The surface that consumes the frame, found by SWEEP rather than by name.
+ *
+ * 2026-08-25 · this used to hard-code `components/missions/mission-task-row.tsx`.
+ * That is a permanent control pinned to a temporary datum: renaming or splitting
+ * that component is a legitimate change, and the test would have failed on it
+ * while catching no defect. Locating the consumer by its IMPORT keeps every
+ * wiring assertion below — they fail when someone unwires the frame, which is
+ * the actual defect — and survives any rename.
+ */
 function readRowSource(): string {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
-  const { resolve } = require("node:path") as typeof import("node:path");
-  return readFileSync(resolve(process.cwd(), "components/missions/mission-task-row.tsx"), "utf8");
+  const consumers = firstPartySurfaces().filter((f) =>
+    readFileSync(f, "utf8").includes("@/lib/services/completion-frame"),
+  );
+  if (consumers.length === 0) {
+    throw new Error(
+      "NO surface imports completion-frame. The helper is computed and rendered " +
+        "nowhere — that is the built-tested-unwired shape, and it is what these " +
+        "assertions exist to catch.",
+    );
+  }
+  return consumers.map((f) => readFileSync(f, "utf8")).join("\n");
 }
+
+describe("no surface answers the completion question without a frame", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+
+  /**
+   * A raw status word rendered as element TEXT.
+   *
+   * Narrowed to WAITING and READY on purpose, and the narrowing is the whole
+   * design. Those are the only two statuses a same-day completion can
+   * CONTRADICT — the operator finished his workout and read `WAITING`. `DONE`
+   * and `DOING` cannot lie that way: nothing about "was completed today" makes
+   * `DOING` the wrong answer, so banning them would widen the rule past its
+   * invariant and start flagging correct code (`project-detail.tsx` renders a
+   * `<Badge>DOING</Badge>` that is perfectly honest).
+   *
+   * A rule wider than its invariant grows an exemption list, and an exemption
+   * list is how a gate becomes decoration.
+   */
+  const BARE_STATUS = />\s*(WAITING|READY)\s*</;
+
+  it("POSITIVE CONTROL: it catches a bare status rendered as text", () => {
+    // Synthetic, owned by this test. This is the shape the board had.
+    expect(BARE_STATUS.test("<span>WAITING</span>")).toBe(true);
+    expect(BARE_STATUS.test("<Badge>\n  READY\n</Badge>")).toBe(true);
+  });
+
+  it("NEGATIVE CONTROL: framed output and non-display uses are not flagged", () => {
+    // The label from describeCompletion — carries a frame, reads in plain words.
+    expect(BARE_STATUS.test("<p>{completionDisplay.label}</p>")).toBe(false);
+    // A status INPUT is not a completion answer; it is how you set one.
+    expect(BARE_STATUS.test('<option value="WAITING">waiting</option>')).toBe(false);
+    // A comparison is not a render.
+    expect(BARE_STATUS.test('task.status === "WAITING"')).toBe(false);
+    // DONE/DOING cannot be contradicted by a same-day completion.
+    expect(BARE_STATUS.test("<Badge>DOING</Badge>")).toBe(false);
+  });
+
+  it("no first-party surface renders WAITING or READY as bare text", () => {
+    const files = firstPartySurfaces();
+    expect(files.length, "git ls-files returned nothing — the sweep had no subject").toBeGreaterThan(50);
+    const offenders = files.filter((f) => BARE_STATUS.test(readFileSync(f, "utf8")));
+    expect(
+      offenders,
+      "these print a raw status as the answer to 'is it done?', with nothing " +
+        "saying which frame it is spoken in. Route it through describeCompletion:\n  " +
+        offenders.join("\n  "),
+    ).toEqual([]);
+  });
+});
