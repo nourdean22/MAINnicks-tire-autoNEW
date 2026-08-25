@@ -20,6 +20,7 @@ export default function UnpaidInvoicesSection() {
   const totalOwed = Math.round((data?.totalCents ?? 0) / 100);
   const count = items.length;
   const avg = count > 0 ? Math.round(totalOwed / count) : 0;
+  const collections = data?.collections;
   /**
    * UNKNOWN IS NOT ZERO. A failed read used to fall through `?? []` / `?? 0`
    * into "$0 owed · Everything issued has been paid" — the single worst
@@ -33,6 +34,29 @@ export default function UnpaidInvoicesSection() {
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
           <strong>Unpaid invoices could not be read.</strong> The numbers below are unknown — NOT zero, and nothing here means you have been paid. {error?.message}
+        </div>
+      )}
+
+      {/*
+        COLLECTIONS STATE. The recovery cron identifies eligible invoices every
+        day and, while FEATURE_UNPAID_INVOICE_RECOVERY is unset, only writes a
+        log line saying so — money identified and not chased, visible nowhere.
+        And the window is bounded at BOTH ends: anything past 90 days stops
+        being selected and was previously mentioned by nothing at all.
+      */}
+      {!unknown && collections && collections.eligibleCents > 0 && !collections.sendingArmed && (
+        <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-300">
+          <strong>${(collections.eligibleCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} is eligible for automatic reminders and none are being sent.</strong>{" "}
+          The recovery job finds these {collections.eligibleCount} invoice{collections.eligibleCount === 1 ? "" : "s"} every day and stops at a dry run.
+          Sending turns on with <code className="px-1 bg-black/30 rounded">FEATURE_UNPAID_INVOICE_RECOVERY=1</code> on Railway.
+        </div>
+      )}
+
+      {!unknown && collections && collections.agedOutCents > 0 && (
+        <div className="border border-rose-500/40 bg-rose-500/10 p-4 text-[13px] text-rose-300">
+          <strong>${(collections.agedOutCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} has aged out of collections.</strong>{" "}
+          {collections.agedOutCount} invoice{collections.agedOutCount === 1 ? "" : "s"} older than {collections.maxAgeDays} days — the recovery job no longer
+          selects {collections.agedOutCount === 1 ? "it" : "them"}, so {collections.agedOutCount === 1 ? "it needs" : "they need"} a call rather than a text.
         </div>
       )}
       {/* Stat cards */}

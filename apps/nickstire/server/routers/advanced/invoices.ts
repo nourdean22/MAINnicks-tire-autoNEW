@@ -113,9 +113,48 @@ export const invoicesRouter = router({
       .where(inArray(invoices.paymentStatus, ["pending", "partial"]))
       .orderBy(desc(invoices.totalAmount), asc(invoices.invoiceDate))
       .limit(500);
+    // 2026-08-25 · collections state per row, plus the two facts the operator
+    // could not see: how much is inside the cron's window, and how much has
+    // aged past it and will never be selected again. Measured at the time:
+    // 5 eligible ($2,221.35) and 3 aged out ($1,606.62, oldest 138 days).
+    const {
+      collectionsState, invoiceAgeDays, recoverySendingArmed,
+      COLLECTIONS_MIN_AGE_DAYS, COLLECTIONS_MAX_AGE_DAYS,
+    } = await import("../../services/collectionsWindow");
+
+    const now = new Date();
+    const decorated = items.map((r: (typeof items)[number]) => {
+      const ageDays = invoiceAgeDays(r.invoiceDate, now);
+      return { ...r, ageDays, collectionsState: collectionsState(ageDays) };
+    });
+
     let totalCents = 0;
-    for (const r of items) totalCents += r.totalAmount ?? 0;
-    return { items, totalCents };
+    let eligibleCents = 0;
+    let agedOutCents = 0;
+    let tooNewCents = 0;
+    for (const r of decorated) {
+      const c = r.totalAmount ?? 0;
+      totalCents += c;
+      if (r.collectionsState === "eligible") eligibleCents += c;
+      else if (r.collectionsState === "aged-out") agedOutCents += c;
+      else tooNewCents += c;
+    }
+
+    return {
+      items: decorated,
+      totalCents,
+      collections: {
+        // Read-only report of the Railway flag. Never flipped from here.
+        sendingArmed: recoverySendingArmed(),
+        eligibleCents,
+        agedOutCents,
+        tooNewCents,
+        eligibleCount: decorated.filter((r: (typeof decorated)[number]) => r.collectionsState === "eligible").length,
+        agedOutCount: decorated.filter((r: (typeof decorated)[number]) => r.collectionsState === "aged-out").length,
+        minAgeDays: COLLECTIONS_MIN_AGE_DAYS,
+        maxAgeDays: COLLECTIONS_MAX_AGE_DAYS,
+      },
+    };
   }),
 
   /** Create an invoice */
