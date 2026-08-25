@@ -889,7 +889,7 @@ export const CRONS: CronDef[] = [
     mode: "folded",
     category: "action",
     foldedInto: "mega-evening",
-    description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
+    description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/actions unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
   },
   {
     name: "neglect-penalty",

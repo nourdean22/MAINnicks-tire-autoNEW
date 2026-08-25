@@ -176,7 +176,7 @@ export const EVENING_JOBS: readonly string[] = [
   // route in the Wave-AE prune. The route HARD-SKIPS when NICK_AUTONOMY is
   // off, so it's inert until the operator flips the env flag on Railway.
   // The engine is now FAIL-CLOSED (autonomous-engine.ts): every rule defers
-  // to /system/approvals unless an explicit `auto` policy exists — nothing
+  // to /system/actions unless an explicit `auto` policy exists — nothing
   // auto-sends. One evening pass matches the rules' ET-hour/24h-cooldown gates.
   "/api/cron/autonomous-engine",
 ];
