@@ -188,6 +188,28 @@ export async function prepareTools(args: {
     promptChars: finalSystemPromptLength,
   });
 
+  // 2026-08-25 · tool-surfacing telemetry. tool_telemetry counts tools the
+  // model CHOSE; nothing recorded which tools it was OFFERED, so the usage
+  // census could not tell "never surfaced by the pruner" from "surfaced and
+  // never chosen" — opposite meanings for a prune decision (the census
+  // discloses this exact confound). Record the FINAL set — after the
+  // blocklist, always-on, recovery-lane, coherence forces and the read-mode
+  // strip — one system_metrics row per turn (metric `tool.surfaced`, names
+  // in tags.tools), so the census gains a surfaced-denominator without DDL.
+  // Fire-and-forget: recordMetric already swallows its own failures.
+  {
+    const surfacedNames = Object.keys(prunedTools).sort();
+    void import("@/lib/services/metrics")
+      .then(({ recordMetric }) =>
+        recordMetric("tool.surfaced", surfacedNames.length, {
+          unit: "count",
+          tags: { tools: surfacedNames, mode },
+          source: "chat",
+        }),
+      )
+      .catch(() => {});
+  }
+
   // maxOutputTokens derived from mode default + query shape. Standard
   // mode uses 2000 default; query-shape drops it to 80-150 for yes/no +
   // casual, 700 for explain, 1600 for plan — making it feel as fast as

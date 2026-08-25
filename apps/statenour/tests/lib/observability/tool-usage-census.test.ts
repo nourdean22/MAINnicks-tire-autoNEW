@@ -6,8 +6,15 @@
  * a ≥10-call <60% tool lands in highFailure, and the caveat text that
  * makes a zero honest is part of the payload contract.
  */
-import { describe, it, expect } from "vitest";
-import { assembleToolUsageCensus } from "@/lib/observability/tool-usage-census";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: { $queryRaw: (...a: unknown[]) => mocks.queryRaw(...a) },
+}));
+
+import { assembleToolUsageCensus, getSurfacedStats } from "@/lib/observability/tool-usage-census";
 import { pickRewriteCandidates, buildRewritePrompt } from "@/lib/ai/tool-description-rewrite";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 import type { ToolStat } from "@/lib/ai/tool-telemetry";
@@ -63,6 +70,104 @@ describe("assembleToolUsageCensus", () => {
     const census = assembleToolUsageCensus([], NOW);
     expect(census.caveat).toMatch(/pruner-confounded/);
     expect(census.caveat).toMatch(/never auto-delete/i);
+    // With no surfacing data the resolved buckets must stay EMPTY — an
+    // absent instrument must not read as a measured zero.
+    expect(census.surfacedNeverChosen).toEqual([]);
+    expect(census.neverSurfaced).toEqual([]);
+    expect(census.surfacedWindow.turns).toBe(0);
+  });
+
+  it("splits zero-call tools into surfacedNeverChosen vs neverSurfaced when surfacing data exists", () => {
+    const names = TOOL_CATALOG.map((t) => t.name);
+    const invoked = names[0];
+    const offeredNeverChosen = names[1];
+    const offeredMoreNeverChosen = names[2];
+    const census = assembleToolUsageCensus(
+      [stat({ toolName: invoked, totalCalls: 5, successRate: 0.9 })],
+      NOW,
+      {
+        windowDays: 30,
+        turns: 40,
+        since: NOW - 10 * 86_400_000,
+        counts: new Map([
+          [invoked, 40],
+          [offeredNeverChosen, 12],
+          [offeredMoreNeverChosen, 33],
+        ]),
+      },
+    );
+    const chosen = census.surfacedNeverChosen.map((r) => r.name);
+    // Most-offered first — strongest decline evidence sorts to the top.
+    expect(chosen[0]).toBe(offeredMoreNeverChosen);
+    expect(chosen).toContain(offeredNeverChosen);
+    // Positive control: an INVOKED tool must not leak into either zero bucket.
+    expect(chosen).not.toContain(invoked);
+    expect(census.neverSurfaced.map((r) => r.name)).not.toContain(invoked);
+    // Rows carry the denominator-bearing count and every un-offered zero-call
+    // tool lands in neverSurfaced (catalog minus invoked minus the 2 offered).
+    expect(census.surfacedNeverChosen.find((r) => r.name === offeredNeverChosen)?.surfacedCount).toBe(12);
+    expect(census.neverSurfaced.length).toBe(TOOL_CATALOG.length - 3);
+    expect(census.surfacedWindow).toEqual({
+      windowDays: 30,
+      turns: 40,
+      since: new Date(NOW - 10 * 86_400_000).toISOString(),
+    });
+    expect(census.caveat).toMatch(/40 turns/);
+    expect(census.caveat).toMatch(/never auto-delete/i);
+    // neverInvoked stays the backward-compatible union of both zero buckets.
+    expect(census.neverInvoked.length).toBe(
+      census.surfacedNeverChosen.length + census.neverSurfaced.length,
+    );
+  });
+
+  it("treats a zero-turn surfacing window exactly like no surfacing data (instrument absent)", () => {
+    const census = assembleToolUsageCensus([], NOW, {
+      windowDays: 30,
+      turns: 0,
+      since: null,
+      counts: new Map(),
+    });
+    expect(census.surfacedNeverChosen).toEqual([]);
+    expect(census.neverSurfaced).toEqual([]);
+    expect(census.caveat).toMatch(/pruner-confounded/);
+  });
+});
+
+describe("getSurfacedStats", () => {
+  beforeEach(() => {
+    mocks.queryRaw.mockReset();
+  });
+
+  it("maps the per-tool rows and window meta into SurfacedStats", async () => {
+    const since = new Date("2026-08-15T00:00:00Z");
+    mocks.queryRaw
+      .mockResolvedValueOnce([
+        { tool: "getTasks", surfaced: 33 },
+        { tool: "createTask", surfaced: 12 },
+      ])
+      .mockResolvedValueOnce([{ turns: 40, since }]);
+    const stats = await getSurfacedStats(30);
+    expect(stats).not.toBeNull();
+    expect(stats!.windowDays).toBe(30);
+    expect(stats!.turns).toBe(40);
+    expect(stats!.since).toBe(since.getTime());
+    expect(stats!.counts.get("getTasks")).toBe(33);
+    expect(stats!.counts.get("createTask")).toBe(12);
+  });
+
+  it("returns null on query failure so the census degrades to the disclosed confound, never a false measured-zero", async () => {
+    mocks.queryRaw.mockRejectedValue(new Error("relation does not exist"));
+    expect(await getSurfacedStats(30)).toBeNull();
+  });
+
+  it("clamps a hostile window to [1, 365] days before it reaches SQL", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    await getSurfacedStats(99999);
+    // Both queries receive the clamped parameter — Prisma tags it as the
+    // template value after the SQL strings.
+    const args = mocks.queryRaw.mock.calls.flat(2);
+    expect(JSON.stringify(args)).toContain("365");
+    expect(JSON.stringify(args)).not.toContain("99999");
   });
 });
 
