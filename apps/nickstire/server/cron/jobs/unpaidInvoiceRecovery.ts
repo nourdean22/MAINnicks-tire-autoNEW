@@ -45,6 +45,13 @@ interface RunOpts {
   maxSends?: number;
   /** Bypass the FEATURE_UNPAID_INVOICE_RECOVERY dry-run gate (tests / manual "fire now"). */
   skipDryRunGate?: boolean;
+  /**
+   * Restrict the run to these invoice ids. Used by the operator's one-shot
+   * trigger so a first live execution can be scoped to a single named invoice
+   * and watched, rather than firing at the whole eligible set at once.
+   * Omitted = the normal unattended behaviour.
+   */
+  invoiceIds?: number[];
 }
 
 function isBusinessHours(): boolean {
@@ -148,7 +155,7 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
   const ninetyDaysAgo = new Date(now - 90 * DAY);
 
   // Candidates: unpaid (pending/partial), aged 7-90d, has a phone.
-  const eligible = await d
+  const candidates = await d
     .select({
       id: invoices.id,
       customerName: invoices.customerName,
@@ -168,8 +175,37 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
     )
     .limit(500);
 
+  // NOT CUSTOMERS. Two categories, both withheld, each with its reason logged.
+  // The one that matters most is NOT bad data: one of these rows is the
+  // OPERATOR'S OWN LINE, confirmed 2026-08-25, carrying an $846.72 unpaid
+  // invoice (a second, aged-out, carries $184.18). Without
+  // this filter the next unattended run would have texted him a demand for a
+  // bill he owes himself. He had already received 18 automated customer
+  // messages across eight other lanes, which this module does NOT cover - see
+  // its header for the proposed choke-point fix.
+  //
+  // The other category is seeded test data. Measured 2026-08-25: 3 of the 5 rows in this exact set
+  // were seeded tests - two on the reserved 216-555-9999, one on an 11-digit
+  // 77777777777 - worth $1,167.27 of the $2,221.35 this lane was reporting as
+  // collectable. They cannot be paid, so unlike real invoices they never leave
+  // the unpaid bucket; 60% of this slice against a 0.14% table-wide base rate.
+  // Excluded here so the cron never texts them AND so the count this returns
+  // is money that actually exists.
+  const { partitionNonCustomers } = await import("../../services/nonCustomerFilter");
+  const split = partitionNonCustomers<(typeof candidates)[number]>(candidates);
+  for (const e of split.excluded) {
+    log.info(`[unpaid-invoice-recovery] withheld invoice ${e.row.id}: ${e.reason}`);
+  }
+  // Optional operator scoping for a watched first run.
+  const eligible = opts?.invoiceIds?.length
+    ? split.real.filter((r) => opts.invoiceIds!.includes(r.id))
+    : split.real;
+
   if (eligible.length === 0) {
-    return { recordsProcessed: 0, details: "No unpaid invoices eligible for a reminder" };
+    return {
+      recordsProcessed: 0,
+      details: `No unpaid invoices eligible for a reminder (${split.excluded.length} withheld as non-customers)`,
+    };
   }
 
   const featureEnabled =
