@@ -95,6 +95,14 @@ standard check**, so a reviewer running the obvious test comes away reassured.
 | **populated-but-unused** | a column that is full of values nobody consumes, or whose values are a placeholder | *"is the column null"* — it is not null, on every row |
 | **blind instrument** | a control that is wired, running, and pointed at nothing | *"check the logs"* — the log is clean because it cannot record the thing |
 
+**Blind-instrument instance, 2026-08-25 — a CI pass that was never attempted.** A deterministic
+teardown throw in the statenour suite (langfuse SIGTERM handler `.catch` on a non-promise) was first
+diagnosed as *"intermittent, ~50%"* because two PRs had passed the checks. Those two PRs touched only
+`scripts/agent-os/**` — `turbo --affected` never ran the statenour suite for them at all. **They were
+never exposed, not passing.** A green from a run that did not execute the relevant suite is the
+affected-graph being blind to the question, not evidence about the defect; before citing a pass as
+evidence, confirm the failing suite was actually IN that run's task list.
+
 **On the third one, which is the newest and the easiest to miss: a column's name is a claim about its
 contents, and a populated column is not a used column.** `NOT NULL` on every row proves that
 something wrote a value. It does not prove the value means what the column is called, that anything
