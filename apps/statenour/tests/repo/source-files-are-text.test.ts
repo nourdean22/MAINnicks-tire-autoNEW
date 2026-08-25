@@ -111,15 +111,18 @@ describe("source files are text, so scanners can actually read them", () => {
     ).toEqual([]);
   });
 
-  it("the two known offenders keep their NUL delimiter as an ESCAPE", () => {
-    // The delimiter is deliberate and correct; only the encoding was wrong.
-    // Pinned so a future edit does not "simplify" the escape back to a raw byte
-    // and silently re-blind both files.
-    const a = readFileSync("components/home/follow-ups-list.tsx", "utf8");
-    expect(a).toContain('titles.join("\\u0000")');
-    const b = readFileSync("lib/observability/persona-lane-census.ts", "utf8");
-    expect(b).toContain("${lane}\\u0000${taskClass}");
-  });
+  // REMOVED 2026-08-24: an assertion that two NAMED files still contain a
+  // specific escape sequence. It was a permanent control hard-coded to a
+  // temporary datum — the day either file legitimately stops using a NUL
+  // delimiter (a perfectly reasonable refactor), the test could not pass, so it
+  // would stand between a correct change and a green build and get deleted. One
+  // of ours died exactly that way.
+  //
+  // Nothing is lost. The regression it guarded — someone "simplifying" the
+  // escape back to a raw 0x00 — is caught by the repo-wide sweep above, which
+  // is a live-vs-live comparison rather than a hard-coded string: it fails when
+  // a file actually becomes unreadable, and stays green through every
+  // legitimate rewrite. The narrower assertion only ever added coupling.
 
   it("the escape produces the identical runtime string a raw NUL would", () => {
     // The whole fix rests on this being true. If it were not, the change would
