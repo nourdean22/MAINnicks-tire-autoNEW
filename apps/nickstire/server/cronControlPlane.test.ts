@@ -30,6 +30,7 @@ import { buildCronJobStatuses, type TierCadence } from "./cron/cron-status";
 import {
   HEALTH_ISSUE_CATEGORIES,
   ISSUE_DELIVERY,
+  cronStalenessIssues,
   selectAlertableIssues,
   __resetAlertThrottleForTests,
   type HealthIssue,
@@ -530,14 +531,100 @@ describe("canary · crons staged behind the manual trigger", () => {
 
   it("REACHABLE BY NAME: every staged job is still in registerAllJobs()", () => {
     // runJobByName resolves against the legacy registry, not the tiers, so a
-    // staged job missing from registerAllJobs() is unreachable over HTTP no
-    // matter what the tier says.
+    // staged job missing from registerAllJobs() is unreachable no matter what
+    // the tier says.
     const registry = new Set(extractRegistryJobNames(read("server/cron/index.ts")));
     const tiers = extractTierJobNames(SCHEDULER);
     for (const job of MANUAL_TRIGGER_STAGED) {
-      expect(registry.has(job.name), `${job.name} is not in registerAllJobs() — /api/bridge/run-job cannot find it`).toBe(true);
+      expect(registry.has(job.name), `${job.name} is not in registerAllJobs() — runJobByName cannot find it`).toBe(true);
       expect(tiers.has(job.name), `${job.name} vanished from the tiers`).toBe(true);
     }
+  });
+
+  it("REACHABLE IN FACT: an owner-gated route fires staged jobs, and the bridge does NOT", () => {
+    // The first version of this suite asserted registry membership and called
+    // it reachability. Review proved that false: /api/bridge/run-job 403s on
+    // any name outside BRIDGE_RUN_JOB_ALLOWLIST, which deliberately excludes
+    // SMS-capable jobs and contained neither staged name — so "fire it by name
+    // and it runs" pointed at a locked door and staging was a decommission in
+    // fact. Registry membership is necessary, not sufficient; this test pins
+    // the whole chain the previous one skipped.
+    const ADMIN = read("server/routes/adminRoutes.ts");
+
+    // The dedicated route exists, sits behind the admin gate on the SAME
+    // registration line (a gate on a nearby line guards a different route),
+    // validates against MANUAL_TRIGGER_STAGED, and executes via runJobByName —
+    // the runner that WRITES cron_log, because an unobservable first run
+    // defeats the purpose of staging.
+    expect(ADMIN).toMatch(/app\.post\("\/api\/admin\/run-staged-cron",\s*requireAdminApiKey/);
+    const route = ADMIN.slice(ADMIN.indexOf('app.post("/api/admin/run-staged-cron"'));
+    const routeBody = route.slice(0, route.indexOf("app.", 10));
+    expect(routeBody, "the route must gate on MANUAL_TRIGGER_STAGED, not accept any name").toContain("MANUAL_TRIGGER_STAGED");
+    expect(routeBody, "must refuse non-staged names").toMatch(/status\(403\)/);
+    expect(routeBody, "must run via runJobByName so the run lands in cron_log").toContain("runJobByName");
+
+    // And the bridge allowlist must NOT grow the SMS-capable staged jobs —
+    // that list is a control from the 2026-07-05 adversarial audit, reachable
+    // by the Custom GPT and any leaked X-Bridge-Key. Widening it is the
+    // tempting one-line "fix" for the reachability gap, and it is the wrong
+    // one. Parse the literal Set, not the whole file, so mentions in comments
+    // do not count.
+    const BRIDGE = read("server/_core/bridge-routes.ts");
+    const listStart = BRIDGE.indexOf("BRIDGE_RUN_JOB_ALLOWLIST = new Set([");
+    expect(listStart, "BRIDGE_RUN_JOB_ALLOWLIST not found — if renamed, re-verify reachability from scratch").toBeGreaterThan(-1);
+    const list = BRIDGE.slice(listStart, BRIDGE.indexOf("])", listStart));
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(list, `${job.name} must NOT enter the bridge allowlist — use /api/admin/run-staged-cron`).not.toContain(`"${job.name}"`);
+    }
+  });
+
+  it("BREAKS: a staged job is never judged stale; the same job live IS", () => {
+    // Review finding two, verified before fixing: cronStalenessIssues judged
+    // every tier job, so campaign-resume — whose last cron_log row is frozen
+    // at its final automatic run — would go CRON_STALE ~15 minutes after the
+    // staging deploy and re-alert on every hourly throttle window, forever.
+    // An unsilenceable false alarm teaches the operator to ignore the channel,
+    // which un-guards everything else the channel carries.
+    //
+    // Same fixture both ways: identical cadence, identical ancient completion;
+    // only the flag differs. Without the live arm this cannot be told apart
+    // from a staleness check that stopped firing entirely.
+    const NOW = Date.parse("2026-08-25T18:00:00Z");
+    const cadence = { intervalMin: 5, businessHoursOnly: false, oncePerShopDay: false, tier: "heartbeat" };
+    const ancient = new Map([["campaign-resume", "2026-08-25T14:19:51Z"]]); // ~3.7h > 15min allowance
+
+    const staged = cronStalenessIssues(
+      new Map([["campaign-resume", { ...cadence, scheduledAutomatically: false }]]),
+      ancient, NOW, 10 * 60 * 60 * 1000,
+    );
+    expect(staged, `staged job produced: ${JSON.stringify(staged)}`).toEqual([]);
+
+    const live = cronStalenessIssues(
+      new Map([["campaign-resume", { ...cadence, scheduledAutomatically: true }]]),
+      ancient, NOW, 10 * 60 * 60 * 1000,
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0].category).toBe("CRON_STALE");
+  });
+
+  it("a staged job that has NEVER run is not reported either — that is its designed state", () => {
+    // The never-observed branch, separately: before the first manual run
+    // sms-learning-digest has produced nothing, and long uptime would
+    // otherwise flip it to CRON_NEVER_OBSERVED. A live never-run job with the
+    // same uptime must still be reported, or this skip has eaten the watchdog.
+    const NOW = Date.parse("2026-08-25T18:00:00Z");
+    const cadence = { intervalMin: 120, businessHoursOnly: false, oncePerShopDay: true, tier: "briefings" };
+    const empty = new Map<string, string>();
+    const longUptime = 72 * 60 * 60 * 1000; // > the 48h oncePerShopDay allowance
+
+    expect(
+      cronStalenessIssues(new Map([["sms-learning-digest", { ...cadence, scheduledAutomatically: false }]]), empty, NOW, longUptime),
+    ).toEqual([]);
+    const live = cronStalenessIssues(
+      new Map([["sms-learning-digest", { ...cadence, scheduledAutomatically: true }]]), empty, NOW, longUptime,
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0].category).toBe("CRON_NEVER_OBSERVED");
   });
 
   it("BREAKS: the cron-status surface must not show a staged job as live", () => {

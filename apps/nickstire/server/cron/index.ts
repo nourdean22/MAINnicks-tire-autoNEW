@@ -340,8 +340,15 @@ export function registerAllJobs(): void {
   // auto-triggers a fine-tune — the operator reviews and runs it. (NCSOS)
   registerJob("sms-learning-digest", 7 * 24 * 60 * 60 * 1000, async () => {
     const { processSmsLearningDigest } = await import("../services/smsLearningEngine");
-    await processSmsLearningDigest();
-    return { recordsProcessed: 1 };
+    // 2026-08-25 · return the digest's REAL result. This used to discard it
+    // and return a hardcoded `recordsProcessed: 1` — harmless while nothing
+    // called this handler, but /api/admin/run-staged-cron now runs the staged
+    // digest through THIS path and logs the result to cron_log. A constant 1
+    // would stamp the observed first run "processed 1" whether it crossed the
+    // threshold or the database was unreachable — a lying receipt on the one
+    // run whose receipt is the point. The function already returns
+    // { recordsProcessed, details }; pass it through, like the tier handler.
+    return processSmsLearningDigest();
   });
 
   // Cleanup (every 6 hours)

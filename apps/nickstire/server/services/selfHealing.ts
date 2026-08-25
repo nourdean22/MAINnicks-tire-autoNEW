@@ -172,6 +172,101 @@ export function selectAlertableIssues(
 // decommissioned in-memory registry. Hoisting it gave those two surfaces the
 // same source instead of letting a third implementation appear.
 
+/**
+ * PURE. The per-job staleness assessment, extracted 2026-08-25 so it can be
+ * tested by behaviour — it had been inline in runSelfHealingChecks, reachable
+ * only through a function that opens DB connections. Same pattern as
+ * selectAlertableIssues below. Body moved verbatim except for the staged-job
+ * skip, which is the reason for the move.
+ *
+ * `nowMs`/`uptimeMs` are parameters for the same reason the function exists:
+ * the clock was the untestable part.
+ */
+export function cronStalenessIssues(
+  cadences: ReadonlyMap<
+    string,
+    { intervalMin: number; businessHoursOnly: boolean; oncePerShopDay: boolean; tier: string; scheduledAutomatically: boolean }
+  >,
+  lastCompletions: ReadonlyMap<string, string>,
+  nowMs: number = Date.now(),
+  uptimeMs: number = process.uptime() * 1000,
+): HealthIssue[] {
+  const issues: HealthIssue[] = [];
+  // Cadence comes from the TIER that owns each job, never from the legacy
+  // registry's own intervalMin — those numbers no longer describe reality
+  // (review-monitor declares 6h but runs daily, sms-scheduler declares 5min
+  // but runs in the 15min tier), so comparing against them reports healthy
+  // jobs as stale on every 5-minute pass.
+  for (const [name, cadence] of cadences) {
+    // 2026-08-25 · A STAGED JOB IS SUPPOSED TO BE SILENT. `enabled: false`
+    // holds a job off the scheduler (manual trigger only), so judging it for
+    // staleness alarms on designed behaviour: campaign-resume's last cron_log
+    // row is frozen at its final automatic run, so without this skip it goes
+    // CRON_STALE ~15 minutes after the staging deploy and re-alerts on every
+    // hourly throttle window, forever — an unsilenceable false alarm, which is
+    // how operators learn to ignore the channel. Its staged state is visible
+    // on /api/admin/cron-status as `scheduledAutomatically: false`; the
+    // watchdog watches things that are supposed to run.
+    //
+    // Deliberately BEFORE the never-observed branch too: a staged job that has
+    // never run is the expected state before its observed first run, not a
+    // fault. Found by review on PR #1830, verified against selfHealing's
+    // throttle behaviour rather than taken on faith.
+    if (cadence.scheduledAutomatically === false) continue;
+
+    // ROS-081 · a `oncePerShopDay` job sits in the 2h tier so it gets enough
+    // chances to land inside business hours, but it deliberately runs ONCE a
+    // day. Judged on the raw tier interval it would be "stale" after ~21h
+    // (120min x3 + overnight grace) against a perfectly normal ~24h gap —
+    // a daily false alert that also auto-reset the job's running flag. Give
+    // it an explicit two-shop-day allowance instead of the x3 heuristic:
+    // tight enough to catch a genuinely dead daily loop on the second miss,
+    // loose enough that a healthy 24h gap never fires.
+    //
+    // A businessHoursOnly job is SUPPOSED to be silent overnight. Without
+    // that grace the watchdog alerts on every one of them, every night.
+    const overnightGraceMs = cadence.businessHoursOnly ? 15 * 60 * 60 * 1000 : 0;
+    const allowanceMs = cadence.oncePerShopDay
+      ? 48 * 60 * 60 * 1000
+      : cadence.intervalMin * 60 * 1000 * 3 + overnightGraceMs;
+    // Report the cadence the job actually keeps, not the tier's raw tick —
+    // "every 120min" on a once-a-day job sends the reader to the wrong bug.
+    const cadenceLabel = cadence.oncePerShopDay
+      ? "once per shop day"
+      : `every ${cadence.intervalMin}min`;
+    const lastRunIso = lastCompletions.get(name);
+
+    if (!lastRunIso) {
+      // Never completed once. Only report after the process has been up long
+      // enough that a run was genuinely due, so a fresh boot stays quiet.
+      if (uptimeMs > allowanceMs) {
+        issues.push({
+          category: "CRON_NEVER_OBSERVED",
+          message: `CRON NEVER OBSERVED: ${name} has no completed cron_log row (tier ${cadence.tier}, ${cadenceLabel})`,
+        });
+      }
+      continue;
+    }
+
+    const staleness = nowMs - new Date(lastRunIso).getTime();
+    if (staleness > allowanceMs) {
+      issues.push({
+        category: "CRON_STALE",
+        message: `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, ${cadenceLabel}${cadence.businessHoursOnly ? ", business hours only" : ""})`,
+      });
+      // 2026-08-23 · the "AUTO-FIX: Reset <job> running flag" branch that
+      // stood here was deleted with resetJobRunningFlag(). It mutated
+      // `job.running` in the legacy registry, a field only the caller-less
+      // runJob() ever set — so it returned false on every call and the fix it
+      // advertised never once ran. The scheduler's real mutex is
+      // `tier.running` plus the cron_locks row, neither reachable from here.
+      // Reporting the staleness IS the action now; there is no honest
+      // one-line remedy to claim.
+    }
+  }
+  return issues;
+}
+
 export async function runSelfHealingChecks(): Promise<{
   recordsProcessed: number;
   details: string;
@@ -216,62 +311,7 @@ export async function runSelfHealingChecks(): Promise<{
       message: "CRON STALENESS UNKNOWN: cron_log unreadable — staleness not evaluated this pass",
     });
   } else {
-    // Cadence comes from the TIER that owns each job, never from the legacy
-    // registry's own intervalMin — those numbers no longer describe reality
-    // (review-monitor declares 6h but runs daily, sms-scheduler declares 5min
-    // but runs in the 15min tier), so comparing against them reports healthy
-    // jobs as stale on every 5-minute pass.
-    for (const [name, cadence] of cadences) {
-      // ROS-081 · a `oncePerShopDay` job sits in the 2h tier so it gets enough
-      // chances to land inside business hours, but it deliberately runs ONCE a
-      // day. Judged on the raw tier interval it would be "stale" after ~21h
-      // (120min x3 + overnight grace) against a perfectly normal ~24h gap —
-      // a daily false alert that also auto-reset the job's running flag. Give
-      // it an explicit two-shop-day allowance instead of the x3 heuristic:
-      // tight enough to catch a genuinely dead daily loop on the second miss,
-      // loose enough that a healthy 24h gap never fires.
-      //
-      // A businessHoursOnly job is SUPPOSED to be silent overnight. Without
-      // that grace the watchdog alerts on every one of them, every night.
-      const overnightGraceMs = cadence.businessHoursOnly ? 15 * 60 * 60 * 1000 : 0;
-      const allowanceMs = cadence.oncePerShopDay
-        ? 48 * 60 * 60 * 1000
-        : cadence.intervalMin * 60 * 1000 * 3 + overnightGraceMs;
-      // Report the cadence the job actually keeps, not the tier's raw tick —
-      // "every 120min" on a once-a-day job sends the reader to the wrong bug.
-      const cadenceLabel = cadence.oncePerShopDay
-        ? "once per shop day"
-        : `every ${cadence.intervalMin}min`;
-      const lastRunIso = lastCompletions.get(name);
-
-      if (!lastRunIso) {
-        // Never completed once. Only report after the process has been up long
-        // enough that a run was genuinely due, so a fresh boot stays quiet.
-        if (process.uptime() * 1000 > allowanceMs) {
-          issues.push({
-            category: "CRON_NEVER_OBSERVED",
-            message: `CRON NEVER OBSERVED: ${name} has no completed cron_log row (tier ${cadence.tier}, ${cadenceLabel})`,
-          });
-        }
-        continue;
-      }
-
-      const staleness = Date.now() - new Date(lastRunIso).getTime();
-      if (staleness > allowanceMs) {
-        issues.push({
-          category: "CRON_STALE",
-          message: `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, ${cadenceLabel}${cadence.businessHoursOnly ? ", business hours only" : ""})`,
-        });
-        // 2026-08-23 · the "AUTO-FIX: Reset <job> running flag" branch that
-        // stood here was deleted with resetJobRunningFlag(). It mutated
-        // `job.running` in the legacy registry, a field only the caller-less
-        // runJob() ever set — so it returned false on every call and the fix it
-        // advertised never once ran. The scheduler's real mutex is
-        // `tier.running` plus the cron_locks row, neither reachable from here.
-        // Reporting the staleness IS the action now; there is no honest
-        // one-line remedy to claim.
-      }
-    }
+    issues.push(...cronStalenessIssues(cadences, lastCompletions));
 
     // A job armed in the legacy registry but present in NO tier cannot run at
     // all — that is what the crons stranded on the retired startAllJobs() path

@@ -58,6 +58,50 @@ export function registerAdminRoutes(app: Express): void {
     }).catch(() => res.json({ jobs: [], observable: false, schedulerStarted: false, error: "Failed to load cron status" }));
   });
 
+  // ─── Run a STAGED cron by hand (admin) ────────────────
+  // 2026-08-25 · THE manual trigger for jobs held off the scheduler with
+  // `enabled: false` (cron/registry-tier-map.ts MANUAL_TRIGGER_STAGED).
+  //
+  // It exists because the path the staging commit originally documented was a
+  // locked door: /api/bridge/run-job rejects any name outside
+  // BRIDGE_RUN_JOB_ALLOWLIST, and that list deliberately excludes anything
+  // that can write outbound SMS — which campaign-resume can. Without this
+  // endpoint, staging was a decommission wearing a staging label (found by
+  // review on PR #1830, verified against the allowlist).
+  //
+  // Why HERE and not the bridge allowlist: the bridge is reachable by the
+  // "Nour Command" Custom GPT and by anyone holding a leaked X-Bridge-Key —
+  // its allowlist is a control from the 2026-07-05 adversarial audit, and
+  // widening it to an SMS-capable job weakens that control. This route sits
+  // behind requireAdminApiKey, the same gate as /api/admin/cron-status
+  // directly above, so the operator can check status and fire the staged job
+  // with one credential.
+  //
+  // Only MANUAL_TRIGGER_STAGED names are accepted — everything else 403s, so
+  // this cannot become a second, quieter run-anything door. Execution goes
+  // through runJobByName (cron/index.ts): cross-dyno lock, and the run is
+  // WRITTEN TO cron_log, which is the whole point — the first real run must
+  // be observable on /api/admin/cron-status and in cron_log, not vanish.
+  app.post("/api/admin/run-staged-cron", requireAdminApiKey, (req, res) => {
+    (async () => {
+      const { jobName } = req.body ?? {};
+      const { MANUAL_TRIGGER_STAGED } = await import("../cron/registry-tier-map");
+      const staged = MANUAL_TRIGGER_STAGED.find((j) => j.name === jobName);
+      if (!staged) {
+        res.status(403).json({
+          error: "not a staged job — this endpoint fires ONLY jobs held behind the manual trigger",
+          staged: MANUAL_TRIGGER_STAGED.map((j) => j.name),
+        });
+        return;
+      }
+      const { runJobByName } = await import("../cron/index");
+      const result = await runJobByName(String(jobName));
+      res.json({ ...result, jobName, promote: staged.promote, timestamp: new Date().toISOString() });
+    })().catch((err) => {
+      res.status(500).json({ error: err instanceof Error ? err.message : "run failed" });
+    });
+  });
+
   // ─── Run pending migrations (admin · idempotent) ──────
   // POST /api/admin/run-migrations — applies the hand-written DDL array in
   // handleRunMigrations (all CREATE TABLE IF NOT EXISTS / INSERT IGNORE /

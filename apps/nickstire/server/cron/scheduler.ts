@@ -580,9 +580,16 @@ export function startTieredScheduler(): void {
         // the tier loop is the single automatic path (`startAllJobs()` throws —
         // cron/index.ts:55 — so the legacy registry schedules nothing), and
         // neither manual runner consults this flag. `runTierJobByName`
-        // (scheduler.ts) and `runJobByName` (cron/index.ts, behind
-        // `/api/bridge/run-job`) both look the job up and call its handler
-        // directly. Fire it by name and it runs.
+        // (scheduler.ts) and `runJobByName` (cron/index.ts) both look the job
+        // up and call its handler directly. Fire it via
+        // POST /api/admin/run-staged-cron.
+        //
+        // NOT via /api/bridge/run-job: the staging commit first documented that
+        // path, and it is a locked door — BRIDGE_RUN_JOB_ALLOWLIST
+        // (_core/bridge-routes.ts) deliberately excludes SMS-capable jobs and
+        // contains neither staged name. Found by review on PR #1830; the
+        // admin endpoint exists because widening the bridge allowlist to an
+        // SMS-capable job would weaken a 2026-07-05 audit control.
         //
         // WHY, and it is the SMS: this job can call processCampaignSends() for
         // a campaign still 'active' with rows left 'pending'. SMS_KILL_SWITCH
@@ -1600,7 +1607,8 @@ export function startTieredScheduler(): void {
         // ─── 2026-08-25 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
         //
         // Same mechanism as campaign-resume above: `enabled: false` stops the
-        // scheduler only; `/api/bridge/run-job` still reaches it.
+        // scheduler only; POST /api/admin/run-staged-cron reaches it (the
+        // bridge allowlist does NOT — see campaign-resume above).
         //
         // The reason here is NOT a customer side effect — this job writes
         // sms_learning_recommendations rows for an admin panel and texts

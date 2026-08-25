@@ -212,7 +212,11 @@ export function findCronWiringFaults(
  * `enabled: false` is read in exactly one place: the tier loop in
  * scheduler.ts. Neither manual runner consults it — `runTierJobByName`
  * (scheduler.ts) and `runJobByName` (cron/index.ts, behind
- * `/api/bridge/run-job`) each look the job up by name and call its handler.
+ * POST /api/admin/run-staged-cron) each look the job up by name and call its
+ * handler. NOT the bridge: /api/bridge/run-job 403s on any name outside
+ * BRIDGE_RUN_JOB_ALLOWLIST, which deliberately excludes SMS-capable jobs —
+ * so the ONLY reachable trigger is the admin endpoint, and a canary asserts
+ * it stays wired to this list.
  * So a staged job is one keystroke from running, and its first run is
  * observed. Confirm before trusting that sentence:
  *
@@ -242,7 +246,7 @@ export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
       "and SMS_KILL_SWITCH does not gate it (Twilio-only; the shop gateway path stays live). " +
       "A job that reaches customers gets an observed first run.",
     promote:
-      "one manual run via /api/bridge/run-job observed against a REAL stranded campaign " +
+      "one manual run via POST /api/admin/run-staged-cron observed against a REAL stranded campaign " +
       "(0 pending rows existed at staging time, so the 558 automatic runs proved nothing).",
   },
   {
