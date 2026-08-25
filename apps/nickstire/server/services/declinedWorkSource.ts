@@ -43,6 +43,10 @@ export type DeclinedSourceState = "populated" | "empty" | "unknown";
  * `null` means the count could not be read - a failed query, not a zero.
  * Note that `Number(null)` is 0 in JS, which is exactly how a failed read
  * becomes a confident "nothing to recover"; the null is checked first.
+ *
+ * The caller passes an EXISTENCE probe result (0 or 1), not a census. Nothing
+ * downstream may read this number as a total - the only question asked is
+ * "is there anything here at all".
  */
 export function sourceStateFrom(declinedItemRows: number | null | undefined): DeclinedSourceState {
   // ONE guard, deliberately. An earlier version also tested null/undefined
@@ -79,12 +83,18 @@ export async function declinedWorkSourceState(): Promise<DeclinedSourceState> {
     if (!d) return "unknown";
     const { workOrderItems } = await import("../../drizzle/schema");
     const { eq, sql } = await import("drizzle-orm");
-    const [row] = await d
-      .select({ n: sql<number>`count(*)` })
+    // EXISTENCE PROBE, not a count. `work_order_items` carries only
+    // idx_woi_work_order - there is no index on `declined` - so COUNT(*) is a
+    // full scan. That is free at today's 0 rows and stops being free the day
+    // the subsystem is populated, on every statenour sync and every bridge
+    // dispatch. LIMIT 1 short-circuits on the first hit at any table size and
+    // answers the only question being asked, with no migration required.
+    const rows = await d
+      .select({ one: sql<number>`1` })
       .from(workOrderItems)
-      .where(eq(workOrderItems.declined, true));
-    const n = row?.n;
-    return sourceStateFrom(n === undefined || n === null ? null : Number(n));
+      .where(eq(workOrderItems.declined, true))
+      .limit(1);
+    return sourceStateFrom(Array.isArray(rows) ? rows.length : null);
   } catch {
     return "unknown";
   }

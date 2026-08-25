@@ -135,6 +135,18 @@ describe("canary - the flag is WIRED into what actually gets published", () => {
     expect(sync).toMatch(/if \(!isMeasured\(sourceState\)\) log\.warn/);
   });
 
+  it("BREAKS: the source is probed with LIMIT 1, never COUNT(*)", () => {
+    // work_order_items has no index on `declined` (only idx_woi_work_order),
+    // so COUNT(*) is a full scan - free at 0 rows, not free once the
+    // subsystem is populated, and it runs on every sync and every bridge
+    // dispatch. Existence is the only question being asked.
+    const src = stripComments(
+      readFileSync(join(process.cwd(), "server/services/declinedWorkSource.ts"), "utf-8"),
+    );
+    expect(src).toMatch(/\.limit\(1\)/);
+    expect(src).not.toMatch(/count\(\*\)/i);
+  });
+
   it("BREAKS: the state reader cannot throw into the cron", () => {
     // A source-state probe that threw would take down the whole statenour
     // sync, which is a far worse outcome than an unflagged number.
