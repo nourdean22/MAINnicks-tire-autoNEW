@@ -17,8 +17,9 @@
 
 import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from "../_core/map";
 import { invokeLLM } from "../_core/llm";
-import { reviewPipeline, reviewTrends } from "../../drizzle/schema";
-import { desc, eq, gte, sql, and, lte } from "drizzle-orm";
+import { reviewPipeline, reviewReplies, reviewTrends } from "../../drizzle/schema";
+import { desc, eq, gte, sql, and, lte, isNotNull } from "drizzle-orm";
+import { URGENT_MAX_STARS, closureFor, suppressesAlert } from "../services/reviewClosure";
 
 import { db } from "../lib/db-helper";
 
@@ -479,20 +480,48 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
 // ─── URGENCY DETECTION ──────────────────────────────────
 
 /**
- * Get reviews flagged as urgent (1-2 stars) that haven't been reviewed yet.
+ * Reviews still awaiting a response: 1-2 stars, not marked reviewed, and
+ * WITHOUT an already-posted reply.
+ *
+ * That last clause is the fix. `reviewed` is never assigned anywhere in the
+ * codebase - confirmed in prod, where all 7 rows sit at `reviewed = 0,
+ * responseSent = 0` - so this filter alone could never stop firing. The
+ * operator's actual completion signal lives in a different table:
+ * review_replies.posted_at, written by the admin "mark posted" action. Until
+ * now nothing connected the two, so answering a review on Google left the
+ * daily "URGENT REVIEWS" Telegram announcing it again the next day, and the
+ * day after that. See server/services/reviewClosure.ts for the correlation
+ * rule and why ambiguity deliberately stays LOUD.
+ *
+ * `ageDays` is computed IN SQL. Driver-parsed TiDB DATETIME values come back
+ * shifted on Eastern time, so a JS subtraction here would be wrong by hours
+ * and could round a day either way. It prefers the review's own timestamp
+ * (reviewTime, epoch seconds from Google) and falls back to the row's
+ * createdAt - the two differ substantially: the open 1-star review is 37 days
+ * old but its pipeline row is only 14.
  */
-export async function getUrgentReviews(): Promise<Array<{
+/**
+ * A `type`, deliberately not an `interface`. Only a type alias gets an
+ * implicit index signature, so only a type alias stays assignable to
+ * Record<string, unknown> - which is how the scheduler's message-formatting
+ * callback types this row. Declaring it as an interface compiles here and
+ * breaks the caller.
+ */
+export type UrgentReview = {
   id: number;
   authorName: string;
   rating: number;
   reviewText: string | null;
   sentiment: string | null;
   createdAt: Date;
-}>> {
+  ageDays: number;
+};
+
+export async function getUrgentReviews(): Promise<UrgentReview[]> {
   const d = await db();
   if (!d) return [];
 
-  return d
+  const candidates = await d
     .select({
       id: reviewPipeline.id,
       authorName: reviewPipeline.authorName,
@@ -500,14 +529,29 @@ export async function getUrgentReviews(): Promise<Array<{
       reviewText: reviewPipeline.reviewText,
       sentiment: reviewPipeline.sentiment,
       createdAt: reviewPipeline.createdAt,
+      ageDays: sql<number>`DATEDIFF(NOW(), COALESCE(FROM_UNIXTIME(${reviewPipeline.reviewTime}), ${reviewPipeline.createdAt}))`,
     })
     .from(reviewPipeline)
     .where(and(
-      lte(reviewPipeline.rating, 2),
+      lte(reviewPipeline.rating, URGENT_MAX_STARS),
       eq(reviewPipeline.reviewed, 0),
     ))
     .orderBy(desc(reviewPipeline.createdAt))
     .limit(20);
+
+  if (candidates.length === 0) return [];
+
+  const posted = await d
+    .select({
+      reviewerName: reviewReplies.reviewerName,
+      reviewRating: reviewReplies.reviewRating,
+    })
+    .from(reviewReplies)
+    .where(isNotNull(reviewReplies.postedAt));
+
+  return (candidates as UrgentReview[])
+    .filter((c: UrgentReview) => !suppressesAlert(closureFor(c, posted)))
+    .map((c: UrgentReview) => ({ ...c, ageDays: Number(c.ageDays) || 0 }));
 }
 
 // ─── REVIEW VOLUME TRACKING ─────────────────────────────
