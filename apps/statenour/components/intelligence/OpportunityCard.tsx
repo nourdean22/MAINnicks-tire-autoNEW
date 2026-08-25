@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { apiFetch } from "@/lib/utils/api-fetch";
 import { Zap, AlertTriangle, Check, X, ShieldAlert, ArrowRight } from "lucide-react";
 
 export interface Opportunity {
@@ -28,18 +29,16 @@ export function OpportunityCard({ opportunity, onStatusChange }: OpportunityCard
   const handleAction = async (action: "accepted" | "declined" | "resolved") => {
     setLoading(true);
     try {
-      const res = await fetch("/api/intelligence/decisions/log", {
+      // apiHandler-wrapped. The route returns { status: "success", ... } INSIDE
+      // `data`, so `res.json().status` read the envelope's own (nonexistent)
+      // status field — always undefined, so this branch never ran and the POST
+      // succeeded while the UI sat unchanged. Also picks up credentials:
+      // "include", which this call was missing entirely.
+      const data = await apiFetch<{ status?: string }>("/api/intelligence/decisions/log", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          opportunityId: opportunity.id,
-          action,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opportunityId: opportunity.id, action }),
       });
-
-      const data = await res.json();
       if (data.status === "success") {
         setCurrentStatus(action);
         if (onStatusChange) {
