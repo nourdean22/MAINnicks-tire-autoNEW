@@ -222,7 +222,7 @@ export function ChatMediaPart({ part, id }: { part: ChatFilePart; id?: string })
    * analyzed / cited / saved are NOT knowable from a message part and
    * are therefore reported as not-reached rather than assumed. Wiring
    * the real states belongs with the transcript pipeline, which cannot
-   * return segments yet (see lib/videodb/client.ts getTranscript).
+   * return segments yet (whisper verbose_json provides them for audio).
    *
    * No observedAt is supplied because none is known here — the type no
    * longer asks for one, so there is nothing to invent.

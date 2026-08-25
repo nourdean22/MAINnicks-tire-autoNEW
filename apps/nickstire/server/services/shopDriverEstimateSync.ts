@@ -25,7 +25,7 @@
  *   - server/cron/jobs/declinedWorkRecovery.ts — 7d/30d SMS follow-ups
  */
 
-import { eq, and, gte, lte, isNull, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, isNull, sql, desc, asc } from "drizzle-orm";
 import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
@@ -882,21 +882,68 @@ export interface BackfillMatchResult {
   matched: number;
   scanned: number;
   skippedNoPhone: number;
+  /**
+   * Estimates with MORE THAN ONE candidate invoice, left deliberately
+   * unmatched. Reported rather than swallowed: a rising count means the
+   * tolerance is too loose, and silence would hide that.
+   */
+  ambiguous: number;
   dryRun: boolean;
   /** Populated on a dry run so the write can be reviewed before it happens. */
   preview: Array<{ estimateId: number; invoiceId: number; amountCents: number }>;
 }
 
+/**
+ * How the estimate->invoice matcher is tuned, and why these three numbers.
+ *
+ * MEASURED against production 2026-08-25 over all 422 unmatched estimates,
+ * counting CANDIDATE invoices per estimate rather than guesses:
+ *
+ *   rule                  unambiguous   ambiguous   dollars recovered
+ *   30d / +/-10% (before)      8            0        $4,315.61
+ *   45d / +/-10%               7            1        $3,969.04
+ *   45d / +/-25% (chosen)     23            2       $15,220.90
+ *   45d / any amount          41           11       $37,216.59
+ *
+ * Two things that table settles:
+ *
+ * · Widening the DATE alone is not a strict improvement - 45d/+/-10% finds
+ *   FEWER unambiguous matches than 30d/+/-10%, because the extra fortnight
+ *   turns one clean match into a two-candidate tie. The amount band is what
+ *   was actually too tight.
+ * · Dropping the amount band entirely nearly triples ambiguity (2 -> 11). An
+ *   unrelated later invoice for the same customer then becomes a candidate,
+ *   which is the false-positive the tolerance exists to prevent.
+ *
+ * PRECISION EVIDENCE, and the reason 25% is safe: under 45d/+/-25% all 30
+ * estimates that are ALREADY matched resolve to the SAME invoice they are
+ * matched to today. Widening changes zero existing decisions - it only reaches
+ * cases the old bounds could not see.
+ *
+ * The +/-25% band exists because an estimate and its invoice legitimately
+ * differ: the customer approves some lines and declines others, or work is
+ * added once the car is on the lift. +/-10% assumed the quote was accepted
+ * verbatim.
+ *
+ * The RESCAN window - how far back each pass pulls estimates to retry - is
+ * deliberately NOT defined here. It is owned by DECLINED_RECOVERY_WINDOW_DAYS
+ * in shared/const.ts, imported by both this matcher's call site and
+ * declinedWorkRecovery, so the two cannot drift apart (ROS-093). A second
+ * rescan constant living here would reintroduce exactly that drift.
+ */
+export const MATCH_WINDOW_DAYS = 45;
+export const MATCH_AMOUNT_TOLERANCE = 0.25;
+
 export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<BackfillMatchResult> {
   const dryRun = opts.dryRun ?? false;
-  const empty: BackfillMatchResult = { matched: 0, scanned: 0, skippedNoPhone: 0, dryRun, preview: [] };
+  const empty: BackfillMatchResult = { matched: 0, scanned: 0, skippedNoPhone: 0, ambiguous: 0, dryRun, preview: [] };
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) return empty;
 
   const { algEstimates, invoices } = await import("../../drizzle/schema");
   const { PHONE_MATCH_KEY_SQL, phoneMatchKey } = await import("../lib/phoneIdentity");
-  const since = new Date(Date.now() - (opts.sinceDays ?? 30) * 24 * 60 * 60 * 1000);
+  const since = new Date(Date.now() - (opts.sinceDays ?? DECLINED_RECOVERY_WINDOW_DAYS) * 24 * 60 * 60 * 1000);
 
   const unmatched = await d
     .select({
@@ -911,6 +958,7 @@ export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<
 
   let matched = 0;
   let skippedNoPhone = 0;
+  let ambiguous = 0;
   const preview: BackfillMatchResult["preview"] = [];
 
   for (const est of unmatched) {
@@ -921,9 +969,16 @@ export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<
       skippedNoPhone++;
       continue;
     }
-    const low = Math.floor(est.estimatedAmount * 0.9);
-    const high = Math.ceil(est.estimatedAmount * 1.1);
-    const upperDate = new Date(est.estimateDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const low = Math.floor(est.estimatedAmount * (1 - MATCH_AMOUNT_TOLERANCE));
+    const high = Math.ceil(est.estimatedAmount * (1 + MATCH_AMOUNT_TOLERANCE));
+    const upperDate = new Date(est.estimateDate.getTime() + MATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    // Fetch TWO, deterministically ordered, so ambiguity is detectable.
+    //
+    // This used to be `.limit(1)` with no ORDER BY: with several candidate
+    // invoices it silently took whichever row the engine returned first and
+    // marked the estimate converted against it. A wrong match is worse than a
+    // missed one - it reports an unsold estimate as sold and removes the
+    // customer from recovery outreach. Now: exactly one candidate or nothing.
     const candidates = await d
       .select({ id: invoices.id })
       .from(invoices)
@@ -938,8 +993,15 @@ export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<
           lte(invoices.invoiceDate, upperDate),
         ),
       )
-      .limit(1);
-    if (candidates.length > 0) {
+      .orderBy(asc(invoices.invoiceDate))
+      .limit(2);
+    if (candidates.length > 1) {
+      // Ambiguous. Leave it unmatched and say so - a guess here corrupts the
+      // conversion number in the direction nobody would check.
+      ambiguous++;
+      continue;
+    }
+    if (candidates.length === 1) {
       if (dryRun) {
         preview.push({ estimateId: est.id, invoiceId: candidates[0].id, amountCents: est.estimatedAmount });
       } else {
@@ -956,10 +1018,11 @@ export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<
     scanned: unmatched.length,
     matched,
     skippedNoPhone,
+    ambiguous,
     dryRun,
-    sinceDays: opts.sinceDays ?? 30,
+    sinceDays: opts.sinceDays ?? DECLINED_RECOVERY_WINDOW_DAYS,
   });
-  return { matched, scanned: unmatched.length, skippedNoPhone, dryRun, preview };
+  return { matched, scanned: unmatched.length, skippedNoPhone, ambiguous, dryRun, preview };
 }
 
 // ─── PUBLIC ENTRYPOINT ─────────────────────────────────

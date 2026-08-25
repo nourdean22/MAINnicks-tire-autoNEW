@@ -62,7 +62,6 @@ import { runSchemaDriftCheck } from "@/lib/db/schema-sentinel";
 import { CRONS } from "@/config/crons";
 import { isInngestFullyConfigured } from "@/lib/inngest/client";
 import { MEGA_JOB_COUNTS } from "@/lib/inngest/jobs";
-import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
 import { langfuseTracingStatus } from "@/lib/observability/langfuse";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
@@ -222,7 +221,6 @@ export interface SystemHealthView {
     functions: number;
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
-  braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
   langfuse: { status: ReturnType<typeof langfuseTracingStatus> };
   autonomic: MetricResult<{
     lastRunAt: string | null;
@@ -358,7 +356,6 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         functions: 8,
         megaJobs: MEGA_JOB_COUNTS,
       },
-      braintrust: { status: braintrustWrapStatus() },
       langfuse: { status: langfuseTracingStatus() },
       autonomic,
       degradedSources,

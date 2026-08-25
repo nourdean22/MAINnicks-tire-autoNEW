@@ -228,6 +228,7 @@ const FIXTURE: NickPrimeContext = {
   followUps: [],
   anticipatedQuestions: [],
   agendaItems: [],
+  agendaItemsTotal: 0,
 };
 
 const EMPTY_FIXTURE: NickPrimeContext = {
@@ -281,6 +282,7 @@ const EMPTY_FIXTURE: NickPrimeContext = {
   followUps: [],
   anticipatedQuestions: [],
   agendaItems: [],
+  agendaItemsTotal: 0,
 };
 
 beforeEach(() => {
@@ -409,6 +411,51 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     expect(sections.agendaItems).toContain("## ACTIVE AGENDA ITEMS");
     expect(sections.agendaItems).toContain("[WITNESSED COMMITMENT] Verify tire supplier contract (Due: 2026-06-30)");
     expect(sections.agendaItems).toContain("Description: Follow up on financing options with DK Tire B2B");
+  });
+
+  // 2026-08-25 · the agenda block is bounded at the source (AGENDA_PROMPT_CAP,
+  // nick-prime-context.ts) after the unbounded 71-row / 2,646-tok measurement.
+  // The renderer must DISCLOSE the overflow — nothing silently disappears from
+  // the accountability surface.
+  it("discloses the overflow count when the capped list is smaller than the population", () => {
+    const ctx: NickPrimeContext = {
+      ...EMPTY_FIXTURE,
+      agendaItems: [
+        {
+          id: "agenda-1",
+          title: "Soonest deadline item",
+          description: null,
+          category: "WITNESSED_COMMITMENT",
+          createdAt: new Date().toISOString(),
+          dueDate: "2026-08-30T00:00:00.000Z",
+        },
+      ],
+      agendaItemsTotal: 71,
+    };
+    const sections = renderPromptV2(ctx);
+    // Positive control first: the shown item still renders.
+    expect(sections.agendaItems).toContain("Soonest deadline item");
+    expect(sections.agendaItems).toContain("and 70 more active agenda items not shown");
+  });
+
+  it("renders NO overflow line when every agenda row is shown", () => {
+    const ctx: NickPrimeContext = {
+      ...EMPTY_FIXTURE,
+      agendaItems: [
+        {
+          id: "agenda-1",
+          title: "Only item",
+          description: null,
+          category: "STANDING_INTENTION",
+          createdAt: new Date().toISOString(),
+          dueDate: null,
+        },
+      ],
+      agendaItemsTotal: 1,
+    };
+    const sections = renderPromptV2(ctx);
+    expect(sections.agendaItems).toContain("Only item");
+    expect(sections.agendaItems).not.toContain("more active agenda items");
   });
 
   it("renders weekly review, follow-ups, and anticipated questions when present in context", () => {

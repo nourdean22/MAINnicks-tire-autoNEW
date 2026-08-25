@@ -120,10 +120,6 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // (book/article/photo). Writes, so not battle-safe.
   { name: "captureSkillFromSource",       category: "personal_write", cost: "free", riskClass: "low" },
   { name: "surfaceAntiPatterns",          category: "brain",          battle: true,  cost: "free", riskClass: "low" },
-  // v10.0.525 · Session-recording recall (VideoDB · operator captures
-  // own sessions externally, submits to /api/system/videodb-sessions)
-  { name: "searchSessionRecordings",      category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["VIDEO_DB_API_KEY"] },
-  { name: "recallFromSession",            category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["VIDEO_DB_API_KEY"] },
 
   // ── personal_write ───────────────────────────────────────────────
   // v10.0.75 · closeLoop + createLoop legacy aliases retired

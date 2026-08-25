@@ -81,6 +81,67 @@ the same treatment as its individual entries — the exemption is what a future
 reader is most likely to remove as an oversight. `check-et-clock.mjs` states the
 reasoning for each exemption class inside the script, not only in its PR.
 
+### The purest blind instrument: a canary that matched its own import line
+
+2026-08-25, found by mutation probe inside the session's own diff. A new
+customer-facing SMS trigger is gated on `sms_global_pause`, and its canary read:
+
+```
+expect(body).toContain("getSmsPauseState");
+```
+
+The probe replaced the live call with a hardcoded `const pause = { readable:
+true, paused: false }` — the exact shape of a gate that has stopped gating — and
+the suite scored **GREEN**. The identifier was still present, on the `import`
+line one row above. The canary was asserting that the module had been *imported*,
+not that the gate was *consulted*.
+
+This is the same mention-vs-execution failure that produced five false positives
+elsewhere in the same session, where absence assertions matched their own
+explanatory comments. It is worth separating because the direction is inverted
+and therefore far more dangerous: a comment match makes a canary shout when
+nothing is wrong and gets fixed within minutes because it is loud. **An import
+match makes a canary stay silent when the subject is gone**, and nothing ever
+prompts anyone to look.
+
+The remedy is the general one, sharpened: **assert the INVOCATION, never the
+identifier.** `toContain("await getSmsPauseState()")` and a regex pinning
+`const pause = await getSmsPauseState()` both go red under the same mutation.
+Stripping comments before an absence assertion is necessary and not sufficient —
+an import statement is not a comment, and no `stripComments()` removes it.
+
+### A green mutation probe indicts the probe OR the canary — determine which
+
+Same session, immediately after. Two further probes came back green and the
+reflex was to log two more blind canaries. Both were **the mutation being
+inert**, not the canary being blind:
+
+- Widening `/^([0-9]){9,}$/` to `{3,}` was supposed to make a real number
+  wrongly match. It could not: the pattern is anchored `^...$`, so it still
+  demands the *entire* string be one repeated digit. The fixture number was
+  never going to match either way.
+- A `perl -pi -e` substitution failed outright with *"Reference to nonexistent
+  group"* and silently changed nothing, so the "mutated" run was the unbroken
+  run.
+
+Both canaries were fine; both probes were no-ops. Re-run against what the
+assertion actually depends on — dropping the regex anchors, and replacing the
+whole line rather than a fragment — and both went red.
+
+**So the rule has two branches, and skipping the second is how a real blind
+canary gets waved through as a bad probe:**
+
+1. **Confirm the mutation applied.** Grep the file, or print the changed line,
+   before believing the exit code. A substitution whose anchor did not match
+   exits 0 and looks exactly like a passing test.
+2. **Confirm the mutation targets what the assertion reads.** Loosening a
+   constant the canary never inspects proves nothing. Ask which line the
+   assertion would notice, and break *that*.
+
+A green probe is never "fine". It is an unexplained result, and the two
+explanations — *my probe did nothing* and *my canary sees nothing* — have
+opposite remedies. Recording which one it was is the whole value.
+
 ## Four shapes, and the heuristic each one defeats
 
 Everything found on 2026-08-23 — across this session and the Brain session working the same estate —
@@ -94,6 +155,14 @@ standard check**, so a reviewer running the obvious test comes away reassured.
 | **orphaned subject** | a reader with no writer, or a writer with no reader | *"grep for readers"* — there IS a reader; the producer is what is missing |
 | **populated-but-unused** | a column that is full of values nobody consumes, or whose values are a placeholder | *"is the column null"* — it is not null, on every row |
 | **blind instrument** | a control that is wired, running, and pointed at nothing | *"check the logs"* — the log is clean because it cannot record the thing |
+
+**Blind-instrument instance, 2026-08-25 — a CI pass that was never attempted.** A deterministic
+teardown throw in the statenour suite (langfuse SIGTERM handler `.catch` on a non-promise) was first
+diagnosed as *"intermittent, ~50%"* because two PRs had passed the checks. Those two PRs touched only
+`scripts/agent-os/**` — `turbo --affected` never ran the statenour suite for them at all. **They were
+never exposed, not passing.** A green from a run that did not execute the relevant suite is the
+affected-graph being blind to the question, not evidence about the defect; before citing a pass as
+evidence, confirm the failing suite was actually IN that run's task list.
 
 **On the third one, which is the newest and the easiest to miss: a column's name is a claim about its
 contents, and a populated column is not a used column.** `NOT NULL` on every row proves that

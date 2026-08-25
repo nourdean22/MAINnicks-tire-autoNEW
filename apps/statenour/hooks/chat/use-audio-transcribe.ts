@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 /**
  * useAudioTranscribe — file-picker handler that uploads an audio
- * blob to /api/ai/chat/audio-transcribe (v10.0.349 · VideoDB). The
+ * blob to /api/ai/chat/audio-transcribe (whisper-1 since 2026-08-25). The
  * returned transcript is forwarded to the parent via `onTranscript`
  * so the composer can append it to the textarea (same UX as voice
  * input, but for files: voice memos, recorded calls, podcast clips).

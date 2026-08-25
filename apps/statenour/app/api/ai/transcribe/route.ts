@@ -9,15 +9,13 @@
  * operator saw "transcribing…" spin then disappear with no text.
  * The 7-day audit's voice-input check caught it.
  *
- * Strategy · two providers, fastest-first:
+ * Strategy · one provider (2026-08-25 · the VideoDB fallback was removed:
+ * it never worked in prod — $0 account, zero lifetime uploads — so the
+ * "fallback" was a silent hop to a dead lane):
  *
  *   1. OpenAI Whisper (whisper-1 · ~1-3s on 5-15s clips · best accuracy)
  *      Used when OPENAI_API_KEY is set. The operator's stack has it
- *      per scripts/probe-env-config.ts.
- *
- *   2. VideoDB (transcribeAudio helper · 20-60s on short clips · the
- *      file-drop /api/ai/chat/audio-transcribe path is built on this)
- *      Fallback when OpenAI key missing or Whisper fails.
+ *      per scripts/probe-env-config.ts. A whisper failure is a loud 502.
  *
  * Body (multipart/form-data):
  *   · audio: File/Blob   (matches the hook's `form.append("audio", blob)`)
@@ -38,7 +36,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024; // 25MB OpenAI limit
-const VIDEODB_MAX_BYTES = 50 * 1024 * 1024; // 50MB our internal cap
 
 async function transcribeViaWhisper(
   blob: Blob,
@@ -65,21 +62,11 @@ async function transcribeViaWhisper(
   return { text: (data.text ?? "").trim() };
 }
 
-async function transcribeViaVideoDB(
-  blob: Blob,
-  filename: string,
-): Promise<{ text: string }> {
-  if (!process.env.VIDEO_DB_API_KEY) throw new Error("no VIDEO_DB_API_KEY");
-  const { transcribeAudio } = await import("@/lib/videodb/client");
-  const result = await transcribeAudio({ file: blob, filename });
-  return { text: (result.transcript ?? "").trim() };
-}
-
 async function handler(req: NextRequest): Promise<Response> {
   // Auth: requireSession invoked below
   try { await requireSession(req); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
 
-  // v10.0.529.3 D-1 fix · whisper-1 + VideoDB are both metered services ·
+  // v10.0.529.3 D-1 fix · whisper-1 is a metered service ·
   // 10/min/IP caps the cost-bomb path where a runaway mic capture pushes
   // a clip per ~6s.
   const rateLimit = checkAiRateLimit(req);
@@ -110,9 +97,9 @@ async function handler(req: NextRequest): Promise<Response> {
   if (!blob) {
     return NextResponse.json({ error: "no audio" }, { status: 400 });
   }
-  if (blob.size > VIDEODB_MAX_BYTES) {
+  if (blob.size > WHISPER_MAX_BYTES) {
     return NextResponse.json(
-      { error: `audio too large · max ${VIDEODB_MAX_BYTES / 1024 / 1024}MB` },
+      { error: `audio too large · max ${WHISPER_MAX_BYTES / 1024 / 1024}MB` },
       { status: 400 },
     );
   }
@@ -131,28 +118,12 @@ async function handler(req: NextRequest): Promise<Response> {
         ms: Date.now() - startedAt,
       });
     } catch (err) {
-      // Fall through to VideoDB · don't fail closed if Whisper hiccups
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[transcribe] whisper failed, falling back to videodb:", err);
-      }
-    }
-  }
-
-  // VideoDB fallback (slow but reliable)
-  if (process.env.VIDEO_DB_API_KEY) {
-    try {
-      const { text } = await transcribeViaVideoDB(blob, filename);
-      return NextResponse.json({
-        text,
-        source: "videodb",
-        ms: Date.now() - startedAt,
-      });
-    } catch (err) {
+      // 2026-08-25 · VideoDB fallback removed (never worked in prod:
+      // $0 account, zero lifetime uploads). A whisper failure is now a
+      // loud 502, not a silent hop to a dead lane.
       return NextResponse.json(
-        {
-          error: `transcribe failed: ${err instanceof Error ? err.message.slice(0, 200) : "unknown"}`,
-        },
-        { status: 500 },
+        { error: `whisper failed: ${err instanceof Error ? err.message.slice(0, 200) : "unknown"}` },
+        { status: 502 },
       );
     }
   }
@@ -160,7 +131,7 @@ async function handler(req: NextRequest): Promise<Response> {
   return NextResponse.json(
     {
       error: "no transcription provider configured",
-      hint: "set OPENAI_API_KEY (preferred · fast) or VIDEO_DB_API_KEY (slow fallback)",
+      hint: "set OPENAI_API_KEY — whisper-1 is the only transcription provider (VideoDB retired 2026-08-25)",
     },
     { status: 503 },
   );

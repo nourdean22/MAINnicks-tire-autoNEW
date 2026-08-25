@@ -5,6 +5,7 @@
  * so Nour sees what the self-model is screaming about right now.
  */
 
+import type { ReactNode } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -60,11 +61,16 @@ export function NudgePanel() {
   const utils = trpc.useUtils();
   const nudgesQuery = trpc.brain.nudges.useQuery(undefined);
   const dismissMutation = trpc.brain.dismissNudge.useMutation();
-  // The query errors silently · the panel renders the empty state on
-  // both error and no-data (same as the legacy `catch → setNudges([])`).
-  const nudges: Nudge[] | null = nudgesQuery.isError
-    ? []
-    : ((nudgesQuery.data?.nudges as Nudge[] | undefined) ?? null);
+  // WAS A FALSE ALL-CLEAR. This previously read `isError ? [] : (...)`, so a
+  // FAILED query fell into the same branch as a genuinely empty one and the
+  // panel rendered a green "In rhythm · all subsystems stable" across nine
+  // subsystems it had just failed to read. The old comment recorded that as
+  // intentional, inherited from a legacy `catch → setNudges([])`.
+  //
+  // A failed read is not a zero. The three cases are now distinct, and the
+  // positive tone is type-gated to the measured one.
+  const nudges: Nudge[] | null =
+    (nudgesQuery.data?.nudges as Nudge[] | undefined) ?? null;
   const loading = nudgesQuery.isLoading;
   const loadedAt = nudgesQuery.dataUpdatedAt || null;
 
@@ -78,20 +84,50 @@ export function NudgePanel() {
     );
   }
 
-  if (!nudges || nudges.length === 0) {
-    return (
+  if (nudgesQuery.isError || !nudges || nudges.length === 0) {
+    const shell = (body: ReactNode) => (
       <GlassCard>
         <div className="flex justify-end mb-1">
           <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
+        {body}
+      </GlassCard>
+    );
+
+    if (nudgesQuery.isError) {
+      return shell(
         <EmptyState
           icon={AlertCircle}
-          title="In rhythm"
-          why="Cross-system nudges aggregate signals from identity, contradictions, ghost accuracy, skills, beliefs, correlations, decision drift, prediction streaks, and blind-spots. Silence here = all subsystems stable."
-          unlock="Keep shipping. New signals surface within 15s of a state change; dismissed ones return after 7d if still real."
-          tone="positive"
-        />
-      </GlassCard>
+          title="Nudges unavailable"
+          provenance="ERROR"
+          tone="warning"
+          why="The nudge query failed, so nothing is known about any of the nine subsystems it aggregates. This is NOT the same as having no nudges."
+          unlock="Reload above. If it keeps failing, check the brain router and /api/health."
+        />,
+      );
+    }
+
+    if (!nudges) {
+      return shell(
+        <EmptyState
+          icon={AlertCircle}
+          title="Nudges not yet read"
+          provenance="UNMEASURED"
+          why="The query returned no nudge payload at all, so no aggregation has happened this session."
+          unlock="Reload above to take the measurement."
+        />,
+      );
+    }
+
+    return shell(
+      <EmptyState
+        icon={AlertCircle}
+        title="In rhythm"
+        provenance="ZERO"
+        tone="positive"
+        why="Cross-system nudges aggregate signals from identity, contradictions, ghost accuracy, skills, beliefs, correlations, decision drift, prediction streaks, and blind-spots. A measured zero here means all subsystems are stable."
+        unlock="Keep shipping. New signals surface within 15s of a state change; dismissed ones return after 7d if still real."
+      />,
     );
   }
 

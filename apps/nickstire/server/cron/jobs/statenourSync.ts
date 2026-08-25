@@ -257,9 +257,23 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       declinedWork: await (async () => {
         try {
           const { getDeclinedWorkLedger } = await import("../../services/declinedWorkRecovery");
+          const { declinedWorkSourceState, isMeasured, sourceNote } = await import("../../services/declinedWorkSource");
           const ledger = await getDeclinedWorkLedger(10);
           const unrecovered = ledger.filter(e => e.declinedItems.some(i => !i.recovered));
+          // UNKNOWN IS NOT ZERO. The ledger reads work_order_items, which held
+          // ZERO declined rows when this was measured (2026-08-25) - so its
+          // totals cannot be non-zero regardless of what the shop is actually
+          // carrying. Publishing a bare 0 under a heading that reads "revenue
+          // on the table" tells statenour there is nothing to recover, when
+          // what is true is that nothing is being counted. The numeric fields
+          // keep their shape so no consumer breaks; `measured` is what says
+          // whether to believe them.
+          const sourceState = await declinedWorkSourceState();
+          if (!isMeasured(sourceState)) log.warn(`[statenourSync] ${sourceNote(sourceState)}`);
           return {
+            measured: isMeasured(sourceState),
+            source: sourceState,
+            sourceNote: sourceNote(sourceState),
             totalRecoverable: unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0),
             customerCount: unrecovered.length,
             safetyItemCount: unrecovered.filter(e => e.hasSafetyItems).length,

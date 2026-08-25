@@ -921,10 +921,25 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { generateMasterIntelligenceReport } = await import("../services/masterIntelligence");
     try {
       const report = await generateMasterIntelligenceReport();
+      // 2026-08-25 · surface the margin's basis as a rendered string, not just
+      // as fields inside revenue.margins. A statenour consumer reading
+      // `overallMargin` and finding null would otherwise be free to print "0%"
+      // or "—" with no explanation; this gives it the sentence to show. When
+      // the margin IS measurable the note is null and nothing changes.
+      const m = report.revenue?.margins as
+        | { overallMargin?: number | null; basis?: string; coveragePct?: number }
+        | undefined;
+      const marginNote =
+        m && typeof m.overallMargin !== "number"
+          ? m.basis === "unavailable"
+            ? "margin unavailable — the revenue query failed"
+            : `margin unavailable — insufficient cost-detail coverage (${m.coveragePct ?? 0}%)`
+          : null;
       return {
         ok: true as const,
         timestamp: report.timestamp,
         summary: report.summary,
+        marginNote,
         revenue: report.revenue,
         customers: report.customers,
         operations: report.operations,

@@ -57,16 +57,12 @@ describe("attachment-policy · accepted kinds", () => {
 });
 
 describe("attachment-policy · video routes to the UPLOAD lane (BDN-319)", () => {
-  it("accepts video, but never on the inline lane", () => {
-    // The lane is the whole point. Accepting video without it would send
-    // it down the base64 path — the outcome the original refusal existed
-    // to prevent.
+  it("refuses video with the storage-backend reason (2026-08-25 · VideoDB retired, zero uploads ever)", () => {
+    // The refusal must name the constraint — a bare "not supported" is
+    // how the original "Images only for now" outlived its reason.
     const d = decideAttachment(file({ name: "bay5.mp4", type: "video/mp4", size: 50 * 1024 * 1024 }));
-    expect(d.accepted).toBe(true);
-    if (d.accepted) {
-      expect(d.kind).toBe("video");
-      expect(d.lane).toBe("upload");
-    }
+    expect(d.accepted).toBe(false);
+    if (!d.accepted) expect(d.reason).toMatch(/storage backend/i);
   });
 
   it("keeps every other kind on the inline lane", () => {
@@ -81,18 +77,15 @@ describe("attachment-policy · video routes to the UPLOAD lane (BDN-319)", () =>
     }
   });
 
-  it("detects video by extension too", () => {
+  it("detects video by extension too — the refusal cannot be dodged via octet-stream", () => {
     const d = decideAttachment(file({ name: "clip.mov", type: "application/octet-stream" }));
-    expect(d.accepted).toBe(true);
-    if (d.accepted) expect(d.lane).toBe("upload");
+    expect(d.accepted).toBe(false);
+    if (!d.accepted) expect(d.reason).toMatch(/storage backend/i);
   });
 
-  it("gives video a far higher ceiling, since its bytes never enter the message", () => {
-    expect(MAX_BYTES_BY_KIND.video).toBeGreaterThan(MAX_BYTES_BY_KIND.image * 10);
+  it("video is not attachable at any size while no storage backend exists", () => {
+    expect(isAttachable(file({ name: "a.mp4", type: "video/mp4", size: 1024 }))).toBe(false);
     expect(isAttachable(file({ name: "a.mp4", type: "video/mp4", size: 400 * 1024 * 1024 }))).toBe(
-      true,
-    );
-    expect(isAttachable(file({ name: "a.mp4", type: "video/mp4", size: 600 * 1024 * 1024 }))).toBe(
       false,
     );
   });
@@ -158,7 +151,9 @@ describe("attachment-policy · picker hint", () => {
     expect(ACCEPT_ATTRIBUTE).toContain("application/pdf");
   });
 
-  it("advertises video now that the upload lane exists", () => {
-    expect(ACCEPT_ATTRIBUTE).toContain("video/mp4");
+  it("does NOT advertise video while decideAttachment refuses it", () => {
+    // Advertising a type the gate refuses would invite a refusal at
+    // attach time — the picker and the policy must agree.
+    expect(ACCEPT_ATTRIBUTE).not.toContain("video/mp4");
   });
 });

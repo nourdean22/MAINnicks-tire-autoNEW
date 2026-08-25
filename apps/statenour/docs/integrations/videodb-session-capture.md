@@ -1,3 +1,5 @@
+> **RETIRED 2026-08-25.** The surfaces this document describes (POST/GET `/api/system/videodb-sessions`, the `searchSessionRecordings` / `recallFromSession` tools, `lib/integrations/videodb.ts`) were REMOVED in the chat-stack wave — zero sessions were ever captured (prod count: 0 rows) and the VideoDB account sat at $0. Kept for history only; nothing below is live.
+
 # VideoDB Session Capture · Operator Runbook · v10.0.525
 
 > Capture your own operator sessions (chat + computer-use), index them

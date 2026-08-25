@@ -457,11 +457,6 @@ export const metaTools = {
     },
   }),
 
-  // v10.0.525 · Session-recording recall (VideoDB) · operator captures
-  // their own sessions (chat + computer-use) externally (OBS, Loom,
-  // screen-recorder) and submits to /api/system/videodb-sessions. These
-  // two tools let Nick search across them by transcript + scene content.
-
   // ═══════════════════════════════════════════════════════════
   // 2026-08-13 · BDN-201/207 · mid-turn tool RECOVERY + read-only
   // data sandbox. The pruner (chat-mode.ts) sends ≤NICK_TOOL_BUDGET

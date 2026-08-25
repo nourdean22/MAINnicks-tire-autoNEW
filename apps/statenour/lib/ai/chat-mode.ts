@@ -101,14 +101,23 @@ export async function pruneTools(
     "searchReflections",
     "rankNextActions",
     "getBlindSpots",
-    "syncKnowledge",
     "dailyPulse",
-    // Apr 20 — setTaskPriority is cheap + high-intent (Nour
-    // explicitly saying "this is critical"). Always surface.
-    "setTaskPriority",
-    // Apr 20 — runDeviceCommand bridges chat → physical devices.
-    // "lock the front door" / "turn off shop lights" etc.
-    "runDeviceCommand",
+    // 2026-08-25 · DEMOTED from always-on, on corrected numbers — the
+    // first prune the surfacing instrumentation's discipline allows.
+    // These three were offered on effectively EVERY standard/deep turn
+    // since the telemetry epoch (2026-05-12; recent volume 764 turns/14d,
+    // so >=2,000 offered-opportunities each — the INVERSE of the census's
+    // pruner-confound), with lifetime selections:
+    //   setTaskPriority   0 calls ever
+    //   syncKnowledge     0 calls ever
+    //   runDeviceCommand  1 call, on telemetry day one only
+    // Per the census's own prescription they are DEMOTED to on-demand,
+    // never deleted: each keeps a deterministic keyword family below
+    // (task family already matches setTaskPriority via /task/i; device +
+    // knowledge-sync families added), plus semantic ranking (embeddings
+    // are boot-warmed since v10.0.532), exact-name mention, the help
+    // family, and the searchTools/invokeTool recovery lane. Frees ~3
+    // always-on schema slots (~300-500 tok) on every turn.
   ];
 
   // 2026-07-06 · the most-used WRITE tools are always attached too.
@@ -145,6 +154,27 @@ export async function pruneTools(
   // Daily / habits / body / score
   if (/\b(score|habit|workout|body|sleep|energy|focus|water|log|today|yesterday|day|morning|evening|streak|adderall|wake|mood|food|meal|drift|drifting)\b/.test(text)) {
     addMatching(/score|habit|body|daily|workout|sleep|drift|mood/i);
+  }
+
+  // 2026-08-25 · Physical devices (runDeviceCommand demoted from
+  // CORE_TOOLS — see the demotion note there). Deterministic trigger for
+  // the phrasings the always-on slot existed for. MIRRORED in
+  // tests/ai/chat-mode-keyword-families.test.ts.
+  // Review fix (same day): "lights off" / "dim it" / "take a snapshot"
+  // missed the first cut — and messages <=10 chars skip the embedding
+  // fallback entirely (route.ts embedding gate), so the family is the
+  // ONLY path for the shortest device phrasings. Bare lights?/dim/
+  // snapshot added; over-attach is this file's accepted trade-off.
+  if (/\b(lock|unlock|front door|garage|thermostat|lights?|dim|snapshot|take a (photo|picture|pic)|(turn|switch) (on|off)|device command|ring (doorbell|camera)|eufy|tuya)\b/.test(text)) {
+    addMatching(/runDeviceCommand|device/i);
+  }
+
+  // 2026-08-25 · Knowledge sync (syncKnowledge demoted from CORE_TOOLS —
+  // same note). Exact-name mention cannot catch the spaced phrasing
+  // ("sync knowledge" !== "syncknowledge"), so the family carries it.
+  // MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(sync (my |the )?(knowledge|brain)|knowledge sync|re-?index (my )?(memories|knowledge|brain)|resync)\b/.test(text)) {
+    addMatching(/syncKnowledge/i);
   }
 
   // 2026-07-11 · commitment reconciliation. The COMMAND-STATE prompt block
@@ -292,15 +322,6 @@ export async function pruneTools(
   // I keep getting wrong", "am I about to repeat", "warn me about".
   if (/\b(anti.?pattern|keep getting wrong|repeat (mistake|pattern)|warn me|broken commitment|same mistake|history of)\b/.test(text)) {
     addMatching(/surfaceAntiPatterns|antiPattern/);
-  }
-
-  // v10.0.525 · Session-recording recall (VideoDB). Operator captures
-  // own chat + computer-use sessions externally and references them
-  // later · "what did I see on screen yesterday", "from that recording",
-  // "in last week's session", "recall from video", "earlier on screen",
-  // "the part where I", "did I do X in that session".
-  if (/\b(what did i see|on screen|recording|recall from (video|session)|in (last week'?s|that|the|yesterday'?s) session|earlier on screen|from that (video|recording|session)|in the video|in that video|the part where i|did i (do|see|click|run|type)|screen capture|video archive|session capture)\b/.test(text)) {
-    addMatching(/searchSessionRecordings|recallFromSession/);
   }
 
   // v10.0.526 · Arc C · F7 · Second-location feasibility. Operator

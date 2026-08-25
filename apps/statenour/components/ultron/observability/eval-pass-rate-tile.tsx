@@ -3,26 +3,37 @@
 /**
  * v10.0.526 · EvalPassRateTile — latest regression run pass rate + 7d trend.
  *
- * Backed by /api/system/eval-results (live since v524). The regression
- * harness runs nightly via cron · this tile is the morning glance:
+ * Fed over tRPC (see hooks/use-observability.ts). The regression harness runs
+ * nightly via cron · this tile is the morning glance:
  *   · headline: latest run pass rate (0-100%)
  *   · trend arrow: vs run-7-back (avg of trailing 6 vs latest)
  *   · top failure category: surfaces WHERE the eval is leaking
- *   · click → /system/eval-results (full drilldown)
+ *
+ * 2026-08-25 · TWO CLAIMS IN THIS HEADER WERE FALSE, and both are corrected.
+ * It said "Backed by /api/system/eval-results (live since v524)" — no such
+ * route exists; the tile is fed over tRPC. And it advertised "click →
+ * /system/eval-results (full drilldown)" — that page was never built either,
+ * so the whole card was a link to a 404. The wrapper is removed rather than
+ * repointed: a link to the wrong page is worse than no link.
+ *
+ * Worth knowing before restoring the drilldown: use-observability.ts:69 records
+ * that NO PRODUCER writes eval_result rows, so this tile shows a no-signal
+ * state by construction. A drilldown would open on nothing.
  *
  * Tier mapping (passRateTier helper · same thresholds as agent-eval skill):
  *   · ≥90% → green (healthy)
  *   · 75-90% → amber (drift starting)
  *   · <75% → red (regression — investigate)
  *
- * Accessibility: <Link> wrapping = focus-visible respected · arrow is
- * paired with text ("up 2pp" / "down 4pp") not just direction.
+ * Accessibility: the trend arrow is paired with text ("up 2pp" / "down 4pp")
+ * rather than direction alone. The tile is no longer interactive, so the
+ * chevron affordance went with the link — a chevron on a non-clickable card
+ * promises a destination that does not exist.
  */
 
-import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { Target, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { passRateTier, type EvalResultsShape, type TileState } from "@/hooks/use-observability";
 import { EmptyTile, ErrorTile } from "./cost-slo-tile";
@@ -96,18 +107,12 @@ export function EvalPassRateTile({ state }: Props) {
   const worst = latest.worstCategories?.[0];
 
   return (
-    <Link
-      href="/system/eval-results"
-      className="block focus-visible:outline-none"
-      aria-label={`Eval pass rate ${Math.round(passRate * 100)} percent · ${trendLabel}`}
-    >
-      <GlassCard className={cn("min-h-[112px] hover:border-[var(--gold)]/40 transition-colors", tierBorder)}>
+    <GlassCard className={cn("min-h-[112px] hover:border-[var(--gold)]/40 transition-colors", tierBorder)}>
         <div className="flex items-center justify-between mb-1">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
             <Target size={11} />
             eval · pass rate
           </span>
-          <ChevronRight size={11} className="text-[var(--text-tertiary)]" />
         </div>
 
         <div className="flex items-baseline gap-2">
@@ -138,7 +143,6 @@ export function EvalPassRateTile({ state }: Props) {
             </span>
           </p>
         )}
-      </GlassCard>
-    </Link>
+    </GlassCard>
   );
 }

@@ -118,7 +118,12 @@
   (`PERSONA-AB-2026-08-16-clean`: A=3.50 / B=3.08, lead −0.42, inside ±0.75 on
   both runs → abandoned per its frozen pre-registration).
 
-## Since 2026-08-14 — Nick media workspace + VideoDB (BDN-301..321)
+## 2026-08-25 — VideoDB RETIRED (superseding the 2026-08-14 section below)
+
+- **VideoDB is gone from the codebase** (chat-stack wave, PR pending): client, integrations wrapper, media-upload / media-transcript / videodb-sessions routes, the two session-recall tools (`searchSessionRecordings`, `recallFromSession` — catalog 181→179), the transcript pane, the video upload lane, both probes and the env key. Rationale: **zero successful uses ever** — the 2026-08-14 findings below (client never worked, then $0 account) were terminal, and no operator credit was ever added.
+- **What replaced what actually worked-adjacent:** audio transcription runs on OpenAI whisper-1 everywhere (it was already the mic path's primary; the file-drop route now uses it too, with `verbose_json` timed segments). **Video attach is refused at attach time with the reason** (no storage backend) — the pre-BDN-319 stance restored honestly. FFmpeg/whisper.cpp/Vidstack were NOT added: nothing depended on the video lane, and the repo rule is replacement only where something depends on it.
+
+## Since 2026-08-14 — Nick media workspace + VideoDB (BDN-301..321) — SUPERSEDED 2026-08-25, see above
 
 - **★★★ The VideoDB client had NEVER worked.** Four bugs, all found by live probe (BDN-321): paths are SINGULAR (`/collection`, `/video`, `/index` — the plural forms 404); every response is enveloped `{data, success}` and the client read the top level; upload is a THREE-STEP PRESIGNED flow (`GET upload_url` → `POST` bytes → `POST /upload {url}`), not a multipart POST (which 500s); and **VideoDB signals refusal INSIDE HTTP 200** (`{"success":false,"error_code":"low_credit"}` — `res.ok` is true). Corroboration: the collection holds ZERO videos, so audio-drop-to-chat has been dead since v10.0.349. `assertVideoDbSuccess()` now checks `success===false` in one place before unwrap.
 - **★★★ BLOCKED, NOT ON CODE: the VideoDB account balance is $0.00.** Video attach and transcripts cannot work until credit exists. The "50 free uploads" the client's error hint advertises are not available on this account. Probes: `scripts/probe-videodb-transcript.ts` (read-only) · `scripts/probe-videodb-upload.ts` (writes — operator-authorized only).

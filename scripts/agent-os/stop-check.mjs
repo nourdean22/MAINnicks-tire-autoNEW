@@ -53,10 +53,41 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+/**
+ * Say when a check did NOT run.
+ *
+ * 2026-08-25 · THE GAP THIS CLOSES. The failure posture above ("own bugs fail
+ * OPEN") was implemented as three bare `process.exit(0)` calls that printed
+ * nothing. So an inert hook and a satisfied hook emitted the identical signal —
+ * silence — which is the exact blind-instrument shape the second invariant was
+ * added to fix, reproduced inside the fix itself. A hook that cannot say "I did
+ * not look" is indistinguishable from one that looked and found nothing.
+ *
+ * Fail-open stays: blocking a turn because git hiccuped would train the operator
+ * to disable the hook, and this file's own doctrine forbids that. Loud fail-open
+ * keeps the safety and removes the ambiguity.
+ *
+ * NOTE ON VISIBILITY. Exit 2 feeds stderr to the model; exit 0 surfaces it to
+ * the operator in the transcript. These are operator-facing by design — the
+ * agent is not the one who needs to know the hook was blind.
+ */
+function warnUnchecked(scope, why) {
+  process.stderr.write(
+    `[agent-os] stop-check: ${scope} NOT evaluated (${why}). Allowing the stop — ` +
+      `silence from this hook is therefore NOT an all-clear.\n`,
+  );
+}
+
 function git(args, cwd) {
   // 5 s per call: two sequential calls must finish inside the hook's 15 s budget
   // with headroom (a hook timeout is fail-open — the worst place to spend it).
-  return execFileSync("git", args, { cwd, encoding: "utf8", timeout: 5000 }).trim();
+  // Same GIT-env hygiene as the canary (see stop-check.test.mjs sh()):
+  // an inherited GIT_DIR would make this read some OTHER repo's state
+  // and answer the main-with-uncommitted-changes question about the
+  // wrong tree. cwd must be the only thing that picks the repo.
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+  return execFileSync("git", args, { cwd, env, encoding: "utf8", timeout: 5000 }).trim();
 }
 
 try {
@@ -64,7 +95,9 @@ try {
   try {
     payload = JSON.parse(readFileSync(0, "utf8") || "{}");
   } catch {
-    process.exit(0); // manual run / malformed payload — not our problem to block on
+    // Manual run or malformed payload — not our problem to block on, but say so.
+    warnUnchecked("both invariants", "hook payload was not readable JSON");
+    process.exit(0);
   }
 
   // If a previous Stop block already fired in this chain, let the turn end.
@@ -78,7 +111,11 @@ try {
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
     dirty = git(["status", "--porcelain"], cwd);
   } catch {
-    process.exit(0); // not a git checkout (or git unavailable) — nothing to enforce
+    // Not a git checkout, or git is unavailable. Nothing to enforce — and this
+    // is the one that mattered most: if git breaks, the hook was previously
+    // TOTALLY inert and said nothing, so every stop looked clean forever.
+    warnUnchecked("both invariants", "not a git checkout, or git is unavailable");
+    process.exit(0);
   }
 
   // ── Invariant 2 · unpushed commits (one-shot, loud) ──────────────────────
@@ -112,9 +149,38 @@ try {
       // budget. So it does not guess: no remote ref, no opinion. That misses
       // the never-pushed case, and missing it is the correct trade against a
       // check that cries wolf on every old branch and gets disabled.
+      //
+      // 2026-08-25 · "NO OPINION" STAYS SILENT, AND THAT IS MEASURED, NOT
+      // ASSUMED. The obvious next move is to apply the loud-fail-open rule here
+      // too and disclose "I have no opinion on this branch". Counted first: 37
+      // of 74 local branches in this checkout have no remote ref AND sit ahead
+      // of main — 50%, nearly all of them stale squash-merged leftovers
+      // (`parked-main` reads 3,195 ahead). A warning on every second stop is
+      // the cries-wolf rate the doctrine at the top of this file forbids, so
+      // the disclosure was REJECTED on its own numbers. Do not re-propose it
+      // without a cheaper way to tell stale from outstanding.
+      //
+      // Consequence worth stating plainly: a session that commits via a temp
+      // index and pushes straight to fresh branches never advances its
+      // checked-out branch, so this invariant is structurally blind to it. The
+      // control for "stopped with the queue unfinished" in that workflow is the
+      // report, not this hook.
       ahead = hasRemote ? git(["rev-list", "--count", `${remoteRef}..HEAD`], cwd) : "0";
     } catch {
-      ahead = ""; // own-bug fail-open: never block on a git question we could not ask
+      // Own-bug fail-open: never block on a git question we could not ask. The
+      // main-branch invariant below still runs, so this degrades one check
+      // rather than the hook.
+      //
+      // DEFENSIVE, AND HONESTLY UNTESTED. `rev-parse --verify` above already
+      // proved the ref resolves, so a subsequent `rev-list` failure needs git
+      // itself to break mid-hook. I could not construct a reachable trigger —
+      // tried a bogus ref SHA (rev-parse rejects it first, taking the
+      // hasRemote=false path instead) and a detached HEAD (excluded by the
+      // branch guard above). Left in place because deleting it would route a
+      // git failure to the outer catch, which abandons the main-branch
+      // invariant too — the harder rule, and the one worth preserving.
+      warnUnchecked("the unpushed-commit invariant", "git rev-list failed");
+      ahead = "";
     }
 
     const n = Number(ahead);

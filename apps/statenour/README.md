@@ -183,14 +183,14 @@ since the 2026-07-21 truth-substrate wave — an unauthenticated curl now
 gets 401; use an authenticated session):
 
 ```bash
-curl -H "Cookie: <operator session>" https://bdnick.info/api/health | jq '.data | {inngest, braintrust}'
+curl -H "Cookie: <operator session>" https://bdnick.info/api/health | jq '.data | {inngest, langfuse}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:
 
 | Substrate | Flip mechanism | Runbook |
 |---|---|---|
-| Braintrust tracing | paste `BRAINTRUST_API_KEY` | `docs/adr/0002-braintrust-observability.md` |
+| Langfuse tracing (replaced Braintrust 2026-08-25 — the wrap never had callers) | paste `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` + `LANGFUSE_BASE_URL` | `docs/integrations/langfuse-observability.md` |
 | Inngest workflows | paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + connect URL | `docs/operator/inngest-setup.md` |
 | LiveKit voice | new Railway service `statenour-voice` + paste 7 env vars | `apps/voice/README.md` |
 

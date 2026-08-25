@@ -18,7 +18,7 @@
  * state, pipes a real payload, and asserts the exit code — the same contract
  * Claude Code uses (2 = interrupt with stderr shown, 0 = allow).
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,7 +30,19 @@ import assert from "node:assert/strict";
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), "stop-check.mjs");
 
 function sh(args, cwd) {
-  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  // 2026-08-25 · GIT-ENV HYGIENE, learned the hard way. Under a git hook
+  // (lefthook pre-commit runs these canaries via agent-os-verify), git
+  // exports GIT_DIR/GIT_INDEX_FILE/GIT_WORK_TREE to child processes —
+  // and an inherited GIT_DIR makes the fixture's `git init --bare` RE-
+  // INITIALIZE THE REAL REPO'S .git AS BARE instead of the tmpdir
+  // remote. Every linked worktree then dies with "this operation must
+  // be run in a work tree" until someone unsets core.bare. Reproduced
+  // deterministically both ways (commit context and GIT_DIR-injected
+  // standalone). Strip the git-context vars so fixture repos are always
+  // resolved from cwd alone.
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+  return execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 /** A repo with an `origin` it can actually push to, because the check reads refs/remotes. */
@@ -52,18 +64,24 @@ function makeRepo() {
   return { root, work, g };
 }
 
-function runHook(cwd, payload = {}) {
-  try {
-    const out = execFileSync(process.execPath, [HOOK], {
-      input: JSON.stringify({ cwd, ...payload }),
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    return { code: 0, out };
-  } catch (e) {
-    return { code: e.status ?? 1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
-  }
+/**
+ * 2026-08-25 · spawnSync, not execFileSync. The previous version returned
+ * execFileSync's value on success — which is STDOUT ONLY — so on every exit-0
+ * path the hook's stderr was discarded before any test could look at it. The
+ * two fail-open tests below could therefore assert the exit code and nothing
+ * else, and that is precisely how they came to lock in SILENCE as the
+ * contract. A harness that cannot see the signal cannot test for it.
+ */
+function runHook(cwd, payload = {}, rawInput) {
+  const r = spawnSync(process.execPath, [HOOK], {
+    input: rawInput ?? JSON.stringify({ cwd, ...payload }),
+    encoding: "utf8",
+  });
+  return { code: r.status ?? 1, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
+
+/** The exact phrase every fail-open path must emit. */
+const UNCHECKED = "NOT an all-clear";
 
 test("POSITIVE CONTROL: a clean checkout on main is allowed", () => {
   const { root, work } = makeRepo();
@@ -192,21 +210,45 @@ test("stop_hook_active short-circuits — this is a one-shot, not a trap", () =>
   }
 });
 
-test("own bugs FAIL OPEN — a non-git directory does not block the turn", () => {
+test("own bugs FAIL OPEN — a non-git directory does not block the turn, and SAYS SO", () => {
   // The deliberate posture documented at the top of the hook: its own failures
-  // must never strand a session. Preserved, and now proven.
+  // must never strand a session.
+  //
+  // The exit code is only half the contract. Until 2026-08-25 this asserted
+  // ONLY the 0 — so a hook that had gone completely inert passed this test
+  // while emitting the same silence as a hook that checked and found nothing.
+  // That is the blind-instrument shape living inside the canary for it.
   const dir = mkdtempSync(join(tmpdir(), "stopcheck-nogit-"));
   try {
-    assert.equal(runHook(dir).code, 0);
+    const r = runHook(dir);
+    assert.equal(r.code, 0, "must not strand the session");
+    assert.match(r.out, /not a git checkout, or git is unavailable/);
+    assert.ok(r.out.includes(UNCHECKED), `fail-open must disclaim an all-clear, got: ${r.out}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a malformed payload fails open", () => {
+test("a malformed payload fails open, and SAYS SO", () => {
+  const r = runHook(null, {}, "not json");
+  assert.equal(r.code, 0, `malformed payload should exit 0, got ${r.code}`);
+  assert.match(r.out, /payload was not readable JSON/);
+  assert.ok(r.out.includes(UNCHECKED), `fail-open must disclaim an all-clear, got: ${r.out}`);
+});
+
+test("POSITIVE CONTROL: a healthy run does NOT cry unchecked", () => {
+  // Load-bearing. Without it, a hook that printed the fail-open warning on
+  // EVERY run would satisfy both assertions above while making the warning
+  // meaningless — the boy-who-cried-wolf failure that gets a hook disabled.
+  const { root, work } = makeRepo();
   try {
-    execFileSync(process.execPath, [HOOK], { input: "not json", encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
-  } catch (e) {
-    assert.fail(`malformed payload should exit 0, got ${e.status}`);
+    const r = runHook(work);
+    assert.equal(r.code, 0, "a clean pushed checkout is allowed");
+    assert.ok(
+      !r.out.includes(UNCHECKED),
+      `a healthy run must stay quiet, got: ${r.out}`,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
