@@ -2451,7 +2451,7 @@ model ReviewLog {
 
 model AutonomousAction {
   id             String    @id @default(cuid())
-  ruleName       String // "auto_followup_expired_quote", "auto_score_applicant"
+  ruleName       String // e.g. "auto_followup_expired_quote" — see RULES in lib/brain/autonomous-engine.ts
   trigger        String // what triggered this action
   actionType     String // send_email, send_telegram, update_record, create_record, adjust_pricing
   targetType     String? // quote, applicant, customer, device

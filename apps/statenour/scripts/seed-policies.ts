@@ -275,19 +275,23 @@ const CURATED_NON_CRON: PolicyUpsertInput[] = [
       "Unreviewed+due decisionReplay count trends to 0 (was 9 at seeding); no decision_replay_due rows accumulate in the approval queue.",
     tags: ["notification", "operator-facing"],
   },
-  {
-    id: "autonomous-action.auto_score_applicant",
-    surface: "autonomous-action",
-    name: "auto_score_applicant",
-    objective:
-      "Score an inbound applicant against Nick's hiring rubric so the operator only sees ranked candidates.",
-    trigger: "Webhook `/api/webhooks/applicant` posts a new application (lib/brain/autonomous-engine.ts)",
-    inputs: { rubric: "BrainMemory key=hiring_rubric", aiModel: "venice-large" },
-    approvalClass: "auto",
-    rollback: "AutonomousAction.payload contains the score; can re-score with a fresh rubric",
-    successMetric: "Applicant assigned a score in [0,100] AND ranked relative to last 30d cohort.",
-    tags: ["cost-bearing", "single-row-write", "lead-pipeline"],
-  },
+  // REMOVED 2026-08-24 · `auto_score_applicant` was a policy for a rule that
+  // does not exist. Verified three ways: it is not among the 20 entries in
+  // `RULES` (lib/brain/autonomous-engine.ts), the trigger it named —
+  // `/api/webhooks/applicant` — was never built (app/api/webhooks/ holds
+  // inbound-crm, make, nickstire, stripe), and autonomous-engine.ts:119-120
+  // records the applicant rule as deleted with the entity moved to nickstire
+  // admin in v10.0.50.
+  //
+  // It was seeded `approvalClass: "auto"` and tagged "cost-bearing". Nothing
+  // could ever fire it, so this was never a live risk — but the policy registry
+  // is what an operator reads to know what is armed, and an entry describing a
+  // capability that does not exist is a false claim in exactly the surface that
+  // must not carry one.
+  //
+  // NOTE FOR THE OPERATOR: removing the seed does NOT delete an existing prod
+  // `AutomationPolicy` row. Deleting prod data is not an agent action. The row
+  // is inert (no rule matches it), so this is a cleanup decision, not a fix.
 
   // ── Webhooks (inbound integrations) ────────────────────────────────
   {
