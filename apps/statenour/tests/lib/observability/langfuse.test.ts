@@ -126,6 +126,35 @@ describe("initLangfuseTracing", () => {
   });
 });
 
+describe("SIGTERM drain survives a torn-down processor (the 4-red-PRs defect)", () => {
+  it("the handler must not throw when forceFlush() returns undefined (synthetic teardown)", async () => {
+    process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
+    process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
+    const before = process.listeners("SIGTERM");
+    await initLangfuseTracing();
+    const added = process.listeners("SIGTERM").filter((l) => !before.includes(l));
+    expect(added.length).toBe(1);
+    try {
+      // Synthetic teardown: vitest's afterEach mockClear/teardown leaves
+      // the captured mock returning undefined — the exact state the
+      // process-level handler sees when SIGTERM arrives after the test
+      // that registered it. A bare `.catch` on that call THROWS
+      // (deterministic `Errors 1 error` across four sibling PRs);
+      // Promise.resolve() must absorb it.
+      mocks.forceFlush.mockReturnValueOnce(undefined as never);
+      expect(() => (added[0] as () => void)()).not.toThrow();
+      // Positive control: the same handler DID reach forceFlush — the
+      // no-throw above is about absorbing the return, not about the
+      // handler being an inert stub.
+      expect(mocks.forceFlush).toHaveBeenCalledTimes(1);
+    } finally {
+      // The accumulation of stale SIGTERM handlers across tests is the
+      // defect's delivery vector — never leak this one.
+      process.removeListener("SIGTERM", added[0] as () => void);
+    }
+  });
+});
+
 describe("cross-bundle status visibility", () => {
   it("a FRESH module instance reads the status an earlier instance set (the instrumentation-vs-app-bundle split)", async () => {
     // Prod bug this pins (found on /system the day the module shipped):

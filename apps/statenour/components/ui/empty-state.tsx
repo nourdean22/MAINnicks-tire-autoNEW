@@ -1,31 +1,45 @@
 "use client";
 
 /**
- * <EmptyState /> — richer "nothing here yet" primitive.
+ * <EmptyState /> — "nothing here", and WHY there is nothing.
  *
- * v11.1 E5 · Empty states should never be dead static text. Every
- * one says four things:
- *   1. What this surface MEANS (the concept — "skills", "beliefs")
- *   2. WHY it's empty right now (no DONE tasks yet, no curation,
- *      cron hasn't run, etc)
- *   3. HOW to unlock data (the specific next action — click, wait,
- *      write a journal entry, whatever)
- *   4. Subtle MOTION so the card breathes + signals "alive"
+ * THE DEFECT THIS PROP EXISTS TO KILL. An empty panel has at least four
+ * different causes, and until now this component could not tell them apart —
+ * so neither could the operator:
  *
- * Three tones:
- *   neutral  — default, most common ("no candidates yet")
- *   positive — "in rhythm" / "clean ledger" / "all clear"
- *   warning  — "something should be here but isn't" (rare)
+ *   ZERO        we measured, and the true count is zero. Good news.
+ *   UNMEASURED  we never took the measurement. The cron has not run, the
+ *               feature is off, the window has not opened yet.
+ *   ERROR       the read failed. We know nothing at all.
+ *   SUPPRESSED  deliberately hidden — see below, this one is the sharp edge.
  *
- * Usage:
- *   <EmptyState
- *     icon={Target}
- *     title="No candidates yet"
- *     why="Candidates surface Sunday at 3am from the last 30d of DONE tasks."
- *     unlock="Ship more DONE tasks, or run /api/cron/extract-skills manually."
- *     cta={{ label: "Extract now", onClick: extractNow }}
- *     tone="neutral"
- *   />
+ * Every one of those rendered identically, so the panels started guessing in
+ * PROSE. Their own copy confesses it:
+ *
+ *   discover-tab              "Every recent discovery has a verdict, OR the
+ *                              engines found nothing this cycle."
+ *   contradiction-resolution  "EITHER you've been coherent OR the detector
+ *                              hasn't seen friction yet."
+ *
+ * Those "or"s are this missing field, written out longhand because the
+ * component genuinely could not know. And where a panel did not hedge, it
+ * simply asserted the happy case: `nudge-panel` mapped a FAILED query to `[]`
+ * and rendered a green "In rhythm · Silence here = all subsystems stable" —
+ * a false all-clear across nine subsystems, with a code comment recording the
+ * behaviour as intentional. That is the lying-surface shape: not an absent
+ * signal, a confident wrong one.
+ *
+ * THE POSITIVE TONE IS TYPE-GATED. `tone: "positive"` is only representable
+ * with `provenance: "ZERO"`. An all-clear is a claim about a measurement, so
+ * you may not make it on a surface that never measured anything. This is a
+ * compile error at the call site, not a lint — `components/` and `app/` are
+ * both inside `tsconfig`, so it cannot be merged past.
+ *
+ * WHY `SUPPRESSED` IS A STATE AND NOT A `return null`. A panel that renders
+ * nothing at all is indistinguishable from a panel that crashed — which is
+ * exactly how `self-critique-card` sat blank for weeks while returning 200s.
+ * Declaring the suppression renders one quiet line instead of a void, so
+ * "deliberately hidden" and "broken" stop looking the same.
  */
 
 import type { ComponentType } from "react";
@@ -33,7 +47,18 @@ import { cn } from "@/lib/utils";
 
 export type EmptyStateTone = "neutral" | "positive" | "warning";
 
-interface EmptyStateProps {
+/** Why this surface is empty. Required — see the header. */
+export type EmptyProvenance = "ZERO" | "UNMEASURED" | "ERROR" | "SUPPRESSED";
+
+/** Operator-facing label per provenance. Exported so tests assert on it. */
+export const PROVENANCE_LABEL: Record<EmptyProvenance, string> = {
+  ZERO: "measured · zero",
+  UNMEASURED: "unmeasured, not zero",
+  ERROR: "read failed — unknown, not zero",
+  SUPPRESSED: "hidden by design",
+};
+
+interface EmptyStateBase {
   /** Lucide icon component. Breathes subtly via .animate-breath. */
   icon?: ComponentType<{ size?: number; className?: string }>;
   /** One-line headline. Required. */
@@ -46,17 +71,28 @@ interface EmptyStateProps {
   cta?: { label: string; onClick: () => void; disabled?: boolean };
   /** Optional secondary action (text link). */
   secondaryLink?: { label: string; href: string };
-  /** Visual tone. Default "neutral". */
-  tone?: EmptyStateTone;
   /** Extra classes on the root. */
   className?: string;
 }
 
-const TONE_STYLES: Record<EmptyStateTone, {
-  iconColor: string;
-  iconBg: string;
-  titleColor: string;
-}> = {
+/**
+ * A positive tone is only available to a MEASURED zero. Everything else may be
+ * neutral or warning. Making this a union rather than a runtime check means a
+ * false all-clear does not compile.
+ */
+export type EmptyStateProps = EmptyStateBase &
+  (
+    | { provenance: "ZERO"; tone?: EmptyStateTone }
+    | {
+        provenance: Exclude<EmptyProvenance, "ZERO">;
+        tone?: Exclude<EmptyStateTone, "positive">;
+      }
+  );
+
+const TONE_STYLES: Record<
+  EmptyStateTone,
+  { iconColor: string; iconBg: string; titleColor: string }
+> = {
   neutral: {
     iconColor: "text-[var(--text-tertiary)]",
     iconBg: "bg-[var(--bg-base)]/50 border-[var(--border-default)]",
@@ -74,16 +110,42 @@ const TONE_STYLES: Record<EmptyStateTone, {
   },
 };
 
-export function EmptyState({
-  icon: Icon,
-  title,
-  why,
-  unlock,
-  cta,
-  secondaryLink,
-  tone = "neutral",
-  className,
-}: EmptyStateProps) {
+const PROVENANCE_CHIP: Record<EmptyProvenance, string> = {
+  ZERO: "text-[var(--text-tertiary)]/70",
+  UNMEASURED: "text-amber-400/80",
+  ERROR: "text-red-400/80",
+  SUPPRESSED: "text-[var(--text-tertiary)]/50",
+};
+
+export function EmptyState(props: EmptyStateProps) {
+  const {
+    icon: Icon,
+    title,
+    why,
+    unlock,
+    cta,
+    secondaryLink,
+    provenance,
+    className,
+  } = props;
+  const tone: EmptyStateTone = props.tone ?? "neutral";
+
+  // A suppressed surface is quiet, but never silent. One line is the whole
+  // point: it distinguishes "deliberately hidden" from "this component threw".
+  if (provenance === "SUPPRESSED") {
+    return (
+      <p
+        className={cn(
+          "text-[9px] font-mono text-[var(--text-tertiary)]/50 py-1 text-center",
+          className,
+        )}
+        data-provenance="SUPPRESSED"
+      >
+        {title} · {PROVENANCE_LABEL.SUPPRESSED}
+      </p>
+    );
+  }
+
   const s = TONE_STYLES[tone];
   return (
     <div
@@ -91,6 +153,7 @@ export function EmptyState({
         "flex flex-col items-center text-center py-5 px-4 gap-2",
         className,
       )}
+      data-provenance={provenance}
     >
       {Icon && (
         <div
@@ -103,6 +166,14 @@ export function EmptyState({
         </div>
       )}
       <p className={cn("text-[11.5px] font-medium", s.titleColor)}>{title}</p>
+      <p
+        className={cn(
+          "text-[9px] font-mono uppercase tracking-wider",
+          PROVENANCE_CHIP[provenance],
+        )}
+      >
+        {PROVENANCE_LABEL[provenance]}
+      </p>
       {why && (
         <p className="text-[10px] text-[var(--text-tertiary)] max-w-[320px] leading-relaxed">
           {why}

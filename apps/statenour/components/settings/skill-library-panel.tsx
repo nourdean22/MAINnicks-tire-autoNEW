@@ -502,11 +502,28 @@ export function SkillLibraryPanel() {
           );
         })}
 
-        {!loading && visible.length === 0 && (
+        {/*
+          This panel had NO error branch. `active` and `pending` are null on a
+          failed fetch, `?? []` collapsed them, and `loading` is false once the
+          fetch settles — so a failed read rendered "No candidates yet" and two
+          siblings like them: three confident zeros about a surface never read.
+        */}
+        {!loading && !active && !pending && (
+          <EmptyState
+            icon={Target}
+            title="Skill library unavailable"
+            provenance="UNMEASURED"
+            tone="warning"
+            why="The skills query returned nothing at all, so the library is unread. That is not the same as an empty library — your active skills may be fine."
+            unlock="Reload the page. If it persists, check the operator router."
+          />
+        )}
+        {!loading && (active || pending) && visible.length === 0 && (
           tab === "candidates" ? (
             <EmptyState
               icon={Target}
               title="No candidates yet"
+              provenance="ZERO"
               why="Candidates surface every Sunday at 3am from the last 30d of DONE tasks."
               unlock="Ship more tasks, or run the extractor now."
               cta={{ label: "Extract now", onClick: () => void extractNow(), disabled: extracting }}
@@ -516,6 +533,7 @@ export function SkillLibraryPanel() {
             <EmptyState
               icon={CheckCircle2}
               title="No active skills yet"
+              provenance="ZERO"
               why="Active skills are candidates Nour has curated in the library. They track success_rate on every matching DONE task."
               unlock="Switch to the Candidates tab and Promote the patterns that ring true."
               tone="neutral"
@@ -524,6 +542,7 @@ export function SkillLibraryPanel() {
             <EmptyState
               icon={Eye}
               title="No graduated skills"
+              provenance="ZERO"
               why="Graduation means a skill is proven — Nick stops nudging but keeps the pattern on file for silent reference."
               unlock="Let active skills reinforce past 5 fires with high success_rate, then graduate them from the Active tab."
               tone="neutral"

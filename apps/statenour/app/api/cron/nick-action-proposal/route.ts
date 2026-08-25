@@ -47,7 +47,7 @@ export const GET = cronHandler(async () => {
   // Wave AK · 2026-05-28 · operator-grade alerting wrapper. The
   // proposer is operator-trust-critical · a silent fail at 8am means
   // no Telegram lands and the operator never knows the loop broke
-  // until they manually open /system/approvals at lunch. This
+  // until they manually open /system/actions at lunch. This
   // top-level try/catch posts a fail-mode Telegram so the operator
   // sees "cron failed" before they see "no proposal arrived."
   try {
@@ -167,7 +167,7 @@ async function runProposerCore(today: string) {
     `<b>Nick · ${queuedIds.length} ${queuedIds.length === 1 ? "move" : "moves"} for today</b>\n\n` +
     lines.join("\n") +
     `\n\n<i>Reply <code>/qa 1 3</code> · or <code>/qa all</code> / <code>/qa none</code></i>` +
-    `\n<i>Queue: bdnick.info/system/approvals</i>`;
+    `\n<i>Queue: bdnick.info/system/actions</i>`;
 
   let telegramOk = false;
   try {

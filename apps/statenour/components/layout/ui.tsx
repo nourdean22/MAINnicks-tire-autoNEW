@@ -89,11 +89,8 @@ export function StatusBadge({ value }: { value: string | null | undefined }) {
   return <span className={`badge ${tone}`}>{toSentenceCase(value)}</span>;
 }
 
-export function EmptyState({ title, copy }: { title: string; copy: string }) {
-  return (
-    <div className="empty-state">
-      <p className="empty-title">{title}</p>
-      <p className="empty-copy">{copy}</p>
-    </div>
-  );
-}
+// REMOVED 2026-08-24: a second `EmptyState` taking only { title, copy }.
+// Exported, zero importers, and it was the loophole — a component could render
+// an empty surface with no provenance at all just by importing this one instead
+// of components/ui/empty-state. A required prop is only required if there is no
+// second door. Use <EmptyState> from "@/components/ui/empty-state".

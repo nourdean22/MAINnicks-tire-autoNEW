@@ -2085,7 +2085,7 @@ async function cmdQa(args: string, chatId: string): Promise<void> {
 
   if (rows.length === 0) {
     await sendTelegram(
-      `📭 No pending Nick moves for ${today} (or ${yesterday}). The latest batch may already be approved/executed — check /system/approvals.`,
+      `📭 No pending Nick moves for ${today} (or ${yesterday}). The latest batch may already be approved/executed — check /system/actions.`,
       chatId,
     );
     return;

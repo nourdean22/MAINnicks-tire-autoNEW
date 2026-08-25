@@ -111,7 +111,8 @@ export function CharacterSheet() {
         <EmptyState
           icon={ShieldAlert}
           title="No stats recorded yet"
-          why="Stats populate as daily reps and goal events are logged."
+          provenance="ZERO"
+          why="The query succeeded and returned no stats — a real zero, not a failed read. The error case is handled separately above."
           unlock="Log a workout, weight entry, or complete a mission task."
         />
       </section>

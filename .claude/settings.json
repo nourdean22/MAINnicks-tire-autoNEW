@@ -10,6 +10,11 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -File \"${CLAUDE_PROJECT_DIR}\\scripts\\graphify-session-context.ps1\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\check-memory-index.mjs\" --quiet",
+            "timeout": 10
           }
         ]
       }
