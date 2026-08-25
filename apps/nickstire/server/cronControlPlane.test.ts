@@ -22,6 +22,8 @@ import {
   findCronWiringFaults,
   extractRegistryJobNames,
   extractTierJobNames,
+  extractDisabledTierJobNames,
+  MANUAL_TRIGGER_STAGED,
   REGISTRY_TIER_ALIASES,
 } from "./cron/registry-tier-map";
 import { buildCronJobStatuses, type TierCadence } from "./cron/cron-status";
@@ -437,5 +439,120 @@ describe("canary · cron status reads the live source", () => {
     const files = ["server/cron/cron-status.ts", "server/services/selfHealing.ts", "server/cron/observer.ts"];
     const defining = files.filter((f) => /MAX\(completed_at\)\s+AS\s+lastCompletedAt/i.test(read(f)));
     expect(defining).toEqual(["server/cron/cron-status.ts"]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4 · Manual-trigger staging (2026-08-25)
+//
+// campaign-resume and sms-learning-digest were wired into tiers on 2026-08-23
+// and began firing automatically. campaign-resume can send real SMS and
+// SMS_KILL_SWITCH does not gate it, so both are now held OFF the scheduler
+// and reachable only by hand.
+//
+// A staging flag has TWO ways to be wrong, and a test that checks one of them
+// is worse than useless because it reads as coverage:
+//
+//   · it stops working  -> the job goes automatic again, unwatched
+//   · it works too well -> the job becomes unreachable, which is a decommission
+//                          wearing a staging label, and nobody notices until
+//                          the day the recovery net is actually needed
+//
+// Both directions are asserted below.
+// ─────────────────────────────────────────────────────────────────────────
+describe("canary · crons staged behind the manual trigger", () => {
+  const SCHEDULER = read("server/cron/scheduler.ts");
+
+  it("BREAKS: a job that loses its `enabled: false` is no longer seen as staged", () => {
+    // The positive control, and the load-bearing one. If the parser returned
+    // the same set either way, every assertion below would be vacuous and
+    // would pass over a job that had quietly gone automatic.
+    const staged = `{\n  name: "campaign-resume",\n  enabled: false,\n  handler: x,\n},`;
+    const promoted = `{\n  name: "campaign-resume",\n  handler: x,\n},`;
+    expect(extractDisabledTierJobNames(staged).has("campaign-resume")).toBe(true);
+    expect(extractDisabledTierJobNames(promoted).has("campaign-resume")).toBe(false);
+  });
+
+  it("BREAKS: a decoy `enabled: true` does not read as staged", () => {
+    // Distinct from the case above: there the flag is absent, here it is
+    // present and says the opposite. A substring check for "enabled" would
+    // pass both and guard nothing.
+    const src = `{\n  name: "campaign-resume",\n  enabled: true,\n  handler: x,\n},`;
+    expect(extractDisabledTierJobNames(src).has("campaign-resume")).toBe(false);
+  });
+
+  it("every staged job really is disabled in the live scheduler", () => {
+    const disabled = extractDisabledTierJobNames(SCHEDULER);
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(disabled.has(job.name), `${job.name} is listed as staged but the scheduler will run it`).toBe(true);
+    }
+  });
+
+  it("no job is disabled without an entry saying why", () => {
+    // The other direction. `enabled: false` alone is indistinguishable from
+    // someone parking a broken job and forgetting it; the list is what makes
+    // the intent legible, so drift in either direction is a failure.
+    const listed = new Set(MANUAL_TRIGGER_STAGED.map((j) => j.name));
+    for (const name of extractDisabledTierJobNames(SCHEDULER)) {
+      expect(listed.has(name), `${name} is disabled in scheduler.ts with no MANUAL_TRIGGER_STAGED entry`).toBe(true);
+    }
+  });
+
+  it("every entry states a reason and a promotion condition", () => {
+    // Copied from the alias rule above: an entry cannot outlive its
+    // justification if it is required to carry one.
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(job.why.length, `${job.name} needs a why`).toBeGreaterThan(30);
+      expect(job.promote.length, `${job.name} needs a promotion condition`).toBeGreaterThan(30);
+    }
+  });
+
+  it("STAGED, NOT DECOMMISSIONED: the manual runners ignore `enabled`", () => {
+    // Without this, the change above is an unwired control — the recovery net
+    // would be gone rather than held, and the automatic path and the manual
+    // path would both be shut. Assert the mechanism, not the intent: slice
+    // each runner's body and require no `enabled` read inside it.
+    const body = (src: string, fn: string) => {
+      const start = src.indexOf(`export async function ${fn}(`);
+      expect(start, `${fn} not found — the manual path was renamed or deleted`).toBeGreaterThan(-1);
+      const next = src.indexOf("\nexport ", start + 1);
+      return src.slice(start, next === -1 ? undefined : next);
+    };
+    const tierRunner = body(SCHEDULER, "runTierJobByName");
+    expect(tierRunner).toContain("job.handler()");
+    expect(tierRunner, "runTierJobByName must not gate on enabled").not.toMatch(/\benabled\b/);
+
+    const REGISTRY = read("server/cron/index.ts");
+    const httpRunner = body(REGISTRY, "runJobByName");
+    expect(httpRunner).toContain("job.handler()");
+    expect(httpRunner, "runJobByName must not gate on enabled").not.toMatch(/\benabled\b/);
+  });
+
+  it("REACHABLE BY NAME: every staged job is still in registerAllJobs()", () => {
+    // runJobByName resolves against the legacy registry, not the tiers, so a
+    // staged job missing from registerAllJobs() is unreachable over HTTP no
+    // matter what the tier says.
+    const registry = new Set(extractRegistryJobNames(read("server/cron/index.ts")));
+    const tiers = extractTierJobNames(SCHEDULER);
+    for (const job of MANUAL_TRIGGER_STAGED) {
+      expect(registry.has(job.name), `${job.name} is not in registerAllJobs() — /api/bridge/run-job cannot find it`).toBe(true);
+      expect(tiers.has(job.name), `${job.name} vanished from the tiers`).toBe(true);
+    }
+  });
+
+  it("the ONLY automatic path is the tier loop", () => {
+    // If startAllJobs() ever came back, `enabled: false` on a tier job would
+    // stop one scheduler while the legacy registry ran the same job on a
+    // setInterval — staging that stages nothing.
+    const REGISTRY = read("server/cron/index.ts");
+    expect(REGISTRY).toMatch(/startAllJobs\(\) is decommissioned/);
+    // Strip comments first — the same false-positive the getJobStatuses check
+    // above guards against, and it fired here on the first run: this file's
+    // header still said "Uses setInterval", describing a scheduler removed
+    // months earlier. The claim was corrected rather than the check loosened,
+    // but the check must still read CODE, because the next true sentence about
+    // setInterval will also be a comment.
+    const code = REGISTRY.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(code, "the legacy registry must not schedule anything").not.toMatch(/setInterval\s*\(/);
   });
 });

@@ -1,7 +1,18 @@
 /**
- * Cron Job Runner — Registers and executes scheduled tasks
- * Uses setInterval (no external cron dependency needed).
- * Each job logs execution to cronLog table.
+ * Cron Job Runner — the HTTP-trigger path and the cross-dyno lock helpers.
+ *
+ * 2026-08-25 · The first two lines used to read "Registers and executes
+ * scheduled tasks / Uses setInterval (no external cron dependency needed)".
+ * Both were false: `startAllJobs()` throws (see below) and there is no
+ * setInterval in this file. The header outlived its mechanism by the length of
+ * the decommission, and described a scheduler that no longer exists directly
+ * above the paragraph explaining that it was removed. Found by a canary in
+ * cronControlPlane.test.ts asserting the legacy registry schedules nothing —
+ * it matched this sentence, which is the shape a stale comment takes when it is
+ * the only thing left claiming a dead mechanism is live.
+ *
+ * Execution is owned by `startTieredScheduler()` in cron/scheduler.ts.
+ * `runJobByName()` below still logs each run it performs to cron_log.
  */
 
 import { createLogger } from "../lib/logger";

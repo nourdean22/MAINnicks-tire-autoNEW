@@ -203,3 +203,72 @@ export function findCronWiringFaults(
 
   return faults;
 }
+
+/**
+ * Jobs deliberately held OFF the scheduler and reachable only by hand.
+ *
+ * ─── Staged is not disabled, and the difference is the whole point ─────
+ *
+ * `enabled: false` is read in exactly one place: the tier loop in
+ * scheduler.ts. Neither manual runner consults it — `runTierJobByName`
+ * (scheduler.ts) and `runJobByName` (cron/index.ts, behind
+ * `/api/bridge/run-job`) each look the job up by name and call its handler.
+ * So a staged job is one keystroke from running, and its first run is
+ * observed. Confirm before trusting that sentence:
+ *
+ *     git grep -n "enabled" -- apps/nickstire/server/cron/scheduler.ts
+ *
+ * The failure mode this list guards against is the opposite of the one the
+ * aliases above guard: not a job that can never fire, but a job that was meant
+ * to be watched and quietly went automatic. `enabled: false` sitting alone in
+ * scheduler.ts is indistinguishable from someone having disabled a broken job
+ * and forgotten it. An entry here states which it is, and the canary in
+ * cronControlPlane.test.ts fails if the two ever disagree in either direction.
+ */
+export interface ManualTriggerStagedJob {
+  /** Tier job name in cron/scheduler.ts. */
+  name: string;
+  /** Why this one is not allowed to fire unattended. */
+  why: string;
+  /** What has to be true before the `enabled: false` line comes out. */
+  promote: string;
+}
+
+export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
+  {
+    name: "campaign-resume",
+    why:
+      "can call processCampaignSends() for a campaign still 'active' with rows left 'pending', " +
+      "and SMS_KILL_SWITCH does not gate it (Twilio-only; the shop gateway path stays live). " +
+      "A job that reaches customers gets an observed first run.",
+    promote:
+      "one manual run via /api/bridge/run-job observed against a REAL stranded campaign " +
+      "(0 pending rows existed at staging time, so the 558 automatic runs proved nothing).",
+  },
+  {
+    name: "sms-learning-digest",
+    why:
+      "sole producer of sms_learning_recommendations, whose admin panel has rendered an empty " +
+      "list since it shipped. Texts nobody, but the first real batch is the one worth reading " +
+      "before it lands unattended.",
+    promote:
+      "one manual Monday run that actually crosses the threshold, with the resulting " +
+      "recommendation rows reviewed in the admin panel.",
+  },
+];
+
+/**
+ * Tier jobs carrying `enabled: false`, parsed from scheduler.ts source.
+ *
+ * Matches the flag ONLY where it directly follows the job's own `name:` line,
+ * which is where the house style puts it. A job that grew the flag somewhere
+ * else in its object literal reads here as NOT staged, so the canary goes red
+ * and someone looks — the safe direction for a parser to be wrong in. A
+ * parser that guessed generously would report a job as staged while the
+ * scheduler fired it, which is the exact lie this file exists to prevent.
+ */
+export function extractDisabledTierJobNames(schedulerSource: string): Set<string> {
+  return new Set(
+    [...schedulerSource.matchAll(/name: "([a-z0-9-]+)",\s*enabled:\s*false\b/g)].map((m) => m[1]),
+  );
+}

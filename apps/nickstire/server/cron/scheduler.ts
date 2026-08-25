@@ -573,7 +573,36 @@ export function startTieredScheduler(): void {
         // That is the fix, and it is also the only way this job is observable
         // from the outside. Note SMS_KILL_SWITCH does NOT gate it — that switch
         // is Twilio-only and the shop gateway path stays live (socialPipeline.ts).
+        //
+        // ─── 2026-08-25 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // `enabled: false` stops the SCHEDULER ONLY. It is not a decommission:
+        // the tier loop is the single automatic path (`startAllJobs()` throws —
+        // cron/index.ts:55 — so the legacy registry schedules nothing), and
+        // neither manual runner consults this flag. `runTierJobByName`
+        // (scheduler.ts) and `runJobByName` (cron/index.ts, behind
+        // `/api/bridge/run-job`) both look the job up and call its handler
+        // directly. Fire it by name and it runs.
+        //
+        // WHY, and it is the SMS: this job can call processCampaignSends() for
+        // a campaign still 'active' with rows left 'pending'. SMS_KILL_SWITCH
+        // does NOT gate it — that switch is Twilio-only and the shop gateway
+        // path stays live. A job that reaches customers gets an observed first
+        // run, not an unattended one.
+        //
+        // Measured before staging (prod cron_log + tables, 2026-08-25):
+        // 558 runs 2026-08-23 16:11Z → 2026-08-25 14:19Z, every one
+        // status='completed' with records_processed=0 and no error. Newest
+        // sms_campaign_sends.sentAt is 2026-07-08, 46 days BEFORE it was
+        // wired; 0 rows sent on/after 2026-08-23; 0 rows 'pending'. So it has
+        // never had anything to do and has sent nothing. Staging costs nothing
+        // today and buys an observed first real run.
+        //
+        // TO PROMOTE TO AUTOMATIC: delete the `enabled: false` line, and delete
+        // this job's entry from MANUAL_TRIGGER_STAGED in
+        // cron/registry-tier-map.ts — the canary fails until both move together.
         name: "campaign-resume",
+        enabled: false,
         handler: async () => {
           const { resumeStuckCampaigns } = await import("../routers/campaigns");
           return resumeStuckCampaigns();
@@ -1567,7 +1596,31 @@ export function startTieredScheduler(): void {
         // here it gets several chances a day and oncePerShopDay keeps it to
         // exactly one run. The weekday gate is inside the handler, matching
         // weekly-strategic-insight.
+        //
+        // ─── 2026-08-25 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // Same mechanism as campaign-resume above: `enabled: false` stops the
+        // scheduler only; `/api/bridge/run-job` still reaches it.
+        //
+        // The reason here is NOT a customer side effect — this job writes
+        // sms_learning_recommendations rows for an admin panel and texts
+        // nobody. It is staged because its first real run is the one worth
+        // watching: it is the ONLY producer for that table, the panel has been
+        // rendering an empty list since it shipped, and an operator seeing the
+        // first batch of recommendations appear unattended cannot tell a good
+        // batch from a bad one after the fact.
+        //
+        // Measured before staging (prod, 2026-08-25): 3 runs — 2026-08-23
+        // 18:46Z (Sunday, skipped), 2026-08-24 12:35Z (Monday, ran the real
+        // digest: "no threshold crossed — dataset 0 example(s), 0 edit(s)
+        // analysed"), 2026-08-25 12:35Z (Tuesday, skipped). 0 records
+        // processed, 0 errors. sms_learning_recommendations: 0 rows.
+        //
+        // TO PROMOTE TO AUTOMATIC: delete the `enabled: false` line, and delete
+        // this job's entry from MANUAL_TRIGGER_STAGED in
+        // cron/registry-tier-map.ts — the canary fails until both move together.
         name: "sms-learning-digest",
+        enabled: false,
         oncePerShopDay: true,
         handler: async () => {
           const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
