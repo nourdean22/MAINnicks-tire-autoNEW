@@ -28,7 +28,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,10 +49,27 @@ function configuredHook() {
   return null;
 }
 
-/** Resolve `${CLAUDE_PROJECT_DIR}` and split into argv, honouring quotes. */
+/**
+ * Resolve `${CLAUDE_PROJECT_DIR}` and split into argv, honouring quotes.
+ *
+ * SEPARATORS ARE NORMALISED, and the reason matters. The configured command
+ * uses Windows backslashes — as does the graphify hook beside it — because the
+ * operator's machine is Windows. Run verbatim on a Linux CI runner, a
+ * backslash path is one filename containing backslashes, so the first CI run of
+ * this file failed with MODULE_NOT_FOUND while the hook was perfectly correct
+ * on the machine it runs on.
+ *
+ * Normalising is a HARNESS concern, not a weakened assertion: the claim under
+ * test is "the configured script detects an oversized index", not "this path
+ * string parses on every OS". To keep it from masking a genuinely wrong path,
+ * the resolved script is existence-checked below — a typo'd path still fails,
+ * it just fails saying so instead of saying MODULE_NOT_FOUND.
+ */
 function resolveArgv(command) {
   const expanded = command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT);
-  return (expanded.match(/"[^"]*"|\S+/g) ?? []).map((t) => t.replace(/^"|"$/g, ""));
+  return (expanded.match(/"[^"]*"|\S+/g) ?? [])
+    .map((t) => t.replace(/^"|"$/g, ""))
+    .map((t) => (t.includes("\\") ? t.replaceAll("\\", "/") : t));
 }
 
 /** Run the CONFIGURED command with extra args against a scratch memory dir. */
@@ -60,6 +77,12 @@ function runConfigured(files, extraArgs = []) {
   const hook = configuredHook();
   assert.ok(hook, "no check-memory-index hook is configured in .claude/settings.json");
   const [bin, ...args] = resolveArgv(hook.command);
+  // The normalisation above must not hide a wrong path: assert the script the
+  // hook points at actually exists, so a typo fails as a typo rather than as an
+  // opaque MODULE_NOT_FOUND from inside node.
+  const scriptArg = args.find((a) => a.endsWith(".mjs"));
+  assert.ok(scriptArg, `configured hook names no .mjs script: ${hook.command}`);
+  assert.ok(existsSync(scriptArg), `configured hook points at a missing script: ${scriptArg}`);
   const dir = mkdtempSync(join(tmpdir(), "memory-hook-"));
   try {
     for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
