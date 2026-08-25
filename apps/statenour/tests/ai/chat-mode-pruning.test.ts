@@ -207,3 +207,45 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     expect(keys).not.toContain("unrelatedTool");
   });
 });
+
+describe("2026-08-25 CORE demotion — corrected-number prune, behavior pinned", () => {
+  // The three tools were offered on ~every turn since the telemetry
+  // epoch (2026-05-12) and chosen 0 / 0 / 1 times lifetime — the
+  // inverse of the census's pruner-confound. They leave the always-on
+  // set but MUST stay reachable through deterministic intent paths.
+  function toolset(): Record<string, unknown> {
+    const allTools: Record<string, unknown> = {};
+    for (let i = 1; i <= 60; i++) allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
+    for (const name of [
+      "classifyThought", "searchMemories", "createTask",
+      "setTaskPriority", "syncKnowledge", "runDeviceCommand",
+    ]) allTools[name] = { name };
+    return allTools;
+  }
+
+  it("a neutral turn no longer carries the three demoted tools — but still carries real CORE (positive control)", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "how are things looking", [0.1, 0.2]));
+    expect(keys).not.toContain("setTaskPriority");
+    expect(keys).not.toContain("syncKnowledge");
+    expect(keys).not.toContain("runDeviceCommand");
+    // Positive control: the demotion must not have gutted CORE itself.
+    expect(keys).toContain("searchMemories");
+    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("createTask");
+  });
+
+  it("device phrasing deterministically re-surfaces runDeviceCommand", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "lock the front door please", [0.1, 0.2]));
+    expect(keys).toContain("runDeviceCommand");
+  });
+
+  it("knowledge-sync phrasing deterministically re-surfaces syncKnowledge", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "sync my knowledge before the review", [0.1, 0.2]));
+    expect(keys).toContain("syncKnowledge");
+  });
+
+  it("priority phrasing re-surfaces setTaskPriority via the task family", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "bump that task to top priority", [0.1, 0.2]));
+    expect(keys).toContain("setTaskPriority");
+  });
+});

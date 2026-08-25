@@ -423,3 +423,76 @@ describe("2026-07-15 social/web-trends family", () => {
     expect(P_WEBTRENDS.trigger.test("the twins are coming over")).toBe(false);
   });
 });
+
+// 2026-08-25 · CORE demotion families. setTaskPriority / syncKnowledge /
+// runDeviceCommand left CORE_TOOLS on corrected numbers (offered on
+// ~every turn since 2026-05-12; lifetime calls 0 / 0 / 1). Each demoted
+// tool's deterministic path is pinned here: the DEVICE and KNOWLEDGE-SYNC
+// families mirror lib/ai/chat-mode.ts verbatim, and the task family must
+// keep matching setTaskPriority via /task/i.
+const P_DEVICE = {
+  trigger:
+    /\b(lock|unlock|front door|garage|thermostat|shop lights?|(turn|switch) (on|off)|dim the|device command|ring (doorbell|camera)|eufy|tuya)\b/i,
+  attach: /runDeviceCommand|device/i,
+};
+const P_KNOWLEDGE_SYNC = {
+  trigger:
+    /\b(sync (my |the )?(knowledge|brain)|knowledge sync|re-?index (my )?(memories|knowledge|brain)|resync)\b/i,
+  attach: /syncKnowledge/i,
+};
+const P_TASK_ATTACH = /task|loop|commit|mission|triage|followup|schedule/i;
+
+describe("device family (runDeviceCommand demotion cover)", () => {
+  it.each([
+    "lock the front door",
+    "turn off the shop lights",
+    "can you dim the lights in the bay",
+    "open the garage",
+    "set the thermostat to 68",
+    "check the ring doorbell",
+  ])("fires on: %s", (q) => expect(P_DEVICE.trigger.test(q)).toBe(true));
+
+  it.each([
+    "what tasks do I have today",
+    "how did revenue look last week",
+    "turn this idea into a mission",
+  ])("does NOT fire on: %s", (q) => expect(P_DEVICE.trigger.test(q)).toBe(false));
+
+  it("attach pattern reaches runDeviceCommand", () => {
+    expect(P_DEVICE.attach.test("runDeviceCommand")).toBe(true);
+  });
+});
+
+describe("knowledge-sync family (syncKnowledge demotion cover)", () => {
+  it.each([
+    "sync my knowledge",
+    "sync the brain",
+    "run a knowledge sync",
+    "re-index my memories",
+    "resync everything",
+  ])("fires on: %s", (q) => expect(P_KNOWLEDGE_SYNC.trigger.test(q)).toBe(true));
+
+  it.each([
+    "what's in my knowledge base",  // read intent — searchMemories territory
+    "sink the putt",
+    "brainstorm with me",
+  ])("does NOT fire on: %s", (q) => expect(P_KNOWLEDGE_SYNC.trigger.test(q)).toBe(false));
+
+  it("attach pattern reaches syncKnowledge and exact-name mention CANNOT (the reason the family exists)", () => {
+    expect(P_KNOWLEDGE_SYNC.attach.test("syncKnowledge")).toBe(true);
+    // exact-name mention lowercases and strips nothing: the spaced
+    // operator phrasing never contains the identifier.
+    expect("sync my knowledge".includes("syncknowledge")).toBe(false);
+  });
+});
+
+describe("setTaskPriority demotion cover — task family carries it", () => {
+  it("task-family attach pattern reaches setTaskPriority", () => {
+    expect(P_TASK_ATTACH.test("setTaskPriority")).toBe(true);
+  });
+  it("priority phrasings hit the task family trigger", () => {
+    const TASK_TRIGGER = /\b(task|todo|action|mission|goal|commit|promise|keep|break|pin|priority|overdue|late|stale)\b/i;
+    expect(TASK_TRIGGER.test("this is top priority, bump it")).toBe(true);
+    expect(TASK_TRIGGER.test("mark that task critical")).toBe(true);
+  });
+});
