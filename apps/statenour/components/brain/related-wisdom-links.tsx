@@ -20,6 +20,7 @@
  */
 
 import { useState } from "react";
+import { ApiError, rawFetch } from "@/lib/utils/api-fetch";
 
 interface RelatedWisdom {
   id: string;
@@ -71,20 +72,18 @@ export function RelatedWisdomLinks({ wisdomId }: { wisdomId: string }) {
       body: JSON.stringify({ event: "see_also_click", tags: { wisdomId } }),
     }).catch(() => null);
     try {
-      const r = await fetch(`/api/brain/wisdom/${wisdomId}/related`, {
+      const data = await rawFetch<RelatedResp>(`/api/brain/wisdom/${wisdomId}/related`, {
         credentials: "same-origin",
         cache: "no-store",
       });
-      if (!r.ok) {
-        setError(`HTTP ${r.status}`);
-        setLoading(false);
-        return;
-      }
-      const data = (await r.json()) as RelatedResp;
       setRelated(data.related ?? []);
       setExpanded(true);
-    } catch {
-      setError("network");
+    } catch (err) {
+      // `ApiError.message` is already `HTTP <status>` for a failed response, so
+      // the operator-visible text is unchanged for the case this used to handle.
+      // Envelope drift arrives here too, carrying its own descriptive message
+      // instead of being silently rendered as an empty list.
+      setError(err instanceof ApiError ? err.message : "network");
     } finally {
       setLoading(false);
     }

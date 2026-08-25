@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
 import { trpc } from "@/lib/trpc/client";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface Artifact {
   capability: string;
@@ -155,9 +156,8 @@ export default function FleetPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/system/fleet-truth", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setTruth((await res.json()) as FleetTruth);
+      // `ApiError.message` is `HTTP <status>`, so the surfaced text is unchanged.
+      setTruth(await rawFetch<FleetTruth>("/api/system/fleet-truth", { cache: "no-store" }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

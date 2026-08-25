@@ -25,6 +25,7 @@ import { Brain } from "lucide-react";
 import type { Project, Task } from "@/components/actions/shared";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { trpc } from "@/lib/trpc/client";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface NicksMorningBriefProps {
   missions?: Project[];
@@ -74,22 +75,21 @@ export function NicksMorningBrief({ missions: propsMissions, tasks: propsTasks }
             deadline: (m as { deadline?: string | null }).deadline ?? null,
             domain: (m as { domain?: string | null }).domain ?? null,
           }));
-        const res = await fetch("/api/ai/missions-morning-brief", {
+        const data = await rawFetch<{ brief: string }>("/api/ai/missions-morning-brief", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ missions: activeMissions }),
         });
-        if (!res.ok) {
-          if (!cancelled) setBrief(null);
-          return;
-        }
-        const data = (await res.json()) as { brief: string };
         if (!cancelled) setBrief(data.brief?.trim() || null);
       } catch {
-        // Silent · the brief is non-essential UX; the page still renders
-        // without it. setBrief stays at its initial null so the section
-        // self-hides via the guard below.
+        // Clear, don't just stay quiet. This effect re-runs whenever
+        // activeCount changes, so a failed REFETCH would otherwise leave the
+        // previous run's brief on screen — a stale daily summary presented as
+        // current. The hand-rolled version this replaced called setBrief(null)
+        // on a bad response for exactly that reason; the throw now arrives here
+        // instead, and has to do the same thing.
+        if (!cancelled) setBrief(null);
       }
     })();
     return () => {

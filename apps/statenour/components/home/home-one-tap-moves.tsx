@@ -25,6 +25,7 @@ import Link from "next/link";
 import { Flag, MessageCircle, NotebookPen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface OneTapMove {
   kind: "mission_task" | "relationship_outreach" | "journal_prompt";
@@ -72,11 +73,9 @@ export function HomeOneTapMoves({ isNested = false }: HomeOneTapMovesProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/ai/home-moves", {
+        const data = await rawFetch<HomeMovesResponse>("/api/ai/home-moves", {
           credentials: "include",
         });
-        if (!res.ok) throw new Error("moves_failed");
-        const data = (await res.json()) as HomeMovesResponse;
         if (!cancelled) setMoves(data.moves ?? []);
       } catch {
         if (!cancelled) setMoves([]);

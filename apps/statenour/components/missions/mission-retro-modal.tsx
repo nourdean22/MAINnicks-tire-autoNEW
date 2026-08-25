@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { unwrapApi } from "@/lib/utils/api-fetch";
 
 export interface MissionRetroModalProps {
   missionId: string;
@@ -78,10 +79,14 @@ export function MissionRetroModal({
         // { ok:true, warning:"retro_write_failed" }. Don't lie to the
         // operator · keep the modal open with the retro text intact so
         // they can retry.
-        const data = (await res.json()) as {
+        //
+        // NOTE the shape: `{ ok, warning }` has an `ok` field but no `meta`,
+        // so it is NOT the API envelope and `unwrapApi` must not touch it.
+        // That distinction is pinned by a test in tests/lib/api-fetch.test.ts.
+        const data = unwrapApi<{
           ok: boolean;
           warning?: string;
-        };
+        }>(await res.json(), res.status);
         if (data.warning === "retro_write_failed") {
           setError(
             "Mission archived, but the retro note didn't save. Try again — your text is still here.",

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, CircleMinus, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { GlassCard } from "@/components/ui/glass-card";
+import { apiFetch } from "@/lib/utils/api-fetch";
 
 type Outcome = "confirmed" | "disproved" | "neutral";
 
@@ -25,13 +26,6 @@ interface ActionList {
   items: ActionItem[];
 }
 
-function unwrap<T>(payload: unknown): T {
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as { data: T }).data;
-  }
-  return payload as T;
-}
-
 export function KnowledgeActionOutcomes() {
   const [data, setData] = useState<ActionList>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
@@ -41,14 +35,14 @@ export function KnowledgeActionOutcomes() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/knowledge/candidates?view=actions&limit=50", {
+      // `ApiError.message` carries the envelope's `error` string, which the
+      // catch below already surfaces. The hand-rolled path read
+      // `payload?.error?.message` — but `error` is typed `string`, so `.message`
+      // was always undefined and this ALWAYS fell through to the generic
+      // fallback. Routing through apiFetch makes the server's message reachable.
+      setData(await apiFetch<ActionList>("/api/knowledge/candidates?view=actions&limit=50", {
         cache: "no-store",
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error?.message ?? "Unable to load approved actions.");
-      }
-      setData(unwrap<ActionList>(payload));
+      }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to load approved actions.");
     } finally {
@@ -63,7 +57,7 @@ export function KnowledgeActionOutcomes() {
   const record = async (memoryId: string, outcome: Outcome) => {
     setActingId(memoryId);
     try {
-      const response = await fetch("/api/knowledge/candidates", {
+      await apiFetch("/api/knowledge/candidates", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -73,10 +67,6 @@ export function KnowledgeActionOutcomes() {
           evidence: evidence[memoryId]?.trim() || undefined,
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error?.message ?? "Unable to record action outcome.");
-      }
       toast.success(`Outcome recorded: ${outcome}.`);
       setEvidence((current) => {
         const next = { ...current };

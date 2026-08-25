@@ -71,6 +71,7 @@ import {
   RocketIcon,
   HistoryIcon,
 } from "lucide-react";
+import { apiFetch } from "@/lib/utils/api-fetch";
 
 interface CommandAction {
   id: string;
@@ -508,27 +509,26 @@ export function CommandPalette() {
     const timer = setTimeout(async () => {
       setSemanticLoading(true);
       try {
-        const res = await fetch(
-          `/api/brain/search-hybrid?q=${encodeURIComponent(query.trim())}&limit=5`,
-          { signal: controller.signal, credentials: "same-origin" },
-        );
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        // apiHandler wraps responses in { ok, data, meta } · the
-        // search-hybrid handler returns { results: SearchHit[] } where
-        // SearchHit has { id (embedding row), sourceType, sourceId,
-        // content, rrfScore }. For navigation we need sourceId (the
-        // brain_memory or chat_message id) · id is the embedding row.
-        const payload = (await res.json()) as {
-          data?: {
-            results?: Array<{
-              id: string;
-              sourceType: string;
-              sourceId: string;
-              content: string;
-            }>;
-          };
-        };
-        const results = payload.data?.results ?? [];
+        // search-hybrid IS apiHandler-wrapped, so this is the one call site of
+        // the eighteen that genuinely holds an envelope. It was already reaching
+        // through `.data` by hand and was therefore correct — `apiFetch` just
+        // removes the hop, and with it the chance of the next editor forgetting
+        // it. The payload is { results: SearchHit[] }, where SearchHit carries
+        // { id (the embedding row), sourceType, sourceId, content, rrfScore };
+        // navigation needs sourceId — the brain_memory or chat_message id — not
+        // id.
+        const payload = await apiFetch<{
+          results?: Array<{
+            id: string;
+            sourceType: string;
+            sourceId: string;
+            content: string;
+          }>;
+        }>(`/api/brain/search-hybrid?q=${encodeURIComponent(query.trim())}&limit=5`, {
+          signal: controller.signal,
+          credentials: "same-origin",
+        });
+        const results = payload.results ?? [];
         setSemanticHits(
           results.map((r) => ({
             id: r.sourceId,

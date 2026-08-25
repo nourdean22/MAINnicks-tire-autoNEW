@@ -24,6 +24,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Loader2, RefreshCw, Send, Target, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { rawFetch } from "@/lib/utils/api-fetch";
 
 interface Pick {
   personId: string;
@@ -59,13 +60,11 @@ export function TodaysPicks({ refetchKey = 0, onLogged }: TodaysPicksProps) {
     void (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/ai/relationships-pick-today", {
+        const data = await rawFetch<PicksResponse>("/api/ai/relationships-pick-today", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
-        if (!res.ok) throw new Error("picks_request_failed");
-        const data = (await res.json()) as PicksResponse;
         if (!cancelled) setPicks(data.picks ?? []);
       } catch {
         if (!cancelled) setPicks([]);
@@ -185,7 +184,7 @@ function PickEditor({
     void (async () => {
       setDraftLoading(true);
       try {
-        const res = await fetch("/api/ai/draft-outreach", {
+        const data = await rawFetch<{ draft: string }>("/api/ai/draft-outreach", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -194,8 +193,6 @@ function PickEditor({
             rationale: pick.rationale,
           }),
         });
-        if (!res.ok) throw new Error("draft_failed");
-        const data = (await res.json()) as { draft: string };
         if (!cancelled) setDraft(data.draft || "");
       } catch {
         if (!cancelled) setDraft("");
@@ -212,7 +209,7 @@ function PickEditor({
   const handleRegen = useCallback(async () => {
     setDraftLoading(true);
     try {
-      const res = await fetch("/api/ai/draft-outreach", {
+      const data = await rawFetch<{ draft: string }>("/api/ai/draft-outreach", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -222,8 +219,6 @@ function PickEditor({
           regenerate: true,
         }),
       });
-      if (!res.ok) throw new Error("draft_failed");
-      const data = (await res.json()) as { draft: string };
       setDraft(data.draft || "");
     } catch {
       toast.error("Couldn't regenerate. Edit manually instead.");
