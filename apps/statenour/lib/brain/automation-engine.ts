@@ -1,204 +1,118 @@
 /**
- * DO NOT WIRE THIS WITHOUT READING THIS BLOCK. Audited 2026-08-26 against the
- * live rule set; the engine and its own data disagree at THREE levels, and
- * wiring it as-is fires zero useful actions while looking like it works.
+ * Automation engine — rewritten 2026-08-26 so it can execute its own rules.
  *
- * It has never run. Zero importers, any spelling, anywhere in the repo.
- * `automationEngine` at the bottom is a singleton nothing constructs a caller
- * for. That is the only reason none of the below has caused an incident.
+ * IT HAD NEVER RUN. Zero importers, any spelling, anywhere. An audit found it
+ * disagreed with its own stored rules at FOUR levels, and wiring it as it stood
+ * would have fired zero useful actions while reading as done:
  *
- * PROD STATE: 8 rules, ALL 8 enabled. `device_commands` holds 12 rows, newest
- * 2026-04-01 — nothing has been issued in five months.
+ *   1 · ACTION SHAPE. The loop unconditionally built a DeviceCommand from
+ *       `action.deviceId`/`action.command`. Every stored action is `notify` or
+ *       `check` and has neither; both columns are NOT NULL with an FK, so every
+ *       fire threw. `action.type` was never read. -> `planAction`.
+ *   2 · TRIGGER SHAPE. Both device rules describe a CLASS of device
+ *       (`{status:"OFFLINE", deviceType:"CAMERA"}`) but the matcher was
+ *       `devices.find(d => d.id === trigger.deviceId)`, undefined for both.
+ *       -> `matchesDeviceCondition`.
+ *   3 · TRIGGER COVERAGE. No `composite` case and no `default:`, so one rule
+ *       fell through the switch and never evaluated — silently. -> `default:`
+ *       now returns a reason.
+ *   4 · SEMANTICS, and the one that matters. The rules are EDGE-triggered
+ *       ("camera went offline"); the engine was LEVEL-triggered ("a camera is
+ *       offline"). Measured: 20 of 22 devices OFFLINE, last seen 2026-04-06..14
+ *       — the integration died in April. At the stored 1-hour cooldown that is
+ *       24 messages a day about a four-month-old fact.
  *
- * 1 · ACTION SHAPE. The action loop unconditionally builds a DeviceCommand from
- *     `action.deviceId` / `action.command`. Not one stored action has either
- *     field: six are `{type:"notify", channel:"telegram", message}` and two are
- *     `{type:"check", target, message}`. `action.type` is never read. Both
- *     columns are NOT NULL with an FK, so every fire THROWS into the catch
- *     below. Result: no notification, no device command, one logged failure.
+ * So a rule now fires when its MATCH SET CHANGES. `computeFingerprint` reduces
+ * the match to a stable string, stored on the rule's `metadata`, and a repeat
+ * fingerprint is silence. Ten cameras dropping is one alert; an eleventh is a
+ * new one; nothing changing says nothing.
  *
- * 2 · TRIGGER SHAPE. Both `device_state` rules describe a CLASS of device —
- *     `{status:"OFFLINE", deviceType:"CAMERA"}`, `{runningHours:6}` — with no
- *     `deviceId`. The matcher is `devices.find(d => d.id === trigger.deviceId)`,
- *     which is `undefined` for both, so they never fire. The rules mean "any
- *     camera"; the engine only implements "this one device".
- *
- * 3 · TRIGGER COVERAGE. There is no `composite` case and no `default:`. The
- *     "Late night motion + lights off" rule falls straight through the switch
- *     with `shouldFire` still false — it does not error, it does not log, it
- *     simply never evaluates. A fourth trigger type would do the same.
- *
- * WHAT WOULD ACTUALLY BE NEEDED: an action executor that reads `action.type`
- * (notify -> sendTelegram, check -> ?), class-matching for `device_state`, a
- * `composite` evaluator, and a `default:` that is loud. That is a rewrite of the
- * executor plus a decision about rules referencing cameras, motion events and
- * `runningHours` whose backing data was never confirmed to exist — not a wiring
- * change. Doing it blind would arm outbound Telegram on triggers nobody has
- * validated.
- *
- * The `hourET`/`weekdayET` context below is CORRECT post-clock-fix: the three
- * time rules target hours 18/14/8, which read naturally as 6pm/2pm/8am ET.
+ * STILL NOT WIRED TO A DISPATCHER, deliberately. `preview()` runs the whole
+ * evaluation with no side effects so the rule set can be inspected against live
+ * data before anything is armed. Arming is an operator decision, and the
+ * measured facts they need are in that preview.
  */
 import { prisma } from "@/lib/prisma";
 import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
+import { sendTelegram } from "@/lib/services/telegram";
 import type { AutomationRule } from "@prisma/client";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  evaluateTrigger,
+  planAction,
+  type ActionSpec,
+  type DeviceView,
+  type EvalContext,
+  type TriggerSpec,
+} from "./automation-rules";
 
-export interface SystemContext {
-  devices: { id: string; status: string; currentState: unknown; deviceType: string }[];
+export interface SystemContext extends EvalContext {
   time: Date;
-  dayOfWeek: number; // 0=Sunday
-  hour: number;
 }
 
 export interface FiredRule {
   rule: AutomationRule;
   reason: string;
+  fingerprint: string;
 }
 
 export interface ActionResult {
   ruleId: string;
   ruleName: string;
-  actions: { deviceId: string; command: string; status: string }[];
+  notified: number;
+  deviceCommands: number;
+  unsupported: string[];
   success: boolean;
+}
+
+/** What a rule would do, with no side effects. */
+export interface RulePreview {
+  ruleName: string;
+  enabled: boolean;
+  fires: boolean;
+  reason: string;
+  /** True when the fingerprint matches the last fire — a repeat, so silent. */
+  suppressedAsRepeat: boolean;
+  actions: string[];
 }
 
 const log = logger.withContext({ service: "automation-engine" });
 
+/** Freshness window for a `pattern` trigger's supporting memory. */
+const PATTERN_WINDOW_MS = 60 * 60 * 1000;
+
+function readFingerprint(rule: AutomationRule): string | null {
+  const meta = rule.metadata as { lastFingerprint?: unknown } | null;
+  return typeof meta?.lastFingerprint === "string" ? meta.lastFingerprint : null;
+}
+
 export class AutomationEngine {
-  /**
-   * Evaluate all active rules against current system context.
-   * Returns rules that should fire.
-   */
-  async evaluate(context: SystemContext): Promise<FiredRule[]> {
-    const rules = await prisma.automationRule.findMany({
-      where: { enabled: true },
-      orderBy: { priority: "asc" },
-    });
-
-    const firedRules: FiredRule[] = [];
-
-    for (const rule of rules) {
-      // Check cooldown
-      if (rule.lastFired) {
-        const elapsed = Date.now() - rule.lastFired.getTime();
-        if (elapsed < rule.cooldownMs) continue;
-      }
-
-      const trigger = rule.trigger as any;
-      if (!trigger?.type) continue;
-
-      let shouldFire = false;
-      let reason = "";
-
-      switch (trigger.type) {
-        case "time": {
-          // { type: "time", hour: 22, minute?: 0, days?: [1,2,3,4,5] }
-          const matchHour = context.hour === trigger.hour;
-          const matchMinute = trigger.minute === undefined || new Date().getMinutes() === trigger.minute;
-          const matchDay = !trigger.days || trigger.days.includes(context.dayOfWeek);
-          shouldFire = matchHour && matchMinute && matchDay;
-          reason = `Time trigger: ${trigger.hour}:${trigger.minute ?? "00"}`;
-          break;
-        }
-        case "device_state": {
-          // { type: "device_state", deviceId: "...", condition: { status: "OFFLINE" } }
-          const device = context.devices.find((d) => d.id === trigger.deviceId);
-          if (device && trigger.condition) {
-            shouldFire = Object.entries(trigger.condition).every(
-              ([k, v]) => (device as any)[k] === v
-            );
-            reason = `Device ${device.id} matches condition`;
-          }
-          break;
-        }
-        case "pattern": {
-          // { type: "pattern", category: BRAIN_CATEGORIES.ANOMALY, minConfidence: 0.7 }
-          // Check if any recent brain memory matches.
-          // v10.0.65 · soft-delete bypass fix · pre-fix this query
-          // matched soft-deleted memories too, so a memory the
-          // operator pruned could still trigger an automation rule
-          // until the row was hard-deleted by data-cleanup cron.
-          const memories = await prisma.brainMemory.findMany({
-            where: {
-              category: trigger.category,
-              confidence: { gte: trigger.minConfidence ?? 0.5 },
-              lastSeen: { gte: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
-              deletedAt: null,
-            },
-            take: 1,
-          });
-          shouldFire = memories.length > 0;
-          reason = `Pattern match: ${trigger.category} (confidence ≥ ${trigger.minConfidence})`;
-          break;
-        }
-      }
-
-      if (shouldFire) {
-        firedRules.push({ rule, reason });
-      }
-    }
-
-    return firedRules;
-  }
-
-  /**
-   * Execute actions from fired rules.
-   * Creates DeviceCommand entries for the local agent to pick up.
-   */
-  async execute(firedRules: FiredRule[]): Promise<ActionResult[]> {
-    const results: ActionResult[] = [];
-
-    for (const { rule, reason } of firedRules) {
-      const actions = (rule.actions as any[]) ?? [];
-      const actionResults: { deviceId: string; command: string; status: string }[] = [];
-
-      try {
-        for (const action of actions) {
-          // Create a device command for the local agent
-          await prisma.deviceCommand.create({
-            data: {
-              deviceId: action.deviceId,
-              command: action.command,
-              params: action.params ?? null,
-              status: "pending",
-            },
-          });
-          actionResults.push({
-            deviceId: action.deviceId,
-            command: action.command,
-            status: "queued",
-          });
-        }
-
-        // Update rule fire count and timestamp
-        await prisma.automationRule.update({
-          where: { id: rule.id },
-          data: {
-            lastFired: new Date(),
-            fireCount: { increment: 1 },
-          },
-        });
-
-        log.info(`Rule fired: ${rule.name}`, { ruleId: rule.id, reason, actions: actionResults.length });
-        results.push({ ruleId: rule.id, ruleName: rule.name, actions: actionResults, success: true });
-      } catch (error) {
-        log.error(`Rule failed: ${rule.name}`, { ruleId: rule.id, error: String(error) });
-        results.push({ ruleId: rule.id, ruleName: rule.name, actions: actionResults, success: false });
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * Get current system context for rule evaluation.
-   */
-  async getContext(): Promise<SystemContext> {
-    const devices = await prisma.smartDevice.findMany({
+  /** Gather everything the pure evaluator needs, in as few queries as possible. */
+  async getContext(rules: AutomationRule[] = []): Promise<SystemContext> {
+    const devices: DeviceView[] = await prisma.smartDevice.findMany({
       select: { id: true, status: true, currentState: true, deviceType: true },
     });
+
+    // One query for every category any pattern rule cares about, rather than
+    // one per rule inside the loop.
+    const categories = new Set<string>();
+    for (const r of rules) {
+      const t = r.trigger as TriggerSpec | null;
+      if (t?.type === "pattern" && typeof t.category === "string") categories.add(t.category);
+    }
+    const freshMemoryCategories = new Set<string>();
+    if (categories.size > 0) {
+      const rows = await prisma.brainMemory.findMany({
+        where: {
+          category: { in: [...categories] },
+          lastSeen: { gte: new Date(Date.now() - PATTERN_WINDOW_MS) },
+          deletedAt: null,
+        },
+        select: { category: true },
+        distinct: ["category"],
+      });
+      for (const r of rows) freshMemoryCategories.add(r.category);
+    }
 
     const now = new Date();
     return {
@@ -206,7 +120,141 @@ export class AutomationEngine {
       time: now,
       dayOfWeek: weekdayET(now),
       hour: hourET(now),
+      freshMemoryCategories,
     };
+  }
+
+  async loadRules(): Promise<AutomationRule[]> {
+    return prisma.automationRule.findMany({ where: { enabled: true } });
+  }
+
+  /**
+   * Which rules fire right now. Cooldown is a floor; the fingerprint is the
+   * real gate — an unchanged world produces nothing.
+   */
+  evaluate(rules: AutomationRule[], context: SystemContext): FiredRule[] {
+    const fired: FiredRule[] = [];
+    for (const rule of rules) {
+      if (rule.lastFired && rule.cooldownMs) {
+        if (Date.now() - rule.lastFired.getTime() < rule.cooldownMs) continue;
+      }
+      const verdict = evaluateTrigger((rule.trigger ?? {}) as TriggerSpec, context);
+      if (!verdict.fires) continue;
+      if (readFingerprint(rule) === verdict.fingerprint) continue; // unchanged world
+      fired.push({ rule, reason: verdict.reason, fingerprint: verdict.fingerprint });
+    }
+    return fired;
+  }
+
+  /** Evaluate everything and report, touching nothing. */
+  async preview(): Promise<RulePreview[]> {
+    const rules = await prisma.automationRule.findMany();
+    const context = await this.getContext(rules);
+    return rules.map((rule) => {
+      const verdict = evaluateTrigger((rule.trigger ?? {}) as TriggerSpec, context);
+      const actions = ((rule.actions as ActionSpec[] | null) ?? []).map((a) => {
+        const planned = planAction(a, rule.name);
+        return planned.kind === "notify"
+          ? "notify"
+          : planned.kind === "device"
+            ? `device:${planned.command}`
+            : `UNSUPPORTED (${planned.detail})`;
+      });
+      return {
+        ruleName: rule.name,
+        enabled: rule.enabled,
+        fires: verdict.fires,
+        reason: verdict.reason,
+        suppressedAsRepeat:
+          verdict.fires && readFingerprint(rule) === verdict.fingerprint,
+        actions,
+      };
+    });
+  }
+
+  /** Run the planned actions for rules that fired. */
+  async execute(firedRules: FiredRule[]): Promise<ActionResult[]> {
+    const results: ActionResult[] = [];
+
+    for (const { rule, reason, fingerprint } of firedRules) {
+      const specs = (rule.actions as ActionSpec[] | null) ?? [];
+      let notified = 0;
+      let deviceCommands = 0;
+      const unsupported: string[] = [];
+
+      try {
+        for (const spec of specs) {
+          const planned = planAction(spec, rule.name);
+          if (planned.kind === "notify") {
+            const ok = await sendTelegram(planned.message);
+            if (ok) notified++;
+            else unsupported.push("telegram send returned false");
+          } else if (planned.kind === "device") {
+            await prisma.deviceCommand.create({
+              data: {
+                deviceId: planned.deviceId,
+                command: planned.command,
+                params: (planned.params ?? null) as never,
+                status: "pending",
+              },
+            });
+            deviceCommands++;
+          } else {
+            // Reported, never silently skipped — an unexecutable action that
+            // logs nothing is how this whole subsystem stayed broken unnoticed.
+            unsupported.push(planned.detail);
+          }
+        }
+
+        await prisma.automationRule.update({
+          where: { id: rule.id },
+          data: {
+            lastFired: new Date(),
+            fireCount: { increment: 1 },
+            metadata: {
+              ...((rule.metadata as Record<string, unknown> | null) ?? {}),
+              lastFingerprint: fingerprint,
+            } as never,
+          },
+        });
+
+        if (unsupported.length > 0) {
+          log.warn("rule_fired_with_unsupported_actions", {
+            rule: rule.name,
+            unsupported,
+          });
+        }
+        log.info("rule_fired", { rule: rule.name, reason, notified, deviceCommands });
+        results.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          notified,
+          deviceCommands,
+          unsupported,
+          success: true,
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        log.error("rule_execution_failed", { rule: rule.name, error: msg.slice(0, 200) });
+        results.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          notified,
+          deviceCommands,
+          unsupported: [...unsupported, msg.slice(0, 120)],
+          success: false,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /** Load, evaluate, execute. The entry a dispatcher would call. */
+  async run(): Promise<ActionResult[]> {
+    const rules = await this.loadRules();
+    const context = await this.getContext(rules);
+    return this.execute(this.evaluate(rules, context));
   }
 }
 
