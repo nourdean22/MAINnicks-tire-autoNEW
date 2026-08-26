@@ -22,6 +22,8 @@ import {
   type OperatorQueue,
 } from "./operator-queue";
 import { renderCapacityBlock } from "./capacity-block";
+import { renderAttentionBlock } from "./attention-block";
+import { analyzeAttentionPatterns } from "@/lib/brain/attention-tracker";
 import { gatherTaskSignals } from "@/lib/brain/task-signals";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
@@ -174,6 +176,22 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     capacityBlock = renderCapacityBlock(null);
   }
 
+  // Same verbatim contract. analyzeAttentionPatterns also had zero consumers.
+  // Only `neglectedDomains` is rendered: focusScore and attentionVelocity are
+  // ratios over a filtered population whose denominator never reaches the
+  // output, and an alarming derived score with an invisible denominator is the
+  // shape that has misled here before. Counts are checkable; scores argue.
+  let attentionBlock: string;
+  try {
+    const profile = await analyzeAttentionPatterns();
+    attentionBlock = renderAttentionBlock(profile.neglectedDomains);
+  } catch (err) {
+    log.warn("attention_signals_failed", {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+    });
+    attentionBlock = renderAttentionBlock(null);
+  }
+
   // P1 FROM REVIEW: the queue must survive a generation failure. This used to
   // let generateText reject, which sent the whole call into the caller's catch
   // in intelligence-brief.ts - and that fallback narrative has no queue counts.
@@ -215,6 +233,6 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     // Awaiting-You leads. It is the only section describing state the operator
     // can act on this minute, and during the 16-day ingest-reviews outage the
     // brief led with an invented threat level while 44 real items sat queued.
-    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n---\n\n${body}`,
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n---\n\n${body}`,
   };
 }
