@@ -1,5 +1,78 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-26 · The interaction-audit wave · 9 ships (#1881 #1882 #1883 #1886 #1889 #1891 #1894 #1898 #1897)
+>
+> Operator directive: audit the ~30-PR / six-session day AS A WHOLE — interactions, not
+> individual defects — then land the fixes. Verdict held: production was sound; the GATE LAYER
+> was not (one gate nothing ran, one canary that could not see its subject, one gate needing prod
+> credentials to complete). Method notes that earned their keep: every ratio beside its base rate
+> (orphan modules 26.9% in the clock fix vs 6.7% repo-wide) · four of my own first-draft canaries
+> were WRONG and the mutation step caught all four · three of the four "fix these" items I was
+> handed dissolved under measurement (TTL working as designed; nickstire:booking wired but never
+> emitted; bridge 401 = my own worktree's stale key) — refuting your own findings is part of the
+> audit.
+>
+> **#1881 · a gate nothing runs is not a gate (agent-os).** `check-gate-reachability` — every
+> `check:*`/`lint:*` in 4 packages must be invoked by CI, lefthook, or a verify chain. Born from
+> #1806 fixing three unwired gates and #1808 shipping a fresh one 41 minutes later. 7 canary
+> arms incl. live-repo (arm 6) and the `--root`-no-value refusal (arm 7, from #1889 after a
+> post-merge self-audit found my own gate silently scanning the wrong tree).
+> **#1882 · /api/version, unauthenticated.** "Merged" and "deployed" were different claims for
+> half the estate (every statenour probe 401'd while nickstire answered in one request). EXACT
+> allowlist entry, red-teamed: prefix-bleed mutation turns 2 arms red while the happy path stays
+> green. Every merge this wave was then deploy-confirmed through it.
+> **#1883 · the anti-slop canary could not see its own gate.** Its arms read the script's SOURCE;
+> nothing ran it — and the Inter regex had the operands in the wrong order, so the canonical
+> `import { Inter } from "next/font/google"` NEVER matched. Found by writing the arm that runs
+> the gate against planted offenders; it failed on first run. Roboto carried the same bug.
+> **#1886 · prompt:size-check skips loudly without DATABASE_URL.** Step 18 of verify:hard opens
+> live Neon with `--yes`; a credential-less worktree red-lined all 19 gates, so the rational move
+> was to skip the whole chain. Now: skip (exit 0, banner that never says PASS) / CI still fails.
+> Decision extracted to `scripts/_lib/db-gate.ts` — importing the script runs the measurement,
+> the seed-policies near-miss shape.
+> **#1891 · the measurement tool's own header misstated its threshold by 25,000 chars.** Four
+> stale claims fixed; the 65,000 cap has FOUR hand-maintained copies, three saying "keep in
+> sync", nothing enforcing — a canary now pins all three mirrors to the root
+> (finalize-system-prompt.ts:118) and the header's stated cap to RUNTIME_MAX.
+> **#1894 · hour-encoding memory keys record their clock.** Pre-#1809 `{h}` keys are UTC, post
+> are ET, nothing on the row distinguishes them (330 rows, ALL UTC-keyed, zero readers of the
+> hour). Marker not migration; the discovery canary found a FOURTH hour-encoding key
+> (`unanswered_leads`) my own audit had missed, on its first run.
+> **#1898 · time-travel dated the operator's day in UTC.** Three frame defects in one route: UTC
+> day bounds shifting all 11 queries 4-5h · UTC default date (empty "today" after 8pm ET) ·
+> emotional_state filtered by createdAt so 170 backfilled rows (58 distinct days, 05-28..08-13)
+> all surfaced on 2026-08-16 and never on the days they describe. Now ET bounds (exclusive
+> upper), `today()`, and dated-by-KEY — total, measured: 329/329 rows carry a date.
+> **#1897 · home redesign, reviewed then fixed (6 fixes, one push).** Ran the promoted selector
+> against LIVE data: the page's dominant card was "ACTIVE ENGAGEMENT — [Drink water — 6+
+> bottles] … Do not context switch until completion" (a DAILY loop hand-scored roiScore 70,
+> tied-highest in the open set). Fixes: chain extracted pure (`derive-briefing.ts`) with a
+> DAILY/WEEKLY guard on the ACTIVE/RESUME arms · the decide arm the design promised but never
+> coded (uncapped counts, null=unknown, idle refuses "nothing waiting" over a failed read) ·
+> Ask-Nick order-first on mobile · 16-test canary (water row verbatim; 2 mutations kill 2 and 4
+> arms) · all tap targets 36→44px · LoopKind gained the WEEKLY the Prisma enum always had, and
+> KindFilter now derives from it. Truth safeguards all verified surviving; all 9 new theme
+> tokens real.
+> **Prompt measurement (live Neon):** default 41,403 chars vs 49,344 baseline = −1,985 tok,
+> within 0.5% of #1862's prediction — the cuts composed, nothing grew into the space. Heaviest
+> scenario 55,144 of the 65,000 cap (15% headroom).
+>
+> **Flagged · NOT fixed (deliberately):**
+> - 170 no-expiry `emotional_state` rows from the 2026-08-16 bulk import — operator chose LEAVE
+>   (they are the mood archive; stamping the 24h policy expiry = hard delete on next cleanup).
+> - nickstire estimate-conversion + nickActions work orders dispatch NO `booking_created` — six
+>   consumers blind incl. manager-on-duty SMS; wiring it arms an SMS lane, operator's call.
+> - Habit roiScore data (water/workout/journal at 70 > every business task's 50-55) — untouched;
+>   the guard makes it moot for the card, the data is still what nextMove ranks by.
+> - e2e heartbeat-404 transient (two unrelated PRs, same minute, ~200×404, zero tests run; both
+>   reruns green) — root cause unfound.
+> - Merging to main cancels sibling in-flight PR checks; statenour's node job needs ~10min. Three
+>   #1886 attempts proved it (4m30s kill, 4m45s kill, 11m18s pass with main held). Process rule,
+>   nothing mechanical yet.
+>
+> (Agent-os ships #1881/#1889 recorded here because the wave was one arc; canonical coverage
+> lives in docs/agent-audit/CONTROL-CANARY-COVERAGE.md, updated in the same PRs.)
+
 > ## 2026-08-25 · The chat-stack wave · measure first, then 5 ships (#1836 #1843 #1846 #1848 #1849)
 >
 > Operator directive: upgrade the Nick chat/tool/observability/media layer, every decision cited
@@ -896,7 +969,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-25 (chat-stack wave #1836/#1843/#1846/#1848/#1849; prior: manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1424,7 +1497,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-25 (chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-26 (interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
