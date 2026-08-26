@@ -229,7 +229,19 @@ function main() {
   // against fixture repos it owns, instead of asserting on the live tree. The
   // gate's own reachability question is answered by the live run (no --root).
   const rootArg = process.argv.indexOf("--root");
-  const root = rootArg >= 0 ? process.argv[rootArg + 1] : ROOT;
+  const rootVal = rootArg >= 0 ? process.argv[rootArg + 1] : undefined;
+  // `--root` with no value used to yield `undefined`, which RE-TRIGGERS the
+  // `root = ROOT` default parameter on loadPackages/loadExternalRefs — so the
+  // run silently scanned the LIVE REPO instead of the fixture and exited 0. A
+  // canary with a typo'd --root would have measured the wrong tree and passed:
+  // a false green inside the tool built to catch false greens. Found by this
+  // file's own author in a post-merge self-audit (#1881 -> follow-up).
+  // Exit 2, never 0 — "I could not look" is not a clean result.
+  if (rootArg >= 0 && (!rootVal || rootVal.startsWith("--"))) {
+    console.error("❌ gate reachability: --root given with no directory. Refusing to scan a different tree by accident.");
+    process.exit(2);
+  }
+  const root = rootVal ?? ROOT;
 
   let packages, externalRefs;
   try {
