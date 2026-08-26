@@ -179,7 +179,15 @@ describe("SMS Module", () => {
       // The gate's own fail-closed behaviour is covered by
       // server/__tests__/sms-optout-failclosed.test.ts — do NOT weaken the
       // guard to make an unrelated test pass.
-      const result = await sendSms("+12168620005", "Test message", {
+      // 2026-08-26 · destination changed off the SHOP'S OWN published line.
+      // sendSms now REFUSES automated sends to shop/operator numbers (the
+      // operator's mobile had received 18 automated customer messages across
+      // eight lanes), and this fixture was aimed at 216-862-0005, so the
+      // refusal fired before the Twilio-credential check this test is about.
+      // The destination is incidental here — any valid non-internal number
+      // exercises the same path. The guard was NOT weakened to make this pass;
+      // see server/sendSmsInternalLineGuard.test.ts.
+      const result = await sendSms("+12165550123", "Test message", {
         messageClass: "customer_confirmation",
         skipOptOutCheck: true,
       });

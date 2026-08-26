@@ -26,6 +26,7 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { SMS_OPT_OUT_KEYWORDS, SMS_OPT_IN_KEYWORDS } from "@shared/smsOptOutKeywords";
 import { createLogger } from "./lib/logger";
 import { normalizePhone } from "./lib/phone";
+import { internalLineFor } from "./services/nonCustomerFilter";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
 import { affectedRowCount } from "./lib/db-affected";
@@ -966,6 +967,8 @@ interface SmsDeliveryStats {
   blockedByTakeover: number;
   /** sends that ran with skipOptOutCheck=true — every use is deliberate and loud */
   optOutCheckSkipped: number;
+  /** Automated sends refused because the destination is a shop/operator line. */
+  internalLineRefused: number;
   /** marketing sends refused for having no consent record (SMS_CONSENT_GATE=enforce) */
   blockedByConsent: number;
   /** marketing sends that WOULD be refused once the consent gate is armed */
@@ -983,6 +986,7 @@ const smsStats: SmsDeliveryStats = {
   blockedByGlobalCap: 0,
   blockedByTakeover: 0,
   optOutCheckSkipped: 0,
+  internalLineRefused: 0,
   blockedByConsent: 0,
   consentGateShadowMisses: 0,
   lastSentAt: null,
@@ -1684,7 +1688,58 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   const isStaffNumber = !!((ownerPhone && normalizedEarly.endsWith(ownerPhone.replace(/\D/g, "").slice(-10))) ||
                         (adminPhone && normalizedEarly.endsWith(adminPhone.replace(/\D/g, "").slice(-10))));
   const isInternal = messageClass === "internal" || opts?.isInternal || isStaffNumber;
-  
+
+  // ── INTERNAL-LINE REFUSAL ──────────────────────────────────────────────
+  // The shop must not address itself as a customer.
+  //
+  // MEASURED 2026-08-25: the operator's own mobile received 18 automated
+  // customer-facing messages across at least eight lanes - lead response,
+  // 2-week follow-up, thank-you, check-in, nine missed-call follow-ups, a tire
+  // quote, a maintenance-due reminder and a Google review request - all
+  // `delivered`, zero inbound. It was also one cron run away from an automated
+  // "you still owe $846.72" text about a bill he owes himself.
+  //
+  // WHY HERE and not in each lane: sendSms is the single choke point every
+  // lane passes through. Seven cron jobs alone call it, plus routers and
+  // services, and each resolves phone numbers independently. A per-lane filter
+  // (server/services/nonCustomerFilter.ts, shipped for the unpaid-invoice lane)
+  // fixes one door at a time and cannot cover a lane written next month.
+  //
+  // WHY THE STAFF-NUMBER CHECK ABOVE WAS NOT ENOUGH: `isStaffNumber` reads
+  // OWNER_PHONE_NUMBER / ADMIN_PHONE, and only decides whether to skip the
+  // STOP footer - it never refused a send. Measured: OWNER_PHONE_NUMBER is set
+  // but its last 10 digits are NOT the operator's mobile, and ADMIN_PHONE is
+  // unset, so every one of those 18 messages went out treating him as a
+  // customer, footer and all.
+  //
+  // THE ESCAPE HATCH is intent, never the destination. `isStaffNumber` is a
+  // property of the NUMBER and deliberately does NOT authorize a send here -
+  // otherwise automated marketing to a staff line would sail through on the
+  // same flag that was only ever about a footer. A send proceeds only when the
+  // CALLER declares it: an explicit internal message class, an explicit
+  // isInternal, or humanInitiated - which the type already documents as "TRUE
+  // only when a HUMAN explicitly triggered this exact message ... Automated
+  // callers must never set it." So operator self-tests and admin replies still
+  // work; unattended lanes do not.
+  //
+  // Placed BEFORE the footer, the daily cap, the opt-out gate, the gateway
+  // routing and the offline queue, so a refusal costs nothing and persists
+  // nothing.
+  const explicitlyInternalIntent = messageClass === "internal" || opts?.isInternal === true;
+  const internalDestination = internalLineFor(normalizedEarly);
+  if (internalDestination && !explicitlyInternalIntent && !opts?.humanInitiated) {
+    smsStats.internalLineRefused++;
+    log.warn("[sendSms] not sent — destination is an internal line, and this send is automated", {
+      to: normalizedEarly.slice(-4),
+      messageClass,
+      why: internalDestination.note,
+    });
+    return {
+      success: false,
+      error: "Refused: destination is an internal shop/operator line and the send is not human-initiated",
+    };
+  }
+
   // Only internal or explicit overrides bypass the opt-out footer entirely.
   // We include STOP on confirmations + followups for compliance/safety.
   const bypassOptOutFooter = isInternal || opts?.skipOptOutFooter;
