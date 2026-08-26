@@ -5,7 +5,12 @@
  * from both server code and client components. No React imports.
  */
 
-export type LoopKind = "ONCE" | "DAILY" | "PROMISE";
+// #1897 review · WEEKLY added — prisma/schema.prisma's LoopKind enum has
+// carried it all along (schema.prisma:45), so tRPC payloads can hold a value
+// this union denied. The drift surfaced as TS2367 ("no overlap") the first
+// time code compared against "WEEKLY": the comparison was right, the type was
+// stale. Client type mirrors the DB enum; keep them in lockstep.
+export type LoopKind = "ONCE" | "DAILY" | "PROMISE" | "WEEKLY";
 
 /**
  * v10.0.529.15 · Project shape consumed by page.tsx + projects-panel

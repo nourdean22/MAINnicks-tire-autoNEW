@@ -73,7 +73,7 @@ export function HomeIdentityHeader() {
             {inboxCount > 0 && (
               <Link
                 href="/missions"
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 transition-colors duration-150 hover:border-amber-300 hover:bg-raised font-mono"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 transition-colors duration-150 hover:border-amber-300 hover:bg-raised font-mono"
               >
                 <Activity size={12} />
                 Inbox ({inboxCount})
@@ -82,7 +82,7 @@ export function HomeIdentityHeader() {
             {captureInboxCount > 0 && (
               <Link
                 href="/brain?tab=board"
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition-colors duration-150 hover:border-sky-300 hover:bg-raised font-mono"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition-colors duration-150 hover:border-sky-300 hover:bg-raised font-mono"
               >
                 <Inbox size={12} />
                 Captures ({captureInboxCount})
@@ -91,7 +91,7 @@ export function HomeIdentityHeader() {
             {pendingApprovalsCount > 0 && (
               <Link
                 href="/system/actions"
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-300 transition-colors duration-150 hover:border-rose-300 hover:bg-rose-400/15 font-mono"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-300 transition-colors duration-150 hover:border-rose-300 hover:bg-rose-400/15 font-mono"
               >
                 <ShieldAlert size={12} />
                 Approvals ({pendingApprovalsCount})
@@ -105,7 +105,7 @@ export function HomeIdentityHeader() {
                 only once it IS measured. Health claims stay with
                 HomeHealthChip. */}
             {queuesClear && (
-              <span className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-gold">
+              <span className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-gold">
                 <Zap size={14} />
                 QUEUES CLEAR
               </span>

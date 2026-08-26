@@ -1,8 +1,12 @@
 import { useState, useMemo } from "react";
-import type { Task, Project } from "@/components/actions/shared";
+import type { LoopKind, Task, Project } from "@/components/actions/shared";
 import { isUserProject, isGeneralAnchor } from "@/lib/services/mission-helpers";
 
-export type KindFilter = "all" | "ONCE" | "DAILY" | "PROMISE";
+// #1897 review · derived from LoopKind instead of a hand-copied union. The
+// copy had drifted (no WEEKLY, which the Prisma enum has carried all along)
+// and the two KindFilter declarations disagreed the moment shared.ts was
+// corrected. A derived type cannot drift again.
+export type KindFilter = "all" | LoopKind;
 
 export function useMissionFilters(tasks: Task[], missions: Project[]) {
   const [showFilters, setShowFilters] = useState(false);

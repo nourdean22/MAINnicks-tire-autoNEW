@@ -10,6 +10,7 @@ import { InboxTriageCard } from "./inbox-triage-card";
 import { HomeOneTapMoves } from "./home-one-tap-moves";
 import type { Task } from "@/components/actions/shared";
 import { rawFetch } from "@/lib/utils/api-fetch";
+import { deriveBriefing } from "./derive-briefing";
 
 interface StatLevel {
   key: string;
@@ -46,6 +47,25 @@ export function ExecutiveActionMatrix() {
     refetchOnWindowFocus: false,
     staleTime: 30000,
   });
+  // #1897 review · the decide arm's inputs. Same two queries the identity
+  // header already runs (React Query dedupes by key, so this adds no load),
+  // and both are uncapped findMany — the count is a true total, not a page.
+  const pendingReqQ = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
+  const approvalsQ = trpc.systemAutomation.approvals.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
+  // Unknown ≠ zero: a first-load failure of EITHER source means the decision
+  // queue is unmeasured — null, never 0. (A failed refetch keeps cached data
+  // and therefore a real number, matching the board's own doctrine.)
+  const decisionsUnreadable =
+    (pendingReqQ.isError && !pendingReqQ.data) || (approvalsQ.isError && !approvalsQ.data);
+  const pendingDecisions = decisionsUnreadable
+    ? null
+    : (pendingReqQ.data?.length ?? 0) + (approvalsQ.data?.rows.length ?? 0);
 
   const tasks = (tasksQuery.data ?? EMPTY_TASKS) as Task[];
   const stats = (statsQuery.data ?? EMPTY_STATS) as StatLevel[];
@@ -87,6 +107,10 @@ export function ExecutiveActionMatrix() {
     const RESUME_MIN_AGE_MS = 2 * 60_000;
     const loops = tasks.filter((t) => {
       if (t.status !== "DOING" || t.id === activeCmdId) return false;
+      // #1897 review · a DAILY/WEEKLY habit is not an "open loop from earlier"
+      // — excluded HERE as well as in deriveBriefing, because a habit that won
+      // this pick would otherwise shadow a real interrupted task behind it.
+      if (t.loopKind === "DAILY" || t.loopKind === "WEEKLY") return false;
       const enteredDoing = new Date(t.startedAt ?? t.updatedAt ?? 0).getTime();
       return tasksFetchedAt - enteredDoing > RESUME_MIN_AGE_MS;
     });
@@ -94,105 +118,31 @@ export function ExecutiveActionMatrix() {
     return [...loops].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0];
   }, [tasks, activeCmdId, tasksFetchedAt]);
 
-  // 2. Synthesize AI Operator Briefing (200 IQ Pass)
+  // 2. Synthesize AI Operator Briefing. The CHAIN lives in derive-briefing.ts
+  // — a pure function, extracted (#1897 review) so its arms are testable and
+  // so the two fixes it carries (habit guard, decide arm) have a canary. This
+  // memo only assembles inputs. History preserved in that file's header:
+  // unknown-is-not-zero (2026-08-19), honest-copy (2026-07-25), BDN-001.
   const aiBriefing = useMemo(() => {
-    if (tasksQuery.isLoading || ccStateQuery.isLoading || nextMoveQuery.isLoading) {
-      return { status: "loading", title: "ANALYZING...", message: "Calculating asymmetric leverage...", actionType: "loading", color: "text-[var(--text-tertiary)]" };
-    }
-
-    // Unknown-is-not-zero (2026-08-19): a failed read used to fall
-    // through to the calm/suggestions branches and render as a clear
-    // board — indistinguishable from genuinely having nothing to do.
-    // An instrument fault must say so. Round-2 (TanStack v5 doctrine):
-    // hard-unreadable only on FIRST-LOAD failure (`isError && !data`);
-    // a failed background refetch keeps the cached board and gets the
-    // compact "refresh failed" badge below instead of nuking the UI.
-    if (
-      (tasksQuery.isError && !tasksQuery.data) ||
-      (ccStateQuery.isError && !ccStateQuery.data) ||
-      (nextMoveQuery.isError && !nextMoveQuery.data)
-    ) {
-      return {
-        status: "error",
-        title: "BOARD UNREADABLE",
-        message: "One or more reads failed — this is an instrument fault, not a clear board. The numbers below may be incomplete.",
-        actionType: "error",
-        color: "text-rose-400",
-      };
-    }
-
     const activeTaskId = ccStateQuery.data?.commands?.active?.id;
     const doingTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : undefined;
-    const criticalFew = nextMoveQuery.data?.criticalFew || [];
-
-    if (doingTask) {
-      return {
-        status: "executing",
-        title: "ACTIVE ENGAGEMENT",
-        message: `Nour, you are currently executing [${doingTask.title}]. Maintain focus and close the loop. Do not context switch until completion.`,
-        actionType: "execute",
-        color: "text-[var(--gold)]"
-      };
-    }
-
-    // BDN-001 · resume outranks new targets: finish what is in motion
-    // before fragmenting attention onto new work.
-    if (resumeTask) {
-      return {
-        status: "resume",
-        title: "RESUME OPEN LOOP",
-        message: `Nour, [${resumeTask.title}] is still marked DOING from earlier. Close that loop — finish it or consciously park it — before opening a new one.`,
-        actionType: "resume",
-        color: "text-[var(--gold)]"
-      };
-    }
-
-    // 2026-07-25 honest-copy fix (audit P1): this used to say "Halt
-    // revenue operations" over 3 hygiene findings — theatrical advice
-    // no measurement supports. State the count, suggest the action,
-    // let the operator weigh it.
-    if (findingsCount >= 3) {
-      return {
-        status: "warning",
-        title: "HYGIENE QUEUE BUILDING",
-        message: `${findingsCount} hygiene findings are waiting. They compound quietly — clear them in your next gap.`,
-        actionType: "hygiene",
-        color: "text-amber-400"
-      };
-    }
-
-    if (inboxCount >= 7) {
-      return {
-        status: "warning",
-        title: "INBOX OVERFLOW",
-        message: `Nour, you are bleeding leverage. Your inbox has ${inboxCount} unclassified raw items. Unprocessed material creates cognitive drag. Triage now to reveal hidden bottlenecks.`,
-        actionType: "triage",
-        color: "text-amber-400"
-      };
-    }
-
-    if (criticalFew.length > 0) {
-      const target = criticalFew[0];
-      return {
-        status: "nominal",
-        title: "SYSTEMS NOMINAL",
-        message: `Hygiene is clear. The Focus Lane is open. The highest leverage asymmetric move is to execute [${target.title}] (Expected ROI: ~${target.roiScore} est.). *(Projected calculation, unverified hypothesis)*.`,
-        actionType: "execute",
-        color: "text-cyan-400"
-      };
-    }
-
-    // 2026-07-25 honest-copy fix (audit P1): "peak operational
-    // efficiency" was fabricated — no targets returned is an ABSENCE of
-    // signal, not proof of efficiency. Say what is actually known.
-    return {
-      status: "idle",
-      title: "ALL QUEUES CLEAR",
-      message: `Nothing is waiting and no immediate targets came back. Pick a direction, or ask Nick for options.`,
-      actionType: "suggestions",
-      color: "text-emerald-400"
-    };
-  }, [tasks, findingsCount, inboxCount, resumeTask, ccStateQuery.data, nextMoveQuery.data, tasksQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading, tasksQuery.isError, ccStateQuery.isError, nextMoveQuery.isError]);
+    return deriveBriefing({
+      loading: tasksQuery.isLoading || ccStateQuery.isLoading || nextMoveQuery.isLoading,
+      // Hard-unreadable only on FIRST-LOAD failure (`isError && !data`, TanStack
+      // v5 doctrine); a failed background refetch keeps the cached board and
+      // gets the compact "refresh failed" badge below instead of nuking the UI.
+      unreadable:
+        (tasksQuery.isError && !tasksQuery.data) ||
+        (ccStateQuery.isError && !ccStateQuery.data) ||
+        (nextMoveQuery.isError && !nextMoveQuery.data),
+      doingTask: doingTask ? { title: doingTask.title, loopKind: doingTask.loopKind } : null,
+      resumeTask: resumeTask ? { title: resumeTask.title, loopKind: resumeTask.loopKind } : null,
+      pendingDecisions,
+      findingsCount,
+      inboxCount,
+      criticalFew: nextMoveQuery.data?.criticalFew || [],
+    });
+  }, [tasks, findingsCount, inboxCount, resumeTask, pendingDecisions, ccStateQuery.data, nextMoveQuery.data, tasksQuery.data, tasksQuery.isLoading, ccStateQuery.isLoading, nextMoveQuery.isLoading, tasksQuery.isError, ccStateQuery.isError, nextMoveQuery.isError]);
 
   // Failed refetch with a cached board: keep rendering the data, say the
   // refresh failed — never silently show stale numbers as fresh.
@@ -307,6 +257,23 @@ export function ExecutiveActionMatrix() {
                   >
                     Resume [{resumeTask.title}]
                     <ArrowRight size={12} className="text-[var(--gold)]" />
+                  </Link>
+                </div>
+              </div>
+            )}
+            {aiBriefing.actionType === "decide" && (
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-90 py-12">
+                <div className="p-4 rounded-full bg-rose-500/10 border border-rose-400/30">
+                  <ShieldAlert size={28} className="text-rose-300" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-rose-300">Verdicts waiting on you</p>
+                  <Link
+                    href="/system/actions"
+                    className="inline-flex min-h-[44px] items-center gap-2 text-xs font-medium text-white/90 hover:text-white border border-rose-400/20 hover:border-rose-400/50 rounded-lg px-3 py-2 transition"
+                  >
+                    Review approvals
+                    <ArrowRight size={12} className="text-rose-300" />
                   </Link>
                 </div>
               </div>

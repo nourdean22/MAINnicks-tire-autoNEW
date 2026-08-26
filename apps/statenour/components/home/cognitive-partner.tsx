@@ -237,7 +237,7 @@ export function CognitivePartner() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)]/20 min-h-[36px]"
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)]/20 min-h-[44px]"
         >
           <Brain size={12} />
           Morning brief
@@ -261,7 +261,7 @@ export function CognitivePartner() {
                     taRef.current?.focus();
                   }}
                   className={cn(
-                    "inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] transition-colors duration-150",
+                    "inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] transition-colors duration-150",
                     isActive
                       ? "border border-gold/30 bg-gold/10 text-gold"
                       : "border border-transparent text-fg-tertiary hover:bg-raised hover:text-fg"
@@ -276,7 +276,7 @@ export function CognitivePartner() {
               type="button"
               onClick={() => setShowAdvancedModes((expanded) => !expanded)}
               aria-expanded={showAdvancedModes}
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-fg-tertiary transition-colors duration-150 hover:bg-raised hover:text-fg"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-fg-tertiary transition-colors duration-150 hover:bg-raised hover:text-fg"
             >
               <MoreHorizontal size={12} />
               {showAdvancedModes ? "Less" : "More tools"}
