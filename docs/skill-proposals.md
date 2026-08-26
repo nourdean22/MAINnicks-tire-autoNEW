@@ -966,3 +966,68 @@ statenour primitives documented (existence re-verified at
   Write tool, which is itself how THIS proposal had to be written).
 - **Confidence:** medium (once, but fully worked; receipts in #1843's body)
 - **Status:** proposed
+
+## 2026-08-26 · interaction-audit wave + home-redesign review (#1881-#1898, #1897)
+
+### P1 · nickstire-shared-main-push
+- **Trigger (witnessed):** #1886's `node` job was killed twice ("The runner has received a
+  shutdown signal … Force killed Turborepo tasks") at 4m30s and 4m45s — each kill landing
+  minutes after I merged a different PR to main (#1883 at 11:47Z → kill 11:53Z; #1889 at
+  12:00Z → kill 12:03Z). Attempt 3, run while main was deliberately held still, passed at
+  11m18s. Same day, #1897 and #1898 failed the e2e lane 67s apart with an identical
+  heartbeat-404 signature and both reruns passed.
+- **Cost:** two false "failures" on a green PR, ~40 min of diagnosis, and a failure banner
+  that reads as flaky infrastructure rather than as merge ordering — the next session will
+  misread it too.
+- **Proposed edit:** add a rule: "Merging to main recomputes every open PR's merge ref and
+  CANCELS its in-flight checks. statenour's node/e2e jobs need ~9-11 min. Hold merges while a
+  sibling PR's long check runs — and read 'runner received a shutdown signal' minutes after a
+  main merge as this, not as infra."
+- **Confidence:** high (three witnessed instances, one controlled experiment)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** my deploy waiter compared a 9-char SHA prefix against
+  `/api/version`'s `commitShort` (which is `sha.slice(0,7)`) and printed "still bcaf6b2"
+  forever over a deploy that was already live; the corrected waiter also had to switch from
+  equality to `git merge-base --is-ancestor`, because sibling sessions kept advancing main and
+  the deployed SHA legitimately overtook the one being awaited (observed: waiting on d85c88d99
+  while prod ran e3c7414, then ae1e32b — both *containing* nothing of mine yet, then 1dda3b7
+  containing everything).
+- **Cost:** one waiter that could never succeed, one "deploy lag" false alarm.
+- **Proposed edit:** add to the deploy-verification section: "Confirm a merge is live via
+  `/api/version` with `git merge-base --is-ancestor <merged-sha> <deployed-full-sha>` — never
+  SHA equality (main moves under you) and never a prefix longer than `commitShort`'s 7 chars."
+- **Confidence:** high (two distinct failure modes in one session's waiters)
+- **Status:** proposed
+
+### P3 · guard-red-team
+- **Trigger (witnessed):** four first-draft canaries in ONE session were blind until a
+  mutation showed it: (a) #1886's end-to-end arm read stdout while the banner went to stderr
+  ("expected '' to contain 'SKIPPED'"); (b) #1889's `--root`-with-no-value silently scanned
+  the live repo and exited 0; (c) #1891's docstring arm `toContain("65,000")` stayed green
+  when the claim was staled to 40,000 because the changelog paragraph quoting the OLD value
+  still contained the string; (d) #1894's discovery arm found a fourth hour-encoding key the
+  audit had missed — on its first run.
+- **Cost:** without the mutation step, all four would have shipped green and proven nothing.
+- **Proposed edit:** extend the "mention vs execution" bullet with the documentation case:
+  "a changelog/comment QUOTING an old value satisfies a bare `toContain` — capture from the
+  authoritative sentence and compare values, never assert a mention"; and add "run the
+  mutation BEFORE trusting a canary's first green — 4/4 first drafts in one session were
+  blind in ways only the mutation showed."
+- **Confidence:** high (four instances, one session)
+- **Status:** proposed
+
+### P4 · NEW: audit-read-whole-structure (or a line in statenour-verify)
+- **Trigger (witnessed):** I reported nickstire's `typeMap` as having "no mapping that yields
+  booking" — an orphaned-subject finding delivered to the operator — because my `sed -n`
+  window truncated the map's head. The full map contains `"nickstire:booking": "booking"` on
+  its first line; the finding was refuted only when the fix work forced a full read.
+- **Cost:** a false defect claim in a delivered audit; the correction consumed a turn.
+- **Proposed edit:** one rule: "When a finding rests on what a mapping/table/enum does NOT
+  contain, read the WHOLE structure by its delimiters (`sed -n '/const typeMap/,/};/p'`),
+  never a line-number window — a truncated read of a map is how orphaned-subject false
+  positives are manufactured." (Grep found no existing skill carrying this; the closest,
+  base-rate-check, covers denominators, not truncated reads.)
+- **Confidence:** medium (once, clear, and it reached the operator)
+- **Status:** proposed
