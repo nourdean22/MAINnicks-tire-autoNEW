@@ -41,6 +41,7 @@ const LIVE: PageFacts = {
   blindSpots: ["Stats", "Business", "Strategy"],
   lateNightCount: 21,
   avgDailyVisits: 30,
+  activeDays: 6,
 };
 
 describe("renderPagesBlock · counts, verbatim", () => {
@@ -48,13 +49,21 @@ describe("renderPagesBlock · counts, verbatim", () => {
     const out = renderPagesBlock(LIVE);
     expect(out).toContain("/chat (62)");
     expect(out).toContain("68");
-    expect(out).toMatch(/~30 views\/day/);
+    expect(out).toMatch(/~30 views on each of 6 active days/);
   });
 
   it("names the blind spots, because that is the actionable half", () => {
     const out = renderPagesBlock(LIVE);
     for (const s of LIVE.blindSpots) expect(out).toContain(s);
     expect(out).toMatch(/3\+ days/);
+  });
+
+  it("NAMES THE DENOMINATOR: per ACTIVE day, not per calendar day", () => {
+    // 30 views/day across 6 active days is not 30 views/day across the 7d
+    // window, and the bare phrase "views/day" reads as the second one.
+    const out = renderPagesBlock(LIVE);
+    expect(out).toContain("6 active days");
+    expect(out).not.toMatch(/views\/day/);
   });
 
   it("THE COUNT, NOT THE BOOLEAN: 21 after 11pm, with no claim attached", () => {

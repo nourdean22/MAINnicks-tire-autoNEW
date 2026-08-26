@@ -26,6 +26,11 @@
  * hypotheses stay available to the chat prompt, where handing a model a
  * hypothesis is a reasonable thing to do.
  *
+ * THE HOUR IS DERIVED, NOT READ. `page-intelligence` used to prefer the
+ * `payload.hour` written into each row over the row's own `createdAt`. Measured
+ * 2026-08-26: 691 of 719 rows in 30d had a UTC hour stored against an ET
+ * timestamp, so this block shipped "21 visits after 11pm" where ET says 12.
+ *
  * THE COUNT, NOT THE BOOLEAN. `lateNightUsage` is `lateNightCount > 3` — that
  * threshold is somebody's opinion about what counts as a lot. The number is
  * rendered instead, so the reader forms their own.
@@ -37,6 +42,7 @@ export interface PageFacts {
   blindSpots: string[];
   lateNightCount: number;
   avgDailyVisits: number;
+  activeDays: number;
 }
 
 /** Below this, a late-night count is noise rather than a pattern worth a line. */
@@ -59,7 +65,7 @@ export function renderPagesBlock(facts: PageFacts | null): string {
     ].join("\n");
   }
 
-  const { topPages, blindSpots, lateNightCount, avgDailyVisits } = facts;
+  const { topPages, blindSpots, lateNightCount, avgDailyVisits, activeDays } = facts;
 
   if (topPages.length === 0) {
     return [
@@ -76,7 +82,10 @@ export function renderPagesBlock(facts: PageFacts | null): string {
       .map((p) => `${p.page} (${p.count})`)
       .join(" · ")}`,
   );
-  lines.push(`~${avgDailyVisits} views/day.`);
+  // NAME THE DENOMINATOR. This is views per ACTIVE day, not per calendar day
+  // in the 7d window — the two differ whenever a day goes unused, and
+  // "views/day" alone reads as the second one.
+  lines.push(`~${avgDailyVisits} views on each of ${activeDays} active days.`);
 
   if (blindSpots.length > 0) {
     lines.push("", `Not opened in 3+ days: **${blindSpots.join(" · ")}**`);

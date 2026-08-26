@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hourET } from "@/lib/utils/datetime";
 
 import { requireSession } from "@/lib/auth-guard";
 import { recordPageVisit } from "@/lib/services/brain-domain";
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
       eventType: "page_visit",
       createdAt: { gte: sevenDaysAgo },
     },
-    select: { detail: true, payload: true, createdAt: true },
+    select: { detail: true, createdAt: true },
     orderBy: { createdAt: "desc" },
     take: 500,
   }).catch(() => []);
@@ -64,9 +65,13 @@ export async function GET(req: Request) {
     const page = v.detail || "unknown";
     pageCounts[page] = (pageCounts[page] || 0) + 1;
     if (!lastVisited[page]) lastVisited[page] = v.createdAt.toISOString();
-    const payload = v.payload as any;
-    if (payload?.hour != null) {
-      hourDistribution[payload.hour] = (hourDistribution[payload.hour] || 0) + 1;
+    // Derived from the timestamp, never from the stored `payload.hour`: 691 of
+    // 719 rows measured 2026-08-26 carry a UTC hour against an ET timestamp
+    // (a clean +4h), from an environmental fault that self-corrected on 08-25
+    // with no source change. `createdAt` is the row's own authority.
+    {
+      const h = hourET(v.createdAt);
+      hourDistribution[h] = (hourDistribution[h] || 0) + 1;
     }
   }
 
