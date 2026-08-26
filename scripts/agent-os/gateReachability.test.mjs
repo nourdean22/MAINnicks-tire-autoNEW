@@ -24,10 +24,17 @@
  *      fixture. Without it, arm 1 would pass for a CLI that exits 1 for some
  *      unrelated reason. The mutation is asserted to have APPLIED first,
  *      because a no-op edit makes the whole arm vacuous and still green.
+ *   6. THE LIVE REPO — the arm that makes this a GATE rather than a unit test.
+ *      Without it the suite would exercise the logic on fixtures and never look
+ *      at the repo: a control that runs and examines nothing.
+ *   7. `--root` WITH NO VALUE exits 2. Added after a post-merge self-audit found
+ *      the original silently fell back to the live repo and exited 0, so a
+ *      canary with a typo'd --root would have measured the wrong tree and
+ *      passed — a false green inside the tool built to catch false greens.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -161,6 +168,28 @@ test("arm 6 · THE LIVE REPO ITSELF has no unreachable gate", () => {
     0,
     `a check:*/lint:* script in this repo is reachable from nothing.\n${r.out}`,
   );
+});
+
+test("arm 7 · `--root` with no value exits 2, it does not silently scan the live repo", () => {
+  // The defect this arm exists for was in the ORIGINAL of this gate, found in a
+  // post-merge self-audit. `process.argv[i + 1]` is `undefined` when --root is
+  // the last argument, and passing `undefined` RE-TRIGGERS the `root = ROOT`
+  // default parameter — so the run scanned the live repo and exited 0 while the
+  // caller believed it was pointed at a fixture. A canary with a typo'd --root
+  // would have measured the wrong tree and passed: a false green inside the
+  // tool built to catch false greens.
+  // Both shapes: --root as the LAST argument (value genuinely missing), and
+  // --root with an empty string. The first is the one that produced the bug.
+  for (const argv of [["--root"], ["--root", ""], ["--root", "--other"]]) {
+    const r = spawnSync(process.execPath, [CHECKER, ...argv], { encoding: "utf8" });
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    assert.equal(
+      r.status,
+      2,
+      `argv ${JSON.stringify(argv)} must refuse (exit 2), not fall back to the live repo — got ${r.status}:\n${out}`,
+    );
+    assert.match(out, /--root given with no directory/);
+  }
 });
 
 test("arm 5 · a checker that finds nothing cannot pass this suite", () => {
