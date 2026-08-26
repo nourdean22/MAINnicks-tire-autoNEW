@@ -38,7 +38,9 @@ function run({ index, files = {} }, extraArgs = []) {
     writeFileSync(join(dir, "MEMORY.md"), index);
     for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
     const r = spawnSync(process.execPath, [GUARD, "--dir", dir, ...extraArgs], { encoding: "utf8" });
-    return { code: r.status, out: (r.stdout ?? "") + (r.stderr ?? "") };
+    // streams kept apart — see memoryHook.test.mjs for why merging them hid a
+    // real defect for a full session.
+    return { code: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", out: (r.stdout ?? "") + (r.stderr ?? "") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

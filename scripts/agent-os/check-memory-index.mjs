@@ -37,6 +37,21 @@
  * missing, unreadable). NEVER exits 0 on "I could not look" — a guard that fails
  * open prints the same green as a healthy index, which is the defect it guards.
  *
+ * STREAMS: EVERY operator-facing line goes to STDOUT. This is load-bearing, not
+ * style. The first installed version wrote the capacity WARNING with
+ * `console.warn` and problems with `console.error` — both stderr. A SessionStart
+ * hook's stderr does not reach the session, and `--quiet` suppresses the only
+ * `console.log`, so in the warn band the hook emitted **nothing on stdout**.
+ *
+ * It was caught the only way it could be: the session after installing it
+ * started with the index at 87.7%, the graphify hook's stdout appeared in the
+ * SessionStart context, and this guard's warning did not. The hook was wired, it
+ * ran, it produced the right warning, and nobody heard it — a control that is
+ * wired but unheard, installed to close the last *unwired* control.
+ *
+ * Exit codes are unchanged; only the stream moved. If a future edit reaches for
+ * console.warn/console.error here, it re-mutes the guard.
+ *
  * Usage:
  *   node scripts/agent-os/check-memory-index.mjs
  *   node scripts/agent-os/check-memory-index.mjs --dir <path>   # override
@@ -63,7 +78,7 @@ const WARN_PCT = 80;
 const FAIL_PCT = 92;
 
 if (!Number.isFinite(READ_LIMIT) || READ_LIMIT <= 0) {
-  console.error(`[memory-index] CANNOT CHECK: --limit must be a positive number, got ${process.argv[argLimit + 1]}`);
+  console.log(`[memory-index] CANNOT CHECK: --limit must be a positive number, got ${process.argv[argLimit + 1]}`);
   process.exit(2);
 }
 
@@ -93,8 +108,8 @@ const DIR =
     : join(homedir(), ".claude", "projects", projectSlug(REPO_ROOT), "memory");
 
 function bail(msg) {
-  console.error(`[memory-index] CANNOT CHECK: ${msg}`);
-  console.error("  Exiting 2, not 0 — a guard that cannot see its subject must not report health.");
+  console.log(`[memory-index] CANNOT CHECK: ${msg}`);
+  console.log("  Exiting 2, not 0 — a guard that cannot see its subject must not report health.");
   process.exit(2);
 }
 
@@ -151,7 +166,10 @@ if (pct >= FAIL_PCT) {
   // have meant the operator first heard about capacity when the guard FAILED at
   // 92% -- an early-warning system that only speaks once it is too late, inside
   // the guard written against exactly that failure.
-  console.warn(
+  // STDOUT, not stderr — see the STREAMS note in the header. A SessionStart
+  // hook's stderr does not reach the session, so a warning written there is a
+  // control that runs, reports, and is heard by nobody.
+  console.log(
     `[memory-index] WARNING ${bytes} bytes = ${pct.toFixed(1)}% of ~${READ_LIMIT}. ` +
       `Headroom ${READ_LIMIT - bytes} bytes. Plan the migration to settled-index.md now, ` +
       "while it is cheap.",
@@ -179,8 +197,8 @@ if (orphans.length) {
 }
 
 if (problems.length) {
-  console.error(`\n[memory-index] ${problems.length} problem(s):\n`);
-  for (const p of problems) console.error(`  ✗ ${p}\n`);
+  console.log(`\n[memory-index] ${problems.length} problem(s):\n`);
+  for (const p of problems) console.log(`  ✗ ${p}\n`);
   process.exit(1);
 }
 
