@@ -41,51 +41,48 @@ export function HomeIdentityHeader() {
   return (
     <section
       aria-label="home identity"
-      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-[var(--gold)]/20 p-6 md:p-8 shadow-2xl mb-6 mt-2 animate-fade-in-scale"
+      className="relative overflow-hidden rounded-xl border border-edge bg-raised p-5 shadow-lg md:p-6"
     >
-      {/* Decorative background glow */}
-      <div className="absolute -top-24 -right-24 w-72 h-72 bg-[var(--gold)]/10 rounded-full blur-[80px] pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
-
-      <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 border border-[var(--gold)]/30 backdrop-blur-xl shadow-[0_0_20px_rgba(255,215,0,0.1)]">
-            <Brain size={14} className="text-[var(--gold)] shrink-0 pulse-live drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" strokeWidth={2} />
-            <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[var(--gold)]/90 font-bold">
-              Cognitive Command Center
+          <div className="inline-flex items-center gap-2 text-[10px] font-mono font-semibold uppercase tracking-[0.18em] text-gold">
+            <Brain size={14} className="shrink-0" strokeWidth={2} />
+            <span>
+              Today
             </span>
           </div>
           
           <div>
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
+            <h1 className="text-balance text-3xl font-semibold tracking-tight text-fg md:text-4xl">
               {greeting}, Nour.
             </h1>
-            <div className="mt-2 flex items-center h-6">
+            <div className="mt-2 flex min-h-6 items-center">
               <HomeStatePulse />
             </div>
           </div>
         </div>
 
-        <div className="flex flex-row md:flex-col gap-4 md:items-end">
-          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest text-zinc-300 bg-black/60 px-4 py-2 rounded-lg border border-[var(--gold)]/20 backdrop-blur-md shadow-inner">
-            <Clock size={14} className="text-[var(--gold)]/80" />
-            {todayStr} {timeStr && <span className="text-[var(--gold)]">· {timeStr}</span>}
+        <div className="flex flex-col gap-3 md:items-end">
+          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest text-fg-secondary">
+            <Clock size={14} className="text-gold" />
+            <span>{todayStr}</span>
+            {timeStr && <span className="text-gold">· {timeStr}</span>}
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-2 md:justify-end">
             {inboxCount > 0 && (
               <Link
                 href="/missions"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-400 hover:bg-amber-500/20 hover:border-amber-400 transition-all uppercase tracking-wider font-mono cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 transition-colors duration-150 hover:border-amber-300 hover:bg-raised font-mono"
               >
-                <Activity size={12} className="animate-pulse" />
+                <Activity size={12} />
                 Inbox ({inboxCount})
               </Link>
             )}
             {captureInboxCount > 0 && (
               <Link
                 href="/brain?tab=board"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-[10px] font-bold text-blue-400 hover:bg-blue-500/20 hover:border-blue-400 transition-all uppercase tracking-wider font-mono cursor-pointer shadow-[0_0_10px_rgba(59,130,246,0.1)]"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-edge bg-base-layer px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition-colors duration-150 hover:border-sky-300 hover:bg-raised font-mono"
               >
                 <Inbox size={12} />
                 Captures ({captureInboxCount})
@@ -94,7 +91,7 @@ export function HomeIdentityHeader() {
             {pendingApprovalsCount > 0 && (
               <Link
                 href="/system/actions"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[10px] font-bold text-rose-400 hover:bg-rose-500/20 hover:border-rose-400 transition-all uppercase tracking-wider font-mono cursor-pointer shadow-[0_0_10px_rgba(244,63,94,0.1)] animate-pulse"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-300 transition-colors duration-150 hover:border-rose-300 hover:bg-rose-400/15 font-mono"
               >
                 <ShieldAlert size={12} />
                 Approvals ({pendingApprovalsCount})
@@ -108,8 +105,8 @@ export function HomeIdentityHeader() {
                 only once it IS measured. Health claims stay with
                 HomeHealthChip. */}
             {queuesClear && (
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--gold)]/10 border border-[var(--gold)]/30 text-[10px] font-mono font-bold text-[var(--gold)] uppercase tracking-widest shadow-[0_0_15px_rgba(255,215,0,0.1)]">
-                <Zap size={14} className="pulse-live drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]" />
+              <span className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-gold">
+                <Zap size={14} />
                 QUEUES CLEAR
               </span>
             )}

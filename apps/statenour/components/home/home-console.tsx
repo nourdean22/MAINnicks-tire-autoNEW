@@ -1,23 +1,12 @@
 "use client";
 
 /**
- * HomeConsole — the four-question decision page (2026-07-25 Home
- * consolidation, audit P1, operator-approved scope):
+ * HomeConsole — an attention-first daily router.
  *
- *   1. Is anything broken?        → HomeHealthChip (measured, /system link)
- *   2. What requires my decision? → ContradictionSlot + FollowUpsList (the latter was an
- *                                    never-rendered orphan; now mounted)
- *   3. What should I do now?      → ExecutiveActionMatrix (honest copy)
- *   4. What changed since last visit? → SinceLastVisitCard
- *
- * Plus the single Nick strip (CognitivePartner — morning brief is a tap
- * now, never an auto-fired spend) under the identity header.
- *
- * DELIBERATELY GONE from Home (audit P1 "cockpit, not decision page"):
- *   · HomeBrainGraph — lives at /brain (one tap via the drill-down row)
- *   · HomeEnginesDeck — lives at /system
- *   · dead imports (CoachEventBanner, HomeJournalHub) — never rendered
- * Component files are untouched; only Home stopped mounting them.
+ * Order is intentional: establish context, surface the measured system state,
+ * show the single best action, then expose decisions and conversation. The
+ * existing child components keep their data, routes, and honest loading/error
+ * behavior; this file owns the page hierarchy only.
  */
 
 import Link from "next/link";
@@ -32,53 +21,67 @@ import { SinceLastVisitCard } from "@/components/ultron/since-last-visit-card";
 
 export function HomeConsole() {
   return (
-    <div className="mx-auto max-w-[1200px] px-3 sm:px-6 pb-8 flex flex-col gap-6">
-      {/* Identity + the single Nick strip */}
-      <section aria-label="Operator Identity" className="space-y-4">
+    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 px-3 pb-8 sm:px-6">
+      <section aria-label="Today" className="space-y-3">
         <HomeIdentityHeader />
-        <CognitivePartner />
-      </section>
 
-      {/* Q1 · Is anything broken? */}
-      <section aria-label="System health" className="flex items-center justify-between gap-3 flex-wrap">
-        <HomeHealthChip />
-        {/* Drill-downs for what used to live on Home */}
-        <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em]">
-          <Link
-            href="/brain"
-            className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-zinc-400 transition hover:text-zinc-200 hover:bg-white/[0.05] min-h-[36px] inline-flex items-center"
-          >
-            Brain graph →
-          </Link>
-          <Link
-            href="/system"
-            className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-zinc-400 transition hover:text-zinc-200 hover:bg-white/[0.05] min-h-[36px] inline-flex items-center"
-          >
-            Engines →
-          </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-edge pb-3">
+          <HomeHealthChip />
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em]">
+            <Link
+              href="/brain"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-edge bg-base-layer px-3 text-fg-tertiary transition-colors duration-150 hover:border-edge-hover hover:text-fg"
+            >
+              Brain graph →
+            </Link>
+            <Link
+              href="/system"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-edge bg-base-layer px-3 text-fg-tertiary transition-colors duration-150 hover:border-edge-hover hover:text-fg"
+            >
+              System →
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* Q2 · What requires my decision? */}
-      <section aria-label="Decisions awaiting" className="min-w-0 space-y-4">
-        {/* 2026-08-16 · the one knowledge-layer signal that earns Home. Renders
-            NOTHING when there is no unresolved contradiction — see the
-            component header for why nothing else from /brain qualifies. */}
-        <ContradictionSlot />
-        <FollowUpsList />
-        {/* WP-16 · journal nextActions arrive here as proposals awaiting verdict */}
-        <ProposedCommitments />
-      </section>
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)] lg:items-start">
+        {/* #1897 review · mobile order is deliberate. Below lg the grid stacks
+            in DOM-then-order order, and the first cut put the whole sidebar
+            LAST — Ask Nick, the primary interface on the phone-first surface,
+            fell below the matrix and three decision queues. `order-first`
+            restores chat as the second element on mobile (matching the page
+            this replaces), and `lg:order-none` hands placement back to DOM
+            order on desktop so the left column stays first.
+            SinceLastVisitCard moved OUT of the sidebar for the same reason:
+            riding along at order-first would put up to 20 history rows above
+            the matrix on a phone — history reads last, so it renders last. */}
+        <aside className="min-w-0 order-first lg:order-none lg:sticky lg:top-4">
+          <section aria-label="Ask Nick" className="rounded-xl border border-edge bg-raised p-3 sm:p-4">
+            <div className="mb-2 px-1">
+              <h2 className="text-balance text-sm font-semibold text-fg">Ask Nick</h2>
+              <p className="mt-1 text-pretty text-xs text-fg-tertiary">Think, decide, or act from here.</p>
+            </div>
+            <CognitivePartner />
+          </section>
+        </aside>
 
-      {/* Q3 · What should I do now? */}
-      <section aria-label="Do now" className="min-w-0">
-        <ExecutiveActionMatrix />
-      </section>
+        <div className="min-w-0 space-y-5 lg:order-first">
+          {/* The highest-leverage surface comes before every queue. */}
+          <section aria-label="What matters now" className="min-w-0">
+            <ExecutiveActionMatrix />
+          </section>
 
-      {/* Q4 · What changed since last visit? */}
-      <section aria-label="Since last visit" className="min-w-0">
-        <SinceLastVisitCard limit={20} />
-      </section>
+          <section aria-label="Decisions awaiting" className="min-w-0 space-y-4">
+            <ContradictionSlot />
+            <FollowUpsList />
+            <ProposedCommitments />
+          </section>
+
+          <section aria-label="Since last visit" className="min-w-0">
+            <SinceLastVisitCard limit={20} />
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

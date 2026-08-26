@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Send, MessageSquare, Terminal, Search, Inbox, CheckCircle, Activity, Sparkles, Brain, Loader2 } from "lucide-react";
+import { Send, MessageSquare, Terminal, Search, Inbox, CheckCircle, Activity, Sparkles, Brain, Loader2, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { useChat } from "@ai-sdk/react";
@@ -78,6 +78,7 @@ const getMessageText = (m: any) => {
 export function CognitivePartner() {
   const router = useRouter();
   const [activeMode, setActiveMode] = useState<DockMode>("ask");
+  const [showAdvancedModes, setShowAdvancedModes] = useState(false);
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -87,6 +88,10 @@ export function CognitivePartner() {
   const anticipatedQuestions = remembersQ.data?.anticipatedQuestions ?? [];
 
   const currentMode = MODES.find((m) => m.key === activeMode) || MODES[0];
+  const primaryModeKeys: DockMode[] = ["ask", "execute", "review"];
+  const visibleModes = showAdvancedModes
+    ? MODES
+    : MODES.filter((mode) => primaryModeKeys.includes(mode.key) || mode.key === activeMode);
 
   const transport = useMemo(
     // 2026-07-25 · engine unification (audit P1 "competing command
@@ -210,11 +215,9 @@ export function CognitivePartner() {
     <div className="w-full relative group space-y-4">
       {/* AI Partner Response Box */}
       {visibleMessages.length > 0 && (
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-black/80 to-zinc-900/80 border border-[var(--gold)]/20 p-4 shadow-[0_0_30px_rgba(255,215,0,0.05)] backdrop-blur-xl">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--gold)]/50 to-transparent opacity-50" />
-          
+        <div className="relative overflow-hidden rounded-xl border border-edge bg-raised p-4 shadow-lg">
           <div className="flex items-start gap-3">
-            <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]/40 shadow-[0_0_10px_rgba(255,215,0,0.3)]">
+            <div className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border border-gold/40 bg-gold/10 text-gold">
               {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />}
             </div>
             
@@ -234,7 +237,7 @@ export function CognitivePartner() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)]/20 min-h-[36px]"
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)]/20 min-h-[44px]"
         >
           <Brain size={12} />
           Morning brief
@@ -243,12 +246,10 @@ export function CognitivePartner() {
 
       {/* Interactive Dock */}
       <div className="relative w-full">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-[var(--gold)]/0 via-[var(--gold)]/10 to-[var(--gold)]/0 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition duration-1000 group-hover:duration-200" />
-        
-        <form onSubmit={submitDock} className="relative w-full glass-card border border-[var(--gold)]/20 bg-black/60 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] p-2 sm:p-3 space-y-2 rounded-xl transition-all">
+        <form onSubmit={submitDock} className="relative w-full rounded-xl border border-edge bg-base-layer p-2 shadow-lg sm:p-3">
           {/* Mode Selectors */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-2 border-b border-white/5 scrollbar-none mask-fade-edges-x">
-            {MODES.map((mode) => {
+          <div className="flex flex-wrap items-center gap-1 border-b border-edge pb-2">
+            {visibleModes.map((mode) => {
               const Icon = mode.icon;
               const isActive = mode.key === activeMode;
               return (
@@ -260,22 +261,31 @@ export function CognitivePartner() {
                     taRef.current?.focus();
                   }}
                   className={cn(
-                    "shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-[0.15em] transition-all duration-300 inline-flex items-center gap-1.5 min-h-[36px]",
+                    "inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] transition-colors duration-150",
                     isActive
-                      ? "bg-gradient-to-br from-[var(--gold)]/10 to-[var(--gold)]/5 text-[var(--gold)] border border-[var(--gold)]/30 shadow-[0_0_10px_rgba(255,215,0,0.1)]"
-                      : "text-zinc-500 border border-transparent hover:text-zinc-300 hover:bg-white/[0.02]"
+                      ? "border border-gold/30 bg-gold/10 text-gold"
+                      : "border border-transparent text-fg-tertiary hover:bg-raised hover:text-fg"
                   )}
                 >
-                  <Icon size={12} className={cn(isActive && "text-[var(--gold)] animate-pulse")} />
+                  <Icon size={12} className={cn(isActive && "text-gold")} />
                   {mode.label}
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setShowAdvancedModes((expanded) => !expanded)}
+              aria-expanded={showAdvancedModes}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-fg-tertiary transition-colors duration-150 hover:bg-raised hover:text-fg"
+            >
+              <MoreHorizontal size={12} />
+              {showAdvancedModes ? "Less" : "More tools"}
+            </button>
           </div>
 
           {/* Anticipated Questions (Smart Replies) */}
           {anticipatedQuestions.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1 px-1 border-b border-white/5 pb-2">
+            <div className="flex flex-wrap gap-1.5 border-b border-edge px-1 pb-2 pt-1">
               {anticipatedQuestions.map((q) => (
                 <button
                   key={q}
@@ -284,7 +294,7 @@ export function CognitivePartner() {
                     setInput(q);
                     taRef.current?.focus();
                   }}
-                  className="px-2.5 py-1 rounded-full text-[11px] bg-zinc-900/50 border border-white/5 text-zinc-400 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/5 transition-all text-left"
+                  className="rounded-full border border-edge bg-raised px-2.5 py-1 text-left text-[11px] text-fg-tertiary transition-colors duration-150 hover:border-gold/30 hover:bg-gold/5 hover:text-gold"
                 >
                   <Sparkles size={10} className="inline mr-1 text-[var(--gold)]/70" />
                   {q}
@@ -306,7 +316,7 @@ export function CognitivePartner() {
                 "flex-1 min-h-[44px] resize-none bg-transparent px-3 py-2.5 text-[15px] sm:text-[16px] leading-snug",
                 "text-white placeholder:text-zinc-600 font-medium",
                 "focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none",
-                "transition-all duration-300"
+                "transition-colors duration-150"
               )}
             />
 
@@ -319,10 +329,10 @@ export function CognitivePartner() {
                 disabled={!canSend}
                 aria-label="send message"
                 className={cn(
-                  "inline-flex items-center justify-center h-10 w-10 rounded-lg transition-all duration-300 active:scale-95 group/btn",
+                  "group/btn inline-flex size-10 items-center justify-center rounded-lg transition-colors duration-150 active:scale-95",
                   canSend
-                    ? "bg-gradient-to-br from-[var(--gold)] to-amber-500 text-black shadow-[0_0_15px_rgba(255,215,0,0.4)] hover:shadow-[0_0_25px_rgba(255,215,0,0.6)]"
-                    : "bg-zinc-900 text-zinc-700 border border-white/5"
+                    ? "bg-gold text-black hover:bg-gold-dim"
+                    : "border border-edge bg-raised text-fg-tertiary"
                 )}
               >
                 <Send size={16} strokeWidth={2.5} className={cn(canSend && "group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform")} />
