@@ -88,7 +88,16 @@ function runConfigured(files, extraArgs = []) {
     for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
     const r = spawnSync(bin, [...args, "--dir", dir, ...extraArgs], { encoding: "utf8", cwd: ROOT });
     if (r.error) assert.fail(`configured hook command failed to launch: ${r.error.message}`);
-    return { code: r.status, out: (r.stdout ?? "") + (r.stderr ?? "") };
+    // STDOUT AND STDERR ARE KEPT APART, deliberately.
+    //
+    // The first version returned them concatenated, and that is precisely why
+    // it could not see the defect it was written to prevent: the guard wrote
+    // its capacity WARNING to stderr, a SessionStart hook's stderr does not
+    // reach the session, and a test asserting on the CONCATENATION passed
+    // happily while the operator saw nothing. "In the output" and "visible to
+    // the session" are different claims; merging the streams makes them
+    // indistinguishable — Stated Rule 6, inside the canary.
+    return { code: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", out: (r.stdout ?? "") + (r.stderr ?? "") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -146,4 +155,29 @@ test("positive control: the CONFIGURED command is silent and green on a healthy 
   assert.doesNotMatch(out, /problem\(s\)/);
   // --quiet is part of the configured command: a clean start must stay clean.
   assert.doesNotMatch(out, /all reachable, sentinel present/, "--quiet must suppress the healthy line at session start");
+});
+
+test("BREAKS: nothing operator-facing may go to stderr", () => {
+  /*
+   * THE CANARY THAT WAS MISSING, and the reason this file exists in its current
+   * form. The hook shipped writing its capacity WARNING with `console.warn` and
+   * its problems with `console.error` — both stderr. A SessionStart hook's
+   * stderr does not reach the session and `--quiet` suppresses the only
+   * `console.log`, so in the warn band the hook emitted NOTHING the operator
+   * could see. It was wired, it ran, it was right, and it was unheard.
+   *
+   * Every other case here asserts on stdout, which would catch a regression in
+   * the paths they cover. This one closes the general hole: stderr must stay
+   * EMPTY for the states a session start actually encounters.
+   */
+  const warnLimit = Math.ceil(Buffer.byteLength(healthy["MEMORY.md"], "utf8") / 0.85);
+  for (const [label, args] of [
+    ["warn band", ["--limit", String(warnLimit)]],
+    ["fail band", ["--limit", "50"]],
+    ["healthy", []],
+  ]) {
+    const { stderr } = runConfigured(healthy, args);
+    assert.equal(stderr, "", `${label}: wrote to stderr, which a session start never shows:
+${stderr}`);
+  }
 });
