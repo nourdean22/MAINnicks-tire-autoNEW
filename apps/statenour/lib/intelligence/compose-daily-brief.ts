@@ -21,6 +21,8 @@ import {
   stripInventedSeverity,
   type OperatorQueue,
 } from "./operator-queue";
+import { renderCapacityBlock } from "./capacity-block";
+import { gatherTaskSignals } from "@/lib/brain/task-signals";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
@@ -156,6 +158,22 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   const verdict = deriveThreatLevel(queue);
   const queueBlock = renderOperatorQueue(queue, verdict);
 
+  // Same contract as the queue above: counted before the model, rendered
+  // verbatim, never handed over to be summarised. `gatherTaskSignals` had ZERO
+  // consumers - it computed open/late/stale/capacity correctly and threw the
+  // result away. Caught defensively despite its "never throws" doc comment: a
+  // doc claim is not a guarantee, and null renders as UNMEASURED rather than
+  // vanishing into a section that looks like a quiet day.
+  let capacityBlock: string;
+  try {
+    capacityBlock = renderCapacityBlock(await gatherTaskSignals());
+  } catch (err) {
+    log.warn("capacity_signals_failed", {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+    });
+    capacityBlock = renderCapacityBlock(null);
+  }
+
   // P1 FROM REVIEW: the queue must survive a generation failure. This used to
   // let generateText reject, which sent the whole call into the caller's catch
   // in intelligence-brief.ts - and that fallback narrative has no queue counts.
@@ -197,6 +215,6 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     // Awaiting-You leads. It is the only section describing state the operator
     // can act on this minute, and during the 16-day ingest-reviews outage the
     // brief led with an invented threat level while 44 real items sat queued.
-    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n---\n\n${body}`,
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n---\n\n${body}`,
   };
 }
