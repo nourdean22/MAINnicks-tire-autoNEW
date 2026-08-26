@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+Car hesitates when you step
+
+2
+00:00:02,000 --> 00:00:04,000
+on the gas?
+
+3
+00:00:04,000 --> 00:00:06,500
+A little stumble on acceleration,
+
+4
+00:00:06,500 --> 00:00:09,000
+maybe a rough idle at a stoplight.
+
+5
+00:00:09,000 --> 00:00:11,500
+One clue: a dirty airflow sensor.
+
+6
+00:00:11,500 --> 00:00:15,000
+It can send the wrong signal about how much air is coming in.
+
+7
+00:00:15,000 --> 00:00:18,000
+That can throw off the fuel mix —
+
+8
+00:00:18,000 --> 00:00:21,000
+engine hesitates instead of responding.
+
+9
+00:00:21,000 --> 00:00:23,500
+Don't guess which part it is.
+
+10
+00:00:23,500 --> 00:00:26,000
+A scan tool can help narrow it down.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before it gets worse.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
