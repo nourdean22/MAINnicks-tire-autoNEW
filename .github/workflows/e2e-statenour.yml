@@ -175,22 +175,38 @@ jobs:
           # either (Next 16 defaults to Turbopack and the script passes no
           # bundler flag). The real type gate is `tsc --noEmit`, run by the
           # turbo-affected sweep in test.yml. Corrected 2026-07-28.
-          rm -rf .next
+          # 2026-08-26 · start + readiness moved to scripts/ci/wait-for-dev-server.sh
+          # (canary: scripts/agent-os/wait-for-dev-server.test.mjs, run by
+          # `pnpm agent:verify` on every PR).
+          #
+          # The loop that used to live here could not tell two OPPOSITE states
+          # apart, and treated both as "keep waiting":
+          #   · the port is not accepting yet   — resolves on its own
+          #   · the port IS accepting, and a route that exists returns 404
+          #     — a latched resolution that waiting makes permanent
+          #
+          # Every e2e failure sampled on 2026-08-26 was the second one, and it
+          # is not a test failure: Playwright never ran. Runs 32983503600,
+          # 32894843745, 32876917977, 32683986110, 32605539562 — 5 of 5, back
+          # to 08-22 — all show `✓ Ready in 430ms`, then the first heartbeat
+          # resolving to /_not-found (an 11.1s compile), then 404 in ~40ms for
+          # the whole 180s budget. Passing runs answer 200 in ~1.9s with zero
+          # 404s. The step then printed "server never came up" about a server
+          # that had come up and answered 199 requests.
+          #
+          # The script draws that distinction, restarts ONCE on the latched
+          # state (clearing .next first), and fails loudly and specifically if
+          # the restart does not take. The latch itself is upstream in
+          # Turbopack's route resolution and is NOT fixed here.
+          START_CMD="pnpm exec next dev -p 3001" \
           NODE_OPTIONS="--max-old-space-size=4096" \
-            nohup pnpm exec next dev -p 3001 > /tmp/next-start.log 2>&1 &
-          # Stream the server's own output so a crash or heap abort is
-          # visible INLINE — the previous `tail` ran after the loop and
-          # never printed, because the job died first.
-          tail -f /tmp/next-start.log | sed 's/^/  [next] /' &
-          TAILPID=$!
-          echo "waiting for heartbeat..."
-          up=0
-          for i in $(seq 1 90); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/system/heartbeat || true)
-            if [ "$code" = "200" ]; then echo "up after $((i*2))s"; up=1; break; fi
-            sleep 2
-          done
-          if [ "$up" != "1" ]; then echo "server never came up"; tail -50 /tmp/next-start.log; exit 1; fi
+          PORT=3001 \
+          HEALTH_PATH=/api/system/heartbeat \
+          LOG_FILE=/tmp/next-start.log \
+          LISTEN_WAIT=180 \
+          SERVE_WAIT=45 \
+            bash ../../scripts/ci/wait-for-dev-server.sh
+          TAILPID="$(cat /tmp/.dev-tail.pid 2>/dev/null || echo "")"
           echo "warming pages (dev cold-compiles each route; be patient)..."
           # `ps -C node` (used in e1e28c2f6) NEVER matched the dev
           # server — Next renames its process to `next-server`, so the
