@@ -1000,7 +1000,7 @@ statenour primitives documented (existence re-verified at
   `/api/version` with `git merge-base --is-ancestor <merged-sha> <deployed-full-sha>` — never
   SHA equality (main moves under you) and never a prefix longer than `commitShort`'s 7 chars."
 - **Confidence:** high (two distinct failure modes in one session's waiters)
-- **Status:** proposed
+- **Status:** applied — operator-approved 2026-08-26; landed in statenour-verify (Confirming a merge is DEPLOYED section)
 
 ### P3 · guard-red-team
 - **Trigger (witnessed):** four first-draft canaries in ONE session were blind until a
@@ -1017,7 +1017,7 @@ statenour primitives documented (existence re-verified at
   mutation BEFORE trusting a canary's first green — 4/4 first drafts in one session were
   blind in ways only the mutation showed."
 - **Confidence:** high (four instances, one session)
-- **Status:** proposed
+- **Status:** applied — operator-approved 2026-08-26 (same PR as this status line)
 
 ### P4 · NEW: audit-read-whole-structure (or a line in statenour-verify)
 - **Trigger (witnessed):** I reported nickstire's `typeMap` as having "no mapping that yields
@@ -1031,4 +1031,5 @@ statenour primitives documented (existence re-verified at
   positives are manufactured." (Grep found no existing skill carrying this; the closest,
   base-rate-check, covers denominators, not truncated reads.)
 - **Confidence:** medium (once, clear, and it reached the operator)
-- **Status:** proposed
+- **Status:** applied — operator-approved 2026-08-26; took the offered lighter path — a rule in
+  statenour-verify ("read the WHOLE structure by its delimiters"), no new skill created

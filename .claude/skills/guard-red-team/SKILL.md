@@ -17,7 +17,13 @@ positives** (PR #1355).
 **Never trust a green first run of a guard you just wrote.** The check may
 be mis-scoped, the regex may anchor wrong, the harness may not even be
 invoking it. Green proves the test ran; only adversarial probes prove the
-guard guards.
+guard guards. Run the mutation BEFORE trusting the first green: on
+2026-08-26 **four out of four** first-draft canaries in one session were
+blind in ways only the mutation showed — an arm reading stdout while the
+banner went to stderr (`expected '' to contain 'SKIPPED'`), a `--root`
+fallback silently scanning the live repo and exiting 0, a docstring
+assertion satisfied by its own changelog quote, and a discovery arm whose
+first run found a fourth subject the hand-audit had missed.
 
 ## Protocol
 
@@ -53,7 +59,13 @@ guard guards.
      blocks its own documentation will be disabled by a frustrated
      human, and then it guards nothing. Witnessed at its purest
      2026-08-04: the commit DOCUMENTING two false positives was itself
-     blocked because its here-string quoted the cmdlet.
+     blocked because its here-string quoted the cmdlet. **The inverse
+     bites assertions:** a changelog or comment quoting an OLD value
+     satisfies a bare `toContain` — witnessed 2026-08-26, a docstring
+     canary asserting `toContain("65,000")` stayed green when the claim
+     was staled to 40,000, because the changelog paragraph recording the
+     old wrong value still contained the string. Capture from the
+     authoritative sentence and compare VALUES; never assert a mention.
    - **Drive-qualified paths** — PowerShell `Env:`, `HKLM:`, `Cert:` are
      provider paths, not filesystem paths. Witnessed 2026-08-04: a
      compound command containing the standard env-token removal cmdlet
