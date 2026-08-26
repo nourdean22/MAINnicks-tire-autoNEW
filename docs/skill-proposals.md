@@ -984,7 +984,8 @@ statenour primitives documented (existence re-verified at
   sibling PR's long check runs — and read 'runner received a shutdown signal' minutes after a
   main merge as this, not as infra."
 - **Confidence:** high (three witnessed instances, one controlled experiment)
-- **Status:** proposed
+- **Status:** applied — operator-approved 2026-08-26; landed as "PR mechanics" rule 3 in
+  `.claude/skills/nickstire-shared-main-push/SKILL.md` (same PR as this status line)
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** my deploy waiter compared a 9-char SHA prefix against

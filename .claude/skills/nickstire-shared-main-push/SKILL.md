@@ -77,6 +77,21 @@ If `git push` fails with the pre-push hook citing the OTHER app's build:
    gh pr view <n> --json state,mergeCommit
    ```
    `MERGED` means done — just `git fetch origin main` and ff-sync.
+3. **Merging to main CANCELS every open PR's in-flight checks.** Each
+   merge recomputes the other PRs' `refs/pull/N/merge`, and GitHub kills
+   whatever was running on the old ref. statenour's `node`/`e2e` jobs
+   need ~9-11 minutes, so under parallel sessions a long check rarely
+   survives to completion — and the kill presents as
+   `The runner has received a shutdown signal` / `Force killed Turborepo
+   tasks`, which reads as flaky infrastructure, not as merge ordering.
+   Proven 2026-08-26 on #1886: killed at 4m30s minutes after one merge,
+   killed again at 4m45s minutes after another, passed at 11m18s once
+   main was deliberately held still (same day, #1897/#1898 failed one
+   e2e lane 67s apart with identical signatures; both reruns passed).
+   The rules: **hold merges while a sibling PR's long check is in
+   flight**; sequence your own merge → next PR's push so each gets one
+   clean CI cycle; and read a shutdown-signal kill minutes after a main
+   merge as THIS before blaming infra — rerun it, don't debug it.
 
 ## Local Windows path note
 
