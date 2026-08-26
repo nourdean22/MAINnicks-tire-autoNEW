@@ -50,3 +50,43 @@ describe("apple-health inlets bypass the session gate (H1 smoke-caught bug)", ()
     expect(isPublic("/api/integrations/apple-health/v1/batches")).toBe(true);
   });
 });
+
+describe("/api/version is session-exempt EXACTLY, and cannot bleed (2026-08-25)", () => {
+  // The endpoint answers "is what I merged what is live?". It has to be
+  // reachable without a session or it cannot answer that from outside — which
+  // is the state the 2026-08-25 audit hit: /api/health, /api/version,
+  // /api/ping and /api/system/hub all 401, / 307, so statenour's deployed SHA
+  // was unverifiable while nickstire's was one request away.
+  it("is public", () => {
+    expect(isPublic("/api/version")).toBe(true);
+  });
+
+  // The reason it lives in PUBLIC_EXACT and not PUBLIC_PREFIXES. This file has
+  // been bitten by prefix bleed twice — "/api/short/" and "/api/actions/" both
+  // carry trailing slashes because the bare prefix also exempted an unrelated
+  // sibling route. A prefix entry here would anonymously expose every future
+  // /api/version* path, including ones nobody has written yet.
+  it("does NOT exempt a sibling or child path", () => {
+    for (const p of [
+      "/api/versions",
+      "/api/version-history",
+      "/api/version/secret",
+      "/api/version/",
+    ]) {
+      expect(isPublic(p), `${p} must stay session-gated`).toBe(false);
+    }
+  });
+
+  it("fails CLOSED on case variants rather than open", () => {
+    expect(isPublic("/API/VERSION")).toBe(false);
+    expect(isPublic("/Api/Version")).toBe(false);
+  });
+
+  // Locks the classification itself: if someone "simplifies" the entry into
+  // PUBLIC_PREFIXES, this arm goes red even though the arm above might not
+  // (a prefix would make /api/version public too — the bleed is the regression,
+  // and asserting only the happy path would miss it entirely).
+  it("is registered as an EXACT path, never a prefix", () => {
+    expect(PUBLIC_EXACT).toContain("/api/version");
+  });
+});
