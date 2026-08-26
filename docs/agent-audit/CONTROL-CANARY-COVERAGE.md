@@ -76,6 +76,33 @@ costs one extra assertion: **break the thing, or plant the failure, and prove th
 instrument goes red.** A canary without that step is a control nobody has shown is
 connected.
 
+### The rule in one sentence
+
+> **The question is not whether a canary exists but whether the canary's subject
+> includes the thing you're protecting.**
+
+Stated after the sharpest same-day pair in the catalogue. `check:et-clock` and
+`check:anti-slop` shipped in the SAME PR (#1809), are reported identically in PR
+bodies, and were not equivalent:
+
+| gate | what its canary looked at | would it have gone red on a regression? |
+|---|---|---|
+| `check:et-clock` | **executes the gate over the real tree** and asserts exit 0 | yes |
+| `check:anti-slop` (until 2026-08-25) | the script's SOURCE text and its `package.json` wiring | **no** |
+
+Both were green. Source-and-wiring assertions prove a gate EXISTS and is SPELLED
+correctly; they cannot tell a working grep from a broken one. And the anti-slop
+grep **was** broken: it required `next/font/google` to appear BEFORE `Inter` on
+the line, so `import { Inter } from "next/font/google"` — the canonical Next.js
+form, and the single most common way the AI-default font enters a codebase —
+never matched. The gate printed *"no anti-slop UI patterns"* over the exact
+pattern it names first, for as long as it had existed. Reading the source had
+confirmed the check was present the whole time.
+
+The fix is not a better regex. The fix is that the canary now RUNS the gate
+against planted offenders, which is what surfaced the regex bug in the first
+place.
+
 **Applies to a category, not only an instance.** A gate's blanket exemptions need
 the same treatment as its individual entries — the exemption is what a future
 reader is most likely to remove as an oversight. `check-et-clock.mjs` states the
@@ -252,7 +279,7 @@ complete — an unlisted control is not a covered one.
 | statenour Inngest alert delivery receipt — `on-failure` | 1 | 0 | logs undelivered instead of claiming "notified"; no canary yet |
 | Brief operator-queue gate — `deriveThreatLevel` + `stripInventedSeverity` | 1 | 1 | behavioural; 7 mutations killed, and the sanitizer has a positive control so it cannot mangle an ordinary brief |
 | Source files are text — no NUL bytes | 1 | 1 | proves its own detector fires on a planted NUL BEFORE trusting any zero |
-| statenour `check:anti-slop` | 1 | 1 | wired into `verify:hard` after running nowhere at all; canary asserts the doc claims only the three patterns it greps |
+| statenour `check:anti-slop` | 1 | 1 | wired into `verify:hard` after running nowhere at all. **2026-08-25 · the canary now EXECUTES the gate** against planted offenders (purple gradient, Inter import, Roboto import) and proves the `anti-slop-allow` waiver is by-signature — a new hit in an already-waived file still fires. The previous arms read the script's source and its wiring only, and that blindness was hiding a live regex bug — see [the rule in one sentence](#the-rule-in-one-sentence) |
 | statenour `check:et-clock` — bare `getHours()`/`getDay()` | 1 | 1 | forced-TZ test in a child process, plus a canary that reintroduces a bare reading and asserts the lint goes red |
 | agent-os `check-gate-reachability` — every `check:*`/`lint:*` is invoked by something | 1 | 1 | the meta-gate: catches the **unwired control** shape at author time. Six arms incl. one that runs the checker against the LIVE repo, so a new orphan reddens `agent:verify` |
 | **Total** | **63** | **19** | **30.2 %** |

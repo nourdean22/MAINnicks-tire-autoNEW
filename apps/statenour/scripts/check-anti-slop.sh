@@ -26,7 +26,22 @@ LEAK_COUNT=0
 # 1. Inter font imports — covers next/font/google + raw imports
 # Vendored tool integrations (lib/ai/last30days, lib/ai/moneyprinter) are
 # not UI surfaces — excluded 2026-07-30 so the gate reports only real leaks.
-INTER_HITS=$(git grep -lE 'next/font/google.*Inter|fonts\.googleapis.*Inter|font-family:\s*[^;]*Inter|Inter[a-zA-Z]*_init|"Inter"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
+# 2026-08-25 · `\bInter\b.*next/font/google` ADDED. The original alternation
+# required next/font/google to come BEFORE Inter on the line, so it could not
+# match the canonical Next.js form, which is the single most common way the
+# AI-default font enters a codebase:
+#
+#     import { Inter } from "next/font/google";
+#
+# Inter is first, so `next/font/google.*Inter` never fired, `"Inter"` needs
+# double quotes around the bare word, and the gate printed
+# "no anti-slop UI patterns" over the exact pattern it names first. Found by
+# writing a canary that RUNS this script against a planted offender — reading
+# the source had confirmed the check existed for months.
+# `\b` is load-bearing: bare `Inter` also matches Interface / Internal /
+# "Inter-post", and the paired next/font/google term is what keeps the
+# alternative from firing on the several comments that say "NO Inter".
+INTER_HITS=$(git grep -lE 'next/font/google.*Inter|\bInter\b.*next/font/google|fonts\.googleapis.*Inter|font-family:\s*[^;]*Inter|Inter[a-zA-Z]*_init|"Inter"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
 if [ -n "$INTER_HITS" ]; then
   LEAK_COUNT=$((LEAK_COUNT + $(echo "$INTER_HITS" | wc -l)))
   LEAKS="$LEAKS\n  Inter font imports:"
@@ -36,7 +51,12 @@ if [ -n "$INTER_HITS" ]; then
 fi
 
 # 2. Roboto / Arial defaults
-DEFAULT_FONT_HITS=$(git grep -lE 'next/font/google.*Roboto|fonts\.googleapis.*Roboto|"Roboto"|"Arial"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
+# Same order-bug fix as the Inter block above: `import { Roboto } from
+# "next/font/google"` put the font name first and slipped the original
+# alternation. Fixed here in the same pass rather than left for the next
+# person to rediscover — it is one regex, and the two checks are the same
+# defect wearing different names.
+DEFAULT_FONT_HITS=$(git grep -lE 'next/font/google.*(Roboto|Arial)|\b(Roboto|Arial)\b.*next/font/google|fonts\.googleapis.*Roboto|"Roboto"|"Arial"' -- 'app/**' 'components/**' 'lib/**' ':!lib/ai/last30days/**' ':!lib/ai/moneyprinter/**' 2>/dev/null || true)
 if [ -n "$DEFAULT_FONT_HITS" ]; then
   LEAK_COUNT=$((LEAK_COUNT + $(echo "$DEFAULT_FONT_HITS" | wc -l)))
   LEAKS="$LEAKS\n  Roboto/Arial AI-default fonts:"

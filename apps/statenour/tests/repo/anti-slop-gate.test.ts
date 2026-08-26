@@ -141,3 +141,111 @@ describe("the live gate · wiring, which is a comparison and not a hard-coded da
     expect(gateSource()).toMatch(/ANTI_SLOP_GATE_SOFT:-0.*=.*"1"/);
   });
 });
+
+/**
+ * 2026-08-25 · THE ARM THIS FILE WAS MISSING.
+ *
+ * Everything above audits what DOCS CLAIM about the gate, against fixtures this
+ * file owns — correct, and deliberately fixture-driven so the canary cannot be
+ * killed by a live datum changing. But nothing anywhere executed
+ * `check-anti-slop.sh` against the tree, so the gate could have stopped firing
+ * entirely and every arm would still have been green.
+ *
+ * That gap was found by comparing this file to `tests/repo/et-clock.test.ts`.
+ * Both gates shipped in the same PR (#1809) and both are reported identically in
+ * PR bodies ("check:anti-slop: no anti-slop UI patterns"). Only et-clock's canary
+ * ran the gate over the real tree; this one read the script's SOURCE and its
+ * package.json wiring. Source-and-wiring assertions prove a gate EXISTS and is
+ * SPELLED correctly. They cannot tell a working grep from a broken one.
+ *
+ * THE GENERAL RULE, and it is the one worth carrying forward:
+ * **the question is not whether a canary exists but whether the canary's subject
+ * includes the thing you are protecting.** Both gates were green; only one would
+ * have turned red on a regression.
+ *
+ * Offenders are planted in REAL TRACKED FILES because the gate runs `git grep`,
+ * which sees only tracked paths — a temp file outside the index would not be
+ * scanned and the canary would pass without testing anything. Same reasoning,
+ * and the same restore-and-re-verify tail, as the et-clock canary.
+ */
+describe("the gate FIRES on the tree it is pointed at", () => {
+  const { readFileSync: rf, writeFileSync: wf } = require("node:fs") as typeof import("node:fs");
+  const { execFileSync: ex } = require("node:child_process") as typeof import("node:child_process");
+
+  const run = () => {
+    try {
+      return { code: 0, out: ex("bash", ["scripts/check-anti-slop.sh"], { encoding: "utf8" }) };
+    } catch (e) {
+      const err = e as { status?: number; stdout?: string; stderr?: string };
+      return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    }
+  };
+
+  /** Plant `text` at the end of `victim`, run the gate, always restore. */
+  const withPlanted = <T,>(victim: string, text: string, fn: (r: ReturnType<typeof run>) => T): T => {
+    const original = rf(victim, "utf8");
+    try {
+      wf(victim, `${original}\n${text}\n`, "utf8");
+      return fn(run());
+    } finally {
+      wf(victim, original, "utf8");
+    }
+  };
+
+  it("passes on the current tree", () => {
+    const r = run();
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("no anti-slop UI patterns");
+  });
+
+  it("CANARY: a purple SaaS gradient turns it red and names the file", () => {
+    const victim = "components/ui/glass-card.tsx";
+    withPlanted(victim, '// canary <div className="bg-gradient-to-r from-purple-500 to-purple-700" />', (r) => {
+      expect(r.code, "the gate did not fire on a planted purple gradient").toBe(1);
+      expect(r.out).toContain(victim);
+      expect(r.out).toContain("Purple-on-white SaaS gradients");
+    });
+    expect(run().code, "restore failed — the tree is dirty").toBe(0);
+  });
+
+  it("CANARY: an Inter font import turns it red", () => {
+    const victim = "components/ui/glass-card.tsx";
+    withPlanted(victim, 'import { Inter } from "next/font/google";', (r) => {
+      expect(r.code, "the gate did not fire on a planted Inter import").toBe(1);
+      expect(r.out).toContain("Inter font imports");
+    });
+    expect(run().code, "restore failed — the tree is dirty").toBe(0);
+  });
+
+  it("CANARY: a Roboto import in the canonical order turns it red (same order-bug)", () => {
+    // The Roboto/Arial alternation carried the identical defect as the Inter
+    // one and was fixed in the same pass. Proven here so the fix cannot silently
+    // regress the way the original did.
+    const victim = "components/ui/glass-card.tsx";
+    withPlanted(victim, 'import { Roboto } from "next/font/google";', (r) => {
+      expect(r.code, "the gate did not fire on a planted Roboto import").toBe(1);
+      expect(r.out).toContain("Roboto/Arial AI-default fonts");
+    });
+    expect(run().code, "restore failed — the tree is dirty").toBe(0);
+  });
+
+  it("the waiver is BY SIGNATURE: a NEW hit in an already-waived FILE still fires", () => {
+    // The script's own comment stakes this claim and nothing tested it:
+    //   "Waivers are BY SIGNATURE, not by filename ... Excluding whole files
+    //    would have made this check permanently blind to the file it was
+    //    waived for."
+    // app/(mastery)/stats/page.tsx carries a live `anti-slop-allow` marker. If
+    // waivers were file-scoped, the plant below would be invisible — which is
+    // the exact blindness the comment says was avoided. This is the arm that
+    // turns that sentence from a claim into a tested property.
+    const waived = "app/(mastery)/stats/page.tsx";
+    expect(rf(waived, "utf8"), "precondition: the waiver marker moved").toContain("anti-slop-allow");
+    expect(run().code, "precondition: the waived line alone must pass").toBe(0);
+
+    withPlanted(waived, '// canary <div className="from-purple-400 to-purple-600" />', (r) => {
+      expect(r.code, "a new purple gradient in a waived FILE was not reported — the waiver is file-scoped").toBe(1);
+      expect(r.out).toContain(waived);
+    });
+    expect(run().code, "restore failed — the tree is dirty").toBe(0);
+  });
+});
