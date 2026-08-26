@@ -1,5 +1,102 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-26 · The surface-honesty wave · 17 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902)
+>
+> One theme, arrived at from three directions: **a surface that cannot say "I do not know" will
+> say something false instead.** Panels rendering a failed read as a measured zero; a stop hook
+> whose silence meant either "clean" or "I never looked"; an engine whose rules asserted counts
+> nothing counted. Every fix is the same move — make the unknown state representable, then make
+> it unrepresentable to omit it.
+>
+> Method notes worth keeping. **Measurement reversed the plan four times.** The 18 remaining
+> envelope casts were all CORRECT (base rate said ~7 of 11 should be broken; observed 0 — they
+> cluster in the `/api/ai/*` subfamily that never adopted `apiHandler`). The ET-weekday residual
+> carried for several sessions was REFUTED at 11,616 checks. Two `isError ? []` sites named as
+> defects had error guards and were latent, not live. And `automation-engine` — reported twice
+> by me, wrongly, before the third measurement held. **Corrections belong in the record**: I
+> claimed "intermittent ~50%" CI failure inferred from PRs that never ran the suite, and a rerun
+> count that reused run IDs. A pass that was never attempted is not evidence.
+>
+> **#1837 · canary decouple.** Three of five canaries were pinned to live data — `expect(DESIGN.md)
+> .toContain("rounded corners")` dies the day that convention is correctly retired. Extracted
+> `auditGateClaims` around the durable invariant (a doc must not credit a gate with checks it
+> does not run), driven by synthetic docs including one that over-claims.
+> **#1838 · strict `rawFetch`.** 13 call sites, 4 duplicate unwrappers deleted. `rawFetch` used to
+> END in `(await res.json()) as T` — it WAS the bug shape wearing a name. It now throws when the
+> body is an envelope, so the day a route adopts `apiHandler` the call fails loudly instead of
+> rendering an empty panel forever.
+> **#1840 · EmptyState provenance.** Two live false all-clears killed: `nudge-panel` rendered a
+> green "In rhythm · all subsystems stable" across nine subsystems it had just FAILED to read;
+> `contradiction-resolution` rendered "Clean ledger · internally consistent" on a failed query.
+> `tone="positive"` is now type-gated to `provenance="ZERO"` — a false all-clear does not compile.
+> **#1844 · orphaned policy + `policyBootstrap`.** `auto_score_applicant` was seeded
+> `approvalClass:"auto"`, tagged cost-bearing, for a rule not among the 20 and a webhook never
+> built. Also deleted the readerless `policyBootstrap` marker — the gate is the protection.
+> **#1856 · the engine sent the operator to a 404.** `/system/approvals` was absorbed into
+> `/system/actions`; 16 references stayed, six operator-facing, three auto-linked in Telegram.
+> The fail-closed engine held a side effect then said "approve via /system/approvals". Two links
+> REMOVED rather than repointed (no page exists); `/system/eval-results` unwound into three false
+> claims in one tile.
+> **#1859 · the stop hook could not say "I did not look".** Three fail-open paths exited 0
+> silently, so an inert hook and a satisfied hook were indistinguishable — the blind-instrument
+> shape inside the fix for it. Its canary could not see the defect either: `runHook` returned
+> execFileSync's value (stdout only), discarding stderr on every exit-0 path. A widening was
+> REJECTED on its own numbers: 37 of 74 local branches would have tripped it.
+> **#1860 · the frame canary watched ONE named file.** Now sweeps every surface for a bare
+> WAITING/READY, narrowed to the two statuses a same-day completion can contradict.
+> **#1866 · ET-weekday residual REFUTED.** 2,904 instants × 4 server timezones = 11,616 checks,
+> 0 mismatches. The real finding: `startOfWeekET` already existed and the route hand-rolled a
+> duplicate. Prior art was there the whole time.
+> **#1870 · the last frameless status door.** Dead `StatusBadge` removed (a null value rendered
+> the word "Unknown" — a frameless claim of its own). Codex raised a P1: the door came out with
+> no canary. Correct, and taken.
+> **#1888 · a comment asserting UTC on a line reading ET.** Worse than either half alone — the
+> next reader trusts it. Gate added; measured exactly one instance repo-wide, now zero.
+> **#1890 · `task-signals` wired** — capacity counts rendered VERBATIM beside the composer, never
+> through it, because the brief's CRITICAL marker is 81.3% saturated and inverted at both extremes.
+> **#1892 · `attention-tracker` wired.** `daysSinceEngagement` saturates at 14 (the scan window),
+> so it renders "not in the last 14d", never "14d silent". `energy-router` NOT wired: `totalSamples: 0`.
+> **#1895 · the 11am rhythm that never ran.** `executeRhythm` was complete, flagged ON in prod,
+> and had zero callers. Fires at `0 15,16 * * *` — one fixed UTC hour silently retires itself
+> every November when the ET gate stops matching.
+> **#1896 · automation-engine audited, NOT wired.** Four-level disagreement between engine and
+> its own data. Documented in the header so nobody wires it blind.
+> **#1899 · the executor rewrite.** Action executor reading `action.type`, class-matching for
+> `device_state` (an unknown field is UNSATISFIABLE, not ignored — otherwise `{runningHours:6}`
+> alerts on every device), a `composite` evaluator, a loud `default:`, and edge-triggering via
+> match-set fingerprint. 20 of 22 devices OFFLINE since April: level-triggered = 24 messages/day
+> about a four-month-old fact.
+> **#1901 · reword, then arm.** The three time rules ASSERTED conditions their triggers never
+> check — `{type:"time",hour:18}` sent "No new leads today" on a day with twenty. Reworded in
+> prod (names too — the rule name is part of the sent message). Found and fixed one more of my
+> own bugs first: the time fingerprint keyed on `[dayOfWeek, hour]`, which suppresses a
+> `days:[1]` rule forever after its first fire.
+> **#1902 · dropped a pinned count I wrote hours earlier.** The manifest said "8 enabled rules";
+> four operator-approved disables later it was 4. Removed rather than corrected — a count in
+> prose is a cache with no invalidation. It earned itself the same day.
+>
+> **Prod data changes (operator-authorized, each backed up before the write):**
+> Three time rules reworded (`_bak_automation_rules_reword_20260826`). Four rules disabled across
+> three writes — `Device running 6+ hours` (`runningHours` is not a column),
+> `Late night motion + lights off` (`device_events` holds 2 rows, newest 2026-06-25),
+> `High drift risk task` (nothing writes category `anomaly` — 0 rows, no producer),
+> `Low energy pattern detected` (FUNCTIONAL, 536 rows — off by operator choice, not defect).
+> Backups `_bak_automation_rules_disable{,2,3}_20260826`. Engine now evaluates 4 rules hourly.
+>
+> **Flagged · NOT fixed:**
+> - `energy-router` runs clean in 31ms and returns `totalSamples: 0`. Every recommendation it can
+>   make is unearned; it stays dark until the sample count is non-zero.
+> - `page-intelligence` produces inference, not counts ("Nour may be using conversation as
+>   procrastination"). Deliberately not wired into a brief whose measured failure is unearned claims.
+> - PR-4 (brief push escalation) KILLED on measurement, not effort: 26 of 32 briefs (81.3%) carry
+>   CRITICAL, and the marker is INVERTED at both extremes — it fired on both days with zero cron
+>   failures and stayed silent on the day with 6,039 of 60,519 runs failing.
+> - Deploy verification was unavailable all session: every health/version endpoint returns
+>   `Unauthorized`, and `railway deployment list` needs an interactive service link. An
+>   unauthenticated `/api/version` is in flight. Every ship above is **merged, deploy unverified**.
+> - CI note for the next session: `gh run rerun` reuses the original merge commit, so a PR red
+>   from a since-fixed `main` can never go green that way — `gh pr update-branch` is what lands it.
+
 > ## 2026-08-26 · The interaction-audit wave · 9 ships (#1881 #1882 #1883 #1886 #1889 #1891 #1894 #1898 #1897)
 >
 > Operator directive: audit the ~30-PR / six-session day AS A WHOLE — interactions, not
@@ -969,7 +1066,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1902 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1497,7 +1594,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-26 (interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1902 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
