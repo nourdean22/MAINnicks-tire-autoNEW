@@ -1,3 +1,44 @@
+/**
+ * DO NOT WIRE THIS WITHOUT READING THIS BLOCK. Audited 2026-08-26 against the
+ * live rule set; the engine and its own data disagree at THREE levels, and
+ * wiring it as-is fires zero useful actions while looking like it works.
+ *
+ * It has never run. Zero importers, any spelling, anywhere in the repo.
+ * `automationEngine` at the bottom is a singleton nothing constructs a caller
+ * for. That is the only reason none of the below has caused an incident.
+ *
+ * PROD STATE: 8 rules, ALL 8 enabled. `device_commands` holds 12 rows, newest
+ * 2026-04-01 — nothing has been issued in five months.
+ *
+ * 1 · ACTION SHAPE. The action loop unconditionally builds a DeviceCommand from
+ *     `action.deviceId` / `action.command`. Not one stored action has either
+ *     field: six are `{type:"notify", channel:"telegram", message}` and two are
+ *     `{type:"check", target, message}`. `action.type` is never read. Both
+ *     columns are NOT NULL with an FK, so every fire THROWS into the catch
+ *     below. Result: no notification, no device command, one logged failure.
+ *
+ * 2 · TRIGGER SHAPE. Both `device_state` rules describe a CLASS of device —
+ *     `{status:"OFFLINE", deviceType:"CAMERA"}`, `{runningHours:6}` — with no
+ *     `deviceId`. The matcher is `devices.find(d => d.id === trigger.deviceId)`,
+ *     which is `undefined` for both, so they never fire. The rules mean "any
+ *     camera"; the engine only implements "this one device".
+ *
+ * 3 · TRIGGER COVERAGE. There is no `composite` case and no `default:`. The
+ *     "Late night motion + lights off" rule falls straight through the switch
+ *     with `shouldFire` still false — it does not error, it does not log, it
+ *     simply never evaluates. A fourth trigger type would do the same.
+ *
+ * WHAT WOULD ACTUALLY BE NEEDED: an action executor that reads `action.type`
+ * (notify -> sendTelegram, check -> ?), class-matching for `device_state`, a
+ * `composite` evaluator, and a `default:` that is loud. That is a rewrite of the
+ * executor plus a decision about rules referencing cameras, motion events and
+ * `runningHours` whose backing data was never confirmed to exist — not a wiring
+ * change. Doing it blind would arm outbound Telegram on triggers nobody has
+ * validated.
+ *
+ * The `hourET`/`weekdayET` context below is CORRECT post-clock-fix: the three
+ * time rules target hours 18/14/8, which read naturally as 6pm/2pm/8am ET.
+ */
 import { prisma } from "@/lib/prisma";
 import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
