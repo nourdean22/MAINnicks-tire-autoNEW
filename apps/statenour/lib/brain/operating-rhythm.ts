@@ -275,7 +275,13 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       // alarm. Now: red banner at the top so the eye lands on it.
       // Weekends skipped (revenue legitimately zero).
       {
-        const dayOfWeek = weekdayET(); // 0=Sun, 6=Sat (UTC OK · close enough at 11am ET)
+        // 0=Sun, 6=Sat, read in ET. The old comment here said "UTC OK · close
+        // enough at 11am ET" and stayed after the call was corrected to
+        // weekdayET() — a comment asserting the OLD frame on a FIXED line, which
+        // is worse than either alone: the next reader trusts it and reintroduces
+        // the bug. 11am ET is 15:00/16:00 UTC, same weekday, so "close enough"
+        // happened to be true at this hour and false as a rule.
+        const dayOfWeek = weekdayET();
         const isWeekday = dayOfWeek !== 0 && dayOfWeek !== 6;
         const cliffBanner =
           isWeekday && todayRevenue === 0 && todayJobCount === 0
