@@ -22,19 +22,36 @@ import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
+import { startOfDayET, endOfDayET, today } from "@/lib/utils/datetime";
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
 
 export const GET = apiHandler(
   async (req) => {
     const url = new URL(req.url);
-    const date = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+    // ET, not UTC. `new Date().toISOString().slice(0,10)` is the UTC date, so
+    // between 20:00 and 23:59 ET it already reads as TOMORROW — the operator
+    // asking "what was in my head today" at 9pm got an empty next-day view.
+    const date = url.searchParams.get("date") ?? today();
     if (!DATE_RX.test(date)) {
       throw new ServiceError("date must be YYYY-MM-DD", 400);
     }
 
-    const dayStart = new Date(`${date}T00:00:00Z`);
-    const dayEnd = new Date(`${date}T23:59:59Z`);
+    // The day is the ET calendar day, because that is the day the operator
+    // lived. `${date}T00:00:00Z` is UTC midnight — 8pm ET the PREVIOUS evening
+    // — so every one of the eleven queries below was shifted by 4-5 hours and
+    // an ET evening landed on the NEXT day's snapshot. Same frame defect the
+    // #1809 clock arc fixed elsewhere; these helpers are the repo's answer to
+    // it and return the UTC instant of the ET boundary, safe as Prisma filters.
+    //
+    // Noon UTC is the anchor because it is mid-day in ET for every date, so the
+    // ET calendar day derived from it is always the one named by `date`.
+    const anchor = new Date(`${date}T12:00:00Z`);
+    const dayStart = startOfDayET(anchor);
+    // endOfDayET returns the START of the next ET day — an EXCLUSIVE upper
+    // bound, which is why every filter below uses `lt` and not `lte`. The old
+    // `lte 23:59:59` also silently dropped the final second of each day.
+    const dayEnd = endOfDayET(anchor);
 
     const [
       memories,
@@ -51,7 +68,7 @@ export const GET = apiHandler(
     ] = await Promise.all([
       prisma.brainMemory.count({
         where: {
-          createdAt: { gte: dayStart, lte: dayEnd },
+          createdAt: { gte: dayStart, lt: dayEnd },
           deletedAt: null,
         },
       }).catch(() => 0),
@@ -59,7 +76,7 @@ export const GET = apiHandler(
         .groupBy({
           by: ["category"],
           where: {
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
           _count: { id: true },
@@ -71,8 +88,8 @@ export const GET = apiHandler(
         .findMany({
           where: {
             OR: [
-              { createdAt: { gte: dayStart, lte: dayEnd } },
-              { lastActiveAt: { gte: dayStart, lte: dayEnd } },
+              { createdAt: { gte: dayStart, lt: dayEnd } },
+              { lastActiveAt: { gte: dayStart, lt: dayEnd } },
             ],
           },
           select: { id: true, title: true, lastActiveAt: true, messageCount: true },
@@ -83,7 +100,7 @@ export const GET = apiHandler(
       prisma.task
         .count({
           where: {
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
         })
@@ -92,7 +109,7 @@ export const GET = apiHandler(
         .count({
           where: {
             status: "DONE",
-            updatedAt: { gte: dayStart, lte: dayEnd },
+            updatedAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
         })
@@ -100,7 +117,7 @@ export const GET = apiHandler(
       prisma.brainDump
         .findMany({
           where: {
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
           select: { id: true, summary: true, rawThoughts: true },
@@ -110,7 +127,7 @@ export const GET = apiHandler(
       prisma.reflection
         .findMany({
           where: {
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
           select: { id: true, category: true, insight: true },
@@ -121,7 +138,7 @@ export const GET = apiHandler(
         .findFirst({
           where: {
             category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
           select: { content: true, metadata: true },
@@ -140,7 +157,7 @@ export const GET = apiHandler(
       prisma.masteryDecision
         .findMany({
           where: {
-            createdAt: { gte: dayStart, lte: dayEnd },
+            createdAt: { gte: dayStart, lt: dayEnd },
             deletedAt: null,
           },
           select: { id: true, title: true, predictedOutcome: true, reviewDate: true },
@@ -151,7 +168,22 @@ export const GET = apiHandler(
         .findMany({
           where: {
             category: "emotional_state",
-            createdAt: { gte: dayStart, lte: dayEnd },
+            // DATED BY KEY, not by createdAt — the same pattern the health
+            // digest above uses. Every emotional_state key embeds the day it is
+            // ABOUT (`mood_{date}_{h}`, `journal_mood_{date}_{h}`); `createdAt`
+            // is merely when the row was written, and the two diverge whenever
+            // history is backfilled. Measured 2026-08-26: 170 rows imported in a
+            // single 5-minute window on 2026-08-16 carry keys spanning
+            // 2026-05-28 to 2026-08-13 — 58 distinct days. Under a createdAt
+            // filter all 170 surfaced on the 2026-08-16 view (an arbitrary 5 of
+            // them, per the take below) and NEVER on the days they describe. The
+            // one day that was wrong showed five moods that were not its own.
+            //
+            // Safe because it is total: all 329 emotional_state rows have a date
+            // in the key, none lack one. tests/repo/time-travel-dating.test.ts
+            // pins that at the WRITERS, so a future undated key fails there
+            // rather than silently vanishing from every day view.
+            key: { contains: date },
             deletedAt: null,
           },
           select: { content: true, key: true },
