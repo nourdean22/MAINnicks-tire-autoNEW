@@ -87,6 +87,17 @@ export const PUBLIC_EXACT = [
   "/api/system/health",    // owner-gated at the route ({ auth: "owner" }); kept here as coexistence path
   "/api/system/heartbeat", // External monitors (UptimeRobot, etc.) — returns only { status, db_latency_ms }
   "/api/system/perplexica-diag", // CRON_SECRET-gated at the route ({ auth: "cron" }); bypasses the session gate so the /perplexica diagnostic is reachable with the cron bearer, exactly like /api/cron/*
+  // 2026-08-25 · deploy identity. Genuinely public data, which is the FIRST arm
+  // of this file's invariant (the other being "runs its own auth"): a commit
+  // SHA, branch, environment, and CONFIGURED-booleans — never a value, never a
+  // liveness probe. Public because the question it answers ("is what I merged
+  // what is live?") is unanswerable from outside if it needs a session, which
+  // is exactly the state an audit hit on 2026-08-25: every statenour probe
+  // returned 401 while nickstire's equivalent answered in one request.
+  // EXACT, deliberately not a prefix — "/api/version" must not also exempt
+  // "/api/versions" or a future "/api/version/<anything>", the bleed that put
+  // trailing slashes on "/api/short/" and "/api/actions/" above.
+  "/api/version",
 ] as const;
 
 /** True iff `pathname` bypasses the NextAuth session gate. Pure — no I/O, no env. */
