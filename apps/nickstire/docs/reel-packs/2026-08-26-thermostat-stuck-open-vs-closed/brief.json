@@ -1,0 +1,129 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-26",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Same tiny part, two opposite problems: engine overheats, or never warms up (thermostat)",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Two totally different problems — same tiny part.",
+      "visualPrompt": "Split-screen composition: left half a dashboard temperature gauge needle pinned toward 'H,' right half the same gauge style needle sitting cold near 'C,' both dimly lit interiors, static-mounted camera.",
+      "renderIntegrityNote": "Split into two ~2s sub-shots (hot side, cold side) before real generation."
+    },
+    {
+      "index": 2,
+      "role": "symptom_a",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "Temp gauge climbs fast. Engine overheats within minutes of driving.",
+      "visualPrompt": "Close-up on a dashboard temperature gauge needle climbing steadily into the red zone; cut to a wisp of steam rising from under a hood in a parking lot, warm daylight.",
+      "renderIntegrityNote": "Split into two sub-shots (gauge climb, steam) before real generation."
+    },
+    {
+      "index": 3,
+      "role": "symptom_b_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "Or the opposite — heater stays lukewarm, gauge barely moves, gas mileage drops.",
+      "visualPrompt": "Close-up on an HVAC vent with visibly cool/lukewarm air movement (subtle fabric ribbon flutter, no visible breath fog), then cut to a dashboard trip-computer MPG readout ticking down.",
+      "renderIntegrityNote": "Split into two sub-shots (vent, MPG readout) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "explanation",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "One clue: the thermostat. Stuck closed traps the heat. Stuck open lets it escape.",
+      "visualPrompt": "Macro cutaway shot: a thermostat housing removed from an engine, the thermostat valve visible either fully closed (stuck-shut framing) or fully open (stuck-open framing), resting on a clean workbench, slow push-in."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't just top off coolant and hope — the part itself may need replacing.",
+      "visualPrompt": "A coolant reservoir being topped off, then a slow pull-back revealing the thermostat housing still sitting disassembled on the bench nearby.",
+      "renderIntegrityNote": "Split into two sub-shots (top-off, pull-back reveal) before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it strands you or wastes gas. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "adVariants": [
+    {
+      "label": "A_overheat_first",
+      "hook": "Your engine just overheated and you don't know why.",
+      "caption": "A stuck thermostat can trap coolant flow and send your temp gauge into the red in minutes. One tiny part, one big problem.",
+      "cta": "Stop by and we'll take a look — Nick's Tire & Auto."
+    },
+    {
+      "label": "B_cold_heater_first",
+      "hook": "Heater never gets warm, even after 20 minutes of driving?",
+      "caption": "That can point to the opposite thermostat failure — stuck open, engine never reaches temperature, mileage can suffer too.",
+      "cta": "Worth checking before winter. Stop by — Nick's Tire & Auto."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't just... and hope", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (thermostat stuck closed -> blocked coolant flow to radiator -> rapid overheat; thermostat stuck open -> continuous flow -> engine never reaches operating temperature -> cold heater, possible mileage hit), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    }
+  },
+  "repetitionCheck": {
+    "liveLedgerChecked": false,
+    "offlineMitigation": "ls apps/nickstire/docs/reel-packs/ (~103 merged directories) + GitHub open-PR search (9 open reel-pack PRs) — no topic overlap found",
+    "nearestNeighbors": [
+      "engine-overheating-first-60-seconds",
+      "radiator-fan-idle-overheat",
+      "radiator-cap-pressure-test",
+      "collapsing-radiator-hose",
+      "heater-not-blowing-hot"
+    ]
+  }
+}
