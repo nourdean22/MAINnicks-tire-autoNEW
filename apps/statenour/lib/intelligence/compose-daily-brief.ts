@@ -207,6 +207,7 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
       blindSpots: p.blindSpots,
       lateNightCount: p.lateNightCount,
       avgDailyVisits: p.avgDailyVisits,
+      activeDays: p.activeDays,
     });
   } catch (err) {
     log.warn("page_signals_failed", {

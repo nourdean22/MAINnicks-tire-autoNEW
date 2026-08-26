@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { hourET } from "@/lib/utils/datetime";
+import { hourET, toDateString } from "@/lib/utils/datetime";
 
 export interface PagePattern {
   topPages: Array<{ page: string; count: number }>;
@@ -23,7 +23,10 @@ export interface PagePattern {
    * own. The brief renders the count, never the boolean.
    */
   lateNightCount: number;
+  /** Views per ACTIVE day, not per calendar day — `activeDays` is the divisor. */
   avgDailyVisits: number;
+  /** Distinct ET dates with at least one visit. The denominator of `avgDailyVisits`. */
+  activeDays: number;
   lastActive: string | null;
   /**
    * INFERENCE, not measurement — "Nour may be using conversation as
@@ -71,11 +74,31 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
       lastVisited[page] = v.createdAt;
     }
 
-    const payload = v.payload as any;
-    const hour = payload?.hour ?? hourET(v.createdAt);
+    // DERIVE THE HOUR, NEVER READ THE STORED COPY.
+    //
+    // Each row carries the same fact twice: `createdAt` (stamped by the DB)
+    // and `payload.hour` (computed by app code at write time and frozen).
+    // This line used to prefer the frozen copy, so a transient environment
+    // fault got baked into the archive permanently.
+    //
+    // Measured 2026-08-26 over the last 30 days: 691 of 719 rows carry a UTC
+    // hour in `payload.hour` while `createdAt` says ET — a clean +4h (the EDT
+    // offset). Every day from 07-28 to 08-24 is 100% affected; 08-25 flips
+    // mid-day; 08-26 is 100% correct. The writer's source did not change in
+    // that window, so the flip was environmental, which is exactly why the fix
+    // cannot be "the environment is fine now": deriving from the timestamp is
+    // right whatever the cause, and stays right if it regresses.
+    //
+    // Cost while it was live: the daily brief read 21 late-night visits where
+    // ET says 12. A UTC hour of 23-04 is really ET 19-00, so "after 11pm" was
+    // silently counting from 7pm.
+    const hour = hourET(v.createdAt);
     if (hour >= 23 || hour <= 4) lateNightCount++;
 
-    uniqueDays.add(v.createdAt.toISOString().slice(0, 10));
+    // ET, like every other bucket here. `toISOString()` buckets by UTC date,
+    // so a 9pm ET Monday visit landed on Tuesday and inflated the day count
+    // that divides into avgDailyVisits.
+    uniqueDays.add(toDateString(v.createdAt));
   }
 
   // Top pages
@@ -129,6 +152,7 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
     lateNightUsage: lateNightCount > 3,
     lateNightCount,
     avgDailyVisits: uniqueDays.size > 0 ? Math.round(visits.length / uniqueDays.size) : 0,
+    activeDays: uniqueDays.size,
     lastActive: visits[0]?.createdAt.toISOString() || null,
     insights,
   };
