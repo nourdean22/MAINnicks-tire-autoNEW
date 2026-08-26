@@ -23,6 +23,8 @@ import {
 } from "./operator-queue";
 import { renderCapacityBlock } from "./capacity-block";
 import { renderAttentionBlock } from "./attention-block";
+import { renderPagesBlock } from "./pages-block";
+import { analyzePagePatterns } from "@/lib/brain/page-intelligence";
 import { analyzeAttentionPatterns } from "@/lib/brain/attention-tracker";
 import { gatherTaskSignals } from "@/lib/brain/task-signals";
 import { prisma } from "@/lib/prisma";
@@ -192,6 +194,27 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     attentionBlock = renderAttentionBlock(null);
   }
 
+  // Same verbatim contract again. FACTS ONLY: analyzePagePatterns also returns
+  // an `insights[]` array with lines like "may be using conversation as
+  // procrastination" - a psychological read the module never measured. This
+  // brief's documented failure is unearned claims, so the counts come over and
+  // the inferences stay behind. A test enforces the exclusion.
+  let pagesBlock: string;
+  try {
+    const p = await analyzePagePatterns();
+    pagesBlock = renderPagesBlock({
+      topPages: p.topPages,
+      blindSpots: p.blindSpots,
+      lateNightCount: p.lateNightCount,
+      avgDailyVisits: p.avgDailyVisits,
+    });
+  } catch (err) {
+    log.warn("page_signals_failed", {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+    });
+    pagesBlock = renderPagesBlock(null);
+  }
+
   // P1 FROM REVIEW: the queue must survive a generation failure. This used to
   // let generateText reject, which sent the whole call into the caller's catch
   // in intelligence-brief.ts - and that fallback narrative has no queue counts.
@@ -233,6 +256,6 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     // Awaiting-You leads. It is the only section describing state the operator
     // can act on this minute, and during the 16-day ingest-reviews outage the
     // brief led with an invented threat level while 44 real items sat queued.
-    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n---\n\n${body}`,
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n${pagesBlock}\n\n---\n\n${body}`,
   };
 }
