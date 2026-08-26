@@ -39,6 +39,7 @@ export { auditTodaysLeads } from "./audit-todays-leads";
 
 // Consolidated Stack workflows
 export { crmFollowups } from "./crm-followups";
+export { operatingRhythm } from "./operating-rhythm";
 
 // Intelligence OS workflows
 export { intelligenceDailyBrief, intelligenceWeeklyBrief } from "./intelligence-brief";
