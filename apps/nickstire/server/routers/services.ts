@@ -482,7 +482,11 @@ export const smsRouter = router({
       const body = input.via === "shop"
         ? "Test from Nick's Tire & Auto — this is the shop's real line at 216-862-0005."
         : "Test from Nick's Tire & Auto — this is the Twilio fallback line.";
-      return sendSms(input.phone, body, { via: input.via });
+      // humanInitiated: an authenticated adminProcedure IS a human explicitly
+      // triggering this exact message — the contract the option documents.
+      // Required because sendSms refuses automated sends to shop/operator
+      // lines, and testing the shop's own line is the main use of this button.
+      return sendSms(input.phone, body, { via: input.via, humanInitiated: true });
     }),
   /** Send a custom SMS to any number. Defaults to shop gateway. */
   sendManual: adminProcedure
@@ -492,7 +496,10 @@ export const smsRouter = router({
       via: z.enum(["shop", "twilio"]).default("shop"),
     }))
     .mutation(async ({ input }) => {
-      return sendSms(input.phone, input.message, { via: input.via });
+      // Same reason as sendTest: an operator typing a message in the admin is
+      // the human-initiated case, and must not be refused for texting an
+      // internal line on purpose.
+      return sendSms(input.phone, input.message, { via: input.via, humanInitiated: true });
     }),
   /**
    * Wave-108: status now reports BOTH SMS providers.

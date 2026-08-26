@@ -67,7 +67,51 @@ describe("red-team - format variants cannot evade the guard", () => {
   });
 });
 
+/**
+ * ALLOWED-PATH SAFETY. Every test below deliberately gets PAST the guard, so
+ * without this the call continues into the real transport. This worktree's
+ * .env carries five SHOP_SMS_GATEWAY_* credentials (worktree-setup copies the
+ * production env), and `internal` sends also bypass the normal customer gates
+ * - so a targeted or full run could have sent real texts to the operator's
+ * number. Verified after the fact that none escaped (lifetime count unchanged
+ * at 18), but that was luck, not construction.
+ *
+ * Stripping every transport credential makes the allowed path fail at
+ * "not configured" instead of dialling out. The assertions only ever check
+ * that MY guard did not fire, so a transport failure is the correct outcome.
+ */
+function stripTransportCredentials() {
+  const KEYS = [
+    "SHOP_SMS_GATEWAY_USERNAME", "SHOP_SMS_GATEWAY_PASSWORD", "SHOP_SMS_GATEWAY_URL",
+    "SHOP_SMS_GATEWAY_DEVICE", "SHOP_SMS_GATEWAY_DEVICE_ID", "SHOP_SMS_GATEWAY_API_KEY",
+    "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
+  ];
+  const saved = new Map<string, string | undefined>();
+  for (const k of KEYS) { saved.set(k, process.env[k]); delete process.env[k]; }
+  return () => {
+    for (const [k, v] of saved) {
+      // Restore-or-delete: `env.X = undefined` stores the string "undefined".
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  };
+}
+
 describe("red-team - the escape hatch is INTENT, never the destination", () => {
+  let restore: () => void;
+  beforeEach(() => { restore = stripTransportCredentials(); });
+  afterEach(() => { restore(); });
+
+  it("BREAKS: the transport really is unreachable in these tests", async () => {
+    // POSITIVE CONTROL for the stripping itself. If credentials leaked back
+    // in, an allowed send would attempt a real dispatch and this would not
+    // report a configuration failure - the whole safety argument above rests
+    // on this assertion.
+    const r = await sendSms(CUSTOMER, "probe", { humanInitiated: true });
+    expect(r.success).toBe(false);
+    expect(r.error ?? "").toMatch(/not configured|gateway|unavailable|failed/i);
+  });
+
   it("BREAKS: humanInitiated ALLOWS it - operator self-tests still work", async () => {
     // Must not be refused. If this ever fails closed, the operator loses the
     // ability to text himself from the admin, and the guard gets deleted.
@@ -254,6 +298,55 @@ describe("red-team - staff-alert lanes declare intent, so the guard cannot mute 
   it("BREAKS: the eventBus manager alert declares it too", () => {
     const src = read("server/services/eventBus.ts");
     expect(src).toMatch(/sendSms\(managerPhone,[^)]*messageClass: "internal"/);
+  });
+});
+
+describe("review-gate fixes - the refusal is terminal, and manual admin sends survive", () => {
+  const read = (rel: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readFileSync } = require("fs") as typeof import("fs");
+    const { join } = require("path") as typeof import("path");
+    return readFileSync(join(process.cwd(), rel), "utf-8");
+  };
+
+  it("BREAKS: SmsSendError classifies the refusal as TERMINAL", () => {
+    // sendSmsOrThrow inside withRetry would otherwise repeat a policy refusal
+    // two or three times with backoff, never able to succeed - delaying
+    // synchronous flows and logging duplicate refusals.
+    const src = read("server/sms.ts");
+    const list = src.slice(src.indexOf("const TERMINAL_SMS_FAILURES"), src.indexOf("export class SmsSendError"));
+    expect(list).toContain("internal shop/operator line");
+  });
+
+  it("BREAKS: the terminal marker actually appears in the refusal text", () => {
+    // Two strings that must agree. If either is reworded alone the
+    // classification silently stops matching and the retry loop returns.
+    const src = read("server/sms.ts");
+    const marker = "internal shop/operator line";
+    const refusal = src.slice(src.indexOf("Refused: destination is an"), src.indexOf("Refused: destination is an") + 140);
+    expect(refusal).toContain(marker);
+  });
+
+  it("BREAKS: admin sendTest and sendManual declare humanInitiated", () => {
+    // Both are adminProcedure - authenticated and human-triggered by
+    // definition - and testing the shop's OWN line is the main use of the
+    // button, so without this the guard refuses exactly the case the feature
+    // exists for.
+    const src = read("server/routers/services.ts");
+    const test = src.slice(src.indexOf("sendTest: adminProcedure"), src.indexOf("sendManual: adminProcedure"));
+    const manual = src.slice(src.indexOf("sendManual: adminProcedure"));
+    expect(test).toMatch(/sendSms\([^)]*humanInitiated: true/s);
+    expect(manual.slice(0, 600)).toMatch(/sendSms\([^)]*humanInitiated: true/s);
+  });
+
+  it("BREAKS: the allowed-path tests strip transport credentials", () => {
+    // The safety argument for calling the real sendSms on the ALLOWED path
+    // rests entirely on this. This worktree carries production gateway
+    // credentials.
+    const src = read("server/sendSmsInternalLineGuard.test.ts");
+    expect(src).toContain("SHOP_SMS_GATEWAY_USERNAME");
+    expect(src).toContain("TWILIO_ACCOUNT_SID");
+    expect(src).toMatch(/beforeEach\(\(\) => \{ restore = stripTransportCredentials\(\); \}\)/);
   });
 });
 

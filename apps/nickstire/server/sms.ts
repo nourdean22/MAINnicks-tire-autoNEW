@@ -1634,6 +1634,12 @@ const TERMINAL_SMS_FAILURES = [
   "not configured",
   // Retrying cannot manufacture a consent record the customer never gave.
   "No SMS consent on file",
+  // A destination-policy refusal is a decision, not a transient fault. Without
+  // this, sendSmsOrThrow inside withRetry repeats the same refusal two or three
+  // times with backoff — never able to succeed — delaying synchronous flows and
+  // logging duplicate refusals. Matches the error text emitted by the
+  // internal-line guard below.
+  "internal shop/operator line",
 ] as const;
 
 export class SmsSendError extends Error {
