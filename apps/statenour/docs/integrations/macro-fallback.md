@@ -1,11 +1,18 @@
 # Macro fallback — FRED + BLS + BEA + Census
 
-**Status (2026-08-25):** wired end-to-end; **BLS serves TODAY with zero keys**
-(keyless v1 tier, measured); FRED uses the existing `FRED_API_KEY`; BEA and
-Census are **dormant until the operator sets keys** (an operator-side Railway
-env edit — protected operation, never agent-initiated). Dormancy is visible:
-the daily brief's macro status footer names every unkeyed provider and its
-exact env var.
+**Status (2026-08-26): ALL FOUR PROVIDERS LIVE.** Keys set by the operator on
+2026-08-26; payload-asserting probe receipt the same morning: BLS OK (keyless
+v1 tier) · FRED OK (CPIAUCSL 332.813 @ 2026-07 — the first FRED data since the
+2026-08-12 outage) · BEA OK (Ohio personal income 814,428.0 @ 2026Q1) · CENSUS
+OK (MARTS 441, 2026 rows). Re-verify any time (reads the RUNNING Railway env,
+never a local .env):
+
+```
+railway run --service statenour-web -- node ~/.claude/scripts/macro-keys-live-probe.mjs
+```
+
+(that probe script is machine-local to the operator's box, not in the repo —
+the in-repo confirmation surface is the brief's "Macro source status" footer).
 
 ## Why, and why now
 
@@ -71,15 +78,27 @@ dormant — set BEA_API_KEY"), and the ingest branch returns `success: false`
 with that message — feeding the existing zero-ingest alert chain. A macro
 report with no numbers can never ingest as a quiet success.
 
-## Activation (operator)
+## Activation — DONE 2026-08-26, traps recorded for the next key rotation
 
-1. Optional today: nothing — BLS already serves keyless.
-2. `BLS_API_KEY` (free) lifts BLS to v2 limits.
-3. `BEA_API_KEY` arms Ohio personal income.
-4. `CENSUS_API_KEY` arms MARTS 441.
-5. Set in Railway → statenour-web; next `macro` ingest picks them up. Confirm
-   in the brief's "Macro source status" footer — the provider flips from
-   `dormant — waiting on <VAR>` to `OK, n series`.
+`BEA_API_KEY` + `CENSUS_API_KEY` + `FRED_API_KEY` are set in Railway →
+statenour-web (`BLS_API_KEY` optional — keyless serves; the key only retires
+the shared-egress-IP quota caveat). Railway auto-redeploys on a CLI
+`railway variables --set` (~1 min, env-only restart, no rebuild).
+
+Observed live during activation — the traps a future rotation will hit:
+
+- **Key shapes are diagnosable without reading values**: BEA = 36-char UUID
+  *with dashes*; FRED = 32-char bare hex. The FRED key landed in the BEA slot
+  twice during activation and was caught by shape (`len 32, hex`) — probe the
+  shape, never print the value.
+- **BEA error codes disambiguate the fix**: `APIErrorCode 1 "Invalid API
+  UserId"` = the stored VALUE is wrong (re-paste); `APIErrorCode 4 "not
+  active"` = the value is right and only the email activation click is
+  missing. Both ride inside HTTP 200.
+- **One transient BLS block-page blip** (HTML instead of JSON on a single
+  keyless call) was observed; the immediate retry served normally — not
+  quota, not an outage. The probe's keyless-BLS positive control is what made
+  it visible.
 
 ## Canaries
 
