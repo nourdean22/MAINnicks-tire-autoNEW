@@ -110,6 +110,37 @@ Corollary: **a failed read must never render as good news.** Distinguish
 `lib/observability/fleet-truth.ts`, where a thrown probe becomes
 `unknown` and `unknown` never counts as healthy.
 
+**When a finding rests on what a structure does NOT contain, read the
+WHOLE structure by its delimiters — never a line-number window.**
+`sed -n '/const typeMap/,/};/p'`, not `sed -n '140,165p'`. A truncated
+read of a map is how orphaned-subject false positives are manufactured:
+witnessed 2026-08-26, an audit reported nickstire's `typeMap` as having
+"no mapping that yields booking" — delivered to the operator as a
+finding — because the window cut off the map's head, whose first line is
+`"nickstire:booking": "booking"`. Refuted only when fix work forced a
+full read. Absence claims inherit the blast radius of "not in the repo
+is a fact about your search": prove the search saw the whole subject.
+
+## Confirming a merge is DEPLOYED
+
+"Merged" and "deployed" are different claims. Confirm via the
+unauthenticated deploy surface, and compare by ANCESTRY, never equality:
+
+```bash
+DEPLOYED=$(curl -s https://bdnick.info/api/version | jq -r .data.build.commit)
+git merge-base --is-ancestor <your-merge-sha> "$DEPLOYED" && echo LIVE
+```
+
+Two waiter failure modes witnessed 2026-08-26, same session:
+- **SHA equality breaks the moment a sibling merges** — the deployed SHA
+  legitimately overtakes the one you await (watched prod run two
+  later commits containing nothing of mine, then one containing
+  everything; an equality waiter would call all three "not deployed").
+- **A prefix longer than `commitShort` never matches** — the endpoint's
+  `commitShort` is `sha.slice(0, 7)`; a 9-char comparison printed
+  "still not deployed" forever over a build that was already live.
+  Compare full SHAs via ancestry, or exactly 7 chars, nothing between.
+
 ## When the operator DECLINES a gate finding
 
 A gate that always fails is a gate everyone learns to ignore — the exact
