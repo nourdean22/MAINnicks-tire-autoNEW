@@ -1,6 +1,6 @@
 # Reconciliation · statenour-os
 
-> ## 2026-08-26 · The surface-honesty wave · 17 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902)
+> ## 2026-08-26 · The surface-honesty wave · 18 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902 #1911)
 >
 > One theme, arrived at from three directions: **a surface that cannot say "I do not know" will
 > say something false instead.** Panels rendering a failed read as a measured zero; a stop hook
@@ -74,6 +74,12 @@
 > **#1902 · dropped a pinned count I wrote hours earlier.** The manifest said "8 enabled rules";
 > four operator-approved disables later it was 4. Removed rather than corrected — a count in
 > prose is a cache with no invalidation. It earned itself the same day.
+> **#1911 · `page-intelligence` wired, FACTS only.** Its output mixes counts (`/chat` opened 49
+> times; three surfaces untouched 3+ days; 21 visits after 11pm) with psychological reads
+> ("correlates with overthinking", "may be using conversation as procrastination"). The reads may
+> be right; nothing here measured them — it counted page rows. `insights[]` is excluded by a TEST,
+> not a comment, mutation-tested both ways. Renders `lateNightCount`, not the `> 3` boolean — the
+> threshold is somebody's opinion; the number lets the reader form their own.
 >
 > **Prod data changes (operator-authorized, each backed up before the write):**
 > Three time rules reworded (`_bak_automation_rules_reword_20260826`). Four rules disabled across
@@ -86,8 +92,8 @@
 > **Flagged · NOT fixed:**
 > - `energy-router` runs clean in 31ms and returns `totalSamples: 0`. Every recommendation it can
 >   make is unearned; it stays dark until the sample count is non-zero.
-> - `page-intelligence` produces inference, not counts ("Nour may be using conversation as
->   procrastination"). Deliberately not wired into a brief whose measured failure is unearned claims.
+> - `page-intelligence`'s `insights[]` stays out of the brief permanently (its counts went in at
+>   #1911). Still available to the chat prompt, where handing a model a hypothesis is reasonable.
 > - PR-4 (brief push escalation) KILLED on measurement, not effort: 26 of 32 briefs (81.3%) carry
 >   CRITICAL, and the marker is INVERTED at both extremes — it fired on both days with zero cron
 >   failures and stayed silent on the day with 6,039 of 60,519 runs failing.
@@ -1066,7 +1072,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1902 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1911 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1594,7 +1600,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1902 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1911 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

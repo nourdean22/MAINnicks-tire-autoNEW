@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-08-26 · surface-honesty #1837-#1902 + interaction-audit #1881-#1898. Everything earlier: RECONCILIATION top.
+**Last refreshed:** 2026-08-26 · surface-honesty #1837-#1911 + interaction-audit #1881-#1898. Everything earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
