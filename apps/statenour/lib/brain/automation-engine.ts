@@ -33,7 +33,7 @@
  * measured facts they need are in that preview.
  */
 import { prisma } from "@/lib/prisma";
-import { hourET, weekdayET } from "@/lib/utils/datetime";
+import { hourET, weekdayET, toDateString } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
 import { sendTelegram } from "@/lib/services/telegram";
 import type { AutomationRule } from "@prisma/client";
@@ -120,6 +120,7 @@ export class AutomationEngine {
       time: now,
       dayOfWeek: weekdayET(now),
       hour: hourET(now),
+      todayET: toDateString(now),
       freshMemoryCategories,
     };
   }
