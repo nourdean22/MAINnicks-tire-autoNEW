@@ -1,0 +1,119 @@
+{
+  "packId": "2026-08-26-exhaust-hanger-rattle-over-bumps",
+  "generatedAt": "2026-08-26",
+  "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
+  "slateSource": "no slate file backs this topic — chosen ad hoc from the repetition-avoidance check in README §1/§2, not from any REEL-SLATE-*.md",
+  "campaignKeyword": "EXHAUST-HANGER",
+  "hookText": "Rattling under your car every time you hit a bump?",
+  "ctaText": "Nick's Tire & Auto — Euclid Ave, Cleveland. Stop by and we'll take a look.",
+  "ctaTypeNote": "SAVE/informational close, not a SEND push — matches this directory's dominant convention (e.g. 2026-08-16-check-engine-light) rather than inventing a new CTA shape.",
+  "durationSeconds": 32,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame (Seedance/Higgsfield cannot spell; M10 preflight blocks generated text)",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Rattling under your car every time you hit a bump?",
+      "onScreenText": "",
+      "providerScene": "POV shot from inside a car driving down a slightly rough residential street, dashboard and hood visible in frame, subtle suspension bounce as the car crosses a bump, warm daylight, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 2,
+      "intent": "SETUP",
+      "startSecond": 3,
+      "endSecond": 8,
+      "narration": "That's not always the muffler — it's often a broken exhaust hanger.",
+      "onScreenText": "",
+      "providerScene": "Low-angle shot underneath a car on a garage lift, exhaust pipe and muffler visible running the length of the underbody, slow push-in dolly toward a rubber hanger bracket, work-light illumination, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 8,
+      "endSecond": 13,
+      "narration": "A cracked rubber isolator can point to a pipe swinging loose underneath.",
+      "onScreenText": "",
+      "providerScene": "Extreme macro on a rubber exhaust hanger isolator, visible dry-rot cracking, gloved hand (no face) gently flexing it to show the crack widening, bright clinical work-light, shallow depth of field, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 13,
+      "endSecond": 19,
+      "narration": "A light rattle: one clue, still fine to drive over, carefully.",
+      "onScreenText": "",
+      "providerScene": "Static wide shot of the car underbody on the lift, exhaust pipe hanging with a small amount of visible sag/give but still clear of the road, calm neutral lighting, slight held vibration, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 5,
+      "intent": "VALUE",
+      "startSecond": 19,
+      "endSecond": 25,
+      "narration": "A loud bang or scraping? Stop — a dragging pipe can rip loose and become a hazard.",
+      "onScreenText": "",
+      "providerScene": "Same underbody framing, now the exhaust pipe visibly sagging lower toward the pavement, color grade shifts warmer/more urgent, slight handheld shake for emphasis, hard cut to a close shot of the tailpipe end nearly touching the ground, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 6,
+      "intent": "CTA",
+      "startSecond": 25,
+      "endSecond": 29,
+      "narration": "Do not guess which hanger failed. We check the whole exhaust — free check, written quote before any work.",
+      "onScreenText": "",
+      "providerScene": "Technician's gloved hand (no face) running a flashlight beam along the full exhaust system from underneath on a lift, methodical inspection motion, warm garage lighting, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    },
+    {
+      "beatNumber": 7,
+      "intent": "CTA_FREEZE",
+      "startSecond": 29,
+      "endSecond": 32,
+      "narration": "Nick's Tire & Auto — Euclid Ave, Cleveland. Stop by and we'll take a look.",
+      "onScreenText": "",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold — SAVE freeze frame per the render-integrity contract's 3s end-hold convention, 9:16 vertical framing",
+      "sceneStatus": "clean",
+      "negativePromptOverride": null
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §1)",
+    "musicBed": "none — deliberately omitted to avoid the unresolved music-rights gap (README §6); ambient road-noise (beats 1–2) and garage room-tone (beats 6–7) only, royalty-free",
+    "sfxNotes": "optional single subtle metallic rattle/clank layered under beat 5 (dragging-pipe visual) for emphasis; skip if no cleared SFX source is available rather than substitute an uncleared one"
+  },
+  "claimSafetyVerification": {
+    "method": "FORBIDDEN_CLAIM_PATTERNS / OVERDIAGNOSIS_PATTERNS / FEARMONGER_PATTERNS / GENERIC_MARKETING_PATTERNS / PRICE_CLAIM_PATTERN regexes copied verbatim from client/src/lib/facelessReelStudio.ts and run standalone against the full narration text via node — a real regex execution, not a human read-through. Not the same as invoking the module's exported detectors directly (no live import was run), and not the same as the server's real runSafetyChecks() call.",
+    "result": "clean — zero block or warn findings across all five pattern banks checked. 'free check' does not trip no-free-claims (negative-lookahead exempts it); 'can point to' / 'one clue' / 'do not guess' / 'stop by and we'll take a look' are drawn directly from the approved soft-diagnostic phrase list. 'rip loose and become a hazard' does not match the FEARMONGER_PATTERNS bank's 'could kill' / 'death trap' / 'catastroph' / 'time bomb' / 'waiting to explode or fail' patterns."
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 7, "detail": "a POV bump/rattle hook is relatable but visually quiet compared to a sound- or warning-light-based hook already used elsewhere in this directory" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2, "detail": "CTA freeze frame (garage wide shot) does not loop back into the hook frame (POV driving) — same structural weakness noted in every prior pack in this directory using the SAVE-freeze ending" },
+      "sourcedFact": { "max": 10, "score": 6, "detail": "hanger/isolator failure causing pipe rattle, and a fully unsupported pipe dragging as a hazard, are standard automotive mechanical knowledge, hedged with 'can point to' (approved soft-diagnostic phrasing); no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run (would be a prod DB read)" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 9, "detail": "clears all five real pattern banks (see claimSafetyVerification above); not full marks because entailment status for the mechanical claims is 'not_evaluated', not 'supported'" },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (59/70) is below the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "59/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a tighter loop before this would likely clear the real gate"
+  }
+}
