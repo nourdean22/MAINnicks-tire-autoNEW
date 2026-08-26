@@ -41,6 +41,15 @@ export interface EvalContext {
   dayOfWeek: number;
   /** Categories with a memory fresh enough to count, for `pattern` triggers. */
   freshMemoryCategories: Set<string>;
+  /**
+   * ET calendar day, e.g. "2026-08-26". The time fingerprint keys on the DATE,
+   * not the weekday: `[dayOfWeek, hour]` looks fine for a daily rule because
+   * consecutive days always differ, but a rule with `days: [1]` produces an
+   * IDENTICAL fingerprint next Monday and is suppressed forever after its first
+   * fire. None of the eight current rules uses `days`, so this was latent —
+   * which is exactly the kind of thing that surfaces a year later.
+   */
+  todayET: string;
 }
 
 export type TriggerEval =
@@ -129,7 +138,7 @@ export function evaluateTrigger(trigger: TriggerSpec, ctx: EvalContext): Trigger
       return {
         fires: true,
         reason: `ET hour ${trigger.hour}`,
-        fingerprint: computeFingerprint("time", [`${ctx.dayOfWeek}`, `${trigger.hour}`]),
+        fingerprint: computeFingerprint("time", [ctx.todayET, `${trigger.hour}`]),
       };
     }
 

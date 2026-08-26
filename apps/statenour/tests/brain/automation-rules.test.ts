@@ -39,6 +39,7 @@ const ctx = (over: Partial<EvalContext> = {}): EvalContext => ({
   hour: 14,
   dayOfWeek: 3,
   freshMemoryCategories: new Set<string>(),
+  todayET: "2026-08-26",
   ...over,
 });
 
@@ -216,6 +217,27 @@ describe("THE EIGHT REAL RULES · what each one does now", () => {
     const camera = evaluateTrigger(cases[3][1], prodCtx);
     expect(camera.fingerprint).toContain("cam0");
     expect(camera.reason).toContain("10");
+  });
+
+  it("A WEEKLY RULE IS NOT SUPPRESSED NEXT WEEK — the bug I nearly armed", () => {
+    // The time fingerprint first keyed on [dayOfWeek, hour]. For a daily rule
+    // that looks fine, because consecutive days always differ from the LAST
+    // stored value. For `days: [1]` it is identical next Monday, so the rule
+    // fires once and is silent forever. None of the eight rules uses `days`,
+    // which is exactly why it would have surfaced a year from now.
+    const mondayOnly: TriggerSpec = { type: "time", hour: 18, days: [1] };
+    const wk1 = evaluateTrigger(mondayOnly, ctx({ hour: 18, dayOfWeek: 1, todayET: "2026-08-24" }));
+    const wk2 = evaluateTrigger(mondayOnly, ctx({ hour: 18, dayOfWeek: 1, todayET: "2026-08-31" }));
+    expect(wk1.fires).toBe(true);
+    expect(wk2.fires).toBe(true);
+    expect(wk2.fingerprint, "same weekday, different week, must differ").not.toBe(wk1.fingerprint);
+  });
+
+  it("but the SAME day at the same hour stays one fire", () => {
+    const t: TriggerSpec = { type: "time", hour: 18 };
+    const a = evaluateTrigger(t, ctx({ hour: 18, todayET: "2026-08-26" }));
+    const b = evaluateTrigger(t, ctx({ hour: 18, todayET: "2026-08-26" }));
+    expect(a.fingerprint).toBe(b.fingerprint);
   });
 
   it("THE ALERT-FATIGUE GUARD: an unchanged world produces an unchanged fingerprint", () => {

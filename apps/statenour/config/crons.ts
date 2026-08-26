@@ -258,6 +258,20 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "automation-engine",
+    inngest: true,
+    // Hourly, because every trigger is evaluated in ET inside the engine - the
+    // dispatcher only has to guarantee it LOOKS each hour, which makes DST a
+    // non-issue rather than a two-candidate schedule.
+    schedule: "0 * * * *",
+    mode: "active",
+    category: "signals",
+    description:
+      "Hourly automation-rule evaluation - 8 enabled rules, edge-triggered via match-set fingerprint so a standing condition alerts once, not hourly. Executor rewritten 2026-08-26 (it previously threw on every fire); the three time rules reworded the same day to stop asserting conditions their triggers never check (backup _bak_automation_rules_reword_20260826).",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     name: "operating-rhythm",
     inngest: true,
     // 11am ET, both DST candidates. getCurrentSlot() gates on the ET hour, so a
