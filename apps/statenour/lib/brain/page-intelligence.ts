@@ -11,12 +11,27 @@
 import { prisma } from "@/lib/prisma";
 import { hourET } from "@/lib/utils/datetime";
 
-interface PagePattern {
+export interface PagePattern {
   topPages: Array<{ page: string; count: number }>;
   blindSpots: string[];
+  /** Kept for existing callers; it is `lateNightCount > 3`, a judgement. */
   lateNightUsage: boolean;
+  /**
+   * The COUNT behind `lateNightUsage`. Exported 2026-08-26 because the boolean
+   * bakes a threshold in: ">3 visits after 11pm" is someone's opinion about what
+   * is a lot, and a surface that shows the number lets the reader form their
+   * own. The brief renders the count, never the boolean.
+   */
+  lateNightCount: number;
   avgDailyVisits: number;
   lastActive: string | null;
+  /**
+   * INFERENCE, not measurement — "Nour may be using conversation as
+   * procrastination". Deliberately NOT rendered in the daily brief: that
+   * surface's measured failure is unearned claims, and an inference printed as
+   * a fact is that failure with a new source. Kept for the chat prompt, where a
+   * hypothesis is a reasonable thing to hand a model.
+   */
   insights: string[];
 }
 
@@ -31,7 +46,7 @@ const IMPORTANT_PAGES = [
 /**
  * Analyze page visits from the last 7 days and generate intelligence.
  */
-async function analyzePagePatterns(): Promise<PagePattern> {
+export async function analyzePagePatterns(): Promise<PagePattern> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const visits = await prisma.auditEvent.findMany({
@@ -112,6 +127,7 @@ async function analyzePagePatterns(): Promise<PagePattern> {
     topPages,
     blindSpots,
     lateNightUsage: lateNightCount > 3,
+    lateNightCount,
     avgDailyVisits: uniqueDays.size > 0 ? Math.round(visits.length / uniqueDays.size) : 0,
     lastActive: visits[0]?.createdAt.toISOString() || null,
     insights,
