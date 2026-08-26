@@ -137,6 +137,23 @@ export function exclusionReason(
   return null;
 }
 
+/**
+ * The internal-line entry for a phone number, or null. Exported so the ONE
+ * choke point every SMS lane passes through - sendSms() - can refuse an
+ * automated customer-facing send and name WHY in the log.
+ *
+ * Accepts any format: the comparison is on the last 10 digits after stripping
+ * non-digits, so "+1 (216) 848-8888", "12168488888" and "216.848.8888" all
+ * resolve to the same entry. A guard that only matched one spelling would be
+ * bypassed by the next caller that formatted the number differently.
+ */
+export function internalLineFor(phone: string | null | undefined): InternalLine | null {
+  const d = digits(phone);
+  if (d.length < 10) return null;
+  const last10 = d.slice(-10);
+  return INTERNAL_LINES.find((l) => l.last10 === last10) ?? null;
+}
+
 export function isNonCustomer(
   row: MaybeNonCustomer,
   internalLines: readonly InternalLine[] = INTERNAL_LINES,

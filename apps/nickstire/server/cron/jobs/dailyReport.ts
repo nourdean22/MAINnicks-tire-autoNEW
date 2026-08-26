@@ -61,7 +61,13 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
 
     // Still send SMS as backup
     const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, $${revenue} revenue. — Nick's Tire & Auto`;
-    await sendSms(ownerPhone, message, { via: "shop" });
+    // messageClass "internal" is REQUIRED, not decorative. sendSms refuses
+    // automated sends aimed at a shop/operator line, and the escape hatch is
+    // the caller's declared INTENT, never the destination. This report is a
+    // staff report by definition; without the declaration it would silently
+    // stop arriving the day OWNER_PHONE_NUMBER is set to a number in the
+    // internal registry — which is the correct value for it to hold.
+    await sendSms(ownerPhone, message, { via: "shop", messageClass: "internal" });
 
     log.info("Daily report sent", { bookingCount, leadCount, revenue });
     return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: $${revenue}` };
