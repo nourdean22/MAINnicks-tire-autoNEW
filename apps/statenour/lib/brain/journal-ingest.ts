@@ -24,6 +24,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("journal-ingest", "journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { hourET, today } from "@/lib/utils/datetime";
+import { hourFrameMeta } from "@/lib/brain/hour-frame";
 import { sendTelegram } from "@/lib/services/telegram";
 import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import { getJournalSettings } from "@/lib/journal/settings";
@@ -568,7 +569,10 @@ ${rawText}`,
           "emotional_state",
           `journal_mood_${dateStr}_${hourET()}`,
           `Journal mood at ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}: ${data.mood.toLowerCase()}. ${data.summary || ""}`,
-          "journal_pipeline"
+          "journal_pipeline",
+          // The key embeds an hour, so it must say which clock — see
+          // lib/brain/hour-frame.ts. Pre-#1809 rows have no marker and are UTC.
+          hourFrameMeta()
         );
       } else if (data.mood) {
         log.info("journal_ingest_skip_mood", {

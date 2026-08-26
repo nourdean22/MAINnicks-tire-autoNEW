@@ -35,6 +35,7 @@ const aiChat = makeTracedAiChat("pipeline-controller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
 import { hourET, today } from "@/lib/utils/datetime";
+import { hourFrameMeta } from "@/lib/brain/hour-frame";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { sanitizeDeadline } from "@/lib/services/commitments";
 
@@ -68,7 +69,10 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
         "pattern",
         `booking_hour_${hour}`,
         `Booking received at ${hour}:00 — ${event.data.service || "unknown service"}`,
-        "pipeline_analysis"
+        "pipeline_analysis",
+        // The key embeds an hour, so it must say which clock — see
+        // lib/brain/hour-frame.ts. Pre-#1809 rows have no marker and are UTC.
+        hourFrameMeta()
       );
       actions.push("pattern.booking_time");
       break;
@@ -356,7 +360,10 @@ Return empty arrays if nothing found. Be specific, not generic.`,
         "emotional_state",
         `mood_${today()}_${hourET()}`,
         `Emotional state at ${hourET()}:00: ${intel.emotionalSignals.toLowerCase()}`,
-        "conversation_analysis"
+        "conversation_analysis",
+        // The key embeds an hour, so it must say which clock — see
+        // lib/brain/hour-frame.ts. Pre-#1809 rows have no marker and are UTC.
+        hourFrameMeta()
       );
     }
 
@@ -464,7 +471,10 @@ export async function proactiveAlerts(): Promise<{ alerts: string[] }> {
         "business_alert",
         `unanswered_leads_${today()}_${hour}`,
         `${unansweredLeads} callback requests waiting. Response time is the #1 conversion factor.`,
-        "proactive_alert"
+        "proactive_alert",
+        // The key embeds an hour, so it must say which clock — see
+        // lib/brain/hour-frame.ts. Pre-#1809 rows have no marker and are UTC.
+        hourFrameMeta()
       );
       alerts.push(`${unansweredLeads} unanswered callbacks`);
       // OpenLoop auto-create retired Apr 18 — lead follow-up belongs
