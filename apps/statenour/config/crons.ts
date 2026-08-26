@@ -267,7 +267,7 @@ export const CRONS: CronDef[] = [
     mode: "active",
     category: "signals",
     description:
-      "Hourly automation-rule evaluation - 8 enabled rules, edge-triggered via match-set fingerprint so a standing condition alerts once, not hourly. Executor rewritten 2026-08-26 (it previously threw on every fire); the three time rules reworded the same day to stop asserting conditions their triggers never check (backup _bak_automation_rules_reword_20260826).",
+      "Hourly automation-rule evaluation - edge-triggered via match-set fingerprint so a standing condition alerts once, not hourly. Executor rewritten 2026-08-26 (it previously threw on every fire); the three time rules reworded the same day to stop asserting conditions their triggers never check (backup _bak_automation_rules_reword_20260826). No rule count is pinned here on purpose - two dead rules were disabled hours after this line was written, and a count in prose is a cache with no invalidation. Read automation_rules.enabled.",
     memory: 512,
     maxDuration: 60,
   },
