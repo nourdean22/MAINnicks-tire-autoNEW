@@ -2,25 +2,48 @@
 /**
  * measure-prompt-size.ts — regression guard for the system prompt.
  *
- * The prompt now injects: permanent principles + pinned_user (top 5) +
- * identity/feedback memories (24 rows) + chat pattern + conversation
- * context + device list + recent syncs + market intel + continuity +
- * brain state. On a dense day the sum can drift past Venice's 50K
- * ceiling silently (truncation happens mid-sentence with no error).
+ * WHAT IT DOES. Builds the real system prompt against LIVE Neon for five
+ * representative (tier, message) scenarios — default, business, content,
+ * content-deep, sms — prints a per-section breakdown of the heaviest, and
+ * exits non-zero if ANY scenario exceeds the runtime cap. The multi-scenario
+ * sweep is the 2026-07-11 fix for a real gap: measuring only the default slot
+ * let the heaviest real prompts (content, content-deep) sail past the guard.
  *
- * This script:
- *   1. Calls buildSystemPrompt() against LIVE Neon data so we see
- *      the real current prompt size.
- *   2. Prints a breakdown — total chars + estimated tokens (÷4).
- *   3. Exits non-zero if total > MAX_CHARS (default 40,000 = 20% headroom).
+ * THE CAP IS 65,000 CHARS, and it is not a readability preference. The root is
+ * `MAX_SYSTEM_CHARS` in app/api/ai/chat/finalize-system-prompt.ts:118 —
+ * `provider === "anthropic" ? 120000 : 65000` — the hard slice applied to the
+ * built prompt at runtime. Past it the prompt is trimmed mid-content with no
+ * error, which is the failure this script exists to catch before a deploy.
+ *
+ * `RUNTIME_MAX` below is a hardcoded MIRROR of that root, not an import:
+ * importing the prompt graph at module load would run before
+ * neutralizeServerOnly() and loadEnv(), which is the crash this file's
+ * server-only shim was written for. The number has FOUR hand-maintained copies
+ * (finalize-system-prompt.ts:118, lib/ai/system-prompt.ts:153,
+ * lib/services/chat-prompt-inspect.ts:100, and here), three of them carrying
+ * "keep in sync" comments that nothing enforced. A canary in
+ * tests/repo/prompt-size-skip.test.ts now pins ALL THREE mirrors to the root,
+ * and pins this header's stated cap to RUNTIME_MAX, so a change to the real cap
+ * that forgets any copy goes red instead of leaving a gate that silently
+ * measures against a stale threshold.
+ *
+ * WIRED, not manual. It is step 18 of `verify:hard` (package.json). With no
+ * DATABASE_URL it SKIPS LOUDLY and exits 0 rather than red-lining the other
+ * eighteen gates — scripts/_lib/db-gate.ts. In CI a missing DATABASE_URL FAILS
+ * instead, because a skip there would be a false green.
  *
  * Run:
- *   npm run prompt:size-check
+ *   pnpm prompt:size-check
  *   # or
- *   npx tsx scripts/measure-prompt-size.ts [--max 40000]
+ *   pnpm exec tsx scripts/measure-prompt-size.ts [--max <chars>]
  *
- * CI wiring: add to GitHub Actions or Vercel prebuild if desired.
- * For now it's a manual check we run after any prompt change.
+ * 2026-08-26 · this header carried four stale claims, corrected above: a
+ * 40,000-char default cap, a `[--max 40000]` example, "Venice's 50K ceiling",
+ * and "CI wiring: add to GitHub Actions or Vercel prebuild if desired. For now
+ * it's a manual check we run after any prompt change." The cap has been 65,000,
+ * the script has been inside verify:hard, and statenour left Vercel for Railway.
+ * A measurement tool whose own header misstates its threshold by 25,000 chars is
+ * the exact shape it exists to catch.
  */
 
 import { Module } from "node:module";
