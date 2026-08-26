@@ -112,3 +112,83 @@ describe("END TO END · the real CLI, run without a DATABASE_URL", () => {
     }
   }, 120_000);
 });
+
+/**
+ * The 65,000-char runtime cap has FOUR hand-maintained copies, three of them
+ * carrying "keep in sync" comments that nothing enforced:
+ *
+ *   app/api/ai/chat/finalize-system-prompt.ts:118  MAX_SYSTEM_CHARS  <- the ROOT
+ *   lib/ai/system-prompt.ts:153                    NON_ANTHROPIC_RUNTIME_CAP
+ *   lib/services/chat-prompt-inspect.ts:100        maxSystemChars
+ *   scripts/measure-prompt-size.ts                 RUNTIME_MAX
+ *
+ * The root is the one that actually slices the prompt at runtime. The other
+ * three exist because importing the prompt graph is not always possible where
+ * the number is needed — measure-prompt-size in particular cannot import it at
+ * module load, because that runs before neutralizeServerOnly() and loadEnv().
+ *
+ * A comment is not a mechanism. If someone raises the real cap, every copy that
+ * forgets to follow becomes a gate measuring against a stale threshold — and
+ * measure-prompt-size would report PASS on a prompt that gets truncated in
+ * production, which is the precise failure it exists to prevent. This arm makes
+ * that divergence red.
+ *
+ * Each extraction is asserted to have SUCCEEDED before the values are compared.
+ * Without that, a moved constant makes every regex return undefined and
+ * `undefined === undefined` passes — a vacuous green in a sync check.
+ */
+describe("the runtime cap agrees across all four copies", () => {
+  const read = (rel: string) => readFileSync(resolve(__dirname, "../..", rel), "utf8");
+  const num = (s: string | undefined) => (s === undefined ? undefined : Number(s.replace(/_/g, "")));
+
+  it("every copy is extractable and equal to the root", () => {
+    const root = num(
+      /MAX_SYSTEM_CHARS\s*=\s*provider\s*===\s*"anthropic"\s*\?\s*[\d_]+\s*:\s*([\d_]+)/.exec(
+        read("app/api/ai/chat/finalize-system-prompt.ts"),
+      )?.[1],
+    );
+    const mirror = num(
+      /NON_ANTHROPIC_RUNTIME_CAP\s*=\s*([\d_]+)/.exec(read("lib/ai/system-prompt.ts"))?.[1],
+    );
+    const inspect = num(
+      /maxSystemChars\s*=\s*provider\s*===\s*"anthropic"\s*\?\s*[\d_]+\s*:\s*([\d_]+)/.exec(
+        read("lib/services/chat-prompt-inspect.ts"),
+      )?.[1],
+    );
+    const script = num(/RUNTIME_MAX\s*=\s*([\d_]+)/.exec(read("scripts/measure-prompt-size.ts"))?.[1]);
+
+    // Extraction first — a moved constant must fail LOUDLY here, not silently
+    // make the equality below compare undefined to undefined.
+    for (const [label, v] of Object.entries({ root, mirror, inspect, script })) {
+      expect(v, `${label}: could not extract the cap — the constant moved, fix this regex`).toBeTypeOf("number");
+      expect(Number.isFinite(v), `${label}: extracted a non-number`).toBe(true);
+    }
+
+    expect(mirror, "lib/ai/system-prompt.ts NON_ANTHROPIC_RUNTIME_CAP drifted from the root").toBe(root);
+    expect(inspect, "lib/services/chat-prompt-inspect.ts maxSystemChars drifted from the root").toBe(root);
+    expect(script, "scripts/measure-prompt-size.ts RUNTIME_MAX drifted from the root").toBe(root);
+  });
+
+  it("the docstring states the cap the code actually uses", () => {
+    // The defect this arm exists for: the header claimed a 40,000-char default
+    // for as long as the file existed, while the code used 65,000 — a
+    // measurement tool misstating its own threshold by 25,000 chars.
+    //
+    // ASSERT THE CLAIM, NEVER A MENTION. The first version of this arm read
+    // `expect(header).toContain("65,000")` and did NOT fire when the claim
+    // sentence was staled to 40,000 — because the header mentions the number
+    // twice, once as the claim and once in the changelog paragraph recording
+    // what the old wrong value was. The surviving mention satisfied it. That is
+    // the "canary matched its own import line" shape from
+    // CONTROL-CANARY-COVERAGE.md, wearing documentation instead of code.
+    // Capturing from the authoritative sentence is what makes it bite.
+    const src = read("scripts/measure-prompt-size.ts");
+    const header = src.slice(0, src.indexOf(" */"));
+    const script = num(/RUNTIME_MAX\s*=\s*([\d_]+)/.exec(src)?.[1])!;
+    const claimed = num(/THE CAP IS ([\d,]+) CHARS/.exec(header)?.[1].replace(/,/g, ""));
+    expect(claimed, "the header no longer states its cap in the pinned form 'THE CAP IS <n> CHARS'").toBeTypeOf(
+      "number",
+    );
+    expect(claimed, "the header's stated cap disagrees with RUNTIME_MAX").toBe(script);
+  });
+});
