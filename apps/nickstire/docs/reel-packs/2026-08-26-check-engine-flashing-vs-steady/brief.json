@@ -1,0 +1,78 @@
+{
+  "topic": "check-engine-flashing-vs-steady",
+  "title": "A flashing check engine light is not the same warning as a steady one",
+  "producedBy": "scheduled-task",
+  "mode": "SCHEDULED",
+  "date": "2026-08-26",
+  "durationTargetSeconds": 31,
+  "aspectRatio": "9:16",
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "start": 0,
+      "end": 3,
+      "role": "hook",
+      "narration": "Is your check engine light flashing... or just staying on?",
+      "visualPrompt": "Close-up dashboard instrument cluster at night, check engine light icon blinking on/off in a dark cabin, shallow depth of field, subtle camera drift in."
+    },
+    {
+      "index": 2,
+      "start": 3,
+      "end": 7,
+      "role": "symptom",
+      "narration": "That blink is not the same warning as a steady light.",
+      "visualPrompt": "Same dashboard, check engine light now steady/solid (no blink), slow push-in, contrast lighting to visually separate from beat 1."
+    },
+    {
+      "index": 3,
+      "start": 7,
+      "end": 13,
+      "role": "explanation",
+      "narration": "A flashing light usually means an active misfire — the engine is dumping unburned fuel into a red-hot catalytic converter.",
+      "visualPrompt": "Engine bay, close macro shot of exhaust manifold glowing faint heat-shimmer, slow pan across metal surface, practical orange/red rim light."
+    },
+    {
+      "index": 4,
+      "start": 13,
+      "end": 18,
+      "role": "consequence",
+      "narration": "Keep driving on that, and you're not looking at a cheap fix anymore — a damaged converter is one of the most expensive parts under your car.",
+      "visualPrompt": "Catalytic converter cutaway or exhaust underbody shot, camera tilts up from tailpipe along the exhaust line, muted industrial color grade."
+    },
+    {
+      "index": 5,
+      "start": 18,
+      "end": 23,
+      "role": "safe_action_flashing",
+      "narration": "If it's flashing: ease off the gas, avoid highway speed, and get it looked at today.",
+      "visualPrompt": "Speedometer needle easing down from higher speed to lower speed, close macro, subtle motion blur on the needle only."
+    },
+    {
+      "index": 6,
+      "start": 23,
+      "end": 27,
+      "role": "safe_action_steady_contrast",
+      "narration": "A steady light is different — it's worth checking soon, but it's not an emergency.",
+      "visualPrompt": "Wide shop bay establishing shot, vehicle on a lift or parked in a bay, calm even lighting, static-to-slow-dolly."
+    },
+    {
+      "index": 7,
+      "start": 27,
+      "end": 31,
+      "role": "cta",
+      "narration": "One clue, two very different next steps. Not sure which you're looking at? Stop by and we'll take a look.",
+      "visualPrompt": "Nick's Tire & Auto branded shop-front or bay signage plate (existing brand asset, do not generate new logo), gentle push-in, held final frame for 3s SAVE freeze."
+    }
+  ],
+  "claimSafety": {
+    "priceStated": false,
+    "guaranteeStated": false,
+    "approvedSoftLanguageUsed": ["may indicate", "worth checking", "one clue", "stop by and we'll take a look"],
+    "entailmentStatus": "not_evaluated"
+  },
+  "evidenceSource": "general_automotive_knowledge_not_db_sourced",
+  "musicRights": "UNKNOWN_NO_TRACK_SELECTED",
+  "qaStatus": "UNKNOWN_NOT_RENDERED",
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
