@@ -25,6 +25,7 @@
 
 import { Module } from "node:module";
 import { loadEnv, confirmDatabase } from "./_lib/safety";
+import { resolveDbGate } from "./_lib/db-gate";
 
 /**
  * Neutralize `server-only` for this standalone `tsx` script.
@@ -75,6 +76,28 @@ async function main() {
   const RUNTIME_MAX = 65_000;
   const max = maxArg >= 0 ? Number(args[maxArg + 1]) : RUNTIME_MAX;
   const skipConfirm = args.includes("--yes") || !!process.env.CI;
+
+  // ── No DATABASE_URL: SKIP LOUDLY, do not fail the chain ──────────────────
+  // This script is step 18 of `verify:hard` and it measures the prompt against
+  // LIVE Neon. A worktree without credentials therefore red-lined the WHOLE
+  // 19-step chain on step 18 — so the rational move became not running
+  // verify:hard at all, and the other 18 gates went with it. A gate that blocks
+  // correct work gets routed around, and then it guards nothing.
+  //
+  // Skipping is the lesser evil ONLY if it is impossible to mistake for a pass.
+  // The banner says SKIPPED, says the prompt was NOT measured, and never prints
+  // the word PASS.
+  //
+  // CI IS EXEMPT FROM THE EXEMPTION. If this is ever wired into a workflow, a
+  // missing DATABASE_URL there is a broken job, not a laptop without secrets —
+  // and a silent skip would be a false green in the one place nobody re-reads.
+  // So CI fails loudly instead. (It is not in any workflow today; this is the
+  // guard for the day someone adds it.)
+  const gate = resolveDbGate(process.env);
+  if (gate.action !== "measure") {
+    (gate.action === "fail" ? console.error : console.warn)(gate.message);
+    process.exit(gate.action === "fail" ? 1 : 0);
+  }
 
   if (!skipConfirm) {
     await confirmDatabase("measure-prompt-size");
