@@ -258,6 +258,21 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
   },
   {
+    name: "operating-rhythm",
+    inngest: true,
+    // 11am ET, both DST candidates. getCurrentSlot() gates on the ET hour, so a
+    // single fixed UTC time would silently retire the feature every November
+    // (0 15 is 11am EDT but 10am EST). The wrong-hour tick is a no-op and
+    // rhythmAlreadyPushed makes a double send impossible.
+    schedule: "0 15,16 * * *",
+    mode: "active",
+    category: "compose",
+    description:
+      "Mid-morning check (11am ET) - revenue + callbacks + stale leads + focus hours left, Telegram push. Gated by autopilot_flags.adhd_operating_rhythm (true in prod) and idempotent per slot/day. executeRhythm shipped complete and had ZERO callers until 2026-08-26 - the flag was on and nothing ever asked.",
+    memory: 512,
+    maxDuration: 60,
+  },
+  {
     name: "mega-evening",
     path: "/api/cron/mega?slot=evening",
     // 2026-07-09 · sweep · the manifest claimed "0 2 * * *" but the actual
