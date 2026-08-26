@@ -254,7 +254,8 @@ complete — an unlisted control is not a covered one.
 | Source files are text — no NUL bytes | 1 | 1 | proves its own detector fires on a planted NUL BEFORE trusting any zero |
 | statenour `check:anti-slop` | 1 | 1 | wired into `verify:hard` after running nowhere at all; canary asserts the doc claims only the three patterns it greps |
 | statenour `check:et-clock` — bare `getHours()`/`getDay()` | 1 | 1 | forced-TZ test in a child process, plus a canary that reintroduces a bare reading and asserts the lint goes red |
-| **Total** | **62** | **18** | **29.0 %** |
+| agent-os `check-gate-reachability` — every `check:*`/`lint:*` is invoked by something | 1 | 1 | the meta-gate: catches the **unwired control** shape at author time. Six arms incl. one that runs the checker against the LIVE repo, so a new orphan reddens `agent:verify` |
+| **Total** | **63** | **19** | **30.2 %** |
 
 ---
 
@@ -269,6 +270,7 @@ complete — an unlisted control is not a covered one.
 | `config/agent-os/policy.json` (13 rules, 57 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
 | `scripts/agent-os/check-adapters.mjs` (135 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 17 tests: 11 breaks, 3 spare-cases, a cap boundary pair, 1 invariant, 1 positive control | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
+| `scripts/agent-os/check-gate-reachability.mjs` | that every `check:*`/`lint:*` script is invoked by CI, lefthook, or a `verify` chain | `gateReachability.test.mjs` — 6 arms: an orphan is named, three wirings are spared, the alias/fixer rules are proven not to swallow the real 2026-08-23 defect, the allowlist is checked for stale entries, a blinded copy of the checker is required to pass differently, and **arm 6 runs the checker against the live repo** so a new orphan reddens CI | `pnpm agent:verify`, CI |
 
 They share one shape worth copying: **they break the control AND assert an unbroken run still
 passes.** Without that second half, a control that failed unconditionally would score 100 %.
