@@ -1,0 +1,38 @@
+# Both PWAs run standalone on iOS, where window.confirm/alert/prompt return
+# silently (confirm() -> undefined, no dialog). Replace with the in-DOM
+# two-tap primitives (skill: nickstire-ios-pwa-primitives). nickstire's
+# client has an eslint gate for this; statenour had NOTHING until this rule.
+#
+# AST-level on purpose: comments and strings quoting "window.confirm(" never
+# match (the grep false-positive class), and the custom in-DOM
+# `await confirm({...})` helper in loop-stream.tsx never matches because it
+# is not window-qualified.
+#
+# Known limits, accepted: bracket access (window["confirm"]) and aliasing
+# (const c = window.confirm) evade an AST pattern. Those are deliberate
+# evasion, not the accidental-authorship failure mode this gate exists for.
+id: no-native-dialogs-tsx
+language: tsx
+severity: error
+message: window.confirm/alert/prompt are silently suppressed in iOS standalone PWAs - use the in-DOM two-tap primitives instead
+rule:
+  any:
+    - pattern: window.confirm($$$ARGS)
+    - pattern: window.alert($$$ARGS)
+    - pattern: window.prompt($$$ARGS)
+    - pattern: globalThis.confirm($$$ARGS)
+    - pattern: globalThis.alert($$$ARGS)
+    - pattern: globalThis.prompt($$$ARGS)
+---
+id: no-native-dialogs-ts
+language: typescript
+severity: error
+message: window.confirm/alert/prompt are silently suppressed in iOS standalone PWAs - use the in-DOM two-tap primitives instead
+rule:
+  any:
+    - pattern: window.confirm($$$ARGS)
+    - pattern: window.alert($$$ARGS)
+    - pattern: window.prompt($$$ARGS)
+    - pattern: globalThis.confirm($$$ARGS)
+    - pattern: globalThis.alert($$$ARGS)
+    - pattern: globalThis.prompt($$$ARGS)

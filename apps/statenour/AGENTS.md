@@ -87,8 +87,9 @@ script inside this app is active — do not resurrect one.
 - **Folders:** domain UI in `components/<domain>/`, primitives in `components/ui/`, shared logic in
   `lib/`. `src/` is retired; `features/` is frozen to the existing slices.
 - **iOS PWA:** `window.confirm/alert/prompt` are silently suppressed — two-tap in-DOM confirms only,
-  48×48px minimum targets. **Nothing lints this here** (nickstire has `lint:source`; statenour does
-  not), so it is on you. Skill: `nickstire-ios-pwa-primitives` — it governs this app too.
+  48×48px minimum targets. Since 2026-08-27 the `adoption-gates.yml` CI gate AST-blocks
+  `window.confirm/alert/prompt` here (canaried; red is advisory until branch protection).
+  Skill: `nickstire-ios-pwa-primitives` — it governs this app too.
 
 ## 3 · Canonical sources
 

@@ -95,7 +95,7 @@ A rule with a gate needs no restating; one without is only as good as your atten
 | Per-app lint + typecheck on staged files · staged-secret scan · adapter parity | `lefthook.yml` pre-commit | every agent + human (git-level) |
 | `pnpm run build:affected` | `lefthook.yml` pre-push | every agent + human |
 | Adapter parity + policy canaries | `pnpm agent:verify` in `.github/workflows/agent-policy.yml` | CI, every PR |
-| nickstire: no `alert/confirm/prompt` in `client/src`, no `console.log/warn/error` in `server/` (`.info`/`.debug` allowed) | `pnpm lint:source` | nickstire only — statenour has **no** such rule |
+| nickstire: no `alert/confirm/prompt` in `client/src`, no `console.log/warn/error` in `server/` (`.info`/`.debug` allowed) | `pnpm lint:source` + ast-grep in `adoption-gates.yml` | eslint is nickstire-only; the CI gate AST-blocks native dialogs in BOTH PWAs' client trees + statenour layer boundaries (canaried, dlx-pinned) since 2026-08-27 |
 | Everything else in this file | **nothing** | you |
 
 **CI is advisory.** There is no branch protection, so `gh pr merge` succeeds over a red check. Red means

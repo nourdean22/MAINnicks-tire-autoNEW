@@ -388,13 +388,14 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
 
 async function fetchBrainPulseItems(): Promise<TickerItem[]> {
   try {
-    const [maturityMod, nudgeMod, contradictionMod, identityMod] =
-      await Promise.all([
-        import("@/app/api/brain/maturity/route").catch(() => null),
-        import("@/lib/brain/cross-system-nudge"),
-        import("@/lib/brain/contradiction-surfacer"),
-        import("@/lib/brain/identity-snapshot"),
-      ]);
+    // 2026-08-27 · the maturity ROUTE module was also imported here, then
+    // discarded unused (`void maturityMod`) - deleted when the reverse-layer
+    // depcruise gate flagged lib -> app as its first real catch.
+    const [nudgeMod, contradictionMod, identityMod] = await Promise.all([
+      import("@/lib/brain/cross-system-nudge"),
+      import("@/lib/brain/contradiction-surfacer"),
+      import("@/lib/brain/identity-snapshot"),
+    ]);
     const [nudges, recentContradictions, snap] = await Promise.all([
       nudgeMod.computeNudges().catch(() => []),
       // 2026-08-16 · was countUnresolved(14), which returns a bare number —
@@ -405,8 +406,6 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
       contradictionMod.loadRecentContradictions(14, false).catch(() => []),
       identityMod.loadIdentitySnapshot().catch(() => null),
     ]);
-    void maturityMod; // silence unused import warning
-
     const items: TickerItem[] = [];
 
     // High-severity nudges — most important signal

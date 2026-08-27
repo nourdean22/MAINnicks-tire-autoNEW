@@ -1,0 +1,99 @@
+name: Adoption gates
+
+# ast-grep + dependency-cruiser (blocking) and knip (advisory), adopted via
+# docs/UPSTREAMS.md rows dated 2026-08-27. The blocking job is install-free:
+# every tool runs through version-pinned `pnpm dlx`, so nothing here touches
+# pnpm-lock.yaml or a junctioned worktree.
+#
+# Every gate ships its canary in-line (root AGENTS.md "Ship the canary, not
+# just the control"): a known-bad fixture MUST fail before the real scan's
+# green is trusted, so a gate that silently stops seeing violations turns
+# this job red instead of rotting.
+#
+# NOTE: this repo has no branch protection, so a red run does not
+# mechanically block `gh pr merge`. Red means stop, by convention.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adoption-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-gates:
+    name: ast-grep + dependency-cruiser (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: canary - ast-grep must fail on the bad fixtures, on the RULE
+        run: |
+          # Exit code alone is not enough: a config error also exits nonzero
+          # (probed 2026-08-27, TS18003 shape in the depcruise twin). The
+          # canary passes only if the run fails AND names the rule.
+          out=$(pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml config/adoption-gates/fixtures/bad 2>&1) && {
+            echo "::error::ast-grep canary scanned known-bad fixtures clean - the gate is blind, do not trust its green"; exit 1; } || true
+          echo "$out" | grep -q "no-native-dialogs" || {
+            echo "::error::ast-grep canary failed for the wrong reason (config error, not the rule):"; echo "$out"; exit 1; }
+          echo "canary OK: ast-grep still sees native-dialog violations"
+
+      - name: gate - no native dialogs in either PWA's client code
+        run: pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app apps/statenour/components apps/statenour/features apps/nickstire/client/src
+
+      - name: canary - dependency-cruiser must fail on the bad fixtures, on the RULES
+        run: |
+          DC="pnpm --package=dependency-cruiser@18.2.0 --package=typescript@5 dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs"
+          out=$($DC config/adoption-gates/fixtures/bad 2>&1) && {
+            echo "::error::dependency-cruiser canary - deprecated-card fixture scanned clean; the gate is blind"; exit 1; } || true
+          echo "$out" | grep -q "no-deprecated-card" || {
+            echo "::error::depcruise canary failed for the wrong reason (config error, not the rule):"; echo "$out"; exit 1; }
+          cp config/adoption-gates/fixtures/bad/reverse-import-canary.ts.txt apps/statenour/features/__depcruise_canary__.ts
+          out=$($DC apps/statenour/features/__depcruise_canary__.ts 2>&1) && {
+            rm apps/statenour/features/__depcruise_canary__.ts
+            echo "::error::dependency-cruiser canary - reverse-layer fixture scanned clean; the gate is blind"; exit 1; } || true
+          rm apps/statenour/features/__depcruise_canary__.ts
+          echo "$out" | grep -q "no-reverse-layer-imports" || {
+            echo "::error::depcruise reverse canary failed for the wrong reason:"; echo "$out"; exit 1; }
+          echo "canary OK: dependency-cruiser still sees both violation shapes"
+
+      - name: gate - layer boundaries + deprecated-card ban
+        run: pnpm --package=dependency-cruiser@18.2.0 --package=typescript@5 dlx depcruise --config config/adoption-gates/.dependency-cruiser.cjs apps/statenour/app apps/statenour/components apps/statenour/features apps/statenour/lib
+
+  knip-advisory:
+    name: knip reachability census (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: install (statenour dependency graph only)
+        run: pnpm install --frozen-lockfile --filter "@statenour/web..."
+
+      - name: knip census - report only, never fails
+        run: |
+          echo "## knip reachability census - apps/statenour (advisory)" >> "$GITHUB_STEP_SUMMARY"
+          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown >> "$GITHUB_STEP_SUMMARY" || true
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Advisory by design: the BUILT-UNWIRED items it flags are pending wire-or-delete decisions (docs/UPSTREAMS.md knip row). Flip to blocking by removing the || true once those land._" >> "$GITHUB_STEP_SUMMARY"
