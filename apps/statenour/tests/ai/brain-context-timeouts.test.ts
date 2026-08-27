@@ -34,6 +34,22 @@ const HOT_PATH_FETCHERS = [
   "anticipateMemories",
 ];
 
+describe("brain-context · contextual recall receives the hot-path opts (2026-08-27 retrieval baseline F2+F4)", () => {
+  // The call ran for months with NO opts: the Wave-81 queryEmbedding
+  // pass-through sat unwired (an extra embedding round-trip inside the 3s
+  // race) and the pipeline opened with an LLM topic-extraction measured at
+  // p50 4,183ms in prod agent_traces — losing the whole block to the timeout
+  // on the median turn. Structural pin, same convention as the timeout pins
+  // below: if a refactor drops either opt, this names it.
+  it("passes fastTopics + the precomputed queryEmbedding", () => {
+    const idx = src.indexOf("contextualRecallMod.getContextualMemories(");
+    expect(idx, "getContextualMemories call site missing").toBeGreaterThan(-1);
+    const call = src.slice(idx, idx + 400);
+    expect(call, "fastTopics keeps the chat path off the LLM topic extractor").toContain("fastTopics: true");
+    expect(call, "queryEmbedding reuses the prefetch embedding").toContain("queryEmbedding");
+  });
+});
+
 describe("brain-context · every hot-path fetcher honors the 3s timeout contract", () => {
   for (const fn of HOT_PATH_FETCHERS) {
     it(`${fn} is wrapped in withTimeout(`, () => {

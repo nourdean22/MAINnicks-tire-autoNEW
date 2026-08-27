@@ -60,7 +60,32 @@ const MAX_CONTENT_LEN = 220;
 // embedding step that note asked for now exists as a COMPANION category —
 // `reasoning_conclusion` (persist-conclusion.ts writes one distilled,
 // embedded row per run) is whitelisted below; the raw trace stays out.
-const CONTEXT_CATEGORIES = new Set([
+// 2026-08-27 · retrieval baseline (docs/RETRIEVAL-BASELINE-2026-08-27.md F1):
+// this whitelist contained NO durable personal category, so the lane KNN'd
+// the full corpus correctly and then deleted the answers — hit@5 = 0/28 on
+// the labelled corpus while dense rank was #1 on several cases (a medication
+// query; pm_event_shop_assault_2026-08-15). These are the categories the
+// operator's real queries target (and the same durable set the consolidation
+// guards protect in categories.ts). Exported for the canary test.
+export const DURABLE_PERSONAL_CATEGORIES = [
+  "identity",
+  "biography",
+  "relationships",
+  "health",
+  "event",
+  "business_fact",
+  "environment",
+  "ai_directive",
+  "vision",
+  "fact",
+  "personal",
+  "preference",
+  "goal",
+  "routine",
+] as const;
+
+export const CONTEXT_CATEGORIES = new Set<string>([
+  ...DURABLE_PERSONAL_CATEGORIES,
   "wisdom",
   "insight",
   "pattern",

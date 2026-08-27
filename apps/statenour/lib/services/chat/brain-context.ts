@@ -273,8 +273,23 @@ export async function buildBrainContext(
       (userContent.length > 10 || forceRecall) && conversationMemoryMod
         ? withTimeout(conversationMemoryMod.detectCrossSessionThread(userContent), 3000, null)
         : Promise.resolve(null),
+      // 2026-08-27 · retrieval baseline F2+F4: this call ran with NO opts, so
+      // (a) the Wave-81 queryEmbedding pass-through was never wired — an extra
+      // embedding round-trip inside this 3s race — and (b) the pipeline opened
+      // with a blocking LLM topic-extraction measured at p50 4,183ms in prod
+      // agent_traces, which lost the whole block to the timeout on the median
+      // turn. fastTopics keeps the chat hot path deterministic and in-budget;
+      // non-chat callers keep the LLM path.
       (userContent.length > 10 || forceRecall) && contextualRecallMod
-        ? withTimeout(contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5), 3000, null)
+        ? withTimeout(
+            contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5, {
+              queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
+              fastTopics: true,
+              
+            }),
+            3000,
+            null,
+          )
         : Promise.resolve(null),
       (userContent.length > 10 || forceRecall) && predictivePrefetchMod
         ? withTimeout(predictivePrefetchMod.prefetchIntents(userContent), 3000, [])

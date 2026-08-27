@@ -21,6 +21,14 @@ const aiChat = makeTracedAiChat("contextual-recall", "chat");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { cosineSimilarity, semanticSearch } from "@/lib/brain/embedding-utils";
 import { fuseRankings } from "@/lib/brain/rrf";
+// 2026-08-27 · F3 KNN candidate lane — reuse the one guard/pad convention
+// (lib/db/pgvector.ts), same as memory-recall.ts.
+import {
+  padToVectorDim,
+  vectorLiteral,
+  assertSafeVectorLiteral,
+  VECTOR_DIM_1536,
+} from "@/lib/db/pgvector";
 // Wave AG · rerank orchestrator routes between BGE (HF Inference,
 // $0.0001/call) and Cohere ($2/1000 calls) based on the BGE_RERANK
 // env flag. Same interface as cohereRerank · falls back to identity
@@ -173,6 +181,45 @@ export interface RelevantMemory {
 // ---------------------------------------------------------------------------
 // Topic extraction (used for keyword fallback + query embedding)
 // ---------------------------------------------------------------------------
+
+/**
+ * 2026-08-27 · retrieval baseline F2. The LLM extractTopics below measured
+ * p50 4,183ms / p90 11,294ms in prod agent_traces (label=contextual-recall,
+ * ollama) — alone exceeding the 3,000ms withTimeout the chat route races this
+ * whole pipeline against, so the median turn lost the entire fused block.
+ * This is the deterministic replacement for the chat hot path: stopword-strip
+ * the recent text and take the most recent informative unigrams. Topics only
+ * feed the lexical tsquery (OR semantics) + keyword lane; the semantic lane
+ * uses the precomputed queryEmbedding directly. Exported for tests.
+ */
+const FAST_TOPIC_STOPWORDS = new Set([
+  "the", "and", "for", "are", "but", "not", "you", "your", "all", "any", "can",
+  "had", "has", "have", "was", "were", "will", "with", "that", "this", "these",
+  "those", "there", "their", "then", "than", "them", "they", "what", "whats",
+  "when", "where", "which", "who", "why", "how", "hows", "did", "does", "doing",
+  "don", "dont", "cant", "wont", "just", "like", "about", "into", "over",
+  "some", "still", "been", "being", "would", "could", "should", "very", "also",
+  "out", "get", "got", "going", "gonna", "know", "need", "want", "make", "made",
+  "much", "many", "more", "most", "even", "ever", "never", "now", "one", "two",
+  "say", "said", "see", "tell", "told", "think", "thing", "things", "really",
+  "right", "yeah", "okay", "well", "way", "back", "off", "too", "let", "lets",
+]);
+
+export function deriveFastTopics(messages: string[]): string[] {
+  const recentText = messages.slice(-3).join("\n").slice(0, 1000).toLowerCase();
+  const words = recentText.match(/[a-z][a-z0-9'-]{2,}/g) ?? [];
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  // Walk BACKWARDS so the newest message's terms win the cap — the last turn
+  // is what the operator is asking about right now.
+  for (let i = words.length - 1; i >= 0 && topics.length < 8; i--) {
+    const w = words[i].replace(/^'+|'+$/g, "");
+    if (w.length < 3 || FAST_TOPIC_STOPWORDS.has(w) || seen.has(w)) continue;
+    seen.add(w);
+    topics.push(w);
+  }
+  return topics;
+}
 
 async function extractTopics(messages: string[]): Promise<string[]> {
   const recentText = messages.slice(-3).join("\n").slice(0, 1000);
@@ -397,6 +444,59 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
 }
 
 // ---------------------------------------------------------------------------
+// KNN candidate lane (2026-08-27 · retrieval baseline F3)
+// ---------------------------------------------------------------------------
+//
+// The candidate pool below was `ORDER BY confidence DESC LIMIT 300` — and
+// 9,004 eligible rows tie at confidence 1.0, so WHICH 300 the planner returns
+// is arbitrary (two identical probes minutes apart returned pools that were
+// 79% archive_document and then 63% journal_brain_take). The "semantic lane"
+// was cosine-scoring an arbitrary confidence slice, never the corpus. This
+// runs a true pgvector KNN over embedding_vec_1536 (same shape as
+// memory-recall.ts's query) and UNIONs the top hits into the pool, so the
+// dense lane sees actual nearest neighbours. Chat passes the precomputed
+// queryEmbedding, so this costs one indexed KNN query and zero embedding
+// calls. Best-effort like the lexical lane: any failure returns [].
+
+async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRow[]> {
+  try {
+    const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
+    const lit = vectorLiteral(padded);
+    assertSafeVectorLiteral(lit);
+    return await prisma.$queryRawUnsafe<LexicalRow[]>(
+      `SELECT bm.id::text          AS id,
+              bm.content           AS content,
+              bm.category::text    AS category,
+              bm.key::text         AS key,
+              bm.confidence::float AS confidence,
+              bm.created_at        AS created_at,
+              bm.source            AS source,
+              bm.seen_count        AS seen_count,
+              bm.updated_at        AS updated_at,
+              0::float             AS rank
+       FROM vector_embeddings ve
+       JOIN brain_memories bm
+         ON bm.id = ve."sourceId"
+        AND bm.deleted_at IS NULL
+       WHERE ve."sourceType" = 'brain_memory'
+         AND ve.embedding_vec_1536 IS NOT NULL
+         AND bm.confidence >= 0.3
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+       ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
+       LIMIT ${limit}`,
+      lit,
+    );
+  } catch (err) {
+    console.warn(
+      "[brain-recall] knn pool query failed — pool stays confidence-sliced:",
+      err instanceof Error ? err.message.slice(0, 120) : String(err),
+    );
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main: semantic + hybrid recall
 // ---------------------------------------------------------------------------
 
@@ -453,6 +553,13 @@ export async function getContextualMemories(
      * Per docs/brain-recall-consolidation-2026-05-16.md Step 3.
      */
     excludeChatConversationIds?: string[];
+    /**
+     * 2026-08-27 · retrieval baseline F2. True on the chat hot path: derive
+     * topics deterministically (deriveFastTopics) instead of the p50-4.2s LLM
+     * call, so the pipeline fits the caller's 3s budget. Non-chat callers
+     * omit it and keep the richer LLM topic extraction.
+     */
+    fastTopics?: boolean;
   } = {},
 ): Promise<string> {
   const tokenBudget = opts.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
@@ -481,7 +588,9 @@ export async function getContextualMemories(
   // load-bearing, not documentation.
   const noveltyOn = getFlag("NICK_NOVELTY_RECALL")?.isOn ?? false;
 
-  const topics = await timed("topics", () => extractTopics(recentMessages));
+  const topics = await timed("topics", () =>
+    opts.fastTopics ? Promise.resolve(deriveFastTopics(recentMessages)) : extractTopics(recentMessages),
+  );
 
   if (topics.length === 0) {
     console.log("[brain-recall]", {
@@ -544,23 +653,33 @@ export async function getContextualMemories(
   const useLexical = lexicalRows.length > 0;
   const lexicalRankById = new Map<string, number>();
   for (const r of lexicalRows) lexicalRankById.set(r.id, r.rank);
+  // F3 · true-KNN candidates. Only when the caller supplied the query
+  // embedding (the chat hot path) — other callers keep today's pool shape.
+  const knnRows =
+    opts.queryEmbedding && opts.queryEmbedding.length > 0
+      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!))).filter(
+          (r) => !excludeSet.has(r.category),
+        )
+      : [];
   const existingIds = new Set(allMemories.map((m) => m.id));
-  const candidatePool = [
-    ...allMemories,
-    ...lexicalRows
-      .filter((r) => !existingIds.has(r.id))
-      .map((r) => ({
-        id: r.id,
-        category: r.category,
-        key: r.key,
-        content: r.content,
-        confidence: r.confidence,
-        createdAt: r.created_at,
-        source: r.source ?? "system",
-        seenCount: r.seen_count ?? 1,
-        updatedAt: r.updated_at,
-      })),
-  ];
+  const toPoolRow = (r: LexicalRow) => ({
+    id: r.id,
+    category: r.category,
+    key: r.key,
+    content: r.content,
+    confidence: r.confidence,
+    createdAt: r.created_at,
+    source: r.source ?? "system",
+    seenCount: r.seen_count ?? 1,
+    updatedAt: r.updated_at,
+  });
+  const unioned: ReturnType<typeof toPoolRow>[] = [];
+  for (const r of [...lexicalRows, ...knnRows]) {
+    if (existingIds.has(r.id)) continue;
+    existingIds.add(r.id);
+    unioned.push(toPoolRow(r));
+  }
+  const candidatePool = [...allMemories, ...unioned];
 
   // Try semantic scoring first · Wave 81 · pre-computed embedding
   // skips the getEmbedding round-trip when caller already has one
@@ -818,7 +937,12 @@ export async function getContextualMemories(
   const remaining = topCandidates.filter(
     (m) => !addedIds.has(m.id) && m.hybrid > 0.15,
   );
-  const remainingSlots = directSlots - guaranteedTop3.length;
+  // 2026-08-27 · slot-math guard. With maxMemories=5 (the chat default),
+  // directSlots(2) − guaranteedTop3(3) = −1, and slice(0, −1) meant "all but
+  // the LAST remaining row" — every above-threshold candidate flooded in and
+  // only the token budget stopped it. Clamp to 0: the guarantee already spent
+  // the direct slots.
+  const remainingSlots = Math.max(0, directSlots - guaranteedTop3.length);
   for (const m of remaining.slice(0, remainingSlots)) {
     relevant.push({
       category: m.category,
