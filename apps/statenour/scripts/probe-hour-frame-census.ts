@@ -27,10 +27,10 @@ function dbHost(): string {
 }
 
 const FAMILIES = [
+  // Prefixes are mutually exclusive as written: startsWith("mood_") cannot
+  // match a journal_mood_ key, so no cross-family exclusion is needed.
   { label: "journal_mood_{date}_{h}", prefix: "journal_mood_" },
-  // journal_mood_ also matches the mood_ prefix test below if ordered
-  // naively — mood_ counts therefore exclude journal_mood_ explicitly.
-  { label: "mood_{date}_{h}", prefix: "mood_", excludePrefix: "journal_mood_" },
+  { label: "mood_{date}_{h}", prefix: "mood_" },
   { label: "booking_hour_{h}", prefix: "booking_hour_" },
   { label: "unanswered_leads_{date}_{h}", prefix: "unanswered_leads_" },
 ] as const;
@@ -41,12 +41,7 @@ async function main(): Promise<void> {
   console.log(`Boundary (#1809 merge): ${HOUR_FRAME_BOUNDARY_ISO}\n`);
 
   for (const fam of FAMILIES) {
-    const base = {
-      key: { startsWith: fam.prefix },
-      ...("excludePrefix" in fam
-        ? { NOT: { key: { startsWith: fam.excludePrefix } } }
-        : {}),
-    };
+    const base = { key: { startsWith: fam.prefix } };
     const [preLive, postLive, preDeleted, postDeleted, marked] =
       await Promise.all([
         prisma.brainMemory.count({
