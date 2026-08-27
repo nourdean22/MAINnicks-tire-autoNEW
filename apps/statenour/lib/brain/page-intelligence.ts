@@ -87,12 +87,16 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
     // mid-day; 08-26 is 100% correct.
     //
     // CAUSE (found 2026-08-27): `1202bdd0f`, "Nick reads the operator's clock,
-    // not the server's", merged 2026-08-25T15:17:30Z. It changed the writer in
-    // lib/services/brain-domain.ts from `new Date().getHours()` — the UTC hour,
-    // because Railway runs UTC — to `hourET()`. The last UTC-stamped row is
-    // 14:56:52Z and the first ET-stamped row is 15:26:35Z, so the boundary
-    // brackets that merge with a ~9min gap for the deploy. Nothing contradicts
-    // it. (An earlier note here called the flip environmental. That was wrong,
+    // not the server's", merged 2026-08-25T15:17:30Z. It moved the writer in
+    // lib/services/brain-domain.ts onto the ET helper. What it replaced was a
+    // bare `new Date().getHours()`, which on a Railway container reads the
+    // server's zone, not Cleveland's — hence the +4h.
+    //
+    // The last row of the old shape is 14:56:52Z and the first of the new is
+    // 15:26:35Z, so the boundary brackets that merge with a ~9min gap for the
+    // deploy. Nothing contradicts it.
+    //
+    // (An earlier note here called the flip environmental. That was wrong,
     // and wrong for an avoidable reason: `git log` was run against this stale
     // checkout's HEAD, which is days behind origin/main and does not contain
     // the commit.)
