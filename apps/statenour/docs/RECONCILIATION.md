@@ -86,8 +86,7 @@
 > transient fault got baked into the archive: **691 of 719 rows in 30d carry a UTC hour against
 > an ET timestamp** — a clean +4h. "After 11pm" was counting from 7pm; the brief shipped 21
 > where ET says 12. Days 07-28..08-24 are 100% affected, 08-25 flips mid-day, 08-26 is clean,
-> and `git log -S` finds NO source change to the writer — the flip was ENVIRONMENTAL, which is
-> the whole argument for deriving from the timestamp rather than waiting for a cause. Days also
+> and the cause is `1202bdd0f` (see the correction below). Days also
 > moved from UTC to ET buckets, and `avgDailyVisits` now names its denominator (active days,
 > not calendar days). Same fix applied to `GET /api/brain/page-visit`; the automation engine is
 > unaffected — it computes `hourET(now)` and never reads the archive.
@@ -117,10 +116,24 @@
 > - MEASUREMENT TRAP: `gh run rerun` reuses the run ID, so a rerun-to-green OVERWRITES the
 >   failure. `gh run list` therefore UNDERSTATES the failure rate — it showed 2 in 15 while at
 >   least 3 had occurred. Count from the reruns you performed, not from the run list.
-> - **UNEXPLAINED, operator-side:** `payload.hour` stopped being UTC on 2026-08-25 with no source
->   change to the writer. Cause unknown — it needs Railway/runtime access this session did not
->   have. #1913 makes the readers immune, but the historical rows stay poisoned and the fault
->   could return. Anything that stores a derived ET value is exposed to the same class.
+> - **CORRECTION (2026-08-27), was "UNEXPLAINED / environmental":** the clock flip has a cause,
+>   and it is a commit, not the environment. `1202bdd0f` — "Nick reads the operator's clock, not
+>   the server's" — merged **2026-08-25T15:17:30Z** and changed the writer in
+>   `lib/services/brain-domain.ts` from `new Date().getHours()` (the UTC hour, because Railway
+>   runs UTC) to `hourET()`. Last UTC-stamped row **14:56:52Z**, first ET-stamped row
+>   **15:26:35Z** — an interval that CONTAINS the merge, with nothing contradicting it. It does
+>   NOT time the rollout: `recordPageVisit` records user activity, not deploys, so the gap is
+>   only when a page was next opened (raised as a P2 on #1918 and taken). The same commit fixed ~30 server-clock reads app-wide and added the ET-clock gate.
+>   **Why the first pass got it wrong, and the lesson worth keeping:** `git log -S` reported no
+>   change to the writer because it defaults to **HEAD**, and this shared checkout sits on a
+>   branch days behind `origin/main` that does not contain the commit. The archaeology was
+>   correct about the wrong timeline. On a shared checkout, ask `origin/main` explicitly — a
+>   `git log` answer is only as current as the branch you are standing on.
+>   Still true: historical rows stay poisoned, and #1913's readers are right to derive from the
+>   timestamp — the stored copy is redundant and cannot be re-derived once written wrong.
+>   Bounded: no schema column stores an hour, and `page_visit.payload.hour` had only the two
+>   readers #1913 fixed. The automation engine's own `dayOfWeek`/`hour` were UTC until the same
+>   commit, but it computes them per-tick and was armed on 08-26, after the fix.
 > - `energy-router` runs clean in 31ms and returns `totalSamples: 0`. Every recommendation it can
 >   make is unearned; it stays dark until the sample count is non-zero.
 > - `page-intelligence`'s `insights[]` stays out of the brief permanently (its counts went in at

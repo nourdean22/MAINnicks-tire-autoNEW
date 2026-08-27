@@ -78,16 +78,33 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
     //
     // Each row carries the same fact twice: `createdAt` (stamped by the DB)
     // and `payload.hour` (computed by app code at write time and frozen).
-    // This line used to prefer the frozen copy, so a transient environment
-    // fault got baked into the archive permanently.
+    // This line used to prefer the frozen copy, so a writer bug got baked into
+    // the archive permanently.
     //
     // Measured 2026-08-26 over the last 30 days: 691 of 719 rows carry a UTC
     // hour in `payload.hour` while `createdAt` says ET — a clean +4h (the EDT
     // offset). Every day from 07-28 to 08-24 is 100% affected; 08-25 flips
-    // mid-day; 08-26 is 100% correct. The writer's source did not change in
-    // that window, so the flip was environmental, which is exactly why the fix
-    // cannot be "the environment is fine now": deriving from the timestamp is
-    // right whatever the cause, and stays right if it regresses.
+    // mid-day; 08-26 is 100% correct.
+    //
+    // CAUSE (found 2026-08-27): `1202bdd0f`, "Nick reads the operator's clock,
+    // not the server's", merged 2026-08-25T15:17:30Z. It moved the writer in
+    // lib/services/brain-domain.ts onto the ET helper. What it replaced was a
+    // bare `new Date().getHours()`, which on a Railway container reads the
+    // server's zone, not Cleveland's — hence the +4h.
+    //
+    // The last row of the old shape is 14:56:52Z and the first of the new is
+    // 15:26:35Z: that interval CONTAINS the merge, and no row contradicts it.
+    // It does not time the rollout — these rows are user activity, not a
+    // deployment probe, so the gap is only when a page was next opened.
+    //
+    // (An earlier note here called the flip environmental. That was wrong,
+    // and wrong for an avoidable reason: `git log` was run against this stale
+    // checkout's HEAD, which is days behind origin/main and does not contain
+    // the commit.)
+    //
+    // The fix is unchanged by the cause. The stored copy is redundant with an
+    // authoritative timestamp, cannot be re-derived once wrong, and those rows
+    // stay wrong forever.
     //
     // Cost while it was live: the daily brief read 21 late-night visits where
     // ET says 12. A UTC hour of 23-04 is really ET 19-00, so "after 11pm" was

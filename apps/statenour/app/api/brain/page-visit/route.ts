@@ -67,8 +67,10 @@ export async function GET(req: Request) {
     if (!lastVisited[page]) lastVisited[page] = v.createdAt.toISOString();
     // Derived from the timestamp, never from the stored `payload.hour`: 691 of
     // 719 rows measured 2026-08-26 carry a UTC hour against an ET timestamp
-    // (a clean +4h), from an environmental fault that self-corrected on 08-25
-    // with no source change. `createdAt` is the row's own authority.
+    // (a clean +4h). Cause: `1202bdd0f` (merged 2026-08-25T15:17:30Z) changed
+    // the writer off `new Date().getHours()`, which is the UTC hour on a
+    // Railway container. Rows written before that deploy stay wrong forever.
+    // `createdAt` is the row's own authority.
     {
       const h = hourET(v.createdAt);
       hourDistribution[h] = (hourDistribution[h] || 0) + 1;
