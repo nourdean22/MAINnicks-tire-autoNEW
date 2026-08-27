@@ -95,7 +95,7 @@
 > - ~~`check:policy-coverage` red pre-dates this wave~~ **RESOLVED same day (~16:08 ET),
 >   operator-authorized:** `scripts/seed-policies.ts` upserted 102/102 policies against prod
 >   (backup `_bak_automation_policies_seed_20260827`, 165 rows, kept until confirmed good);
->   gate green — all 76 active crons + all 20 autonomous-action rules covered. Full
+>   gate green — all 76 non-retired crons (55 active + 18 folded + 3 dormant, evaluated registry) + all 20 autonomous-action rules covered. Full
 >   `verify:hard` confirm: 599/599 test files, all 19 sections, exit 0. The red had failed
 >   every sibling's verify:hard since #1901 armed `cron.automation-engine` unseeded.
 > - Weakest/quick lanes deliberately still admit habits (their copy claims domain-lift/momentum,
