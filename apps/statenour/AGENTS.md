@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-08-27 · chat read-aloud #1930 (streaming TTS; prod OpenAI key DEAD — rotation pending). Everything earlier: RECONCILIATION top.
+**Last refreshed:** 2026-08-27 · chat read-aloud #1930 (prod OpenAI key DEAD, rotation pending). Everything earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
