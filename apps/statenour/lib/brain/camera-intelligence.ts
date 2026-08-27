@@ -30,7 +30,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { sendTelegram } from "@/lib/services/telegram";
-import { hourET, today } from "@/lib/utils/datetime";
+import { hourET, startOfDayET, toDateString, today } from "@/lib/utils/datetime";
 
 const CAMERA_EVENT_TYPES = [
   "motion_detected",
@@ -146,8 +146,10 @@ export async function analyzeCameraData(): Promise<{
   }
 
   // ── 4. Daily traffic insight ────────────────────────────────
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // ET day, not server-local: bare setHours(0,0,0,0) floors to UTC midnight
+  // on Railway = 8pm ET the previous evening, so "today" leaked 4-5h of
+  // yesterday. Same trap datetime.ts startOfDay already documents.
+  const todayStart = startOfDayET();
 
   const todayEvents = (await prisma.deviceEvent.findMany({
     where: {
@@ -235,8 +237,7 @@ export async function getCameraIntelligence(): Promise<{
   bayUtilization: number;
   avgDailyTraffic: number;
 }> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayET();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   // Today's events for live counts
@@ -284,19 +285,28 @@ export async function getCameraIntelligence(): Promise<{
 
   // Bay utilization — fraction of active hours in the day. With no
   // bayOccupied flag in deviceEvent, we approximate as the ratio of
-  // hours with shop activity over the day's elapsed hours.
+  // hours with shop activity over the day's elapsed ET hours. Both sides
+  // of the ratio are ET-framed now that todayStart is startOfDayET();
+  // the clamp inside utilizationPct keeps any future frame mismatch from
+  // publishing >100%.
   const elapsedHours = Math.max(1, hourET() + 1);
   const activeHours = hourCounts.size;
-  const bayUtilization = Math.round((activeHours / elapsedHours) * 100);
+  const bayUtilization = utilizationPct(activeHours, elapsedHours);
 
-  // 7-day average daily traffic
-  const weekEvents = (await prisma.deviceEvent.count({
+  // 7-day average daily traffic, averaged over days that actually saw
+  // events — a /7 calendar denominator reads as "traffic halved" whenever
+  // cameras were offline half the week (same denominator rule as #1913's
+  // avgDailyVisits fix in page-intelligence).
+  const weekEventRows = (await prisma.deviceEvent.findMany({
     where: {
       event: { in: ["person_detected", "vehicle_detected"] },
       timestamp: { gte: weekAgo },
     },
-  }).catch(() => 0)) as number;
-  const avgDaily = Math.round(weekEvents / 7);
+    select: { timestamp: true },
+  }).catch(() => [] as Array<{ timestamp: Date }>)) as Array<{ timestamp: Date }>;
+  const { avg: avgDaily } = avgDailyOverActiveDays(
+    weekEventRows.map((r) => r.timestamp),
+  );
 
   return {
     todayTraffic: { people, vehicles, peakHour },
@@ -304,4 +314,37 @@ export async function getCameraIntelligence(): Promise<{
     bayUtilization,
     avgDailyTraffic: avgDaily,
   };
+}
+
+/**
+ * Pure denominators for the read path, exported for direct unit testing
+ * (the computePromiseIntegrity / sanitizeDeadline precedent).
+ *
+ * Days are bucketed in ET via toDateString — a 23:30 ET event belongs to
+ * the ET day it happened on, not to the next UTC calendar day the server
+ * clock would file it under. Zero active days returns 0, not NaN: an
+ * unobserved week is UNMEASURED, not "no traffic".
+ */
+export function avgDailyOverActiveDays(timestamps: Date[]): {
+  avg: number;
+  activeDays: number;
+} {
+  const activeDays = new Set(timestamps.map((t) => toDateString(t))).size;
+  return {
+    activeDays,
+    avg: activeDays > 0 ? Math.round(timestamps.length / activeDays) : 0,
+  };
+}
+
+/** 0-100 only: if an activity window ever outruns the elapsed-hours
+ *  denominator again (the UTC-day/ET-hours mismatch this file shipped
+ *  with), clamp rather than publish 120%. */
+export function utilizationPct(
+  activeHours: number,
+  elapsedHours: number,
+): number {
+  return Math.min(
+    100,
+    Math.round((activeHours / Math.max(1, elapsedHours)) * 100),
+  );
 }
