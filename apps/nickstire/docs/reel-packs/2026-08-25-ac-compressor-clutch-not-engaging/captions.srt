@@ -1,0 +1,33 @@
+1
+00:00:00,000 --> 00:00:04,000
+Your AC blows warm.
+You assume it's just low on Freon.
+
+2
+00:00:04,000 --> 00:00:11,000
+But if the compressor clutch never engages,
+adding more refrigerant won't fix a thing.
+
+3
+00:00:11,000 --> 00:00:19,000
+A low-pressure cutoff switch can shut the
+compressor off on purpose, to protect it.
+
+4
+00:00:19,000 --> 00:00:27,000
+A low gauge reading alone can point to a leak,
+or a switch doing what it's built to do.
+
+5
+00:00:27,000 --> 00:00:34,000
+That's one clue worth checking —
+not a diagnosis you make from the driver's seat.
+
+6
+00:00:34,000 --> 00:00:40,000
+Stop by and we'll take a look
+before you add anything to the system.
+
+7
+00:00:40,000 --> 00:00:43,000
+Nick's Tire & Auto — save this for next time.
