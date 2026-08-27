@@ -113,6 +113,33 @@ to bite). Numbers after the wave are in the AFTER section below.
   i") are 0/4 on EVERY lane — paraphrase-gap class, the next quality lever along with the
   durable-class RRF weight (study Finding 4).
 
+## Lever wave (same day, second merge) — every lever measured BEFORE building
+
+Candidates measured on the corpus via `eval-datasets/run-levers*.ts` (same write-stubbed
+read-only discipline), then only the winners implemented:
+
+| Lever | Measured | Verdict |
+|---|---|---|
+| **Durable-slice KNN fused into the live lane** (RRF k=60, equal weights) | hit@5 **50% → 86%**, hit@10 **50% → 96%**; identity 0/4 → 4/4, relationships 1/4 → 3/4, no slice worse; durable KNN ~123ms, parallelized | **ADOPTED** — `rrfMergeHitOrders` + a MATERIALIZED-CTE exact scan over the ~122-row durable partition (deliberately not HNSW: a 0.4%-selective post-ANN filter is the starvation shape F3 documented) |
+| ef_search 200 / iterative_scan on the main KNN | raw-pool containment 50% → 68% / 71%, but **endpoint F hit@10 = 96.4% either way**; latency flat | **NOT adopted** — no endpoint win; the durable lane already closes the gap. Parked with numbers |
+| Lexical topic caps 8/5/3 | hits and latency statistically flat (term count is not the spike driver) | **NOT adopted** |
+| Lexical `statement_timeout 900ms` | 10/28 GIN queries ran >900ms (max 2.9s) costing 1 lexical hit total; each spike taxed every stage behind it inside the 3s race | **ADOPTED** — tx-scoped SET LOCAL; timeout lands in the existing catch → lane degrades to `[]`. Observed max after: ~1.1s incl. wire overhead |
+| Rerank call-site bound 1,500ms | backend AbortSignals are 7.5s/6s — sized pre-race; spikes to 1,415ms observed locally | **ADOPTED** — Promise.race at the call site; past budget the RRF-hybrid ordering stands |
+| `NICK_EPISODIC_SPLIT` on | containment 50.0% → 53.6% (+1 case, n=28) | **NOT adopted** — insufficient n; revisit at ≥50 cases |
+| Corpus growth via `pnpm harvest:evals` | harvested cases carry `relevantKeys: []` (abstention-class) | **Parked** — unusable for hit@k labels; corpus growth stays manual |
+
+**After the lever wave (same corpus, real production functions):** live lane
+**85.7% hit@5 / 96.4% hit@10, MRR 0.715–0.718, p50 138ms** (stable across two runs) — the
+day's arc for the lane chat actually uses is **0% → 50% → 86%**. Contextual-pipeline
+containment reads 39–46% across runs (rerank nondeterminism band; p50 ~2.0s). NOTE on the
+timeout's apparent containment cost: the local harness has no 3s race, so the raceless
+"before" is overstated — in prod a lexical/rerank spike lost the ENTIRE block, not one lane.
+
+**Post-deploy verification of the first merge:** 0 assistant turns had occurred since the
+deploy at probe time, so "0 contextual-recall LLM traces since deploy" is vacuous; the
+positive control (5 traces same day pre-deploy) proves the instrument sees the target.
+Behavioral confirmation lands with the operator's next real turns.
+
 ## Levers deliberately not taken now
 
 - **Rerank tuning / two-stage rerank expansion** — the reranker is already wired inside the

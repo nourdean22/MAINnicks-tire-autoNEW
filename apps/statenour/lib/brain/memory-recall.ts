@@ -23,6 +23,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
 import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
+import { reciprocalRankFusion } from "@/lib/brain/rrf";
 
 const log = rootLogger.withSurface("brain/memory-recall");
 
@@ -186,6 +187,43 @@ export interface RecallReport {
   avgKnnDistance: number;
 }
 
+/**
+ * 2026-08-27 · durable-lane fusion (levers run, eval-datasets/levers*-2026-08-27).
+ *
+ * MEASURED DEFECT: on first-person paraphrase queries ("how old am i", "what
+ * is going on with my sister visiting") the full-corpus KNN top-30 is
+ * dominated by mood/journal/semantic_edge noise — the durable personal row
+ * exists, is embedded, and never enters the pool. Identity-slice hit@5 was
+ * 0/4 on EVERY lane.
+ *
+ * MEASURED FIX: a second KNN restricted to the durable personal categories
+ * (~122 rows — tiny competition, so weak similarity still ranks the right
+ * row) fused with the main lane via RRF at k=60, equal weights. On the
+ * 28-case labelled corpus: hit@5 50% → 86%, hit@10 50% → 96%, identity 0/4 →
+ * 4/4, no slice worse. ef_search 200 / iterative_scan were measured as
+ * alternatives and added NOTHING to the endpoint metric (96.4% hit@10
+ * either way) — this lane, not more HNSW effort, is what closes the gap.
+ */
+const DURABLE_KNN_LIMIT = 10;
+
+/**
+ * RRF-merge the two lane orderings (k=60, equal weights — exactly the
+ * measured configuration). A row present in both lanes gets the natural RRF
+ * boost; an empty durable lane returns the main ordering untouched.
+ * Exported for the canary test.
+ */
+export function rrfMergeHitOrders(main: RecallHit[], durable: RecallHit[]): RecallHit[] {
+  if (durable.length === 0) return main;
+  const fused = reciprocalRankFusion(
+    [
+      main.map((h) => ({ id: h.memoryId, item: h })),
+      durable.map((h) => ({ id: h.memoryId, item: h })),
+    ],
+    { k: 60 },
+  );
+  return fused.map((f) => f.item);
+}
+
 function padToTargetDim(arr: number[]): number[] {
   if (arr.length === TARGET_DIM) return arr;
   if (arr.length > TARGET_DIM) return arr.slice(0, TARGET_DIM);
@@ -239,25 +277,61 @@ export async function recallMemoriesForQuery(
   // parameter below (not string-interpolated), so this is belt+suspenders.
   assertSafeVectorLiteral(vecLit);
 
-  // 2. KNN cosine search across brain_memory embeddings, joined to
-  //    BrainMemory for category + confidence + recency
-  // v10.0.403 · wrap KNN in withEfSearch(HIGH_RECALL=80) so this
-  // recall path uses 2x the HNSW search effort vs default · trades
-  // ~30-50ms latency for ~3-5pp recall lift on borderline matches.
-  const rows = await withEfSearch(prisma, EF_SEARCH.HIGH_RECALL, (tx) =>
-    tx.$queryRawUnsafe<
-      Array<{
-        memory_id: string;
-        category: string;
-        key: string;
-        content: string;
-        confidence: number;
-        seen_count: number;
-        last_seen: Date;
-        created_at: Date;
-        distance: number;
-      }>
-    >(
+  // 2. Two KNN lanes in parallel (2026-08-27 durable-lane fusion — see the
+  //    header note on rrfMergeHitOrders for the measured numbers):
+  //    · main — full-corpus HNSW KNN, withEfSearch(HIGH_RECALL=80) as before
+  //    · durable — EXACT scan over the durable personal partition (~122
+  //      rows) via a MATERIALIZED CTE. Deliberately not HNSW: a 0.4%-
+  //      selective category filter after an ANN index is the starvation
+  //      shape this file's own baseline documented; materializing the tiny
+  //      partition first makes the plan deterministic and the recall exact.
+  type KnnRow = {
+    memory_id: string;
+    category: string;
+    key: string;
+    content: string;
+    confidence: number;
+    seen_count: number;
+    last_seen: Date;
+    created_at: Date;
+    distance: number;
+  };
+  const durablePromise: Promise<KnnRow[]> = prisma
+    .$queryRawUnsafe<KnnRow[]>(
+      `WITH durable AS MATERIALIZED (
+         SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
+                bm.seen_count, bm.last_seen, bm.created_at, ve.embedding_vec_1536
+         FROM vector_embeddings ve
+         JOIN brain_memories bm
+           ON bm.id = ve."sourceId"
+          AND bm.deleted_at IS NULL
+         WHERE ve."sourceType" = 'brain_memory'
+           AND ve.embedding_vec_1536 IS NOT NULL
+           AND bm.confidence >= 0.3
+           AND bm.superseded_by_id IS NULL
+           AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+           AND bm.category = ANY($2)
+       )
+       SELECT id::text AS memory_id, category::text AS category, key::text AS key,
+              substring(content, 1, ${MAX_CONTENT_LEN})::text AS content,
+              confidence::float AS confidence, seen_count::int AS seen_count,
+              last_seen, created_at,
+              (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
+       FROM durable
+       ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
+       LIMIT ${DURABLE_KNN_LIMIT}`,
+      vecLit,
+      [...DURABLE_PERSONAL_CATEGORIES],
+    )
+    .catch((err) => {
+      log.warn("durable_knn_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      return [] as KnnRow[];
+    });
+
+  const mainPromise = withEfSearch(prisma, EF_SEARCH.HIGH_RECALL, (tx) =>
+    tx.$queryRawUnsafe<KnnRow[]>(
       `SELECT
          bm.id::text AS memory_id,
          bm.category::text AS category,
@@ -288,53 +362,54 @@ export async function recallMemoriesForQuery(
     log.warn("knn_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-    return [] as Array<{
-      memory_id: string;
-      category: string;
-      key: string;
-      content: string;
-      confidence: number;
-      seen_count: number;
-      last_seen: Date;
-      created_at: Date;
-      distance: number;
-    }>;
+    return [] as KnnRow[];
   });
 
-  // 3. Filter to context-worthy categories + score
+  const [rows, durableRows] = await Promise.all([mainPromise, durablePromise]);
+
+  // 3. Score both lanes with the SAME formula, then RRF-merge the orderings.
+  //    Main lane keeps its boosted-score ordering; the durable lane is
+  //    ordered by raw distance (the measured configuration).
   const now = Date.now();
-  const scored: RecallHit[] = rows
+  const toHit = (r: KnnRow): RecallHit => {
+    const ageDays = Math.floor(
+      (now - new Date(r.last_seen).getTime()) / 86_400_000,
+    );
+    const factAgeDays = Math.floor(
+      (now - new Date(r.created_at).getTime()) / 86_400_000,
+    );
+    // similarity = 1 - distance (cosine). Then:
+    //   recency boost: <14d → +0.2, <60d → +0.1, else 0
+    //   confidence boost: confidence × 0.3
+    const sim = Math.max(0, 1 - r.distance);
+    const recency =
+      ageDays < 14 ? 0.2 : ageDays < 60 ? 0.1 : 0;
+    const conf = r.confidence * 0.3;
+    const finalScore = sim + recency + conf;
+    return {
+      memoryId: r.memory_id,
+      category: r.category,
+      key: r.key,
+      content: r.content.replace(/\s+/g, " ").trim(),
+      confidence: r.confidence,
+      seenCount: r.seen_count,
+      ageDays,
+      factAgeDays,
+      knnDistance: r.distance,
+      finalScore: Math.round(finalScore * 1000) / 1000,
+    };
+  };
+  const mainScored: RecallHit[] = rows
     .filter((r) => CONTEXT_CATEGORIES.has(r.category))
-    .map((r) => {
-      const ageDays = Math.floor(
-        (now - new Date(r.last_seen).getTime()) / 86_400_000,
-      );
-      const factAgeDays = Math.floor(
-        (now - new Date(r.created_at).getTime()) / 86_400_000,
-      );
-      // similarity = 1 - distance (cosine). Then:
-      //   recency boost: <14d → +0.2, <60d → +0.1, else 0
-      //   confidence boost: confidence × 0.3
-      const sim = Math.max(0, 1 - r.distance);
-      const recency =
-        ageDays < 14 ? 0.2 : ageDays < 60 ? 0.1 : 0;
-      const conf = r.confidence * 0.3;
-      const finalScore = sim + recency + conf;
-      return {
-        memoryId: r.memory_id,
-        category: r.category,
-        key: r.key,
-        content: r.content.replace(/\s+/g, " ").trim(),
-        confidence: r.confidence,
-        seenCount: r.seen_count,
-        ageDays,
-        factAgeDays,
-        knnDistance: r.distance,
-        finalScore: Math.round(finalScore * 1000) / 1000,
-      };
-    })
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, limit);
+    .map(toHit)
+    .sort((a, b) => b.finalScore - a.finalScore);
+  const durableScored: RecallHit[] = durableRows
+    .map(toHit)
+    .sort((a, b) => a.knnDistance - b.knnDistance);
+  const scored: RecallHit[] = rrfMergeHitOrders(mainScored, durableScored).slice(0, limit);
+  const mainIds = new Set(rows.map((r) => r.memory_id));
+  const scannedCount =
+    rows.length + durableRows.filter((d) => !mainIds.has(d.memory_id)).length;
 
   // 4. Bump lastSeen on returned memories so they stay "fresh"
   if (scored.length > 0) {
@@ -373,7 +448,7 @@ export async function recallMemoriesForQuery(
           source: "memory-recall",
           tags: {
             hitCount: scored.length,
-            scanned: rows.length,
+            scanned: scannedCount,
             queryLen: query.length,
           },
         },
@@ -389,7 +464,7 @@ export async function recallMemoriesForQuery(
   return {
     query,
     durationMs: Date.now() - t0,
-    scanned: rows.length,
+    scanned: scannedCount,
     hits: scored,
     avgKnnDistance,
   };
