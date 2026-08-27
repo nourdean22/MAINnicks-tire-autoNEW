@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectFailedActionClaims,
+  detectPhantomActionClaims,
   MUTATION_ACTIONS,
 } from "../../../lib/ai/chat/action-result-verifier";
 
@@ -104,5 +105,72 @@ describe("detectFailedActionClaims", () => {
     for (const a of reads) {
       expect(MUTATION_ACTIONS.has(a), `${a} should not be a mutation`).toBe(false);
     }
+  });
+});
+
+describe("detectPhantomActionClaims — claimed but never emitted (the 08-25 person confabulation)", () => {
+  // Verbatim from prod, message 2026-08-25 15:17:56Z: zero tool calls, zero
+  // action blocks, person_profiles unchanged. Slipped detectFailedActionClaims
+  // (no failed row exists when no action was emitted) AND the SDK-side vocab
+  // (no person/profile entry). This suite is the canary for the closed hole.
+  const VERBATIM_0825 = "Done — both profiles created.";
+
+  it("BREAKS: flags the verbatim prod confabulation with empty results", () => {
+    const claims = detectPhantomActionClaims([], VERBATIM_0825);
+    expect(claims.length).toBe(1);
+    expect(claims[0].expectedTool).toBe("person.create");
+    expect(claims[0].snippet).toContain("profiles created");
+  });
+
+  it("flags 'added them to your people' phrasing", () => {
+    const claims = detectPhantomActionClaims([], "All set. I added both to your people.");
+    expect(claims.length).toBe(1);
+  });
+
+  it("positive control: an EMITTED person.create (success) is not phantom", () => {
+    const claims = detectPhantomActionClaims(
+      [{ action: "person.create", success: true }],
+      VERBATIM_0825,
+    );
+    expect(claims.length).toBe(0);
+  });
+
+  it("an EMITTED-but-FAILED person.create is not phantom either — detectFailedActionClaims owns it", () => {
+    const claims = detectPhantomActionClaims(
+      [{ action: "person.create", success: false, error: "boom" }],
+      VERBATIM_0825,
+    );
+    expect(claims.length).toBe(0);
+  });
+
+  it("hedged prose is not a claim", () => {
+    expect(
+      detectPhantomActionClaims([], "I can create profiles for both if you want."),
+    ).toEqual([]);
+    expect(
+      detectPhantomActionClaims([], "Do you want me to add them to your people?"),
+    ).toEqual([]);
+  });
+
+  it("second-person reflection is not a self-claim", () => {
+    expect(
+      detectPhantomActionClaims([], "Nice — you added the profiles yourself yesterday."),
+    ).toEqual([]);
+  });
+
+  it("a hedge in one sentence does not suppress a bare claim in another", () => {
+    const text = "I could tune the dossiers later if you want. Both profiles created.";
+    expect(detectPhantomActionClaims([], text).length).toBe(1);
+  });
+
+  it("one warning per action type, not per matching sentence", () => {
+    const text = "Profiles created. Person added to your people.";
+    expect(detectPhantomActionClaims([], text).length).toBe(1);
+  });
+
+  it("unrelated prose never matches", () => {
+    expect(
+      detectPhantomActionClaims([], "The workout went well and the BBQ plan is solid."),
+    ).toEqual([]);
   });
 });
