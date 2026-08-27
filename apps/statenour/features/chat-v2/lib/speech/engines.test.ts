@@ -85,12 +85,66 @@ describe("ServerTtsEngine capability detection", () => {
   });
 
   it("speak() rejects on a non-OK route response (falls through to the fallback engine)", async () => {
+    function MockAudio(this: { setAttribute: () => void; preload: string }) {
+      this.setAttribute = () => {};
+      this.preload = "";
+    }
     vi.stubGlobal("window", {
       fetch: vi.fn(),
-      Audio: function MockAudio() {} as unknown as typeof Audio,
+      Audio: MockAudio as unknown as typeof Audio,
     });
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503 })));
     const engine = new ServerTtsEngine("/api/ai/speak");
     await expect(engine.speak("hello")).rejects.toThrow("speak route 503");
+  });
+});
+
+describe("ServerTtsEngine prewarm pipelining", () => {
+  it("speak() reuses the in-flight prewarm fetch — one network call, not two", async () => {
+    function MockAudio(this: Record<string, unknown>) {
+      this.setAttribute = () => {};
+      this.preload = "";
+      this.play = function (this: Record<string, unknown>) {
+        // resolve playback immediately via onended
+        setTimeout(() => (this.onended as () => void)?.(), 0);
+        return Promise.resolve();
+      };
+      this.pause = () => {};
+    }
+    vi.stubGlobal("window", { fetch: vi.fn(), Audio: MockAudio as unknown as typeof Audio });
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+    let resolveFetch: (r: unknown) => void = () => {};
+    const fetchMock = vi.fn(
+      () => new Promise((resolve) => { resolveFetch = resolve; }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const engine = new ServerTtsEngine("/api/ai/speak");
+    engine.prewarm("hello world");
+    const speaking = engine.speak("hello world");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // deduped — the canary
+    resolveFetch({ ok: true, blob: async () => new Blob([new Uint8Array([1])]) });
+    await speaking;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop() aborts pending prewarm fetches", () => {
+    vi.stubGlobal("window", {
+      fetch: vi.fn(),
+      Audio: function MockAudio(this: Record<string, unknown>) {
+        this.setAttribute = () => {};
+        this.pause = () => {};
+      } as unknown as typeof Audio,
+    });
+    let aborted = false;
+    vi.stubGlobal("fetch", vi.fn((_url: string, opts: { signal: AbortSignal }) => {
+      opts.signal.addEventListener("abort", () => { aborted = true; });
+      return new Promise(() => {}); // never settles
+    }));
+    const engine = new ServerTtsEngine("/api/ai/speak");
+    engine.prewarm("doomed span");
+    expect(aborted).toBe(false); // positive control
+    engine.stop();
+    expect(aborted).toBe(true);
   });
 });

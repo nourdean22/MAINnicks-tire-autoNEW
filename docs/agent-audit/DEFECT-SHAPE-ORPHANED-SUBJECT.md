@@ -4,7 +4,7 @@
 > grew into the taxonomy. The name is kept because `CONTROL-CANARY-COVERAGE.md` and the
 > agent-memory index already point at it; renaming breaks both for no gain.
 
-**Status:** five shapes as of 2026-08-23. Shape 4 has seven recorded instances; shape 5 has five doc instances plus one product instance.
+**Status:** five shapes as of 2026-08-23. Shape 4 has eight recorded instances (latest: key-presence-is-not-key-validity, 2026-08-27); shape 5 has five doc instances plus one product instance.
 
 ---
 
@@ -340,6 +340,7 @@ instrument is exactly what lets an orphaned subject survive an audit.
 | Every text-scanning lint | the contents of a `.ts` file | the contents of files it could decode | one stray **NUL byte** made the file read as binary; `tsc` compiled it clean, every grep-based check **skipped it and reported green** |
 | Session completion | whether the work is done | whether the process is still emitting | a session that finished and a session that stalled mid-queue are **the same external signal: idle** |
 | A merge SHA | whether the operator has the fix | whether a branch moved | 18 PRs reported as delivered in one session with **zero** comparisons of `origin/main` against the deployed commit |
+| An env-presence check | whether the provider lane works | whether a string exists | statenour-web `OPENAI_API_KEY` present (164-char `sk-proj…`) and **dead** — every presence check passed while every call 401'd; found via user-visible TTS failure, receipt: live `/v1/models` → 401, 2026-08-27 |
 
 Three corrections to the first four rows, all of which are themselves instances of the shape:
 
