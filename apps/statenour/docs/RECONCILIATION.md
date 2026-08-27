@@ -1,5 +1,41 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-27 · Now-card real ranking · 1 ship (#1946)
+>
+> Measurement before implementation, and the measurements overturned the brief twice. The audit's
+> "live it says Drink water" was stale — the #1897 extraction already guarded the ACTIVE/RESUME
+> arms, wired end to end. And the "six overdue invoices" are nickstire/ALG data: live probe found
+> 0 open overdue tasks and 0 $-titles in this DB — no statenour scorer can rank what never enters
+> the candidate set. What WAS real: roiScore is hand constants (open set 11 → `25:1 50:5 55:1
+> 70:4`, 1.68 bits; hydration and customer follow-ups both hard-coded 70), the one scorer
+> (`lib/scoring/task-priority.ts`) gave that column its dominant weight (0.35) — laundering
+> constants — and the Now-card surfaces bypassed the scorer anyway, sorting raw roiScore.
+>
+> **#1946 — feat · Now-card ranks on real terms.** `NOW_WEIGHTS` single block (roi demoted
+> 0.35→0.15; due 0.25; staleness-from-lastTouchedAt 0.15; dollar-from-title 0.15, armed but mute
+> until invoice imports exist; mission 0.15; friction 0.10; energy 0.05); `HABIT_CLASS_MULTIPLIER
+> 0.5` after the sum; explanations become the operator one-liner (`picked because: untouched 42d ·
+> roi 55 → 38`). criticalFew + weakest-inbox lanes order by autoPriority (object form, nulls last);
+> focus-lane DOING and last-resort arms gain the habit guard the middle arm had; `HABIT_LOOPS`
+> single-sourced from the scorer. Live comparison receipt: old top-4 = four DAILY habits at
+> constant 70, focus pick "Drink water — 6+ bottles"; new = every ONCE task above every habit,
+> focus pick "drop off signs (untouched 42d)". Canary with positive control: overdue-$846 fixture
+> beats the habit, the old ordering provably picked the habit, invoice wins on terms even without
+> the demotion. Affected suites 5 files/38 tests + legacy pin rewritten to mechanisms; full gate
+> 596/596 test files, 18/19 checks green.
+>
+> **Flagged · NOT fixed**
+> - **Revenue items never enter the candidate set** — the overdue invoices live in nickstire/ALG.
+>   The dollar term ships armed; the invoice→task bridge import (natural entry:
+>   `lib/ai/tools/tasks.ts` follow-up writer, which itself hard-codes roiScore 70) is operator-gated
+>   follow-up, not built.
+> - `check:policy-coverage` red pre-dates this wave: `cron.automation-engine` (armed #1901,
+>   rewritten #1928) has no AutomationPolicy row in prod; fix is the idempotent
+>   `scripts/seed-policies.ts` run — a prod write, operator-only. Every sibling's verify:hard is
+>   red on it until then.
+> - Weakest/quick lanes deliberately still admit habits (their copy claims domain-lift/momentum,
+>   not leverage) — revisit only if a habit ever leads the card through them.
+
 > ## 2026-08-27 · Dead-key blast radius + free STT chain · 1 ship (addendum to the read-aloud wave)
 >
 > Follow-through on the revoked OPENAI_API_KEY (operator: no paying; OpenAI TTS option CLOSED).
@@ -1259,7 +1295,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-27 (dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-27 (Now-card scorer #1946 - measured ranking terms + habit guards on every arm; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1787,7 +1823,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-27 (dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-27 (Now-card scorer #1946 - measured ranking terms + habit guards on every arm; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
