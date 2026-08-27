@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-25",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present, no server running).",
+  "topic": "That ticking sound when you start your car cold? It might be an exhaust manifold leak.",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "That ticking sound when you start your car cold?",
+      "visualPrompt": "Static exterior shot of a car on a cold morning, visible exhaust vapor condensing from the tailpipe against frosty air, frost lightly dusting the windshield, engine idling, low winter sun."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "Loudest right after startup. Quiets down in a minute or two.",
+      "visualPrompt": "Low-angle under-hood shot of an idling engine bay, camera holding steady as subtle heat-shimmer builds near the exhaust manifold over the shot.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: a small exhaust manifold leak. Metal contracts when cold, so the gap ticks until it seals up warm.",
+      "visualPrompt": "Macro/cutaway shot: an exhaust manifold flange with a visible thin carbon-soot streak trailing from the gasket seam, slow push-in revealing the leak path.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "That gap can also let exhaust gas — including carbon monoxide — into the engine bay.",
+      "visualPrompt": "A fixture-mounted combustion/CO leak detector wand held near the manifold gap, small indicator light activating, dim shop-bay lighting, no hand in frame."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't ignore a cold-start tick. A quick listen can confirm where it's coming from.",
+      "visualPrompt": "A mechanic's stethoscope-style listening probe clipped against an engine component, tool visible, no hand or arm in frame, a simple audio-waveform graphic overlay pulsing in sync with engine idle.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it gets worse. Stop by and we'll take a look — Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't ignore", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (a small exhaust manifold gasket/crack gap contracts when cold, ticks until it expands and seals warm; the same gap can let exhaust gas, including carbon monoxide, escape into the engine bay), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 7,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#ExhaustLeak", "#CarSounds", "#ColdStart", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "🥶 Ticking sound when you start your car cold, gone a minute later? One clue mechanics check: a small exhaust manifold leak — metal contracts cold, so it ticks until the joint seals warm. Don't ignore it. Stop by and we'll take a look. 🔧"
+  },
+  "adVariants": [
+    {
+      "hook": "Ticking sound on cold start, gone a minute later?",
+      "caption": "A small exhaust manifold leak can tick until the joint warms up and seals. Worth a quick listen before it gets worse.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Car ticks cold, quiets down warm?",
+      "caption": "One clue mechanics check first: an exhaust manifold gasket leak. Don't ignore a cold-start tick.",
+      "cta": "Bring it in — we'll listen and confirm."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
