@@ -12,7 +12,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
+import { HABIT_LOOPS, scoreTaskPriority } from "@/lib/scoring/task-priority";
+import { rankMissions } from "@/lib/scoring/mission-ranking";
+import { serializeForJson } from "@/lib/utils/serialize";
+import { activeOnly } from "@/lib/db/soft-delete";
 import type { MissionDomain } from "@prisma/client";
 
 /** Valid Prisma MissionDomain enum members. Used to safely narrow a
@@ -163,35 +166,53 @@ export async function buildNextMove(): Promise<NextMove> {
   })();
 
   // 3 · Gather suggestions.
+  // Open tasks scored FRESH per request (review P1 on #1946): fetch once,
+  // rank missions, run the one scorer, sort desc. Time terms stay live.
+  const rankedOpenPromise = (async () => {
+    const [missions, tasks] = await Promise.all([
+      prisma.mission.findMany({ where: activeOnly() }),
+      prisma.task.findMany({
+        where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
+        include: { mission: { select: { id: true, domain: true } } },
+      }),
+    ]);
+    const missionMap = new Map(
+      rankMissions(serializeForJson(missions)).rankedMissions.map((m) => [m.id, m]),
+    );
+    return tasks
+      .map((t) => {
+        const r = scoreTaskPriority(serializeForJson(t), missionMap);
+        return Object.assign(t, { _score: r.score, _reason: r.explanation });
+      })
+      .sort(
+        (a, b) =>
+          b._score - a._score ||
+          new Date(b.lastTouchedAt ?? 0).getTime() - new Date(a.lastTouchedAt ?? 0).getTime(),
+      );
+  })().catch(() => [] as any[]);
+
   const suggestions: NextMoveSuggestion[] = [];
 
-  const inboxMatch = await (async () => {
-    const enumDomain = asMissionDomain(weakestDomain);
-    if (!enumDomain)
-      return [] as Array<{ id: string; title: string; roiScore: number; autoPriorityExplanation: string | null }>;
-    return prisma.task
-      .findMany({
-        where: {
-          status: { in: ["INBOX", "READY"] },
-          deletedAt: null,
-          mission: { domain: enumDomain },
-        },
-        select: { id: true, title: true, roiScore: true, autoPriorityExplanation: true },
-        // 2026-08-27 · rank by the one scorer, not raw hand-assigned roiScore.
-        // Object form: plain "desc" floats NULL autoPriority rows first in
-        // Postgres (polarity test source-scan enforces this spelling).
-        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { lastTouchedAt: "desc" }],
-        take: 3,
-      })
-      .catch((): Array<{ id: string; title: string; roiScore: number; autoPriorityExplanation: string | null }> => []);
-  })();
+  // 2026-08-27 (review P1 on #1946) · rank by scores computed NOW, never the
+  // persisted autoPriority: due-urgency and staleness are time terms, and the
+  // stored column only refreshes when a mutation fires syncTaskPriorities —
+  // a deadline can pass with no mutation, leaving the stored score stale.
+  // rankedOpen is computed once below (step 4) and reused here.
+  const inboxMatch = (await rankedOpenPromise)
+    .filter(
+      (t) =>
+        (t.status === "INBOX" || t.status === "READY") &&
+        t.mission?.domain &&
+        asMissionDomain(weakestDomain) === t.mission.domain,
+    )
+    .slice(0, 3);
 
   for (const t of inboxMatch) {
     suggestions.push({
       source: "existing-inbox",
       title: t.title,
       taskId: t.id,
-      reason: t.autoPriorityExplanation ?? `already in your inbox · ROI ${t.roiScore}`,
+      reason: t._reason,
     });
   }
 
@@ -226,31 +247,14 @@ export async function buildNextMove(): Promise<NextMove> {
     });
   }
 
-  // 4 · Find the "Critical Few" open tasks
-  const openTasks = await prisma.task.findMany({
-    where: {
-      status: { in: ["INBOX", "READY", "DOING"] },
-      deletedAt: null,
-    },
-    include: {
-      mission: {
-        select: { domain: true },
-      },
-    },
-    // 2026-08-27 · rank by the one scorer (autoPriority), not raw
-    // hand-assigned roiScore. Object form is mandatory — plain "desc"
-    // floats NULL autoPriority rows first in Postgres (polarity scan).
-    orderBy: [
-      { autoPriority: { sort: "desc", nulls: "last" } },
-      { lastTouchedAt: "desc" },
-    ],
-  }).catch(() => [] as any[]);
+  // 4 · Find the "Critical Few" open tasks — already fetched and scored
+  // fresh above; ordering is the live computed score, never a stored column.
+  const openTasks = await rankedOpenPromise;
 
   const criticalFew: CriticalFewTask[] = [];
   const selectedIds = new Set<string>();
   const isHabitLoop = (k: string | null | undefined) => HABIT_LOOPS.has((k ?? "").toUpperCase());
-  const scoreReason = (t: { autoPriorityExplanation?: string | null; roiScore: number }, fallback: string) =>
-    t.autoPriorityExplanation ?? `${fallback} (ROI ${t.roiScore})`;
+  const scoreReason = (t: { _reason?: string }, fallback: string) => t._reason ?? fallback;
 
   // 4.1 Focus Lane. Every arm carries the habit guard — the middle arm
   // always had it, but the DOING arm and the last-resort arm didn't, so
