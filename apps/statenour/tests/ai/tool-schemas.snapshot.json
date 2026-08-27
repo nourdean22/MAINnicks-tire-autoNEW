@@ -4055,6 +4055,15 @@
     }
   },
   {
+    "name": "triggerBrief",
+    "description": "Generate Nour's daily executive brief right now from the latest ingested intelligence, store it, and return the text. Does not re-fetch external sources — use when he asks for 'my brief' / 'the brief' on demand.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
     "name": "triggerInstagramAutopost",
     "description": "Run the Instagram Autopost pipeline immediately. Supports triggering dry-runs (evaluates but doesn't post) or live publishes. Optionally steer with a specific content archetype.",
     "inputSchema": {

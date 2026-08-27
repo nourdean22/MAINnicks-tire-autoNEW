@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, { params }: { params: Promise<{ tool: string }> }) {
   try {
-    assertBridgeAuth(req);
+    const identity = assertBridgeAuth(req);
     
     const { tool: toolName } = await params;
     const tools = getBridgeSafeTools("actions");
@@ -51,6 +51,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ tool: s
         protocol: "actions",
         toolName: tool.camelName,
         externalName: toolName,
+        clientId: identity.clientId,
+        scope: identity.scope,
         status,
         latencyMs,
         inputRaw: JSON.stringify(args || {}),

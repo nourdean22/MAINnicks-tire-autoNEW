@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    assertBridgeAuth(req);
+    const identity = assertBridgeAuth(req);
 
     let body: unknown;
     try {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await handleMcpMessage(body);
+    const res = await handleMcpMessage(body, identity);
     // Notifications get no response body (JSON-RPC + MCP spec).
     if (res === null) return new Response(null, { status: 202 });
     return Response.json(res);

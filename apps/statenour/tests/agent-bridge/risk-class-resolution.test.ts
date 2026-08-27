@@ -51,20 +51,24 @@ describe("agent-bridge · effective risk classification", () => {
   });
 
   it("the customer-contacting and shell tools carry the classes they earned", () => {
-    const byName = new Map(surface.map((t) => [t.name, t]));
-
-    // Shell execution on the operator's machine.
-    expect(byName.get("run_device_command")?.riskClass).toBe("critical");
-
-    // Anything that can reach a customer or the shop's public feed.
+    // 2026-08-27: these tools are now HARD_DENIED and no longer on the bridge
+    // surface (that IS the hardening). Risk classification is a catalog
+    // property independent of exposure, so assert it at the source —
+    // getToolRiskClass on the catalog name — which is where the effective risk
+    // an audit records comes from, and is more faithful than the old
+    // surface-coupled check.
+    expect(getToolRiskClass("runDeviceCommand", getToolMeta("runDeviceCommand"))).toBe("critical");
     for (const name of [
-      "send_opportunity_sms",
-      "send_telegram",
-      "stage_customer_alert",
-      "trigger_instagram_autopost",
+      "sendOpportunitySms",
+      "sendTelegram",
+      "stageCustomerAlert",
+      "triggerInstagramAutopost",
     ]) {
-      expect(byName.get(name)?.riskClass, `${name} must not be low`).toBe("high");
+      expect(getToolRiskClass(name, getToolMeta(name)), `${name} must not be low`).toBe("high");
     }
+    // POSITIVE CONTROL: a plain read tool stays low — the classifier
+    // discriminates, it is not stamping everything high.
+    expect(getToolRiskClass("getTasks", getToolMeta("getTasks"))).toBe("low");
   });
 
   it("records whether a class was ratified or merely derived", () => {

@@ -18,7 +18,9 @@
  * NOT blanket-true, so write-capable tools are never mislabeled
  * read-only to MCP clients.
  */
-import { getBridgeSafeTools, executeBridgeTool } from "./tool-adapter";
+import { getBridgeSafeTools, executeBridgeTool, bridgeCatalogIndex } from "./tool-adapter";
+import { assertBridgeToolAllowed } from "./tool-policy";
+import type { BridgeIdentity } from "./auth";
 import { auditBridgeCall } from "./audit";
 import { getToolRiskClass } from "@/lib/ai/tools/catalog";
 
@@ -68,8 +70,8 @@ function handleInitialize(id: JsonRpcId, params: Record<string, unknown> | undef
   });
 }
 
-function handleToolsList(id: JsonRpcId): JsonRpcResponse {
-  const tools = getBridgeSafeTools("mcp").map((t) => ({
+function handleToolsList(id: JsonRpcId, identity: BridgeIdentity): JsonRpcResponse {
+  const tools = getBridgeSafeTools("mcp", identity.scope).map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema,
@@ -92,17 +94,54 @@ function wrapStructured(result: unknown): Record<string, unknown> {
   return { result: result ?? null };
 }
 
-async function handleToolsCall(id: JsonRpcId, params: Record<string, unknown> | undefined): Promise<JsonRpcResponse> {
+async function handleToolsCall(
+  id: JsonRpcId,
+  params: Record<string, unknown> | undefined,
+  identity: BridgeIdentity,
+): Promise<JsonRpcResponse> {
   const name = typeof params?.name === "string" ? params.name : "";
   const args = (params?.arguments ?? {}) as Record<string, unknown>;
-  const tool = getBridgeSafeTools("mcp").find((t) => t.name === name);
-  if (!tool) {
-    return fail(id, RPC_ERROR.INVALID_PARAMS, `Unknown tool: ${name || "(missing name)"}`);
-  }
-
-  const started = Date.now();
   const requestId =
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+
+  // Resolve against the FULL surface so we can tell "unknown tool" from
+  // "known but not in your scope" — the second must be audited as a denial,
+  // not silently 404'd, so a probe against a protected tool is detectable.
+  const inScope = getBridgeSafeTools("mcp", identity.scope).find((t) => t.name === name);
+  if (!inScope) {
+    // Resolve against the FULL catalog (not the exposed surface) so a HARD_DENY
+    // tool — never on the surface — is still recognised and its refusal audited,
+    // rather than returned as a silent "unknown tool".
+    const known = bridgeCatalogIndex().find((t) => t.name === name);
+    if (known) {
+      // Known tool, denied by scope or HARD_DENY. Assert to capture the exact
+      // reason, then AUDIT the denial.
+      let reason = "denied by scope";
+      try {
+        assertBridgeToolAllowed(known.camelName, "mcp", identity.scope);
+      } catch (e) {
+        reason = e instanceof Error ? e.message : String(e);
+      }
+      await auditBridgeCall({
+        requestId,
+        protocol: "mcp",
+        toolName: known.camelName,
+        externalName: name,
+        status: "denied",
+        latencyMs: 0,
+        inputRaw: JSON.stringify(args || {}),
+        errorCode: reason,
+        riskClass: getToolRiskClass(known.camelName, known.meta),
+        clientId: identity.clientId,
+        scope: identity.scope,
+      });
+      return fail(id, RPC_ERROR.INVALID_PARAMS, `Tool ${name} is not permitted for your scope.`);
+    }
+    return fail(id, RPC_ERROR.INVALID_PARAMS, `Unknown tool: ${name || "(missing name)"}`);
+  }
+  const tool = inScope;
+
+  const started = Date.now();
   let status: "success" | "error" = "success";
   let errorCode: string | undefined;
   let rawResult: any;
@@ -143,6 +182,8 @@ async function handleToolsCall(id: JsonRpcId, params: Record<string, unknown> | 
       // form silently misses that branch (falling to "high" instead of
       // "critical") — a wrong answer that still looks classified.
       riskClass: getToolRiskClass(tool.camelName, tool.meta),
+      clientId: identity.clientId,
+      scope: identity.scope,
     });
   }
 }
@@ -151,7 +192,10 @@ async function handleToolsCall(id: JsonRpcId, params: Record<string, unknown> | 
  * Dispatch one decoded JSON-RPC message. Returns null for notifications
  * (the route answers HTTP 202 with no body).
  */
-export async function handleMcpMessage(message: unknown): Promise<JsonRpcResponse | null> {
+export async function handleMcpMessage(
+  message: unknown,
+  identity: BridgeIdentity,
+): Promise<JsonRpcResponse | null> {
   if (Array.isArray(message)) {
     return fail(null, RPC_ERROR.INVALID_REQUEST, "JSON-RPC batching is not supported");
   }
@@ -176,9 +220,9 @@ export async function handleMcpMessage(message: unknown): Promise<JsonRpcRespons
     case "ping":
       return ok(id, {});
     case "tools/list":
-      return handleToolsList(id);
+      return handleToolsList(id, identity);
     case "tools/call":
-      return handleToolsCall(id, req.params);
+      return handleToolsCall(id, req.params, identity);
     default:
       return fail(id, RPC_ERROR.METHOD_NOT_FOUND, `Method not found: ${method}`);
   }

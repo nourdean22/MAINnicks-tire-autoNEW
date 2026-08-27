@@ -5,23 +5,68 @@ export async function auditBridgeCall(params: {
   protocol: "mcp" | "actions";
   toolName: string;
   externalName: string;
-  status: "success" | "error";
+  /** "success" | "error" | "denied" — a scope/HARD_DENY refusal is audited too. */
+  status: "success" | "error" | "denied";
   latencyMs: number;
   inputRaw: string;
   resultSize?: number;
   riskClass: string;
   errorCode?: string;
+  /** Token NAME (from auth.ts), never the token value. */
+  clientId?: string;
+  /** The authenticated scope this call ran under. */
+  scope?: string;
 }) {
   const { inputRaw, ...rest } = params;
-  
+
   const inputHash = crypto.createHash("sha256").update(inputRaw).digest("hex");
-  
+
+  // Structured console line stays — it is the cheap, always-on sink and is what
+  // Railway logs retain. The DURABLE row below is what makes "who called this
+  // last month" answerable, the exact question the console-only sink could not
+  // (measured 2026-08-27: zero rows in every DB sink for a call that provably
+  // reached the handler).
   console.log(JSON.stringify({
     event: "agent_bridge_audit",
     timestamp: new Date().toISOString(),
     inputHash,
-    ...rest
+    ...rest,
   }));
+
+  // DURABLE row. Fault-tolerant by construction (CIITTY: never crash the API on
+  // a missing table): a not-yet-applied migration, or any DB hiccup, degrades
+  // to the console line rather than throwing into the tool-execution path. The
+  // raw args are NEVER stored — only their sha256, same as the console sink.
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.bridgeCallLog.create({
+      data: {
+        requestId: params.requestId,
+        protocol: params.protocol,
+        clientId: params.clientId ?? "unknown",
+        scope: params.scope ?? "unknown",
+        toolName: params.toolName,
+        externalName: params.externalName,
+        status: params.status,
+        riskClass: params.riskClass,
+        latencyMs: params.latencyMs,
+        inputHash,
+        resultSize: params.resultSize ?? null,
+        errorCode: params.errorCode ?? null,
+      },
+    });
+  } catch (err) {
+    // The write is best-effort telemetry, not the request's job. Log and move
+    // on — a failed audit-write must never turn a good tool call into a 500.
+    console.warn(
+      JSON.stringify({
+        event: "agent_bridge_audit_persist_failed",
+        timestamp: new Date().toISOString(),
+        requestId: params.requestId,
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      }),
+    );
+  }
 }
 
 /** Why a bridge call never reached a tool. */
@@ -73,6 +118,12 @@ export function classifyBridgeFailure(message: string): BridgeRejectionReason | 
   if (message === "Unauthorized") return "unauthorized";
   if (message === "Forbidden") return "forbidden";
   if (message.includes("disabled")) return "disabled";
-  if (message.includes("missing")) return "misconfigured";
+  // Fail-closed misconfiguration: the legacy "missing" wording plus the
+  // 2026-08-27 multi-token message ("no AGENT_BRIDGE token is set ... Failing
+  // closed"). Both mean the server cannot authenticate anyone and must be
+  // audited as misconfigured, not silently unclassified.
+  if (message.includes("missing") || message.includes("Failing closed") || message.includes("no AGENT_BRIDGE token")) {
+    return "misconfigured";
+  }
   return null;
 }

@@ -1,8 +1,13 @@
 import { TOOL_CATALOG, ToolMeta } from "@/lib/ai/tools/catalog";
+import { BRIDGE_HARD_DENY, allScopeTools, isToolInScope, type BridgeScope } from "./scopes";
 
-// MCP (the /api/mcp bridge) has NO per-schema operation cap — expose the
-// full catalog for maximum operational capability.
-export const MCP_V1_TOOLS = TOOL_CATALOG.map((t) => t.name);
+// MCP surface, 2026-08-27 · SCOPED, NOT the full catalog. It used to be
+// `TOOL_CATALOG.map(t => t.name)` — the entire 181-tool surface behind one
+// token. It is now the union of every scope's allowlist with the
+// protected-operations set (HARD_DENY) subtracted, i.e. the maximal set any
+// token could ever reach. The per-request surface is narrower still — see
+// getBridgeSafeTools(protocol, scope).
+export const MCP_V1_TOOLS = allScopeTools();
 
 // ── ChatGPT Custom GPT Actions: hard 30-operation cap ────────────────
 // ChatGPT rejects any action whose OpenAPI schema declares more than 30
@@ -59,18 +64,50 @@ export function getBridgeToolPolicy(toolName: string): ToolMeta | undefined {
   return TOOL_CATALOG.find((t) => t.name === toolName);
 }
 
-export function assertBridgeToolAllowed(toolName: string, protocol: "mcp" | "actions"): void {
-  const allowlist = protocol === "mcp" ? MCP_V1_TOOLS : CHATGPT_ACTIONS_V1_TOOLS;
-  
-  if (!allowlist.includes(toolName)) {
-    throw new Error(`Tool ${toolName} is not in the allowlist for ${protocol}.`);
+/**
+ * The choke point both bridges share. Throws unless the tool is reachable on
+ * the given protocol AND scope — the CODE that replaces the sentence
+ * "Full Operational Mode Activated: the operator assumes full responsibility",
+ * which guarded arbitrary code execution with nothing but prose.
+ *
+ * `scope` is required for MCP (the request's authenticated scope). Actions runs
+ * at a fixed `tasks`-equivalent surface defined by its own curated 30-list, so
+ * it passes scope undefined and is checked against that list plus HARD_DENY.
+ *
+ * Three ways to be denied, each a distinct thrown message so the audit row and
+ * the canaries can tell them apart:
+ *   - not in the protocol's advertised list
+ *   - in HARD_DENY (protected operations — never reachable on any scope)
+ *   - in the list but not in the caller's SCOPE
+ */
+export function assertBridgeToolAllowed(
+  toolName: string,
+  protocol: "mcp" | "actions",
+  scope?: BridgeScope,
+): void {
+  // HARD_DENY first: protected operations are unreachable regardless of
+  // protocol or scope, and saying so explicitly beats relying on their absence
+  // from a list.
+  if (BRIDGE_HARD_DENY.has(toolName)) {
+    throw new Error(`Tool ${toolName} is a protected operation and is never exposed over the bridge.`);
+  }
+
+  if (protocol === "actions") {
+    if (!CHATGPT_ACTIONS_V1_TOOLS.includes(toolName)) {
+      throw new Error(`Tool ${toolName} is not in the allowlist for actions.`);
+    }
+  } else {
+    // MCP requires an authenticated scope. No scope = deny (fail closed).
+    if (!scope) {
+      throw new Error(`Tool ${toolName} denied: no bridge scope on the request.`);
+    }
+    if (!isToolInScope(toolName, scope)) {
+      throw new Error(`Tool ${toolName} is not permitted for scope "${scope}".`);
+    }
   }
 
   const policy = getBridgeToolPolicy(toolName);
   if (!policy) {
     throw new Error(`Tool ${toolName} missing catalog metadata. Failing closed.`);
   }
-
-  // Full Operational Mode Activated: All write, side-effecting, and high-risk tools are now permitted.
-  // The operator assumes full responsibility for the commands executed through the bridge.
 }
