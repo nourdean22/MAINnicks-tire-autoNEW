@@ -1056,3 +1056,26 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add: "Merges to main cancel sibling in-flight CI (cancel-in-progress). Default to ONE merge per session — review in slices, land once. Applies to both apps, not just nickstire."
 - **Confidence:** high (operator stated twice; mechanism witnessed on this session's own run)
 - **Status:** proposed
+
+## 2026-08-27 · Now-card scorer wave + seeder session
+
+### P1 · harness-worktree-setup
+- **Trigger (witnessed):** `scripts/worktree-setup.ps1 -branchName statenour/now-card-scorer -targetDir .worktrees/now-scorer` printed "Git Worktree Setup Complete!" while creating ZERO junctions — `pnpm exec turbo` failed "not found", root `node_modules` absent. The manual mklink block from this skill then created 15. Same silent-failure earlier the same day on a plain `git worktree add` (expected there; not from the script).
+- **Cost:** one failed lenses build + a diagnosis round-trip, twice in one session.
+- **Proposed edit:** extend scope line: the skill currently says it covers only harness-created worktrees under `.claude/worktrees/` — add "also run the junction block whenever `worktree-setup.ps1` completes but `<wt>/node_modules` does not exist; the script's Complete banner does not verify its junctions."
+- **Confidence:** medium (once, clear, with a matching near-precedent same day)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** watching PR #1946: (a) `gh pr checks` returned "no checks reported on the branch" which satisfied a naive settle loop (`pending==0 && fail==0` → printed "SETTLED: fail=0"); (b) a pushed SHA (`9c8962b4b`) had 0 check-runs for ~30 min while githubstatus said Actions operational — close/reopen did not re-fire; the next real push did.
+- **Cost:** one false "SETTLED" report; a near-miss advisory-merge decision built on a wrong billing hypothesis.
+- **Proposed edit:** add a "CI watch" bullet: require `pass > 3` (or any positive row count) before trusting a settle; and "0 check-runs on a pushed SHA with Actions 'operational' is an event-delivery stall — push the next real commit rather than close/reopen, and do not diagnose billing without the billing API."
+- **Confidence:** high (two distinct instrument-lies in one PR watch)
+- **Status:** proposed
+
+### P3 · prod-db-guard
+- **Trigger (witnessed):** the authorized seeder's backup step: `CREATE TABLE ... AS SELECT * FROM "AutomationPolicy"` failed 42P01 — the model maps to `automation_policies` (`@@map`). Separately that morning, `git show origin/main:.gitignore > file` MSYS-mangled the colon ref (`origin\main;.gitignore`) and the redirect TRUNCATED ~300 tracked files to 0 bytes; recovery was `git archive origin/main | tar -x`.
+- **Cost:** one failed backup attempt (caught); ~300 files zeroed including the live `.completion/evidence.json` (fully recovered, byte-verified).
+- **Proposed edit:** to the backup step: "resolve the physical table name from `@@map` before writing backup SQL — the Prisma model name 42P01s"; new red-flag row: "restoring files via `git show <ref>:<path> > <path>` in git-bash — root-dotfile colon refs MSYS-mangle and the redirect truncates BEFORE the failure; use `git archive <ref> [-- <paths>] | tar -x`."
+- **Confidence:** high (both witnessed with receipts; MSYS truncation also memorized agent-side)
+- **Status:** proposed

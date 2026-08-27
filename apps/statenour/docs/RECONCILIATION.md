@@ -65,10 +65,12 @@
 >   The dollar term ships armed; the invoice→task bridge import (natural entry:
 >   `lib/ai/tools/tasks.ts` follow-up writer, which itself hard-codes roiScore 70) is operator-gated
 >   follow-up, not built.
-> - `check:policy-coverage` red pre-dates this wave: `cron.automation-engine` (armed #1901,
->   rewritten #1928) has no AutomationPolicy row in prod; fix is the idempotent
->   `scripts/seed-policies.ts` run — a prod write, operator-only. Every sibling's verify:hard is
->   red on it until then.
+> - ~~`check:policy-coverage` red pre-dates this wave~~ **RESOLVED same day (~16:08 ET),
+>   operator-authorized:** `scripts/seed-policies.ts` upserted 102/102 policies against prod
+>   (backup `_bak_automation_policies_seed_20260827`, 165 rows, kept until confirmed good);
+>   gate green — all 76 active crons + all 20 autonomous-action rules covered. Full
+>   `verify:hard` confirm: 599/599 test files, all 19 sections, exit 0. The red had failed
+>   every sibling's verify:hard since #1901 armed `cron.automation-engine` unseeded.
 > - Weakest/quick lanes deliberately still admit habits (their copy claims domain-lift/momentum,
 >   not leverage) — revisit only if a habit ever leads the card through them.
 
