@@ -1,0 +1,6 @@
+// FIXTURE - intentionally violates no-reverse-layer-imports. The canary step
+// in .github/workflows/adoption-gates.yml copies this file to
+// apps/statenour/features/__depcruise_canary__.ts, scans it expecting a
+// failure, then deletes the copy. The .txt extension keeps every real scan
+// (ast-grep, dependency-cruiser, tsc, vitest) from ever parsing it in place.
+import "../app/layout";
