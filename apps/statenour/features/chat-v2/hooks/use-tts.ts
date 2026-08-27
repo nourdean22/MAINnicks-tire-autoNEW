@@ -29,9 +29,12 @@ import { toast } from "sonner";
 import { StreamingSpeechSegmenter } from "../lib/speech/segmenter";
 import { sanitizeForSpeech } from "../lib/speech/sanitize";
 import { NarrationController } from "../lib/speech/narration-controller";
-import { ServerTtsEngine, WebSpeechEngine } from "../lib/speech/engines";
+import { ServerTtsEngine, WebSpeechEngine, type SpeechEngine } from "../lib/speech/engines";
 
 const STORAGE_KEY = "nour:chat:tts";
+const RATE_KEY = "nour:chat:tts:rate";
+/** He wants faster, not slower - no sub-1x step. */
+const RATE_STEPS = [1, 1.25, 1.5] as const;
 
 function textOf(message: UIMessage): string {
   return (message.parts ?? [])
@@ -53,6 +56,12 @@ export interface TtsApi {
   /** Replay one completed assistant message (works with `enabled` off). */
   speakMessage: (id: string, text: string) => void;
   stop: () => void;
+  /** Which engine is actually speaking right now (honest surface):
+   *  "server-neural" | "web-speech" | null when idle. */
+  narratingEngine: string | null;
+  /** Playback speed multiplier; cycleRate steps 1 -> 1.25 -> 1.5 -> 1. */
+  rate: number;
+  cycleRate: () => void;
 }
 
 export function useTts({
@@ -66,8 +75,11 @@ export function useTts({
   const [enabled, setEnabledState] = useState(false);
   const [narrating, setNarrating] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [narratingEngine, setNarratingEngine] = useState<string | null>(null);
+  const [rate, setRateState] = useState(1);
 
   const controllerRef = useRef<NarrationController | null>(null);
+  const enginesRef = useRef<SpeechEngine[] | null>(null);
   const segmenterRef = useRef<StreamingSpeechSegmenter | null>(null);
   /** Message id the live follower is attached to. */
   const followedIdRef = useRef<string | null>(null);
@@ -78,14 +90,32 @@ export function useTts({
 
   const controller = useCallback((): NarrationController => {
     if (!controllerRef.current) {
+      const engines: SpeechEngine[] = [new ServerTtsEngine(), new WebSpeechEngine()];
+      enginesRef.current = engines;
       controllerRef.current = new NarrationController(
         // Server neural voice first; Web Speech is the offline/failure
         // fallback. The controller records who actually spoke.
-        [new ServerTtsEngine(), new WebSpeechEngine()],
+        engines,
         {
           onStateChange: (state) => {
             setNarrating(state === "speaking");
-            if (state === "idle") setSpeakingMessageId(null);
+            if (state === "idle") {
+              setSpeakingMessageId(null);
+              setNarratingEngine(null);
+            }
+          },
+          onEngineUsed: (name) => {
+            setNarratingEngine(name);
+            // The neural lane degrading to the device voice must be LOUD —
+            // "slow robot with no explanation" is the lying-surface failure
+            // this exists to prevent. Deduped by toast id so a long reply
+            // does not toast per sentence.
+            if (name === "web-speech") {
+              toast.warning("Neural voice unavailable — using the device voice", {
+                id: "tts-fallback",
+                duration: 4000,
+              });
+            }
           },
           onError: () => {
             toast.error("Read-aloud failed — every speech engine errored", { id: "tts-error" });
@@ -102,10 +132,32 @@ export function useTts({
     try {
       const stored = localStorage.getItem(STORAGE_KEY) === "1";
       if (stored) setTimeout(() => setEnabledState(true), 0);
+      const storedRate = Number(localStorage.getItem(RATE_KEY));
+      if ((RATE_STEPS as readonly number[]).includes(storedRate)) {
+        setTimeout(() => setRateState(storedRate), 0);
+      }
     } catch {
       /* private mode — default off is fine */
     }
   }, [controller]);
+
+  // Keep engine playback speed in lockstep with the preference.
+  useEffect(() => {
+    for (const engine of enginesRef.current ?? []) engine.setRate?.(rate);
+  }, [rate]);
+
+  const cycleRate = useCallback(() => {
+    setRateState((current) => {
+      const idx = (RATE_STEPS as readonly number[]).indexOf(current);
+      const next = RATE_STEPS[(idx + 1) % RATE_STEPS.length];
+      try {
+        localStorage.setItem(RATE_KEY, String(next));
+      } catch {
+        /* preference just will not survive reload */
+      }
+      return next;
+    });
+  }, []);
 
   // Hydrated-on preference means no enabling tap this session: prime on
   // the first interaction anywhere so iOS unlocks before narration.
@@ -191,6 +243,10 @@ export function useTts({
     (id: string, text: string) => {
       const ctl = controller();
       ctl.stop();
+      // Replay wins: detach the live follower so a still-streaming reply
+      // cannot interleave its spans with the replayed message.
+      followedIdRef.current = null;
+      segmenterRef.current = null;
       // Replay taps are user gestures — prime here too so a replay
       // works even when auto-narration was never enabled.
       primedRef.current = true;
@@ -210,5 +266,5 @@ export function useTts({
     return () => controllerRef.current?.stop();
   }, []);
 
-  return { supported, enabled, toggle, narrating, speakingMessageId, speakMessage, stop };
+  return { supported, enabled, toggle, narrating, speakingMessageId, speakMessage, stop, narratingEngine, rate, cycleRate };
 }

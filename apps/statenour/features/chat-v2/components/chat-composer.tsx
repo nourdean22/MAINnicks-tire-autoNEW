@@ -410,7 +410,28 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
                   : "border-glass text-fg-tertiary hover:text-fg-secondary",
             )}
           >
-            {tts.narrating ? "reading · stop" : tts.enabled ? "read · on" : "read"}
+            {tts.narrating
+              ? tts.narratingEngine === "web-speech"
+                ? "reading · device voice"
+                : "reading · stop"
+              : tts.enabled
+                ? "read · on"
+                : "read"}
+          </button>
+        )}
+        {tts?.supported && tts.enabled && (
+          <button
+            type="button"
+            onClick={() => tts.cycleRate()}
+            aria-label={"Narration speed " + tts.rate + "x (tap to cycle)"}
+            className={cn(
+              "flex min-h-11 items-center rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition",
+              tts.rate === 1
+                ? "border-glass text-fg-tertiary hover:text-fg-secondary"
+                : "border-sky-500/50 bg-sky-500/10 text-sky-300",
+            )}
+          >
+            {tts.rate}x
           </button>
         )}
         <button

@@ -22,6 +22,9 @@ export type NarrationState = "idle" | "speaking";
 export interface NarrationCallbacks {
   onStateChange?: (state: NarrationState) => void;
   onError?: (error: unknown) => void;
+  /** Fires when a span STARTS on an engine — the fallback transition is
+   *  the signal that keeps a degraded lane from being silent. */
+  onEngineUsed?: (engine: string) => void;
 }
 
 export class NarrationController {
@@ -90,6 +93,7 @@ export class NarrationController {
           if (!engine.isSupported()) continue;
           try {
             this.activeEngine = engine.name;
+            this.callbacks.onEngineUsed?.(engine.name);
             await engine.speak(text);
             if (gen !== this.generation) return; // settled after stop — stale
             spoken = true;
