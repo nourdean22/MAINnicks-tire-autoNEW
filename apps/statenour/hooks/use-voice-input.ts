@@ -142,7 +142,17 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             toast.error("Voice transcription failed — try again");
             return;
           }
+          // 2026-08-27 · engine honesty (same contract as TTS): the route
+          // names the lane that ACTUALLY transcribed and whether an
+          // earlier configured lane failed first. Degradation is loud.
+          // Deduped by id so rapid retries do not stack toasts.
           const data = await res.json();
+          if (data.degraded && data.source) {
+            toast.warning(`Transcribed via backup lane (${data.source})`, {
+              id: "stt-degraded",
+              duration: 3500,
+            });
+          }
           if (data.text) {
             onTranscript(data.text);
           } else if (data.error) {

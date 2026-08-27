@@ -29,38 +29,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { transcribeAudio } from "@/lib/ai/stt";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { withTracing } from "@/lib/utils/with-tracing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WHISPER_MAX_BYTES = 25 * 1024 * 1024; // 25MB OpenAI limit
-
-async function transcribeViaWhisper(
-  blob: Blob,
-  filename: string,
-): Promise<{ text: string }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("no OPENAI_API_KEY");
-
-  const form = new FormData();
-  form.append("file", blob, filename);
-  form.append("model", "whisper-1");
-  form.append("response_format", "json");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`whisper ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const data = (await res.json()) as { text?: string };
-  return { text: (data.text ?? "").trim() };
-}
+const WHISPER_MAX_BYTES = 25 * 1024 * 1024; // 25MB upstream cap (all lanes)
 
 async function handler(req: NextRequest): Promise<Response> {
   // Auth: requireSession invoked below
@@ -108,33 +84,28 @@ async function handler(req: NextRequest): Promise<Response> {
     return NextResponse.json({ text: "", source: "skipped", ms: 0 });
   }
 
-  // Try Whisper first if available + size fits (25MB limit) · much faster
-  if (process.env.OPENAI_API_KEY && blob.size <= WHISPER_MAX_BYTES) {
-    try {
-      const { text } = await transcribeViaWhisper(blob, filename);
-      return NextResponse.json({
-        text,
-        source: "whisper",
-        ms: Date.now() - startedAt,
-      });
-    } catch (err) {
-      // 2026-08-25 · VideoDB fallback removed (never worked in prod:
-      // $0 account, zero lifetime uploads). A whisper failure is now a
-      // loud 502, not a silent hop to a dead lane.
-      return NextResponse.json(
-        { error: `whisper failed: ${err instanceof Error ? err.message.slice(0, 200) : "unknown"}` },
-        { status: 502 },
-      );
-    }
+  // 2026-08-27 · OPENAI_API_KEY revoked in prod (live-probed 401) killed
+  // the whisper-only lane. Free-first chain: groq (when its no-card key
+  // is set) -> hf (key live, lane LIVE-PROVEN) -> openai (self-heals on
+  // rotation). `source` names the lane that ACTUALLY transcribed;
+  // `degraded` is true when an earlier configured lane failed first —
+  // the client surfaces that instead of degrading silently.
+  try {
+    const result = await transcribeAudio(blob, filename);
+    return NextResponse.json({
+      text: result.text,
+      source: result.engine,
+      degraded: result.degraded,
+      ms: Date.now() - startedAt,
+    });
+  } catch (err) {
+    // Every configured lane failed (or none configured) — loud, with
+    // per-lane reasons. Never a silent hop, never a fake success.
+    return NextResponse.json(
+      { error: `transcription failed: ${err instanceof Error ? err.message.slice(0, 300) : "unknown"}` },
+      { status: 502 },
+    );
   }
-
-  return NextResponse.json(
-    {
-      error: "no transcription provider configured",
-      hint: "set OPENAI_API_KEY — whisper-1 is the only transcription provider (VideoDB retired 2026-08-25)",
-    },
-    { status: 503 },
-  );
 }
 
 // Auth: handler above invokes requireSession on first line.
