@@ -1,0 +1,156 @@
+{
+  "topic": "brake-dust-normal-vs-check-pads",
+  "createdAt": "2026-08-27T20:29:16Z",
+  "mode": "PRODUCTION",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "renderExists": false,
+  "publishAttempted": false,
+  "capabilityProbe": {
+    "hfCliFound": false,
+    "higgsfieldCliFound": false,
+    "ffmpegFound": false,
+    "envVarsPresent": [],
+    "databaseUrlPresent": false,
+    "adminApiKeyPresent": false
+  },
+  "duplicateCheck": {
+    "mergedPacksScanned": 136,
+    "openPullRequests": [
+      { "number": 1942, "title": "docs(nickstire): reel pack — synthetic vs conventional oil", "createdAt": "2026-08-27T17:32:43Z" },
+      { "number": 1932, "title": "docs(nickstire): reel pack — engine pinging/knocking under acceleration", "createdAt": "2026-08-27T14:34:03Z" },
+      { "number": 1945, "title": "docs(nickstire): reel pack — grinding starter noise on key-turn", "createdAt": "2026-08-27T18:31:59Z" },
+      { "number": 1927, "title": "docs · nickstire · reel pack: steering wheel vibration at highway speed", "createdAt": "2026-08-27T13:35:35Z" },
+      { "number": 1941, "title": "docs(nickstire): reel pack — grinding brakes on first stop of the day", "createdAt": "2026-08-27T16:32:38Z" },
+      { "number": 1948, "title": "docs(nickstire): reel-pack backlog status — supply vs. avoid-list need", "createdAt": "2026-08-27T19:31:27Z" }
+    ],
+    "overlapFound": false
+  },
+  "concept": {
+    "hook": "Dusty wheels every week? That's not always bad news.",
+    "claim": "Even gray dust on all four wheels is normal brake wear; a sudden jump in dust or dark oily dust on one wheel only can point to worn pads or a sticking caliper.",
+    "cta": "Don't guess from the driveway. Stop by and we'll take a look.",
+    "faceless": true,
+    "durationSeconds": 29,
+    "aspectRatio": "9:16"
+  },
+  "candidateScores": [
+    { "concept": "brake-dust-normal-vs-check-pads", "scrollStop": 4, "mutedClarity": 5, "sourcedFact": 4, "claimSafety": 5, "novelty": 5, "total25": 23, "selected": true },
+    { "concept": "parking-brake-not-holding-hill", "scrollStop": 3, "mutedClarity": 4, "sourcedFact": 3, "claimSafety": 5, "novelty": 4, "total25": 19, "selected": false },
+    { "concept": "backup-camera-fogging-cold", "scrollStop": 3, "mutedClarity": 3, "sourcedFact": 2, "claimSafety": 5, "novelty": 4, "total25": 17, "selected": false }
+  ],
+  "qualityScoreSelfEstimate75": { "value": "67-69", "serverVerified": false, "note": "calculateReelQualityScore() not invoked; no running app in this session" },
+  "beats": [
+    {
+      "id": "hero",
+      "startSec": 0,
+      "endSec": 3,
+      "vo": "Dusty wheels every week? That's not always bad news.",
+      "caption": "DUSTY WHEELS EVERY WEEK? NOT ALWAYS BAD NEWS",
+      "shot": "Macro close-up on an alloy wheel spoke, even gray dust, low raking light",
+      "prompt": "Close-up macro shot, car alloy wheel spoke, fine even gray brake dust coating the surface, low raking side light emphasizing texture, slow push-in camera move, photorealistic, shallow depth of field, automotive detail",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "anchor"
+    },
+    {
+      "id": "support1",
+      "startSec": 3,
+      "endSec": 10,
+      "vo": "A steady, even coat of gray dust on all four wheels is normal brake wear.",
+      "caption": "EVEN GRAY DUST, ALL 4 WHEELS → NORMAL",
+      "shot": "Wide shot, all four wheels of a parked car, symmetric even dust coating",
+      "prompt": "Wide shot of a parked car from a low three-quarter angle, all four wheels visible, even light gray brake dust coating on each wheel, static camera with slow orbit, daylight, photorealistic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "support2",
+      "startSec": 10,
+      "endSec": 17,
+      "vo": "But a sudden jump in dust, or dark, oily dust on just one wheel - that's a different clue.",
+      "caption": "SUDDEN JUMP OR DARK DUST ON 1 WHEEL → CLUE",
+      "shot": "Macro close-up on one wheel, noticeably darker/heavier dust",
+      "prompt": "Extreme close-up macro shot, single car alloy wheel with unusually heavy dark oily-looking brake dust buildup on the spokes and barrel, slow rack-focus, dramatic side lighting, photorealistic",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "reference",
+      "startSec": 17,
+      "endSec": 23,
+      "vo": "That can point to worn pads or a caliper that's not releasing fully - worth checking sooner, not later.",
+      "caption": "CAN POINT TO: WORN PADS OR STICKING CALIPER",
+      "shot": "Behind-the-wheel view through spokes toward brake caliper and rotor",
+      "prompt": "Medium shot looking through the spokes of a car wheel at the brake caliper and rotor assembly, static camera with slow zoom, workshop ambient lighting, photorealistic, clean and neutral, no people",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "cta",
+      "startSec": 23,
+      "endSec": 26,
+      "vo": "Don't guess from the driveway - stop by and we'll take a look.",
+      "caption": "DON'T GUESS. STOP BY — WE'LL LOOK.",
+      "shot": "Exterior of shop service bay, slow dolly-in",
+      "prompt": "Exterior shot of an auto repair shop service bay, open garage door, daylight, slow forward dolly camera move, photorealistic, no people, no signage text",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "startImageRole": "support"
+    },
+    {
+      "id": "save_freeze",
+      "startSec": 26,
+      "endSec": 29,
+      "vo": null,
+      "caption": "SAVE THIS FOR YOUR NEXT WHEEL WASH",
+      "shot": "Freeze on CTA beat's last frame, brand wordmark overlay added at assembly",
+      "prompt": null,
+      "negativePrompt": null,
+      "startImageRole": "freeze-reuse-cta"
+    }
+  ],
+  "claimSafety": {
+    "approvedPhrasesUsed": ["can point to", "worth checking", "stop by and we'll take a look"],
+    "bannedPatternsPresent": false,
+    "pricesOrWarrantyMentioned": false
+  },
+  "evidence": {
+    "businessFactsChannelSupport": false,
+    "reason": "FactChannel is sms|voice|web only, no 'reel' channel exists",
+    "evidenceResolverRun": false,
+    "reason2": "no DATABASE_URL in this session"
+  },
+  "musicRights": {
+    "trackSelected": false,
+    "blocked": true,
+    "reason": "no music-rights ledger exists in this repo"
+  },
+  "qaMatrix": {
+    "briefQualityScore": "UNKNOWN",
+    "serverReScore": "BLOCKED",
+    "renderIntegrityGate": "BLOCKED",
+    "renderedQaVisionCritic": "BLOCKED",
+    "repairRouting": "N/A",
+    "sevenWayAutomationDecision": "BLOCKED",
+    "consolidatedPublishGate": "BLOCKED",
+    "claimSafetyWordingCheck": "PASS",
+    "duplicateTopicCheck": "PASS"
+  },
+  "socialCopy": {
+    "primary": {
+      "caption": "Dusty wheels every week? Usually normal — even gray dust on all four wheels is just routine brake wear. But a sudden jump in dust, or dark oily dust on one wheel only, can point to worn pads or a caliper that's not releasing fully. Worth checking sooner, not later. Don't guess from the driveway — stop by and we'll take a look.",
+      "hashtags": ["#NicksTireEuclid", "#BrakeCare", "#AutoRepair", "#EuclidOhio", "#CarCare", "#MechanicTips"]
+    },
+    "adVariants": [
+      {
+        "hook": "Dusty wheels? Here's what your brake dust is actually telling you.",
+        "caption": "Even dust on all four wheels = normal. Heavy dark dust on one wheel = a different story. Know the difference before you spend money.",
+        "cta": "Stop by — we'll check it for free."
+      },
+      {
+        "hook": "1 clue in your wheel dust worth checking (before you replace pads)",
+        "caption": "Sudden dust jump or dark buildup on just one wheel can point to worn pads or a sticking caliper — not always all four. Don't guess — ask us.",
+        "cta": "Come by the shop, we'll look it over."
+      }
+    ]
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
