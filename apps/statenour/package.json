@@ -117,6 +117,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "edge-tts-universal": "1.4.0",
     "exceljs": "4.4.0",
     "geist": "^1.7.0",
     "googleapis": "^171.4.0",

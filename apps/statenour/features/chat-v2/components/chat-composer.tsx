@@ -18,6 +18,7 @@ import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import type { TtsApi } from "../hooks/use-tts";
 
 function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
   return (message.parts ?? [])
@@ -27,7 +28,7 @@ function messageText(message: { parts?: Array<{ type?: string; text?: string }> 
     .trim();
 }
 
-export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
+export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?: TtsApi }) {
   const draft = useChatUiStore((s) => s.draft);
   const setDraft = useChatUiStore((s) => s.setDraft);
   const editingMessageId = useChatUiStore((s) => s.editingMessageId);
@@ -384,6 +385,34 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
           {depth === "auto" ? "depth" : depth}
         </button>
         <div className="flex-1" />
+        {/* 2026-08-27 · read-aloud. Rendered ONLY when an engine exists —
+            a dead control that looks alive is this repo's signature
+            defect. While narrating, the first tap STOPS (audio halts
+            mid-sentence); a second tap turns the preference off. */}
+        {tts?.supported && (
+          <button
+            type="button"
+            onClick={() => (tts.narrating ? tts.stop() : tts.toggle())}
+            aria-pressed={tts.enabled}
+            aria-label={
+              tts.narrating
+                ? "Reading aloud (tap to stop)"
+                : tts.enabled
+                  ? "Read replies aloud is on (tap to turn off)"
+                  : "Read replies aloud is off (tap to turn on)"
+            }
+            className={cn(
+              "flex min-h-11 items-center gap-1 rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
+              tts.narrating
+                ? "animate-pulse border-sky-500/60 bg-sky-500/15 text-sky-300"
+                : tts.enabled
+                  ? "border-sky-500/50 bg-sky-500/10 text-sky-300"
+                  : "border-glass text-fg-tertiary hover:text-fg-secondary",
+            )}
+          >
+            {tts.narrating ? "reading · stop" : tts.enabled ? "read · on" : "read"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setTurbo(!turbo)}

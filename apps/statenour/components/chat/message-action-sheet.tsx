@@ -29,7 +29,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown, GitFork } from "lucide-react";
+import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown, GitFork, Volume2, VolumeX } from "lucide-react";
 
 export interface MessageActionSheetProps {
   open: boolean;
@@ -44,6 +44,11 @@ export interface MessageActionSheetProps {
   onSaveAsDecision?: () => void;
   /** v10.0.360 · "Show reasoning" · opens the BDI provenance trace. */
   onShowReasoning?: () => void;
+  /** 2026-08-27 · read this assistant reply aloud (chat-v2 TTS). */
+  onSpeak?: () => void;
+  /** True while THIS message is being narrated — row becomes Stop. */
+  isSpeaking?: boolean;
+  onStopSpeaking?: () => void;
   /** Relocated from the deleted message hover-bar - now touch-reachable. */
   onCreateTask?: () => void;
   onSaveToBrain?: () => void;
@@ -111,6 +116,9 @@ export function MessageActionSheet({
   onDelete,
   onSaveAsBelief,
   onSaveAsDecision,
+  onSpeak,
+  isSpeaking,
+  onStopSpeaking,
   onShowReasoning,
   onCreateTask,
   onSaveToBrain,
@@ -246,6 +254,15 @@ export function MessageActionSheet({
               icon={<Pencil size={16} />}
               label="Edit"
               tone="neutral"
+              delay={next()}
+            />
+          )}
+          {role === "assistant" && (isSpeaking ? onStopSpeaking : onSpeak) && (
+            <ActionRow
+              onClick={fireAndClose(isSpeaking ? onStopSpeaking : onSpeak)}
+              icon={isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              label={isSpeaking ? "Stop reading" : "Read aloud"}
+              tone="blue"
               delay={next()}
             />
           )}

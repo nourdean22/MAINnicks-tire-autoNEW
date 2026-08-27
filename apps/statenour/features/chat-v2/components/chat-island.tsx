@@ -17,6 +17,7 @@ import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sideb
 import { extractQuality } from "@/lib/chat/extract-message-metadata";
 import { useConversations } from "@/hooks/use-conversations";
 import { useChatDeepLinkPrefill } from "../hooks/use-chat-deep-link-prefill";
+import { useTts } from "../hooks/use-tts";
 
 function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
@@ -90,6 +91,10 @@ export function ChatIsland() {
   const [memoryFetchedAt, setMemoryFetchedAt] = useState<Date | null>(null);
 
   const chat = useChatStream();
+  // 2026-08-27 · read-aloud narration. The hook owns the persisted
+  // preference + streaming follower; the island only hands it to the
+  // composer (toggle chip) and the message list (per-message replay).
+  const tts = useTts({ messages: chat.messages, isStreaming: chat.isStreaming });
   // BDN-004 · restore ?q=/?seed=/?prompt= prefill + ?cid= conversation
   // deep-links (orphaned in the chat-v2 migration; 13 callers were
   // landing on an empty composer). Prefill only — never auto-send.
@@ -287,6 +292,7 @@ export function ChatIsland() {
             lastTraceIdRef={chat.lastTraceIdRef}
             onRetry={() => void chat.regenerate()}
             onCommand={(prompt) => chat.sendText(prompt)}
+            tts={tts}
           />
           <div ref={endRef} />
         </div>
@@ -318,7 +324,7 @@ export function ChatIsland() {
       <ChatMediaDock />
 
       <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
-        <ChatComposer chat={chat} />
+        <ChatComposer chat={chat} tts={tts} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays like the memory

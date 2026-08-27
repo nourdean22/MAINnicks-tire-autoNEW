@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 import { trpc } from "@/lib/trpc/client";
 import { haptic } from "@/lib/ui/haptic";
+import type { TtsApi } from "../hooks/use-tts";
 
 /** Stable djb2-ish content-hash key so re-saving the same reply reinforces the
  *  row (upsert by category+key) instead of duplicating. Mirrors the legacy
@@ -126,6 +127,7 @@ export function ChatMessageList({
   lastTraceIdRef,
   onRetry,
   onCommand,
+  tts,
 }: {
   messages: UIMessage[];
   isLoading: boolean;
@@ -135,6 +137,7 @@ export function ChatMessageList({
   lastTraceIdRef?: React.RefObject<string | null>;
   onRetry?: () => void;
   onCommand?: (prompt: string) => void;
+  tts?: TtsApi;
 }) {
   const pending = useChatUiStore((state) => state.pending);
   const connection = useChatUiStore((state) => state.connection);
@@ -362,6 +365,13 @@ export function ChatMessageList({
           if (actionSheetMsg?.id) setReasoningTraceMsg(actionSheetMsg.id);
           setActionSheetMsg(null);
         }}
+        onSpeak={
+          actionSheetMsg?.role === "assistant" && tts?.supported
+            ? () => tts.speakMessage(actionSheetMsg.id, actionSheetMsg.text)
+            : undefined
+        }
+        isSpeaking={Boolean(actionSheetMsg && tts?.speakingMessageId === actionSheetMsg.id)}
+        onStopSpeaking={tts ? () => tts.stop() : undefined}
         onSaveAsBelief={actionSheetMsg?.role === "assistant" ? onSaveAsBelief : undefined}
         onSaveAsDecision={actionSheetMsg?.role === "assistant" ? onSaveAsDecision : undefined}
       />
