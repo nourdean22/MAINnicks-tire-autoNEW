@@ -1056,3 +1056,33 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add: "Merges to main cancel sibling in-flight CI (cancel-in-progress). Default to ONE merge per session — review in slices, land once. Applies to both apps, not just nickstire."
 - **Confidence:** high (operator stated twice; mechanism witnessed on this session's own run)
 - **Status:** proposed
+
+## 2026-08-27 · Adoption-gates wave + zombie rescue + primary re-park
+
+### P1 · stranded-branch-rescue
+- **Trigger (witnessed):** this session filed a "stranded commit" rescue chip for `3061c895b` off `origin/main..branch = 1`; running the skill refuted it in one call - the SHA was PR #1756's only commit (squash-merged), `git cherry` agreed with `-`. The topology count was the squash artifact the skill describes, but the skill never names the cheapest definitive probe.
+- **Cost:** a spawned rescue session + operator attention for a non-task.
+- **Proposed edit:** add to Step 1: "Before calling anything stranded off a commit-count, run `gh pr view <pr> --json commits` - if the 'stranded' SHA is IN the merged PR's commit list, it is the zombie itself; `origin/main..branch` counts are meaningless after a squash."
+- **Confidence:** medium (once, crisp)
+- **Status:** proposed
+
+### P2 · guard-red-team
+- **Trigger (witnessed):** #1935's depcruise deny-canary initially trusted a nonzero exit; the real run exited 1 from a CONFIG error (TS18003 parsing the app tsconfig), not the rule - the canary would have blessed a blind gate. Fixed by asserting the rule id in output; the skill currently says "assert on exit codes".
+- **Cost:** caught pre-merge only because the probe output was read by hand.
+- **Proposed edit:** add to the protocol: "For a DENY canary, a nonzero exit is NOT proof - config and parse errors exit nonzero too. Assert the specific rule/violation id appears in the output."
+- **Confidence:** high (mechanism demonstrated live in #1935's probes)
+- **Status:** proposed
+
+### P3 · statenour-verify
+- **Trigger (witnessed):** pre-commit typecheck failed on `edge-tts-universal` missing in `app/api/ai/speak/route.ts` - a file outside the diff; cause was the PRIMARY checkout parked on a pre-#1930 branch so junctioned node_modules predated the dep. Separately, one lefthook run flaked red (statenour-typecheck 149s) and passed unchanged on retry under memory pressure.
+- **Cost:** ~30 min of root-causing plus a package-staging workaround.
+- **Proposed edit:** add two trap bullets: (1) "TS2307 for a module in a file outside your diff = stale-junction phantom; check `git show HEAD:apps/<app>/package.json | grep <pkg>` vs what is installed - fix the PRIMARY checkout, do not patch the app"; (2) "lefthook's parallel typecheck can flake red under memory pressure - rerun once before diagnosing."
+- **Confidence:** high (both witnessed this session; the phantom shape also hit the #1929 worktree)
+- **Status:** proposed
+
+### P4 · NEW rule in scripts/worktree-teardown.ps1 (script change, routed as proposal)
+- **Trigger (witnessed):** tearing down zombie worktree `graphify-relabel` (parked ON `main`) deleted the local `main` branch itself - the script deletes the worktree's branch unconditionally; primary then could not `git switch main` ("matched multiple (2) remote tracking branches") until main was recreated from origin.
+- **Cost:** confusion + branch recreation mid-repair; on a machine without origin it would be data loss.
+- **Proposed edit:** in the branch-deletion step, skip and warn when the inferred branch is `main` (or any branch with an origin counterpart it is behind): "worktree removed; branch 'main' preserved."
+- **Confidence:** high (deterministic; reproduced by reading the script's inferred-branch path)
+- **Status:** proposed
