@@ -31,9 +31,19 @@ export async function mergeMemories(): Promise<{ merged: number }> {
   // categories — merging rewrites a category's rows into one PROSE blob,
   // which corrupts JSON-payload categories (their readers JSON.parse
   // content). See CONSOLIDATION_EXCLUDE_CATEGORIES.
+  // 2026-08-27 · OPERATOR-CURATED ROWS ARE NOT THE MACHINE'S TO REWRITE.
+  // Between 08-15 and 08-20 this engine ate 38 operator-curated pm_* rows
+  // and rewrote 13 keepers (including the operator-VERIFIED medication
+  // stack). The category exclusions above are one guard; this predicate is
+  // the orthogonal one: rows the operator wrote (createdBy "user") or that
+  // were imported as curated personal memory (source "manual") never enter
+  // the candidate pool, in ANY category. Prisma NOT-array is null-safe
+  // here: NOT({createdBy:"user"}) also admits legacy null createdBy rows.
+  const CURATED_GUARD = { NOT: [{ createdBy: "user" }, { source: "manual" }] };
+
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
-    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] } },
+    where: { category: { notIn: [...CONSOLIDATION_EXCLUDE_CATEGORIES] }, ...CURATED_GUARD },
     _count: { id: true },
     having: { id: { _count: { gt: 3 } } },
   });
@@ -47,7 +57,7 @@ export async function mergeMemories(): Promise<{ merged: number }> {
     // resurrecting deleted memories. Same pattern as the
     // `memory_promotion` autonomous-engine rule already uses.
     const memories = await prisma.brainMemory.findMany({
-      where: { category: cat.category, deletedAt: null },
+      where: { category: cat.category, deletedAt: null, ...CURATED_GUARD },
       orderBy: { confidence: "desc" },
       select: { id: true, key: true, content: true, confidence: true, seenCount: true },
     });
