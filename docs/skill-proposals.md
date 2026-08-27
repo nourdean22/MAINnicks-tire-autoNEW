@@ -1033,3 +1033,26 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** medium (once, clear, and it reached the operator)
 - **Status:** applied — operator-approved 2026-08-26; took the offered lighter path — a rule in
   statenour-verify ("read the WHOLE structure by its delimiters"), no new skill created
+
+## 2026-08-27 · chat read-aloud (streaming TTS) session
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** prod `OPENAI_API_KEY` was revoked; three signals all said "fine" — local `.env` had a key (it 401'd), `env-check` said `openai:true` (proves SET, not VALID), and a memory line said "prod key works per probe-env-config" (stale doc belief). Truth arrived only via a live authed probe: `/api/ai/transcribe` → `502 "whisper 401"` (this session, #1930 smoke).
+- **Cost:** mic + Realtime voice silently dead in prod for an unknown period; this session nearly shipped "prod key works" as fact.
+- **Proposed edit:** add a rule: "A provider key's PRESENCE (env-check boolean, .env line, doc claim) is never evidence of VALIDITY. When any provider lane misbehaves, the check is one live cheap call against the provider from the runtime that holds the key."
+- **Confidence:** high (same class as nickstire-env-is-not-production — recurred across both apps)
+- **Status:** proposed
+
+### P2 · harness-worktree-setup
+- **Trigger (witnessed):** `worktree-setup.ps1` detected a pnpm-lock diff vs the stale primary and printed "Bypassing node_modules link… run pnpm install manually" — but the PreToolUse hook blocks EVERY install under `.worktrees/*` with no bypass. The worktree was unusable as created; the session fell back to the scratchpad-clone recipe (clone branch → install → build `@nour/*` packages → push from clone), same as #1843.
+- **Cost:** one dead worktree created and torn down, one blocked call, ~10 min.
+- **Proposed edit:** add: "If setup prints 'Bypassing node_modules link' (lockfile drift), do NOT create/keep the worktree — go straight to the scratchpad-clone recipe (statenour-chat-tts-2026-08-27 memory has the steps)."
+- **Confidence:** high (second occurrence; #1843 hit the same wall from the junctioned side)
+- **Status:** proposed
+
+### P3 · nickstire-shared-main-push
+- **Trigger (witnessed):** operator instructed twice this session: "one merge, not several — CI is ~13 min and cancel-in-progress kills every sibling PR's in-flight run" (five sibling sessions live). The session's Agent-policy run on `7f293d3` was itself cancelled by the next sibling merge, demonstrating the mechanism.
+- **Cost:** each extra merge to main costs every open PR a full CI cycle.
+- **Proposed edit:** add: "Merges to main cancel sibling in-flight CI (cancel-in-progress). Default to ONE merge per session — review in slices, land once. Applies to both apps, not just nickstire."
+- **Confidence:** high (operator stated twice; mechanism witnessed on this session's own run)
+- **Status:** proposed
