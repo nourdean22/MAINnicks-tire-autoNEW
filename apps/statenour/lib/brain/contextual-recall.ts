@@ -404,13 +404,51 @@ export function buildLexicalTsQuery(topics: string[]): string {
 // 2026-08-13 · BDN-203 · exported so scripts/recall-eval.ts can run the
 // lexical lane as a standalone retriever against the eval corpus
 // (grep-first vs vector comparison). Behavior unchanged.
+/**
+ * 2026-08-27 · retrieval levers run: this GIN query ran past 900ms on 10 of
+ * 28 corpus queries (max 2.9s) while contributing exactly ONE lexical hit
+ * among those slow runs — and it sits inside the chat pipeline's 3s race, so
+ * every slow lexical run taxed the semantic + rerank stages behind it. The
+ * tx-scoped statement_timeout caps the tail; a timeout lands in the existing
+ * catch and the lane degrades to [] exactly like every other lexical failure.
+ * Term COUNT was measured NOT to be the driver (caps 8/5/3 had equal
+ * latency), so the topics stay uncapped.
+ */
+const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
+
+/**
+ * Rerank call-site budget (2026-08-27 levers): the backends' own
+ * AbortSignals are 7.5s (Cohere) / 6s (BGE) — sized before the chat
+ * route's 3s Promise.race over this whole pipeline existed. Past the
+ * budget the RRF-hybrid ordering stands (a correct answer, less well
+ * sorted). The losing HTTP call is left to the backend's own abort:
+ * it is side-effect-free and self-terminates at the backend bound —
+ * plumbing an extra AbortSignal through the rerank orchestrator for a
+ * sub-1%-of-turns stray call is complexity the numbers don't buy.
+ */
+const RERANK_CALL_BUDGET_MS = 1_500;
+
+/**
+ * Race a rerank promise against the budget: budget expiry and rejection
+ * both resolve null, which every call site already treats as "keep the
+ * hybrid ordering". Exported for the behavioral canary.
+ */
+export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number): Promise<T | null> {
+  return Promise.race([
+    p.catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), budgetMs)),
+  ]);
+}
+
 export async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
   if (!tsQueryText) return [];
   try {
     // $1 = tsQueryText (parameterized — no injection). `limit` is an internal
     // numeric constant interpolated as a literal, mirroring memory-recall.ts.
-    return await prisma.$queryRawUnsafe<LexicalRow[]>(
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${LEXICAL_STATEMENT_TIMEOUT_MS}`);
+      return tx.$queryRawUnsafe<LexicalRow[]>(
       `SELECT bm.id::text          AS id,
               bm.content           AS content,
               bm.category::text    AS category,
@@ -433,12 +471,19 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
        ORDER BY rank DESC
        LIMIT ${limit}`,
       tsQueryText,
-    );
+      );
+    });
   } catch (err) {
-    console.warn(
-      "[brain-recall] lexical FTS query failed (pre-migration?) — falling back:",
-      err instanceof Error ? err.message.slice(0, 120) : String(err),
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    // 57014 = statement_timeout — expected on the slow tail, not a defect.
+    if (msg.includes("57014") || msg.includes("statement timeout")) {
+      console.warn(`[brain-recall] lexical FTS exceeded ${LEXICAL_STATEMENT_TIMEOUT_MS}ms — lane skipped this turn`);
+    } else {
+      console.warn(
+        "[brain-recall] lexical FTS query failed (pre-migration?) — falling back:",
+        msg.slice(0, 120),
+      );
+    }
     return [];
   }
 }
@@ -811,15 +856,25 @@ export async function getContextualMemories(
   let rerankFired = false;
   if (isRerankAvailable() && scored.length > 5) {
     const rerankPool = scored.slice(0, 25);
+    // 2026-08-27 · retrieval levers: the backends' own AbortSignals are 7.5s
+    // (Cohere) / 6s (BGE) — sized for a world without the 3s Promise.race the
+    // chat route holds over this whole pipeline. A rerank spike (1,415ms
+    // observed on the eval; the backend bound permits 5x that) can bust the
+    // race and lose the ENTIRE block for a reordering. Bound the call site:
+    // past 1.5s we keep the RRF-hybrid ordering — a correct answer, just
+    // less well-sorted — exactly the brain-context withTimeout philosophy.
     const reranked = await timed("rerank", () =>
-      rerank({
-        query: queryText,
-        candidates: rerankPool.map((m) => ({
-          item: m,
-          text: `[${m.category}] ${m.content}`.slice(0, 1500),
-        })),
-        topN: rerankPool.length,
-      }).catch(() => null),
+      withRerankBudget(
+        rerank({
+          query: queryText,
+          candidates: rerankPool.map((m) => ({
+            item: m,
+            text: `[${m.category}] ${m.content}`.slice(0, 1500),
+          })),
+          topN: rerankPool.length,
+        }),
+        RERANK_CALL_BUDGET_MS,
+      ),
     );
     if (reranked && reranked.length > 0) {
       rerankFired = true;
