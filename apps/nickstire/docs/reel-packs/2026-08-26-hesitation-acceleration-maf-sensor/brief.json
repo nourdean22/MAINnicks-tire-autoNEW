@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-26",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Your car hesitates when you hit the gas — here's one clue why",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Car hesitates when you step on the gas — feels like it's thinking about it?",
+      "visualPrompt": "Close-up on a gas pedal at rest, cut to a tachometer needle hesitating/dipping as the car is put in gear, dim interior lighting, shallow depth of field, static-mounted camera."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "A little stumble on acceleration, maybe a rough idle at a stoplight.",
+      "visualPrompt": "Low-angle shot of an idling engine bay under the hood with a slight rough tremor; cut to a stoplight scene through the windshield, engine note uneven.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: a dirty airflow sensor. It can send the wrong signal about how much air is coming in.",
+      "visualPrompt": "Macro/cutaway shot: a mass airflow sensor removed from its intake tube housing, resting on a workbench, visible dust/oil film on the sensor element, slow push-in.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "That can throw off the fuel mix — engine hesitates instead of responding.",
+      "visualPrompt": "Close-up on a fuel-trim / air-flow readout on an OBD-II scan-tool screen, values fluctuating erratically, screen glow in a dim shop bay, tool mounted/clipped in frame."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess which part it is. A scan tool can help narrow it down.",
+      "visualPrompt": "Scan tool connected via cable under the dash, live data scrolling on-screen, shop bay softly blurred in the background.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it gets worse. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (dirty/failing mass airflow sensor -> misreported intake air volume -> off air-fuel ratio -> hesitation/rough idle, possible airflow/fuel-trim DTC), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#CheckEngineLight", "#MAFSensor", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto", "#EngineHesitation"],
+    "feedCaption": "🚗 Car hesitate when you hit the gas? One clue mechanics check: a dirty airflow sensor. It can throw off your fuel mix and make the engine stumble instead of respond. Don't guess — get it scanned. Stop by and we'll take a look. 🔧"
+  },
+  "adVariants": [
+    {
+      "hook": "Car hesitate when you hit the gas?",
+      "caption": "A dirty airflow sensor can send the wrong signal to your engine computer and throw off the fuel mix. Get it scanned before you guess at parts.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Rough idle and a stumble on acceleration?",
+      "caption": "One clue mechanics check first: a dirty MAF sensor. Worth checking before it gets worse.",
+      "cta": "Bring it in — we'll scan it."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
