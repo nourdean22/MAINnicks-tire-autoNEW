@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,200
+Your cruise control stopped working —
+
+2
+00:00:02,200 --> 00:00:04,000
+and it might not be the cruise system.
+
+3
+00:00:04,000 --> 00:00:06,500
+Shifter feels stuck in park too.
+
+4
+00:00:06,500 --> 00:00:09,000
+Brake lights still look fine when you check them.
+
+5
+00:00:09,000 --> 00:00:11,800
+One clue: a worn brake light switch.
+
+6
+00:00:11,800 --> 00:00:15,000
+It tells the computer the pedal was pressed.
+
+7
+00:00:15,000 --> 00:00:18,000
+If that signal doesn't get through,
+
+8
+00:00:18,000 --> 00:00:21,000
+cruise control and shift-lock release can both stay off.
+
+9
+00:00:21,000 --> 00:00:23,500
+Don't guess which module is bad.
+
+10
+00:00:23,500 --> 00:00:26,000
+The switch is a simple, common check first.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before you chase the wrong part.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
