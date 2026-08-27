@@ -28,6 +28,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { stopTimer, accumulate } from "@/lib/services/task-timer";
 import { OutcomeRating } from "@prisma/client";
 import { ServiceError } from "@/lib/utils/service-error";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
@@ -204,11 +205,10 @@ export async function checkTask(args: {
   const now = new Date();
 
   // Time-tracking diff
-  let timeBump = 0;
-  if (task.startedAt) {
-    const deltaMs = now.getTime() - new Date(task.startedAt).getTime();
-    timeBump = Math.max(1, Math.round(deltaMs / 60_000));
-  }
+  // One definition of stopping the clock, shared with the agent completion
+  // path — see lib/services/task-timer.ts for why they had drifted.
+  const timerStop = stopTimer(task.startedAt, now);
+  const timeBump = timerStop.addMinutes ?? 0;
 
   // ── DAILY ──
   if ((task.loopKind === "DAILY" || task.loopKind === "WEEKLY") && action === "complete") {
@@ -268,6 +268,12 @@ export async function checkTask(args: {
         lastTouchedAt: now,
         streakCount: nextStreak,
         status: nextStatus,
+        // STOP THE CLOCK even though the minutes are deliberately not banked
+        // for a recurring row (see task-timer.ts). Leaving the stamp set sent
+        // the task back to READY still looking started, and the NEXT
+        // completion would have measured from the original start — days or
+        // weeks later. The discard was intentional; the dangling stamp was not.
+        startedAt: null,
         ...(isWeekly ? { snoozedUntil: nextSnoozedUntil } : {}),
         completionNote,
         outcomeScore,
@@ -420,7 +426,9 @@ export async function checkTask(args: {
       status: "DONE",
       lastTouchedAt: now,
       lastCompletedAt: now,
-      actualMinutes: (task.actualMinutes ?? 0) + timeBump,
+      // `undefined` when nothing was timed, so an untimed completion cannot
+      // overwrite minutes banked by an earlier one. See task-timer.ts.
+      actualMinutes: accumulate(task.actualMinutes, timerStop),
       startedAt: null,
       completionNote,
       outcomeScore,

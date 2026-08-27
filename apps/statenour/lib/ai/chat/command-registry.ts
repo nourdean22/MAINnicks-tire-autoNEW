@@ -88,7 +88,16 @@ export function formatReceipts(f: ReceiptFeedResult): string {
 export function formatToday(t: TodayCompound, topWarning: string | null): string {
   const top = t.topMastery ? `Top domain: ${t.topMastery.domain} (${t.topMastery.score}, ${t.topMastery.delta >= 0 ? "+" : ""}${t.topMastery.delta}).` : "No mastery movement yet.";
   return [
-    `Today (${t.date}): ${t.tasksDone} done · ${t.tasksOpen} open · ${t.focusedMinutes}m focused.`,
+    // `focusedMinutes` sums Task.actualMinutes, which is only ever non-zero
+    // for a task that was explicitly Started. Printing it unconditionally told
+    // Nick "0m focused" every single day — a measured-sounding zero from a
+    // column with nothing in it, on the one surface that then reasons out loud
+    // about the operator's day. The tile in components/actions/todays-compound
+    // has always guarded this; the chat line did not. Same value, two surfaces,
+    // one of them honest.
+    t.focusedMinutes > 0
+      ? `Today (${t.date}): ${t.tasksDone} done · ${t.tasksOpen} open · ${t.focusedMinutes}m focused.`
+      : `Today (${t.date}): ${t.tasksDone} done · ${t.tasksOpen} open. (Focused minutes are only recorded for tasks that were Started — not a claim that no work happened.)`,
     top,
     `⚠ ${topWarning ?? "No rescue flags — task list is clean."}`,
   ].join("\n");
