@@ -1,0 +1,130 @@
+{
+  "topic": "That pinging sound when you accelerate isn't nothing",
+  "createdDate": "2026-08-27",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "platform": ["instagram_reels", "facebook_reels"],
+  "dimensions": "1080x1920",
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "start": 0,
+      "end": 3,
+      "label": "HOOK",
+      "narration": "That pinging sound when you accelerate isn't nothing.",
+      "visualPrompt": "Close-up of an engine bay at idle, camera slowly pushes in, morning light through a garage door, shallow depth of field."
+    },
+    {
+      "start": 3,
+      "end": 8,
+      "label": "SYMPTOM",
+      "narration": "A knock or ping under load can point to three different things.",
+      "visualPrompt": "Driver's-POV dash shot: tachometer needle climbing as the accelerator is applied, road ahead through the windshield, static-mounted camera."
+    },
+    {
+      "start": 8,
+      "end": 13,
+      "label": "EXPLANATION",
+      "narration": "Carbon buildup in the cylinders. Low-octane fuel. Or a failing knock sensor.",
+      "visualPrompt": "Macro/cutaway sequence: a fuel nozzle at a pump, cut to a cylinder-head cutaway model showing carbon deposits, cut to a knock sensor mounted on an engine block, slow push-in on each."
+    },
+    {
+      "start": 13,
+      "end": 18,
+      "label": "DIAGNOSTIC_CLUE",
+      "narration": "One clue: does it only happen climbing hills or towing? That's worth checking first.",
+      "visualPrompt": "Close-up of an OBD-II scan tool clipped under the dash, screen glowing with diagnostic codes, engine bay softly reflected in a nearby window, static mount."
+    },
+    {
+      "start": 18,
+      "end": 23,
+      "label": "CONSEQUENCE",
+      "narration": "Ignoring it can let engine damage build quietly. Don't guess which one it is.",
+      "visualPrompt": "Dashboard shot: the check-engine light glowing amber against a dim instrument cluster, subtle flicker, static hold."
+    },
+    {
+      "start": 23,
+      "end": 27,
+      "label": "BRANDED_CTA",
+      "narration": "Stop by and we'll take a look before it gets expensive. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, slow static push-in. Real logo and CTA text composited in post."
+    },
+    {
+      "start": 27,
+      "end": 30,
+      "label": "SAVE_FREEZE",
+      "narration": null,
+      "visualPrompt": "Same end-card plate, continued slow push-in (not a hard freeze, to satisfy the render-integrity motion floor)."
+    }
+  ],
+  "approvedSoftLanguageUsed": [
+    "can point to",
+    "one clue",
+    "worth checking",
+    "don't guess",
+    "stop by and we'll take a look"
+  ],
+  "claimSafety": {
+    "priceMentioned": false,
+    "guaranteeMentioned": false,
+    "timelineFabricated": false
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactsRowRead": false,
+    "entailmentStatus": "not_evaluated",
+    "classification": "general automotive-repair knowledge, not a shop-specific sourced fact"
+  },
+  "repetitionCheck": {
+    "method": "offline_directory_scan_plus_pr_title_search",
+    "mergedPackDirectoriesScanned": 136,
+    "openPrsAtRunTime": 1,
+    "openPrTopicsChecked": ["steering wheel vibration at highway speed"],
+    "overlapFound": false,
+    "nearestNeighbors": [
+      "misfire-shudder-coil-vs-plug",
+      "timing-chain-rattle-cold-start",
+      "hesitation-acceleration-maf-sensor"
+    ]
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "floor": 70,
+    "passesFloor": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "rightsLedgerExists": false,
+    "voiceoverTtsProduced": false
+  },
+  "costEstimate": {
+    "provider": "template_stock",
+    "estimatedUsd": 0.0,
+    "basis": "REEL-PIPELINE.md doc-inherited, not a live read"
+  },
+  "hashtags": [
+    "#CarMaintenance",
+    "#EngineKnock",
+    "#CheckEngineLight",
+    "#CarNoises",
+    "#CarTips",
+    "#AutoRepair",
+    "#ClevelandAuto",
+    "#NicksTireAndAuto"
+  ],
+  "feedCaption": "🔧 Hear a ping or knock when you accelerate? One clue: it can point to carbon buildup, low-octane fuel, or a failing knock sensor. Don't guess which one — stop by and we'll take a look. 🚗",
+  "adVariants": [
+    {
+      "hook": "Why does your engine ping when you climb a hill?",
+      "caption": "Three causes, one sound. We'll help you find out which one before it costs more.",
+      "cta": "Book a diagnostic — link in bio."
+    },
+    {
+      "hook": "That knock under acceleration won't fix itself.",
+      "caption": "Carbon buildup, bad gas, or a failing sensor — ignoring it lets the damage build quietly.",
+      "cta": "Stop by and we'll take a look."
+    }
+  ]
+}
