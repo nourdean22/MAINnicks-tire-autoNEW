@@ -1,5 +1,38 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-27 · Chat read-aloud (streaming TTS) · 1 ship (#1930)
+>
+> One squash by design (operator: CI cancel-in-progress makes every extra merge cost the
+> sibling sessions a full cycle). The feature: opt-in narration for Nick chat that speaks
+> WHILE the reply streams — segmenter (sentence/paragraph/list/heading/length boundaries,
+> abbreviation/decimal/URL guards, code fences atomic) → markdown sanitizer (fences read as
+> "Code block omitted.") → NarrationController (stop-means-stop via generation counter,
+> engine fallback with honest attribution) → `SpeechEngine` seam. 45 tests exit 0; deployed
+> verify: `/api/version` @ 7f293d3, live authed smoke on bdnick.info (chip renders,
+> `/api/ai/speak` 200, TTFA 788ms edge lane).
+>
+> **#1930 — feat · chat read-aloud** · `features/chat-v2/lib/speech/*` + `use-tts` +
+> `/api/ai/speak` (gpt-4o-mini-tts primary · edge-tts-universal fallback · `x-tts-engine`
+> header never lies) + composer chip + action-sheet replay. UPSTREAMS rows added for every
+> engine evaluated: @bestcodes/edge-tts DEAD (DRM 403 measured), Kokoro/Piper WATCH,
+> sherpa-onnx PATTERN.
+>
+> Method note: the honest-attribution header caught its first real substitution ON THE SMOKE
+> TEST — `engine:"openai"` came back `servedBy:"edge"`, which unwound to the day's biggest
+> finding: **the production OPENAI_API_KEY is revoked** (live receipt: authed
+> `/api/ai/transcribe` → `502 "whisper 401: Incorrect API key"`). Mic + Realtime voice were
+> already dead before this wave; `env-check`'s `openai:true` only proves the var is SET.
+> Operator-authorized mitigation same hour: `TTS_ENGINE=edge` on statenour-web (default lane
+> now skips the ~5.8s dead openai attempt).
+>
+> **Flagged · NOT fixed**
+> - **OPENAI_API_KEY revoked in prod** — mic, Realtime voice, TTS-primary, embeddings.
+>   Rotation is operator-only; open at wave end.
+> - Replay-during-live-stream can interleave the replayed and live span queues (minor UX).
+> - `/api/ai/speak` surfaces adapter errors only when BOTH fail — a single-adapter failure is
+>   visible in the header but not logged server-side.
+> - iPhone PWA: UNVERIFIED ON TARGET DEVICE at write time (operator testing).
+
 > ## 2026-08-26 · The surface-honesty wave · 21 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902 #1911 #1913 #1915 #1923)
 >
 > One theme, arrived at from three directions: **a surface that cannot say "I do not know" will
@@ -1151,7 +1184,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-27 (chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1679,7 +1712,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-27 (chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
