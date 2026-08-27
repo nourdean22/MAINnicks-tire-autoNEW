@@ -25,6 +25,11 @@ export interface SpeechEngine {
   prime(): void;
   /** Playback speed multiplier (1 = natural). Applies from the next span. */
   setRate?(rate: number): void;
+  /** Fire-and-forget: begin synthesizing a span so a later speak() of the
+   *  same text starts instantly. Measured need: the edge lane costs
+   *  2.7-5.1s per sentence from Railway (fresh WS + DRM handshake per
+   *  call) - without prewarm every inter-sentence gap pays it. */
+  prewarm?(text: string): void;
 }
 
 /* ────────────────────────────── Web Speech ───────────────────────────── */
@@ -109,6 +114,9 @@ export class ServerTtsEngine implements SpeechEngine {
   private rate = 1;
   /** Replaying a message must not re-bill synthesis — cache by span text. */
   private cache = new Map<string, Blob>();
+  /** In-flight synthesis, deduped by span text - speak() awaits the same
+   *  promise prewarm() started instead of fetching twice. */
+  private pending = new Map<string, { promise: Promise<Blob>; abort: AbortController }>();
 
   constructor(private readonly endpoint = "/api/ai/speak") {}
 
@@ -137,22 +145,40 @@ export class ServerTtsEngine implements SpeechEngine {
     }
   }
 
-  async speak(text: string): Promise<void> {
-    const audio = this.ensureAudio();
-    let blob = this.cache.get(text);
-    if (!blob) {
-      this.abort = new AbortController();
+  prewarm(text: string): void {
+    if (this.cache.has(text) || this.pending.has(text)) return;
+    void this.fetchBlob(text).catch(() => {
+      /* a failed prewarm is not an event - speak() will retry and
+         surface the failure through the normal fallback path */
+    });
+  }
+
+  private fetchBlob(text: string): Promise<Blob> {
+    const existing = this.pending.get(text);
+    if (existing) return existing.promise;
+    const abort = new AbortController();
+    const promise = (async () => {
       const res = await fetch(this.endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ text }),
-        signal: this.abort.signal,
+        signal: abort.signal,
       });
       if (!res.ok) throw new Error(`speak route ${res.status}`);
-      blob = await res.blob();
+      const blob = await res.blob();
       this.cacheSet(text, blob);
-    }
+      return blob;
+    })().finally(() => {
+      this.pending.delete(text);
+    });
+    this.pending.set(text, { promise, abort });
+    return promise;
+  }
+
+  async speak(text: string): Promise<void> {
+    const audio = this.ensureAudio();
+    const blob = this.cache.get(text) ?? (await this.fetchBlob(text));
 
     const url = URL.createObjectURL(blob);
     try {
@@ -181,6 +207,14 @@ export class ServerTtsEngine implements SpeechEngine {
     } catch {
       /* no fetch in flight */
     }
+    for (const entry of this.pending.values()) {
+      try {
+        entry.abort.abort();
+      } catch {
+        /* already settled */
+      }
+    }
+    this.pending.clear();
     if (this.audio) {
       try {
         this.audio.pause();
