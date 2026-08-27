@@ -23,12 +23,19 @@ export interface SpeechEngine {
   stop(): void;
   /** Call from inside a user gesture — unlocks audio on iOS. */
   prime(): void;
+  /** Playback speed multiplier (1 = natural). Applies from the next span. */
+  setRate?(rate: number): void;
 }
 
 /* ────────────────────────────── Web Speech ───────────────────────────── */
 
 export class WebSpeechEngine implements SpeechEngine {
   readonly name = "web-speech";
+  private rate = 1;
+
+  setRate(rate: number): void {
+    this.rate = rate;
+  }
 
   isSupported(): boolean {
     return (
@@ -56,7 +63,8 @@ export class WebSpeechEngine implements SpeechEngine {
         return;
       }
       const utter = new window.SpeechSynthesisUtterance(text);
-      utter.rate = 1.05;
+      // 1.05 baseline reads natural; the multiplier is the operator's speed chip.
+      utter.rate = Math.min(2, 1.05 * this.rate);
       utter.pitch = 0.95;
       const voices = window.speechSynthesis.getVoices();
       const preferred =
@@ -98,10 +106,17 @@ export class ServerTtsEngine implements SpeechEngine {
   readonly name = "server-neural";
   private audio: HTMLAudioElement | null = null;
   private abort: AbortController | null = null;
+  private rate = 1;
   /** Replaying a message must not re-bill synthesis — cache by span text. */
   private cache = new Map<string, Blob>();
 
   constructor(private readonly endpoint = "/api/ai/speak") {}
+
+  setRate(rate: number): void {
+    this.rate = rate;
+    // Applies mid-span too — playbackRate is live on the element.
+    if (this.audio) this.audio.playbackRate = rate;
+  }
 
   isSupported(): boolean {
     return (
@@ -149,6 +164,7 @@ export class ServerTtsEngine implements SpeechEngine {
         audio.onpause = () => resolve();
         audio.onerror = () => reject(new Error("audio playback failed"));
         audio.src = url;
+        audio.playbackRate = this.rate;
         audio.play().catch((err: unknown) => reject(err instanceof Error ? err : new Error("audio.play failed")));
       });
     } finally {
@@ -176,7 +192,13 @@ export class ServerTtsEngine implements SpeechEngine {
   }
 
   private ensureAudio(): HTMLAudioElement {
-    if (!this.audio) this.audio = new window.Audio();
+    if (!this.audio) {
+      this.audio = new window.Audio();
+      // iOS PWA: without playsinline an <audio> can refuse programmatic
+      // play outside a gesture even after priming.
+      this.audio.setAttribute("playsinline", "");
+      this.audio.preload = "auto";
+    }
     return this.audio;
   }
 

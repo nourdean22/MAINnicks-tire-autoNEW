@@ -85,9 +85,13 @@ describe("ServerTtsEngine capability detection", () => {
   });
 
   it("speak() rejects on a non-OK route response (falls through to the fallback engine)", async () => {
+    function MockAudio(this: { setAttribute: () => void; preload: string }) {
+      this.setAttribute = () => {};
+      this.preload = "";
+    }
     vi.stubGlobal("window", {
       fetch: vi.fn(),
-      Audio: function MockAudio() {} as unknown as typeof Audio,
+      Audio: MockAudio as unknown as typeof Audio,
     });
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503 })));
     const engine = new ServerTtsEngine("/api/ai/speak");

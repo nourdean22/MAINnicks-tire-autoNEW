@@ -84,13 +84,16 @@ describe("NarrationController", () => {
   it("falls back to the next engine when the primary fails, and records who spoke", async () => {
     const a = fakeEngine("primary");
     const b = fakeEngine("fallback");
-    const ctl = new NarrationController([a.engine, b.engine]);
+    const engineUsed: string[] = [];
+    const ctl = new NarrationController([a.engine, b.engine], { onEngineUsed: (n) => engineUsed.push(n) });
     ctl.enqueue("resilient span");
     await tick();
     a.pending[0].reject(new Error("503"));
     await tick();
     expect(b.spoken).toEqual(["resilient span"]);
     expect(ctl.activeEngine).toBe("fallback");
+    // The degradation is VISIBLE: both the attempt and the fallback fired the callback.
+    expect(engineUsed).toEqual(["primary", "fallback"]);
     b.pending[0].resolve();
     await tick();
     expect(ctl.state).toBe("idle");
