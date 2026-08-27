@@ -1,0 +1,125 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-27",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "A fuse that keeps blowing isn't a fuse problem — it's a short",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "You replace the fuse. It blows again in minutes.",
+      "visualPrompt": "Macro close-up on an open vehicle fuse box panel under a small utility light, one socket holding a fuse with a visibly broken filament, static overhead camera, no hand in frame."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "Same accessory, same fuse, dead again — right after you swap it in.",
+      "visualPrompt": "Cut to a fresh fuse already seated in the same socket (no insertion motion shown); quick cut to an interior accessory display going dark a second time, dim cabin lighting.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "That can point to a short — pulling more current than the circuit is rated for.",
+      "visualPrompt": "Cutaway/diagram-style macro shot of a wiring harness section with one visibly worn insulation spot, slow push-in, dim garage lighting, no sparks or flame shown.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "warning",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "A higher-amp fuse doesn't fix it — it just lets more heat build up in the wiring.",
+      "visualPrompt": "Close-up comparison on a workbench: two fuses side by side, one at correct amperage, one at a visibly higher rating with a subtle warm/orange warning-tint overlay suggesting heat risk (no literal flame or smoke), static camera.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "The circuit needs to be traced, not the fuse upsized.",
+      "visualPrompt": "A multimeter mounted on a bench stand with probe clips attached to a harness section, resistance/continuity reading visible on the tool's own screen, shop bay softly blurred behind, no hand in frame."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it becomes a bigger electrical repair. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "fireDepicted": false,
+    "approvedSoftLanguageUsed": ["can point to", "worth checking", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-electrical knowledge (repeat-blow fuse -> short/overload downstream, not a bad fuse; upsizing the fuse amperage removes the circuit's overcurrent protection and lets heat build in the wiring, a documented fire-safety hazard), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 7,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#BlownFuse", "#CarElectrical", "#AutoRepair", "#CarTips", "#ElectricalShort", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "🔌 Fuse keeps blowing no matter how many times you swap it? That usually points to a short — not a weak fuse. Bumping the amp rating doesn't fix it, it just adds heat risk to the wiring. Worth having the circuit traced before it turns into a bigger repair. Stop by and we'll take a look. ⚡"
+  },
+  "adVariants": [
+    {
+      "hook": "Same fuse keeps blowing no matter how many times you replace it?",
+      "caption": "That's usually a short pulling more current than the circuit can handle — not a weak fuse. Get the circuit traced before it turns into a bigger repair.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Never put in a higher-amp fuse to make it stop blowing.",
+      "caption": "A bigger fuse doesn't fix a short — it just lets more heat build up in the wiring. Worth having it traced properly.",
+      "cta": "Bring it in — we'll find the short."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
