@@ -1,0 +1,30 @@
+1
+00:00:00,000 --> 00:00:04,000
+Your rear defroster comes on...
+but the glass never fully clears.
+
+2
+00:00:04,000 --> 00:00:09,000
+Most of it clears.
+One thin band stays fogged, every time.
+
+3
+00:00:09,000 --> 00:00:15,000
+One clue: those are heating grid lines
+baked onto the glass.
+
+4
+00:00:15,000 --> 00:00:21,000
+A scraper, cargo, even corrosion
+can snap just one line.
+
+5
+00:00:21,000 --> 00:00:26,000
+Don't guess the whole thing is dead.
+A multimeter can find the exact break.
+
+6
+00:00:26,000 --> 00:00:30,000
+Worth checking before you replace
+more than you need to.
+Stop by and we'll take a look.
