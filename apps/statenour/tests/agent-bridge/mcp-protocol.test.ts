@@ -21,6 +21,9 @@ import {
 } from "@/lib/agent-bridge/mcp-server";
 import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 
+// tasks scope reaches the maximal surface — the widest a real token can.
+const TEST_IDENT = { clientId: "test", scope: "tasks" as const };
+
 describe("agent-bridge mcp · protocol", () => {
   it("initialize echoes a supported protocol version", async () => {
     const res = await handleMcpMessage({
@@ -28,7 +31,7 @@ describe("agent-bridge mcp · protocol", () => {
       id: 1,
       method: "initialize",
       params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } },
-    });
+    }, TEST_IDENT);
     expect(res?.error).toBeUndefined();
     const r = res?.result as {
       protocolVersion: string;
@@ -41,37 +44,37 @@ describe("agent-bridge mcp · protocol", () => {
   });
 
   it("initialize falls back to the newest version for an unknown request", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "1999-01-01" } });
+    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "1999-01-01" } }, TEST_IDENT);
     expect((res?.result as { protocolVersion: string }).protocolVersion).toBe(MCP_PROTOCOL_VERSIONS[0]);
   });
 
   it("notifications (and id-less requests) produce no response — the 202 path", async () => {
-    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
-    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "ping" })).toBeNull();
+    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "notifications/initialized" }, TEST_IDENT)).toBeNull();
+    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "ping" }, TEST_IDENT)).toBeNull();
   });
 
   it("ping returns an empty result", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "ping" });
+    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "ping" }, TEST_IDENT);
     expect(res?.result).toEqual({});
   });
 
   it("rejects JSON-RPC batches", async () => {
-    const res = await handleMcpMessage([{ jsonrpc: "2.0", id: 1, method: "ping" }]);
+    const res = await handleMcpMessage([{ jsonrpc: "2.0", id: 1, method: "ping" }], TEST_IDENT);
     expect(res?.error?.code).toBe(RPC_ERROR.INVALID_REQUEST);
   });
 
   it("rejects a non-object message", async () => {
-    const res = await handleMcpMessage("not-an-object");
+    const res = await handleMcpMessage("not-an-object", TEST_IDENT);
     expect(res?.error?.code).toBe(RPC_ERROR.INVALID_REQUEST);
   });
 
   it("returns METHOD_NOT_FOUND for unknown methods", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "does/not/exist" });
+    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "does/not/exist" }, TEST_IDENT);
     expect(res?.error?.code).toBe(RPC_ERROR.METHOD_NOT_FOUND);
   });
 
   it("tools/list exposes object schemas + consistent per-tool annotations", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 5, method: "tools/list" });
+    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 5, method: "tools/list" }, TEST_IDENT);
     const tools = (res?.result as {
       tools: Array<{ name: string; inputSchema: { type?: string }; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }>;
     }).tools;
@@ -87,7 +90,7 @@ describe("agent-bridge mcp · protocol", () => {
 
   it("NEVER labels a side-effecting tool as read-only (full-operational safety)", async () => {
     const safe = getBridgeSafeTools("mcp");
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 6, method: "tools/list" });
+    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 6, method: "tools/list" }, TEST_IDENT);
     const readOnlyByName = new Map(
       (res?.result as { tools: Array<{ name: string; annotations: { readOnlyHint: boolean } }> }).tools.map(
         (t) => [t.name, t.annotations.readOnlyHint] as const,
@@ -105,7 +108,7 @@ describe("agent-bridge mcp · protocol", () => {
       id: 7,
       method: "tools/call",
       params: { name: readTool.name, arguments: {} },
-    });
+    }, TEST_IDENT);
     expect(res?.error).toBeUndefined(); // tool failures are results, not protocol errors
     const r = res?.result as { content: Array<{ type: string; text: string }>; isError?: boolean };
     expect(r.content[0]?.type).toBe("text");
@@ -118,7 +121,7 @@ describe("agent-bridge mcp · protocol", () => {
       id: 8,
       method: "tools/call",
       params: { name: "definitely_not_a_tool", arguments: {} },
-    });
+    }, TEST_IDENT);
     expect(res?.error?.code).toBe(RPC_ERROR.INVALID_PARAMS);
   });
 });

@@ -3417,3 +3417,30 @@ model PostTurnOutbox {
   @@index([status, nextAttemptAt])
   @@map("post_turn_outbox")
 }
+
+/// Durable audit of every /api/mcp and /api/actions bridge call.
+/// Added 2026-08-27: the bridge audit was console.log only, so "who called
+/// this last month" was unanswerable (measured: zero rows in every DB sink
+/// for a call that reached the handler). One row per call — success, error,
+/// or scope/HARD_DENY denial. Raw args are NEVER stored, only their sha256.
+model BridgeCallLog {
+  id           String   @id @default(cuid())
+  requestId    String   @map("request_id")
+  protocol     String // mcp | actions
+  clientId     String   @map("client_id") // token NAME, never the value
+  scope        String // read | tasks | unknown
+  toolName     String   @map("tool_name")
+  externalName String   @map("external_name")
+  status       String // success | error | denied
+  riskClass    String   @map("risk_class")
+  latencyMs    Int      @map("latency_ms")
+  inputHash    String   @map("input_hash") // sha256 of args
+  resultSize   Int?     @map("result_size")
+  errorCode    String?  @map("error_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([toolName])
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("bridge_call_logs")
+}

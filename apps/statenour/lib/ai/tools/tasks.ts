@@ -1426,6 +1426,37 @@ const tasksCoreTools = {
   // WEEKLY TARGETS — Track 3 weekly goals (revenue, personal, health)
   // ═══════════════════════════════════════════════════════════
 
+  // 2026-08-27 · the one capability an external agent (Dispatch) could not
+  // reach: generate the operator's brief on demand. Recomposes from CURRENT
+  // ingested data via the shared grounded composer and stores a briefing_logs
+  // row — it does NOT re-run ingestion (that heavier path stays the cron /
+  // POST /api/intelligence/briefs/generate route), so it is fast and touches no
+  // external API. Self-scoped: the operator's own brief, no customer effect —
+  // which is why it is allowed in the bridge `tasks` scope, not HARD_DENY.
+  triggerBrief: tool({
+    description:
+      "Generate Nour's daily executive brief right now from the latest ingested intelligence, store it, and return the text. Does not re-fetch external sources — use when he asks for 'my brief' / 'the brief' on demand.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      try {
+        const { composeDailyExecutiveBrief } = await import("@/lib/intelligence/compose-daily-brief");
+        const composed = await composeDailyExecutiveBrief();
+        const log = await prisma.briefingLog.create({
+          data: { briefType: "daily", content: composed.text },
+        });
+        return {
+          success: true,
+          briefId: log.id,
+          date: composed.date,
+          brief: composed.text,
+        };
+      } catch (err) {
+        await recordError("ai:tool-exec", err);
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  }),
+
 };
 
 export const tasksTools = {

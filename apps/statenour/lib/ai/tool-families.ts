@@ -93,6 +93,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   addTasksToProject: { family: "personal-write", description: "Create multiple tasks in bulk", mutates: true, cost: "cheap" },
   createTask: { family: "personal-write", description: "Create a new task", mutates: true, cost: "cheap" },
   completeTask: { family: "personal-write", description: "Mark a task done", mutates: true, cost: "cheap" },
+  triggerBrief: { family: "personal-write", description: "Generate the daily executive brief on demand from current intelligence", mutates: true, cost: "cheap" },
   setTaskPriority: { family: "personal-write", description: "Re-rank a task's autoPriority", mutates: true, cost: "cheap" },
   resolveAlert: { family: "personal-write", description: "Resolve a drift alert", mutates: true, cost: "cheap" },
   // v10.0.75 · closeLoop / createLoop legacy aliases retired (canonical:
