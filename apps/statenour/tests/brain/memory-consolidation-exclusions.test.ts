@@ -51,6 +51,44 @@ describe("mergeMemories · category exclusions", () => {
     // Structured-payload class (2026-07-12 incident): spot-check survivors.
     expect(notIn).toContain("ai_config");
     expect(notIn).toContain("morning_brief_audio");
+    // 2026-08-27 · the personal-memory eating: this engine soft-deleted 38
+    // operator-curated pm_* rows (08-15..20, nightly) and rewrote 13 keepers,
+    // including the operator-VERIFIED medication stack. Per-entity/per-event
+    // record categories must never enter the merge pool.
+    expect(notIn).toContain("identity");
+    expect(notIn).toContain("biography");
+    expect(notIn).toContain("relationships");
+    expect(notIn).toContain("health");
+    expect(notIn).toContain("event");
+    expect(notIn).toContain("business_fact");
+    expect(notIn).toContain("environment");
+    expect(notIn).toContain("ai_directive");
+    expect(notIn).toContain("vision");
+    expect(notIn).toContain("fact");
+  });
+
+  it("never offers OPERATOR-CURATED rows to the merge LLM, in any category", async () => {
+    // The orthogonal row-level guard. Categories like pattern/preference/goal
+    // stay mergeable for machine rows, but rows the operator wrote
+    // (createdBy "user") or imported as curated memory (source "manual") are
+    // not the machine's to rewrite -- the 08-15..20 incident rewrote the
+    // operator-verified medication stack into a fertility blob. This pins the
+    // MECHANISM: the guard must reach BOTH queries (groupBy candidates and
+    // the per-category findMany), as a null-safe Prisma NOT-array.
+    mocks.brainMemory.groupBy.mockResolvedValue([
+      { category: "pattern", _count: { id: 5 } },
+    ]);
+    mocks.brainMemory.findMany.mockResolvedValue([]); // <4 rows -> loop exits
+
+    await mergeMemories();
+
+    const guard = { NOT: [{ createdBy: "user" }, { source: "manual" }] };
+    expect(mocks.brainMemory.groupBy.mock.calls[0][0].where).toMatchObject(guard);
+    expect(mocks.brainMemory.findMany.mock.calls[0][0].where).toMatchObject({
+      category: "pattern",
+      deletedAt: null,
+      ...guard,
+    });
   });
 
   it("only considers categories with more than 3 live rows", async () => {

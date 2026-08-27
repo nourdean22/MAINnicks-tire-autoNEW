@@ -11,7 +11,7 @@ import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
-import { detectFailedActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import { detectFailedActionClaims, detectPhantomActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -488,6 +488,49 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                       conversationId: convId,
                       traceId,
                       claims: failedClaims.map((c) => ({
+                        verb: c.verb,
+                        snippet: c.snippet,
+                        expectedTool: c.expectedTool,
+                      })),
+                      toolsActuallyFired: results
+                        .filter((r) => r.success)
+                        .map((r) => r.action),
+                      textPreview: cleanedText.slice(0, 200),
+                    },
+                  } as Parameters<typeof prisma.brainMemory.create>[0]["data"],
+                })
+                .catch(() => undefined);
+            }
+
+            // Phantom-claim guard · 2026-08-27. detectFailedActionClaims
+            // requires a FAILED row in `results` — an action never emitted
+            // produces no row at all, so "Done — both profiles created."
+            // (the measured 08-25 person confabulation: zero tool calls,
+            // zero action blocks, person_profiles unchanged) sailed past
+            // every guard. This catches claims whose action type appears
+            // NOWHERE in results and surfaces the same correction chip.
+            // Best-effort — never tanks the turn.
+            const phantomClaims = detectPhantomActionClaims(results, cleanedText);
+            if (phantomClaims.length > 0 && convId) {
+              log.warn("action_block_phantom_claim", {
+                conversationId: convId,
+                traceId,
+                phantom: phantomClaims.map((c) => c.verb),
+              });
+              await prisma.brainMemory
+                .create({
+                  data: {
+                    category: "chat_claim_warn",
+                    key: `action-phantom-${traceId}`,
+                    content: `Claimed but never attempted · ${phantomClaims
+                      .map((c) => c.verb)
+                      .join(", ")}`,
+                    confidence: 0.95,
+                    source: "action-result-verifier",
+                    metadata: {
+                      conversationId: convId,
+                      traceId,
+                      claims: phantomClaims.map((c) => ({
                         verb: c.verb,
                         snippet: c.snippet,
                         expectedTool: c.expectedTool,

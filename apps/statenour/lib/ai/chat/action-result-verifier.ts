@@ -125,6 +125,73 @@ export function detectFailedActionClaims(
 }
 
 /**
+ * PHANTOM action claims — prose that claims a domain-specific side effect
+ * while NO action of that type was emitted at all (neither success nor
+ * failure appears in `results`).
+ *
+ * WHY THIS EXISTS — the 2026-08-25 person confabulation, verbatim from prod
+ * (chat message 15:17:56Z; the AuditEvent window holds no person action and
+ * person_profiles was unchanged):
+ *
+ *     "Done — both profiles created."
+ *
+ * Zero tool calls, zero action blocks. It slipped BOTH existing guards by
+ * the same asymmetry: detectActionClaimsWithoutTools is vocab-gated and had
+ * no person/profile entry (and there is no person nourTool it could expect),
+ * while detectFailedActionClaims above requires a FAILED row in `results` —
+ * an action never emitted produces no row, so canClaimDone returned true
+ * over a fabricated "Done". Claimed-but-FAILED was guarded;
+ * claimed-but-NEVER-EMITTED was not. Worse, the fabricated confirmation
+ * also invented content the operator never said.
+ *
+ * Scope is deliberately narrow: one pattern table for action-block domains
+ * with no SDK-tool counterpart, starting with person.create (the measured
+ * case). Wired to the chat_claim_warn correction chip — NOT into
+ * canClaimDone — so a false positive costs a visible warning, never a
+ * mutated reply. Escalating into canClaimDone is a recorded next lever
+ * (docs/CHAT-PIPELINE-STUDY-2026-08-27.md).
+ *
+ * Pure — no IO.
+ */
+export const PHANTOM_CLAIM_PATTERNS: ReadonlyArray<{ regex: RegExp; action: string }> = [
+  // "both profiles created" · "profile added" · "person saved"
+  { regex: /\b(?:profiles?|person)\b.{0,40}\b(?:created|added|updated|saved)\b/i, action: "person.create" },
+  // "created profiles for Hamda and Nathan" · "added them to your people"
+  { regex: /\b(?:created|added|saved)\b.{0,50}\b(?:profiles?|to (?:your|my|the) people)\b/i, action: "person.create" },
+];
+
+/** Minimal per-sentence guards, mirroring the detector's hedge intent. */
+const PHANTOM_HEDGE =
+  /\b(?:would|could|can|might|want me to|if you|i(?:'ll| will)|shall i|do you want)\b/i;
+const PHANTOM_SECOND_PERSON =
+  /\byou(?:'ve| have| had)?\s+(?:\w+\s+)?(?:added|created|updated|saved)\b/i;
+
+export function detectPhantomActionClaims(
+  results: ReadonlyArray<ActionExecResult>,
+  assistantText: string,
+): ActionClaim[] {
+  const emitted = new Set(results.map((r) => r.action));
+  const claims: ActionClaim[] = [];
+  // Sentence-level, like the detector: a hedge in one sentence must not
+  // suppress a bare claim in another.
+  const sentences = assistantText.split(/(?<=[.!?])\s+|\n+/);
+  for (const sentence of sentences) {
+    if (PHANTOM_HEDGE.test(sentence) || PHANTOM_SECOND_PERSON.test(sentence)) continue;
+    for (const p of PHANTOM_CLAIM_PATTERNS) {
+      if (!p.regex.test(sentence)) continue;
+      if (emitted.has(p.action)) continue; // emitted (success OR failure) → the guards above own it
+      if (claims.some((c) => c.expectedTool === p.action)) continue; // one warn per action type
+      claims.push({
+        verb: p.action,
+        snippet: sentence.trim().slice(0, 160),
+        expectedTool: p.action,
+      });
+    }
+  }
+  return claims;
+}
+
+/**
  * Determines if the action results allow claiming completion in prose.
  * Wired directly into the live chat-finalize loop to prevent fake completion claims.
  */
