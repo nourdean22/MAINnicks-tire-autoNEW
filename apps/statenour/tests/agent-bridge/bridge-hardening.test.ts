@@ -28,6 +28,7 @@ import {
   BRIDGE_SCOPES,
 } from "@/lib/agent-bridge/scopes";
 import { assertBridgeToolAllowed, CHATGPT_ACTIONS_V1_TOOLS } from "@/lib/agent-bridge/tool-policy";
+import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 import { resolveBridgeToken } from "@/lib/agent-bridge/auth";
 
 /* ── 1 · HARD_DENY: protected ops are unreachable on any scope ──────────── */
@@ -197,6 +198,38 @@ describe("handleToolsCall · a refused call is audited with status 'denied'", ()
     );
     const denied = auditLines().filter((a) => a.status === "denied");
     expect(denied.length).toBe(0);
+  });
+});
+
+/* ── 3c · Actions honors scope + audits denials (Codex #1944 review) ────── */
+
+describe("Actions protocol · scope-enforced and denial-audited", () => {
+  it("P1: a read scope cannot execute an Actions WRITE, but can a read tool", () => {
+    // createTask + sendTelegram are in the curated Actions-30 but are writes
+    // (tasks scope). A read token must be refused; the bypass Codex found.
+    expect(() => assertBridgeToolAllowed("createTask", "actions", "read")).toThrow(/not permitted for scope "read"/);
+    expect(() => assertBridgeToolAllowed("sendTelegram", "actions", "read")).toThrow(/not permitted for scope "read"/);
+    // POSITIVE CONTROL: a read tool in the Actions list passes on read scope,
+    // and the same write passes on tasks scope — the gate discriminates.
+    expect(() => assertBridgeToolAllowed("getRevenueStats", "actions", "read")).not.toThrow();
+    expect(() => assertBridgeToolAllowed("createTask", "actions", "tasks")).not.toThrow();
+    // Scope-less (OpenAPI advertisement) keeps the full curated list.
+    expect(() => assertBridgeToolAllowed("createTask", "actions", undefined)).not.toThrow();
+  });
+
+  it("getBridgeSafeTools('actions', scope) narrows to the in-scope subset", () => {
+    const readSurface = getBridgeSafeTools("actions", "read").map((t: any) => t.camelName);
+    const tasksSurface = getBridgeSafeTools("actions", "tasks").map((t: any) => t.camelName);
+    expect(readSurface).not.toContain("createTask"); // write excluded on read
+    expect(readSurface).toContain("getRevenueStats"); // read included
+    expect(tasksSurface).toContain("createTask"); // write included on tasks
+    expect(tasksSurface.length).toBeGreaterThan(readSurface.length);
+  });
+
+  it("P2: a HARD_DENY tool is refused on Actions too, and never in any scope", () => {
+    for (const scope of ["read", "tasks", undefined] as const) {
+      expect(() => assertBridgeToolAllowed("runPython", "actions", scope)).toThrow(/protected operation/);
+    }
   });
 });
 

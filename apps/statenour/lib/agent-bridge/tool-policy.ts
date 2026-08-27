@@ -1,5 +1,6 @@
 import { TOOL_CATALOG, ToolMeta } from "@/lib/ai/tools/catalog";
 import { BRIDGE_HARD_DENY, allScopeTools, isToolInScope, type BridgeScope } from "./scopes";
+export { isToolInScope };
 
 // MCP surface, 2026-08-27 · SCOPED, NOT the full catalog. It used to be
 // `TOOL_CATALOG.map(t => t.name)` — the entire 181-tool surface behind one
@@ -95,6 +96,14 @@ export function assertBridgeToolAllowed(
   if (protocol === "actions") {
     if (!CHATGPT_ACTIONS_V1_TOOLS.includes(toolName)) {
       throw new Error(`Tool ${toolName} is not in the allowlist for actions.`);
+    }
+    // P1 (Codex #1944): Actions honors the caller's SCOPE too. Without this a
+    // read-only token could still execute an Actions write (createTask,
+    // sendTelegram are in the curated 30). When a scope is present the tool
+    // must ALSO be in it; scope-less calls (OpenAPI schema advertisement) keep
+    // the full curated list and rely on the execution path to carry a scope.
+    if (scope && !isToolInScope(toolName, scope)) {
+      throw new Error(`Tool ${toolName} is not permitted for scope "${scope}".`);
     }
   } else {
     // MCP requires an authenticated scope. No scope = deny (fail closed).

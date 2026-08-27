@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     if (message === "Unauthorized") return new Response("Unauthorized", { status: 401 });
     if (message === "Forbidden") return new Response("Forbidden", { status: 403 });
-    if (message.includes("disabled") || message.includes("missing")) {
+    if (message.includes("disabled") || message.includes("missing") || message.includes("Failing closed")) {
       return new Response(message, { status: 503 });
     }
     return Response.json({ jsonrpc: "2.0", id: null, error: { code: RPC_ERROR.INTERNAL, message } });
