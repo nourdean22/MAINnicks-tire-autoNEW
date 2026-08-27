@@ -1,0 +1,124 @@
+{
+  "topic": "4wd-awd-driveline-bind-tight-turns",
+  "title": "4WD/AWD binds or chatters in tight turns on dry pavement (transfer case fluid, not tires)",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "generatedAt": "2026-08-25",
+  "capabilities": {
+    "ttsConnected": false,
+    "motionGenerationConnected": false,
+    "capcutConnected": false,
+    "metaPostingConnected": false,
+    "higgsfieldAccountHealth": "UNKNOWN",
+    "reelVideoProvider": "UNKNOWN_NOT_RELIVE_VERIFIED_doc_says_template_stock",
+    "reelGenerationEnabled": "UNKNOWN",
+    "prodDbAccess": false
+  },
+  "repetitionCheck": {
+    "mergedPacksScanned": 97,
+    "openPrDraftsScanned": [
+      "exhaust-manifold-leak-cold-start-tick",
+      "ac-compressor-clutch-not-engaging-low-pressure-cutoff",
+      "rear-defroster-partial-clear-grid-line-break-test",
+      "brake-light-switch-cruise-control-shift-lock"
+    ],
+    "collision": false
+  },
+  "estimatedQualityScore": {
+    "total": 58,
+    "max70": true,
+    "passesFloor": false,
+    "note": "estimated by inspection against facelessReelStudio.ts weights, not run through the live scorer",
+    "dimensions": {
+      "firstFrameScrollStop": 8,
+      "mutedFirst": 10,
+      "beatStructure": 5,
+      "length": 5,
+      "loopability": 3,
+      "sourcedFact": 4,
+      "faceless": 10,
+      "claimSafety": 10,
+      "keywordRelevance": 3
+    }
+  },
+  "runtimeSeconds": 34,
+  "aspectRatio": "9:16",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "startSec": 0,
+      "endSec": 3,
+      "shot": "Close-up on an SUV's transfer case housing between the front and rear driveshafts, sunlight, subtle idle vibration",
+      "prompt": "macro close up shot of a car transfer case housing between the front and rear driveshafts on the underside of an SUV, sunlight catching the metal casing, subtle engine idle vibration, shallow depth of field, photorealistic",
+      "vo": "Your 4WD or AWD binding up in tight turns? That's probably not your tires."
+    },
+    {
+      "index": 2,
+      "startSec": 3,
+      "endSec": 8,
+      "shot": "Bird's-eye drone shot of an SUV tracing a tight, complete circle in an empty parking lot at full lock",
+      "prompt": "bird's eye drone style shot of an SUV slowly tracing a tight complete circle in an empty parking lot at full steering lock, tire contact patches visibly scrubbing sideways against dry pavement, photorealistic",
+      "vo": "A shudder, hop, or binding feeling in a slow, tight turn — usually noticed in a parking lot or driveway on dry pavement."
+    },
+    {
+      "index": 3,
+      "startSec": 8,
+      "endSec": 14,
+      "shot": "Object-only cutaway of a transfer case gear-and-chain assembly, front and rear output shafts rotating at slightly different speeds",
+      "prompt": "object only technical cutaway of an open car transfer case gear and chain assembly, front and rear output shafts rotating at slightly different speeds, clean diagrammatic lighting, slow orbiting camera move, no text or labels, photorealistic",
+      "vo": "That points to your transfer case or center differential — the part that lets all four wheels travel different paths in a turn."
+    },
+    {
+      "index": 4,
+      "startSec": 14,
+      "endSec": 20,
+      "shot": "Two dishes side by side, clean amber gear oil vs. dark metal-flecked gear oil, slow rack-focus",
+      "prompt": "close up comparison of two shallow dishes side by side under even studio light, one holding clean amber gear oil, the other holding dark metal fleck flecked gear oil, slow rack focus between them, no hands present, photorealistic",
+      "vo": "Old or low transfer case fluid can make that binding worse, and pushing through it again and again wears the drivetrain faster."
+    },
+    {
+      "index": 5,
+      "startSec": 20,
+      "endSec": 26,
+      "shot": "Shop inspection light sweeping across a transfer case fill-plug bolt with a faint oil weep line",
+      "prompt": "a shop inspection light on a stand sweeps its beam across a car transfer case housing fill plug bolt, threads and a faint oil weep line visible under the light, no hands present, slow rack focus, photorealistic",
+      "vo": "One clue is not a diagnosis — worth having the transfer case fluid checked before a tight parking lot turn becomes a bigger repair."
+    },
+    {
+      "index": 6,
+      "role": "cta_save_freeze",
+      "startSec": 26,
+      "endSec": 34,
+      "shot": "Exterior establishing shot of the shop bay, tire stack in foreground, logo signage visible; static hold for the final 3s end card",
+      "prompt": "exterior establishing shot of an automotive shop bay, tire stack in foreground, late afternoon light, logo signage visible and legible, camera holds steady, photorealistic",
+      "vo": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue."
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "claimSafety": {
+    "usesPriceClaim": false,
+    "usesWarrantyOrGuarantee": false,
+    "approvedPhrasesUsed": ["points to", "worth having...checked", "one clue", "stop by and we'll take a look"]
+  },
+  "musicRights": {
+    "status": "UNKNOWN",
+    "note": "No music-rights ledger exists in this repo; human editor must select and license-clear a royalty-free bed at assembly time."
+  },
+  "igfbCopy": {
+    "primaryCaption": "Your 4WD or AWD binding up when you turn tight? It's probably not your tires. That shudder or hop in a slow, tight turn on dry pavement usually points to the transfer case or center differential, not tread, not alignment. Old or low transfer case fluid can make it worse over time. Stop by and we'll take a look.",
+    "hashtags": ["#ClevelandMechanic", "#CarCare101", "#EuclidOhio", "#4WD", "#AWD", "#AutoRepairTips", "#CarMaintenance", "#NicksTireAndAuto"],
+    "adVariants": [
+      {
+        "hook": "Everyone blames the tires for this. It's almost never the tires.",
+        "caption": "That bind or hop in a tight, slow turn is a driveline clue, not a tire clue. Here's the 30-second parking-lot way to tell.",
+        "cta": "Stop by and we'll take a look — no guessing, no pressure."
+      },
+      {
+        "hook": "4WD chatter in tight turns? Don't replace your tires yet.",
+        "caption": "That's a transfer case sound, not a tire sound. Catch it early and it's a fluid check, not a rebuild.",
+        "cta": "Free check, honest answer — stop by Nick's Tire & Auto on Euclid."
+      }
+    ]
+  }
+}
