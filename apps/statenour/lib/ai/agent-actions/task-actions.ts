@@ -7,6 +7,7 @@
  * (C7 · 2026-06-02) and must not change.
  */
 import { prisma } from "@/lib/prisma";
+import { stopTimer, accumulate } from "@/lib/services/task-timer";
 import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
@@ -46,7 +47,21 @@ export async function handleTaskComplete(params: ActionParams, type: string): Pr
   // (lib/ai/tools/tasks.ts): bump streak via gap-check + stay READY.
   const existing = await prisma.task.findUnique({
     where: { id },
-    select: { loopKind: true, streakCount: true, lastCompletedAt: true, goalId: true, title: true },
+    // `startedAt` / `actualMinutes` added 2026-08-27. This path closed tasks
+    // without ever reading the timer: start a task in the UI, ask Nick to
+    // close it, and the elapsed minutes were dropped while the stamp stayed
+    // set on a row that was now DONE. The service path had done this correctly
+    // since it was written, so which of the two you happened to use decided
+    // whether your work was measured.
+    select: {
+      loopKind: true,
+      streakCount: true,
+      lastCompletedAt: true,
+      goalId: true,
+      title: true,
+      startedAt: true,
+      actualMinutes: true,
+    },
   });
   if (!existing) {
     return { action: type, success: false, error: "task not found" };
@@ -90,6 +105,11 @@ export async function handleTaskComplete(params: ActionParams, type: string): Pr
         lastTouchedAt: now,
         streakCount: nextStreak,
         status: "READY", // DAILY stays in the loop
+        // Stop the clock without banking minutes — same rule as the service
+        // path, for the same reason (task-timer.ts): a recurring row is never
+        // re-created, so accumulating across repetitions would be compared
+        // against a per-instance estimate and read as a huge overage.
+        startedAt: null,
         snoozedUntil: null,
         autoPriorityExplanation: explanation,
       },
@@ -102,6 +122,10 @@ export async function handleTaskComplete(params: ActionParams, type: string): Pr
         status: "DONE",
         lastCompletedAt: now,
         lastTouchedAt: now,
+        // Bank the measured minutes and stop the clock. `undefined` when the
+        // task was never started, so this cannot overwrite banked minutes.
+        actualMinutes: accumulate(existing.actualMinutes, stopTimer(existing.startedAt, now)),
+        startedAt: null,
         autoPriorityExplanation: explanation,
       },
       select: { id: true, title: true, goalId: true },
