@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+You replace the fuse.
+
+2
+00:00:02,000 --> 00:00:04,000
+It blows again in minutes.
+
+3
+00:00:04,000 --> 00:00:06,500
+Same accessory, same fuse,
+
+4
+00:00:06,500 --> 00:00:09,000
+dead again right after you swap it in.
+
+5
+00:00:09,000 --> 00:00:11,500
+That can point to a short —
+
+6
+00:00:11,500 --> 00:00:15,000
+pulling more current than the circuit is rated for.
+
+7
+00:00:15,000 --> 00:00:18,000
+A higher-amp fuse doesn't fix it —
+
+8
+00:00:18,000 --> 00:00:21,000
+it just lets more heat build up in the wiring.
+
+9
+00:00:21,000 --> 00:00:23,500
+The circuit needs to be traced,
+
+10
+00:00:23,500 --> 00:00:26,000
+not the fuse upsized.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before it becomes a bigger electrical repair.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
