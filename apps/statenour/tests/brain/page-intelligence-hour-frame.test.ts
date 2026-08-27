@@ -10,12 +10,24 @@
  * Measured against prod on 2026-08-26 over 30 days: **691 of 719 rows** carry a
  * UTC hour against an ET timestamp — a clean +4h, the EDT offset. Every day
  * from 07-28 to 08-24 is 100% affected, 08-25 flips mid-day, 08-26 is 100%
- * correct. `git log -S` shows no source change to the writer in that window, so
- * the flip was ENVIRONMENTAL.
+ * correct.
  *
- * That is the whole argument for this fix. "The environment is healthy now" is
- * not a repair — it is the same condition that silently ended. Deriving from
- * the timestamp is correct whatever the cause and stays correct if it returns.
+ * CAUSE, found 2026-08-27: `1202bdd0f` — "Nick reads the operator's clock, not
+ * the server's" — merged 2026-08-25T15:17:30Z, changing the writer in
+ * lib/services/brain-domain.ts from `new Date().getHours()` (the UTC hour, on a
+ * Railway container) to `hourET()`. Last UTC-stamped row 14:56:52Z, first
+ * ET-stamped row 15:26:35Z: the boundary brackets the merge, ~9min of which is
+ * the deploy.
+ *
+ * An earlier version of this header said the flip was ENVIRONMENTAL because
+ * `git log -S` found no change to the writer. That search was run against this
+ * checkout's HEAD, which sits on a branch days behind origin/main and does not
+ * contain the commit — the archaeology was correct about the wrong timeline.
+ * `git log` defaults to HEAD; on a shared checkout, ask origin/main.
+ *
+ * The fix does not depend on the cause, which is why it survived being wrong
+ * about it: the stored copy is redundant with an authoritative timestamp and
+ * cannot be re-derived once written wrong.
  *
  * What it cost: the daily brief shipped "21 visits after 11pm" where ET says
  * 12. A UTC hour of 23-04 is ET 19-00, so "after 11pm" was counting from 7pm —
