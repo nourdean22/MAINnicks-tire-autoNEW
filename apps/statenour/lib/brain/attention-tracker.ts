@@ -72,7 +72,7 @@ export async function analyzeAttentionPatterns(): Promise<AttentionProfile> {
       topTopics: [],
       neglectedDomains: [],
       attentionShifts: [],
-      focusScore: 50, // documented no-signal midpoint (attention-helpers convention)
+      focusScore: 50, // documented no-signal midpoint — zero signal is not zero focus
       depthAnalysis: { avgMessageLength: 0, deepDives: 0, quickQuestions: 0, actionRatio: 0.5 },
       timeOfDayPatterns: { morning: [], afternoon: [], evening: [] },
       toolUsage: [],

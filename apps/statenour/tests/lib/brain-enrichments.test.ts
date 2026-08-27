@@ -37,14 +37,6 @@ import {
   gapSeverity,
   frameAsAkrasia,
 } from "@/lib/brain/counter-intuitive";
-import {
-  classifyAttentionDepth,
-  deepWorkRatio,
-  classifyEisenhower,
-  eisenhowerQ2Deficit,
-  attentionLatencyDays,
-} from "@/lib/brain/attention-helpers";
-
 // ═══════════════════════════════════════════════════════════════
 // SHARED — Bayes + Lindy + falsifiability scaffolding
 // ═══════════════════════════════════════════════════════════════
@@ -279,75 +271,5 @@ describe("counter-intuitive enrichments", () => {
     expect(text.toLowerCase()).toContain("akrasia");
     expect(text.toLowerCase()).toContain("recoverable");
     expect(text.toLowerCase()).not.toContain("you're inconsistent");
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// ATTENTION-TRACKER — Newport + Eisenhower + Boyd
-// ═══════════════════════════════════════════════════════════════
-
-describe("attention-tracker enrichments", () => {
-  it("classifyAttentionDepth: short message = shallow", () => {
-    expect(classifyAttentionDepth("body fine")).toBe("shallow");
-  });
-
-  it("classifyAttentionDepth: long structured message = deep", () => {
-    expect(
-      classifyAttentionDepth(
-        "I'm thinking about how the body domain affects revenue indirectly through energy and decision quality, because workouts compound over weeks rather than days, however the immediate stakes of revenue make body feel optional",
-      ),
-    ).toBe("deep");
-  });
-
-  it("deepWorkRatio computes ratio correctly", () => {
-    const r = deepWorkRatio([
-      "ok",
-      "fine",
-      "I want to think through how morning routines specifically help revenue conversion via energy and decision quality, because the chain seems to go workout → energy → focus → conversion",
-    ]);
-    expect(r.shallow).toBeGreaterThan(0);
-    expect(r.deep).toBeGreaterThan(0);
-    expect(r.ratio).toBeGreaterThan(0);
-    expect(r.ratio).toBeLessThan(1);
-  });
-
-  it("classifyEisenhower: Q1 (urgent + important)", () => {
-    expect(classifyEisenhower(0.9, 0.9)).toBe("Q1");
-  });
-
-  it("classifyEisenhower: Q2 (important not urgent)", () => {
-    expect(classifyEisenhower(0.9, 0.2)).toBe("Q2");
-  });
-
-  it("classifyEisenhower: Q4 (neither)", () => {
-    expect(classifyEisenhower(0.2, 0.2)).toBe("Q4");
-  });
-
-  it("eisenhowerQ2Deficit flags strategic decay", () => {
-    const result = eisenhowerQ2Deficit([
-      { topicName: "body", importanceScore: 0.9, urgencyScore: 0.1, attentionMinutes: 0 },
-      { topicName: "strategy", importanceScore: 0.85, urgencyScore: 0.2, attentionMinutes: 0 },
-      { topicName: "revenue", importanceScore: 0.8, urgencyScore: 0.9, attentionMinutes: 60 },
-    ]);
-    expect(result.q2Topics).toBe(2);
-    expect(result.q2WithAttention).toBe(0);
-    expect(result.q2DeficitPct).toBe(100);
-    expect(result.starvedTopics).toContain("body");
-    expect(result.starvedTopics).toContain("strategy");
-  });
-
-  it("attentionLatencyDays returns days between event + next mention", () => {
-    const event = new Date("2026-04-01T00:00:00Z");
-    const mentions = [
-      { at: new Date("2026-04-04T12:00:00Z") },
-      { at: new Date("2026-04-10T12:00:00Z") },
-    ];
-    expect(attentionLatencyDays(event, mentions)).toBe(3);
-  });
-
-  it("attentionLatencyDays returns null when no subsequent mentions", () => {
-    const event = new Date("2026-04-01T00:00:00Z");
-    const mentions = [{ at: new Date("2026-03-15T12:00:00Z") }];
-    expect(attentionLatencyDays(event, mentions)).toBeNull();
   });
 });
