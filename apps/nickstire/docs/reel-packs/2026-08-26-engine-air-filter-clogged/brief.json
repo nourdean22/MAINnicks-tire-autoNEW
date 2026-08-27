@@ -1,0 +1,116 @@
+{
+  "topic": "A dirty engine air filter is choking your power and your gas mileage",
+  "producedAt": "2026-08-26",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "beats": [
+    {
+      "start": 0,
+      "end": 4,
+      "role": "HOOK",
+      "narration": "Your car feels sluggish, and you're filling up more than you used to.",
+      "visualPrompt": "Close-up on a dashboard tachometer/MPG trip-computer readout, static-mounted camera, dim interior lighting, shallow depth of field, engine bay visible faintly through a windshield reflection.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 4,
+      "end": 9,
+      "role": "SYMPTOM",
+      "narration": "Acceleration feels weak. Idle's a little rough. Maybe a whiff of gas smell at startup.",
+      "visualPrompt": "Low-angle shot of an idling engine bay, subtle vibration at idle; quick cut to a dashboard fuel-gauge needle sitting lower than expected.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 9,
+      "end": 15,
+      "role": "EXPLANATION",
+      "narration": "One clue: a clogged engine air filter. It can choke off the air your engine needs to breathe.",
+      "visualPrompt": "Macro/cutaway shot: an engine air filter housing opened, the pleated paper filter element lifted out, visibly dark and clogged with dust/debris, workbench setting, slow push-in.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 15,
+      "end": 21,
+      "role": "CONSEQUENCE",
+      "narration": "Less air means a richer fuel mix — less power, worse mileage.",
+      "visualPrompt": "Side-by-side static composition: a clean white pleated filter next to the dirty one from beat 3, studio-lit, no hands in frame.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 21,
+      "end": 26,
+      "role": "SAFE_ACTION",
+      "narration": "It's a 30-second check. Pull the filter, hold it to the light — if you can't see through it, it's time.",
+      "visualPrompt": "The dirty filter held up backlit by a work-light on a stand, light visibly failing to pass through the clogged section, shop bay softly blurred behind it.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 26,
+      "end": 30,
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before it costs you more at the pump. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+      "notes": "Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "claimEvidence": {
+    "evidenceRecordsRead": [],
+    "businessFactsRead": [],
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the airflow/fuel-mix claim",
+      "whether Nick's Tire & Auto specifically stocks/replaces engine air filters (not confirmed against a live business_facts row this session)"
+    ]
+  },
+  "qualityScoreSelfEstimate": {
+    "total": 51,
+    "max": 75,
+    "floor": 70,
+    "belowFloor": true,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirstCaptions": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    }
+  },
+  "costEstimateUsd": {
+    "provider": "template_stock (prod-pinned per docs, unverified live this session)",
+    "perClipUsd": 0,
+    "totalEstimateUsd": 0,
+    "basis": "generationLedger.ts COST_ESTIMATES_USD, doc-inherited, not a live read"
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo — documented gap. Voiceover + captions only."
+  },
+  "hashtags": [
+    "#CarMaintenance", "#EngineAirFilter", "#GasMileage", "#CarTips",
+    "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto", "#CarCare"
+  ],
+  "feedCaption": "Car feel sluggish and gas mileage dropping? One clue mechanics check: a clogged engine air filter. It can choke off airflow, richen your fuel mix, and cost you power and MPG. 30-second check: pull it, hold it to the light. Stop by and we'll take a look.",
+  "adVariants": [
+    {
+      "hook": "Why does my car feel slower than it used to?",
+      "caption": "It might not be your engine — it might be what your engine's breathing through.",
+      "cta": "Stop by, we'll check it in 30 seconds."
+    },
+    {
+      "hook": "You could be paying more at the pump for no reason.",
+      "caption": "A clogged air filter chokes airflow and richens your fuel mix — worse mileage, less power.",
+      "cta": "Worth a quick check before your next fill-up. Nick's Tire & Auto."
+    }
+  ],
+  "renderedThisSession": false,
+  "publishedThisSession": false,
+  "generationRoute": "BLOCKED_NO_MOTION_ROUTE"
+}
