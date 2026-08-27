@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
 import type { MissionDomain } from "@prisma/client";
 
 /** Valid Prisma MissionDomain enum members. Used to safely narrow a
@@ -167,7 +168,7 @@ export async function buildNextMove(): Promise<NextMove> {
   const inboxMatch = await (async () => {
     const enumDomain = asMissionDomain(weakestDomain);
     if (!enumDomain)
-      return [] as Array<{ id: string; title: string; roiScore: number }>;
+      return [] as Array<{ id: string; title: string; roiScore: number; autoPriorityExplanation: string | null }>;
     return prisma.task
       .findMany({
         where: {
@@ -175,11 +176,14 @@ export async function buildNextMove(): Promise<NextMove> {
           deletedAt: null,
           mission: { domain: enumDomain },
         },
-        select: { id: true, title: true, roiScore: true },
-        orderBy: [{ roiScore: "desc" }, { lastTouchedAt: "desc" }],
+        select: { id: true, title: true, roiScore: true, autoPriorityExplanation: true },
+        // 2026-08-27 · rank by the one scorer, not raw hand-assigned roiScore.
+        // Object form: plain "desc" floats NULL autoPriority rows first in
+        // Postgres (polarity test source-scan enforces this spelling).
+        orderBy: [{ autoPriority: { sort: "desc", nulls: "last" } }, { lastTouchedAt: "desc" }],
         take: 3,
       })
-      .catch((): Array<{ id: string; title: string; roiScore: number }> => []);
+      .catch((): Array<{ id: string; title: string; roiScore: number; autoPriorityExplanation: string | null }> => []);
   })();
 
   for (const t of inboxMatch) {
@@ -187,7 +191,7 @@ export async function buildNextMove(): Promise<NextMove> {
       source: "existing-inbox",
       title: t.title,
       taskId: t.id,
-      reason: `already in your inbox · ROI ${t.roiScore}`,
+      reason: t.autoPriorityExplanation ?? `already in your inbox · ROI ${t.roiScore}`,
     });
   }
 
@@ -233,27 +237,34 @@ export async function buildNextMove(): Promise<NextMove> {
         select: { domain: true },
       },
     },
+    // 2026-08-27 · rank by the one scorer (autoPriority), not raw
+    // hand-assigned roiScore. Object form is mandatory — plain "desc"
+    // floats NULL autoPriority rows first in Postgres (polarity scan).
     orderBy: [
-      { roiScore: "desc" },
+      { autoPriority: { sort: "desc", nulls: "last" } },
       { lastTouchedAt: "desc" },
     ],
   }).catch(() => [] as any[]);
 
   const criticalFew: CriticalFewTask[] = [];
   const selectedIds = new Set<string>();
+  const isHabitLoop = (k: string | null | undefined) => HABIT_LOOPS.has((k ?? "").toUpperCase());
+  const scoreReason = (t: { autoPriorityExplanation?: string | null; roiScore: number }, fallback: string) =>
+    t.autoPriorityExplanation ?? `${fallback} (ROI ${t.roiScore})`;
 
-  // 4.1 Focus Lane
-  let focusTask = openTasks.find((t) => t.status === "DOING");
+  // 4.1 Focus Lane. Every arm carries the habit guard — the middle arm
+  // always had it, but the DOING arm and the last-resort arm didn't, so
+  // a DAILY loop in DOING owned the focus lane (same defect shape the
+  // #1897 review fixed in derive-briefing's ACTIVE/RESUME arms).
+  let focusTask = openTasks.find((t) => t.status === "DOING" && !isHabitLoop(t.loopKind));
   let focusReason = "Currently in progress";
 
   if (!focusTask) {
-    focusTask = openTasks.find((t) => t.loopKind !== "DAILY" && t.loopKind !== "WEEKLY");
-    focusReason = focusTask ? `Highest ROI strategic target (ROI ${focusTask.roiScore})` : "";
+    focusTask = openTasks.find((t) => !isHabitLoop(t.loopKind));
+    focusReason = focusTask ? scoreReason(focusTask, "Highest-priority strategic target") : "";
   }
-  if (!focusTask && openTasks.length > 0) {
-    focusTask = openTasks[0];
-    focusReason = focusTask ? `Highest ROI target (ROI ${focusTask.roiScore})` : "";
-  }
+  // No non-habit work at all → the focus lane stays EMPTY. A hydration
+  // loop must never be the "highest leverage asymmetric move".
 
   if (focusTask) {
     selectedIds.add(focusTask.id);

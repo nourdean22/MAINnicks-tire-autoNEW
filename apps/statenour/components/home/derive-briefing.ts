@@ -34,8 +34,9 @@
  * UNREADABLE exactly as before.
  */
 
-/** Loop kinds that must never claim the attention card's imperative arms. */
-const HABIT_LOOPS = new Set(["DAILY", "WEEKLY"]);
+/** Loop kinds that must never claim the attention card's imperative arms.
+ *  Canonical set lives with the scorer — one truth for arms AND ranking. */
+import { HABIT_LOOPS } from "@/lib/scoring/task-priority";
 
 export interface BriefingTask {
   title: string;
@@ -54,7 +55,7 @@ export interface BriefingInputs {
   pendingDecisions: number | null;
   findingsCount: number;
   inboxCount: number;
-  criticalFew: Array<{ title: string; roiScore: number }>;
+  criticalFew: Array<{ title: string; roiScore: number; reason?: string }>;
 }
 
 export interface Briefing {
@@ -154,7 +155,11 @@ export function deriveBriefing(i: BriefingInputs): Briefing {
     return {
       status: "nominal",
       title: "SYSTEMS NOMINAL",
-      message: `Hygiene is clear. The Focus Lane is open. The highest leverage asymmetric move is to execute [${target.title}] (Expected ROI: ~${target.roiScore} est.). *(Projected calculation, unverified hypothesis)*.`,
+      // One-line explainability: the scorer's own reason when present, the
+      // old ROI-estimate copy only as fallback for unscored rows.
+      message: `Hygiene is clear. The Focus Lane is open. Execute [${target.title}] — ${
+        target.reason ?? `Expected ROI: ~${target.roiScore} est. *(Projected calculation, unverified hypothesis)*`
+      }`,
       actionType: "execute",
       color: "text-cyan-400",
     };

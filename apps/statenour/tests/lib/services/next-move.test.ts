@@ -153,6 +153,6 @@ describe("next-move service · buildNextMove", () => {
 
     const focusLane = result.criticalFew?.find(t => t.lane === "focus");
     expect(focusLane?.id).toBe("t_high"); // skipped daily workout for Focus Lane
-    expect(focusLane?.reason).toBe("Highest ROI strategic target (ROI 90)");
+    expect(focusLane?.reason).toBe("Highest-priority strategic target (ROI 90)");
   });
 });
