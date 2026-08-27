@@ -4,7 +4,9 @@
 > action), how to talk, and the two policies this repo had no home for: **skill discovery** and
 > the **subagent briefing** policy. Moved in from the machine-local
 > `~/.claude/CLAUDE.md` on 2026-08-21 so it is version-controlled and every agent reads the
-> same copy.
+> same copy. The move completed 2026-08-27: the global file had RETAINED a byte-identical
+> 2,469-byte copy of the operating principles (loaded twice in every NOURCITY session, free to
+> drift silently) — measured in the profile audit and retired to a pointer the same day.
 >
 > **Precedence.** Engineering policy (branching, protected operations, verify gates, context
 > routing) is canonical in [`AGENTS.md`](./AGENTS.md) and WINS on any conflict. Operator
@@ -75,11 +77,16 @@ ERRORS & DRIFT
 SKILL DISCOVERY
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-Roughly 930 skills are installed; measured over 9 weeks, only ~3.5% have EVER been invoked. Narrow
-expertise beats generic instinct — never reach for "general-purpose" thinking when a domain-specific
-skill applies. Prefer a project skill (`.claude/skills/`) over an installed one: that cohort fires at
-62% vs 3.5% because each names one concrete repo action. If no skill fits, say so and proceed — do
-not invoke a loosely-related skill to satisfy this section.
+A large skill library is installed (929 dirs in `~/.claude/skills` measured 2026-08-27; the fire
+audit's fuller universe was 1,307 names) and almost none of it ever fires. The numbers live in ONE
+place — `.claude/skills/skill-fire-audit/SKILL.md`, re-run via its `fire_audit.py` for current
+values; its 2026-08-03 baseline: 46 of 1,307 names ever fired = 3.5%, project cohort 64%. (This
+paragraph used to carry its own copies — "~930", "62%" — which had already drifted from the source.
+A count in prose is a cache with no invalidation.) The lesson stands: narrow expertise beats
+generic instinct — never reach for "general-purpose" thinking when a domain-specific skill applies,
+and prefer a project skill (`.claude/skills/`), the cohort that actually fires, because each names
+one concrete repo action. If no skill fits, say so and proceed — do not invoke a loosely-related
+skill to satisfy this section.
 
 Before every non-trivial task:
 1. Name the task in one sentence.
