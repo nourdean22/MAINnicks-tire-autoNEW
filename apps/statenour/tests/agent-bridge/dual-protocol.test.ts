@@ -2,59 +2,72 @@ import { describe, it, expect } from "vitest";
 import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 import { assertBridgeToolAllowed, CHATGPT_ACTIONS_V1_TOOLS, MCP_V1_TOOLS } from "@/lib/agent-bridge/tool-policy";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
+import { BRIDGE_HARD_DENY } from "@/lib/agent-bridge/scopes";
 
+/**
+ * UPDATED 2026-08-27 for the bridge hardening. The three assertions this file
+ * used to make — "MCP retains full-operational capability (side-effecting +
+ * high-risk tools)", "MCP permits any catalog tool", and MCP_V1_TOOLS ===
+ * whole catalog — encoded the DEFECT: the full 181-tool surface, including
+ * runPython, behind one flat token, guarded only by a comment. Those are now
+ * inverted: the hardened contract is that MCP is a SCOPED subset that excludes
+ * every protected operation. Kept: Actions is a curated <=30 subset of the
+ * maximal MCP surface, and every curated name resolves to a real tool.
+ */
 describe("Agent Bridge Dual-Protocol Surface", () => {
-  it("exposes a curated ChatGPT Actions subset (<=30 ops) of the full MCP surface", () => {
+  it("Actions is a curated <=30 subset of the maximal MCP surface", () => {
     const actionsTools = getBridgeSafeTools("actions");
-    const mcpTools = getBridgeSafeTools("mcp");
+    const mcpMax = getBridgeSafeTools("mcp"); // no scope = maximal reachable union
 
     const actionsNames = actionsTools.map((t) => t.camelName);
-    const mcpNames = new Set(mcpTools.map((t) => t.camelName));
+    const mcpNames = new Set(mcpMax.map((t) => t.camelName));
 
-    // No Actions-only tools: the Actions surface is a strict subset of MCP.
     for (const name of actionsNames) {
-      expect(mcpNames.has(name), `Actions tool ${name} is missing from the MCP surface`).toBe(true);
+      expect(mcpNames.has(name), `Actions tool ${name} missing from the MCP surface`).toBe(true);
     }
 
-    // ChatGPT Custom GPT Actions hard-cap: a schema may declare at most 30 operations.
-    // (This is the invariant whose violation broke the bdnick.info action — 150 ops > 30.)
     expect(CHATGPT_ACTIONS_V1_TOOLS.length).toBeLessThanOrEqual(30);
     expect(actionsNames.length).toBeGreaterThan(0);
     expect(actionsNames.length).toBeLessThanOrEqual(30);
-
-    // Every curated name must resolve to a real, exposed tool — catches typos or
-    // tools that were curated but never registered in nourTools.
+    // Every curated name resolves to a real, exposed tool (typo / unregistered guard).
     expect(actionsNames.length).toBe(CHATGPT_ACTIONS_V1_TOOLS.length);
-
-    // MCP keeps the full catalog — materially larger than the curated Actions set.
-    expect(mcpTools.length).toBeGreaterThan(actionsNames.length);
-    expect(MCP_V1_TOOLS.length).toBe(TOOL_CATALOG.length);
+    // The maximal MCP surface is larger than Actions but is NO LONGER the whole
+    // catalog — it is the scoped union with protected ops removed.
+    expect(mcpMax.length).toBeGreaterThan(actionsNames.length);
+    expect(MCP_V1_TOOLS.length).toBeLessThan(TOOL_CATALOG.length);
   });
 
-  it("MCP retains full-operational capability (side-effecting + high-risk tools)", () => {
-    const mcpTools = getBridgeSafeTools("mcp");
-
-    const hasSideEffecting = mcpTools.some((t) => t.meta.sideEffecting);
-    const hasHighRisk = mcpTools.some((t) => t.meta.riskClass === "high" || t.meta.riskClass === "critical");
-
-    expect(hasSideEffecting).toBe(true);
-    expect(hasHighRisk).toBe(true);
+  it("HARDENED: the MCP surface exposes NO protected operation, on any path", () => {
+    // The inversion of the old "retains full-operational capability" test.
+    const mcpMax = getBridgeSafeTools("mcp").map((t) => t.camelName);
+    const leaked = mcpMax.filter((n) => BRIDGE_HARD_DENY.has(n));
+    expect(leaked, "protected ops must never appear on the MCP surface").toEqual([]);
+    // Specifically: no code execution, no customer SMS.
+    for (const forbidden of ["runPython", "runDeviceCommand", "sendOpportunitySms"]) {
+      expect(mcpMax).not.toContain(forbidden);
+    }
+    // POSITIVE CONTROL: the surface is real and useful, not empty.
+    expect(mcpMax).toContain("getShopSnapshot");
+    expect(mcpMax).toContain("searchMemories");
   });
 
-  it("MCP permits any catalog tool; Actions is limited to the curated allowlist", () => {
-    // MCP exposes the full surface — side-effecting tools included.
-    const writeTool = TOOL_CATALOG.find((t) => t.sideEffecting);
-    if (writeTool) {
-      expect(() => assertBridgeToolAllowed(writeTool.name, "mcp")).not.toThrow();
+  it("scope gates execution: a protected op is refused on MCP; Actions permits only its curated list", () => {
+    // MCP: a protected op throws on every scope (was: not.toThrow on full surface).
+    const protectedTool = TOOL_CATALOG.find((t) => BRIDGE_HARD_DENY.has(t.name));
+    expect(protectedTool, "the catalog should contain at least one protected op").toBeTruthy();
+    if (protectedTool) {
+      expect(() => assertBridgeToolAllowed(protectedTool.name, "mcp", "read")).toThrow(/protected operation/);
+      expect(() => assertBridgeToolAllowed(protectedTool.name, "mcp", "tasks")).toThrow(/protected operation/);
     }
 
-    // Actions rejects any tool outside the curated <=30 list...
-    const nonCurated = TOOL_CATALOG.find((t) => !CHATGPT_ACTIONS_V1_TOOLS.includes(t.name));
+    // Actions rejects any tool outside its curated list...
+    const nonCurated = TOOL_CATALOG.find(
+      (t) => !CHATGPT_ACTIONS_V1_TOOLS.includes(t.name) && !BRIDGE_HARD_DENY.has(t.name),
+    );
     if (nonCurated) {
-      expect(() => assertBridgeToolAllowed(nonCurated.name, "actions")).toThrow();
+      expect(() => assertBridgeToolAllowed(nonCurated.name, "actions")).toThrow(/not in the allowlist/);
     }
-
-    // ...but permits every curated tool (including curated side-effecting ones like sendTelegram).
+    // ...and permits every curated tool.
     for (const name of CHATGPT_ACTIONS_V1_TOOLS) {
       expect(() => assertBridgeToolAllowed(name, "actions")).not.toThrow();
     }

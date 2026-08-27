@@ -52,3 +52,10 @@ regexTarget = "match"
 regexes = [
   '''data-key=["'][A-Za-z0-9+/=_-]{16,64}["']''',
 ]
+# Test-fixture tokens for the agent-bridge scope canary are SYNTHETIC — the
+# file asserts token->scope resolution and never contains a real secret. Path-
+# allowlisted (not by value) so the whole PR range is clean regardless of how a
+# fixture was worded in an earlier commit. Added 2026-08-27 with PR #1944.
+paths = [
+  '''apps/statenour/tests/agent-bridge/bridge-hardening\.test\.ts''',
+]

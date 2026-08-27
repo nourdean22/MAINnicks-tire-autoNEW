@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    assertBridgeAuth(req);
+    const identity = assertBridgeAuth(req);
 
     let body: unknown;
     try {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await handleMcpMessage(body);
+    const res = await handleMcpMessage(body, identity);
     // Notifications get no response body (JSON-RPC + MCP spec).
     if (res === null) return new Response(null, { status: 202 });
     return Response.json(res);
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     if (message === "Unauthorized") return new Response("Unauthorized", { status: 401 });
     if (message === "Forbidden") return new Response("Forbidden", { status: 403 });
-    if (message.includes("disabled") || message.includes("missing")) {
+    if (message.includes("disabled") || message.includes("missing") || message.includes("Failing closed")) {
       return new Response(message, { status: 503 });
     }
     return Response.json({ jsonrpc: "2.0", id: null, error: { code: RPC_ERROR.INTERNAL, message } });
