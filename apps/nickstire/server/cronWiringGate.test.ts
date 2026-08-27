@@ -74,9 +74,14 @@ describe("canary - the completeness clause cannot come back", () => {
 
   it("the doc points at the gate, so the next reader does not re-derive this", () => {
     expect(doc).toContain("lint:cron-wiring");
-    // ...and must not claim a wiring it does not have.
-    expect(doc, "the doc must not claim a verify link that was reverted")
-      .not.toContain("(in `verify` and in CI)");
+    // ...and the wiring claim must match reality in BOTH directions. This
+    // assertion once FORBADE "(in `verify` and in CI)" because the verify link
+    // had been reverted and the doc still claimed it. Since 2026-08-27 the
+    // link is real again, so the claim is REQUIRED. If the link is ever pulled
+    // back out, flip this assertion WITH it — a doc claiming a wiring it does
+    // not have is the exact defect this file exists to prevent.
+    expect(doc, "the doc must state the verify+CI wiring that now exists")
+      .toContain("(in `verify` and in CI)");
   });
 
   it("reports the base rate alongside the filtered rate", () => {
@@ -98,16 +103,19 @@ describe("canary - the gate that replaces the sentence is wired", () => {
     expect(workflow).toContain("pnpm --filter nicks-tire-auto lint:cron-wiring");
   });
 
-  it("is deliberately NOT in the verify chain, and that is not an oversight", () => {
-    // Adding a 15th verify link would drift docs/agent-audit/CONTROL-CANARY-
-    // COVERAGE.md, whose derived counts are themselves canary-gated - and that
-    // file is owned by a concurrent session. Local coverage is not lost: the
-    // same comparison runs inside cronControlPlane.test.ts, which `pnpm test`
-    // executes and `verify` includes. If that ever stops being true, this test
-    // is where to look.
-    expect(pkg.scripts.verify).not.toContain("lint:cron-wiring");
+  it("is the 15th verify link AND in CI — wired 2026-08-27, exclusion retired", () => {
+    // History: this test used to pin the OPPOSITE ("deliberately NOT in the
+    // verify chain"). That exclusion was coordination-scoped, not principled:
+    // adding the link would have drifted docs/agent-audit/CONTROL-CANARY-
+    // COVERAGE.md's canary-gated counts while a concurrent session owned that
+    // file. The 2026-08-27 run-to-empty batch landed the link and the count
+    // update (14 -> 15 links) in ONE PR, so the drift the exclusion guarded
+    // against cannot occur. Local coverage is also belt-and-braces: the same
+    // comparison runs inside cronControlPlane.test.ts, which `pnpm test`
+    // executes and `verify` includes.
+    expect(pkg.scripts.verify).toContain("lint:cron-wiring");
     const suite = readFileSync(join(APP_ROOT, "server/cronControlPlane.test.ts"), "utf-8");
-    expect(suite, "the local path depends on this test existing").toContain(
+    expect(suite, "the local path also rides the unit suite").toContain(
       "every job in registerAllJobs() is wired or aliased",
     );
   });
