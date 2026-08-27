@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-27",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Steering wheel shakes only at highway speed? That's a clue.",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "If your steering wheel only shakes at highway speed, that's not random.",
+      "visualPrompt": "Interior POV shot from the driver's seat looking at the steering wheel on an open highway, subtle vibration blur cue on the wheel rim, daylight, static-mounted camera."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "Smooth around town, then a vibration kicks in around 55 to 65 — and gets worse the faster you go.",
+      "visualPrompt": "Exterior side-tracking shot of a sedan accelerating on a highway on-ramp, speed blur on the wheel/tire only (rest of frame sharp); cut to a speedometer needle climbing past 55.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: it's the wheel and tire, not the brakes — an out-of-balance tire or a bent rim.",
+      "visualPrompt": "Macro/cutaway shot: a wheel and tire assembly on a balancing machine in a shop bay, small clip-on weights visible along the rim edge, slow push-in, no hands in frame.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "differentiation_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Only shakes when you brake? Different problem — a warped rotor. Shakes at speed no matter what? This is it.",
+      "visualPrompt": "Split-style comparison cutaway: one side a brake rotor with visible warp/heat discoloration, other side a wheel/tire spinning smoothly on a balancer — visually contrasting the two failure modes without text.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess. A quick balance check on the machine can find it fast.",
+      "visualPrompt": "Shop-bay wide shot: a wheel balancing machine mid-cycle, digital readout glowing (numbers illegible/blurred, no readable on-screen text), tools visible but no hands/figures in frame."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it wears on your suspension. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (an out-of-balance wheel/tire or bent rim produces a speed-scaling vibration independent of braking, distinct from a warped rotor which vibrates only under brake pressure), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 7,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#WheelBalance", "#SteeringWheel", "#CarVibration", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "🚗 Steering wheel shakes only on the highway? One clue mechanics check: an out-of-balance tire or a bent rim — not the brakes. Don't guess, it only gets worse. Stop by and we'll check it on the balancer. 🔧"
+  },
+  "adVariants": [
+    {
+      "hook": "Steering wheel shakes only on the highway?",
+      "caption": "An out-of-balance tire or a bent rim can cause a vibration that scales with speed — not the brakes.",
+      "cta": "Stop by and we'll check it on the balancer."
+    },
+    {
+      "hook": "Smooth in town, shaky at 60?",
+      "caption": "One clue mechanics check first: wheel balance. Worth checking before it wears on your suspension.",
+      "cta": "Bring it in — we'll get it on the machine."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
