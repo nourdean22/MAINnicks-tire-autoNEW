@@ -28,8 +28,45 @@ describe("scoreTaskPriority", () => {
       new Date("2098-12-31T12:00:00.000Z")
     );
 
-    expect(result.score).toBeGreaterThan(70);
-    expect(result.explanation).toContain("mission weight");
+    // 2026-08-27 weight revision (NOW_WEIGHTS): roi demoted, real terms added.
+    // Pin the MECHANISMS, not a magic threshold: each named input must move
+    // the score in its own direction, and the material facts must be named
+    // in the one-line explanation.
+    expect(result.score).toBeGreaterThanOrEqual(60); // "high" band
+    expect(result.explanation).toContain("mission #1");
+    expect(result.explanation).toContain("due in 1d");
+
+    const unranked = scoreTaskPriority(
+      {
+        id: "task-1",
+        title: "Top task",
+        missionId: "mission-none",
+        status: "READY",
+        roiScore: 92,
+        frictionScore: 18,
+        energyRequired: "LOW",
+        dueDate: "2099-01-01"
+      },
+      missionMap,
+      new Date("2098-12-31T12:00:00.000Z")
+    );
+    expect(result.score).toBeGreaterThan(unranked.score); // mission rank pulls up
+
+    const noDue = scoreTaskPriority(
+      {
+        id: "task-1",
+        title: "Top task",
+        missionId: "mission-1",
+        status: "READY",
+        roiScore: 92,
+        frictionScore: 18,
+        energyRequired: "LOW",
+        dueDate: null
+      },
+      missionMap,
+      new Date("2098-12-31T12:00:00.000Z")
+    );
+    expect(result.score).toBeGreaterThan(noDue.score); // deadline proximity pulls up
   });
 
   it("uses manual overrides when present", () => {
