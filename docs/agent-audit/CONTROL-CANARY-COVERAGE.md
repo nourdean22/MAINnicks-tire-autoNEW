@@ -169,6 +169,81 @@ A green probe is never "fine". It is an unexplained result, and the two
 explanations — *my probe did nothing* and *my canary sees nothing* — have
 opposite remedies. Recording which one it was is the whole value.
 
+**2026-08-26/27, two more instances that harden branch 1 into a mechanism.**
+A sibling session's mutation probes all "passed" — and every one was a no-op:
+the probe text went through a shell heredoc, the heredoc ate the backslashes,
+and the regex that was supposed to break the subject never matched anything.
+The session was one step from concluding the tests were blind when the tests
+were fine. The same day, four of four first-draft canaries in another session
+were blind in ways only an APPLIED mutation showed. Stated as the rule both
+sessions now carry:
+
+> **A probe that didn't actually mutate is indistinguishable from a canary
+> that didn't fire.** Both render as green. So "confirm the mutation applied"
+> is not a review step, it is a gate: hash the file before and after
+> (`md5sum`), and REFUSE to report a probe result when the hash didn't change.
+> An assertion-level equivalent already ships in this repo's newer canaries —
+> `assert.notEqual(mutated, src, "the mutation did not apply — this arm would
+> be vacuous")` — because a no-op edit makes the whole arm pass silently.
+
+And the restore side of the same harness: it recovered files from backups
+**keyed on basename**, and this monorepo has two `task-actions.ts`
+(`lib/ai/agent-actions/task-actions.ts` and `lib/services/task-actions.ts`) —
+the restore wrote one file's backup over the other and corrupted it.
+**Basename-keyed backups are unsafe in a monorepo**: key backups by full
+relative path or content hash, never by filename. A probe harness that can
+corrupt its subject during RESTORE converts a read-only investigation into a
+defect injection, which is strictly worse than the blindness it was probing
+for.
+
+### A number that measures which button you pressed
+
+The family the 81.3-percent-saturated CRITICAL marker belongs to — a real
+number, faithfully computed, describing something other than what the reader
+assumes — gained its cleanest member on 2026-08-27 (#1926): the task timer.
+
+`startTask` stamps `startedAt` and was wired end to end; completion converts
+the stamp into `actualMinutes`. Except the three completion paths never
+agreed about stopping the clock:
+
+| finisher | what it did with the stamp |
+|---|---|
+| service, ONCE/PROMISE | banks the minutes, clears the stamp — correct |
+| service, DAILY/WEEKLY | discards the minutes AND leaves the stamp dangling |
+| agent (Nick) | never reads `startedAt` at all — silent loss |
+
+Press Start in the UI, then ask Nick to close the task, and the elapsed time
+is dropped while the stamp stays set on a DONE row — which any `startedAt`
+reader sees as still in progress. The formulation worth keeping verbatim:
+**the resulting rows aren't a sample of how long work takes, they're a sample
+of which button you happened to use to finish — and nothing about the number
+carries that bias, so it reads as measurement.** A partially-wired instrument
+is worse than no instrument: absence is at least visibly absent.
+
+Two sub-shapes inside the fix worth their own line:
+
+- **A schema default that manufactures "measured".** `actualMinutes` has a
+  NOT NULL default of 0, so an untimed completion is indistinguishable from a
+  task started and finished inside a minute. The fix returns `addMinutes:
+  null` — never 0 — for a never-started task, and `undefined` so Prisma SKIPS
+  the column rather than overwriting minutes banked earlier. Zero is a real
+  measurement; a default is not.
+- **Same value, two surfaces, one honest.** `command-registry.ts` printed
+  "${focusedMinutes}m focused" unguarded — Nick was told "0m focused" every
+  day — while the UI tile beside it has always guarded the same value. When
+  one consumer of a number is honest and another is not, the dishonest one
+  inherits the honest one's credibility.
+
+And the claim-discipline coda, recorded because #1926's own body records it:
+the work had been flagged as **"blocked on a product decision — needs a
+writer for `Task.actualMinutes`/`startedAt`"**. The writer existed and was
+fully wired; no decision was needed. A blocker asserted from a plausible
+story, refuted by reading the writer — the same shape as "not in the repo is
+a fact about your search", applied to roadblocks: **an asserted blocker is a
+claim, and the check is grepping for the writer before declaring it
+missing.** (The one real product decision — whether DAILY repetitions should
+accumulate minutes — was correctly left unmade.)
+
 ## Four shapes, and the heuristic each one defeats
 
 Everything found on 2026-08-23 — across this session and the Brain session working the same estate —
