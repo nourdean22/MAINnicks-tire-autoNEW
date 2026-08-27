@@ -1,0 +1,29 @@
+1
+00:00:00,000 --> 00:00:04,000
+Your headlights look brighter than usual at night.
+That's not always a good sign.
+
+2
+00:00:04,000 --> 00:00:09,000
+Dash lights flicker or seem too bright.
+The battery case looks a little swollen.
+
+3
+00:00:09,000 --> 00:00:15,000
+One clue: the alternator can overcharge the battery —
+pushing more voltage than it should.
+
+4
+00:00:15,000 --> 00:00:21,000
+That extra voltage can cook a battery from the inside —
+long before it ever looks dead.
+
+5
+00:00:21,000 --> 00:00:26,000
+Don't guess at the voltage.
+A quick test can show what the charging system is actually doing.
+
+6
+00:00:26,000 --> 00:00:30,000
+Worth checking before it costs you a battery.
+Stop by and we'll take a look. Nick's Tire & Auto.
