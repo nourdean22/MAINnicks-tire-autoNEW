@@ -93,8 +93,9 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
     // server's zone, not Cleveland's — hence the +4h.
     //
     // The last row of the old shape is 14:56:52Z and the first of the new is
-    // 15:26:35Z, so the boundary brackets that merge with a ~9min gap for the
-    // deploy. Nothing contradicts it.
+    // 15:26:35Z: that interval CONTAINS the merge, and no row contradicts it.
+    // It does not time the rollout — these rows are user activity, not a
+    // deployment probe, so the gap is only when a page was next opened.
     //
     // (An earlier note here called the flip environmental. That was wrong,
     // and wrong for an avoidable reason: `git log` was run against this stale

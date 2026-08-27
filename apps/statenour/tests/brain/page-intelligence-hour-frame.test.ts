@@ -15,9 +15,9 @@
  * CAUSE, found 2026-08-27: `1202bdd0f` — "Nick reads the operator's clock, not
  * the server's" — merged 2026-08-25T15:17:30Z, changing the writer in
  * lib/services/brain-domain.ts from `new Date().getHours()` (the UTC hour, on a
- * Railway container) to `hourET()`. Last UTC-stamped row 14:56:52Z, first
- * ET-stamped row 15:26:35Z: the boundary brackets the merge, ~9min of which is
- * the deploy.
+ * Railway container) to `hourET()`. Last row of the old shape 14:56:52Z, first
+ * of the new 15:26:35Z — an interval that CONTAINS the merge. It does not time
+ * the rollout: page visits are user activity, not a deployment probe.
  *
  * An earlier version of this header said the flip was ENVIRONMENTAL because
  * `git log -S` found no change to the writer. That search was run against this

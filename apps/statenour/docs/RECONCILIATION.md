@@ -121,8 +121,9 @@
 >   the server's" — merged **2026-08-25T15:17:30Z** and changed the writer in
 >   `lib/services/brain-domain.ts` from `new Date().getHours()` (the UTC hour, because Railway
 >   runs UTC) to `hourET()`. Last UTC-stamped row **14:56:52Z**, first ET-stamped row
->   **15:26:35Z** — the boundary brackets the merge, ~9min of it the deploy, nothing contradicts
->   it. The same commit fixed ~30 server-clock reads app-wide and added the ET-clock gate.
+>   **15:26:35Z** — an interval that CONTAINS the merge, with nothing contradicting it. It does
+>   NOT time the rollout: `recordPageVisit` records user activity, not deploys, so the gap is
+>   only when a page was next opened (raised as a P2 on #1918 and taken). The same commit fixed ~30 server-clock reads app-wide and added the ET-clock gate.
 >   **Why the first pass got it wrong, and the lesson worth keeping:** `git log -S` reported no
 >   change to the writer because it defaults to **HEAD**, and this shared checkout sits on a
 >   branch days behind `origin/main` that does not contain the commit. The archaeology was
