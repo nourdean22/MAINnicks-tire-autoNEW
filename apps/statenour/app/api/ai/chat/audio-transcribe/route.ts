@@ -22,13 +22,14 @@
  *       verbose_json. `segmentsUnavailable`: true when text came back
  *       without timings — explicit so an empty array is never mistaken
  *       for a silent clip.
- *   · 400 no/oversized file · 503 OPENAI_API_KEY missing · 502 upstream
+ *   · 400 no/oversized file · 502 every configured STT lane failed
  *
  * Auth: requireSession (same as other chat endpoints).
  */
 
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { transcribeAudio } from "@/lib/ai/stt";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { aiRouteError } from "@/lib/utils/http-parse";
 
@@ -52,17 +53,6 @@ export async function POST(req: NextRequest) {
   const rateLimited = checkAiRateLimit(req);
   if (rateLimited) return rateLimited;
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return Response.json(
-      {
-        error: "OPENAI_API_KEY not set",
-        hint: "Audio transcription runs on OpenAI whisper-1 — set OPENAI_API_KEY in the service env.",
-      },
-      { status: 503 },
-    );
-  }
-
   const startedAt = Date.now();
   try {
     const form = await req.formData();
@@ -81,39 +71,20 @@ export async function POST(req: NextRequest) {
     }
     const filename = file instanceof File && file.name ? file.name : `audio-${Date.now()}.webm`;
 
-    const upstream = new FormData();
-    upstream.append("file", file, filename);
-    upstream.append("model", "whisper-1");
-    upstream.append("response_format", "verbose_json");
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: upstream,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      return Response.json(
-        { error: `whisper ${res.status}: ${body.slice(0, 200)}` },
-        { status: 502 },
-      );
-    }
-    const data = (await res.json()) as {
-      text?: string;
-      segments?: Array<{ start?: number; end?: number; text?: string }>;
-    };
-    const transcript = (data.text ?? "").trim();
-    const segments: TranscriptSegment[] = (data.segments ?? [])
-      .filter(
-        (s): s is { start: number; end: number; text: string } =>
-          typeof s?.start === "number" && typeof s?.end === "number" && typeof s?.text === "string",
-      )
-      .map((s) => ({ start: s.start, end: s.end, text: s.text.trim() }))
-      .filter((s) => s.text.length > 0);
+    // 2026-08-27 · whisper-only died with the revoked OPENAI_API_KEY —
+    // same free-first chain as the mic route (lib/ai/stt.ts). Timed
+    // segments come from lanes that provide verbose_json (groq/openai);
+    // the hf lane returns plain text, so segmentsUnavailable stays an
+    // explicit signal, never an empty array masquerading as silence.
+    const result = await transcribeAudio(file, filename);
+    const segments: TranscriptSegment[] = result.segments ?? [];
 
     return Response.json({
-      transcript,
+      transcript: result.text,
       segments,
-      segmentsUnavailable: transcript.length > 0 && segments.length === 0,
+      segmentsUnavailable: result.text.length > 0 && segments.length === 0,
+      source: result.engine,
+      degraded: result.degraded,
       elapsedMs: Date.now() - startedAt,
     });
   } catch (err) {
