@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-27",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "That clunk shifting into reverse might be a worn U-joint",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "That clunk when you shift into reverse isn't nothing.",
+      "visualPrompt": "Rear three-quarter shot of a pickup truck or SUV backing out of a driveway, static-mounted camera, shallow depth of field, dusk lighting for a slightly ominous tone."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "A knock right as the driveshaft takes up slack — worse backing out of the driveway.",
+      "visualPrompt": "Low-angle underbody shot of a driveshaft mid-vehicle, subtle shudder/knock implied by a slight camera-shake cutaway; cut to a gear-shifter close-up moving from D to R.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: a worn universal joint, where the driveshaft connects to the axle.",
+      "visualPrompt": "Macro/cutaway shot: a universal joint assembly removed from a driveshaft yoke, resting on a workbench, visible wear/play at the cross-bearing caps, slow push-in.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Left alone, that play can turn into a vibration — or worse, down the road.",
+      "visualPrompt": "Close-up on a driveshaft's center support bearing area with subtle visual vibration cue (soft blur pulse), dim shop-bay lighting, static mount."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess. A quick check underneath can find the play before it gets worse.",
+      "visualPrompt": "Underbody inspection shot: a pry bar or inspection light positioned near a U-joint (tool visible, mounted/clipped — no hand in frame), shop bay softly blurred behind.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before a small clunk becomes a bigger repair. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (worn U-joint develops cross-bearing play -> clunk on gear-engagement slack takeup -> can progress to vibration or joint separation), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 7,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#Driveshaft", "#UniversalJoint", "#CarNoises", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "🔧 Hear a clunk shifting into reverse? One clue mechanics check: a worn universal joint where the driveshaft meets the axle. Left alone, that play can get worse. Don't guess — stop by and we'll take a look. 🚗"
+  },
+  "adVariants": [
+    {
+      "hook": "Clunk when you shift into reverse?",
+      "caption": "A worn universal joint can develop play right where the driveshaft meets the axle. Left unchecked, that play can get worse.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Backing out of the driveway and hear a knock?",
+      "caption": "One clue mechanics check first: the U-joint. Worth checking before a small clunk becomes a bigger repair.",
+      "cta": "Bring it in — we'll check it underneath."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
