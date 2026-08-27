@@ -416,6 +416,30 @@ export function buildLexicalTsQuery(topics: string[]): string {
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
+/**
+ * Rerank call-site budget (2026-08-27 levers): the backends' own
+ * AbortSignals are 7.5s (Cohere) / 6s (BGE) — sized before the chat
+ * route's 3s Promise.race over this whole pipeline existed. Past the
+ * budget the RRF-hybrid ordering stands (a correct answer, less well
+ * sorted). The losing HTTP call is left to the backend's own abort:
+ * it is side-effect-free and self-terminates at the backend bound —
+ * plumbing an extra AbortSignal through the rerank orchestrator for a
+ * sub-1%-of-turns stray call is complexity the numbers don't buy.
+ */
+const RERANK_CALL_BUDGET_MS = 1_500;
+
+/**
+ * Race a rerank promise against the budget: budget expiry and rejection
+ * both resolve null, which every call site already treats as "keep the
+ * hybrid ordering". Exported for the behavioral canary.
+ */
+export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number): Promise<T | null> {
+  return Promise.race([
+    p.catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), budgetMs)),
+  ]);
+}
+
 export async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
   if (!tsQueryText) return [];
@@ -839,9 +863,8 @@ export async function getContextualMemories(
     // race and lose the ENTIRE block for a reordering. Bound the call site:
     // past 1.5s we keep the RRF-hybrid ordering — a correct answer, just
     // less well-sorted — exactly the brain-context withTimeout philosophy.
-    const RERANK_CALL_BUDGET_MS = 1_500;
     const reranked = await timed("rerank", () =>
-      Promise.race([
+      withRerankBudget(
         rerank({
           query: queryText,
           candidates: rerankPool.map((m) => ({
@@ -850,8 +873,8 @@ export async function getContextualMemories(
           })),
           topN: rerankPool.length,
         }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), RERANK_CALL_BUDGET_MS)),
-      ]).catch(() => null),
+        RERANK_CALL_BUDGET_MS,
+      ),
     );
     if (reranked && reranked.length > 0) {
       rerankFired = true;
