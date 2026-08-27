@@ -1,0 +1,93 @@
+{
+  "topic": "Torque converter lockup shudder at 40-45mph: not your tires, not a misfire",
+  "campaignKeyword": "TCSHUDDER",
+  "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
+  "generatedAt": "2026-08-25",
+  "durationSec": 22,
+  "faceless": true,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "HOOK",
+      "windowSec": [0, 4],
+      "narration": "Feel a light shudder right around 40 to 45 miles an hour that goes away if you speed up or slow down? That's not your tires.",
+      "visualPrompt": "Close-up of a car speedometer needle holding steady around 40-45mph on a dashboard gauge cluster, static camera, daylight interior",
+      "stockSearchTerms": ["car speedometer closeup 40mph", "dashboard gauge cluster speed needle"]
+    },
+    {
+      "index": 2,
+      "role": "SETUP",
+      "windowSec": [4, 9],
+      "narration": "At that speed, your transmission locks a clutch inside the torque converter to save fuel. When that clutch slips, you feel a shudder instead of a smooth lockup.",
+      "visualPrompt": "Wide shot of a sedan cruising smoothly on a suburban road at moderate steady speed, gentle motion blur on the wheels, no visible driver",
+      "stockSearchTerms": ["car cruising suburban road wide shot", "sedan driving steady speed road"]
+    },
+    {
+      "index": 3,
+      "role": "VALUE",
+      "windowSec": [9, 14],
+      "narration": "Drivers often blame a misfire or bad tires, because it only shows up in that one narrow speed window.",
+      "visualPrompt": "Close-up of the underside of a vehicle on a lift in a repair bay, transmission housing visible, static camera, workshop lighting",
+      "stockSearchTerms": ["car on lift underside transmission closeup", "vehicle hoist garage undercarriage"]
+    },
+    {
+      "index": 4,
+      "role": "VALUE",
+      "windowSec": [14, 18],
+      "narration": "Left alone, that slipping clutch builds heat and wears down your transmission fluid faster than normal.",
+      "visualPrompt": "Close-up of amber transmission fluid pooled in a metal drain pan, static camera, workshop lighting",
+      "stockSearchTerms": ["transmission fluid drain pan closeup", "amber fluid metal pan garage"]
+    },
+    {
+      "index": 5,
+      "role": "CTA",
+      "windowSec": [18, 22],
+      "narration": "One shudder doesn't confirm a diagnosis. Stop by and we'll check your transmission properly.",
+      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "stockSearchTerms": ["auto repair shop garage bay interior open door"]
+    }
+  ],
+  "audio": {
+    "voiceover": {
+      "status": "not generated this run",
+      "route": "reelVoice.ts (Google Neural2 or ElevenLabs)",
+      "scriptSource": "beats[].narration, concatenated in order"
+    },
+    "musicBed": {
+      "status": "none assigned",
+      "reason": "no music-rights ledger exists in this repo; see README.md section 6"
+    },
+    "sfx": {
+      "status": "optional, not assigned",
+      "suggestion": "ambient road-noise/garage room-tone under beats 1-4"
+    }
+  },
+  "selfEstimatedQualityScore": {
+    "note": "Self-estimate only. NOT the output of calculateReelQualityScore() in client/src/lib/facelessReelStudio.ts - that function was not invoked this run (no live app/build available in this session).",
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "firstFrameScrollStop": { "score": 5, "max": 10, "note": "speedometer closeup is a clear but not top-tier scroll-stop hook" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "captions alone fully carry the diagnostic content" },
+      "beatStructure": { "score": 5, "max": 5, "note": "clean HOOK/SETUP/VALUE/VALUE/CTA 5-beat shape" },
+      "length": { "score": 5, "max": 5, "note": "22s, at the studio's own REEL_OUTPUT_RULES ceiling and within the 15-60s generic range" },
+      "loop": { "score": 0, "max": 5, "note": "no loop plan designed - CTA frame (shop bay) does not visually feed back into HOOK frame (speedometer closeup)" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "no EvidenceRecord in evidenceResolver.ts backs these claims; store not queried live (no DB access), and a code grep for 'torque converter' or 'lockup' found no existing evidence row" },
+      "faceless": { "score": 10, "max": 10, "note": "no faces, hands, or human figures in any beat prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "no price/guarantee claims; hedged phrasing throughout; no invented failure timeline" },
+      "keyword": { "score": 5, "max": 5, "note": "torque converter, transmission, shudder keywords present in narration and copy" },
+      "winningConceptFloor": { "score": 0, "max": 5, "note": "scoreReelConcept() not invoked this run" }
+    }
+  },
+  "postingSpecs": {
+    "platform": ["Instagram Reels", "Facebook"],
+    "account": "@nicks_tire_euclid",
+    "dimensions": "1080x1920",
+    "aspectRatio": "9:16",
+    "format": "MP4, H.264, 30fps",
+    "durationSec": 22,
+    "ctaType": "SEND-oriented"
+  }
+}
