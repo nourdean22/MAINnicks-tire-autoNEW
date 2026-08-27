@@ -24,6 +24,8 @@ import {
 import { renderCapacityBlock } from "./capacity-block";
 import { renderAttentionBlock } from "./attention-block";
 import { renderPagesBlock } from "./pages-block";
+import { renderEnergyBlock } from "./energy-block";
+import { buildEnergyProfile } from "@/lib/personal/energy-router";
 import { analyzePagePatterns } from "@/lib/brain/page-intelligence";
 import { analyzeAttentionPatterns } from "@/lib/brain/attention-tracker";
 import { gatherTaskSignals } from "@/lib/brain/task-signals";
@@ -216,6 +218,22 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     pagesBlock = renderPagesBlock(null);
   }
 
+  // Completion TIMING, counted before the model and prepended verbatim, same
+  // contract as the three blocks above. `energy-router` reported 0 samples for
+  // its whole life because it filtered on `actualMinutes > 0` — a column
+  // nothing writes — which discarded 124 real completion timestamps. The
+  // filter is gone; duration stays honestly UNMEASURED, and no routing
+  // recommendation is rendered (HIGH-energy is 4 of 124, one per window).
+  let energyBlock: string;
+  try {
+    energyBlock = renderEnergyBlock(await buildEnergyProfile());
+  } catch (err) {
+    log.warn("energy_profile_failed", {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+    });
+    energyBlock = renderEnergyBlock(null);
+  }
+
   // P1 FROM REVIEW: the queue must survive a generation failure. This used to
   // let generateText reject, which sent the whole call into the caller's catch
   // in intelligence-brief.ts - and that fallback narrative has no queue counts.
@@ -257,6 +275,6 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     // Awaiting-You leads. It is the only section describing state the operator
     // can act on this minute, and during the 16-day ingest-reviews outage the
     // brief led with an invented threat level while 44 real items sat queued.
-    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n${pagesBlock}\n\n---\n\n${body}`,
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n${pagesBlock}\n\n${energyBlock}\n\n---\n\n${body}`,
   };
 }
