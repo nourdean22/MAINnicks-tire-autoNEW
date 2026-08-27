@@ -798,6 +798,29 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   // ate 158 conversation summaries could merge the odometer into a
   // benchmark blob.
   BRAIN_CATEGORIES.EVAL_RUN,
+  // 2026-08-27 · the personal-memory eating, measured on prod: between
+  // 2026-08-15 and 08-20 (nightly, 03:00-04:15Z) this engine soft-deleted
+  // 38 of the operator's curated pm_* rows and REWROTE 13 more as keeper
+  // blobs -- including the OPERATOR-VERIFIED medication stack
+  // (pm_health_medications became a fertility blob) and an operator-
+  // RESOLVED identity conflict. No supersession pointers, no reason; the
+  // keeper rewrite also orphans the embedding. All 38 restored + 13
+  // repaired 2026-08-27 (tag: chat-backfill-2026-08-27). These categories
+  // are per-entity / per-event / per-date RECORDS -- two people's rows or
+  // two dated events merged into one blob is corruption, not consolidation.
+  // The row-level guard in memory-consolidation.ts (createdBy/source) is
+  // the second, orthogonal protection: it covers operator-curated rows in
+  // categories that legitimately remain mergeable for machine rows.
+  "identity",
+  "biography",
+  BRAIN_CATEGORIES.RELATIONSHIPS,
+  BRAIN_CATEGORIES.HEALTH,
+  "event",
+  "business_fact",
+  "environment",
+  "ai_directive",
+  "vision",
+  "fact",
 ];
 
 /**
