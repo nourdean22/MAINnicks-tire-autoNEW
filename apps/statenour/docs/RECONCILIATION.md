@@ -1,6 +1,35 @@
 # Reconciliation · statenour-os
 
-> ## 2026-08-26 · The surface-honesty wave · 21 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902 #1911 #1913 #1915 #1923)
+> ## 2026-08-27 · Run-to-empty batch · 6 audit findings closed in one merge
+>
+> Operator directive: batch everything outstanding into ONE merge — each merge to `main`
+> cancels every sibling PR's in-flight run via the CI concurrency group (measured 22/45
+> Agent-policy runs cancelled that day, 48.9%) — while review stayed per-slice. Three of the
+> six findings dissolved under origin/main measurement before any edit: the meta-gate already
+> ships as `check-gate-reachability` (#1881/#1889 — orphan arm + live-repo arm, run by
+> `agent:verify` on every PR), anti-slop already executes the real script against the real
+> tree (#1883), and `prompt:size-check` already skips loudly without DATABASE_URL (#1886).
+> Measuring before editing is the audit's own rule; it deleted half the work order.
+> **lint:cron-wiring wired into nickstire's LOCAL verify chain.** CI has run it since #1808;
+> the gate an agent actually runs before pushing never did. Receipt: 33 registry jobs, 117
+> tier jobs, 6 justified aliases, 0 faults.
+> **camera-intelligence denominators.** `todayStart` was UTC midnight (8pm ET) so "today"
+> leaked 4-5h of yesterday; `bayUtilization` divided a UTC-day numerator by ET elapsed hours
+> (could publish >100%, now both ET + clamped); `avgDailyTraffic` divided by the calendar 7
+> regardless of observed days — now active ET days (#1913's denominator rule). 6/6 tests;
+> each of the two mutations (UTC bucketing, clamp removal) kills exactly one test.
+> **attention-helpers deleted** — the last zero-consumer module of the audit's seven; the
+> other six were wired or armed by #1890/#1892/#1895/#1899/#1911/#1923. Its only consumers
+> were its own tests — the orphaned-subject shape from the field guide. Verified by
+> bare-specifier scan after an import-syntax grep MISSED the line-broken dynamic imports in
+> `cron/intelligence` (those belong to decision-patterns/time-intelligence, never on the
+> list) — "zero-consumer" claims get the wide instrument, every time.
+> **Hour-frame key census** (`docs/audits/hour-frame-key-census-2026-08-27.md`, read-only
+> probe committed beside it): 218 live UTC-keyed rows · 6 live ET-keyed — all 6 carrying the
+> #1894 `hourFrame` marker, mechanism verified populating · 111 soft-deleted counted
+> separately. Three remediation options laid out, NO decision — operator's call.
+
+> ## 2026-08-26 · The surface-honesty wave · 22 ships (#1837 #1838 #1840 #1844 #1856 #1859 #1860 #1866 #1870 #1888 #1890 #1892 #1895 #1896 #1899 #1901 #1902 #1911 #1913 #1915 #1923 #1926)
 >
 > One theme, arrived at from three directions: **a surface that cannot say "I do not know" will
 > say something false instead.** Panels rendering a failed read as a measured zero; a stop hook
@@ -118,14 +147,19 @@
 >   out code. Smells like host memory (a Next build and `tsc` concurrently) but that is a guess.
 >   **A red badge here is a prompt to read the log, not a conclusion** — cancelled and failed
 >   render identically, and a real failure names a test, not a signal.
-> - **Three more readers of the dead `Task.actualMinutes` column** (#1923 fixed only the fourth).
->   `lib/services/today-compound.ts` sums it into `focusedMinutes`, a STRUCTURAL zero.
->   `components/actions/todays-compound.tsx` guards with `if (focusedMinutes > 0)` and correctly
->   renders nothing; `lib/ai/chat/command-registry.ts` prints `${focusedMinutes}m focused`
->   UNGUARDED, telling Nick the operator did 0 focused minutes every day (chat layer is
->   operator-designated off-limits — flagged only). `calibration-generator` stores it as
->   calibration *evidence*; `ultron/work-context` selects it. The unlock is a WRITER for
->   `actualMinutes`/`startedAt`, which needs a task-start affordance — a product decision.
+> - **CORRECTION (2026-08-27), was "the unlock is a WRITER … a product decision":** that was
+>   WRONG, and #1926 is the proof. The writer already existed and was wired end to end —
+>   `startTask` stamps `startedAt` via tRPC `task.start`, called from the missions hook,
+>   `move-frame` and the coach sandbox. No product decision was required. The real defect was
+>   that the three completion paths disagreed about stopping the clock (#1926). **The lesson is
+>   the same one this wave keeps re-teaching: "nothing writes it" is a claim about the code you
+>   looked at.** I checked the readers and the column, not the writer's own call graph.
+>   Still open, and it is ADOPTION, not plumbing: minutes are only recorded for a task that was
+>   explicitly Started, and the archive shows that has essentially never happened (0 of 268 rows
+>   above zero). Capturing duration WITHOUT that step is the genuine product decision.
+>   `calibration-generator` still stores `actualMinutes` as calibration *evidence* and
+>   `ultron/work-context` still selects it — both harmless while the column is zero, both will
+>   start carrying real values once tasks get Started.
 > - **MEASUREMENT TRAP, SQL edition:** `"updatedAt" AT TIME ZONE 'America/New_York'` on a
 >   `timestamp without time zone` INTERPRETS the value as NY instead of converting to it — the
 >   wrong direction, off by 8h (read 16 where ET is 8). It produced a plausible-looking window
@@ -151,6 +185,22 @@
 > `MIN_BAND_SAMPLES` gates the BAND, `avgOverageMinutes` is `number | null` averaged over
 > `overageSamples` (never over completions), and the brief renders timing while saying duration
 > is UNMEASURED. Live: 124 completions — morning 55 · afternoon 32 · late 30 · evening 7.
+> **#1926 · a task timer that only one of three finishers stopped.** `startTask` stamps
+> `Task.startedAt`; completion is meant to turn that into minutes and clear the stamp. Only the
+> service ONCE/PROMISE path did the whole job. The service DAILY path discarded the minutes
+> (deliberate) **and left the stamp set** (not deliberate), and the agent path never read
+> `startedAt` at all — so pressing Start in the UI and then asking Nick to close the task
+> dropped the elapsed time and left a DONE row that every `startedAt` reader sees as still in
+> progress. **Which of the two ways you finished decided whether your work was measured**, which
+> makes the rows it did produce a sample of how tasks were CLOSED, not of how long work took.
+> One definition now lives in `lib/services/task-timer.ts`: `stopTimer` returns `null` and never
+> `0` (zero is a real measurement — started and finished inside a minute), and `accumulate`
+> returns `undefined` so Prisma SKIPS the column and an untimed completion cannot erase minutes
+> banked earlier. The DAILY discard is preserved on purpose — `actualMinutes` is compared to a
+> PER-INSTANCE effort estimate and a recurring row is never re-created, so accumulating would
+> read as an enormous overage; changing that is a product decision and was NOT made. Also fixed
+> the `${focusedMinutes}m focused` line in `lib/ai/chat/command-registry.ts`, which told Nick
+> "0m focused" every single day.
 > - **CORRECTION (2026-08-27), was "UNEXPLAINED / environmental":** the clock flip has a cause,
 >   and it is a commit, not the environment. `1202bdd0f` — "Nick reads the operator's clock, not
 >   the server's" — merged **2026-08-25T15:17:30Z** and changed the writer in
@@ -1151,7 +1201,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-08-27 (run-to-empty batch — cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -1679,7 +1729,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-08-26 (surface-honesty wave #1837-#1923 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-08-27 (run-to-empty batch — cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
