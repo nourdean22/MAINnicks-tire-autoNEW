@@ -1,0 +1,71 @@
+{
+  "topic": "Your alternator can overcharge a battery — and it looks nothing like a dead one",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-08-27",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 51,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "Your headlights look brighter than usual at night. That's not always a good sign.",
+      "visualPrompt": "Night exterior shot: a car's headlights glowing unusually bright/white against a dark driveway or street, static-mounted camera, shallow depth of field."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "Dash lights flicker or seem too bright. The battery case looks a little swollen.",
+      "visualPrompt": "Close-up on a dashboard cluster with lighting flickering slightly; cut to a macro shot of a car battery case with a visibly bulged/rounded top (not flat), dim garage lighting."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: the alternator can overcharge the battery — pushing more voltage than it should.",
+      "visualPrompt": "Macro/cutaway shot: an alternator on a workbench or still mounted in an engine bay, slow push-in, no hands or tools visible in frame."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "That extra voltage can cook a battery from the inside — long before it ever looks dead.",
+      "visualPrompt": "Close-up on a multimeter display showing a voltage reading, needle/digits trending above a normal reference band, screen glow in a dim shop bay, meter mounted/clipped in frame (no hand holding it)."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess at the voltage. A quick test can show what the charging system is actually doing.",
+      "visualPrompt": "Multimeter probes resting clipped onto battery terminals under the hood, cable leads visible, shop bay softly blurred in the background."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before it costs you a battery. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#AlternatorProblems", "#CarBattery", "#ElectricalSystem", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "Headlights looking brighter than usual at night? One clue mechanics check: an alternator that's overcharging the battery — it can cook a battery long before it ever looks dead. Don't guess at the voltage. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the overcharging/battery-swell claim",
+      "whether Nick's Tire & Auto specifically services alternator/charging-system diagnosis (not confirmed against a live business_facts row)"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 19,
+    "newestOpenPR": 1917,
+    "peakBacklogObserved": 132,
+    "peakBacklogDate": "2026-08-25"
+  }
+}
