@@ -5,12 +5,16 @@ import type { SpeechEngine } from "./engines";
 /** Controllable fake engine — each speak() returns a promise we settle by hand. */
 function fakeEngine(name: string, supported = true) {
   const spoken: string[] = [];
+  const prewarmed: string[] = [];
   const pending: Array<{ text: string; resolve: () => void; reject: (e: Error) => void }> = [];
   const engine: SpeechEngine = {
     name,
     isSupported: () => supported,
     prime: vi.fn(),
     stop: vi.fn(),
+    prewarm: (text: string) => {
+      prewarmed.push(text);
+    },
     speak(text: string) {
       spoken.push(text);
       return new Promise<void>((resolve, reject) => {
@@ -18,7 +22,7 @@ function fakeEngine(name: string, supported = true) {
       });
     },
   };
-  return { engine, spoken, pending };
+  return { engine, spoken, pending, prewarmed };
 }
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -144,6 +148,21 @@ describe("NarrationController", () => {
     a.pending[1].resolve();
     await tick();
     expect(ctl.state).toBe("idle");
+  });
+
+  it("pipelines: prewarns the NEXT span while the current one plays", async () => {
+    const a = fakeEngine("primary");
+    const ctl = new NarrationController([a.engine]);
+    ctl.enqueue("first sentence");
+    ctl.enqueue("second sentence");
+    ctl.enqueue("third sentence");
+    await tick();
+    // While "first" is speaking, "second" is already synthesizing.
+    expect(a.spoken).toEqual(["first sentence"]);
+    expect(a.prewarmed).toEqual(["second sentence"]);
+    a.pending[0].resolve();
+    await tick();
+    expect(a.prewarmed).toEqual(["second sentence", "third sentence"]);
   });
 
   it("ignores empty/whitespace spans", async () => {
