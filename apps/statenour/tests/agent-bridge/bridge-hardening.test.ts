@@ -123,29 +123,29 @@ describe("assertBridgeToolAllowed · the gate is code now, not prose", () => {
 
 describe("resolveBridgeToken · per-client scopes", () => {
   const env = {
-    AGENT_BRIDGE_TOKEN_READ: "read-secret-xyz",
-    AGENT_BRIDGE_TOKEN_TASKS: "tasks-secret-abc",
-    AGENT_BRIDGE_SECRET_TOKEN: "legacy-secret-123",
+    AGENT_BRIDGE_TOKEN_READ: "test-read-token-fake",
+    AGENT_BRIDGE_TOKEN_TASKS: "test-tasks-token-fake",
+    AGENT_BRIDGE_SECRET_TOKEN: "test-legacy-token-fake",
   };
 
   it("maps each token to its scope; legacy is READ-ONLY now", () => {
-    expect(resolveBridgeToken("read-secret-xyz", env)).toEqual({ clientId: "read-client", scope: "read" });
-    expect(resolveBridgeToken("tasks-secret-abc", env)).toEqual({ clientId: "tasks-client", scope: "tasks" });
+    expect(resolveBridgeToken("test-read-token-fake", env)).toEqual({ clientId: "read-client", scope: "read" });
+    expect(resolveBridgeToken("test-tasks-token-fake", env)).toEqual({ clientId: "tasks-client", scope: "tasks" });
     // The capability reduction: the legacy full-surface token is now read-only.
-    expect(resolveBridgeToken("legacy-secret-123", env)).toEqual({ clientId: "legacy", scope: "read" });
+    expect(resolveBridgeToken("test-legacy-token-fake", env)).toEqual({ clientId: "legacy", scope: "read" });
   });
 
   it("rejects an unknown token, and NEVER matches an unset slot", () => {
     expect(resolveBridgeToken("not-a-token", env)).toBeNull();
     // POSITIVE CONTROL for the unset-slot guard: with tasks unset, the tasks
     // token no longer resolves — an empty secret must not match an empty token.
-    const partial = { AGENT_BRIDGE_TOKEN_READ: "read-secret-xyz" };
-    expect(resolveBridgeToken("tasks-secret-abc", partial)).toBeNull();
+    const partial = { AGENT_BRIDGE_TOKEN_READ: "test-read-token-fake" };
+    expect(resolveBridgeToken("test-tasks-token-fake", partial)).toBeNull();
     expect(resolveBridgeToken("", env)).toBeNull();
   });
 
   it("the read token, resolved end to end, cannot reach a write tool", () => {
-    const id = resolveBridgeToken("read-secret-xyz", env)!;
+    const id = resolveBridgeToken("test-read-token-fake", env)!;
     expect(isToolInScope("createTask", id.scope)).toBe(false); // denied
     expect(isToolInScope("getTasks", id.scope)).toBe(true); // allowed
     // and never a protected op, on any resolved scope
