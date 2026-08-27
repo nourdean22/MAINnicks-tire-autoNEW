@@ -27,6 +27,7 @@
  * assistant messages.
  */
 
+import { aiChat, type AiMessage } from "@/lib/ai/provider";
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { withGuardian } from "@/lib/tools/guardian";
@@ -109,43 +110,23 @@ async function _extractFromMessage(args: {
   messageId: string;
   content: string;
 }): Promise<ExtractedFact[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return [];
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: EXTRACTOR_SYSTEM },
-        { role: "user", content: args.content.slice(0, 3000) },
-      ],
-      temperature: 0.0,
-      max_tokens: 600,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err: Error & { status?: number } = new Error(
-      `extractor ${res.status}: ${body.slice(0, 200)}`,
-    );
-    err.status = res.status;
-    throw err;
-  }
-
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content;
+  // 2026-08-27 · was an OpenAI-direct fetch — the revoked key meant this
+  // 401'd on EVERY call and fact-extraction silently produced nothing
+  // (found in the dead-key blast-radius sweep). aiChat() routes through
+  // the free provider chain with fallback, the same migration the
+  // adversarial critic made.
+  const messages: AiMessage[] = [
+    { role: "system", content: EXTRACTOR_SYSTEM },
+    { role: "user", content: args.content.slice(0, 3000) },
+  ];
+  const response = await aiChat(messages, "fast");
+  const text = response.content?.trim();
   if (!text) return [];
 
   let parsed: { facts?: Array<{ subject?: unknown; property?: unknown; value?: unknown; rawConfidence?: unknown }> };
   try {
-    parsed = JSON.parse(text);
+    // Chain models don't all honor json_object mode — strip a markdown fence.
+    parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
   } catch (err) {
     logError("brain.domain-knowledge", err, { fn: "extractFromMessage.parse" });
     return [];
