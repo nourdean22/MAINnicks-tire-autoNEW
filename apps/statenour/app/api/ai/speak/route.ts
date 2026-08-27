@@ -150,7 +150,11 @@ export async function POST(req: NextRequest): Promise<Response> {
         },
       });
     } catch (err) {
-      failures.push(`${engine}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
+      const detail = `${engine}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`;
+      // A single-adapter failure is invisible in a 200 fallback response —
+      // the header names the substitute, this line names the reason.
+      console.warn(`[tts] adapter failed · ${detail}`);
+      failures.push(detail);
     }
   }
 

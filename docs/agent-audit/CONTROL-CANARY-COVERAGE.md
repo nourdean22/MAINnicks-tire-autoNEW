@@ -525,6 +525,31 @@ know is red, softening its tier to make it green, or adding an uncalled one, are
 
 ---
 
+## Key presence is not key validity — a credential as a blind instrument (2026-08-27)
+
+`OPENAI_API_KEY` on statenour-web prod is **present and invalid**: a 164-char `sk-proj…` value
+that every presence check passes — provider registration, env validation, "is the lane
+configured" — while every actual call returns 401. The lane died silently; the failure surfaced
+as feature-level errors in the TTS session (streaming read-aloud dead in prod), not as any
+guard firing. Independently corroborated the same day: the identical key from the local `.env`
+against `api.openai.com/v1/models` → **HTTP 401** (measured 2026-08-27; the first probe of the
+day got 401 from a *mis-extracted 4-char fragment*, which proves nothing — a 401 from garbage
+and a 401 from the real key are the same rendering, so the receipt only counts with the full
+key shown extracted).
+
+**The generalisable rule: key presence is not key validity — verify a provider lane with one
+live call.** An env-presence check is Stated Rule 1's canonical failure applied to config: it
+asserts a string exists, and can never observe whether the credential behind it works. Presence
+checks keep passing forever after a key is revoked, expired, or rotated upstream; nothing in the
+process distinguishes "configured" from "configured and dead."
+
+**The probe:** per provider lane, one cheap authenticated no-op (`/v1/models`, a whoami, a
+1-token completion) — at deploy, or on a daily canary that pages. A dead key should be an alert
+with the lane's name on it, never a user-discovered 401 three layers up. Rotation itself is
+operator-side (the app AGENTS.md header carries "prod OpenAI key DEAD — rotation pending").
+
+---
+
 ## The worked example — four blind instruments and a wrong clock
 
 2026-08-23. The operator reported that completing a task threw an error. Diagnosing it meant asking
