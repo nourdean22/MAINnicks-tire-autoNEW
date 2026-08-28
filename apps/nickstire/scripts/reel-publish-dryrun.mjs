@@ -12,7 +12,7 @@
  * Run: railway run --service MAINnicks-tire-auto -- node scripts/reel-publish-dryrun.mjs
  */
 import mysql from "mysql2/promise";
-import { disclosureViolation, requiredPublishParams } from "../client/shared/reelDisclosure.ts";
+import { disclosureViolation, requiredPublishParams } from "../shared/reelDisclosure.ts";
 
 const GRAPH_VERSION = "v21.0";
 const conn = await mysql.createConnection(process.env.DATABASE_URL);
@@ -64,7 +64,7 @@ console.log(`\n[3] DISCLOSURE GATE`);
 // text is not the platform mechanism.
 const packFacts = { id: `reel-job-${job.id}`, videoProvider: provider, copy: caption };
 const required = requiredPublishParams(packFacts);
-const violation = disclosureViolation({ ...packFacts, apiDisclosureFlag: required.is_ai_generated === true ? undefined : undefined });
+const violation = disclosureViolation({ ...packFacts, apiDisclosureFlag: required.is_ai_generated === true });
 console.log(`    provider    : ${provider ?? "(unknown)"}`);
 console.log(`    required    : ${JSON.stringify(required)}  <- must be on the container`);
 console.log(`    verdict     : ${violation ? "BLOCKED" : "PASS"}`);

@@ -84,12 +84,17 @@ export interface DisclosurePack {
   apiDisclosureFlag?: boolean;
 }
 
+/** True when a provider name denotes a generative video model. */
+export function isGenerativeProvider(provider: string | null | undefined): boolean {
+  const p = (provider ?? "").toLowerCase().trim();
+  if (!p) return false;
+  return GENERATIVE_PROVIDERS.some((x) => p.includes(x));
+}
+
 /** True when any clip in the pack is model-generated. */
 export function isGenerated(pack: DisclosurePack): boolean {
   if (pack.hasGeneratedVideo) return true;
-  const p = (pack.videoProvider ?? "").toLowerCase().trim();
-  if (!p) return false;
-  return GENERATIVE_PROVIDERS.some((g) => p.includes(g));
+  return isGenerativeProvider(pack.videoProvider);
 }
 
 /** True when the pack's copy or label discloses the footage is synthetic. */

@@ -20,7 +20,7 @@ import {
   hasDisclosure,
   realEvidenceClaims,
   type DisclosurePack,
-} from "../../shared/reelDisclosure";
+} from "@shared/reelDisclosure";
 
 const base: DisclosurePack = { id: "test-pack", copy: "", videoProvider: null };
 

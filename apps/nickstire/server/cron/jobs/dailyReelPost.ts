@@ -25,6 +25,7 @@ import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
+import { isGenerativeProvider } from "@shared/reelDisclosure";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import { approvedReelPackAt, resolveApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
 
@@ -665,7 +666,18 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       // "automated": nobody is watching this cron, so an UNREADABLE kill-switch
       // state must stop it rather than let it publish blind.
-      outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption, actor: "automated" });
+      // Structured AI self-disclosure. REEL_VIDEO_PROVIDER names the generator for
+      // this lane (higgsfield today), and every reel this cron publishes is
+      // model-generated - so the flag is derived from the provider rather than
+      // hand-set, which is what keeps it from silently reverting to absent.
+      const isAiGenerated = isGenerativeProvider(process.env.REEL_VIDEO_PROVIDER);
+      outcome = await publishToSocial({
+        platforms: ["instagram"],
+        videoUrl,
+        caption,
+        actor: "automated",
+        isAiGenerated,
+      });
     } catch (pubErr) {
       // THREW — Meta may or may not have accepted the reel. Do NOT restore
       // "assembled" (that risks a double-publish); park it for reconciliation
