@@ -1,0 +1,125 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-28",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present, no ffmpeg/gh binary).",
+  "topic": "Your washer fluid just froze solid — and cracked the reservoir",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Your washer fluid just froze solid — and it cracked the reservoir.",
+      "visualPrompt": "Close-up on a windshield washer-fluid reservoir cap, frost visible on the plastic, static-mounted camera, cold blue-toned daylight; quick cut to a hairline crack visible along the reservoir's plastic seam.",
+      "renderIntegrityNote": "Split into two ~2s sub-shots (frosted cap, cracked seam) before real generation."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "No spray, just a dry click. In freezing weather, that's a warning sign, not a fluke.",
+      "visualPrompt": "Close-up on a windshield wiper arm at rest, no fluid arc visible on the glass; cut to a windshield coated in road grime with a dry wiper streak across it, overcast winter light.",
+      "renderIntegrityNote": "Split into two sub-shots (wiper arm, streaked windshield) before real generation."
+    },
+    {
+      "index": 3,
+      "role": "explanation_a",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "Summer-blend fluid — or plain water — can freeze solid below thirty-two degrees.",
+      "visualPrompt": "Macro shot of an unbranded washer-fluid jug exterior with frost and condensation beading on the plastic; cut to a close-up of a car exterior trim detail in a frigid parking lot at dusk (no readable text/logos).",
+      "renderIntegrityNote": "Split into two sub-shots (frosted jug, frigid exterior) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "explanation_b_cutaway",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Frozen fluid expands. That can crack the plastic reservoir, the pump, even the lines.",
+      "visualPrompt": "Macro cutaway of a cracked plastic reservoir tank removed from a vehicle, visible fracture line, resting on a clean workbench, slow push-in; cut to a close-up of a small pump component with a hairline split, sitting beside it.",
+      "renderIntegrityNote": "Split into two sub-shots (cracked reservoir, split pump) before real generation."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "A winter-rated fluid, rated to negative twenty or lower, can keep that from happening.",
+      "visualPrompt": "A washer-fluid jug tipped on a static countertop rig, blue fluid pouring into an open reservoir cap with no hands or arms in frame, cold daylight through a garage door."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before the first hard freeze. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "adVariants": [
+    {
+      "label": "A_mid_storm_fear_first",
+      "hook": "You just lost your wipers in the middle of a snowstorm.",
+      "caption": "Frozen washer fluid doesn't just stop spraying — it can crack the reservoir, the pump, or the lines. One cold snap, one expensive surprise.",
+      "cta": "Stop by and we'll take a look — Nick's Tire & Auto."
+    },
+    {
+      "label": "B_prevention_first",
+      "hook": "Still running summer washer fluid into winter?",
+      "caption": "That can point to a frozen reservoir waiting to happen — plain water freezes even faster. A winter-rated fluid is a five-minute fix before the damage.",
+      "cta": "Worth checking before the first hard freeze. Stop by — Nick's Tire & Auto."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["can", "worth checking", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (water/summer-blend washer fluid freezes near/at 32F; frozen fluid expands and can crack the reservoir, pump, or lines; winter-rated fluid has a lower freeze point, typically labeled to -20F or lower), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 3,
+      "winningConceptFloor": 0
+    }
+  },
+  "repetitionCheck": {
+    "liveLedgerChecked": false,
+    "offlineMitigation": "ls apps/nickstire/docs/reel-packs/ (118 merged directories) + GitHub open-PR search (11 open reel-pack PRs) — no topic overlap found",
+    "nearestNeighbors": [
+      "washer-fluid-wont-spray"
+    ]
+  }
+}
