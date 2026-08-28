@@ -1,0 +1,79 @@
+{
+  "topic": "morning-rotor-rust-squeal",
+  "title": "Grinding brakes on the first stop of the day",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "generatedBy": "scheduled-run, no live operator present",
+  "generatedAt": "2026-08-27",
+  "mode": "INTELLIGENCE_PACK_ONLY",
+  "liveCallsMade": false,
+  "prodDbReadsMade": false,
+  "campaignKeyword": "BRAKES",
+  "targetDurationSec": 29,
+  "saveFreezeSec": 3,
+  "storyboardBeats": [
+    {
+      "index": 1,
+      "startSec": 0,
+      "endSec": 4,
+      "caption": "GRINDING BRAKES -- but only the FIRST stop of the day?",
+      "visualPrompt": "Wide static shot, a sedan parked in a residential driveway at dawn, light frost and dew on the windshield and body panels, cold blue-hour lighting, visible breath-fog in the air, no people, photorealistic, vertical 9:16 framing.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 2,
+      "startSec": 4,
+      "endSec": 9,
+      "caption": "If your car sat overnight -- or in the rain -- this can point to something on the rotor, not the pads",
+      "visualPrompt": "Slow push-in camera move toward a car's front wheel, alloy rim, dew beads visible on the rim and tire sidewall, shallow depth of field, overcast morning light, no people, photorealistic, vertical 9:16 framing.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 3,
+      "startSec": 9,
+      "endSec": 15,
+      "caption": "A thin layer of surface rust can form on the rotor face. It's one clue, not a verdict",
+      "visualPrompt": "Macro close-up of an automotive brake rotor face mounted on a wheel hub, faint reddish-brown surface rust film across the braking surface, cool grey garage lighting, product-photography style, no people, no hands, vertical 9:16 framing.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 4,
+      "startSec": 15,
+      "endSec": 20,
+      "caption": "It usually wipes off within the first few stops of the drive",
+      "visualPrompt": "Rear three-quarter shot of a sedan pulling away from a stationary position on a residential street, motion blur on the wheels, morning light, no people visible in or near the vehicle, photorealistic, vertical 9:16 framing.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "index": 5,
+      "startSec": 20,
+      "endSec": 26,
+      "caption": "Still grinding after that? Worth checking. Do not guess -- stop by and we'll take a look",
+      "visualPrompt": "Static daytime exterior shot of a small independent tire and auto repair shop storefront, clean signage, bay doors, parked customer cars, no people in frame, photorealistic, vertical 9:16 framing.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "saveOverlay": {
+    "startSec": 26,
+    "endSec": 29,
+    "text": "SAVE THIS | DM \"BRAKES\""
+  },
+  "claimEvidence": {
+    "sourcedFactUsed": false,
+    "evidenceRecordFound": false,
+    "reason": "General automotive knowledge (rotor surface rust after overnight/rain exposure); no matching EvidenceRecord or businessFacts row exists in this repo. No 'reel' FactChannel exists yet.",
+    "approvedSoftLanguageUsed": ["can point to", "worth checking", "one clue", "do not guess", "stop by and we'll take a look"]
+  },
+  "musicRights": "BLOCKED - no rights ledger exists in this repo; captions-only, no music bed specified",
+  "costEstimateUsd": {
+    "templateStockLane": 0.0,
+    "higgsfieldSeedanceLane": 1.25,
+    "voAndBriefIfUsed": 0.06,
+    "note": "seedance_clip figure is an ASSUMPTION per generationLedger.ts source comment, not a metered price"
+  },
+  "duplicateCheck": {
+    "existingPackDirsScanned": 128,
+    "openReelPackPRsAtWriteTime": 2,
+    "openPrNumbers": [1927, 1932],
+    "duplicateFound": false
+  }
+}
