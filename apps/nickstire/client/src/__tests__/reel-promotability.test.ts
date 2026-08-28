@@ -253,3 +253,34 @@ describe("review-found bypasses (#1988)", () => {
     }
   });
 });
+
+describe("ask inference does not fire on ordinary shop copy (#1990 review)", () => {
+  // FALSE-POSITIVE CONTROLS. Bare verbs matched ordinary nouns; a gate that
+  // fires on normal copy gets switched off, which is worse than no gate.
+  it("does NOT treat ordinary nouns as a call to action", () => {
+    for (const c of [
+      "From our shop to yours, alignment matters.",
+      "In order to check tread, use a penny.",
+      "We got a call about a grinding noise.",
+      "Your car is on schedule for its service.",
+      "A visit from a customer reminded us of this.",
+      "The shop floor was busy today.",
+    ]) {
+      expect(copyContainsAsk(c), c).toBe(false);
+    }
+  });
+
+  it("DOES still catch real calls to action", () => {
+    for (const c of [
+      "Book a brake inspection today.",
+      "Call us before it gets worse.",
+      "Stop by the shop on Euclid.",
+      "Get a quote in two minutes.",
+      "Make an appointment online.",
+      "Link in bio.",
+      "Shop now for winter tires.",
+    ]) {
+      expect(copyContainsAsk(c), c).toBe(true);
+    }
+  });
+});

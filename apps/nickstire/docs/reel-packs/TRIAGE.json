@@ -236,8 +236,7 @@
       "actuals": null,
       "promotable": false,
       "promotionBlockers": [
-        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-repair-questions\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
-        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"You're allowed to ask these first Before you say yes - any s\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-repair-questions\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
       ]
     },
     {

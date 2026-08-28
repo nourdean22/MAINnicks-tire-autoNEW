@@ -8,6 +8,8 @@
  * so the honest consumer is the triage artifact the operator actually reads:
  * every concept row now carries promotable + promotionBlockers.
  *
+ * RUNTIME: must run under tsx, not bare node - it imports a .ts module.
+ *   pnpm run triage:reels
  * Read-only against the filesystem. Writes one JSON file. No network, no DB.
  */
 import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";

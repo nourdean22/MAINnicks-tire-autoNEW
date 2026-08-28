@@ -136,8 +136,19 @@ export function hasUnqualifiedPrice(copy: string): boolean {
  * the viewer to act. The ask is read from the COPY, not only from the metadata.
  */
 const ASK_PATTERNS = [
-  /\b(book|schedule|call|text|stop by|come in|swing by|visit|order|shop|get a quote|make an appointment)\b/i,
-  /\b(link in bio|tap the link|dm us)\b/i,
+  // Imperative CTA phrasing only. Bare verbs are deliberately NOT used: "shop"
+  // matches "our shop", "order" matches "in order to", "call" matches "a call",
+  // "schedule" matches "on schedule", "visit" matches "a visit". A gate that
+  // fires on ordinary shop copy becomes noise and gets switched off, which is
+  // worse than not having it.
+  /\b(book|schedule|reserve)\s+(a|an|your|now|today)\b/i,
+  /\b(call|text|dm)\s+(us|now|today|the shop)\b/i,
+  /\b(stop|swing|come)\s+(by|in)\b/i,
+  /\b(visit|shop)\s+(us|our|the)\b/i,
+  /\b(order|shop)\s+(now|online|today)\b/i,
+  /\b(get|request)\s+(a\s+)?(quote|estimate)\b/i,
+  /\bmake\s+an\s+appointment\b/i,
+  /\b(link in bio|tap the link|swipe up)\b/i,
 ];
 
 export function copyContainsAsk(copy: string): boolean {
