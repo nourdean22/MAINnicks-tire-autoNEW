@@ -1000,6 +1000,30 @@ author of that paragraph, which is roughly how durable the lesson is without a p
 > **Before writing "X has no Y" into a doc or a report, spend the one command.** An absence claim
 > needs evidence exactly as much as a presence claim.
 
+### Three in one session, one shape: the instrument was narrower than its author assumed
+
+Worth recording together, because the pattern is more useful than any of the three alone. In a
+single coordination session the same author shipped three instruments and all three were wrong in
+the same direction:
+
+| instrument | what it assumed | what was true |
+|---|---|---|
+| the shared-tree watch | one directory is the repo | **eight worktrees**; it could not see the hazard it was written for, and missed an instance in its own author's tree |
+| the deploy check | nickstire exposes only `/api/health` | `/api/version` with `build.commit` exists, unprobed |
+| the merge audit | `gh pr list --state merged` returns newest-merged first | it sorts by **creation**; `.[0]` returned an older PR and the wrong diff got audited |
+
+None was a hard failure. Each produced a plausible green, or a plausible answer about the wrong
+subject — the reading a busy operator accepts. And each was settled by **one command**: sweep
+`git worktree list`; `curl /api/version`; take the PR number from the squash commit subject
+(`git log -1 --format=%s <sha>` yields `… (#NNNN)`), which is exact rather than inferred from a
+sorted list.
+
+The generalisation is not "be careful". It is that **an instrument's scope, its addressing, and its
+ordering are all part of its correctness, and none of them is visible in a green result.** The
+canary criterion at the top of this document asks whether a test can see its defect; these three ask
+the same question of a monitor, of an endpoint choice, and of a query's sort order. Same criterion,
+three surfaces nobody thinks to point it at.
+
 ## Writing one
 
 Copy the shape from any of the three proven controls:
