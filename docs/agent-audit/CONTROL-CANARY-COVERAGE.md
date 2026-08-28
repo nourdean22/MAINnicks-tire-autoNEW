@@ -971,12 +971,34 @@ merge was never going to appear there: Railway watch paths are per-app, so a dif
 | what the merge touched | what deploys | how you verify it |
 |---|---|---|
 | `apps/statenour/**` | statenour | `bdnick.info/api/version` contains the SHA |
-| `apps/nickstire/**` | nickstire | `nickstire.org/api/health` uptime resets |
+| `apps/nickstire/**` | nickstire | `nickstire.org/api/version` contains the SHA |
 | neither (CI, docs, scripts) | **nothing** | the CI job itself ran — there is no deploy to wait for |
 
 The rule: **choose the instrument from the diff's paths, not from habit.** Asking an app endpoint
 about a change that app never received is the blind-instrument shape pointed outward — the
 instrument is healthy, the subject is simply not in it, and the silence gets read as a fault.
+
+**Correction, same session, one turn later — and it is the more instructive half.** The row above
+originally read *"`nickstire.org/api/health` uptime resets"*, and the session stated in its report
+that nickstire "only exposes `/api/health`, so the best I have is a restart proxy." **That was
+false and was never probed.** nickstire serves `/api/version` with a `build.commit` field, exactly
+as statenour does; one `curl` settled it. The weaker method was written into this document as
+though it were a constraint.
+
+A restart proxy and a commit check are not the same claim. *The container is new* does not entail
+*the container carries your merge* — a rebuild triggered by anything else satisfies the proxy while
+your change is still absent. So the documented method was not merely clumsier, it was **unable to
+distinguish the success case from a specific failure case**, which is this document's whole subject.
+
+The general form is already catalogued one section down under
+[claims about the outside world](#a-claim-about-the-outside-world-has-an-expiry-date--and-an-uncited-one-is-expired-by-default),
+and this instance shows it **fails symmetrically**: asserting a capability is ABSENT is as much an
+uncited world-claim as asserting one exists, and costs the same. The Higgsfield REST API sat
+unfound for weeks behind "there is no API path." This was the same error at one-turn scale, by the
+author of that paragraph, which is roughly how durable the lesson is without a probe attached.
+
+> **Before writing "X has no Y" into a doc or a report, spend the one command.** An absence claim
+> needs evidence exactly as much as a presence claim.
 
 ## Writing one
 
