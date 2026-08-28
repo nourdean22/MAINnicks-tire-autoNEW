@@ -25,7 +25,11 @@
  */
 
 import { CRONS } from "@/config/crons";
-import { findMissingPolicies } from "@/lib/automation/policy";
+import {
+  findPolicyGaps,
+  policyGapRemedy,
+  type PolicyCoverageGap,
+} from "@/lib/automation/policy";
 import { listRuleNames } from "@/lib/brain/autonomous-engine";
 
 const HARD_MODE =
@@ -57,7 +61,8 @@ async function main() {
   // buried ⚠️ inside a 17-link chain, exit 0, and park every match indefinitely.
   const ruleExpected = listRuleNames().map((r) => `autonomous-action.${r.name}`);
   try {
-    const missingRules = await findMissingPolicies(ruleExpected);
+    const ruleGap = await findPolicyGaps(ruleExpected);
+    const missingRules = [...ruleGap.absent, ...ruleGap.softDeleted];
     if (missingRules.length > 0) {
       // Honour the SAME overrides the cron tier does and this script advertises at
       // its exit (`POLICY_GATE_SOFT=1 to demote to warning`). Reading only the date
@@ -70,6 +75,7 @@ async function main() {
       for (const id of missingRules.slice(0, 5)) console.log(`     · ${id}`);
       if (missingRules.length > 5) console.log(`     · …and ${missingRules.length - 5} more`);
       console.log("     each parks every match as pending forever (fail-closed engine)");
+      for (const line of policyGapRemedy(ruleGap)) console.log(`     ${line}`);
       console.log("     fix: seed from listRuleNames(), not the curated array");
       if (ruleHard) {
         console.log("     emergency override: POLICY_GATE_SOFT=1 to demote to warning.");
@@ -95,9 +101,9 @@ async function main() {
     return;
   }
 
-  let missing: string[];
+  let gap: PolicyCoverageGap;
   try {
-    missing = await findMissingPolicies(expected);
+    gap = await findPolicyGaps(expected);
   } catch (e) {
     // DB unreachable from a contributor's machine shouldn't block the
     // push — log and pass. CI runs against the prod DB so it'll catch
@@ -107,6 +113,7 @@ async function main() {
     );
     return;
   }
+  const missing = [...gap.absent, ...gap.softDeleted];
 
   if (missing.length === 0) {
     console.log(`  ✅  all ${expected.length} active crons have policies`);
@@ -122,12 +129,9 @@ async function main() {
   }
   if (missing.length > 10) console.log(`     · …and ${missing.length - 10} more`);
   console.log("");
-  console.log(
-    "  fix: add the cron to scripts/seed-policies.ts (or run the script if",
-  );
-  console.log(
-    "       it's already declared) — `pnpm tsx scripts/seed-policies.ts`",
-  );
+  for (const line of policyGapRemedy(gap)) {
+    console.log(`  ${line}`);
+  }
   if (HARD_MODE) {
     console.log("");
     console.log("  emergency override: POLICY_GATE_SOFT=1 to demote to warning.");
