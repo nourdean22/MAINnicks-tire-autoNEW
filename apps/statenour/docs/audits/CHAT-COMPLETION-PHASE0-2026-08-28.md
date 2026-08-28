@@ -119,3 +119,72 @@ order's own non-negotiables for an agent that can wake itself. A half-built self
 is worse than none, so the substrate is de-risked and the build is left whole for a session that
 can finish it. Its trigger condition is also partly WP1-gated: *"a turn classified `hard`/
 `frontier`"* presumes the band classifier WP1 would introduce.
+
+---
+
+## 5 · Rule 7 pass — current practice verified against docs (2026-08-28)
+
+Charter rule 7 ("verify current practice before you change anything") arrived after WP2 shipped, so
+this is a retroactive pass over the SDK surfaces this wave touched. **Searched, not remembered.**
+
+| # | Claim | Source (fetched 2026-08-28) | Verdict |
+|---|---|---|---|
+| A | AI SDK v6 resume pattern | `https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-resume-streams` | **CONTRADICTS a claim I made** — see below |
+| B | `providerOptions.anthropic.effort` shape + values | `https://ai-sdk.dev/providers/ai-sdk-providers/anthropic` | **VERIFIED** |
+| C | Hand-written UIMessage chunk shapes | `https://ai-sdk.dev/docs/ai-sdk-ui/streaming-data` | **UNVERIFIED** |
+
+### A · The finding that corrects me
+
+The SDK's **documented** resume pattern is: the `resumable-stream` package + a **Redis** instance +
+`createResumableStreamContext()` + `consumeSseStream` + `resumeExistingStream()`, with the GET route
+returning 204 when there is no active stream.
+
+My WP2 commit (#1977) stated that the V1 header's claim — *"mid-stream partial live-tail requires the
+`resumable-stream` package + Redis pub/sub"* — was **"FALSE for this system's shape."**
+
+**That was overstated, and the docs say so.** The V1 header was accurately describing the SDK's
+documented approach. What is actually true is narrower: *a different, non-SDK approach (polling the
+existing Postgres registry) also achieves partial replay here, because the chat route already
+accumulates deltas in `partialRef`.* "There is another way" is not "the header was wrong." I am
+correcting my own commit message rather than leaving the stronger claim standing.
+
+**And the constraint I assumed is not real.** Phase 0 item 8 found `REDIS_URL` **IS** set on Railway
+with live in-repo consumers (`lib/utils/redis.ts`, `lib/utils/cache.ts`). So the SDK's first-class
+pattern is *available to this app today* — diverging from it is an informed choice, not a forced one.
+
+**What I am NOT doing about it:** ripping out working, tested, deployed code. WP2 is green, live, and
+solves the operator's problem. The honest position is that we run a deliberate divergence from the
+documented pattern, with these trade-offs:
+
+| | Ours (Postgres poll) | SDK documented (`resumable-stream` + Redis) |
+|---|---|---|
+| New dependency | none | `resumable-stream` (an adoption decision → UPSTREAMS) |
+| Latency | 500ms poll granularity | pub/sub, near-immediate |
+| Infra | reuses the registry row | needs the Redis that already exists |
+| Code we own | ~80 lines of tail loop | less, but a third-party stream context |
+
+**Operator decision available, not taken:** adopting the documented pattern would delete our tail
+loop. It needs an UPSTREAMS row for `resumable-stream` and an explicit go. Flagged, not actioned.
+
+### B · Verified, and it validates the open PR
+
+`effort` lives at `providerOptions.anthropic.effort` with values `low | medium | high | xhigh | max`
+— exactly the union `escalation.ts` emits, and `xhigh`/`max` are documented as supported on
+`claude-opus-5`. Docs additionally note **effort defaults to `high`**, so the deep/thorough tier's
+explicit `high` is a no-op relative to default (correct, just not load-bearing) while `max` on an
+explicit mega ask is the real change. Independently corroborated by the installed package
+(`@ai-sdk/anthropic@3.0.78`, `dist/index.mjs:3461`), where `effort` is serialised into
+`output_config.effort`.
+
+Also surfaced, NOT adopted (no measurement yet): `thinking: { type: 'adaptive' }` and
+`cacheControl: { type: 'ephemeral', ttl: '1h' }`. The 1h cache TTL is directly relevant to the 36:1
+input:output ratio measured in the cost model — a real lever, unmeasured, so unshipped.
+
+### C · Marked UNVERIFIED rather than claimed
+
+The hand-written chunk objects (`start` / `text-start` / `text-delta` / `text-end` / `finish`) used
+by `buildReplayChunks` and the V2 tail are **not documented** on the streaming-data page, which
+covers `writer.write()` for custom data parts instead. These shapes were inherited from the WP-A
+July implementation and are proven in production, so they are not a new risk — but per rule 7 they
+are UNVERIFIED against current docs, not "current best practice". If they break on an SDK minor,
+this is the entry that predicted it.
