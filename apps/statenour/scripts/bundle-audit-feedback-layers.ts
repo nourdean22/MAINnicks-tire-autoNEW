@@ -13,7 +13,6 @@ const FILES = [
   // Endpoints + libs
   "lib/brain/improve-agent.ts",
   "lib/brain/wisdom-evolution.ts",
-  "lib/brain/violation-context.ts",
   "lib/db/vector-tuning.ts",
   "lib/ai/prompt/policy/operator-rules.ts",
   // API routes

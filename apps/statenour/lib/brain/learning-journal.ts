@@ -384,29 +384,3 @@ export async function getLatestLearningJournalEntry(): Promise<JournalEntry | nu
     return null;
   }
 }
-
-/**
- * Get recent journal context for the system prompt.
- */
-export async function getLearningJournalContext(): Promise<string> {
-  try {
-    // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
-    const entries = await prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.LEARNING_JOURNAL, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { content: true },
-    });
-
-    if (entries.length === 0) return "";
-
-    return [
-      `── LEARNING JOURNAL (metacognition) ──`,
-      ...entries.map(e => e.content.slice(0, 250)),
-      `Nick's brain is ${entries[0]?.content.includes("accelerating") ? "learning faster" : entries[0]?.content.includes("decelerating") ? "slowing down — needs engagement" : "learning at a steady pace"}.`,
-    ].join("\n");
-  } catch (err) {
-    logError("brain.learning-journal", err, { fn: "getLearningJournalContext" });
-    return "";
-  }
-}

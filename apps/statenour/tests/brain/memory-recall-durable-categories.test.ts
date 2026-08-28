@@ -70,6 +70,17 @@ describe("memory-recall · durable personal categories are recallable", () => {
       ).toBe(true);
     }
   });
+
+  // 2026-08-28 · v1 feeder-family purge (the remaining 14): time_pattern lost
+  // getTimeIntelligenceContext AND had no other reader anywhere — recall is now
+  // its only lane, same shape as hidden_correlation above. The writer is
+  // analyzeTimePatterns (cron/intelligence), upserting stable `time_*` keys.
+  it("time_pattern replaces its deleted v1 prompt feeder", () => {
+    expect(
+      CONTEXT_CATEGORIES.has("time_pattern"),
+      "time_pattern lost its v1 prompt feeder; recall is its only prompt path"
+    ).toBe(true);
+  });
 });
 
 /**

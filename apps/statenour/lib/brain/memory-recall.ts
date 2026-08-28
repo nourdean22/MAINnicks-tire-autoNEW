@@ -155,6 +155,17 @@ export const CONTEXT_CATEGORIES = new Set<string>([
   //   blind_spot were already whitelisted, so their deleted feeders
   //   needed no counterpart here.
   "hidden_correlation",
+  // 2026-08-28 · v1 feeder-family purge (the remaining 14 orphaned
+  // get*Context feeders, same census): time_pattern was the one category
+  // left with NO reader at all once its feeder died — the cron writer
+  // (analyzeTimePatterns, cron/intelligence) upserts a handful of stable
+  // `time_*` keyed rows (peak productivity, revenue timing) that are
+  // embedded by default. Same rewire shape as hidden_correlation above.
+  // The other 13 feeders needed no counterpart: their categories were
+  // already whitelisted, or reach Nick via a named tool
+  // (getEmotionalState, getBrainHealth, runSimulation), the Discover
+  // feed (teaching_moment), or the daily brief (attention).
+  "time_pattern",
 ]);
 
 export interface RecallHit {

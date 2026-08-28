@@ -273,25 +273,3 @@ BAD analysis:
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
-
-/**
- * Get emotional arc for system prompt.
- */
-export async function getEmotionalArcContext(): Promise<string> {
-  const arc = await prisma.brainMemory
-    .findFirst({
-      where: { category: BRAIN_CATEGORIES.EMOTIONAL_ARC },
-      orderBy: { createdAt: "desc" },
-      select: { content: true },
-    })
-    .catch(() => null);
-
-  if (!arc) return "";
-
-  return [
-    `── EMOTIONAL ARC (7d) ──`,
-    arc.content.slice(0, 200),
-    `Energy trend: ${arc.content.includes("rising") ? "↑" : arc.content.includes("falling") ? "↓" : "→"}`,
-    `Use this to calibrate response tone. If falling/volatile, be gentler but more directive.`,
-  ].join("\n");
-}
