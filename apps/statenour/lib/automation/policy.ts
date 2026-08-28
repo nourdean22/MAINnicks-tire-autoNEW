@@ -202,9 +202,16 @@ export async function findMissingPolicies(expectedIds: string[]): Promise<string
 // ─── Write-side ───────────────────────────────────────────────────────
 
 /**
- * Upsert by id — used by the seed script + admin UI. Keeps the policy
- * row in sync with the canonical declaration in code without losing
- * operator-edited fields like `enabled` or `notes` if we re-seed.
+ * Upsert by id. Keeps the policy row in sync with the canonical declaration in
+ * code without losing operator-edited fields like `enabled` or `notes` on a
+ * re-seed.
+ *
+ * The ONLY production caller is scripts/seed-policies.ts (verified 2026-08-28).
+ * This used to say "seed script + admin UI"; the admin routes under
+ * app/api/system/policies read via getPolicy/listPolicies and write via
+ * updatePolicyFields, and never reach this function. The stale half of that
+ * sentence is why refusing a soft-deleted row here looked like it might break
+ * the operator UI - it cannot.
  */
 export async function upsertPolicy(input: PolicyUpsertInput): Promise<PolicyRecord> {
   validatePolicyInput(input);
