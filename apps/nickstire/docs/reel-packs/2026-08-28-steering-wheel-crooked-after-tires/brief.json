@@ -1,0 +1,131 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-28",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Steering wheel crooked after new tires? That's an alignment clue, not a bad tire.",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "New tires but your steering wheel sits crooked?",
+      "visualPrompt": "Interior dash-cam-style shot of a steering wheel sitting visibly off-center while the vehicle drives straight down a quiet road, static-mounted camera, daylight, slight zoom-in on the wheel logo/spoke position to sell 'crooked.'",
+      "renderIntegrityNote": "Split into two ~2s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "That's not a bad tire — it's the wheel that's off, not the tread.",
+      "visualPrompt": "Cut to an exterior shot of a fresh tire being lowered onto a wheel hub in a shop bay, then a close-up on new tread grooves — contrasts 'new tire' against the wheel-position symptom from beat 1."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: the alignment was already off — new tread just made it easier to notice.",
+      "visualPrompt": "Overhead/top-down shot of an alignment rack's laser/camera targets mounted on all four wheels of a vehicle on a lift, subtle indicator lights implying a reading is in progress.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + target close-up) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Left off-center, that pull can wear brand-new tread unevenly.",
+      "visualPrompt": "Macro shot of a tire's tread face showing a feathered/uneven wear edge (one side worn more than the other), slow push-in to sell the 'uneven wear' consequence."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess. An alignment check can find what's actually off.",
+      "visualPrompt": "Alignment rack display/monitor showing toe/camber value graphics (generic abstract gauge-style UI, no real brand/software chrome), static mount, shop-bay ambient lighting.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before new tread wears down crooked. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (tire installation doesn't itself change alignment geometry, but new tread removes wear masking that hid a pre-existing off-center/pull condition), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 52,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 5,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#WheelAlignment", "#TireTips", "#CarNoises", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "🔧 Got new tires but the steering wheel sits crooked? That's an alignment clue, not a bad tire — new tread just made it easier to notice. Left off-center, that pull can wear brand-new tread unevenly. Don't guess — stop by and we'll take a look. 🚗"
+  },
+  "adVariants": [
+    {
+      "hook": "Steering wheel crooked after new tires?",
+      "caption": "New tread doesn't cause an off-center wheel — it just reveals an alignment that was already off.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Just got new tires and the wheel isn't straight?",
+      "caption": "One clue mechanics check first: alignment. Worth checking before new tread wears down crooked.",
+      "cta": "Bring it in — we'll check the alignment."
+    }
+  ],
+  "backlogNote": {
+    "openReelPackPRs": 16,
+    "mergedReelPackDirectories": 118,
+    "publishCapPerDay": 2,
+    "impliedBankedDays": "75+",
+    "recommendation": "Slow the scheduling cadence or add a review/merge step before topic supply runs out and near-duplicate topics start appearing."
+  },
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
