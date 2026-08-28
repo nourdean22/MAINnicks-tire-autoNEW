@@ -928,6 +928,56 @@ correct; `| Select-Object -First N` was masking the native exit code — the Pow
 for uncited-bump, docs-only, blind-invocation and cited-bump respectively. **Assert on the output as
 well as the code**, which is what the "Writing one" step 3 below has said all along.
 
+## A monitor's SCOPE is part of its correctness — the watcher that could not see its own hazard
+
+2026-08-28, found by the watcher's author, against the author's own worktree. The coordination
+session armed a watch over the shared checkout for five invariants, one of which was *"a tree is
+checked out to `main`"* — the direct-commit hazard. It ran, it was green, and it was structurally
+incapable of firing, because it inspected exactly one directory while the hazard can occur in any of
+the **eight** worktrees attached to this repo.
+
+The instance it missed was the author's own: **`gh pr merge --delete-branch` checks the local repo
+out to the default branch after deleting the merged branch.** Merging a PR therefore parks whatever
+worktree you ran it from on `main`, silently, as a side effect of a command whose stated purpose is
+branch cleanup. The watch had flagged that exact hazard for other sessions two turns earlier and
+could not see it happen to itself.
+
+This is [the criterion](#the-criterion--every-canary-must-prove-it-can-see-the-failure) applied to a
+monitor rather than a test, and it generalises past both: **the first question about any instrument
+is whether its subject includes the thing it is watching for.** A test's subject is the code path it
+drives; a monitor's subject is the set of places it looks. Narrowing either one turns a control into
+a reassurance.
+
+Fixed by sweeping `git worktree list` instead of one path — and, per this document's own rule, the
+widened arm was positive-controlled before being trusted: the same loop was pointed at a branch a
+worktree *was* on (`integration-audit`), and it found it. Only then does the `main` result read as a
+real zero rather than a loop that iterates over nothing. Two lines of proof, and without them the
+fix would have been exactly as unverified as the bug.
+
+> **Standing consequence.** After any `gh pr merge --delete-branch`, check where you are standing.
+> The merge succeeding and your checkout being where you left it are different facts.
+
+## "Deployed" is not one fact in a monorepo
+
+Same session, same day. Three merges landed in sequence and the session verified all three against
+`bdnick.info/api/version`, the statenour deploy endpoint. One of those merges touched only
+`scripts/agent-os/`, `.github/workflows/` and `docs/`.
+
+That poll would have run its full fifteen minutes and reported `TIMEOUT`, and **a timeout is
+indistinguishable from a stalled deploy** — the session would have escalated a healthy repo. The
+merge was never going to appear there: Railway watch paths are per-app, so a diff touching no
+`apps/**` path deploys nothing, and a CI-only change has no runtime surface to verify at all.
+
+| what the merge touched | what deploys | how you verify it |
+|---|---|---|
+| `apps/statenour/**` | statenour | `bdnick.info/api/version` contains the SHA |
+| `apps/nickstire/**` | nickstire | `nickstire.org/api/health` uptime resets |
+| neither (CI, docs, scripts) | **nothing** | the CI job itself ran — there is no deploy to wait for |
+
+The rule: **choose the instrument from the diff's paths, not from habit.** Asking an app endpoint
+about a change that app never received is the blind-instrument shape pointed outward — the
+instrument is healthy, the subject is simply not in it, and the silence gets read as a fault.
+
 ## Writing one
 
 Copy the shape from any of the three proven controls:
