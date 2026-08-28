@@ -40,3 +40,46 @@ jobs:
 
       - name: agent-os verify
         run: node scripts/agent-os/verify.mjs
+
+  source-citation:
+    # Charter rule 7, mechanical slice: a PR that CHANGES A DEPENDENCY must cite
+    # a current source (url + date) in its body. Training data is a fact about
+    # the past, so an uncited version bump is a memory claim wearing a fact's
+    # clothes.
+    #
+    # This needs its own job because it is the one check that cannot run from
+    # the tree alone — the PR BODY is only available from the event payload, so
+    # verify.mjs's drop-in-a-test-file discovery cannot reach it. The pure logic
+    # IS canaried through that path (sourceCitation.test.mjs, 12 arms incl. the
+    # #1972 and #1974 false positives); this job is what makes it bite.
+    #
+    # SCOPE, stated so nobody reads it as broader than it is: dependency edits
+    # only. "Switched an approach" and "assumed a platform still behaves this
+    # way" leave no syntactic trace and stay on review.
+    name: source citation (rule 7)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: collect PR diff and body
+        env:
+          # Via env, never interpolated into the script body — a PR title or
+          # body is attacker-controlled text and must not reach the shell.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          git diff "origin/$BASE_REF...HEAD" > /tmp/pr.diff
+          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+          wc -l /tmp/pr.diff /tmp/pr-body.txt
+
+      - name: check source citation
+        run: node scripts/agent-os/check-source-citation.mjs --diff /tmp/pr.diff --body /tmp/pr-body.txt

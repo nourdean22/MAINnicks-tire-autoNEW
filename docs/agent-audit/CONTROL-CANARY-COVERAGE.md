@@ -876,6 +876,58 @@ git grep -nE '\*\s*2\s*\+\s*5' -- '*.ts' '*.tsx' '*.mjs' '*.js'
 git grep -niE 'fastest[^;]{0,40}(\*|times|x)\s*2' -- '*.ts' '*.tsx'
 ```
 
+## A claim about the outside world has an expiry date — and an uncited one is expired by default
+
+The blind instruments catalogued above all fail *inward*: a gate that cannot see its subject, a
+number describing something other than what the reader assumes. This one fails *outward*, and it is
+the general form of at least three instances already in this repo's history.
+
+**The shape.** A statement about a library, API, platform, price or "best practice" is a measurement
+of the world at the moment it was made. Unlike a repo fact, nobody here controls when it stops being
+true, and nothing in the tree changes when it does. It therefore has an expiry date that is invisible
+from the inside — *how you do it* and *how you did it last year* read identically in a model's
+memory, in a PR body, and in a doc.
+
+Three instances, each of which passed review at the time:
+
+| The claim | What it actually was |
+|---|---|
+| ToolHive recommended for the tool layer | Benchmarked at ~15x the operator's scale; the premise did not apply here at all |
+| The Higgsfield cost/capability figures | Never re-checked against the vendor after the first read; the official REST API existed for weeks while sessions concluded there was "no API path" |
+| "3-5 posts a week doubles follower growth" | A study about **likes**, restated as **follower growth** — a real finding about a different variable |
+
+Note the second one especially: the failure was symmetric. The stale claim said a capability was
+*absent*, and that was just as wrong, and just as expensive, as claiming one that had gone away.
+"Not in the repo" is a fact about the repo; "not available" is a claim about the world and needs a
+source.
+
+**The rule (charter rule 7).** Verify current practice *before* you change a library, API, SDK,
+platform behaviour, pricing, config pattern or approach — not after, and not to confirm. Cite it:
+URL and date, in the PR. The search outranks your prior, and a contradiction is a finding to report
+rather than bury. Unverified means do not ship the change: an unverified switch is worse than leaving
+working code alone.
+
+**What is mechanically enforced, and what is not.** `scripts/agent-os/check-source-citation.mjs`
+fires when a PR's diff **adds a dependency** (a `dependencies`/`devDependencies`/`peerDependencies`/
+`optionalDependencies` entry, or a `pnpm-workspace.yaml` catalog move) and the body carries no URL
+*and* date. It is wired as its own job in `agent-policy.yml` because the PR body is only reachable
+from the event payload, not from the tree. `sourceCitation.test.mjs` canaries it in both directions,
+including the two false positives that shaped it: a `"scripts"` entry is not a dependency (#1974),
+and a reel-pack `brief.json` full of `"time": "0:00-0:04"` is not a manifest (#1972).
+
+**Everything else in rule 7 is unenforceable and is deliberately not claimed.** Changing a platform
+assumption, switching an approach on reasoning alone, or quoting a benchmark leaves no syntactic
+trace in a diff. There is no cheap check for it, and inventing one would produce exactly the artifact
+this document exists to catalogue — a control that reports green over a subject it cannot observe.
+That half is on review, and on the coordination session's per-merge audit.
+
+**Probe finding, recorded because it nearly hid the gate's own verdict.** During the adversarial pass
+the gate printed `FAILED` and named three real packages while `$LASTEXITCODE` read `0`. The gate was
+correct; `| Select-Object -First N` was masking the native exit code — the PowerShell twin of the
+`pipe-to-tail` trap already recorded under Verify gates. Re-probed without a pipeline: 1 / 0 / 2 /0
+for uncited-bump, docs-only, blind-invocation and cited-bump respectively. **Assert on the output as
+well as the code**, which is what the "Writing one" step 3 below has said all along.
+
 ## Writing one
 
 Copy the shape from any of the three proven controls:
