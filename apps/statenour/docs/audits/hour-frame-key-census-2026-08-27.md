@@ -46,6 +46,20 @@ existing row and the #1793 tombstone chain applies to any key surgery on this ta
 shadow). 218-row prod write, backup + reversible bridge required, and today it buys
 nothing — there is no hour reader to serve.
 
+## Decision — 2026-08-28 (operator): exclude, don't migrate — executed and ratcheted
+
+Marker + boundary stand; **pre-boundary rows are retained**, excluded from any keyed-hour
+aggregate, window labelled "since 2026-08-25 (ET frame)". Enforced mechanically:
+`tests/repo/hour-frame.test.ts` now DISCOVERS key-prefix readers and fails any that do not
+reference `HOUR_FRAME_BOUNDARY_ISO` (positive + negative controls; a planted unbounded reader
+kills exactly one arm). Measured for the reconsideration clause: migration IS technically
+viable — all 218 live pre-boundary rows carry `createdAt`, so `hourET(createdAt)` rekeying
+would be DST-exact — and is still declined: a rewrite of behavioural history with zero
+hour-readers on the other end. Engine audit (2026-08-28): `decision-patterns`,
+`time-intelligence`, `teaching-moments`, `counter-intuitive` all derive hours from absolute
+`createdAt` via `hourET()` and read none of these keys — their aggregates were never
+mixed-frame, so their timestamp windows deliberately keep pre-boundary data.
+
 ## Adjacent items closed in the same batch
 
 - `camera-intelligence` denominators fixed (ET day start, active-days average,

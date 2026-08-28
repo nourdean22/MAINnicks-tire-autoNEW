@@ -85,6 +85,61 @@ describe("hourFrameMeta", () => {
   });
 });
 
+/**
+ * READER side of the same ratchet (operator decision 2026-08-28: exclude
+ * pre-boundary rows from keyed-hour aggregates, never migrate). A read that
+ * prefix-queries one of the hour-encoding families without bounding to the
+ * frame boundary would silently aggregate a mixed UTC/ET series — the exact
+ * false-aggregate shape the decision forbids.
+ */
+const HOUR_KEY_PREFIX_READ = /startsWith:\s*["'`](journal_mood_|mood_|booking_hour_|unanswered_leads_)/;
+
+/** Files that prefix-read an hour-encoding family without referencing the boundary. */
+function unboundedHourKeyReaders(): string[] {
+  const out: string[] = [];
+  for (const file of trackedSources()) {
+    if (file === "lib/brain/hour-frame.ts") continue;
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    if (HOUR_KEY_PREFIX_READ.test(text) && !text.includes("HOUR_FRAME_BOUNDARY_ISO")) {
+      out.push(file);
+    }
+  }
+  return out;
+}
+
+describe("no keyed-hour reader aggregates across the frame boundary", () => {
+  it("the matcher SEES an offender (positive control)", () => {
+    // Without this, an empty-tree assertion below passes vacuously on a broken
+    // regex — the blind-instrument shape, applied to this file's own scanner.
+    const offender = 'await prisma.brainMemory.findMany({ where: { key: { startsWith: "mood_" } } })';
+    expect(HOUR_KEY_PREFIX_READ.test(offender)).toBe(true);
+  });
+
+  it("the matcher SPARES a boundary-aware reader (negative control)", () => {
+    const compliant =
+      'where: { key: { startsWith: "mood_" }, createdAt: { gte: new Date(HOUR_FRAME_BOUNDARY_ISO) } }';
+    // The file-level rule: the prefix read may exist only alongside a
+    // reference to the boundary constant.
+    expect(HOUR_KEY_PREFIX_READ.test(compliant)).toBe(true);
+    expect(compliant.includes("HOUR_FRAME_BOUNDARY_ISO")).toBe(true);
+  });
+
+  it("no reader in the tree bypasses the boundary", () => {
+    const offenders = unboundedHourKeyReaders();
+    expect(
+      offenders,
+      `these files prefix-read an hour-encoding key family without referencing ` +
+        `HOUR_FRAME_BOUNDARY_ISO — bound the query with createdAt >= the boundary and ` +
+        `label the window "since 2026-08-25 (ET frame)"; see lib/brain/hour-frame.ts: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+});
+
 describe("every hour-encoding memory key stamps its frame", () => {
   it("finds the hour-encoding call sites at all", () => {
     // Positive control. If the scanner silently matched nothing, every
