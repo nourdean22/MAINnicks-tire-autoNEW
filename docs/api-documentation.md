@@ -58,17 +58,44 @@ Used to authenticate public clients and admin panels.
 
 ### 3.1. Utility & Diagnostics
 
-#### Get Application Uptime
-Proves which commit/build is running.
+#### Get Deployed Build
+Proves which commit is running — this is the deploy-verification endpoint. **Compare
+`build.commit` to your merge SHA;** a restart alone (uptime resetting) proves a NEW container, not
+that it carries your change.
+
 - **Path**: `GET /api/version`
 - **Auth**: Public
-- **Response**:
+- **Response** (captured live 2026-08-28; statenour serves the same shape wrapped in the standard
+  `{ok, data}` envelope, nickstire returns it bare):
   ```json
   {
+    "service": "nickstire",
     "status": "ok",
-    "uptime": 128471
+    "uptime": 2089,
+    "startedAt": "2026-08-28T19:10:30.367Z",
+    "build": {
+      "commit": "8c8e3a59f679d451bee8a87a86fb1fb5c2a98ceb",
+      "commitShort": "8c8e3a59f",
+      "branch": "main",
+      "environment": "production",
+      "deploymentId": "13f14dc4-8cb9-4bfa-b953-d42baceed091",
+      "source": "railway",
+      "status": "identified",
+      "note": "commit resolved from RAILWAY_GIT_COMMIT_SHA"
+    },
+    "configured": { "database": true, "objectStorage": true, "sentry": true }
   }
   ```
+  `build.status` is `"identified"` only when the commit was actually resolved — treat any other
+  value as **unknown**, never as "current".
+
+> **This entry used to say "Proves which commit/build is running" above a payload containing no
+> commit at all** — `{status, uptime}` only. The prose and the example contradicted each other, and
+> the example is what readers believe. On 2026-08-28 a session consequently asserted that nickstire
+> "only exposes uptime, so the best available check is a restart proxy", wrote that weaker method
+> into `docs/agent-audit/CONTROL-CANARY-COVERAGE.md`, and was refuted by a single `curl`. A
+> reference whose example omits the field its own description promises manufactures exactly that
+> error. Keep the payload copied from a live response.
 
 #### Health Status Check
 Probes database connectivity and critical services.

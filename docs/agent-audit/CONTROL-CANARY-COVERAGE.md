@@ -971,12 +971,58 @@ merge was never going to appear there: Railway watch paths are per-app, so a dif
 | what the merge touched | what deploys | how you verify it |
 |---|---|---|
 | `apps/statenour/**` | statenour | `bdnick.info/api/version` contains the SHA |
-| `apps/nickstire/**` | nickstire | `nickstire.org/api/health` uptime resets |
+| `apps/nickstire/**` | nickstire | `nickstire.org/api/version` contains the SHA |
 | neither (CI, docs, scripts) | **nothing** | the CI job itself ran — there is no deploy to wait for |
 
 The rule: **choose the instrument from the diff's paths, not from habit.** Asking an app endpoint
 about a change that app never received is the blind-instrument shape pointed outward — the
 instrument is healthy, the subject is simply not in it, and the silence gets read as a fault.
+
+**Correction, same session, one turn later — and it is the more instructive half.** The row above
+originally read *"`nickstire.org/api/health` uptime resets"*, and the session stated in its report
+that nickstire "only exposes `/api/health`, so the best I have is a restart proxy." **That was
+false and was never probed.** nickstire serves `/api/version` with a `build.commit` field, exactly
+as statenour does; one `curl` settled it. The weaker method was written into this document as
+though it were a constraint.
+
+A restart proxy and a commit check are not the same claim. *The container is new* does not entail
+*the container carries your merge* — a rebuild triggered by anything else satisfies the proxy while
+your change is still absent. So the documented method was not merely clumsier, it was **unable to
+distinguish the success case from a specific failure case**, which is this document's whole subject.
+
+The general form is already catalogued one section down under
+[claims about the outside world](#a-claim-about-the-outside-world-has-an-expiry-date--and-an-uncited-one-is-expired-by-default),
+and this instance shows it **fails symmetrically**: asserting a capability is ABSENT is as much an
+uncited world-claim as asserting one exists, and costs the same. The Higgsfield REST API sat
+unfound for weeks behind "there is no API path." This was the same error at one-turn scale, by the
+author of that paragraph, which is roughly how durable the lesson is without a probe attached.
+
+> **Before writing "X has no Y" into a doc or a report, spend the one command.** An absence claim
+> needs evidence exactly as much as a presence claim.
+
+### Three in one session, one shape: the instrument was narrower than its author assumed
+
+Worth recording together, because the pattern is more useful than any of the three alone. In a
+single coordination session the same author shipped three instruments and all three were wrong in
+the same direction:
+
+| instrument | what it assumed | what was true |
+|---|---|---|
+| the shared-tree watch | one directory is the repo | **eight worktrees**; it could not see the hazard it was written for, and missed an instance in its own author's tree |
+| the deploy check | nickstire exposes only `/api/health` | `/api/version` with `build.commit` exists, unprobed |
+| the merge audit | `gh pr list --state merged` returns newest-merged first | it sorts by **creation**; `.[0]` returned an older PR and the wrong diff got audited |
+
+None was a hard failure. Each produced a plausible green, or a plausible answer about the wrong
+subject — the reading a busy operator accepts. And each was settled by **one command**: sweep
+`git worktree list`; `curl /api/version`; take the PR number from the squash commit subject
+(`git log -1 --format=%s <sha>` yields `… (#NNNN)`), which is exact rather than inferred from a
+sorted list.
+
+The generalisation is not "be careful". It is that **an instrument's scope, its addressing, and its
+ordering are all part of its correctness, and none of them is visible in a green result.** The
+canary criterion at the top of this document asks whether a test can see its defect; these three ask
+the same question of a monitor, of an endpoint choice, and of a query's sort order. Same criterion,
+three surfaces nobody thinks to point it at.
 
 ## Writing one
 
