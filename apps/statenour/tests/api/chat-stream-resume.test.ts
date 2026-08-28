@@ -94,8 +94,12 @@ describe("resume route · in-flight turns (the WP2 defect)", () => {
     const text = await readDeltas(await GET(req(), ctx("conv-1")));
     // Emits what the client already saw and stops — never a hybrid of
     // two different strings.
-    expect(text).toBe(partial);
+    expect(text).toContain(partial);
     expect(text).not.toContain("[unverified claim]");
+    // And says so honestly: the turn FINISHED (it did not run out of
+    // window), so the marker must not claim it is still generating.
+    expect(text).toContain("reload to see the final version");
+    expect(text).not.toContain("still generating");
   });
 
   it("flags a partial resume in the response headers — never silent degradation", async () => {
@@ -109,6 +113,30 @@ describe("resume route · in-flight turns (the WP2 defect)", () => {
     const res = await GET(req(), ctx("conv-1"));
     expect(res.headers.get("X-Resume-Partial")).toBe("1");
   });
+
+  it("a force-closed tail emits a VISIBLE marker — a truncated reply must not render as a finished one", async () => {
+    // The review finding this pins: closing the tail emits a real
+    // `finish` chunk, the AI SDK has no "partial" status, so it sets
+    // `ready`, isStreaming flips false, and stall detection tears down.
+    // A header alone is invisible if any reader is missing. Bytes in the
+    // bubble cannot be dropped.
+    const startedAt = new Date().toISOString();
+    mockGetActiveStream.mockResolvedValue({
+      status: "active",
+      traceId: null,
+      startedAt,
+      partialText: "I am partway through the analysis",
+    });
+
+    const res = await GET(req(), ctx("conv-1"));
+    const text = await readDeltas(res);
+
+    expect(text).toContain("I am partway through the analysis");
+    expect(text).toContain("still generating");
+    // Both signals present — the header drives auto-re-resume, the marker
+    // survives a missing reader.
+    expect(res.headers.get("X-Resume-Partial")).toBe("1");
+  }, 30_000);
 
   it("an active turn with NO bytes yet still 204s — an empty bubble is worse than none", async () => {
     mockGetActiveStream.mockResolvedValue({

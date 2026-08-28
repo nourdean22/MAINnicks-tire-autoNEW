@@ -85,6 +85,12 @@ export async function GET(
     // one client-side message instead of N (duplicate-message scar).
     const msgId = resumeMessageId(conversationId, record.startedAt);
     let emitted = record.partialText;
+    // Distinguishes the two ways the tail can end without a clean
+    // completion: window exhausted (turn still running) vs the persisted
+    // row diverging (turn done, splice unsafe). They need different text —
+    // telling the operator "still generating" about a finished turn is the
+    // same class of lie this whole route is being fixed to stop telling.
+    let stillGenerating = true;
 
     const stream = createUIMessageStream({
       async execute({ writer }) {
@@ -124,10 +130,40 @@ export async function GET(
                 "warn",
               );
             }
+            // The turn FINISHED; we simply cannot safely splice. A
+            // different exit from "ran out of window", and it must not
+            // claim the turn is still running.
+            stillGenerating = false;
             break;
           }
         }
-        // Window closed (or row vanished) with the turn unfinished.
+        // Window closed (or the row vanished) with the turn UNFINISHED.
+        //
+        // 2026-08-28 · review fix, and the most important lines in this
+        // file. Closing here emits a real `finish` chunk, and the AI SDK
+        // has no "partial" status — it sets `ready`, `isStreaming` flips
+        // false, and use-stall-detection (which gates its whole polling
+        // effect on isStreaming) tears down. Without a visible signal the
+        // operator is left holding a TRUNCATED reply that renders exactly
+        // like a completed one: no spinner, no banner, no way back. That
+        // is strictly worse than the 204 this route used to return, which
+        // at least looked broken.
+        //
+        // Two independent signals, deliberately belt-and-braces:
+        //   1. `X-Resume-Partial` (set below) drives an automatic
+        //      re-resume in use-chat-transport → use-chat-stream.
+        //   2. THIS marker, in the text itself. A header can be dropped
+        //      by a proxy or ignored by a future client; bytes in the
+        //      bubble cannot. It is not persisted — the canonical row in
+        //      chat_messages is untouched, so a reload shows clean text.
+        w(
+          buildDeltaChunk(
+            msgId,
+            stillGenerating
+              ? "\n\n_(still generating — reconnecting for the rest…)_"
+              : "\n\n_(reply was revised after this point — reload to see the final version)_",
+          ),
+        );
         for (const c of buildCloseChunks(msgId)) w(c);
       },
     });
