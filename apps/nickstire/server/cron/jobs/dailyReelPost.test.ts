@@ -27,6 +27,31 @@ describe("dailyReelPost", () => {
     expect(r.details).toContain("disabled");
     if (prev !== undefined) process.env.REEL_AUTOPOST_ENABLED = prev;
   });
+
+  // FAIL-CLOSED EVIDENCE FOR THE BACKLOG DRAIN (2026-08-28).
+  // The drain lets the job publish an "assembled" reel from a PREVIOUS day, which
+  // is new publishing reach: before this change the date-scoped lookup meant an
+  // orphaned job could never be selected, so it could never post. The safety
+  // property is that the drain sits BEHIND the same authority gate as everything
+  // else - it must be unreachable when REEL_AUTOPOST_ENABLED is not "true", even
+  // though 10 drainable jobs exist in prod right now. Asserted by ordering: the
+  // enable gate is the first statement in runDailyReelPost, so a disabled run
+  // returns before the DB is opened and the drain query is never issued.
+  it("the backlog drain is UNREACHABLE when autopost is disabled", async () => {
+    const prev = process.env.REEL_AUTOPOST_ENABLED;
+    for (const bad of [undefined, "false", "1", "TRUE", ""]) {
+      if (bad === undefined) delete process.env.REEL_AUTOPOST_ENABLED;
+      else process.env.REEL_AUTOPOST_ENABLED = bad;
+      const r = await runDailyReelPost();
+      expect(r.recordsProcessed).toBe(0);
+      // "disabled" proves it returned at the authority gate - not at the hour
+      // gate, not after selecting a drainable job.
+      expect(r.details).toContain("disabled");
+      expect(r.details).not.toContain("DRAINED");
+    }
+    if (prev !== undefined) process.env.REEL_AUTOPOST_ENABLED = prev;
+    else delete process.env.REEL_AUTOPOST_ENABLED;
+  });
 });
 
 // NT-001 · the shadow-judge input builder must return something judgeable for
