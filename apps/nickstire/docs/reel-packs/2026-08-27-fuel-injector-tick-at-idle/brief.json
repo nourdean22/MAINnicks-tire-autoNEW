@@ -1,0 +1,62 @@
+{
+  "topic": "That ticking at idle might just be your injectors - or it might not",
+  "createdDate": "2026-08-27",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "selfEstimatedQualityScore": 50,
+  "qualityFloor": 70,
+  "faceless": true,
+  "durationSeconds": 30,
+  "platform": ["instagram_reels", "facebook_reels"],
+  "aspectRatio": "9:16",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "That ticking under the hood at idle - is it normal, or a problem?",
+      "visualPrompt": "Static wide shot of a car idling in a driveway or shop bay, engine bay slightly visible through a cracked hood, still morning light.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "A light, steady tick from the engine bay, mostly noticeable when the car's just sitting there.",
+      "visualPrompt": "Close-up static shot on an idling engine bay, subtle rhythmic vibration cue, shallow depth of field on the injector rail area.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: that's often just a fuel injector opening and closing - completely normal.",
+      "visualPrompt": "Macro/cutaway shot: a fuel injector removed and resting on a clean shop rag, pintle tip visible, slow push-in, bright even lighting.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "But a louder tick, a rough idle, or a check-engine light together can mean something more - like low fuel pressure.",
+      "visualPrompt": "Close-up on a dashboard check-engine light illuminated, static mount, paired cut to a fuel-pressure gauge needle held on a test rig.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess which one it is. A quick listen and a pressure check can tell the difference.",
+      "visualPrompt": "Underhood inspection shot: a mechanic's stethoscope-style listening tool positioned near the injector rail, tool mounted/clipped, no hand in frame.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "CTA",
+      "narration": "Worth checking if it's paired with anything else. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo/CTA text composited in post, not AI-generated.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "hashtags": ["#CarMaintenance", "#FuelInjector", "#CheckEngineLight", "#CarNoises", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+  "feedCaption": "Hear a ticking under the hood at idle? Often that's just a fuel injector doing its job. But paired with a rough idle or a check-engine light, it's worth a second look. Don't guess - stop by and we'll take a look.",
+  "audioRightsStatus": "NO_MUSIC_BED_ASSIGNED_NO_RIGHTS_LEDGER_EXISTS",
+  "generationRoute": "NOT_ATTEMPTED_THIS_SESSION",
+  "renderExists": false,
+  "publishAttempted": false
+}
