@@ -72,11 +72,45 @@ export async function register() {
     // is ~200ms from VectorEmbedding (well before the first user message),
     // and a failure just defers to the existing request-time warmup. Never
     // blocks boot; never throws.
-    try {
-      const { warmToolEmbeddings } = await import("@/lib/ai/tool-embeddings");
-      void warmToolEmbeddings().catch(() => {});
-    } catch {
-      // never let embedding warm-up break server boot
+    //
+    // 2026-08-28 · SKIPPED under E2E_HERMETIC. The hermetic e2e job sets
+    // OLLAMA_API_KEY to a dummy, so every embedding call 401s: measured
+    // `[tool-embeddings] Warm-up complete: 0/181 cached` with 40
+    // `embedding.all_failed` warnings, in EVERY sampled run. The cache
+    // therefore can never be warm there, and TOOL SELECTION IS UNCHANGED by
+    // skipping it. isToolEmbeddingCacheWarm() does flip true -> false (it
+    // returns `warmComplete`, which the warm-up sets even after caching 0 of
+    // 181), but every consumer is ALSO gated on a non-empty user embedding —
+    // chat-mode.ts Tier 5 and app/api/ai/chat/route.ts:738 — and that embedding
+    // is empty there for the same dead-provider reason. rankToolsBySimilarity
+    // returns [] on an empty cache regardless. So both paths select the same
+    // tools; only the doomed work differs.
+    //
+    // What this saves is EVALUATION, not compilation. A literal import() is
+    // collected into the module graph at build time whichever branch runs, so
+    // Turbopack still compiles tool-embeddings -> nourTools -> the 7 domain
+    // files -> sharp / node:stream (see the edge-graph note above). What is
+    // skipped is instantiating all of that at boot, plus 181 doomed embedding
+    // calls and the 40 `embedding.all_failed` lines they emit — which is not
+    // only noise: it is what filled `tail -40` on failure while the /api/intel
+    // wedge went undiagnosed for two days.
+    //
+    // NOT a fix for that wedge, and not claimed as one — the wedge is in
+    // Turbopack's dev compiler (scripts/ci/warm-routes.sh has the evidence).
+    // The dev server enters the warm loop at 2729-2990 MB RSS across three
+    // sampled runs; the RSS printed at `warm /` is the measurement of whether
+    // this moved it, on every run.
+    if (process.env.E2E_HERMETIC === "1") {
+      console.log(
+        "[tool-embeddings] boot warm-up SKIPPED · E2E_HERMETIC=1 (no usable embedding provider; request-time warmup still applies)",
+      );
+    } else {
+      try {
+        const { warmToolEmbeddings } = await import("@/lib/ai/tool-embeddings");
+        void warmToolEmbeddings().catch(() => {});
+      } catch {
+        // never let embedding warm-up break server boot
+      }
     }
 
     // 2026-08-25 · Langfuse tracing init. Registers a LangfuseSpanProcessor
