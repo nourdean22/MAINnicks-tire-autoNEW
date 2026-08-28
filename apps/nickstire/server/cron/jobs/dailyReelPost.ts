@@ -18,7 +18,7 @@
  * advanced and the date is NOT recorded, so the next eligible tick retries the
  * same reel — never a skip, never a double-post.
  */
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { shopSettings, reelJobs } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
@@ -211,7 +211,40 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
   const briefId = `autopost-${date}`;
   const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
-  const job = jobs[0];
+  let job = jobs[0];
+  let drainedFrom: string | null = null;
+
+  // DRAIN THE BACKLOG FIRST. The lookup above is scoped to TODAY's briefId, so a
+  // job assembled on a previous day (briefId autopost-<that day>) is never
+  // selected again and its finished mp4 never publishes - even though the
+  // comment below correctly states that publishing an assembled job is meant to
+  // run on ANY pulse. Measured in prod 2026-08-28: 10 jobs stuck in "assembled",
+  // every one with mp4Url set, oldest 2026-08-20, eight of them with no error at
+  // all, while daily-reel-post ran 704 times. Those are finished videos that
+  // could have posted. Oldest first, so the queue drains FIFO.
+  if (!job) {
+    const stale = await d
+      .select()
+      .from(reelJobs)
+      .where(
+        and(
+          eq(reelJobs.status, "assembled"),
+          isNotNull(reelJobs.mp4Url),
+          ne(reelJobs.mp4Url, ""),
+        ),
+      )
+      .orderBy(asc(reelJobs.id))
+      .limit(1);
+    if (stale[0]) {
+      job = stale[0];
+      drainedFrom = job.briefId;
+      log.info("draining assembled reel job from a previous day", {
+        jobId: job.id,
+        briefId: job.briefId,
+        today: briefId,
+      });
+    }
+  }
 
   if (!job) {
     // Only ENQUEUE during the best posting hour. Publishing an already-assembled
@@ -700,7 +733,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       progressDetail = `manifest index: ${idx + 1}`;
     }
     log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
-    return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (${progressDetail})` };
+    return {
+      recordsProcessed: 1,
+      details: `posted dynamic reel for job ${job.id} (${progressDetail})${drainedFrom ? ` [DRAINED backlog job from ${drainedFrom}]` : ""}`,
+    };
   }
 
   if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing", "repair_queued"].includes(job.status)) {
