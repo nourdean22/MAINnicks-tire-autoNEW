@@ -25,8 +25,11 @@ not learned weights. Weakest/quick lanes deliberately still admit habits.
 
 **Blocker:** none code-side.
 
-**Next action (operator-gated):** the invoice→task bridge import — dollar term is armed but
-mute (live: 0 $-titles, 0 overdue open tasks; the overdue invoices are nickstire/ALG data and
-never enter this DB). Natural entry: `lib/ai/tools/tasks.ts` follow-up writer (hard-codes
-roiScore 70 — fix it when the import lands). Until then "hydration vs $846" cannot be a real
-statenour ranking contest.
+**Next action:** NONE code-side — the revenue-urgency fork is CLOSED. Measured 2026-08-28:
+`invoices.paymentStatus` is structurally unreliable (defaults 'paid'; the ShopDriver sync
+CAN write pending — shopdriver.ts:638/661/672/908 — but 0 of ~2,900 shopdriver rows are
+non-paid: the feed marks everything paid; the "overdue" pool = 2 self-billed on 216-848-8888
++ 3 test rows + 3 unverifiable, all hand-entered). Operator picked lane (b): hand-curated collect tasks via Nick chat — shipped
+#1967, the follow-up writer's roiScore 70 → 50 so collect tasks rank on terms ($-note +
+dueDate + staleness). Do NOT build a paymentStatus importer; do NOT seed the 3 unverifiable
+candidates. The operator curates: one chat line per invoice he trusts from his register.

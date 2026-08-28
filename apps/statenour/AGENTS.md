@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-08-28 · learning-loops #1968 + hour-frame ratchet; knip BLOCKING; key DEAD. Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-08-28 · learning-loops #1968 + collect lane #1967; knip BLOCKING; key DEAD. Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
