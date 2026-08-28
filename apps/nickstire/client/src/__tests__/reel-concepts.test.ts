@@ -102,3 +102,36 @@ describe("ranking - cost ascending, measured performance first, NO weighted rubr
     expect(toRow(pack({ hasCaptions: true, hasRealFootage: true })).actuals).toBeNull();
   });
 });
+
+/* -- the promotable flag: stricter spec, never blocks organic ------------- */
+
+describe("promotable flag on the concept row", () => {
+  const publishablePack = pack({ id: "2026-08-20-x", hasCaptions: true, hasRealFootage: true });
+
+  it("is null when no promotability facts are supplied - unassessed is not ineligible", () => {
+    const r = toRow(publishablePack);
+    expect(r.promotable).toBeNull();
+    expect(r.promotionBlockers).toBeNull();
+  });
+
+  it("is true for a clean pack with a service-page destination", () => {
+    const r = toRow(publishablePack, null, {
+      id: "x", copy: "Book a brake inspection.", aspectRatio: "9:16",
+      ctaText: "book a brake inspection", landingDestination: "/brakes",
+    });
+    expect(r.promotable).toBe(true);
+    expect(r.promotionBlockers).toEqual([]);
+  });
+
+  // THE INVARIANT: not boost-eligible, still organically publishable.
+  it("a non-promotable pack REMAINS publishable and says why it cannot be boosted", () => {
+    const r = toRow(publishablePack, null, {
+      id: "x", copy: "Guaranteed fix.", aspectRatio: "9:16",
+      ctaText: "come in", landingDestination: "/",
+    });
+    expect(r.promotable).toBe(false);
+    expect(r.status).toBe("publishable");     // organic path untouched
+    expect(r.blockReason).toBeNull();          // nothing blocks the post
+    expect(r.promotionBlockers!.join(" ")).toMatch(/ABSOLUTE_OUTCOME_CLAIM|DESTINATION_IS_HOMEPAGE/);
+  });
+});
