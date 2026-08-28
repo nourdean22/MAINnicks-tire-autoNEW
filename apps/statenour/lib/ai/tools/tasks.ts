@@ -991,7 +991,12 @@ const tasksCoreTools = {
         missionId: inbox.id,
         nextPhysicalAction: `Call / text ${customerName}`,
         effort,
-        roiScore: 70,
+        // 2026-08-28 · was a hand-blessed 70 — the same magic constant that let
+        // the hydration habit tie business work (measured in the #1946 wave:
+        // roiScore carries 1.68 bits, all constants). Follow-ups always carry a
+        // real dueDate (below), and a "$927" note in the title arms the dollar
+        // term, so the scorer ranks them on TERMS. Default 50; never re-bless.
+        roiScore: 50,
         frictionScore: 20,
         energyRequired: "MEDIUM",
         context: "PHONE",
