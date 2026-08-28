@@ -63,6 +63,11 @@ export function buildStreamConfigFactory(deps: {
   startedAt: number;
   firstTokenRef: { value: number | null };
   partialRef: { text: string };
+  /** 2026-08-28 · WP2 · throttled durable flush of the partial text so a
+   *  reconnect can replay an IN-FLIGHT turn (see active-stream.ts V2).
+   *  Optional: omitted by tests and by private mode, where the turn is
+   *  deliberately non-durable. */
+  onPartial?: (text: string) => void;
   recordTrace: PersistBase["recordTrace"];
   resolveOnFinish: () => void;
   log: Logger;
@@ -88,6 +93,7 @@ export function buildStreamConfigFactory(deps: {
     startedAt,
     firstTokenRef: __firstTokenRef,
     partialRef: __partialRef,
+    onPartial: __onPartial,
     recordTrace,
     resolveOnFinish,
     log,
@@ -314,6 +320,11 @@ export function buildStreamConfigFactory(deps: {
         const inner = c?.chunk;
         if (inner?.type === "text-delta" && typeof inner.text === "string") {
           __partialRef.text += inner.text;
+          // 2026-08-28 · WP2. The accumulator above has existed since
+          // v10.0.20 but lived only in memory, so a reconnect mid-turn
+          // could not see it. The flusher is throttled and never
+          // awaited — the streaming hot path must not pay for durability.
+          __onPartial?.(__partialRef.text);
         }
       }) as Parameters<typeof streamText>[0]["onChunk"],
       // v9.1.22 · onError handler. Without this, a mid-stream provider

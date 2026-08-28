@@ -745,6 +745,16 @@ export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   // observability, not a belief about Nour; it must never spend a recall
   // slot. One list, one meaning, both lanes.
   ...TELEMETRY_CATEGORIES,
+  // 2026-08-28 · MAKING A COMMENT TRUE, again. The chat resume registry
+  // (lib/services/chat/active-stream.ts, category "active_chat_stream")
+  // was quarantined from recall only by ACCIDENT: its rows are written
+  // at confidence 0.1, under contextual-recall's `gte: 0.3` floor. That
+  // is a numeric coincidence, not a policy — one writer raising the
+  // confidence would have silently fed chat-stream bookkeeping back into
+  // the chat prompt. V2 now parks in-flight assistant PROSE on these
+  // rows (in `metadata`, which recall does not read), so the stakes went
+  // up while the guard stayed accidental. Name it explicitly.
+  "active_chat_stream",
 ];
 
 /**
@@ -821,6 +831,12 @@ export const CONSOLIDATION_EXCLUDE_CATEGORIES: readonly string[] = [
   "ai_directive",
   "vision",
   "fact",
+  // 2026-08-28 · chat resume registry (see the RECALL list twin). These
+  // rows are transient per-conversation BOOKKEEPING with a structured
+  // metadata payload the resume route reads; an LLM prose-merge would
+  // both corrupt that payload and outlive the 10-minute TTL the design
+  // depends on. Never a consolidation subject.
+  "active_chat_stream",
 ];
 
 /**

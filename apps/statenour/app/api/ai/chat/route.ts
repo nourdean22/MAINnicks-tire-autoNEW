@@ -906,6 +906,14 @@ async function chatPostInner(req: Request) {
   // ./build-stream-config.ts as a factory over the same shared refs.
   const { streamWithFallback } = await import("@/lib/ai/stream-with-fallback");
   const { buildStreamConfigFactory } = await import("./build-stream-config");
+  // 2026-08-28 · WP2 · durable partial capture. Private mode is excluded
+  // by the same rule that keeps it out of the registry entirely: its
+  // no-persistence semantics are the feature.
+  const { createPartialPersister } = await import(
+    "@/lib/services/chat/active-stream"
+  );
+  const __onPartial =
+    !privateMode && convId ? createPartialPersister(convId) : undefined;
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
@@ -932,6 +940,7 @@ async function chatPostInner(req: Request) {
       startedAt,
       firstTokenRef: __firstTokenRef,
       partialRef: __partialRef,
+      onPartial: __onPartial,
       recordTrace,
       resolveOnFinish,
       log,
