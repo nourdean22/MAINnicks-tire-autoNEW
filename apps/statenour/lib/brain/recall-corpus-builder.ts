@@ -16,14 +16,23 @@
  * Honesty rules, enforced in code:
  *   · A generated case carries provenance naming its real source row —
  *     never "synthetic-seed".
- *   · relevantKeys are only asserted when the source row actually names
- *     a memory key; otherwise the case is an ABSTENTION case (the
- *     retriever must not surface a distractor), which is a real signal
- *     rather than an invented expectation.
  *   · The report separates real from synthetic and REFUSES to claim
  *     corpus quality while real == 0.
+ *
+ * 2026-08-28 · learning-loops wave (docs/LEARNING-LOOPS-2026-08-28.md,
+ * Loop B). The previous header claimed "relevantKeys are only asserted
+ * when the source row actually names a memory key" — that branch NEVER
+ * existed: all three constructors hard-coded empty relevantKeys AND
+ * empty forbiddenKeys, so under runRecallEval every harvested case was
+ * excluded from precision scoring and could never fail abstention
+ * (forbiddenInjected needs a non-empty forbiddenKeys). The corpus could
+ * detect a crashed retriever, never a bad one. The fourth source below
+ * (noise-verdict Discover rows) is the first LABEL-BEARING shape: the
+ * judged row's own key is the forbidden key, no schema change, one case
+ * per operator tap that already happens.
  */
 import { prisma } from "@/lib/prisma";
+import { DISCOVERY_CATEGORIES } from "./discoveries";
 import type { RecallEvalCase } from "./recall-eval";
 
 /** Cap so one bad week can't flood the corpus. */
@@ -143,6 +152,60 @@ export function describeCorpus(cases: readonly RecallEvalCase[]): CorpusComposit
   };
 }
 
+/**
+ * Pure: a discovery the operator judged NOISE becomes the first
+ * label-bearing harvested case — the judged row's own key is the
+ * forbidden key ("retrieval must not surface this for its own topic").
+ * Non-vacuous under runRecallEval: a retriever that returns the noise
+ * row now FAILS the case (forbiddenInjected > 0). Exported for tests.
+ */
+export function caseFromNoiseDiscovery(row: {
+  id: string;
+  key: string;
+  category: string;
+  content: string;
+}): RecallEvalCase {
+  return {
+    id: `real-discovery-${slug(row.key)}`,
+    // Strip the severity tag so the query reads like an operator asking
+    // about the topic, not like the card template.
+    query: row.content.replace(/^\[[A-Z]+\]\s*/, "").slice(0, 240),
+    relevantKeys: [],
+    forbiddenKeys: [row.key],
+    kind: "abstention",
+    provenance: `discovery:${row.id} · ${row.category} noise-verdict`,
+    acceptableAbstention: true,
+  };
+}
+
+/**
+ * The METADATA-PRECEDENCE noise predicate, in SQL. An explicitly present
+ * metadata.discoveryVerdict wins — including an explicit null, which is
+ * what a resurface writes — and the column is consulted only where the
+ * source is silent (the mirror-must-never-outrank-the-source rule from
+ * the 08-22 wave). `->>` yields SQL NULL for a JSON null, so the CASE
+ * arms are explicit rather than relying on that coincidence.
+ */
+const NOISE_VERDICT_SQL = `CASE WHEN metadata ? 'discoveryVerdict'
+       THEN metadata->>'discoveryVerdict' = 'noise'
+       ELSE discovery_verdict = 'noise' END`;
+
+/**
+ * How many label-bearing eval cases the operator's judgments have
+ * produced so far — the metric the corpus odometer reports beside the
+ * (untouched) 200 fine-tune gate. Counts the accumulating total, not
+ * the MAX_PER_SOURCE harvest page.
+ */
+export async function countLabeledEvalCases(): Promise<number> {
+  const cats = [...DISCOVERY_CATEGORIES];
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+    `SELECT count(*) AS n FROM brain_memories
+     WHERE category = ANY($1) AND ${NOISE_VERDICT_SQL}`,
+    cats,
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
 /** Per-source outcome, so "no cases" can never be mistaken for "no data". */
 export interface SourceReport {
   source: string;
@@ -191,7 +254,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
     }
   }
 
-  const [outcomes, warnings, toolFailures] = await Promise.all([
+  const [outcomes, warnings, toolFailures, noiseDiscoveries] = await Promise.all([
     read("intelligence_outcomes(dismissed|not-useful)", () =>
       prisma.intelligenceOutcome.findMany({
         where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
@@ -226,15 +289,37 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
         select: { traceId: true, label: true, errorClass: true },
       }),
     ),
+    // Fourth source (learning-loops wave): noise-verdict Discover rows —
+    // the first label-bearing cases. Raw SQL so the metadata-precedence
+    // rule is honored in the predicate itself; tombstones included (a
+    // tombstone does not unmake a judgement).
+    read("brain_memory(discovery noise-verdict)", () =>
+      prisma.$queryRawUnsafe<
+        Array<{ id: string; key: string; category: string; content: string }>
+      >(
+        `SELECT id::text AS id, key::text AS key, category::text AS category, content
+         FROM brain_memories
+         WHERE category = ANY($1) AND ${NOISE_VERDICT_SQL}
+         ORDER BY coalesce(discovery_rated_at, updated_at) DESC
+         LIMIT ${MAX_PER_SOURCE}`,
+        [...DISCOVERY_CATEGORIES],
+      ),
+    ),
   ]);
 
-  const sources = [outcomes.report, warnings.report, toolFailures.report];
+  const sources = [
+    outcomes.report,
+    warnings.report,
+    toolFailures.report,
+    noiseDiscoveries.report,
+  ];
 
   return {
     cases: [
       ...outcomes.rows.map(caseFromRejectedOutcome),
       ...warnings.rows.map(caseFromClaimWarning),
       ...toolFailures.rows.map(caseFromFailedToolCall),
+      ...noiseDiscoveries.rows.map(caseFromNoiseDiscovery),
     ],
     sources,
     degraded: sources.some((s) => !s.ok),
