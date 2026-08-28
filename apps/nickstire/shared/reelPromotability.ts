@@ -69,8 +69,15 @@ const ABSOLUTE_CLAIM_PATTERNS: Array<{ id: string; re: RegExp }> = [
  * OUR conservative reading of the universal deceptive-claims rule: a bare
  * "$50 or $1,500?" invites a cost expectation the shop has not qualified.
  */
-const PRICE_CLAIM_RE = /\$\s?\d[\d,]*/;
+const PRICE_CLAIM_RE = /\$\s?\d[\d,]*/g;
 const PRICE_QUALIFIER_RE = /\b(from|starting at|most|typically|varies|depends|estimate|quote|average|up to)\b/i;
+
+/**
+ * How far before a dollar amount a qualifier still counts as qualifying it.
+ * A caption-wide search let "From our shop to yours, alignment is $500" read as
+ * qualified - the word "from" was 30 characters away and about something else.
+ */
+const QUALIFIER_PROXIMITY_CHARS = 24;
 
 export interface PromotabilityFacts {
   id: string;
@@ -105,7 +112,14 @@ export function absoluteClaims(copy: string): string[] {
 /** True when copy names a price without any qualifier alongside it. */
 export function hasUnqualifiedPrice(copy: string): boolean {
   const c = copy ?? "";
-  return PRICE_CLAIM_RE.test(c) && !PRICE_QUALIFIER_RE.test(c);
+  PRICE_CLAIM_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = PRICE_CLAIM_RE.exec(c)) !== null) {
+    const windowStart = Math.max(0, m.index - QUALIFIER_PROXIMITY_CHARS);
+    const near = c.slice(windowStart, m.index + m[0].length);
+    if (!PRICE_QUALIFIER_RE.test(near)) return true; // this amount stands unqualified
+  }
+  return false;
 }
 
 /**
@@ -116,25 +130,60 @@ export function hasUnqualifiedPrice(copy: string): boolean {
  * multiplies it. A promoted pack must therefore declare where its CTA sends
  * people, and that destination must be topic-specific rather than the homepage.
  */
+/**
+ * Action-oriented copy. Exists because ctaText is OPTIONAL metadata: a caller
+ * could omit it and slip past the funnel blocker while the caption plainly asks
+ * the viewer to act. The ask is read from the COPY, not only from the metadata.
+ */
+const ASK_PATTERNS = [
+  /\b(book|schedule|call|text|stop by|come in|swing by|visit|order|shop|get a quote|make an appointment)\b/i,
+  /\b(link in bio|tap the link|dm us)\b/i,
+];
+
+export function copyContainsAsk(copy: string): boolean {
+  return ASK_PATTERNS.some((re) => re.test(copy ?? ""));
+}
+
+/** True when the URL/path points at the site root, ignoring query and hash. */
+export function isHomepageDestination(dest: string): boolean {
+  const d = (dest ?? "").trim();
+  if (!d) return false;
+  let path = d;
+  if (/^https?:\/\//i.test(d)) {
+    try {
+      path = new URL(d).pathname;
+    } catch {
+      return false;
+    }
+  } else {
+    // Bare path: strip query and hash before judging it.
+    path = d.split(/[?#]/)[0];
+  }
+  return path === "" || path === "/";
+}
+
 export function destinationBlocker(f: PromotabilityFacts): PromotabilityBlocker | null {
   const cta = (f.ctaText ?? "").trim();
   const dest = (f.landingDestination ?? "").trim();
-  if (!cta) return null; // no ask, nothing to match
+  // The ask can come from metadata OR from the copy itself - otherwise omitting
+  // the optional field is a free bypass of the funnel rule.
+  const askText = cta || (copyContainsAsk(f.copy) ? f.copy.trim() : "");
+  if (!askText) return null; // genuinely no ask, nothing to match
   if (!dest) {
     return {
       code: "DESTINATION_UNDECLARED",
       source: "first-party",
       reason:
-        `copy asks the viewer to "${cta.slice(0, 60)}" but the pack declares no landing destination. ` +
+        `copy asks the viewer to "${askText.slice(0, 60)}" but the pack declares no landing destination. ` +
         "Promoting an undeclared destination pays for traffic with nowhere specific to land.",
     };
   }
-  if (dest === "/" || /^https?:\/\/[^/]+\/?$/.test(dest)) {
+  if (isHomepageDestination(dest)) {
     return {
       code: "DESTINATION_IS_HOMEPAGE",
       source: "first-party",
       reason:
-        `CTA "${cta.slice(0, 60)}" lands on the homepage. Measured baseline: 74 profile visits and ` +
+        `CTA "${askText.slice(0, 60)}" lands on the homepage. Measured baseline: 74 profile visits and ` +
         "ONE website tap from 13,871 views (0.53% profile-visit rate). Paying to send more people " +
         "into that is buying the same non-conversion he currently gets for free. Point it at the " +
         "specific service page.",
@@ -190,7 +239,11 @@ export function promotabilityBlockers(f: PromotabilityFacts): PromotabilityBlock
     });
   }
 
-  if (isGenerativeProvider(f.videoProvider) && f.safeAreaRespected === false) {
+  // Same predicate the disclosure gate uses - an earlier version checked only
+  // the provider string, so a pack with hasGeneratedVideo:true and no provider
+  // name skipped this rule entirely.
+  const generated = f.hasGeneratedVideo === true || isGenerativeProvider(f.videoProvider);
+  if (generated && f.safeAreaRespected === false) {
     out.push({
       code: "SAFE_AREA_VIOLATED",
       source: "first-party",

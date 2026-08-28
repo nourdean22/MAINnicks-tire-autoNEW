@@ -20,6 +20,8 @@ import {
   absoluteClaims,
   hasUnqualifiedPrice,
   destinationBlocker,
+  isHomepageDestination,
+  copyContainsAsk,
   SAFE_AREA_MARGIN_PCT,
   type PromotabilityFacts,
 } from "@shared/reelPromotability";
@@ -148,7 +150,13 @@ describe("destination matching - paying into a broken funnel", () => {
 
   // No ask, nothing to match - an awareness pack is not punished for it.
   it("does not require a destination when the copy makes no ask", () => {
-    expect(destinationBlocker(clean({ ctaText: null, landingDestination: null }))).toBeNull();
+    // The default fixture copy contains "Book", which the copy-ask inference
+    // now correctly catches - so this case needs genuinely ask-free copy.
+    expect(
+      destinationBlocker(
+        clean({ ctaText: null, landingDestination: null, copy: "Pothole season is hard on alignment." }),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -189,5 +197,59 @@ describe("every blocker names its source so nobody miscites Meta", () => {
     const b = promotabilityBlockers(pack);
     expect(b.length).toBeGreaterThan(2);
     for (const x of b) expect(["meta", "first-party"]).toContain(x.source);
+  });
+});
+
+/* -- bypasses found in review of #1988, each now locked ------------------- */
+/**
+ * Five real bypasses were found by review AFTER this gate had already been
+ * mutation-proven. That is the guard-red-team lesson in one line: canaries the
+ * author wrote test the author's imagination, not the adversary's. Each verified
+ * bypass becomes a permanent test; the probe set only grows.
+ */
+describe("review-found bypasses (#1988)", () => {
+  it("BYPASS 1 - qualifier far from the amount no longer qualifies it", () => {
+    // "from" is 30 chars away and about something else entirely.
+    expect(hasUnqualifiedPrice("From our shop to yours, alignment is $500")).toBe(true);
+    // POSITIVE CONTROL: a qualifier actually attached to the amount still works.
+    expect(hasUnqualifiedPrice("Alignment from $500")).toBe(false);
+    expect(hasUnqualifiedPrice("Tires from $25 installed.")).toBe(false);
+  });
+
+  it("BYPASS 1b - one qualified price does not excuse a second bare one", () => {
+    expect(hasUnqualifiedPrice("Tires from $25 installed. Brake job $450.")).toBe(true);
+  });
+
+  it("BYPASS 2 - hasGeneratedVideo without a provider name still hits the safe-area rule", () => {
+    const pack = clean({
+      videoProvider: null,
+      hasGeneratedVideo: true,
+      apiDisclosureFlag: true,
+      safeAreaRespected: false,
+    });
+    expect(promotabilityBlockers(pack).map((x) => x.code)).toContain("SAFE_AREA_VIOLATED");
+  });
+
+  it("BYPASS 3 - an ask in the COPY counts even when ctaText metadata is omitted", () => {
+    const b = destinationBlocker(clean({ ctaText: null, landingDestination: null, copy: "Book a brake inspection today." }));
+    expect(b?.code).toBe("DESTINATION_UNDECLARED");
+    // POSITIVE CONTROL: copy with no ask still requires nothing.
+    expect(destinationBlocker(clean({ ctaText: null, landingDestination: null, copy: "Pothole season is hard on alignment." }))).toBeNull();
+  });
+
+  it("BYPASS 4 - tracked and anchored homepage links are still the homepage", () => {
+    for (const d of [
+      "https://nickstire.org/?utm_source=instagram",
+      "https://nickstire.org/#book",
+      "/?utm_source=ig",
+      "https://nickstire.org",
+      "/",
+    ]) {
+      expect(isHomepageDestination(d), d).toBe(true);
+    }
+    // POSITIVE CONTROL: a real service page with tracking is NOT the homepage.
+    for (const d of ["/brakes", "https://nickstire.org/brakes?utm_source=ig", "/alignment#book"]) {
+      expect(isHomepageDestination(d), d).toBe(false);
+    }
   });
 });

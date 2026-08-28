@@ -1,11 +1,16 @@
 {
   "generated": "2026-08-28",
-  "note": "Concepts as rows. No weighted rubric - ranked by cost ascending until actuals exist. Every non-publishable row carries blockReason; UNKNOWN is not a permitted state.",
+  "note": "Concepts as rows. No weighted rubric - ranked by cost ascending until actuals exist. Every non-publishable row carries blockReason; UNKNOWN is not a permitted state. promotable=null means UNASSESSED (no copy to read), not ineligible.",
   "totals": {
     "all": 136,
     "publishable": 3,
     "needs-work": 93,
     "dead": 40
+  },
+  "promotability": {
+    "promotable": 1,
+    "notPromotable": 134,
+    "unassessed": 1
   },
   "unexplained": [],
   "concepts": [
@@ -16,7 +21,9 @@
       "cost": 0,
       "status": "publishable",
       "blockReason": null,
-      "actuals": null
+      "actuals": null,
+      "promotable": true,
+      "promotionBlockers": []
     },
     {
       "id": "2026-08-17-why-car-pulls",
@@ -25,7 +32,11 @@
       "cost": 0,
       "status": "publishable",
       "blockReason": null,
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"The wheel is straight. The car isn't. A pull like this has m\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-tire-sidewall-numbers",
@@ -34,7 +45,11 @@
       "cost": 0,
       "status": "publishable",
       "blockReason": null,
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"The numbers on your tire aren't random. First group: width, \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-14-penny-test",
@@ -43,7 +58,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-14-penny-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-14-tire-expiration",
@@ -52,7 +71,9 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "no captions.srt - the reel cannot be assembled without them",
-      "actuals": null
+      "actuals": null,
+      "promotable": null,
+      "promotionBlockers": null
     },
     {
       "id": "2026-08-15-tread-fingerprint",
@@ -61,7 +82,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-15-tread-fingerprint\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-16-battery-summer-heat",
@@ -70,7 +95,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-16-battery-summer-heat\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-16-check-engine-light",
@@ -79,7 +108,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-16-check-engine-light\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Solid and flashing mean completely different things. Solid m\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-16-squealing-vs-grinding-brakes",
@@ -88,7 +122,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-16-squealing-vs-grinding-brakes\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Grinding when you brake is not \"almost time.\" It is past tim\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-16-wheel-bearing-hum",
@@ -97,7 +136,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-16-wheel-bearing-hum\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"A humming that changes when you steer? Not your tires. Wheel\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-balance-vs-alignment",
@@ -106,7 +150,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-balance-vs-alignment\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Shaking at highway speed? You might be fixing the wrong thin\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-coolant-color",
@@ -115,7 +164,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-coolant-color\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That puddle under your car? The color tells you everything. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-exhaust-smoke-color",
@@ -124,7 +178,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-exhaust-smoke-color\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Exhaust smoke color is a clue. Blue-gray smoke usually point\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-oil-change-intervals",
@@ -133,7 +192,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-oil-change-intervals\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"The 3,000-mile oil sticker is a sales tool. Your owner's man\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-plug-vs-patch",
@@ -142,7 +206,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-plug-vs-patch\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-17-pothole-damage",
@@ -151,7 +219,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-pothole-damage\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"The pothole that did not flatten your tire may still have co\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-repair-questions",
@@ -160,7 +233,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-repair-questions\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"You're allowed to ask these first Before you say yes - any s\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-road-salt-brake-lines",
@@ -169,7 +247,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-road-salt-brake-lines\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"THIS IS WHAT ROAD SALT IS DOING TO YOUR BRAKE LINES RIGHT NO\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-roadtrip-tire-check",
@@ -178,7 +261,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-roadtrip-tire-check\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Most road-trip breakdowns start as a ten-minute check somebo\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-serpentine-belt-squeal",
@@ -187,7 +275,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-serpentine-belt-squeal\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That high-pitched squeal when you start your car? That is no\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-sidewall-bulge",
@@ -196,7 +289,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-sidewall-bulge\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That bump on your tire's sidewall isn't a warranty problem. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-spare-tire-mileage",
@@ -205,7 +303,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-spare-tire-mileage\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"A compact spare is not a tire. It's a ride to the shop. Most\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-stop-driving-noises",
@@ -214,7 +317,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-stop-driving-noises\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Most car noises can wait. These three cannot. Grinding when \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-strut-bounce-test",
@@ -223,7 +331,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-strut-bounce-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"\"Time for struts.\" You hear it a lot. It's explained almost \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-summer-heat-tire-pressure",
@@ -232,7 +345,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-summer-heat-tire-pressure\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That tire light in August might be heat, not a warning. Air \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-tire-rotation",
@@ -241,7 +359,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-tire-rotation\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Rotation is the cheapest way to make tires last longer. Fron\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-transmission-fluid-color-test",
@@ -250,7 +373,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-transmission-fluid-color-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Pull your transmission dipstick. This ten-second look is wor\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-17-tread-depth-rain-vs-snow",
@@ -259,7 +387,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-tread-depth-rain-vs-snow\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-17-wiper-blade-check",
@@ -268,7 +400,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-17-wiper-blade-check\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"If your wipers are smearing instead of clearing, that's not \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-18-ac-not-blowing-cold",
@@ -277,7 +414,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-ac-not-blowing-cold\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your AC blowing warm in August isn't \"give it a minute.\" Wea\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-18-allseason-vs-winter-tires",
@@ -286,7 +428,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-allseason-vs-winter-tires\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-18-brake-fluid-moisture-test",
@@ -295,7 +441,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-brake-fluid-moisture-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-18-cold-weather-tire-light",
@@ -304,7 +454,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-cold-weather-tire-light\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-18-cv-joint-click",
@@ -313,7 +467,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-cv-joint-click\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That clicking sound when you turn the wheel? That's not noth\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-18-power-steering-whine",
@@ -322,7 +481,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-power-steering-whine\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-18-tpms-sensor-battery",
@@ -331,7 +494,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-tpms-sensor-battery\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-18-uneven-tire-wear-patterns",
@@ -340,7 +507,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-18-uneven-tire-wear-patterns\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your tire wear has a shape — and that shape can point to wha\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-burning-smell-diagnosis",
@@ -349,7 +521,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-burning-smell-diagnosis\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That smell while driving? It's telling you something specifi\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-clunk-over-bumps-sway-bar-ball-joint",
@@ -358,7 +535,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-clunk-over-bumps-sway-bar-ball-joint\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Clunk every time you hit a bump? The way it happens is one c\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-engine-overheating-first-60-seconds",
@@ -367,7 +549,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-engine-overheating-first-60-seconds\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Temp gauge climbing? Steam under the hood? Do not keep drivi\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-heat-shield-rattle",
@@ -376,7 +563,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-heat-shield-rattle\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That metal rattle when you hit the gas? Gets louder as you s\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-spongy-brake-pedal",
@@ -385,7 +577,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-spongy-brake-pedal\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Brake pedal feels different? That's not nothing. Pedal sinks\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-timing-belt-no-warning-light",
@@ -394,7 +591,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-timing-belt-no-warning-light\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your timing belt can fail with zero warning light. No check-\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-warped-rotor-brake-shake",
@@ -403,7 +605,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-warped-rotor-brake-shake\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"STEERING WHEEL SHAKING WHEN YOU BRAKE? A PULSE IN THE PEDAL \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-windshield-chip-spreads",
@@ -412,7 +619,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-windshield-chip-spreads\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That small chip in your windshield? It's a clue that starts \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-19-wont-start-battery-starter-alternator",
@@ -421,7 +633,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-19-wont-start-battery-starter-alternator\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Car won't start? The way it fails is one clue. Lights dim, n\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-awd-one-new-tire",
@@ -430,7 +647,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-awd-one-new-tire\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-20-battery-terminal-corrosion",
@@ -439,7 +660,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-battery-terminal-corrosion\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Green or white powder on your battery? Light dusting, termin\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-caliper-sticking-hot-wheel",
@@ -448,7 +674,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-caliper-sticking-hot-wheel\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"One wheel hotter than the others after a short drive? That's\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-cloudy-headlights",
@@ -457,7 +688,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-cloudy-headlights\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-20-dashboard-light-colors",
@@ -466,7 +701,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-dashboard-light-colors\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Same light, different color? That's one clue to what you do \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-echeck-readiness-monitors",
@@ -475,7 +715,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-echeck-readiness-monitors\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"NO LIGHT. NO WORRIES... RIGHT? OHIO E-CHECK CHECKS SOMETHING\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-fuel-smell-in-cabin",
@@ -484,7 +729,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-fuel-smell-in-cabin\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Smell gas inside your car? The way it shows up is one clue. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-heater-not-blowing-hot",
@@ -493,7 +743,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-heater-not-blowing-hot\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Heat blowing cold? The clue is in when it happens. Cold at i\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-idle-shake-spark-plug-motor-mount",
@@ -502,7 +757,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-idle-shake-spark-plug-motor-mount\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Car shakes at a stoplight? The pattern is the clue. Only sha\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-lug-nut-retorque",
@@ -511,7 +771,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-lug-nut-retorque\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Got new tires this week? There's one step most people skip. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-musty-ac-smell-evaporator-vs-filter",
@@ -520,7 +785,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-musty-ac-smell-evaporator-vs-filter\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"THAT AC SMELL ISN'T \"JUST OLD CAR\" HITS HARDEST AT STARTUP →\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-oil-dipstick-color-check",
@@ -529,7 +799,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-oil-dipstick-color-check\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-20-radiator-fan-idle-overheat",
@@ -538,7 +812,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-radiator-fan-idle-overheat\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Car runs hot at red lights but fine on the highway? Here's w\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-slow-leak-soap-test",
@@ -547,7 +826,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-slow-leak-soap-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Topping off the same tire every week? That's a leak. Losing \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-tailpipe-condensation-vs-coolant-leak",
@@ -556,7 +840,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-tailpipe-condensation-vs-coolant-leak\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That drip under your tailpipe— normal, or worth worrying abo\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-20-tie-rod-steering-wobble-test",
@@ -565,7 +854,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-20-tie-rod-steering-wobble-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"This 10-second test tells you what's loose. Grab the tire at\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-abs-light-wheel-speed-sensor",
@@ -574,7 +868,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-abs-light-wheel-speed-sensor\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"ABS LIGHT JUST CAME ON? BRAKES STILL FEEL NORMAL? THAT'S COM\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-ac-recharge-myth-sealed-system",
@@ -583,7 +882,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-ac-recharge-myth-sealed-system\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"AC blowing warm— can you just add refrigerant and call it fi\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-battery-parasitic-drain",
@@ -592,7 +896,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-battery-parasitic-drain\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"BATTERY STARTS FINE EVERY DAY? DEAD AGAIN THIS MORNING? NOT \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-blower-motor-resistor",
@@ -601,7 +910,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-blower-motor-resistor\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-21-brake-pedal-sinks-overnight",
@@ -610,7 +923,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-brake-pedal-sinks-overnight\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Before you start your car tomorrow morning— try this 30-seco\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-catalytic-converter-theft-prevention",
@@ -619,7 +937,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-catalytic-converter-theft-prevention\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That sudden loud roar when you start your car? It might not \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-differential-whine-on-turns",
@@ -628,7 +951,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-differential-whine-on-turns\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That whine that gets louder in turns? It's not your tires. A\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-gas-cap-check-engine-light",
@@ -637,7 +965,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-gas-cap-check-engine-light\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Check engine light on? It might just be your gas cap. A gas \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-key-fob-dead-battery-no-start",
@@ -646,7 +979,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-key-fob-dead-battery-no-start\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"DASH LIGHTS COME ON FINE. PUSH START - NOTHING HAPPENS? NOT \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-pcv-valve-oil-consumption",
@@ -655,7 +993,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-pcv-valve-oil-consumption\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"TOPPING OFF OIL? BUT NEVER A PUDDLE UNDER THE CAR? NOT ALWAY\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-power-window-stuck-halfway",
@@ -664,7 +1007,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-power-window-stuck-halfway\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"WINDOW STOPPED HALFWAY? WON'T MOVE AT ALL? PRESS THE BUTTON \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-radiator-cap-pressure-test",
@@ -673,7 +1021,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-radiator-cap-pressure-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-21-spark-plug-wire-arcing",
@@ -682,7 +1034,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-spark-plug-wire-arcing\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"YOUR ENGINE BAY IS SPARKING BLUE AND YOU DIDN'T EVEN KNOW IT\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-timing-chain-rattle-cold-start",
@@ -691,7 +1048,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-timing-chain-rattle-cold-start\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That rattle for the first few seconds after you start your c\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-21-valve-stem-dry-rot",
@@ -700,7 +1062,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-21-valve-stem-dry-rot\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"TIRE KEEPS GOING FLAT? NO NAIL ANYWHERE IN IT? CHECK THE VAL\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-22-clutch-slipping-rpm-flare",
@@ -709,7 +1076,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-22-clutch-slipping-rpm-flare\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"YOU PRESS THE GAS, ENGINE REVS UP... BUT THE CAR BARELY SPEE\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-22-hard-brake-pedal-vacuum-booster",
@@ -718,7 +1090,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-22-hard-brake-pedal-vacuum-booster\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-22-motor-mount-clunk-acceleration",
@@ -727,7 +1103,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-22-motor-mount-clunk-acceleration\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"CLUNK WHEN YOU HIT THE GAS? OR SHIFT INTO DRIVE? NOT THE SAM\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-22-oil-pressure-light-flicker-idle",
@@ -736,7 +1117,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-22-oil-pressure-light-flicker-idle\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"YOUR OIL LIGHT JUST FLICKERED THEN WENT OFF? A FLICKER MATTE\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-22-rotten-egg-exhaust-smell",
@@ -745,7 +1131,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-22-rotten-egg-exhaust-smell\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-door-lock-actuator-stripped-gear",
@@ -754,7 +1144,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-door-lock-actuator-stripped-gear\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"PRESS THE LOCK BUTTON YOU HEAR CLICKING - BUT IT WON'T LOCK \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-23-egr-valve-clogged-rough-idle",
@@ -763,7 +1158,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-egr-valve-clogged-rough-idle\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your check engine light is on. Idle feels rough. Engine hesi\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-23-exhaust-suddenly-loud-rusted-muffler",
@@ -772,7 +1172,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-exhaust-suddenly-loud-rusted-muffler\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-fuel-gauge-sending-unit",
@@ -781,7 +1185,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-fuel-gauge-sending-unit\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-fuel-pump-whine",
@@ -790,7 +1198,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-fuel-pump-whine\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"THAT WHINE UNDER THE CAR? NOT JUST NOISE. A FUEL PUMP HUMS S\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-23-rough-shifting-check-fluid-first",
@@ -799,7 +1212,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-rough-shifting-check-fluid-first\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-sunroof-drain-clog-water-leak",
@@ -808,7 +1225,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-sunroof-drain-clog-water-leak\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Water dripping from your headliner after it rains? Might not\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-23-sweet-smell-heater-core-coolant-leak",
@@ -817,7 +1239,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-sweet-smell-heater-core-coolant-leak\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-trunk-hatch-gas-strut-sag",
@@ -826,7 +1252,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-trunk-hatch-gas-strut-sag\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-23-washer-fluid-wont-spray",
@@ -835,7 +1265,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-23-washer-fluid-wont-spray\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"WASHER FLUID WON'T SPRAY? RESERVOIR ISN'T EMPTY? IT'S USUALL\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-24-head-gasket-white-smoke-milky-oil",
@@ -844,7 +1279,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-24-head-gasket-white-smoke-milky-oil\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"White smoke from your tailpipe that doesn't stop after a min\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-24-horn-wont-work",
@@ -853,7 +1293,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-24-horn-wont-work\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-24-turbo-whistle-vs-boost-leak",
@@ -862,7 +1306,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-24-turbo-whistle-vs-boost-leak\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"THAT WHISTLE WHEN YOU ACCELERATE? NOT EVERY TURBO SOUND IS F\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-24-water-pump-weep-hole-leak",
@@ -871,7 +1320,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-24-water-pump-weep-hole-leak\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"A few drops of colored fluid under the front of your engine \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-4wd-transfer-case-bind-tight-turns",
@@ -880,7 +1334,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-4wd-transfer-case-bind-tight-turns\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your 4WD or AWD binding up in tight turns? Not your tires. A\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-ac-blend-door-actuator-hot-cold-split",
@@ -889,7 +1348,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-ac-blend-door-actuator-hot-cold-split\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-25-ac-compressor-clutch-not-engaging",
@@ -898,7 +1361,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-ac-compressor-clutch-not-engaging\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your AC blows warm. You assume it's just low on Freon. But i\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-alternator-bearing-whine-vs-belt-squeal",
@@ -907,7 +1375,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-alternator-bearing-whine-vs-belt-squeal\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Whining noise from under the hood when you rev the engine? S\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-brake-light-switch-cruise-shifter",
@@ -916,7 +1389,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-brake-light-switch-cruise-shifter\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your cruise control stopped working — and it might not be th\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-collapsing-radiator-hose",
@@ -925,7 +1403,11 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-collapsing-radiator-hose\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-25-exhaust-manifold-cold-start-tick",
@@ -934,7 +1416,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-exhaust-manifold-cold-start-tick\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That ticking sound when you start your car cold? Loudest rig\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-misfire-shudder-coil-vs-plug",
@@ -943,7 +1430,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-misfire-shudder-coil-vs-plug\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Car shakes when you hit the gas? That jolt is called a misfi\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-o2-sensor-rough-idle-poor-mpg",
@@ -952,7 +1444,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-o2-sensor-rough-idle-poor-mpg\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your gas mileage is dropping and you don't know why. Idle fe\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-rear-defroster-grid-line-test",
@@ -961,7 +1458,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-rear-defroster-grid-line-test\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your rear defroster comes on... but the glass never fully cl\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-torque-converter-shudder-40-45mph",
@@ -970,7 +1472,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-torque-converter-shudder-40-45mph\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"FEEL A SHUDDER AROUND 40-45 MPH? THAT'S NOT YOUR TIRES. AT T\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-25-transmission-delayed-engagement",
@@ -979,7 +1486,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-25-transmission-delayed-engagement\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"You shift into Drive — and there's a delay. Then a clunk. It\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-check-engine-flashing-vs-steady",
@@ -988,7 +1500,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-check-engine-flashing-vs-steady\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Is your check engine light flashing... or just staying on? T\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-engine-air-filter-clogged",
@@ -997,7 +1514,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-engine-air-filter-clogged\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your car feels sluggish, and you're filling up more than you\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-evap-purge-valve-stuck",
@@ -1006,7 +1528,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-evap-purge-valve-stuck\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Check engine light comes and goes, and you catch a faint fue\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-exhaust-hanger-rattle-over-bumps",
@@ -1015,7 +1542,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-exhaust-hanger-rattle-over-bumps\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Rattling under your car every time you hit a bump? That's no\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-hesitation-acceleration-maf-sensor",
@@ -1024,7 +1556,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-hesitation-acceleration-maf-sensor\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Car hesitates when you step on the gas? A little stumble on \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-26-thermostat-stuck-open-vs-closed",
@@ -1033,7 +1570,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-26-thermostat-stuck-open-vs-closed\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Two totally different problems — same tiny part. Temp gauge \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-alternator-overcharging-battery-swell",
@@ -1042,7 +1584,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-alternator-overcharging-battery-swell\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your headlights look brighter than usual at night. That's no\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-battery-cold-weather-cranking-amps",
@@ -1051,7 +1598,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-battery-cold-weather-cranking-amps\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your battery was fine all summer. First cold morning, it's d\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-blown-fuse-repeat-short-circuit",
@@ -1060,7 +1612,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-blown-fuse-repeat-short-circuit\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"You replace the fuse. It blows again in minutes. Same access\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-brake-dust-normal-vs-check-pads",
@@ -1069,7 +1626,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-brake-dust-normal-vs-check-pads\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"DUSTY WHEELS EVERY WEEK? NOT ALWAYS BAD NEWS EVEN GRAY DUST,\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-engine-knock-ping-carbon-vs-knock-sensor",
@@ -1078,7 +1640,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-engine-knock-ping-carbon-vs-knock-sensor\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That pinging sound when you accelerate isn't nothing. A knoc\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-foggy-windshield-recirculate-trick",
@@ -1087,7 +1654,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-foggy-windshield-recirculate-trick\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"If your windshield's fogging up, don't hit this button. Reci\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-fuel-injector-tick-at-idle",
@@ -1096,7 +1668,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-fuel-injector-tick-at-idle\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That ticking under the hood at idle - is it normal, or a pro\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-idle-air-control-valve-rough-idle-stall",
@@ -1105,7 +1682,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-idle-air-control-valve-rough-idle-stall\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your car dies at stoplights — and it's not the battery. Idle\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-morning-rotor-rust-squeal",
@@ -1114,7 +1696,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-morning-rotor-rust-squeal\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"GRINDING BRAKES -- but only the FIRST stop of the day? If yo\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-starter-grinding-noise-on-start",
@@ -1123,7 +1710,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-starter-grinding-noise-on-start\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That grinding sound when you turn the key isn't your imagina\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-steering-vibration-highway-speed",
@@ -1132,7 +1724,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-steering-vibration-highway-speed\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"If your steering wheel only shakes at highway speed, that's \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-27-synthetic-vs-conventional-oil",
@@ -1141,7 +1738,11 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-synthetic-vs-conventional-oil\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-27-u-joint-clunk-drive-reverse-shift",
@@ -1150,7 +1751,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-27-u-joint-clunk-drive-reverse-shift\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That clunk when you shift into reverse isn't nothing. A knoc\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-brake-squeal-reverse-only-wear-indicator",
@@ -1159,7 +1765,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-brake-squeal-reverse-only-wear-indicator\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That squeal only when you're backing out isn't your imaginat\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-exhaust-pop-backfire-deceleration",
@@ -1168,7 +1779,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-exhaust-pop-backfire-deceleration\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That pop from your exhaust when you let off the gas isn't ju\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-new-brake-squeak-bed-in",
@@ -1177,7 +1793,12 @@
       "cost": 2,
       "status": "needs-work",
       "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-new-brake-squeak-bed-in\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"New brakes squeaking? That's not always bad news. Fresh pads\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-parking-brake-cable-seized-dragging",
@@ -1186,7 +1807,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-parking-brake-cable-seized-dragging\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Parking brake wouldn't release after a cold night? One rear \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-power-mirror-wont-move",
@@ -1195,7 +1821,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-power-mirror-wont-move\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your side mirror stopped moving — and the buttons don't do a\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-power-steering-fluid-leak-color",
@@ -1204,7 +1835,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-power-steering-fluid-leak-color\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"That puddle under your car? The color tells you everything. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-steering-wheel-crooked-after-tires",
@@ -1213,7 +1849,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-steering-wheel-crooked-after-tires\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"New tires but your steering wheel sits crooked? That's not a\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-turn-signal-hyperflash-bulb-out",
@@ -1222,7 +1863,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-turn-signal-hyperflash-bulb-out\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your blinker flashing fast? That's your car talking to you. \" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     },
     {
       "id": "2026-08-28-washer-fluid-freezing-wrong-fluid",
@@ -1231,7 +1877,12 @@
       "cost": 2,
       "status": "dead",
       "blockReason": "BLOCKED: NO MOTION ROUTE",
-      "actuals": null
+      "actuals": null,
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-28-washer-fluid-freezing-wrong-fluid\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container.",
+        "DESTINATION_UNDECLARED(first-party): copy asks the viewer to \"Your washer fluid just froze solid — and it cracked the rese\" but the pack declares no landing destination. Promoting an undeclared destination pays for traffic with nowhere specific to land."
+      ]
     }
   ]
 }
