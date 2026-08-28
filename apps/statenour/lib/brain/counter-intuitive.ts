@@ -463,29 +463,3 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
 
   return findings;
 }
-
-/**
- * Get counter-intuitive context for system prompt.
- */
-export async function getCounterIntuitiveContext(): Promise<string> {
-  try {
-    // Pull from stored memories (computed during cron, not live).
-    // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
-    const memories = await prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { content: true },
-    });
-
-    if (memories.length === 0) return "";
-
-    return [
-      `── COUNTER-INTUITIVE: DATA THAT CHALLENGES ASSUMPTIONS ──`,
-      ...memories.map((m) => m.content.slice(0, 200)),
-      `Use these to challenge Nour's assumptions when relevant. Show him the data.`,
-    ].join("\n");
-  } catch {
-    return "";
-  }
-}
