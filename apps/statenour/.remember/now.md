@@ -1,35 +1,33 @@
 # Session ledger — statenour
 
-**Updated:** 2026-08-27 (Now-card scorer + run-to-empty session)
+**Updated:** 2026-08-28 (escalation + follow-ups wave)
 
-**Objective:** real ranking for the homepage Now card — measure first, transparent additive
-scorer, no bandit (operator constraint, label budget single digits).
+**Objective:** chat-stack completion — WP1 (routing) and WP3 (job substrate), per the
+2026-08-28 build order.
 
-**Shipped this session (verified by content on origin/main + `/api/version`):**
-#1936 ledger reconcile (#1926 entry + actualMinutes CORRECTION) · #1946 Now-card scorer —
-`NOW_WEIGHTS` block (roi demoted 0.35→0.15; due/staleness/dollar/class terms), habit guards on
-every focus arm, surfaces compute scores FRESH per request (P1 review fix: stored autoPriority
-is never consulted by buildNextMove), one-line explanations, canary with positive control.
-Deployed `691e01a9a`. Operator-authorized seeder: 102/102 AutomationPolicy rows upserted,
-`check:policy-coverage` green repo-wide (was red since #1901); backup
-`_bak_automation_policies_seed_20260827` (165 rows) kept until confirmed good.
+**Shipped:** #1977 (Phase 0 + WP2 durable resume) · #1983 (escalate-on-ask + agent
+follow-ups + rule-7 verification pass).
 
-**Before/after (the product):** old chain top-4 = four DAILY habits at hand-constant roi 70,
-focus pick "Drink water — 6+ bottles"; deployed scorer = every business task above every habit,
-focus "drop off signs — picked because: untouched 42d · roi 55", stable under both
-mission-term bounds. 0 habits above the first business task (was 3).
+**Last decision (operator, reversed twice — final answer stands):**
+"all frontier" -> "no dont switch from ollama" -> "keep ollama but escalate".
+Ollama Cloud is the base chat lane. A turn reaches a metered Anthropic model ONLY on an
+explicit depth marker (/deep, /thorough, /mega, "comprehensive", "deep dive",
+"spare no expense"). The complexity-classifier alternative was BUILT, MEASURED AND
+REJECTED — do not retry it (p50 operator message is 64 chars; classifyCore returns
+"quick" for most real asks).
 
-**Last decision:** no acceptance-history term in the scorer — measured labels are 9–19 rows
-per source; per the operator's anti-bandit steer that budget fits representative selection,
-not learned weights. Weakest/quick lanes deliberately still admit habits.
+**Blocker:** none code-side. Operator-side switches, all off by design:
+  · ANTHROPIC_API_KEY — until set, escalation is inert AND says so (X-Escalation-Blocked)
+  · NICK_AGENT_FOLLOWUPS=1 + the per-cron kill switch + wiring agent-followups into
+    lib/inngest/jobs.ts — all three required before a single unprompted message can fire
+  · optional: NICK_ESCALATION_DAILY_CAP (default 20), NICK_FOLLOWUP_* caps
 
-**Blocker:** none code-side.
+**Next action:** mission promotion + Inngest Realtime progress streaming is the one WP3
+piece NOT built. Substrate verified (inngest@4.4.0 exports ./realtime in-SDK) — and use
+`throttle`, NOT `rateLimit`: rateLimit silently SKIPS excess runs, which for a
+user-initiated mission means the turn vanishes.
 
-**Next action:** NONE code-side — the revenue-urgency fork is CLOSED. Measured 2026-08-28:
-`invoices.paymentStatus` is structurally unreliable (defaults 'paid'; the ShopDriver sync
-CAN write pending — shopdriver.ts:638/661/672/908 — but 0 of ~2,900 shopdriver rows are
-non-paid: the feed marks everything paid; the "overdue" pool = 2 self-billed on 216-848-8888
-+ 3 test rows + 3 unverifiable, all hand-entered). Operator picked lane (b): hand-curated collect tasks via Nick chat — shipped
-#1967, the follow-up writer's roiScore 70 → 50 so collect tasks rank on terms ($-note +
-dueDate + staleness). Do NOT build a paymentStatus importer; do NOT seed the 3 unverifiable
-candidates. The operator curates: one chat line per invoice he trusts from his register.
+**Open operator decision:** the AI SDK's DOCUMENTED resume pattern is resumable-stream +
+Redis; ours is a Postgres poll. REDIS_URL IS set on Railway, so adopting the documented
+pattern is available and would delete our tail loop — needs an UPSTREAMS row and a go.
+See docs/audits/CHAT-COMPLETION-PHASE0-2026-08-28.md §5.
