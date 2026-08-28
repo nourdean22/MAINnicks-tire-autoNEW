@@ -12,6 +12,7 @@
  * - "You spent 4 hours on system work yesterday. The 3 leads that went cold cost more than the system saved."
  */
 
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, weekdayET } from "@/lib/utils/datetime";
@@ -453,13 +454,83 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
 
   // Store findings as brain memories (increased to 5)
   for (const finding of findings.slice(0, 5)) {
-    await brainMemory.remember(
-      "counter_intuitive",
-      `ci_${finding.category}_${Date.now()}`,
-      `COUNTER-INTUITIVE [${finding.category}]: Assumption: "${finding.assumption}" → Reality: "${finding.reality}" (${finding.dataPoints} data points). Impact: ${finding.impact}`,
-      "counter-intuitive-engine"
-    ).catch(() => {});
+    await persistCounterIntuitive(finding).catch(() => {});
   }
 
   return findings;
+}
+
+/**
+ * 2026-08-28 · learning-loops wave (docs/LEARNING-LOOPS-2026-08-28.md gap 1).
+ *
+ * The key here was `ci_${category}_${Date.now()}` — the exact clock-key defect
+ * the 2026-08-22 wave fixed for blind_spot: every cron run minted a NEW
+ * unjudged row, so an operator verdict on a counter-intuitive card was erased
+ * by the next regeneration. Now: identity = category + the ASSUMPTION text
+ * (the template-fixed half; `reality` carries the moving percentages),
+ * leading-digit run collapsed, sha16'd per the blindSpotKey house convention.
+ *
+ * Prod receipt for what is deliberately ABSENT: zero verdicts have ever landed
+ * on a counter_intuitive row (measured 2026-08-28), so the legacy-verdict
+ * inheritance bridge blind-spot-identity.ts needed is YAGNI here — there is
+ * nothing to inherit. The TTL-trap reconcile below is NOT optional though:
+ * this writes through the same remember() chain whose create-arm probation,
+ * seenCount-frozen reinforce, and tombstone-burning findUnique the 08-22
+ * postmortem documented (a stable key alone is WORSE than the clock key).
+ */
+export function counterIntuitiveIdentity(f: { category: string; assumption: string }): string {
+  const normalized = f.assumption
+    .toLowerCase()
+    .replace(/^\d+/, "#")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${f.category}|${normalized}`;
+}
+
+export function counterIntuitiveKey(f: { category: string; assumption: string }): string {
+  const digest = createHash("sha256").update(counterIntuitiveIdentity(f)).digest("hex").slice(0, 16);
+  return `ci_${f.category}_${digest}`;
+}
+
+export interface CiPersistResult {
+  key: string;
+  action: "created" | "reinforced";
+  /** True when this write revived a TTL-tombstoned row. */
+  revived: boolean;
+}
+
+export async function persistCounterIntuitive(finding: CounterIntuitive): Promise<CiPersistResult> {
+  const key = counterIntuitiveKey(finding);
+  const content = `COUNTER-INTUITIVE [${finding.category}]: Assumption: "${finding.assumption}" → Reality: "${finding.reality}" (${finding.dataPoints} data points). Impact: ${finding.impact}`;
+
+  // deletedAt deliberately NOT filtered — a tombstoned row must be found so it
+  // can be revived; filtering it burns the identity (08-22 postmortem step 4).
+  const existing = await prisma.brainMemory.findUnique({
+    where: { category_key: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, key } },
+    select: { id: true, deletedAt: true },
+  });
+  const wasTombstoned = existing?.deletedAt != null;
+
+  await brainMemory.remember(
+    BRAIN_CATEGORIES.COUNTER_INTUITIVE,
+    key,
+    content,
+    "counter-intuitive-engine",
+  );
+
+  if (existing) {
+    // Second-or-later sighting: this is what "temporary until reinforced" was
+    // always meant to mean. remember()'s gateway returns noop/update here and
+    // neither clears the create-arm probation TTL, revives a tombstone, nor
+    // refreshes lastSeen on noop — reconcile explicitly, exactly as
+    // persistBlindSpot does.
+    await prisma.brainMemory
+      .update({
+        where: { id: existing.id },
+        data: { deletedAt: null, expiresAt: null, lastSeen: new Date() },
+      })
+      .catch(() => undefined);
+    return { key, action: "reinforced", revived: wasTombstoned };
+  }
+  return { key, action: "created", revived: false };
 }

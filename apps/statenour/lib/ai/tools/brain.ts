@@ -1062,12 +1062,19 @@ export const brainTools = {
     }),
     execute: async ({ limit, severity }) => {
       try {
-        const all = await detectBlindSpots();
+        const detected = await detectBlindSpots();
+        // Learning-loops wave 2026-08-28: drop spots the operator already
+        // judged known/noise — his verdict must alter what Nick says, and this
+        // tool previously consulted no verdict at all. Count surfaced so the
+        // suppression is visible, never silent.
+        const { filterJudgedBlindSpots } = await import("@/lib/brain/blind-spot-identity");
+        const { kept: all, suppressedJudged } = await filterJudgedBlindSpots(detected);
         const filtered = severity === "all" ? all : all.filter((b) => b.severity === severity);
         const top = filtered.slice(0, limit);
         return {
           count: top.length,
           total: all.length,
+          suppressedJudged,
           stats: {
             critical: all.filter((b) => b.severity === "critical").length,
             high: all.filter((b) => b.severity === "high").length,

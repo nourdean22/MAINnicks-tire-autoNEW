@@ -76,7 +76,15 @@ export async function buildSituation(): Promise<SituationPayload> {
       unresolvedContradictions,
       recentPersonaDrifts,
     ] = await Promise.all([
-      detectBlindSpots().catch(() => []),
+      // Learning-loops wave 2026-08-28: judged (known/noise) spots stay off
+      // the board — the operator's verdict must alter what he sees next. The
+      // filter fails open to the unfiltered list, never to an empty board.
+      detectBlindSpots()
+        .then(async (spots) => {
+          const { filterJudgedBlindSpots } = await import("@/lib/brain/blind-spot-identity");
+          return (await filterJudgedBlindSpots(spots)).kept;
+        })
+        .catch(() => []),
       generateNarrations().catch((): Narration[] => []),
       prisma.prediction
         .findMany({

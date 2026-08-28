@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { prisma } from "../lib/prisma";
 
 const TRIGGER = 200;
+const LABELED_TRIGGER = 30;
 
 async function main() {
   const corrections = await prisma.intelligenceOutcome.count({
@@ -65,8 +66,18 @@ async function main() {
 
   const supplementary = suggestionVerdicts + abLabels + thumbs + minedRefuted;
 
+  // 2026-08-28 · learning-loops wave: the 200 above is FINE-TUNE volume for
+  // the UPSTREAMS WATCH rows; eval decision-grade-ness is a different, nearer
+  // gate — LABEL-BEARING harvested cases (noise-verdict discoveries whose own
+  // key is the forbidden key). 30 mirrors MIN_TRUSTED_LABELS.
+  const { countLabeledEvalCases } = await import("../lib/brain/recall-corpus-builder");
+  const labeledCases = await countLabeledEvalCases();
+
   console.log("── corpus odometer (read-only) ──");
   console.log(`trigger metric — intelligence_outcomes corrections: ${corrections} / ${TRIGGER}`);
+  console.log(
+    `labeled eval cases (noise-verdict discoveries → forbiddenKeys): ${labeledCases} / ${LABELED_TRIGGER} — the gate that governs eval decision-grade-ness`,
+  );
   console.log(`suggestion_loop taps: ${suggestionRows.length} rows · verdicts (acted/dismissed/modified): ${suggestionVerdicts} · breakdown: ${JSON.stringify(tapCounts)}`);
   console.log(`blind A/B operator labels: ${abLabels} of ${comparisonRows.length} comparison runs (MIN_TRUSTED_LABELS gate is 30)`);
   console.log(`chat thumbs (feedbackScore set): ${thumbs}`);

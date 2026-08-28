@@ -142,7 +142,9 @@ describe("listDiscoveries", () => {
 
     const res = await listDiscoveries({ limit: 5 });
 
-    expect(mocks.brainMemory.findMany).toHaveBeenCalledTimes(2);
+    // 3, not 2, since the learning-loops wave: the judged-identity
+    // suppression set is one extra bounded query AFTER the scan pages.
+    expect(mocks.brainMemory.findMany).toHaveBeenCalledTimes(3);
     expect(mocks.brainMemory.findMany.mock.calls[1][0].skip).toBe(60);
     expect(res.items.map((d) => d.id)).toEqual(["old-but-unjudged"]);
   });
@@ -629,6 +631,99 @@ describe("rateDiscoveryCluster", () => {
 
   it("refuses an empty cluster rather than reporting a vacuous success", async () => {
     expect(await rateDiscoveryCluster([], "noise")).toEqual({ ok: false, rated: 0, failed: 0 });
+  });
+});
+
+describe("CANARY · judged identity suppresses regenerated twins (learning-loops wave 2026-08-28)", () => {
+  // Gap 3 of docs/LEARNING-LOOPS-2026-08-28.md: a verdict bound only its own
+  // cluster rows at rating time — a twin regenerated under a fresh key (the
+  // counter_intuitive clock-key defect) returned unjudged. The feed now joins
+  // unrated rows against EVERY known/noise verdict by cluster identity, with
+  // no lastSeen floor, and reports the count.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.queryRaw.mockResolvedValue([{ unrated: 0n, restored: 0n }]);
+    // Default AFTER the once-queue: serves the judged-set query.
+    mocks.brainMemory.findMany.mockResolvedValue([]);
+  });
+
+  it("BREAKS: a fresh unjudged twin of a known-rated sibling is withheld and counted", async () => {
+    // Scan page: one fresh clock-keyed twin, one unrelated unjudged row.
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce([
+        row({ id: "twin", key: "ci_general_1756400000000", category: "counter_intuitive", content: "[HIGH] Fastest response wins: data says otherwise" }),
+        row({ id: "other", key: "corr_x_y", content: "X moves with Y" }),
+      ])
+      // Judged set: the sibling the operator rated known — DUAL-WRITTEN like
+      // rateDiscovery writes (column + metadata); a fake that omits a field
+      // certifies its own blind spot.
+      .mockResolvedValueOnce([
+        {
+          content: "[CRITICAL] Fastest response wins: data says otherwise",
+          metadata: { discoveryVerdict: "known" },
+          discoveryVerdict: "known",
+          discoveryProvenance: null,
+        },
+      ]);
+    const res = await listDiscoveries();
+    expect(res.suppressedSimilar).toBe(1);
+    expect(res.items.map((i) => i.id)).toEqual(["other"]);
+    // The suppressed twin never spends a cluster slot.
+    expect(res.unratedClusters).toBe(1);
+  });
+
+  it("BREAKS: the judged-set query has NO lastSeen floor — an old verdict still binds", async () => {
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce([row({ id: "twin", content: "A moves with B" })])
+      .mockResolvedValueOnce([
+        {
+          content: "A moves with B",
+          metadata: { discoveryVerdict: "noise" },
+          discoveryVerdict: "noise",
+          discoveryProvenance: null,
+        },
+      ]);
+    await listDiscoveries();
+    // The scan query (call 0) filters lastSeen; the judged query (call 1)
+    // must NOT — a verdict older than the window binds the twin regenerated
+    // today. Pinned on the query itself, not on the fixture's contents.
+    const judgedWhere = mocks.brainMemory.findMany.mock.calls[1][0].where;
+    expect(judgedWhere.lastSeen).toBeUndefined();
+    expect(judgedWhere.deletedAt).toBeUndefined(); // a tombstone does not unmake a judgement
+  });
+
+  it("positive control: an explicit-null resurface does NOT suppress", async () => {
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce([row({ id: "twin", content: "A moves with B" })])
+      .mockResolvedValueOnce([
+        {
+          content: "A moves with B",
+          // A resurface clears the SOURCE (metadata) while the mirror column
+          // may lag — the mirror must never outrank the source.
+          metadata: { discoveryVerdict: null },
+          discoveryVerdict: "noise",
+          discoveryProvenance: null,
+        },
+      ]);
+    const res = await listDiscoveries();
+    expect(res.suppressedSimilar).toBe(0);
+    expect(res.items.map((i) => i.id)).toEqual(["twin"]);
+  });
+
+  it("positive control: an investigate verdict does not suppress its twins", async () => {
+    mocks.brainMemory.findMany
+      .mockResolvedValueOnce([row({ id: "twin", content: "A moves with B" })])
+      .mockResolvedValueOnce([
+        {
+          content: "A moves with B",
+          metadata: { discoveryVerdict: "investigate" },
+          discoveryVerdict: "investigate",
+          discoveryProvenance: null,
+        },
+      ]);
+    const res = await listDiscoveries();
+    expect(res.suppressedSimilar).toBe(0);
+    expect(res.items).toHaveLength(1);
   });
 });
 
