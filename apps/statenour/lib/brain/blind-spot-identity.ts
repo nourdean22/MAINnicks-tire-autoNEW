@@ -187,6 +187,56 @@ export function readAnyVerdict(
 }
 
 /**
+ * 2026-08-28 · learning-loops wave (docs/LEARNING-LOOPS-2026-08-28.md gap 2).
+ *
+ * The live operator-facing surfaces — the `getBlindSpots` AI tool and Ultron's
+ * situation board — call detectBlindSpots() fresh and consulted NO verdict, so
+ * a spot the operator rated `noise` or `known` was still recited to him. (The
+ * verdict-aware reader, getBlindSpotContext, is ORPHANED — zero importers
+ * since the prompt-v2 cutover — so its filter changed nothing in prod.)
+ *
+ * This is the join those surfaces use: look up each detected spot's stored row
+ * by its stable key and drop the ones carrying a known/noise verdict.
+ * Tombstones deliberately included — a tombstone does not unmake a judgement.
+ * `investigate` spots stay visible: the operator asked to work on those.
+ * Legacy clock-keyed rows are NOT consulted here: persistBlindSpot's
+ * inheritance migrates their verdicts onto the stable row at first sighting,
+ * and the nightly cron has run since 08-23 — the stable row is the canon.
+ *
+ * Fail-open by design: on any lookup error the spots pass through unfiltered —
+ * a broken suppression must degrade to the pre-wave behavior (show
+ * everything), never to an empty board.
+ */
+export async function filterJudgedBlindSpots(
+  spots: BlindSpot[],
+): Promise<{ kept: BlindSpot[]; suppressedJudged: number }> {
+  if (spots.length === 0) return { kept: spots, suppressedJudged: 0 };
+  try {
+    const keyBySpot = new Map(spots.map((s) => [s, blindSpotKey(s)]));
+    const rows = await prisma.brainMemory.findMany({
+      where: {
+        category: BRAIN_CATEGORIES.BLIND_SPOT,
+        key: { in: [...keyBySpot.values()] },
+      },
+      select: { key: true, metadata: true, discoveryVerdict: true },
+    });
+    const verdictByKey = new Map(
+      rows.map((r) => [r.key, readAnyVerdict(r.discoveryVerdict, r.metadata)]),
+    );
+    const kept: BlindSpot[] = [];
+    let suppressedJudged = 0;
+    for (const s of spots) {
+      const v = verdictByKey.get(keyBySpot.get(s)!) ?? null;
+      if (v === "known" || v === "noise") suppressedJudged++;
+      else kept.push(s);
+    }
+    return { kept, suppressedJudged };
+  } catch {
+    return { kept: spots, suppressedJudged: 0 };
+  }
+}
+
+/**
  * Does a legacy row describe the SAME spot as `spot`?
  *
  * Reuses blindSpotIdentity's normalisation on both sides rather than a LIKE.

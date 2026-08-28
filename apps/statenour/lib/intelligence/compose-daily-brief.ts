@@ -25,6 +25,7 @@ import { renderCapacityBlock } from "./capacity-block";
 import { renderAttentionBlock } from "./attention-block";
 import { renderPagesBlock } from "./pages-block";
 import { renderEnergyBlock } from "./energy-block";
+import { renderWeatherBlock, parseWeatherSignal, type WeatherSignal } from "./weather-block";
 import { buildEnergyProfile } from "@/lib/personal/energy-router";
 import { analyzePagePatterns } from "@/lib/brain/page-intelligence";
 import { analyzeAttentionPatterns } from "@/lib/brain/attention-tracker";
@@ -120,6 +121,24 @@ async function loadOperatorQueue(): Promise<OperatorQueue> {
   };
 }
 
+/** Read the newest weather SourceDocument (<=26h) and extract its demand block. */
+async function loadWeatherSignal(): Promise<WeatherSignal | null> {
+  try {
+    const src = await prisma.registeredSource.findFirst({ where: { domain: "weather" }, select: { id: true } });
+    if (!src) return null;
+    const doc = await prisma.sourceDocument.findFirst({
+      where: { sourceId: src.id, capturedAt: { gte: new Date(Date.now() - 26 * 60 * 60 * 1000) } },
+      orderBy: { capturedAt: "desc" },
+      select: { rawContent: true },
+    });
+    if (!doc) return null;
+    return parseWeatherSignal(doc.rawContent);
+  } catch (err) {
+    log.warn("weather_signal_failed", { error: (err instanceof Error ? err.message : String(err)).slice(0, 200) });
+    return null;
+  }
+}
+
 export async function composeDailyExecutiveBrief(): Promise<{ date: string; text: string }> {
   // High-scoring pending opportunities (score >= 75)
   const opportunities = await prisma.opportunityLog.findMany({
@@ -160,6 +179,7 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   // never handed to the model to summarise: it cannot round 20 to "several",
   // drop the section for space, or soften a level. The existing GROUNDING RULE
   // stops the model inventing a number; this stops it omitting one.
+  const weatherBlock = renderWeatherBlock(await loadWeatherSignal());
   const queue = await loadOperatorQueue();
   const verdict = deriveThreatLevel(queue);
   const queueBlock = renderOperatorQueue(queue, verdict);
@@ -275,6 +295,6 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
     // Awaiting-You leads. It is the only section describing state the operator
     // can act on this minute, and during the 16-day ingest-reviews outage the
     // brief led with an invented threat level while 44 real items sat queued.
-    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n${pagesBlock}\n\n${energyBlock}\n\n---\n\n${body}`,
+    text: `# Daily Executive Brief V2 · ${today}\n\n${queueBlock}\n\n${weatherBlock}\n\n${capacityBlock}\n\n${attentionBlock}\n\n${pagesBlock}\n\n${energyBlock}\n\n---\n\n${body}`,
   };
 }
