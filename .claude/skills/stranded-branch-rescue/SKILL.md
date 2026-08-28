@@ -26,6 +26,12 @@ gh pr list --head <branch> --state all --json number,state,title
   (unmerged) on **5 of 6 branches whose PRs had in fact merged** — squash
   merges plus post-review edits break patch-id matching, so cherry
   false-positives constantly here. The PR record was right 6 of 6.
+- **A commit-count is NOT a stranded signal.** `origin/main..branch = N`
+  stays nonzero forever after a squash merge. Cheapest definitive probe:
+  `gh pr view <pr> --json commits` - if the "stranded" SHA is IN the
+  merged PR's own commit list, it IS the zombie (witnessed 2026-08-27:
+  a topology count of 1 spawned a false rescue chip for #1756's only,
+  already-squash-merged commit).
 - Use cherry only as a SECONDARY signal for branches with **no PR ever**:
   `+0` there means an empty branch (nothing to rescue); `+N` means real
   unlanded commits.

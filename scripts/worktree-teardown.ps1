@@ -353,6 +353,12 @@ if ($KeepBranch) {
     Write-Host "`n[i] -KeepBranch set; leaving the branch alone." -ForegroundColor Gray
 } elseif ([string]::IsNullOrWhiteSpace($branchName)) {
     Write-Host "`n[*] No branch resolved; skipping branch deletion." -ForegroundColor Yellow
+} elseif ($branchName -eq 'main') {
+    # 2026-08-27: a zombie worktree parked ON main was torn down and this step
+    # deleted the local main branch itself; the primary checkout then could not
+    # `git switch main` until it was recreated from origin. Deploy branch is
+    # never ours to delete - worktree removed, branch preserved.
+    Write-Host "`n[i] Branch is 'main' - protected; worktree removed, branch preserved." -ForegroundColor Yellow
 } else {
     Write-Host "`nDeleting branch $branchName..." -ForegroundColor Yellow
     # No 2>&1 redirect: git's advisory notes go to stderr, and piping them
