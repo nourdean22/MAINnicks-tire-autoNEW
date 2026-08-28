@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { fetchNHTSARecalls } from "./connectors/nhtsa";
 import { fetchGSCAndGBPMetrics } from "./connectors/gsc";
 import { fetchCompetitorAndSECData } from "./connectors/sec";
-import { fetchWeatherMetrics } from "./connectors/weather";
 import { fetchSupplyChainMetrics } from "./connectors/supplychain";
 import { fetchListedDeals } from "./connectors/dealscouting";
 import { fetchBioPerformanceMetrics } from "./connectors/performance";
@@ -136,19 +135,18 @@ ${filings.length > 0 ? filings
   .join("\n") : "- No filings available."}
 `;
     } else if (source.domain === "weather") {
+      const { fetchWeatherMetrics, weatherFetchFailure, renderWeatherRawContent } = await import("./connectors/weather");
       const data = await fetchWeatherMetrics();
-      rawContent = `# NOAA Weather & Forecast Report
-Generated: ${new Date().toISOString()}
-Location: ${data.location}
-Temperature: ${data.temperature}°F
-Condition: ${data.condition}
-Forecast: ${data.forecast}
-
-Alerts & Opportunities:
-${data.alerts.length === 0 ? "- None" : data.alerts.map(a => `### ${a.event} (${a.severity} Priority)
-- **Description:** ${a.description}
-- **Opportunity:** ${a.opportunity}`).join("\n\n")}
-`;
+      // Zero data is a FAILURE, not a quiet day. Both keyless sources down must
+      // not fabricate weather (the old mock fallback did exactly that); it
+      // returns success:false and names why.
+      const failure = weatherFetchFailure(data);
+      if (failure) {
+        log.warn(`Weather ingestion failed loudly: ${failure}`);
+        return { success: false, documentId: null, claimsCount: 0, message: failure };
+      }
+      // Format lives in ONE pure function the canary round-trips; see weather.ts.
+      rawContent = renderWeatherRawContent(data, new Date().toISOString());
     } else if (source.domain === "supplychain") {
       const data = await fetchSupplyChainMetrics();
       rawContent = `# Supply Chain & Tire Commodities Report
