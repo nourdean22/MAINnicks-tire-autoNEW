@@ -193,7 +193,8 @@ git push --force                   # never on shared history
 git commit --no-verify             # never
 git add -A                         # never — cross-contaminates apps
 
-# Ship: push the branch, then PR (gh pr create / gh pr merge --squash --delete-branch)
+# Ship: push the branch, then PR (gh pr create / gh pr merge --squash — never --delete-branch,
+#       it parks your worktree on main; delete the remote ref separately, see AGENTS.md Branching)
 ```
 
 **`~/push-main.sh` is RETIRED** — it pushed `main` directly, which the 2026-06-11 operator rule

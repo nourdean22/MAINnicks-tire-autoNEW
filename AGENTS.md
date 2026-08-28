@@ -52,7 +52,7 @@ Corollary: a `.env` file is NOT evidence of production config — verify via `cr
 ```bash
 [Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')  # Remove-Item Env:\ trips the deletion guard
 gh pr create --head <branch> --title "<message>" --body "<body>"
-gh pr merge <pr-number> --squash --delete-branch
+gh pr merge <pr-number> --squash ; gh api -X DELETE repos/<o>/<r>/git/refs/heads/<b>  # NOT --delete-branch: parks you on main
 git fetch origin main ; git merge --ff-only     # NEVER reset --hard: a sibling's work may be in your tree
 ```
 
