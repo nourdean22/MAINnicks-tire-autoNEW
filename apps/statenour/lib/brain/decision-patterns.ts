@@ -307,27 +307,3 @@ export async function analyzeDecisionPatterns(): Promise<{
 
   return { patterns: aiPatterns, mathPatterns: mathResults };
 }
-
-/**
- * Get decision pattern insights for system prompt.
- */
-export async function getDecisionPatternContext(): Promise<string> {
-  // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
-  const patterns = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.DECISION_PATTERN, confidence: { gte: 0.3 }, deletedAt: null },
-    orderBy: { confidence: "desc" },
-    take: 5,
-    select: { content: true, confidence: true },
-  }).catch((err) => {
-    logError("brain.decision-patterns", err, { fn: "getDecisionPatternContext.findMany" });
-    return [];
-  });
-
-  if (patterns.length === 0) return "";
-
-  return [
-    `── DECISION PATTERNS (${patterns.length} detected) ──`,
-    `Use these to flag when Nour is about to repeat a pattern.`,
-    ...patterns.map(p => `• (${(p.confidence * 100).toFixed(0)}%) ${p.content.slice(0, 200)}`),
-  ].join("\n");
-}

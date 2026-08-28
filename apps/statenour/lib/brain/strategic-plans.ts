@@ -202,20 +202,3 @@ Be honest. If a plan has 0 task completions in 30 days, it's behind. Don't sugar
     return { activePlans: missions.length, assessments: [] };
   }
 }
-
-/**
- * Get strategic plan context for system prompt.
- */
-export async function getStrategicPlanContext(): Promise<string> {
-  const plan = await prisma.brainMemory
-    .findFirst({
-      where: { category: BRAIN_CATEGORIES.STRATEGIC_PLAN },
-      orderBy: { createdAt: "desc" },
-      select: { content: true },
-    })
-    .catch(() => null);
-
-  if (!plan) return "";
-
-  return `\n## Strategic Plan Status\n${plan.content}`;
-}

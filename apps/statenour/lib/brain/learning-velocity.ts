@@ -184,20 +184,3 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
 
   return velocity;
 }
-
-/**
- * Get learning velocity for system prompt.
- */
-export async function getLearningVelocityContext(): Promise<string> {
-  const vel = await prisma.brainMemory
-    .findFirst({
-      where: { category: BRAIN_CATEGORIES.LEARNING_VELOCITY },
-      orderBy: { createdAt: "desc" },
-      select: { content: true },
-    })
-    .catch(() => null);
-
-  if (!vel) return "";
-
-  return `\n## Brain Learning Velocity\n${vel.content}`;
-}

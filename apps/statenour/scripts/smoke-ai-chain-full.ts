@@ -19,7 +19,6 @@
  *     · wisdom-distiller  · gateWisdom + violation detection
  *     · judge-eval        · LLM-as-judge 5-axis scoring
  *     · skill-recall      · 1,423 skills (v10.0.433)
- *     · violation-context · system-prompt block
  *
  *   CHAT
  *     · system-prompt build   · full prompt for a sample message
@@ -179,12 +178,6 @@ async function main() {
     const matches = await recallSkills("clean up tech debt in a React component", 3);
     if (matches.length === 0) throw new Error("no skill matches");
     return { detail: `${matches.length} skills · top: ${matches[0].name} (${matches[0].similarity})` };
-  });
-
-  await check("brain", "violation-context (prompt block)", async () => {
-    const { getViolationContext } = await import("@/lib/brain/violation-context");
-    const block = await getViolationContext();
-    return { detail: block.length > 0 ? `${block.length} chars · live` : "empty (no violations · clean)" };
   });
 
   await check("brain", "improve-agent.judgments", async () => {

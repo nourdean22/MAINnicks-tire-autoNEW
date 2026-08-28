@@ -17,7 +17,6 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, hourET, toDateString, today, weekdayET } from "@/lib/utils/datetime";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -504,29 +503,4 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
   }
 
   return moments;
-}
-
-/**
- * Get teaching moments context for system prompt.
- * Reads from stored memories — no computation during prompt build.
- */
-export async function getTeachingMomentsContext(): Promise<string> {
-  try {
-    const moments = await prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.TEACHING_MOMENT, deletedAt: null }, // v10.0.66 · system-prompt feeder
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { content: true },
-    });
-
-    if (moments.length === 0) return "";
-
-    return [
-      `── TEACHING MOMENTS (data-backed lessons) ──`,
-      ...moments.map(m => `• ${m.content.slice(0, 250)}`),
-      `Use these to teach Nour. Explain the WHY, show the data, give the lesson.`,
-    ].join("\n");
-  } catch {
-    return "";
-  }
 }

@@ -87,12 +87,6 @@ describe("wisdom-distiller", () => {
     expect(typeof result).toBe("object");
     expect(result).not.toBeNull();
   });
-
-  it("getWisdomContext returns string", async () => {
-    const { getWisdomContext } = await import("@/lib/brain/wisdom-distiller");
-    const ctx = await getWisdomContext();
-    expect(typeof ctx).toBe("string");
-  });
 });
 
 describe("teaching-moments", () => {
@@ -105,14 +99,6 @@ describe("teaching-moments", () => {
     const result = await findTeachingMoments();
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(0);
-  });
-
-  it("getTeachingMomentsContext returns string", async () => {
-    const { getTeachingMomentsContext } = await import(
-      "@/lib/brain/teaching-moments"
-    );
-    const ctx = await getTeachingMomentsContext();
-    expect(typeof ctx).toBe("string");
   });
 });
 
