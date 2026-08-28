@@ -1,0 +1,128 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-27",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Synthetic costs more at every oil change — is it actually worth it? (synthetic vs conventional oil)",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Full synthetic costs more at every oil change — is it actually worth it?",
+      "visualPrompt": "Split-screen composition: left half a conventional-oil bottle pouring amber oil into a funnel, right half a synthetic-oil bottle pouring lighter, clearer oil into a matching funnel, both on a clean workbench, static-mounted camera, warm shop lighting.",
+      "renderIntegrityNote": "Split into two ~2s sub-shots (conventional pour, synthetic pour) before real generation."
+    },
+    {
+      "index": 2,
+      "role": "clarify",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "It's not about price. It's about what your engine and your driving actually need.",
+      "visualPrompt": "Close-up on two clear sample cups side by side under a work light, one visibly darker than the other; cut to a dipstick being slowly pulled from an engine and held up for comparison against the cups.",
+      "renderIntegrityNote": "Split into two sub-shots (cup comparison, dipstick pull) before real generation."
+    },
+    {
+      "index": 3,
+      "role": "contrast",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "Conventional oil breaks down faster under heat. Synthetic holds up longer between changes.",
+      "visualPrompt": "Macro shot of oil dripping slowly off a dipstick beside a warm engine bay (subtle heat shimmer visible); cut to a close-up of a vehicle's dashboard odometer display with mileage numbers visible, ambient dash lighting.",
+      "renderIntegrityNote": "Split into two sub-shots (dipstick drip, odometer close-up) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "explanation",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Turbo engines, and short stop-and-go trips, push oil harder — that's where synthetic can matter most.",
+      "visualPrompt": "Wide shot of a turbocharger unit resting on a workbench, slow push-in; cut to a static shot through a windshield of brake lights ahead in stop-and-go traffic, dusk lighting.",
+      "renderIntegrityNote": "Split into two sub-shots (turbo unit, traffic reflection) before real generation."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "The real answer's in your owner's manual — not a guess at the counter.",
+      "visualPrompt": "Close-up, softly out of focus, of an owner's manual lying open on a workbench next to both oil bottles from beat 1; slow pull-back revealing a clean, empty service-bay lift in the background.",
+      "renderIntegrityNote": "Split into two sub-shots (manual close-up, bay pull-back) before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Not sure which one your car needs? Stop by and we'll check. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "adVariants": [
+    {
+      "label": "A_cost_first",
+      "hook": "Why does synthetic oil cost twice as much — and is it worth it?",
+      "caption": "It's not just marketing. Synthetic oil holds up better under heat and stress than conventional — especially in turbocharged engines and stop-and-go driving.",
+      "cta": "Not sure which one your car needs? Stop by — Nick's Tire & Auto."
+    },
+    {
+      "label": "B_owners_manual_first",
+      "hook": "Your owner's manual already answered this question.",
+      "caption": "Synthetic vs conventional oil isn't a guess — it's spec'd by your manufacturer based on your engine and how you drive.",
+      "cta": "Bring in your manual or just ask — we'll check for you. Nick's Tire & Auto."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["can", "not a guess", "stop by and we'll check"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-maintenance knowledge (full synthetic oil resists thermal breakdown better than conventional under sustained heat; commonly specified for turbocharged engines and severe-duty/short-trip cycles; manufacturer-specified interval/grade lives in the owner's manual), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 7,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    }
+  },
+  "repetitionCheck": {
+    "liveLedgerChecked": false,
+    "offlineMitigation": "ls apps/nickstire/docs/reel-packs/ (~129 merged directories) + GitHub open-PR search (3 open reel-pack PRs) — no topic overlap found",
+    "nearestNeighbors": [
+      "oil-change-intervals",
+      "oil-dipstick-color-check",
+      "oil-pressure-light-flicker-idle"
+    ]
+  }
+}
