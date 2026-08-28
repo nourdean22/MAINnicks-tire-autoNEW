@@ -14,7 +14,10 @@
 ```bash
 Remove-Item Env:\GITHUB_TOKEN -ErrorAction SilentlyContinue
 gh pr create --head <branch> --title "<message>" --body "<body>"
-gh pr merge <pr-number> --squash --delete-branch
+gh pr merge <pr-number> --squash
+# NOT --delete-branch: it deletes the LOCAL branch too, so gh checks your
+# worktree out to `main` as a side effect. Delete the remote ref instead:
+gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>
 ```
 
 - Sync local `main` with `git fetch origin main` + `git merge --ff-only`.

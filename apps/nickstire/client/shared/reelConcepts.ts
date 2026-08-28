@@ -21,6 +21,8 @@
  * the defect this file exists to remove.
  */
 
+import { promotabilityBlockers, type PromotabilityFacts } from "@shared/reelPromotability";
+
 export type ProductionType =
   /** Footage already shot at the shop. Zero credits. */
   | "real-footage"
@@ -62,6 +64,15 @@ export interface ConceptRow {
   blockReason: string | null;
   /** Populated only after a real publish. Null means "not measured", not "zero". */
   actuals: ConceptActuals | null;
+  /**
+   * Boost-eligible under the STRICTER advertising spec. A false here NEVER means
+   * the pack cannot be published organically - only that money must not be put
+   * behind it yet. Null when no promotability facts were supplied (unassessed,
+   * which is not the same as ineligible).
+   */
+  promotable: boolean | null;
+  /** Why it is not boost-eligible. Empty when promotable, null when unassessed. */
+  promotionBlockers: string[] | null;
 }
 
 /** Topic family from a dated pack id: "2026-08-17-plug-vs-patch" -> "plug-vs-patch". */
@@ -123,10 +134,28 @@ export function classifyPack(f: PackFacts): { status: PackStatus; blockReason: s
   return { status: "publishable", blockReason: null };
 }
 
-export function toRow(f: PackFacts, actuals: ConceptActuals | null = null): ConceptRow {
+export function toRow(
+  f: PackFacts,
+  actuals: ConceptActuals | null = null,
+  promo?: PromotabilityFacts,
+): ConceptRow {
   const productionType = productionTypeOf(f);
   const { status, blockReason } = classifyPack(f);
-  return { id: f.id, franchise: franchiseOf(f.id), productionType, cost: PRODUCTION_COST[productionType], status, blockReason, actuals };
+  // Promotability is assessed ONLY when facts are supplied. Absent facts leave
+  // it null - "unassessed" and "not eligible" are different states, and
+  // collapsing them would read as a verdict nobody reached.
+  const blockers = promo ? promotabilityBlockers(promo) : null;
+  return {
+    id: f.id,
+    franchise: franchiseOf(f.id),
+    productionType,
+    cost: PRODUCTION_COST[productionType],
+    status,
+    blockReason,
+    actuals,
+    promotable: blockers ? blockers.length === 0 : null,
+    promotionBlockers: blockers ? blockers.map((b) => `${b.code}: ${b.reason}`) : null,
+  };
 }
 
 /**
