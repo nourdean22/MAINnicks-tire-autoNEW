@@ -45,14 +45,32 @@ export const BASELINE: ReelBaseline = {
   nonFollowerReachPct: 70.5,
 };
 
+/**
+ * A rate ALWAYS travels with its sample size. A bare percentage gets re-quoted
+ * as a fact in the next document, and this repo has already learned that twice -
+ * so `pct` is never exported without `numerator`/`denominator` beside it.
+ */
+export interface Rate {
+  pct: number;
+  numerator: number;
+  denominator: number;
+  /** e.g. "137 interactions / 13,871 views" - safe to paste into a report. */
+  readonly basis: string;
+}
+
+const rate = (numerator: number, denominator: number, nLabel: string, dLabel: string): Rate => ({
+  pct: denominator > 0 ? (numerator / denominator) * 100 : 0,
+  numerator,
+  denominator,
+  basis: `${numerator.toLocaleString()} ${nLabel} / ${denominator.toLocaleString()} ${dLabel}`,
+});
+
 /** Ratios recomputed from the raw counts - never stored, so they cannot drift. */
 export const baselineRates = {
-  /** interactions / views */
-  interactionRate: (BASELINE.interactions / BASELINE.views) * 100,
-  /** profile visits / views - the step that is actually broken */
-  profileVisitRate: (BASELINE.profileVisits / BASELINE.views) * 100,
-  /** unique accounts engaged / followers */
-  uniqueEngagedRate: (BASELINE.uniqueAccountsEngaged / BASELINE.followers) * 100,
+  interactionRate: rate(BASELINE.interactions, BASELINE.views, "interactions", "views"),
+  profileVisitRate: rate(BASELINE.profileVisits, BASELINE.views, "profile visits", "views"),
+  uniqueEngagedRate: rate(BASELINE.uniqueAccountsEngaged, BASELINE.followers, "unique accounts", "followers"),
+  websiteTapRate: rate(BASELINE.websiteTaps, BASELINE.views, "website taps", "views"),
 };
 
 /**
@@ -103,15 +121,15 @@ export function scoreAgainstBaseline(m: PostMetrics): {
   reachFloorBreached: boolean;
 } {
   const verdicts = [
-    judge("interactionRate", pct(m.interactions, m.views), baselineRates.interactionRate, TARGETS.interactionRatePct),
-    judge("profileVisitRate", pct(m.profileVisits, m.views), baselineRates.profileVisitRate, TARGETS.profileVisitRatePct),
+    judge("interactionRate", pct(m.interactions, m.views), baselineRates.interactionRate.pct, TARGETS.interactionRatePct),
+    judge("profileVisitRate", pct(m.profileVisits, m.views), baselineRates.profileVisitRate.pct, TARGETS.profileVisitRatePct),
   ];
   if (typeof m.uniqueAccountsEngaged === "number") {
     verdicts.push(
       judge(
         "uniqueEngagedRate",
         pct(m.uniqueAccountsEngaged, BASELINE.followers),
-        baselineRates.uniqueEngagedRate,
+        baselineRates.uniqueEngagedRate.pct,
         TARGETS.uniqueEngagedRatePct,
       ),
     );

@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import {
   disclosureViolation,
+  requiredPublishParams,
   isGenerated,
   hasDisclosure,
   realEvidenceClaims,
@@ -97,6 +98,7 @@ describe("Rule 1 - generated video framed as real evidence FAILS", () => {
         id: "educational",
         videoProvider: "higgsfield",
         copy: "How to read a tire sidewall in 30 seconds. AI-generated illustration.",
+        apiDisclosureFlag: true,
       }),
     ).toBeNull();
   });
@@ -122,7 +124,7 @@ describe("Rule 2 - undisclosed generated video FAILS", () => {
         id: "disclosed",
         videoProvider: "veo",
         copy: "Three signs your brakes need attention.",
-        disclosureLabel: "AI-generated",
+        apiDisclosureFlag: true,
       }),
     ).toBeNull();
   });
@@ -170,5 +172,39 @@ describe("helpers", () => {
   it("realEvidenceClaims fires on genuine real-event claims", () => {
     expect(realEvidenceClaims("This customer came in with a bulge.").length).toBeGreaterThan(0);
     expect(realEvidenceClaims("Before and after on this alignment.").length).toBeGreaterThan(0);
+  });
+});
+
+/* -- the structured flag IS the mechanism (corrected 2026-08-28) ---------- */
+
+describe("Meta's is_ai_generated is the disclosure mechanism, not caption text", () => {
+  // The correction: a caption saying "AI-generated" does NOT satisfy Meta.
+  it("caption text alone does NOT satisfy the disclosure requirement", () => {
+    const r = disclosureViolation({
+      ...base,
+      id: "caption-only",
+      videoProvider: "higgsfield",
+      copy: "Three signs your brakes need attention. AI-generated.",
+      // no apiDisclosureFlag
+    });
+    expect(r).toContain("BLOCKED_MISSING_AI_DISCLOSURE");
+    expect(r).toContain("caption text is NOT the platform mechanism");
+  });
+
+  it("the structured flag satisfies it", () => {
+    expect(
+      disclosureViolation({
+        ...base,
+        id: "flagged",
+        videoProvider: "higgsfield",
+        copy: "Three signs your brakes need attention.",
+        apiDisclosureFlag: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("requiredPublishParams demands the flag for generated video and nothing for real footage", () => {
+    expect(requiredPublishParams({ ...base, videoProvider: "higgsfield", copy: "" })).toEqual({ is_ai_generated: true });
+    expect(requiredPublishParams({ ...base, videoProvider: null, copy: "" })).toEqual({});
   });
 });

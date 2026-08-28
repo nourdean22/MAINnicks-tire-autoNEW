@@ -86,8 +86,8 @@ export const BUSINESS = {
   // ─── REVIEWS ─────────────────────────────────────────
   reviews: {
     rating: 4.9,
-    count: 1700,
-    countDisplay: "1,700+",
+    count: 1685,
+    countDisplay: "1,685+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
