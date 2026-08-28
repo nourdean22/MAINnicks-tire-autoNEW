@@ -259,11 +259,23 @@ export async function countEscalationsToday(): Promise<number> {
     // column (schema.prisma: feature / model / status / conversationId /
     // createdAt only), and the model list is the more precise question
     // anyway — a non-escalation anthropic fallback to sonnet-5 must not
-    // consume the escalation budget. Rides @@index([model, createdAt]).
+    // consume the escalation budget.
+    //
+    // 2026-08-28 · MATCH ON A SUFFIX, NOT AN EQUALITY. The chat path
+    // records this column through recordInteraction as
+    // `${provider}/${model}` (lib/ai/memory.ts:55) — e.g.
+    // "anthropic/claude-opus-5". An `in:` list of bare ids therefore
+    // matched NOTHING and the cap was a dead guard: every marked turn
+    // could keep spending past it. Caught in review; verified at the
+    // writer before fixing. `endsWith` covers both the prefixed chat
+    // rows and any writer that stores the bare id.
     return await prisma.aiGeneration.count({
       where: {
-        model: { in: [CLAUDE5_MODELS.opus, CLAUDE5_MODELS.fable, CLAUDE5_MODELS.mythos] },
         createdAt: { gte: since },
+        OR: [CLAUDE5_MODELS.opus, CLAUDE5_MODELS.fable, CLAUDE5_MODELS.mythos].flatMap((m) => [
+          { model: m },
+          { model: { endsWith: `/${m}` } },
+        ]),
       },
     });
   } catch {

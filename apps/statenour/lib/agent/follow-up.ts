@@ -56,6 +56,11 @@ export const FOLLOWUP_PER_THREAD_CAP = numFromEnv("NICK_FOLLOWUP_THREAD_CAP", 3)
 export const FOLLOWUP_MIN_DELAY_MS = numFromEnv("NICK_FOLLOWUP_MIN_DELAY_MS", 5 * 60_000);
 /** Nothing may park work further out than this. */
 export const FOLLOWUP_MAX_DELAY_MS = numFromEnv("NICK_FOLLOWUP_MAX_DELAY_MS", 7 * 24 * 60 * 60_000);
+/** A row sitting in `processing` longer than this lost its worker. */
+export const FOLLOWUP_PROCESSING_STALE_MS = numFromEnv(
+  "NICK_FOLLOWUP_STALE_MS",
+  15 * 60_000,
+);
 
 function numFromEnv(key: string, fallback: number): number {
   const raw = Number((process.env[key] ?? "").trim());
@@ -167,18 +172,26 @@ export async function scheduleFollowUp(input: ScheduleInput): Promise<ScheduleRe
           payload: { path: ["conversationId"], equals: input.conversationId },
         },
       }),
+      // 2026-08-28 (review P2) · scoped to the CONVERSATION. The contract
+      // says a dedupe key is unique per thread; filtering on the key alone
+      // meant a pending "check-in" in one conversation silently blocked a
+      // legitimate "check-in" in every other one — a guardrail refusing
+      // work it was never meant to refuse.
       prisma.postTurnOutbox.findFirst({
         where: {
           kind: OUTBOX_KIND.agentFollowUp,
           status: { in: ["pending", "processing"] },
-          payload: { path: ["dedupeKey"], equals: input.dedupeKey },
+          AND: [
+            { payload: { path: ["dedupeKey"], equals: input.dedupeKey } },
+            { payload: { path: ["conversationId"], equals: input.conversationId } },
+          ],
         },
         select: { id: true },
       }),
     ]);
 
     if (duplicate) {
-      return refuse("duplicate", `a follow-up with this dedupe key is already queued`);
+      return refuse("duplicate", "a follow-up with this dedupe key is already queued for this conversation");
     }
     if (dailyCount >= FOLLOWUP_DAILY_CAP) {
       return refuse("daily-cap", `daily follow-up cap reached (${dailyCount}/${FOLLOWUP_DAILY_CAP})`);
@@ -235,24 +248,44 @@ export async function claimDueFollowUps(limit = 5): Promise<
 > {
   if (!areFollowUpsEnabled()) return [];
   const now = new Date();
+  // 2026-08-28 (review P2) · a crash between claim and finish left the row
+  // at status "processing" forever, because this selector only looked at
+  // "pending" — the follow-up was permanently lost despite the queue's
+  // retry/dead-letter design. Mirrors claimOrphans' stale-processing lease:
+  // a row whose worker has not touched it for the window is reclaimable,
+  // while a LIVE worker's row (just updated) stays safe.
+  const staleProcessing = new Date(now.getTime() - FOLLOWUP_PROCESSING_STALE_MS);
   const candidates = await prisma.postTurnOutbox.findMany({
     where: {
       kind: OUTBOX_KIND.agentFollowUp,
-      status: "pending",
-      nextAttemptAt: { lte: now },
       attempts: { lt: 3 },
+      OR: [
+        { status: "pending", nextAttemptAt: { lte: now } },
+        { status: "processing", updatedAt: { lt: staleProcessing } },
+      ],
     },
     orderBy: { nextAttemptAt: "asc" },
     take: limit,
-    select: { id: true },
+    select: { id: true, status: true },
   });
 
   const claimed: Array<{ id: string; payload: FollowUpPayload; attempts: number }> = [];
   for (const c of candidates) {
     // Status-guarded flip is the lock — first claimant wins, so two
     // concurrent drains cannot both run the same follow-up.
+    // The status-guarded flip is the lock. For a reclaimed row the
+    // updatedAt guard is part of the predicate, so a worker that is still
+    // alive (and therefore touching the row) cannot have it stolen.
     const res = await prisma.postTurnOutbox.updateMany({
-      where: { id: c.id, kind: OUTBOX_KIND.agentFollowUp, status: "pending" },
+      where:
+        c.status === "pending"
+          ? { id: c.id, kind: OUTBOX_KIND.agentFollowUp, status: "pending" }
+          : {
+              id: c.id,
+              kind: OUTBOX_KIND.agentFollowUp,
+              status: "processing",
+              updatedAt: { lt: staleProcessing },
+            },
       data: { status: "processing", attempts: { increment: 1 } },
     });
     if (res.count !== 1) continue;

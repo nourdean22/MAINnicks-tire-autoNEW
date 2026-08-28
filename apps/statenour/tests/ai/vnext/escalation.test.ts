@@ -173,3 +173,50 @@ describe("trust boundary outranks tier", () => {
     expect(d.model).not.toBe("claude-mythos-5");
   });
 });
+
+/**
+ * 2026-08-28 (review P1) · the daily cap counted NOTHING.
+ *
+ * The query compared `ai_generations.model` against bare ids, but the chat
+ * path records that column as `${provider}/${model}` via recordInteraction
+ * (lib/ai/memory.ts:55) — e.g. "anthropic/claude-opus-5". So no escalation
+ * ever incremented the counter and every marked turn could spend past the
+ * cap. Verified at the writer before fixing.
+ */
+describe("daily cap counts the rows that are actually written", () => {
+  it("matches the PREFIXED form the chat path stores, and the bare form", async () => {
+    const captured: Array<Record<string, unknown>> = [];
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: {
+        aiGeneration: {
+          count: (a: Record<string, unknown>) => {
+            captured.push(a);
+            return Promise.resolve(0);
+          },
+        },
+      },
+    }));
+    const { countEscalationsToday } = await import("@/lib/ai/vnext/escalation");
+    await countEscalationsToday();
+
+    const where = (captured[0] as { where: { OR: Array<Record<string, unknown>> } }).where;
+    const serialized = JSON.stringify(where.OR);
+    // Both shapes must be reachable, or the guard is dead against real data.
+    expect(serialized).toContain('"endsWith":"/claude-opus-5"');
+    expect(serialized).toContain('"model":"claude-opus-5"');
+    expect(serialized).toContain('"endsWith":"/claude-fable-5"');
+    vi.doUnmock("@/lib/prisma");
+  });
+
+  it("fails CLOSED — an unreadable count refuses rather than allows", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: { aiGeneration: { count: () => Promise.reject(new Error("neon down")) } },
+    }));
+    const mod = await import("@/lib/ai/vnext/escalation");
+    // Returning the cap means resolveEscalation will refuse.
+    expect(await mod.countEscalationsToday()).toBe(mod.ESCALATION_DAILY_CAP);
+    vi.doUnmock("@/lib/prisma");
+  });
+});

@@ -133,6 +133,19 @@ describe("caps bound a runaway", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("dedupe is scoped to the CONVERSATION, not global (review P2)", async () => {
+    // The bug: filtering on dedupeKey alone meant a pending "check-in" in
+    // one thread blocked a legitimate "check-in" in every other thread —
+    // a guardrail refusing work it was never meant to refuse.
+    await scheduleFollowUp(OK);
+    const arg = mockFindFirst.mock.calls[0][0] as {
+      where: { AND: Array<{ payload: { path: string[]; equals: string } }> };
+    };
+    const paths = arg.where.AND.map((c) => c.payload.path[0]);
+    expect(paths).toContain("dedupeKey");
+    expect(paths).toContain("conversationId");
+  });
+
   it("cannot schedule itself to fire immediately — no tight loops", async () => {
     const r = await scheduleFollowUp({ ...OK, runAfterMs: 1000 });
     expect(r.scheduled).toBe(false);
@@ -193,25 +206,57 @@ describe("claiming is race-safe and schedule-respecting", () => {
     mockFindMany.mockResolvedValue([]);
     await claimDueFollowUps();
     const arg = mockFindMany.mock.calls[0][0] as {
-      where: { kind: string; status: string; nextAttemptAt: { lte: Date } };
+      where: { kind: string; OR: Array<Record<string, unknown>> };
       orderBy: { nextAttemptAt: string };
     };
     expect(arg.where.kind).toBe("agent-followup");
-    expect(arg.where.status).toBe("pending");
+    const due = arg.where.OR.find((c) => c.status === "pending") as {
+      nextAttemptAt: { lte: Date };
+    };
     // The whole point: due-time, NOT an orphan grace window.
-    expect(arg.where.nextAttemptAt.lte).toBeInstanceOf(Date);
+    expect(due.nextAttemptAt.lte).toBeInstanceOf(Date);
     expect(arg.orderBy.nextAttemptAt).toBe("asc");
   });
 
+  it("RECLAIMS rows stranded in processing by a crashed worker (review P2)", async () => {
+    // The bug: claiming only "pending" meant a crash between claim and
+    // finish stranded the row forever, despite the queue's retry design.
+    mockFindMany.mockResolvedValue([]);
+    await claimDueFollowUps();
+    const arg = mockFindMany.mock.calls[0][0] as {
+      where: { OR: Array<Record<string, unknown>> };
+    };
+    const stale = arg.where.OR.find((c) => c.status === "processing") as {
+      updatedAt: { lt: Date };
+    };
+    expect(stale).toBeDefined();
+    // Lease semantics: only a row whose worker stopped touching it.
+    expect(stale.updatedAt.lt).toBeInstanceOf(Date);
+    expect(stale.updatedAt.lt.getTime()).toBeLessThan(Date.now());
+  });
+
+  it("a reclaim cannot steal a LIVE worker's row", async () => {
+    mockFindMany.mockResolvedValue([{ id: "row-1", status: "processing" }]);
+    mockUpdateMany.mockResolvedValue({ count: 0 }); // updatedAt guard rejected it
+    expect(await claimDueFollowUps()).toEqual([]);
+    const flip = mockUpdateMany.mock.calls[0][0] as {
+      where: { status: string; updatedAt?: { lt: Date } };
+    };
+    // The staleness guard must be part of the LOCK predicate, not just
+    // the selector — otherwise a live worker's row is stolen on a race.
+    expect(flip.where.status).toBe("processing");
+    expect(flip.where.updatedAt?.lt).toBeInstanceOf(Date);
+  });
+
   it("losing the claim race yields nothing — two drains cannot both run one follow-up", async () => {
-    mockFindMany.mockResolvedValue([{ id: "row-1" }]);
+    mockFindMany.mockResolvedValue([{ id: "row-1", status: "pending" }]);
     mockUpdateMany.mockResolvedValue({ count: 0 }); // another drain won
     expect(await claimDueFollowUps()).toEqual([]);
     expect(mockFindUnique).not.toHaveBeenCalled();
   });
 
   it("winning the claim returns the payload", async () => {
-    mockFindMany.mockResolvedValue([{ id: "row-1" }]);
+    mockFindMany.mockResolvedValue([{ id: "row-1", status: "pending" }]);
     mockUpdateMany.mockResolvedValue({ count: 1 });
     mockFindUnique.mockResolvedValue({
       id: "row-1",
