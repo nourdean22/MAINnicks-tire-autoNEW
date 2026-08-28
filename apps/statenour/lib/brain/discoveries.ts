@@ -72,10 +72,27 @@ export type DiscoveryVerdict = "investigate" | "known" | "noise";
  *
  * "already knew" is a NOVELTY defect, not an accuracy defect. `ignored`
  * records that it was surfaced and not acted on without asserting it was
- * incorrect, and keeps it out of every correction harvest. The novelty signal
- * itself lives in `resultRef` (`discovery_verdict:known`). Nothing consumes
- * that yet, and that is the honest state: this wave built the measurement,
- * not a consumer for it.
+ * incorrect, and keeps it out of every correction harvest.
+ *
+ * 2026-08-28 · WHAT A `known` VERDICT NOW DOES (this comment used to end
+ * "nothing consumes that yet", and was quoted three times as proof the loop
+ * was open — it had outlived its own truth by one wave):
+ *   · suppresses the whole cluster from the feed, AND the twins the nightly
+ *     engines regenerate — the judged-identity join in listDiscoveries()
+ *     below, which binds on cluster identity with no lastSeen floor.
+ *   · removes the spot from Nick's LIVE surfaces — filterJudgedBlindSpots()
+ *     in blind-spot-identity.ts, consumed by the getBlindSpots AI tool and
+ *     lib/services/ultron-situation.ts.
+ *   · is reported back to the operator at tap time — describeJudgeOutcome()
+ *     in lib/brain/discover-feedback.ts ("suppressed N similar").
+ * Receipts and the AFTER numbers: docs/LEARNING-LOOPS-2026-08-28.md.
+ *
+ * STILL UNCONSUMED, deliberately: the ledger's `resultRef`
+ * (`discovery_verdict:known`) — the per-event novelty TRACE. The behaviour
+ * above reads the verdict COLUMN / metadata, which is the durable source of
+ * truth; resultRef would only be needed to analyse novelty over TIME (e.g.
+ * "is the operator's already-knew rate falling?"), and nothing asks that yet.
+ * Named rather than quietly deleted, so the gap stays auditable.
  */
 const VERDICT_TO_DECISION: Record<DiscoveryVerdict, "accepted" | "dismissed" | "ignored"> = {
   investigate: "accepted",

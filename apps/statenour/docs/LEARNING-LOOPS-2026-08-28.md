@@ -80,6 +80,19 @@ documented fail-safe, and allowlist edits the module header forbids without oper
 — plus the operator actually deciding rows. The census's 5-step plan is preserved in the
 census artifact; steps 3–5 are explicitly operator calls. **Not attempted in this wave.**
 
+## Rule-7 verification (external state, searched 2026-08-28 — before committing to the design)
+
+Charter rule 7: an uncited claim about the outside world is expired by default. Four searches
+against the load-bearing priors of this design. **All four corroborated; none forced a plan
+change**, and the contradiction budget went unspent — which is itself the finding.
+
+| Prior this design rests on | Searched | Result |
+|---|---|---|
+| Typicality (cluster SIZE) beats uncertainty sampling at single-digit label budgets — Hacohen et al., [arXiv:2202.02794](https://arxiv.org/abs/2202.02794) | current status + follow-ups | Still current. A May 2025 follow-up ([arXiv:2505.19404](https://arxiv.org/html/2505.19404)) re-tests TypiClust in federated low-budget settings and finds its advantage **larger with a simple model and heterogeneous data partitions** — which is this system exactly (one operator, four heterogeneous engines). Prior strengthened, not weakened. |
+| Aggressive suppression beats re-asking — alert-fatigue literature (Ancker, [PMC5387195](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5387195/)) | current CDS guidance | Corroborated and sharpened. Current practitioner guidance ([Mindbowser, 2026](https://www.mindbowser.com/reduce-cdss-alert-fatigue-clinical-decision-support/)) names **duplicate-alert suppression and risk tiering** as the two primary levers — precisely the judged-identity join plus severity-escalation resurface. Override rates remain 49–96%, and 88.2% for very-severe DDI alerts ([PMC9754301](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9754301/)). Two levers listed there do NOT transfer: "require a reason to override" and "role tailoring" (single-operator system). |
+| Explicit taps are the right signal to build on | implicit vs explicit feedback, 2025 | Partial challenge worth recording. Current guidance is that implicit signals dominate by volume and best practice **combines both**. This system already carries the implicit half (`recordShown` → surfaced-and-not-acted-on, which is exactly what `known`→`ignored` encodes), so the design is on the recommended side — but a purely-explicit successor would not be. Noted as a constraint on future work, not a change here. |
+| String-normalised cluster identity (leading-digit collapse) rather than embedding similarity | semantic dedup current form | The modern form is **hybrid exact + fuzzy with conservatively-chosen thresholds**, explicitly to avoid merging related-but-distinct entities ([NVIDIA NeMo Curator SemDeDup](https://docs.nvidia.com/nemo/curator/curate-text/process-data/deduplication/semdedup)). This design is the exact half, chosen after a measured over-merge incident (`Order 4 winter tires` vs `Order 6 winter tires` — one Noise tap would have suppressed both). Adding a semantic threshold with no eval to tune it against would ship an unmeasured knob; **parked as a lever, with the reason.** |
+
 ## Decision
 
 **Close Loop A properly, with the Loop B labeled-case rider on the same surfaces.** The
@@ -128,3 +141,24 @@ Receipts: 602 test files, 6,446 passed, exit-summary clean · `tsc --noEmit` 0 �
 (137 pre-existing warnings) · all four canary sets armed → 7 failed → restored green · AFTER
 probe intercepted 1 write attempt (the stub's own sentinel), i.e. the measured paths are pure
 reads.
+
+## Closing pass — the effect the operator could not see (#1971)
+
+The wave above made `known` *do* something. A follow-up read of the surface found it still did
+not *say* so, and that two comments still asserted the opposite:
+
+1. **The ordinary tap was silent.** `judge()` set a message only on partial failure or
+   beyond-page extras; suppressing a six-row cluster produced no text at all. And the one
+   informational message it did emit rode the `actionError` string, so "we found more copies for
+   you" rendered in error amber — the feature working, painted as a fault. Now
+   `describeJudgeOutcome()` (`lib/brain/discover-feedback.ts`, pure, 11 canaries) returns
+   `{tone, text}` for every path, and the tap reports **"Already knew — suppressed 6 similar.
+   Copies the engines regenerate stay hidden…"** in an `aria-live` status region.
+2. **Two comments outlived their truth by one wave.** `discoveries.ts`'s VERDICT_TO_DECISION note
+   ("Nothing consumes that yet") and `discover-tab.tsx`'s header both still said `known` had no
+   consumer — and were quoted three times as proof the loop was open. Both now name what consumes
+   it, and keep the honest residue: the ledger `resultRef` novelty TRACE is still unread, because
+   the behaviour reads the verdict column, and nothing yet asks the over-time question.
+3. **The footer carried a second falsehood.** It told the operator "Noise" suppresses from
+   "Nick's system prompt" — a path that was orphaned dead code and never ran, and that the wave
+   above replaced with the live-surface filter. Corrected to what the code does.
