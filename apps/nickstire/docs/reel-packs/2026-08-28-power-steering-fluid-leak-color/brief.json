@@ -1,0 +1,123 @@
+{
+  "topic": "power-steering-fluid-leak-color",
+  "producedBy": "scheduled-task",
+  "generatedAt": "2026-08-28",
+  "liveOperatorPresent": false,
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "renderExists": false,
+  "publishAttempted": false,
+  "faceless": true,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "fps": 30,
+  "totalDurationSeconds": 36,
+  "saveFreezeSeconds": 3,
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "hook": "That puddle under your car? The color tells you everything.",
+  "cta": "Notice a puddle like that? Stop by and we'll take a look.",
+  "beats": [
+    {
+      "index": 1,
+      "label": "hook",
+      "startSeconds": 0,
+      "endSeconds": 3,
+      "vo": "That puddle under your car? The color tells you everything.",
+      "prompt": "Extreme close-up of a small reddish-amber fluid puddle on dry gray asphalt in daylight, shallow depth of field, camera slowly pushes in, photorealistic, automotive documentary style, no people, no text."
+    },
+    {
+      "index": 2,
+      "label": "setup",
+      "startSeconds": 3,
+      "endSeconds": 8,
+      "vo": "Dark and oily — that's engine oil. Green or orange and slippery — coolant. But light amber, almost pinkish red, and thin? That one's easy to miss.",
+      "prompt": "Three small distinct fluid puddles on concrete garage floor side by side — one dark brown/black, one bright green, one light amber-pink — overhead shot, soft natural light, macro detail on liquid sheen, photorealistic, no people, no text."
+    },
+    {
+      "index": 3,
+      "label": "reveal",
+      "startSeconds": 8,
+      "endSeconds": 16,
+      "vo": "That's power steering fluid. It's thinner than oil, lighter in color, and it usually shows up near the front wheels or under the engine — right where the steering rack lives.",
+      "prompt": "Close-up under the hood of a car, steering rack and fluid reservoir area, a small drip of light amber fluid forming and falling, engine bay detail, photorealistic, documentary lighting, no people, no text."
+    },
+    {
+      "index": 4,
+      "label": "why-it-matters",
+      "startSeconds": 16,
+      "endSeconds": 24,
+      "vo": "Low fluid can mean heavier steering, a whine when you turn, or in some cars, losing power assist altogether. It's one clue — not a guess.",
+      "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text.",
+      "note": "Swapped from a steering-wheel/hands shot to a reservoir-cap insert to stay clear of the standing negative prompt's hands exclusion."
+    },
+    {
+      "index": 5,
+      "label": "what-to-do",
+      "startSeconds": 24,
+      "endSeconds": 30,
+      "vo": "Don't top it off and hope. A leak means fluid's going somewhere — worth having it looked at before it gets worse.",
+      "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text."
+    },
+    {
+      "index": 6,
+      "label": "cta",
+      "startSeconds": 30,
+      "endSeconds": 33,
+      "vo": "Notice a puddle like that? Stop by and we'll take a look.",
+      "prompt": "Wide shot of a tidy automotive repair shop bay door, daylight, clean and professional, no signage text legible, no people, photorealistic."
+    },
+    {
+      "index": 7,
+      "label": "save-freeze",
+      "startSeconds": 33,
+      "endSeconds": 36,
+      "vo": null,
+      "prompt": "Reuse final frame of beat 2 (three-puddle comparison grid) as a static freeze; no new generation.",
+      "overlayText": "SAVE THIS"
+    }
+  ],
+  "claimSafety": {
+    "priceClaims": false,
+    "guaranteeClaims": false,
+    "timelineClaims": false,
+    "approvedSoftLanguageUsed": ["can point to", "worth checking", "one clue", "not a guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "businessFactsQueried": false,
+    "evidenceRecordsQueried": false,
+    "claimsAreGeneralMechanicalFacts": true,
+    "shopSpecificClaims": false
+  },
+  "repetitionCheck": {
+    "method": "offline-manual",
+    "mergedPacksScanned": 117,
+    "openPrTitlesScanned": 17,
+    "totalPriorTopicsScanned": 134,
+    "nearestNeighbor": "2026-08-18-power-steering-whine",
+    "nearestNeighborDistinction": "that pack covers an audible whine when turning; this pack covers fluid identification by color/location, extending the coolant/transmission-fluid/oil-dipstick color-ID sub-series to a fourth fluid",
+    "overlapFound": false
+  },
+  "musicRights": {
+    "ledgerExists": false,
+    "musicBedSpecified": false,
+    "voiceoverOnly": true,
+    "status": "UNKNOWN_NO_LEDGER"
+  },
+  "costEstimate": {
+    "source": "doc-truth, not live-read",
+    "activeProviderAssumed": "template_stock",
+    "estimatedCostIfTemplateStock": 0,
+    "estimatedCostIfSeedanceFallback": 1.5,
+    "dailyCapDocTruth": 10
+  },
+  "qaMatrix": {
+    "renderIntegrityGate": "BLOCKED_NOT_RUN",
+    "renderedQaVisionCritic": "BLOCKED_NOT_RUN",
+    "repairRouter": "N/A",
+    "sevenWayAutomationDecision": "BLOCKED_NOT_RUN",
+    "consolidatedPublishGate": "BLOCKED_NOT_RUN",
+    "motionQualityScore": "UNKNOWN_SELF_ESTIMATED_ONLY",
+    "claimSafetyManualRead": "PASS",
+    "topicRepetitionOfflineCheck": "PASS"
+  }
+}
