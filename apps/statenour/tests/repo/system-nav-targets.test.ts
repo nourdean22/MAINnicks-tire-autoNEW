@@ -47,8 +47,17 @@ function realSystemPages(): Set<string> {
   return new Set(readdirSync("app/(mastery)/system"));
 }
 
+/**
+ * 2026-08-28 · `features` and `hooks` ADDED. The sweep listed only app/lib/
+ * config/components, so `/system/costs` — an href in
+ * features/chat-v2/components/chat-capability-indicator.tsx pointing at a
+ * segment that has an /api route but NO page — sat live and unseen while this
+ * gate reported green. A gate is only as wide as its file list, and the
+ * subject-coverage assertion below now pins that list so a future narrowing
+ * fails loudly instead of silently un-seeing a directory.
+ */
 function sourceFiles(): string[] {
-  return execFileSync("git", ["ls-files", "--", "app", "lib", "config", "components"], {
+  return execFileSync("git", ["ls-files", "--", "app", "lib", "config", "components", "features", "hooks"], {
     encoding: "utf8",
     maxBuffer: 32e6,
   })
@@ -107,6 +116,20 @@ describe("system nav targets · a clickable link must resolve", () => {
     expect(brokenNavTargets('rootLogger.withSurface("system/observability")', real)).toEqual([]);
     expect(brokenNavTargets('const r = await fetch("/api/system/cockpit");', real)).toEqual([]);
     expect(brokenNavTargets('<a href="/system/actions">approvals</a>', real)).toEqual([]);
+  });
+
+  it("SUBJECT COVERAGE: the sweep actually reads every source directory, features included", () => {
+    // The blind spot that let /system/costs ship: the file list omitted
+    // `features`, so a whole slice of the chat UI was never swept. Assert the
+    // SUBJECT, not just the verdict — a green sweep over the wrong file set is
+    // the failure shape this repo keeps removing.
+    const files = sourceFiles();
+    for (const dir of ["app/", "lib/", "components/", "features/", "hooks/"]) {
+      expect(
+        files.some((f) => f.startsWith(dir)),
+        `the nav sweep reads no files under ${dir} — it cannot see dead links there`,
+      ).toBe(true);
+    }
   });
 
   it("the page list is real — otherwise every check here is vacuous", () => {
