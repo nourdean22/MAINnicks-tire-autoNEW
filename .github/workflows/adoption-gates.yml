@@ -91,9 +91,21 @@ jobs:
       - name: install (statenour dependency graph only)
         run: pnpm install --frozen-lockfile --filter "@statenour/web..."
 
-      - name: knip census - report only, never fails
+      - name: canary - knip must fail on a planted unused file
         run: |
-          echo "## knip reachability census - apps/statenour (advisory)" >> "$GITHUB_STEP_SUMMARY"
-          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown >> "$GITHUB_STEP_SUMMARY" || true
+          echo "export const knipCanary = 1" > apps/statenour/lib/__knip_canary__.ts
+          if pnpm dlx knip@6.32.3 --workspace apps/statenour --include files > /dev/null 2>&1; then
+            rm apps/statenour/lib/__knip_canary__.ts
+            echo "::error::knip canary - a planted unused file scanned clean; the census is blind"
+            exit 1
+          fi
+          rm apps/statenour/lib/__knip_canary__.ts
+          echo "canary OK: knip still sees unreachable files"
+
+      - name: knip reachability gate - zero unused files (blocking since 2026-08-27)
+        run: |
+          echo "## knip reachability gate - apps/statenour (blocking)" >> "$GITHUB_STEP_SUMMARY"
+          # GH Actions bash runs with pipefail, so knip's exit survives the tee.
+          pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "_Advisory by design: the BUILT-UNWIRED items it flags are pending wire-or-delete decisions (docs/UPSTREAMS.md knip row). Flip to blocking by removing the || true once those land._" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Blocking since the 2026-08-27 wire-or-delete wave took the census 341 -> 0 (172 scripts declared as entries, 134 dead files deleted, 24 dynamic-referenced keeps in knip.json ignore with receipts). A new finding = a genuinely unreachable new file: wire it or delete it, never grow the ignore list without a path-reference receipt._" >> "$GITHUB_STEP_SUMMARY"

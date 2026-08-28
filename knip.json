@@ -1,0 +1,46 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    "apps/statenour": {
+      "entry": [
+        "scripts/**/*.{ts,mjs,js}",
+        "cli/nour.ts",
+        "vitest.setup.ts",
+        "prisma/**/*.ts",
+        "public/sw.js",
+        "components/3d/canvas-inner.tsx",
+        "components/3d/scene-canvas.tsx",
+        "components/3d/scene-skeleton.tsx",
+        "components/actions/break-promise-modal.tsx",
+        "components/actions/loop-row-item.tsx",
+        "components/actions/loop-stream.tsx",
+        "components/actions/todays-compound.tsx",
+        "components/hud/global-top-ticker.tsx",
+        "components/operator/compound-chain.tsx",
+        "components/ultron/ask/omni-capture.tsx",
+        "components/ultron/contradictions-card.tsx",
+        "components/ultron/signal/situation-card.tsx",
+        "components/ultron/today/active-task-companion.tsx",
+        "components/ultron/today/next-action-whisperer.tsx",
+        "components/ultron/top-strip/hq-status-chips.tsx",
+        "components/ultron/top-strip/ticker.tsx",
+        "hooks/chat/use-audio-transcribe.ts",
+        "hooks/use-draft-autosave.ts",
+        "hooks/use-now-signals.ts",
+        "lib/ai/cliche-detector.ts",
+        "lib/brain/anti-pattern-auto-promote.ts",
+        "lib/brain/brain-maturity.ts",
+        "lib/brain/domain-knowledge-extractor.ts",
+        "lib/brain/reflection-engine.ts",
+        "lib/chat/direct-actions.ts",
+        "lib/services/client/tasks.ts",
+        "lib/services/operator.ts",
+        "lib/ultron/mode-classifier.ts",
+        "lib/ultron/persona-map.ts",
+        "tests/setup/auth-guard-mock.ts",
+        "tests/setup/server-only-shim.ts",
+        "components/actions/event-timeline.tsx"
+      ]
+    }
+  }
+}

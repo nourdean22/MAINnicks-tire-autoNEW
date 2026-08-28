@@ -29,7 +29,11 @@ first run found a fourth subject the hand-audit had missed.
 
 1. **Probe the REAL binary end-to-end.** Feed candidate commands through
    the actual hook/linter process and assert on **exit codes**, not on
-   your reading of the regex. A regex you reason about is a regex you
+   your reading of the regex. **For a DENY canary, a nonzero exit is NOT
+   proof** - config and parse errors exit nonzero too (witnessed
+   2026-08-27: a dependency-cruiser deny-canary "passed" on a TS18003
+   config error, #1935); assert the specific rule/violation id appears
+   in the OUTPUT as well. A regex you reason about is a regex you
    excuse. **Attribute before fixing:** this machine runs MULTIPLE guard
    layers (repo pretool + the Claude-harness sandbox), and a block banner
    without the repo's "BLOCKED by repo policy: <id>" attribution is NOT

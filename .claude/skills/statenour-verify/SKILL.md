@@ -46,6 +46,30 @@ non-obvious and two of them silently lie if run carelessly.
   2026-07-30 (#1238): a test fixture omitted a newly-required field on
   an interface, typecheck exited 0, and vitest was the only thing that
   caught it. Never report "verified" off typecheck alone.
+- **TS2307 "cannot find module" in a file OUTSIDE your diff = stale-junction
+  phantom, not your regression.** Worktree node_modules are junctions to the
+  PRIMARY checkout; if the primary sits behind main, packages added since
+  (witnessed 2026-08-27: `edge-tts-universal` from #1930) do not resolve.
+  Confirm with `git show HEAD:apps/statenour/package.json | grep <pkg>` vs
+  what is installed - the fix is refreshing the PRIMARY checkout, never
+  patching the app.
+- **lefthook's parallel pre-commit jobs can flake red under memory
+  pressure** and pass unchanged on retry (witnessed twice 2026-08-27:
+  statenour-typecheck 149s red -> green, agent-os-verify red while the
+  same command passed standalone). Rerun ONCE before diagnosing; twice
+  red at identical duration = real.
+- **TS2307 "cannot find module" in a file OUTSIDE your diff = stale-junction
+  phantom, not your regression.** Worktree node_modules are junctions to the
+  PRIMARY checkout; if the primary sits behind main, packages added since
+  (witnessed 2026-08-27: `edge-tts-universal` from #1930) do not resolve.
+  Confirm with `git show HEAD:apps/statenour/package.json | grep <pkg>` vs
+  what is installed - the fix is refreshing the PRIMARY checkout, never
+  patching the app.
+- **lefthook's parallel pre-commit jobs can flake red under memory
+  pressure** and pass unchanged on retry (witnessed twice 2026-08-27:
+  statenour-typecheck 149s red -> green, agent-os-verify red while the
+  same command passed standalone). Rerun ONCE before diagnosing; twice
+  red at identical duration = real.
 - ~405 eslint `any` warnings are pre-existing and non-blocking — only
   `error`-severity problems fail the gate.
 - Vitest can abort with a native `failed to delete napi ref` crash on
