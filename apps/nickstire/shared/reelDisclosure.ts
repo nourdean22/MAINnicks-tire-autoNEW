@@ -77,14 +77,24 @@ export interface DisclosurePack {
   copy: string;
   /** Set when the pack carries a machine-checked disclosure label. */
   disclosureLabel?: string | null;
+  /**
+   * The value that WILL be sent as Meta's `is_ai_generated` container parameter.
+   * THIS is the platform disclosure mechanism - caption text is not.
+   */
+  apiDisclosureFlag?: boolean;
+}
+
+/** True when a provider name denotes a generative video model. */
+export function isGenerativeProvider(provider: string | null | undefined): boolean {
+  const p = (provider ?? "").toLowerCase().trim();
+  if (!p) return false;
+  return GENERATIVE_PROVIDERS.some((x) => p.includes(x));
 }
 
 /** True when any clip in the pack is model-generated. */
 export function isGenerated(pack: DisclosurePack): boolean {
   if (pack.hasGeneratedVideo) return true;
-  const p = (pack.videoProvider ?? "").toLowerCase().trim();
-  if (!p) return false;
-  return GENERATIVE_PROVIDERS.some((g) => p.includes(g));
+  return isGenerativeProvider(pack.videoProvider);
 }
 
 /** True when the pack's copy or label discloses the footage is synthetic. */
@@ -118,14 +128,32 @@ export function disclosureViolation(pack: DisclosurePack): string | null {
     );
   }
 
-  if (!hasDisclosure(pack)) {
+  // CORRECTED 2026-08-28 after checking Meta's current docs rather than trusting
+  // a prior. The platform disclosure mechanism is the STRUCTURED container
+  // parameter `is_ai_generated` (boolean, "An optional parameter to provide a
+  // self-disclosure of AI usage in the post", valid for REELS) - not a sentence
+  // in the caption. An earlier draft of this gate accepted caption text, which
+  // would have passed a reel that Meta reads as undisclosed.
+  if (pack.apiDisclosureFlag !== true) {
     return (
       `BLOCKED_MISSING_AI_DISCLOSURE: pack "${pack.id}" contains model-generated video ` +
-      "but carries no AI disclosure. Meta requires a disclosure on organic photorealistic " +
-      "generated video or realistic audio and may penalise its absence. " +
-      "Fix: add an explicit AI-generated label to the caption."
+      "but the publish call would not set Meta's is_ai_generated=true. Meta requires " +
+      "self-disclosure on organic photorealistic generated video or realistic audio and " +
+      "may apply penalties for its absence. " +
+      (hasDisclosure(pack)
+        ? "The caption mentions AI, but caption text is NOT the platform mechanism. "
+        : "") +
+      "Fix: pass is_ai_generated=true on the media container."
     );
   }
 
   return null;
+}
+
+/**
+ * The container parameters this pack MUST publish with. Returned as data so the
+ * publish path cannot forget the flag and the dry run can show it.
+ */
+export function requiredPublishParams(pack: DisclosurePack): { is_ai_generated?: true } {
+  return isGenerated(pack) ? { is_ai_generated: true } : {};
 }

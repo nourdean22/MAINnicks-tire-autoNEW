@@ -757,6 +757,18 @@ export async function postInstagramReel(params: {
   coverUrl?: string;
   /** Fallback cover: ms into the reel to grab the cover frame. Default 0 = the centered Anton hook first frame. */
   thumbOffsetMs?: number;
+  /**
+   * Meta's OWN self-disclosure field for AI usage. Verified against
+   * developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media/
+   * on 2026-08-28: `is_ai_generated`, boolean, "An optional parameter to provide
+   * a self-disclosure of AI usage in the post", valid for REELS.
+   *
+   * This is the PLATFORM mechanism. A disclosure sentence in the caption is a
+   * human-readable courtesy and is NOT what Meta reads - policy requires the
+   * disclosure tool for organic photorealistic generated video or realistic
+   * audio, and Meta may apply penalties for its absence.
+   */
+  isAiGenerated?: boolean;
 }): Promise<{ success: boolean; postId?: string; error?: string; ambiguous?: boolean }> {
   await ensurePageTokenLoaded();
   const token = getPageToken();
@@ -780,6 +792,8 @@ export async function postInstagramReel(params: {
         media_type: "REELS",
         video_url: params.videoUrl,
         caption: params.caption,
+        // Structured AI self-disclosure - see isAiGenerated on the param type.
+        ...(params.isAiGenerated ? { is_ai_generated: true } : {}),
         // PUBLISHED != VISIBLE (2026-08-07). Instagram defaults share_to_feed
         // to FALSE for REELS containers, so every reel this lane has ever
         // published landed in the Reels tab ONLY and never appeared on the

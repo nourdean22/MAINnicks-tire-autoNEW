@@ -10,13 +10,13 @@ import { BASELINE, baselineRates, TARGETS, scoreAgainstBaseline } from "../../sh
 
 describe("baseline ratios recompute from the raw counts", () => {
   it("interaction rate is 0.99%", () => {
-    expect(baselineRates.interactionRate).toBeCloseTo(0.99, 2);
+    expect(baselineRates.interactionRate.pct).toBeCloseTo(0.99, 2);
   });
   it("profile-visit rate is 0.53%", () => {
-    expect(baselineRates.profileVisitRate).toBeCloseTo(0.53, 2);
+    expect(baselineRates.profileVisitRate.pct).toBeCloseTo(0.53, 2);
   });
   it("unique-engaged rate is 1.07%", () => {
-    expect(baselineRates.uniqueEngagedRate).toBeCloseTo(1.07, 2);
+    expect(baselineRates.uniqueEngagedRate.pct).toBeCloseTo(1.07, 2);
   });
   it("the raw counts are the ones measured on 2026-08-28", () => {
     expect(BASELINE.views).toBe(13871);
@@ -61,7 +61,29 @@ describe("scoreAgainstBaseline", () => {
   });
 
   it("targets are multiples of the baseline, not blog medians", () => {
-    expect(TARGETS.interactionRatePct).toBeGreaterThan(baselineRates.interactionRate * 2);
-    expect(TARGETS.profileVisitRatePct).toBeGreaterThan(baselineRates.profileVisitRate * 2);
+    expect(TARGETS.interactionRatePct).toBeGreaterThan(baselineRates.interactionRate.pct * 2);
+    expect(TARGETS.profileVisitRatePct).toBeGreaterThan(baselineRates.profileVisitRate.pct * 2);
+  });
+});
+
+describe("every rate travels with its sample size", () => {
+  it("each rate exposes numerator, denominator and a pasteable basis", () => {
+    for (const [name, r] of Object.entries(baselineRates)) {
+      expect(r.denominator, name).toBeGreaterThan(0);
+      expect(r.numerator, name).toBeGreaterThanOrEqual(0);
+      expect(r.basis, name).toMatch(/\d.*\/.*\d/);
+    }
+  });
+
+  it("the basis strings name the real denominators", () => {
+    expect(baselineRates.interactionRate.basis).toBe("137 interactions / 13,871 views");
+    expect(baselineRates.uniqueEngagedRate.basis).toBe("35 unique accounts / 3,269 followers");
+  });
+
+  // The one-tap number: 1 website tap in 13,871 views is the whole finding.
+  it("website-tap rate is carried explicitly with its denominator", () => {
+    expect(baselineRates.websiteTapRate.numerator).toBe(1);
+    expect(baselineRates.websiteTapRate.denominator).toBe(13871);
+    expect(baselineRates.websiteTapRate.pct).toBeLessThan(0.01);
   });
 });

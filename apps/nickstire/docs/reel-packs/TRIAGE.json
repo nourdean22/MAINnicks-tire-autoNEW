@@ -1,433 +1,1237 @@
 {
   "generated": "2026-08-28",
+  "note": "Concepts as rows. No weighted rubric - ranked by cost ascending until actuals exist. Every non-publishable row carries blockReason; UNKNOWN is not a permitted state.",
   "totals": {
     "all": 136,
-    "ready": 94,
-    "blocked": 40,
-    "unknown": 2
+    "publishable": 3,
+    "needs-work": 93,
+    "dead": 40
   },
-  "ready_by_cost_asc": [
+  "unexplained": [],
+  "concepts": [
+    {
+      "id": "2026-08-17-cabin-air-filter",
+      "franchise": "cabin-air-filter",
+      "productionType": "real-footage",
+      "cost": 0,
+      "status": "publishable",
+      "blockReason": null,
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-why-car-pulls",
+      "franchise": "why-car-pulls",
+      "productionType": "real-footage",
+      "cost": 0,
+      "status": "publishable",
+      "blockReason": null,
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-tire-sidewall-numbers",
+      "franchise": "tire-sidewall-numbers",
+      "productionType": "real-footage",
+      "cost": 0,
+      "status": "publishable",
+      "blockReason": null,
+      "actuals": null
+    },
+    {
+      "id": "2026-08-14-penny-test",
+      "franchise": "penny-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-14-tire-expiration",
+      "franchise": "tire-expiration",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "no captions.srt - the reel cannot be assembled without them",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-15-tread-fingerprint",
+      "franchise": "tread-fingerprint",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-16-battery-summer-heat",
+      "franchise": "battery-summer-heat",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-16-check-engine-light",
+      "franchise": "check-engine-light",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-16-squealing-vs-grinding-brakes",
+      "franchise": "squealing-vs-grinding-brakes",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-16-wheel-bearing-hum",
+      "franchise": "wheel-bearing-hum",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-balance-vs-alignment",
+      "franchise": "balance-vs-alignment",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
     {
-      "name": "2026-08-15-tread-fingerprint",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-16-battery-summer-heat",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-16-check-engine-light",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-16-squealing-vs-grinding-brakes",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-16-wheel-bearing-hum",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-balance-vs-alignment",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-cabin-air-filter",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-coolant-color",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-exhaust-smoke-color",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-oil-change-intervals",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-plug-vs-patch",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-pothole-damage",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-repair-questions",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-roadtrip-tire-check",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-serpentine-belt-squeal",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-sidewall-bulge",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-spare-tire-mileage",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-stop-driving-noises",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-strut-bounce-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-summer-heat-tire-pressure",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-tire-rotation",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-transmission-fluid-color-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-tread-depth-rain-vs-snow",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-why-car-pulls",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-17-wiper-blade-check",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-ac-not-blowing-cold",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-allseason-vs-winter-tires",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-brake-fluid-moisture-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-cold-weather-tire-light",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-cv-joint-click",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-power-steering-whine",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-tpms-sensor-battery",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-18-uneven-tire-wear-patterns",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-burning-smell-diagnosis",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-clunk-over-bumps-sway-bar-ball-joint",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-engine-overheating-first-60-seconds",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-heat-shield-rattle",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-spongy-brake-pedal",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-timing-belt-no-warning-light",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-warped-rotor-brake-shake",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-windshield-chip-spreads",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-19-wont-start-battery-starter-alternator",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-awd-one-new-tire",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-battery-terminal-corrosion",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-caliper-sticking-hot-wheel",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-cloudy-headlights",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-dashboard-light-colors",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-echeck-readiness-monitors",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-fuel-smell-in-cabin",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-heater-not-blowing-hot",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-idle-shake-spark-plug-motor-mount",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-musty-ac-smell-evaporator-vs-filter",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-oil-dipstick-color-check",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-radiator-fan-idle-overheat",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-tie-rod-steering-wobble-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-20-tire-sidewall-numbers",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-abs-light-wheel-speed-sensor",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-battery-parasitic-drain",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-blower-motor-resistor",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-key-fob-dead-battery-no-start",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-pcv-valve-oil-consumption",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-power-window-stuck-halfway",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-radiator-cap-pressure-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-spark-plug-wire-arcing",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-21-valve-stem-dry-rot",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-22-clutch-slipping-rpm-flare",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-22-hard-brake-pedal-vacuum-booster",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-22-motor-mount-clunk-acceleration",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-22-oil-pressure-light-flicker-idle",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-22-rotten-egg-exhaust-smell",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-door-lock-actuator-stripped-gear",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-exhaust-suddenly-loud-rusted-muffler",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-fuel-gauge-sending-unit",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-fuel-pump-whine",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-rough-shifting-check-fluid-first",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-sunroof-drain-clog-water-leak",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-sweet-smell-heater-core-coolant-leak",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-trunk-hatch-gas-strut-sag",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-23-washer-fluid-wont-spray",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-24-horn-wont-work",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-24-turbo-whistle-vs-boost-leak",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-24-water-pump-weep-hole-leak",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-ac-blend-door-actuator-hot-cold-split",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-ac-compressor-clutch-not-engaging",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-collapsing-radiator-hose",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-misfire-shudder-coil-vs-plug",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-rear-defroster-grid-line-test",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-25-torque-converter-shudder-40-45mph",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-26-engine-air-filter-clogged",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-26-exhaust-hanger-rattle-over-bumps",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-27-brake-dust-normal-vs-check-pads",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-27-morning-rotor-rust-squeal",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-27-starter-grinding-noise-on-start",
-      "cost": 1
-    },
-    {
-      "name": "2026-08-28-new-brake-squeak-bed-in",
-      "cost": 1
+      "id": "2026-08-17-coolant-color",
+      "franchise": "coolant-color",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-exhaust-smoke-color",
+      "franchise": "exhaust-smoke-color",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-oil-change-intervals",
+      "franchise": "oil-change-intervals",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-plug-vs-patch",
+      "franchise": "plug-vs-patch",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-pothole-damage",
+      "franchise": "pothole-damage",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-repair-questions",
+      "franchise": "repair-questions",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-road-salt-brake-lines",
+      "franchise": "road-salt-brake-lines",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-roadtrip-tire-check",
+      "franchise": "roadtrip-tire-check",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-serpentine-belt-squeal",
+      "franchise": "serpentine-belt-squeal",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-sidewall-bulge",
+      "franchise": "sidewall-bulge",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-spare-tire-mileage",
+      "franchise": "spare-tire-mileage",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-stop-driving-noises",
+      "franchise": "stop-driving-noises",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-strut-bounce-test",
+      "franchise": "strut-bounce-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-summer-heat-tire-pressure",
+      "franchise": "summer-heat-tire-pressure",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-tire-rotation",
+      "franchise": "tire-rotation",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-transmission-fluid-color-test",
+      "franchise": "transmission-fluid-color-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-tread-depth-rain-vs-snow",
+      "franchise": "tread-depth-rain-vs-snow",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-17-wiper-blade-check",
+      "franchise": "wiper-blade-check",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-ac-not-blowing-cold",
+      "franchise": "ac-not-blowing-cold",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-allseason-vs-winter-tires",
+      "franchise": "allseason-vs-winter-tires",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-brake-fluid-moisture-test",
+      "franchise": "brake-fluid-moisture-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-cold-weather-tire-light",
+      "franchise": "cold-weather-tire-light",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-cv-joint-click",
+      "franchise": "cv-joint-click",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-power-steering-whine",
+      "franchise": "power-steering-whine",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-tpms-sensor-battery",
+      "franchise": "tpms-sensor-battery",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-18-uneven-tire-wear-patterns",
+      "franchise": "uneven-tire-wear-patterns",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-burning-smell-diagnosis",
+      "franchise": "burning-smell-diagnosis",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-clunk-over-bumps-sway-bar-ball-joint",
+      "franchise": "clunk-over-bumps-sway-bar-ball-joint",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-engine-overheating-first-60-seconds",
+      "franchise": "engine-overheating-first-60-seconds",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-heat-shield-rattle",
+      "franchise": "heat-shield-rattle",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-spongy-brake-pedal",
+      "franchise": "spongy-brake-pedal",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-timing-belt-no-warning-light",
+      "franchise": "timing-belt-no-warning-light",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-warped-rotor-brake-shake",
+      "franchise": "warped-rotor-brake-shake",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-windshield-chip-spreads",
+      "franchise": "windshield-chip-spreads",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-19-wont-start-battery-starter-alternator",
+      "franchise": "wont-start-battery-starter-alternator",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-awd-one-new-tire",
+      "franchise": "awd-one-new-tire",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-battery-terminal-corrosion",
+      "franchise": "battery-terminal-corrosion",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-caliper-sticking-hot-wheel",
+      "franchise": "caliper-sticking-hot-wheel",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-cloudy-headlights",
+      "franchise": "cloudy-headlights",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-dashboard-light-colors",
+      "franchise": "dashboard-light-colors",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-echeck-readiness-monitors",
+      "franchise": "echeck-readiness-monitors",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-fuel-smell-in-cabin",
+      "franchise": "fuel-smell-in-cabin",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-heater-not-blowing-hot",
+      "franchise": "heater-not-blowing-hot",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-idle-shake-spark-plug-motor-mount",
+      "franchise": "idle-shake-spark-plug-motor-mount",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-lug-nut-retorque",
+      "franchise": "lug-nut-retorque",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-musty-ac-smell-evaporator-vs-filter",
+      "franchise": "musty-ac-smell-evaporator-vs-filter",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-oil-dipstick-color-check",
+      "franchise": "oil-dipstick-color-check",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-radiator-fan-idle-overheat",
+      "franchise": "radiator-fan-idle-overheat",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-slow-leak-soap-test",
+      "franchise": "slow-leak-soap-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-tailpipe-condensation-vs-coolant-leak",
+      "franchise": "tailpipe-condensation-vs-coolant-leak",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-20-tie-rod-steering-wobble-test",
+      "franchise": "tie-rod-steering-wobble-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-abs-light-wheel-speed-sensor",
+      "franchise": "abs-light-wheel-speed-sensor",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-ac-recharge-myth-sealed-system",
+      "franchise": "ac-recharge-myth-sealed-system",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-battery-parasitic-drain",
+      "franchise": "battery-parasitic-drain",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-blower-motor-resistor",
+      "franchise": "blower-motor-resistor",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-brake-pedal-sinks-overnight",
+      "franchise": "brake-pedal-sinks-overnight",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-catalytic-converter-theft-prevention",
+      "franchise": "catalytic-converter-theft-prevention",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-differential-whine-on-turns",
+      "franchise": "differential-whine-on-turns",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-gas-cap-check-engine-light",
+      "franchise": "gas-cap-check-engine-light",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-key-fob-dead-battery-no-start",
+      "franchise": "key-fob-dead-battery-no-start",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-pcv-valve-oil-consumption",
+      "franchise": "pcv-valve-oil-consumption",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-power-window-stuck-halfway",
+      "franchise": "power-window-stuck-halfway",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-radiator-cap-pressure-test",
+      "franchise": "radiator-cap-pressure-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-spark-plug-wire-arcing",
+      "franchise": "spark-plug-wire-arcing",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-timing-chain-rattle-cold-start",
+      "franchise": "timing-chain-rattle-cold-start",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-21-valve-stem-dry-rot",
+      "franchise": "valve-stem-dry-rot",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-22-clutch-slipping-rpm-flare",
+      "franchise": "clutch-slipping-rpm-flare",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-22-hard-brake-pedal-vacuum-booster",
+      "franchise": "hard-brake-pedal-vacuum-booster",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-22-motor-mount-clunk-acceleration",
+      "franchise": "motor-mount-clunk-acceleration",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-22-oil-pressure-light-flicker-idle",
+      "franchise": "oil-pressure-light-flicker-idle",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-22-rotten-egg-exhaust-smell",
+      "franchise": "rotten-egg-exhaust-smell",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-door-lock-actuator-stripped-gear",
+      "franchise": "door-lock-actuator-stripped-gear",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-egr-valve-clogged-rough-idle",
+      "franchise": "egr-valve-clogged-rough-idle",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-exhaust-suddenly-loud-rusted-muffler",
+      "franchise": "exhaust-suddenly-loud-rusted-muffler",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-fuel-gauge-sending-unit",
+      "franchise": "fuel-gauge-sending-unit",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-fuel-pump-whine",
+      "franchise": "fuel-pump-whine",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-rough-shifting-check-fluid-first",
+      "franchise": "rough-shifting-check-fluid-first",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-sunroof-drain-clog-water-leak",
+      "franchise": "sunroof-drain-clog-water-leak",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-sweet-smell-heater-core-coolant-leak",
+      "franchise": "sweet-smell-heater-core-coolant-leak",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-trunk-hatch-gas-strut-sag",
+      "franchise": "trunk-hatch-gas-strut-sag",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-23-washer-fluid-wont-spray",
+      "franchise": "washer-fluid-wont-spray",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-24-head-gasket-white-smoke-milky-oil",
+      "franchise": "head-gasket-white-smoke-milky-oil",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-24-horn-wont-work",
+      "franchise": "horn-wont-work",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-24-turbo-whistle-vs-boost-leak",
+      "franchise": "turbo-whistle-vs-boost-leak",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-24-water-pump-weep-hole-leak",
+      "franchise": "water-pump-weep-hole-leak",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-4wd-transfer-case-bind-tight-turns",
+      "franchise": "4wd-transfer-case-bind-tight-turns",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-ac-blend-door-actuator-hot-cold-split",
+      "franchise": "ac-blend-door-actuator-hot-cold-split",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-ac-compressor-clutch-not-engaging",
+      "franchise": "ac-compressor-clutch-not-engaging",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-alternator-bearing-whine-vs-belt-squeal",
+      "franchise": "alternator-bearing-whine-vs-belt-squeal",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-brake-light-switch-cruise-shifter",
+      "franchise": "brake-light-switch-cruise-shifter",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-collapsing-radiator-hose",
+      "franchise": "collapsing-radiator-hose",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-exhaust-manifold-cold-start-tick",
+      "franchise": "exhaust-manifold-cold-start-tick",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-misfire-shudder-coil-vs-plug",
+      "franchise": "misfire-shudder-coil-vs-plug",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-o2-sensor-rough-idle-poor-mpg",
+      "franchise": "o2-sensor-rough-idle-poor-mpg",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-rear-defroster-grid-line-test",
+      "franchise": "rear-defroster-grid-line-test",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-torque-converter-shudder-40-45mph",
+      "franchise": "torque-converter-shudder-40-45mph",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-25-transmission-delayed-engagement",
+      "franchise": "transmission-delayed-engagement",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-check-engine-flashing-vs-steady",
+      "franchise": "check-engine-flashing-vs-steady",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-engine-air-filter-clogged",
+      "franchise": "engine-air-filter-clogged",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-evap-purge-valve-stuck",
+      "franchise": "evap-purge-valve-stuck",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-exhaust-hanger-rattle-over-bumps",
+      "franchise": "exhaust-hanger-rattle-over-bumps",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-hesitation-acceleration-maf-sensor",
+      "franchise": "hesitation-acceleration-maf-sensor",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-26-thermostat-stuck-open-vs-closed",
+      "franchise": "thermostat-stuck-open-vs-closed",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-alternator-overcharging-battery-swell",
+      "franchise": "alternator-overcharging-battery-swell",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-battery-cold-weather-cranking-amps",
+      "franchise": "battery-cold-weather-cranking-amps",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-blown-fuse-repeat-short-circuit",
+      "franchise": "blown-fuse-repeat-short-circuit",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-brake-dust-normal-vs-check-pads",
+      "franchise": "brake-dust-normal-vs-check-pads",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-engine-knock-ping-carbon-vs-knock-sensor",
+      "franchise": "engine-knock-ping-carbon-vs-knock-sensor",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-foggy-windshield-recirculate-trick",
+      "franchise": "foggy-windshield-recirculate-trick",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-fuel-injector-tick-at-idle",
+      "franchise": "fuel-injector-tick-at-idle",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-idle-air-control-valve-rough-idle-stall",
+      "franchise": "idle-air-control-valve-rough-idle-stall",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-morning-rotor-rust-squeal",
+      "franchise": "morning-rotor-rust-squeal",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-starter-grinding-noise-on-start",
+      "franchise": "starter-grinding-noise-on-start",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-steering-vibration-highway-speed",
+      "franchise": "steering-vibration-highway-speed",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-synthetic-vs-conventional-oil",
+      "franchise": "synthetic-vs-conventional-oil",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-27-u-joint-clunk-drive-reverse-shift",
+      "franchise": "u-joint-clunk-drive-reverse-shift",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-brake-squeal-reverse-only-wear-indicator",
+      "franchise": "brake-squeal-reverse-only-wear-indicator",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-exhaust-pop-backfire-deceleration",
+      "franchise": "exhaust-pop-backfire-deceleration",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-new-brake-squeak-bed-in",
+      "franchise": "new-brake-squeak-bed-in",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "needs-work",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-parking-brake-cable-seized-dragging",
+      "franchise": "parking-brake-cable-seized-dragging",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-power-mirror-wont-move",
+      "franchise": "power-mirror-wont-move",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-power-steering-fluid-leak-color",
+      "franchise": "power-steering-fluid-leak-color",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-steering-wheel-crooked-after-tires",
+      "franchise": "steering-wheel-crooked-after-tires",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-turn-signal-hyperflash-bulb-out",
+      "franchise": "turn-signal-hyperflash-bulb-out",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
+    },
+    {
+      "id": "2026-08-28-washer-fluid-freezing-wrong-fluid",
+      "franchise": "washer-fluid-freezing-wrong-fluid",
+      "productionType": "generated",
+      "cost": 2,
+      "status": "dead",
+      "blockReason": "BLOCKED: NO MOTION ROUTE",
+      "actuals": null
     }
-  ],
-  "blocked": [
-    "2026-08-17-road-salt-brake-lines",
-    "2026-08-20-lug-nut-retorque",
-    "2026-08-20-slow-leak-soap-test",
-    "2026-08-20-tailpipe-condensation-vs-coolant-leak",
-    "2026-08-21-ac-recharge-myth-sealed-system",
-    "2026-08-21-brake-pedal-sinks-overnight",
-    "2026-08-21-catalytic-converter-theft-prevention",
-    "2026-08-21-differential-whine-on-turns",
-    "2026-08-21-gas-cap-check-engine-light",
-    "2026-08-21-timing-chain-rattle-cold-start",
-    "2026-08-23-egr-valve-clogged-rough-idle",
-    "2026-08-24-head-gasket-white-smoke-milky-oil",
-    "2026-08-25-4wd-transfer-case-bind-tight-turns",
-    "2026-08-25-alternator-bearing-whine-vs-belt-squeal",
-    "2026-08-25-brake-light-switch-cruise-shifter",
-    "2026-08-25-exhaust-manifold-cold-start-tick",
-    "2026-08-25-o2-sensor-rough-idle-poor-mpg",
-    "2026-08-25-transmission-delayed-engagement",
-    "2026-08-26-check-engine-flashing-vs-steady",
-    "2026-08-26-evap-purge-valve-stuck",
-    "2026-08-26-hesitation-acceleration-maf-sensor",
-    "2026-08-26-thermostat-stuck-open-vs-closed",
-    "2026-08-27-alternator-overcharging-battery-swell",
-    "2026-08-27-battery-cold-weather-cranking-amps",
-    "2026-08-27-blown-fuse-repeat-short-circuit",
-    "2026-08-27-engine-knock-ping-carbon-vs-knock-sensor",
-    "2026-08-27-foggy-windshield-recirculate-trick",
-    "2026-08-27-fuel-injector-tick-at-idle",
-    "2026-08-27-idle-air-control-valve-rough-idle-stall",
-    "2026-08-27-steering-vibration-highway-speed",
-    "2026-08-27-synthetic-vs-conventional-oil",
-    "2026-08-27-u-joint-clunk-drive-reverse-shift",
-    "2026-08-28-brake-squeal-reverse-only-wear-indicator",
-    "2026-08-28-exhaust-pop-backfire-deceleration",
-    "2026-08-28-parking-brake-cable-seized-dragging",
-    "2026-08-28-power-mirror-wont-move",
-    "2026-08-28-power-steering-fluid-leak-color",
-    "2026-08-28-steering-wheel-crooked-after-tires",
-    "2026-08-28-turn-signal-hyperflash-bulb-out",
-    "2026-08-28-washer-fluid-freezing-wrong-fluid"
-  ],
-  "unknown": [
-    "2026-08-14-penny-test",
-    "2026-08-14-tire-expiration"
   ]
 }

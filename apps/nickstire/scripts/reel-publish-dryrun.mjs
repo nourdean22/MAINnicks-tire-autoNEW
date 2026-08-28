@@ -12,7 +12,7 @@
  * Run: railway run --service MAINnicks-tire-auto -- node scripts/reel-publish-dryrun.mjs
  */
 import mysql from "mysql2/promise";
-import { disclosureViolation } from "../client/shared/reelDisclosure.ts";
+import { disclosureViolation, requiredPublishParams } from "../shared/reelDisclosure.ts";
 
 const GRAPH_VERSION = "v21.0";
 const conn = await mysql.createConnection(process.env.DATABASE_URL);
@@ -59,12 +59,14 @@ try {
 }
 
 console.log(`\n[3] DISCLOSURE GATE`);
-const violation = disclosureViolation({
-  id: `reel-job-${job.id}`,
-  videoProvider: provider,
-  copy: caption,
-});
+// The publish path MUST send Meta's structured self-disclosure for generated
+// video (is_ai_generated). Verified against Meta's own docs 2026-08-28 - caption
+// text is not the platform mechanism.
+const packFacts = { id: `reel-job-${job.id}`, videoProvider: provider, copy: caption };
+const required = requiredPublishParams(packFacts);
+const violation = disclosureViolation({ ...packFacts, apiDisclosureFlag: required.is_ai_generated === true });
 console.log(`    provider    : ${provider ?? "(unknown)"}`);
+console.log(`    required    : ${JSON.stringify(required)}  <- must be on the container`);
 console.log(`    verdict     : ${violation ? "BLOCKED" : "PASS"}`);
 if (violation) console.log(`    reason      : ${violation}`);
 
@@ -79,7 +81,7 @@ console.log(`    STEP 1  POST https://graph.facebook.com/${GRAPH_VERSION}/${igUs
 console.log(
   "            body: " +
     JSON.stringify(
-      { media_type: "REELS", video_url: job.mp4Url, caption, access_token: "<REDACTED>" },
+      { media_type: "REELS", video_url: job.mp4Url, caption, ...required, share_to_feed: true, access_token: "<REDACTED>" },
       null,
       2,
     )

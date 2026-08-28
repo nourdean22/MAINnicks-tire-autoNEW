@@ -1502,6 +1502,34 @@
         "deploymentId": "Railway MAINnicks-tire-auto deployment c5b3d60d-24dc-42d9-94b2-a8a4429524ae (SUCCESS, created 2026-08-25T18:11:28Z) — the container that served the 18:21:18Z observed run. Second generation since the staging merge (first: 16:08:28Z post-#1830); campaign-resume automatic runs across both: 0."
       },
       "verificationExpiresAt": "2026-09-24"
+    },
+    {
+      "capabilityId": "reel-ai-disclosure-gate",
+      "name": "Structured AI self-disclosure on Instagram publish (is_ai_generated)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this diff — client/shared/reelDisclosure.ts + server/services/metaSocial.ts",
+        "tests": [
+          "client/src/__tests__/reel-disclosure.test.ts (18): Rule 1 blocks generated footage framed as a real customer/repair/test/before-after and a disclosure LABEL does not rescue it; Rule 2 blocks generated video unless the publish call sets is_ai_generated=true; caption text alone is explicitly asserted INSUFFICIENT. Positive controls: real footage with identical copy PASSES, disclosed educational generated footage PASSES. Mutation-proven both directions in #1980 (gate disabled -> 7 RED; gate always-blocking -> 11 RED).",
+          "client/src/__tests__/reel-concepts.test.ts (10): every non-publishable concept carries a blockReason; UNKNOWN is not a reachable state."
+        ],
+        "verifiedAgainst": "Meta developer docs read 2026-08-28: developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media/ documents is_ai_generated as a boolean container parameter, 'An optional parameter to provide a self-disclosure of AI usage in the post', valid for REELS. Policy side: Meta requires the disclosure tool for organic photorealistic generated video or realistic audio and may apply penalties (transparency.meta.com labeling-ai-content).",
+        "limits": "NOT yet exercised against the live API — no reel has been published with this flag. The gate is proven by canary and by a dry run that HALTED before the Instagram call; first live publish is operator-authorized."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "NEVER EXERCISED AGAINST THE LIVE API. No reel has published with is_ai_generated set, so Meta's acceptance of the parameter is documented but not observed. Blocked behind the operator-authorized first publish; the dry run halts before the Instagram call by design. Separately, the Higgsfield session is dead (refresh token revoked), so no new generated reel can reach the publish path until the operator re-authenticates."
+        }
+      ],
+      "deferredScope": [
+        "live-API confirmation that is_ai_generated is accepted on the container",
+        "back-labelling reels already published without the flag (container params are not editable after creation)"
+      ],
+      "lastVerifiedAt": "2026-08-28",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
