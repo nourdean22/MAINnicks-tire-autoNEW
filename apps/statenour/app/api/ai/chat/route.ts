@@ -1,6 +1,7 @@
 import { streamText } from "ai";  // (stepCountIs moved into the extracted pipeline modules, 2026-07-25)
 import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
 import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
+import { updateTurnContext } from "@/lib/agent/turn-context";
 import {
   resolveEscalation,
   ESCALATION_DAILY_CAP,
@@ -64,7 +65,13 @@ export async function POST(req: Request) {
   // gets tagged with actor "nick" so the audit trail distinguishes
   // AI mutations from user-direct ones.
   const { withActor } = await import("@/lib/db/actor");
-  return withActor("nick", () => chatPostInner(req));
+  // 2026-08-28 · WP3 · open a turn scope alongside the actor scope, for
+  // the same reason and at the same boundary: tools run several layers
+  // down and need to know which conversation they are in before they can
+  // schedule a follow-up for it. Seeded empty — convId is resolved
+  // partway through the turn and filled in by updateTurnContext.
+  const { withTurnContext } = await import("@/lib/agent/turn-context");
+  return withActor("nick", () => withTurnContext({}, () => chatPostInner(req)));
 }
 
 async function chatPostInner(req: Request) {
@@ -708,6 +715,13 @@ async function chatPostInner(req: Request) {
   // visible in the chat-pipeline log line.
   const streamConfigTimer = stageTracker.start("stream-config");
   convId = resolvedConvId;
+  // Publish the resolved thread + trust posture to the turn scope so a
+  // tool executing below can schedule a follow-up against THIS thread.
+  updateTurnContext({
+    conversationId: convId && convId !== "temp" && convId !== "private" ? convId : null,
+    untrustedInput: __webSearchIntent || __webSearchRecency,
+    privateMode,
+  });
 
   log.info("prompt_built", {
     cacheHit: fromCache,

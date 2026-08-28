@@ -512,6 +512,23 @@ export const CRONS: CronDef[] = [
     // nightly-only meant a crashed turn's receipts waited up to 24h — now
     // ALSO fired every 15 min by the worker's node-cron. Claim is atomic
     // first-claimant-wins, so both dispatch paths coexist safely.
+    name: "agent-followups",
+    schedule: "*/15 * * * *",
+    // DORMANT, not active: this cron is the only thing that can deliver
+    // an unprompted message, so it ships NOT wired to fire (the repo's
+    // own definition: route + code exist and work, operator parked it).
+    // Reviving it means adding it to lib/inngest/jobs.ts AND setting
+    // NICK_AGENT_FOLLOWUPS=1 AND leaving the per-cron kill switch on —
+    // three independent decisions, deliberately.
+    mode: "dormant",
+    category: "hygiene",
+    worker: true,
+    description:
+      "Delivers follow-ups the agent scheduled for itself (post_turn_outbox kind=agent-followup). DORMANT · needs jobs.ts wiring + NICK_AGENT_FOLLOWUPS=1 + kill switch on.",
+    memory: 512,
+    maxDuration: 300,
+  },
+  {
     name: "outbox-drain",
     schedule: "*/15 * * * *",
     mode: "active",

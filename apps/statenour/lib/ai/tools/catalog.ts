@@ -348,6 +348,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // invokeTool/queryData proxy READ-SAFE tools only (fail-closed via
   // capability-registry at call time) — hence not sideEffecting; medium
   // risk because they execute model-chosen names / model-written code.
+  { name: "scheduleSelfFollowUp",         category: "routines",       sideEffecting: true, cost: "free" },
   { name: "searchTools",                  category: "ai_analysis",    battle: true,  cost: "free",   riskClass: "low" },
   { name: "invokeTool",                   category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
   { name: "queryData",                    category: "ai_analysis",                   cost: "cheap",  riskClass: "medium" },
