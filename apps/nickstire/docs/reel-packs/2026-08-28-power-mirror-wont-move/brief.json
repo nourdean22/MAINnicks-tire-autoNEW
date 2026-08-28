@@ -1,0 +1,71 @@
+{
+  "topic": "Your power side-mirror won't move — switch, motor, or fuse?",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-08-28",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 51,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "Your side mirror stopped moving — and the buttons don't do anything.",
+      "visualPrompt": "Exterior close-up on a car's side mirror housing, static camera, driver reaching toward the door-panel switch out of frame, soft daylight, shallow depth of field."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "No motor sound, no click, nothing. Could be one mirror, or both.",
+      "visualPrompt": "Interior shot of a door-panel mirror-adjust switch/joystick, static mount, subtle backlight glow on the switch icon, no hand pressing it in frame."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: it's usually the switch, the mirror motor, or a blown fuse — three different fixes.",
+      "visualPrompt": "Macro/cutaway shot: a small electric mirror-adjust motor assembly removed and resting on a workbench, slow push-in, no hands or tools visible in frame."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "If only one side is dead, that narrows it fast. If neither moves, check the fuse first.",
+      "visualPrompt": "Close-up on a vehicle fuse box panel, one fuse slot highlighted/illuminated, dim garage lighting, static mounted camera."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess which part it is. A quick check can point to the actual cause.",
+      "visualPrompt": "Close-up on a multimeter probe resting clipped against a wiring connector near a mirror harness, shop bay softly blurred in the background, no hand holding the meter."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before you order the wrong part. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#CarElectrical", "#CarTips", "#AutoRepair", "#DIYvsShop", "#ClevelandAuto", "#NicksTireAndAuto", "#CarProblems"],
+    "feedCaption": "Side mirror stopped moving and the buttons do nothing? One clue: it's usually the switch, the motor, or a blown fuse — three different fixes. Don't guess which one. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the switch/motor/fuse fault-tree claim",
+      "whether Nick's Tire & Auto specifically services power-mirror electrical diagnosis (not confirmed against a live business_facts row)"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 19,
+    "newestOpenPRExamples": [1966, 1960, 1965],
+    "peakBacklogObserved": 132,
+    "peakBacklogDate": "2026-08-25"
+  }
+}
