@@ -1157,3 +1157,37 @@ statenour primitives documented (existence re-verified at
   written down before building. Cheap, and it has now fired twice in one session.
 - **Confidence:** medium (two instances, same session)
 - **Status:** proposed
+
+## 2026-08-28b · the finish pass (#1991)
+
+### P1 · NEW: assert-the-consumer
+- **Trigger (witnessed):** FOUR dead controls in one wave, all mine, all the same shape — a writer
+  with no reader, each shipped green because every test asserted the WRITE:
+  (1) `modelOverride` wired into a variable feeding flag-gated dead code while the serving path had
+  no such field (#1983); (2) the daily cap comparing bare model ids against a column stored as
+  `provider/model`, matching nothing (#1983 review); (3) `X-Escalation-*` headers set and claimed
+  "legible" with zero client readers — the grep returned only my own comment about dead controls
+  (#1991); (4) `scheduleSelfFollowUp` registered in nourTools + catalog + TOOL_FAMILIES yet
+  measured unreachable for 4 of 5 realistic phrasings (#1991).
+- **Cost:** two of the four shipped to main and were caught by review, not by me. One was the
+  headline feature of its PR and did nothing. All four passed full green suites.
+- **Proposed edit:** a short skill that fires whenever a change adds a WRITER — a header, an env
+  var, a DB column, a queue row, a tool registration, a response field. It requires, before "done":
+  (a) `git grep` for the consumer and paste the hit; (b) if there is no consumer, either build it in
+  the same change or do not ship the writer; (c) the canary asserts the CONSUMER end, never the
+  producer. Explicitly: *registration is not reachability, a header set is not a header read, and a
+  green unit test on the writer is the exact evidence that will fool you.*
+- **Confidence:** high (four instances, one session, all verified)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** the tool-reachability failure could only be found by RUNNING the pruner
+  against realistic phrasings — `scheduleSelfFollowUp` was correctly registered in all three
+  registries and still surfaced for only 1 of 5 sentences a human would actually type.
+- **Cost:** a shipped feature that the model could almost never invoke.
+- **Proposed edit:** add to the verify checklist: "After adding a chat tool, run `pruneTools`
+  against 5 phrasings you would really type and assert the tool appears. Registration in
+  catalog/TOOL_FAMILIES proves the tool EXISTS, never that the pruner will surface it — the trigger
+  and the attach pattern are different regexes and a tool can match one without the other."
+- **Confidence:** high (measured before and after)
+- **Status:** proposed
