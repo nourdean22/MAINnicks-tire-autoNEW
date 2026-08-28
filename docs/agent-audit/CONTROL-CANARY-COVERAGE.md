@@ -822,6 +822,60 @@ this much concurrent merging the flag buys nothing and spends attention.
 > `The operation was canceled` is a cancellation, not a test failure. Confirm by re-running the job;
 > investigate only if the second run fails too.
 
+## A gate is only as wide as its file list — the nav sweep that could not see `features/`
+
+2026-08-28. `tests/repo/system-nav-targets.test.ts` is a well-built control: positive control,
+negative control, and a vacuity check that the page list is non-empty. It reported green while
+`features/chat-v2/components/chat-capability-indicator.tsx:45` linked `href="/system/costs"` — a
+segment with an `/api/system/costs` route but **no page**, so the chat capability badge opened a
+404. The operator clicks it to check provider health.
+
+The gate never saw it. `sourceFiles()` listed `app, lib, config, components` — `features/` and
+`hooks/` are separate tracked source roots and were simply absent from the subject. Every
+assertion was sound; the population was wrong.
+
+**The generalisation, and it is not "add features to the list".** A control has *three* things
+that can be wrong, and the canary pair only tests the first two: the rule, the verdict, and **the
+subject**. A green sweep over the wrong file set is indistinguishable from a green sweep over the
+right one — which is the [orphaned-subject shape](DEFECT-SHAPE-ORPHANED-SUBJECT.md) wearing a
+different hat. So the fix ships with a **subject-coverage assertion**: the test now asserts the
+file list actually contains entries under each of `app/`, `lib/`, `components/`, `features/`,
+`hooks/`. A future narrowing fails loudly and names the directory it stopped seeing.
+
+Probe for this shape elsewhere: for every gate that enumerates its own inputs — `git ls-files --
+<dirs>`, a `readdirSync`, a glob — ask *what source root is not in that list*, then assert the
+subject, not just the verdict.
+
+Mutation receipt: restoring the dead href fails the widened sweep with
+`chat-capability-indicator.tsx -> /system/costs`; the fixed tree passes 5/5.
+
+## Resolved search — `(fastest * 2 + 5)`, carried as unfound across sessions
+
+Recorded because the operator asked for the greps either way, and the answer is a scoping lesson
+rather than a defect.
+
+**Found:** `apps/worker/src/scheduler.ts:112`, inside `deriveStaleWindowMs()`.
+
+**Verdict: correct by design, no action.** It derives the `/health` staleness window from the
+actual cron schedules (`fastest` interval in minutes) instead of a hand-synced constant. Its own
+header records why: the value *was* `5 * 60_000` against a "ticks every ~2 min" assumption, then
+#1696 moved the render loop to a 15-minute cadence and nothing retuned it — so the floor exceeded
+the threshold and `/health` reported stalled for ~10 of every 15 minutes. The `+ 5` is the margin;
+the `* 2` is the multiplier. This expression is the *fix* for a rotted constant, not an instance
+of one.
+
+**Why earlier greps missed it:** they were scoped to `apps/statenour` and `apps/nickstire`. The
+monorepo has **three** apps — `apps/worker/` is a real deploy target with its own scheduler, and a
+two-app sweep silently excludes it. Same failure class as the section above: the rule was fine,
+the subject was short one directory.
+
+Greps that DID find it, from the repo root:
+
+```bash
+git grep -nE '\*\s*2\s*\+\s*5' -- '*.ts' '*.tsx' '*.mjs' '*.js'
+git grep -niE 'fastest[^;]{0,40}(\*|times|x)\s*2' -- '*.ts' '*.tsx'
+```
+
 ## A claim about the outside world has an expiry date — and an uncited one is expired by default
 
 The blind instruments catalogued above all fail *inward*: a gate that cannot see its subject, a

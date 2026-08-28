@@ -42,8 +42,8 @@ export function ChatCapabilityIndicator() {
 
   return (
     <Link
-      href="/system/costs"
-      title="Open provider, cost, and capability health"
+      href="/settings"
+      title="Open provider and capability health"
       className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[9px] uppercase tracking-wider transition ${
         degraded
           ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
