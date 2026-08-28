@@ -61,6 +61,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "db:seed:sources": "tsx prisma/seeds/seed-sources-entry.ts",
     "obsidian:doctor": "tsx scripts/obsidian-engine-runner.ts doctor",
     "obsidian:ingest": "tsx scripts/obsidian-engine-runner.ts ingest",
     "obsidian:export": "tsx scripts/obsidian-engine-runner.ts export",

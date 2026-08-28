@@ -5,8 +5,26 @@ import { rankMissions } from "../lib/scoring/mission-ranking";
 import { scoreTaskPriority } from "../lib/scoring/task-priority";
 import { addDays, subDays } from "../lib/utils/datetime";
 import { seedSources } from "./seeds/seed-sources";
+import { hostFromDatabaseUrl, seedRefusalReason, ALLOW_ENV } from "./seed-guard";
 
 async function main() {
+  // FAIL-CLOSED, FIRST STATEMENT. Everything below this block deletes rows, and
+  // a fresh worktree inherits the PROD DATABASE_URL — so the default target of
+  // an unguarded run is production. The refusal must happen before any DB call,
+  // including the otherwise-safe seedSources() upsert, so that a refused run
+  // touches nothing at all. See prisma/seed-guard.ts for the rule.
+  const refusal = seedRefusalReason({
+    databaseUrl: process.env.DATABASE_URL,
+    allowFlag: process.env[ALLOW_ENV],
+  });
+  if (refusal) {
+    console.error(`\n[seed] REFUSED — ${refusal}\n`);
+    process.exit(1);
+  }
+  console.log(
+    `[seed] destructive demo seed running against "${hostFromDatabaseUrl(process.env.DATABASE_URL)}" — deleting tasks, task events, personal daily logs, missions.`,
+  );
+
   await seedSources(prisma);
   await prisma.taskEvent.deleteMany();
   await prisma.task.deleteMany();
