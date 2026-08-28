@@ -113,6 +113,10 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   captureSkillFromSource: { family: "personal-write", description: "Capture a protocol from a book/article/photo as a pending candidate skill", mutates: true, cost: "cheap" },
   updateMissionStatus: { family: "personal-write", description: "Change a mission's lifecycle status (pause/complete/kill/reactivate)", mutates: true, cost: "cheap" },
   scheduleFollowUp: { family: "personal-write", description: "Schedule a follow-up reminder", mutates: true, cost: "cheap" },
+  // 2026-08-28 · WP3 · distinct from scheduleFollowUp above, which creates
+  // a CUSTOMER follow-up task. This one schedules NICK to speak again in
+  // this thread unprompted; the lane is OFF by default and triple-gated.
+  scheduleSelfFollowUp: { family: "personal-write", description: "Schedule yourself to follow up in this conversation later", mutates: true, cost: "cheap" },
   endOfDay: { family: "personal-write", description: "Run EOD debrief + log score", mutates: true, cost: "cheap" },
   weeklyReview: { family: "personal-write", description: "Generate weekly review summary", mutates: true, cost: "medium" },
   journalDecision: { family: "personal-write", description: "Log a decision to journal", mutates: true, cost: "cheap" },

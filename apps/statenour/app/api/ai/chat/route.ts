@@ -4,6 +4,7 @@ import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
 import { updateTurnContext } from "@/lib/agent/turn-context";
 import {
   resolveEscalation,
+  detectEscalationTier,
   ESCALATION_DAILY_CAP,
   countEscalationsToday,
   type EscalationDecision,
@@ -441,10 +442,14 @@ async function chatPostInner(req: Request) {
     // to call. Slots in at the SAME precedence as the deep canary it
     // supersedes: tool-mandatory forces and the user's own validated
     // override still win outright.
+    // Cheap gate FIRST: the overwhelming majority of turns carry no depth
+    // marker, and they must not pay a Neon round-trip to learn that. Only
+    // a turn that could actually escalate spends the count query.
+    const __wantsDepth = detectEscalationTier(userContent) !== "none";
     __escalation = resolveEscalation({
       userContent,
       apiKeyPresent: Boolean((process.env.ANTHROPIC_API_KEY ?? "").trim()),
-      escalationsToday: await countEscalationsToday(),
+      escalationsToday: __wantsDepth ? await countEscalationsToday() : 0,
       dailyCap: ESCALATION_DAILY_CAP,
       enabled: process.env.NICK_ESCALATION_DISABLED !== "1",
       privateMode,
@@ -1003,6 +1008,16 @@ async function chatPostInner(req: Request) {
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
     allowMetered,
+    // 2026-08-28 · THIS is the path that actually serves the turn. The
+    // `model` built above only feeds runAlternatePaths (flag-gated, off
+    // by default) — wiring the override there and not here made the whole
+    // escalation lane a dead control: it set X-Escalation-Applied:1 while
+    // silently serving the anthropic DEFAULT (claude-sonnet-5), which
+    // also fails isClaude5ThinkingModel so no effort applied and the
+    // daily cap could never match a row. Caught in adversarial review.
+    ...(__escalation.escalate && __escalation.model
+      ? { modelOverride: __escalation.model }
+      : {}),
     buildConfig: buildStreamConfigFactory({
       persistBase,
       provider,
@@ -1025,6 +1040,7 @@ async function chatPostInner(req: Request) {
       firstTokenRef: __firstTokenRef,
       partialRef: __partialRef,
       onPartial: __onPartial,
+      escalationEffort: __escalation.escalate ? __escalation.effort : undefined,
       recordTrace,
       resolveOnFinish,
       log,

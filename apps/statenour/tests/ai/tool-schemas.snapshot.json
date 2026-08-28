@@ -3156,6 +3156,40 @@
     }
   },
   {
+    "name": "scheduleSelfFollowUp",
+    "description": "Schedule YOURSELF to follow up in this conversation later, without the operator messaging you first. Use for genuine 'check back on this' moments the operator would want unprompted (a deadline passing, an unanswered question). Returns a refusal you MUST report honestly if limits block it. Example: {\"instruction\":\"check whether the supplier replied about the Q3 order\",\"dedupeKey\":\"supplier-q3-reply\",\"reason\":\"operator asked to be nudged if no reply by Friday\",\"runAfterMinutes\":2880}",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "dedupeKey": {
+          "description": "Stable slug for this follow-up; re-using it prevents duplicates.",
+          "type": "string"
+        },
+        "instruction": {
+          "description": "What you should do when you wake up.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why this follow-up is warranted — shown to the operator.",
+          "type": "string"
+        },
+        "runAfterMinutes": {
+          "description": "Delay before firing, in minutes. Minimum 5.",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "instruction",
+        "dedupeKey",
+        "reason",
+        "runAfterMinutes"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "scoreLocation",
     "description": "Evaluate a candidate address for a second shop. Returns a 0-100 score, tier (A=ship · F=don't), strongest + weakest dimension, and operator-facing reasoning. Five dimensions: footTrafficPercentile (0-100) · reviewDensity (reviews per nearby competitor) · competitorCluster (count within 2mi · lower=better) · driveTimeToHomeMinutes (to Euclid HQ · lower=better) · zoningFriction (0-100 · lower=better). Missing dimensions are scored neutrally (0.5) with an explicit warning. Use this when the operator says 'score this location', 'evaluate Cleveland address', 'second location', 'expansion address', or asks whether a specific spot is viable. Pure compute · no external data fetched · operator supplies the measured params.",
     "inputSchema": {
