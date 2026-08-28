@@ -13,6 +13,10 @@ vi.mock("@/lib/prisma", () => ({
     intelligenceOutcome: { findMany: vi.fn() },
     brainMemory: { findMany: vi.fn() },
     agentTrace: { findMany: vi.fn() },
+    // Fourth source (learning-loops wave 2026-08-28): noise-verdict
+    // discoveries, fetched via raw SQL so the metadata-precedence rule
+    // lives in the predicate. Defaults to empty in beforeEach.
+    $queryRawUnsafe: vi.fn(),
   },
 }));
 
@@ -132,21 +136,36 @@ describe("buildRealRecallCases distinguishes a BROKEN source from an EMPTY one",
   };
   const traceRow = { traceId: "t1", label: "createTask", errorClass: "api_timeout" };
 
+  const noiseRow = {
+    id: "bm9",
+    key: "blindspot_general_cafe0000cafe0000",
+    category: "blind_spot",
+    content: "[HIGH] general: judged noise by the operator",
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocked(prisma.intelligenceOutcome.findMany).mockResolvedValue([outcomeRow]);
     mocked(prisma.brainMemory.findMany).mockResolvedValue([]);
     mocked(prisma.agentTrace.findMany).mockResolvedValue([traceRow]);
+    // Fourth source (learning-loops wave): noise-verdict discoveries.
+    mocked(prisma.$queryRawUnsafe).mockResolvedValue([noiseRow]);
   });
 
-  it("harvests all three signals when every source is healthy", async () => {
+  it("harvests all four signals when every source is healthy", async () => {
     const r = await buildRealRecallCases();
     expect(r.degraded).toBe(false);
     expect(r.sources.every((s) => s.ok)).toBe(true);
     expect(r.cases.map((c) => c.id)).toEqual([
       expect.stringMatching(/^real-outcome-/),
       expect.stringMatching(/^real-toolfail-/),
+      expect.stringMatching(/^real-discovery-/),
     ]);
+    // The fourth source is the first LABEL-BEARING one — its case must
+    // carry the judged row's key as a forbidden key, or the corpus is
+    // back to being unable to fail.
+    const disc = r.cases.find((c) => c.id.startsWith("real-discovery-"));
+    expect(disc?.forbiddenKeys).toEqual([noiseRow.key]);
   });
 
   it("a THROWING source flips degraded and is named with its error", async () => {
@@ -162,8 +181,11 @@ describe("buildRealRecallCases distinguishes a BROKEN source from an EMPTY one",
   it("one dead source does not cost the corpus the others", async () => {
     mocked(prisma.intelligenceOutcome.findMany).mockRejectedValue(new Error("boom"));
     const r = await buildRealRecallCases();
-    // The tool-failure case still made it through.
-    expect(r.cases.map((c) => c.id)).toEqual([expect.stringMatching(/^real-toolfail-/)]);
+    // The tool-failure and noise-discovery cases still made it through.
+    expect(r.cases.map((c) => c.id)).toEqual([
+      expect.stringMatching(/^real-toolfail-/),
+      expect.stringMatching(/^real-discovery-/),
+    ]);
   });
 
   it("THE FIX: a broken source and an empty table no longer look identical", async () => {

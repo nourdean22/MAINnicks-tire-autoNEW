@@ -204,6 +204,7 @@ export function DiscoverTab() {
   const unratedClusters = query.data?.unratedClusters ?? 0;
   const truncated = query.data?.truncated ?? false;
   const restoredHidden = query.data?.restoredHidden ?? 0;
+  const suppressedSimilar = query.data?.suppressedSimilar ?? 0;
 
   return (
     <div className="space-y-4">
@@ -263,6 +264,20 @@ export function DiscoverTab() {
         >
           Showing recovered memories alongside engine findings. Tap to hide them again.
         </button>
+      )}
+
+      {suppressedSimilar > 0 && (
+        <p className="rounded-lg border border-glass bg-white/[0.02] px-3 py-2 text-[11px] text-fg-secondary">
+          {/* The visible effect of a judgment (learning-loops wave 2026-08-28):
+              an invisible suppression is indistinguishable from no effect. A
+              floor when the card scan stopped early, same as the badge. */}
+          <span className="font-mono uppercase tracking-wider">
+            {suppressedSimilar}
+            {truncated ? "+" : ""} suppressed
+          </span>{" "}
+          — regenerated copies of findings you already judged known or noise. Your verdicts
+          keep applying to new copies automatically.
+        </p>
       )}
 
       {actionError && <p className="text-[11px] text-amber-400">{actionError}</p>}
