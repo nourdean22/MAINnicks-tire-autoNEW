@@ -30,6 +30,7 @@ import { stepCountIs } from "ai";
 import { GEMINI_SAFETY_OFF, type ProviderName } from "@/lib/ai/provider";
 import { inferProviderName } from "@/lib/ai/stream-with-fallback";
 import { claude5EffortForAttempt } from "@/lib/ai/vnext/effort-policy";
+import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
 import { isLangfuseTelemetryEnabled } from "@/lib/observability/langfuse";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
@@ -68,6 +69,13 @@ export function buildStreamConfigFactory(deps: {
    *  Optional: omitted by tests and by private mode, where the turn is
    *  deliberately non-durable. */
   onPartial?: (text: string) => void;
+  /**
+   * 2026-08-28 · effort for an ESCALATED turn. Applied per attempt and
+   * only when that attempt actually resolved a Claude 5 thinking model,
+   * so a rotation away from the frontier lane never carries a stray
+   * effort param. Supersedes the canary effort when present.
+   */
+  escalationEffort?: "low" | "medium" | "high" | "xhigh" | "max";
   recordTrace: PersistBase["recordTrace"];
   resolveOnFinish: () => void;
   log: Logger;
@@ -94,6 +102,7 @@ export function buildStreamConfigFactory(deps: {
     firstTokenRef: __firstTokenRef,
     partialRef: __partialRef,
     onPartial: __onPartial,
+    escalationEffort: __escalationEffort,
     recordTrace,
     resolveOnFinish,
     log,
@@ -110,6 +119,13 @@ export function buildStreamConfigFactory(deps: {
     // Claude 5 thinking model — a fallback rotation to any other lane never
     // carries a stray effort param. See lib/ai/vnext/effort-policy.ts.
     const canaryEffort = claude5EffortForAttempt({ mode, modelId: fbModelId });
+    // The escalation's own effort wins when this attempt really is a
+    // Claude 5 thinking model. Same per-attempt gate as the canary: a
+    // rotation to sonnet/ollama/gemini must carry no effort at all.
+    const effectiveEffort =
+      __escalationEffort && isClaude5ThinkingModel(fbModelId)
+        ? __escalationEffort
+        : canaryEffort;
 
     return ({
       model: __fbModel,
@@ -139,7 +155,7 @@ export function buildStreamConfigFactory(deps: {
       // pattern — ignored by every non-Anthropic provider.
       providerOptions: {
         google: GEMINI_SAFETY_OFF,
-        ...(canaryEffort ? { anthropic: { effort: canaryEffort } } : {}),
+        ...(effectiveEffort ? { anthropic: { effort: effectiveEffort } } : {}),
       },
       // v10.0.446 · prompt-quality audit fix #1 · cacheControl wiring.
       // When Anthropic is the active fallback provider, fold the
