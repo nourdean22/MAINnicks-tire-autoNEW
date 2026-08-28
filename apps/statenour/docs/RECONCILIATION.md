@@ -35,8 +35,12 @@
 >
 > The operator authorized ranking on unpaid invoices with a gate: verify `paymentStatus`
 > first, because he uses a separate register. MEASURED (prod TiDB, read-only): the gate
-> fired, worse than hypothesized. The schema defaults `'paid'`, only Stripe flows write
-> paid/refunded, NOTHING in server code writes pending/partial, and the entire non-paid >3d
+> fired, worse than hypothesized. The schema defaults `'paid'`; Stripe flows write
+> paid/refunded; the ShopDriver sync CAN write `pending` on its ticket-not-paid branch
+> (shopdriver.ts:638/661/672/908 — CORRECTION 2026-08-28, review P2 on #1971: an earlier
+> "nothing writes pending" claim was a grep false-negative) — yet across ~2,900
+> shopdriver-sourced rows that branch has NEVER survived to the data (0 non-paid): the feed
+> presents every ticket as paid, consistent with the separate register. The entire non-paid >3d
 > pool is 8 hand-entered rows = **2 self-billed** (216-848-8888 is the operator's own number;
 > the "$846 overdue" audit example was his own bill) + **3 literal test fixtures** + **3
 > unverifiable** ($927/$495/$207, zero corroborating `payments` rows; the code reads
