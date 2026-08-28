@@ -104,6 +104,24 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * failure than the 204 this feature replaced.
    */
   onResumePartial?: () => void;
+  /**
+   * 2026-08-28 · escalation provenance. Fired on every turn that carried
+   * a depth marker, whether or not the escalation actually happened.
+   *
+   * THIS CALLBACK IS WHY THE HEADERS ARE NOT A DEAD CONTROL. The chat
+   * route sets X-Escalation-* and X-Lane-* and I shipped that claiming a
+   * refused escalation was "legible" — while nothing on the client read
+   * them, so a blocked escalation looked exactly like never having asked.
+   * Same defect class as the modelOverride wiring gap, caught the same
+   * way: by grepping for the reader instead of trusting the writer.
+   */
+  onEscalation?: (info: {
+    tier: string;
+    applied: boolean;
+    blockedBy?: string;
+    reason?: string;
+    laneModel?: string;
+  }) => void;
 }
 
 export function useChatTransport<TBody extends object = Record<string, unknown>>(
@@ -119,6 +137,7 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     setLastRunMode,
     onConversationId,
     onResumePartial,
+    onEscalation,
   } = opts;
 
   const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
@@ -164,6 +183,20 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           // must never be mistaken for a completed turn.
           if (res.headers.get("X-Resume-Partial") === "1") {
             onResumePartial?.();
+          }
+
+          // ── Escalation provenance (2026-08-28) ─────────────────────
+          // Read before anything can early-return: the operator asked for
+          // depth and must learn whether they got it.
+          const escTier = res.headers.get("X-Escalation-Tier");
+          if (escTier) {
+            onEscalation?.({
+              tier: escTier,
+              applied: res.headers.get("X-Escalation-Applied") === "1",
+              blockedBy: res.headers.get("X-Escalation-Blocked") ?? undefined,
+              reason: res.headers.get("X-Escalation-Reason") ?? undefined,
+              laneModel: res.headers.get("X-Lane-Model") ?? undefined,
+            });
           }
 
           const convId = res.headers.get("X-Conversation-Id");

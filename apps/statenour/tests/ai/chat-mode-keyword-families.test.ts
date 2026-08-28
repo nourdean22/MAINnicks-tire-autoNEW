@@ -505,3 +505,47 @@ describe("setTaskPriority demotion cover — task family carries it", () => {
     expect(TASK_TRIGGER.test("mark that task critical")).toBe(true);
   });
 });
+
+// 2026-08-28 · self-follow-up family. Added after MEASURING that the
+// scheduleSelfFollowUp tool was unreachable: 4 of 5 realistic phrasings
+// never surfaced it, because the task family's TRIGGER requires a word
+// like task/todo/mission and "remind me in two hours" contains none.
+// The tool matched that family's ATTACH pattern via "schedule", which is
+// why it looked wired while being unreachable.
+const P_SELF_FOLLOWUP = {
+  trigger:
+    /\b(follow[- ]?up|remind me|check back|circle back|nudge me|ping me|check in on|get back to me)\b/i,
+  attach: /scheduleSelfFollowUp|followup|remind/i,
+};
+
+describe("self-follow-up family (scheduleSelfFollowUp reachability)", () => {
+  it.each([
+    "follow up with me tomorrow about the supplier",
+    "remind me in two hours to check the reel job",
+    "check back on this later",
+    "ping me if the invoice hasn't landed by Friday",
+    "circle back on the pricing question",
+    "nudge me about the inspection",
+    "can you check in on the reel pipeline tonight",
+    "get back to me once the order ships",
+  ])("fires on: %s", (q) => expect(P_SELF_FOLLOWUP.trigger.test(q)).toBe(true));
+
+  it.each([
+    "what's my revenue this month",
+    "how many tasks are overdue",
+    "lock the front door",
+  ])("does NOT fire on: %s", (q) => expect(P_SELF_FOLLOWUP.trigger.test(q)).toBe(false));
+
+  it("attach pattern reaches the tool by name", () => {
+    expect(P_SELF_FOLLOWUP.attach.test("scheduleSelfFollowUp")).toBe(true);
+  });
+
+  it("the task family alone would NOT have covered these — the measured gap", () => {
+    // The regression this family exists to prevent: relying on the task
+    // family meant the feature was unreachable for its own vocabulary.
+    const TASK_TRIGGER =
+      /\b(task|todo|action|mission|goal|commit|promise|keep|break|pin|priority|overdue|late|stale)\b/i;
+    expect(TASK_TRIGGER.test("remind me in two hours to check the reel job")).toBe(false);
+    expect(P_SELF_FOLLOWUP.trigger.test("remind me in two hours to check the reel job")).toBe(true);
+  });
+});

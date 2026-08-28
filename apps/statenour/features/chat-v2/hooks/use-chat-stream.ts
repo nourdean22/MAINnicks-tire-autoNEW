@@ -116,6 +116,35 @@ export function useChatStream(): ChatRuntimeController {
       [setActiveConversationId],
     ),
     onResumePartial,
+    // 2026-08-28 · make escalation legible. The operator explicitly asked
+    // for depth on this turn, so telling them what happened is expected
+    // feedback, not noise — and a REFUSED escalation that says nothing is
+    // indistinguishable from never having asked, which is the exact
+    // silent-gate failure the escalation lane was built to end.
+    onEscalation: useCallback(
+      (info: {
+        tier: string;
+        applied: boolean;
+        blockedBy?: string;
+        reason?: string;
+        laneModel?: string;
+      }) => {
+        if (info.applied) {
+          toast.success(`Depth applied · ${info.tier}`, {
+            description: info.laneModel ? `answered by ${info.laneModel}` : undefined,
+            duration: 4000,
+          });
+          return;
+        }
+        // Blocked: name the remedy, not just the refusal. `reason` is
+        // server-authored and already carries the exact env var or count.
+        toast.error(`Depth requested (${info.tier}) — not applied`, {
+          description: info.reason ?? info.blockedBy ?? "escalation unavailable",
+          duration: 8000,
+        });
+      },
+      [],
+    ),
   });
 
   const chat = useChat({
