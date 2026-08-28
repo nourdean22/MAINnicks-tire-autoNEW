@@ -227,6 +227,22 @@ export const ESCALATION_DAILY_CAP = (() => {
  * drift from the bill. Counting the actual generations means the cap is
  * enforced against what was really spent, and it needs no new table.
  *
+ * TWO MEASURED IMPRECISIONS, stated rather than glossed. The chat row is
+ * written by recordInteraction from deferred-background-work.ts:104, and:
+ *   1. it is skipped when `userContent.length < 40` (isLightweight), so a
+ *      very short marked ask ("/mega go") escalates WITHOUT consuming
+ *      budget; and
+ *   2. it is written POST-turn and fire-and-forget, so two escalations
+ *      seconds apart can both read a stale count.
+ * Both are acceptable because of what this cap is FOR: bounding a
+ * runaway, not rationing precisely. Neither hole is reachable by an
+ * automated loop — escalation requires marker text in an operator-sent
+ * message, and a scheduled follow-up cannot escalate (it never calls
+ * this path). A human typing "/mega" repeatedly is not the threat model.
+ * If precise accounting is ever needed, write the resolved lane into
+ * ChatMessage.routerReason from the streaming persist path and count
+ * that instead — it is a single, always-written row per turn.
+ *
  * FAILS CLOSED. If the count cannot be read, this returns the cap — so
  * escalation is refused rather than allowed. That is the opposite of
  * getAiConfig()'s deliberate fail-OPEN (lib/settings/ai-config.ts:124,
