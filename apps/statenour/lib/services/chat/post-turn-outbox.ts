@@ -103,14 +103,29 @@ export async function completePostTurnWork(id: string | null): Promise<void> {
  *  were stranded FOREVER — claims only ever looked at `pending`). */
 const OUTBOX_PROCESSING_STALE_MS = 30 * 60 * 1000;
 
-export async function claimOrphans(limit = 25): Promise<
-  Array<{ id: string; payload: SerializableDeferredCtx; attempts: number }>
-> {
+/**
+ * Row kinds sharing this queue. The column has existed since 2026-07-25
+ * with a default, but nothing filtered on it — so the drain below claimed
+ * EVERY kind and ran it through runDeferredBackgroundWork. That was
+ * harmless while one kind existed and becomes a silent mis-execution the
+ * moment a second appears (2026-08-28: agent follow-ups). Filtering is
+ * behaviour-preserving today — every existing row carries the default.
+ */
+export const OUTBOX_KIND = {
+  deferredBackground: "deferred-background",
+  agentFollowUp: "agent-followup",
+} as const;
+
+export async function claimOrphans(
+  limit = 25,
+  kind: string = OUTBOX_KIND.deferredBackground,
+): Promise<Array<{ id: string; payload: SerializableDeferredCtx; attempts: number }>> {
   const now = new Date();
   const cutoff = new Date(now.getTime() - OUTBOX_ORPHAN_GRACE_MS);
   const staleProcessing = new Date(now.getTime() - OUTBOX_PROCESSING_STALE_MS);
   const candidates = await prisma.postTurnOutbox.findMany({
     where: {
+      kind,
       attempts: { lt: OUTBOX_MAX_ATTEMPTS },
       OR: [
         // Crashed BEFORE the drain claimed it (original case) — honor the
@@ -133,8 +148,8 @@ export async function claimOrphans(limit = 25): Promise<
     const res = await prisma.postTurnOutbox.updateMany({
       where:
         c.status === "pending"
-          ? { id: c.id, status: "pending" }
-          : { id: c.id, status: "processing", updatedAt: { lt: staleProcessing } },
+          ? { id: c.id, kind, status: "pending" }
+          : { id: c.id, kind, status: "processing", updatedAt: { lt: staleProcessing } },
       data: { status: "processing", attempts: { increment: 1 } },
     });
     if (res.count !== 1) continue; // lost the race — another drain owns it

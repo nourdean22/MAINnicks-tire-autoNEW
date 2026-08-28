@@ -1110,3 +1110,50 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** high (both witnessed with receipts; MSYS truncation also memorized agent-side)
 ||||||| 691e01a9a
 - **Status:** proposed
+
+## 2026-08-28 · escalate-on-ask + agent follow-ups (#1983)
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** I added `modelOverride` to `GetModelOptions`, wired it in
+  `app/api/ai/chat/route.ts`, and shipped a DEAD CONTROL: that `model` variable only feeds
+  `runAlternatePaths` (four flags, all default false), while the turn is served by
+  `streamWithFallback`, which had no such field. `/mega` would have returned the registry default
+  `claude-sonnet-5` with no effort while `X-Escalation-Applied: 1` claimed success. Both unit
+  suites were green and correct — the gap sat BETWEEN them. Caught only by adversarial review at
+  95 confidence (#1983, third commit).
+- **Cost:** would have shipped a headline feature that silently did nothing, plus two dead guards
+  behind it (effort never applied; the daily cap could never match a row).
+- **Proposed edit:** add to the verify checklist: "When adding an option to a request path, grep
+  for which call site actually SERVES the request before wiring it. A hot path often has more than
+  one `getModel`/`buildConfig` construction and only one of them is live. Write the canary ACROSS
+  the seam (assert the option reaches the serving call), never inside either unit — a dead control
+  hides precisely between two well-tested units."
+- **Confidence:** high (witnessed, fixed, canaried red-green)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** I named a new tool `scheduleFollowUp`; that name already existed in
+  `lib/ai/tools/tasks.ts:959` (a CUSTOMER follow-up task). `metaTools` spreads LAST in `nourTools`,
+  so my key would have SILENTLY OVERWRITTEN a working customer-facing tool — no error, and the
+  catalog count stayed flat because one key replaced the other. Caught only by
+  `catalog-integrity`'s count assertion.
+- **Cost:** near-miss; a live tool would have vanished with no signal.
+- **Proposed edit:** "Before adding a tool, `git grep -n '<name>: tool('` across `lib/ai/tools/`.
+  The barrel spreads domain files in order and the LAST one wins, so a duplicate key shadows
+  silently rather than erroring. Also register in BOTH `catalog.ts` and `tool-families.ts` — their
+  category/cost unions differ, and only the pre-commit typecheck catches a wrong one."
+- **Confidence:** high (witnessed, caught, renamed)
+- **Status:** proposed
+
+### P3 · NEW: prior-art-grep
+- **Trigger (witnessed):** twice in one wave I nearly rebuilt something that existed — the tool
+  name above, and a `next_action` table that `PostTurnOutbox` already provided (durable queue with
+  claim/retry/dead-letter and `nextAttemptAt` as a scheduling primitive). The second was caught by
+  research, not by me.
+- **Cost:** a redundant table would have violated the standing "no third queue beside PostTurnOutbox
+  and WorkItem" rule.
+- **Proposed edit:** a short skill that, before ANY new table/tool/queue/flag, runs a fixed grep
+  set (schema models, tool names, cron manifest, feature flags) and requires the answer to be
+  written down before building. Cheap, and it has now fired twice in one session.
+- **Confidence:** medium (two instances, same session)
+- **Status:** proposed

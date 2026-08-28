@@ -1,6 +1,32 @@
 # WP1 · Frontier routing — cost model and the decision it needs
 
-**Status: DECISION REQUIRED. No code shipped, no key provisioned, no paid lane flipped.**
+> ## DECIDED 2026-08-28: **(c) STAY ON OLLAMA.** WP1 is CLOSED, not deferred.
+>
+> The operator's instruction, verbatim: *"no dont switch from ollama."*
+>
+> Sequence, recorded honestly because it reversed mid-flight: the operator first chose **(a)
+> all-frontier**, then reversed before any code was written. Implementation had reached the design
+> boundary only — the lane resolver was specified but never authored — so **there was nothing to
+> revert.** No key provisioned, no Railway variable added, no metered lane opened, no line of
+> routing code merged.
+>
+> **What stays true:** `routeCapability()` remains SHADOW with 0 live call sites.
+> `allowMetered` stays `false` for chat turns (`app/api/ai/chat/route.ts:352`) — the cost firewall
+> is intact and deliberate. The chat lane is Ollama Cloud (`minimax-m3` in production).
+>
+> **Interpretation, stated so it can be corrected:** this was read as cancelling the lane switch
+> *entirely*, not merely keeping Ollama primary with frontier escalation for hard turns. A spend
+> commitment is the one place to take the cautious reading — register item #6 ("spending the
+> operator's money on your own judgment") exists for exactly this. If escalation-for-hard-turns was
+> the intent, that is a different build and needs its own go.
+>
+> **What survives and is worth keeping:** the measurement below is still the honest cost of the
+> option, and the finding that the chat lane sits behind FIVE silent gates is unchanged and still
+> a defect in its own right. The numbers do not expire just because the answer was "no" — if the
+> question is reopened, re-verify volume and pricing rather than trusting this snapshot.
+
+**Original status when written: DECISION REQUIRED. No code shipped, no key provisioned, no paid
+lane flipped.**
 
 The capability router (`lib/ai/vnext/effort-policy.ts`) is built, tested, and dark. Wiring it is
 a ~half-day change. The reason it is not wired is not engineering — it is that nobody has decided
@@ -146,9 +172,10 @@ rather than a quiet fallback; `eval_run` shows no regression.
 
 ---
 
-## 8 · The decision
+## 8 · The decision — ANSWERED: (c)
 
-**Pick one, then this unblocks:**
+**Chosen: (c) stay on Ollama.** See the banner at the top of this file. The options as they were
+put:
 
 - **(a) Always frontier** — ~$77/mo at current volume, ~$0.12/turn. Simplest; contradicts the $0 doctrine.
 - **(b) Tiered escalation** — ~$26/mo. Recommended. Honours both constraints. Needs a band classifier.

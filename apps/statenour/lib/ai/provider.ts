@@ -192,9 +192,14 @@ export function classifyModelId(modelId: string | null | undefined): ProviderNam
 // Retired (Venice removed from runtime) · kept empty for getProviderStatus back-compat.
 export const VENICE_PARAMS = {};
 
-function createAnthropicModel(): LanguageModel {
+function createAnthropicModel(modelOverride?: string): LanguageModel {
   const apiKey = getApiKey("anthropic");
-  const modelId = resolveProviderModel("anthropic");
+  // 2026-08-28 · escalation lane. A per-TURN model id (opus-5 for a
+  // deep/thorough ask, fable-5 for an explicit mega) cannot come from
+  // ANTHROPIC_MODEL, which is process-global. The override is threaded
+  // from lib/ai/vnext/escalation.ts through getModel; absent it, the env
+  // default is unchanged for every existing caller.
+  const modelId = modelOverride || resolveProviderModel("anthropic");
   const anthropic = createAnthropic({ apiKey: apiKey! });
   const model = anthropic(modelId);
   // 2026-08-11 · Claude 5 frontier lane (fable/mythos/opus-5): these
@@ -579,15 +584,21 @@ function isOpenRouterAvailable(): boolean {
 interface ProviderEntry {
   name: ProviderName;
   available: () => boolean;
-  create: (taskType?: TaskType) => LanguageModel;
+  create: (taskType?: TaskType, modelOverride?: string) => LanguageModel;
   modelId: string;
 }
 
-const PROVIDER_CREATORS: Record<RuntimeProviderName, (taskType?: TaskType) => LanguageModel> = {
+const PROVIDER_CREATORS: Record<
+  RuntimeProviderName,
+  (taskType?: TaskType, modelOverride?: string) => LanguageModel
+> = {
   ollama: (t) => createOllamaModel(t),
   gemini: (t) => createGoogleModel(t),
   openai: () => createOpenAIModel(),
-  anthropic: () => createAnthropicModel(),
+  // Only the anthropic lane honours a per-turn model override today (the
+  // escalation lane). Other providers ignore it rather than silently
+  // resolving a model id that does not exist in their namespace.
+  anthropic: (_t, modelOverride) => createAnthropicModel(modelOverride),
   openrouter: (t) => createOpenRouterModel(t),
 };
 
@@ -705,6 +716,14 @@ export interface GetModelOptions {
    */
   forceProviderFirst?: ProviderName;
   /**
+   * 2026-08-28 · per-turn model id for the FORCED provider only. Used by
+   * the chat escalation lane to pick opus-5 vs fable-5 per turn without
+   * mutating the process-global ANTHROPIC_MODEL. Ignored on any attempt
+   * that is not the forced provider, so a fallback rotation can never
+   * carry a stray model id into another provider's namespace.
+   */
+  modelOverride?: string;
+  /**
    * 2026-08-11 · explicit operator consent to metered lanes (Turbo): a
    * per-request provider override or the deep-canary env attestation.
    * Internal tool forces are NOT consent — without this, the cost
@@ -782,6 +801,16 @@ export function getModel(
     );
   }
 
+  // 2026-08-28 · a per-turn model override belongs to the FORCED provider
+  // only. If the chain rotates away from it (rate limit, outage), the
+  // next provider must resolve its own configured model — carrying
+  // "claude-opus-5" into the ollama namespace would 404 the whole turn.
+  const createFor = (entry: { name: ProviderName; create: (t?: TaskType, m?: string) => LanguageModel }) =>
+    entry.create(
+      taskType,
+      opts.modelOverride && entry.name === opts.forceProviderFirst ? opts.modelOverride : undefined,
+    );
+
   if (AI_PROVIDER) {
     const entry = ordered.find((p) => p.name === AI_PROVIDER);
     if (!entry) {
@@ -790,7 +819,7 @@ export function getModel(
     if (entry.available()) {
       // Pinned provider override — respect even if recently failed.
       // This is an explicit operator choice; we don't second-guess.
-      return tagModelProvider(entry.create(taskType), entry.name);
+      return tagModelProvider(createFor(entry), entry.name);
     }
     throw new Error(
       `AI_PROVIDER is set to "${AI_PROVIDER}" but it is not configured (missing API key).`
@@ -808,13 +837,13 @@ export function getModel(
   // so we fall through to the unfiltered loop below as last resort.
   for (const entry of costAllowed) {
     if (entry.available() && !isProviderRecentlyFailed(entry.name)) {
-      return tagModelProvider(entry.create(taskType), entry.name);
+      return tagModelProvider(createFor(entry), entry.name);
     }
   }
   // All-flagged fallback — pick any available, even if failed.
   for (const entry of costAllowed) {
     if (entry.available()) {
-      return tagModelProvider(entry.create(taskType), entry.name);
+      return tagModelProvider(createFor(entry), entry.name);
     }
   }
 

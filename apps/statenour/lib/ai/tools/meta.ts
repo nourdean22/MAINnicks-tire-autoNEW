@@ -627,4 +627,69 @@ export const metaTools = {
       }
     },
   }),
+
+  /**
+   * 2026-08-28 · WP3 · the producer for the agent follow-up lane.
+   *
+   * This is the ONLY way Nick can arrange to speak without being spoken
+   * to first, and it is intentionally hard to abuse: the scheduler
+   * refuses far more often than it accepts (feature switch OFF by
+   * default, untrusted-origin block, daily + per-thread caps, dedupe,
+   * minimum delay), and a scheduled follow-up can only WRITE A MESSAGE
+   * into this thread — never send SMS/email/Telegram, never call a tool,
+   * never chain another follow-up.
+   *
+   * Every refusal is returned verbatim to the model so it tells the
+   * operator the truth ("I could not schedule that because...") instead
+   * of claiming a reminder exists that does not. That is the same
+   * anti-fabrication contract the rest of this catalog follows.
+   *
+   * NAMED scheduleSelfFollowUp, NOT scheduleFollowUp. The latter is taken
+   * by lib/ai/tools/tasks.ts:959, which creates a CUSTOMER follow-up task
+   * in the Inbox mission — a completely different thing. metaTools spreads
+   * LAST in nourTools, so reusing the name would have silently overwritten
+   * that working tool and made it disappear with no error. Caught by
+   * catalog-integrity's count assertion, which is exactly what it is for.
+   */
+  scheduleSelfFollowUp: tool({
+    description:
+      "Schedule YOURSELF to follow up in this conversation later, without the operator messaging you first. Use for genuine 'check back on this' moments the operator would want unprompted (a deadline passing, an unanswered question). Returns a refusal you MUST report honestly if limits block it. Example: {\"instruction\":\"check whether the supplier replied about the Q3 order\",\"dedupeKey\":\"supplier-q3-reply\",\"reason\":\"operator asked to be nudged if no reply by Friday\",\"runAfterMinutes\":2880}",
+    inputSchema: z.object({
+      instruction: z.string().describe("What you should do when you wake up."),
+      dedupeKey: z
+        .string()
+        .describe("Stable slug for this follow-up; re-using it prevents duplicates."),
+      reason: z.string().describe("Why this follow-up is warranted — shown to the operator."),
+      runAfterMinutes: z
+        .number()
+        .int()
+        .positive()
+        .describe("Delay before firing, in minutes. Minimum 5."),
+    }),
+    execute: async ({ instruction, dedupeKey, reason, runAfterMinutes }) => {
+      const { currentTurn } = await import("@/lib/agent/turn-context");
+      const { scheduleFollowUp } = await import("@/lib/agent/follow-up");
+      const turn = currentTurn();
+      // Refuse rather than guess: posting into the wrong thread is worse
+      // than not posting at all.
+      if (!turn?.conversationId) {
+        return {
+          scheduled: false,
+          refusedBecause: "no-conversation",
+          reason:
+            "no persisted conversation for this turn — cannot schedule a follow-up. Tell the operator plainly.",
+        };
+      }
+      return await scheduleFollowUp({
+        conversationId: turn.conversationId,
+        instruction,
+        dedupeKey,
+        reason,
+        runAfterMs: runAfterMinutes * 60_000,
+        untrustedOrigin: turn.untrustedInput,
+        privateMode: turn.privateMode,
+      });
+    },
+  }),
+
 };
