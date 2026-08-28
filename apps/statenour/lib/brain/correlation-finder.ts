@@ -21,7 +21,6 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -524,31 +523,4 @@ export async function findCorrelations(): Promise<Correlation[]> {
   }
 
   return correlations.slice(0, 10);
-}
-
-/**
- * Get correlation context for system prompt.
- */
-export async function getCorrelationContext(): Promise<string> {
-  try {
-    // v10.0.65 · soft-delete bypass fix. This pulls 3 hidden-
-    // correlation rows for the system prompt every chat turn;
-    // pre-fix soft-deleted correlations stayed in Nick's context.
-    const memories = await prisma.brainMemory.findMany({
-      where: { category: BRAIN_CATEGORIES.HIDDEN_CORRELATION, deletedAt: null },
-      orderBy: { confidence: "desc" },
-      take: 3,
-      select: { content: true },
-    });
-
-    if (memories.length === 0) return "";
-
-    return [
-      `── HIDDEN CORRELATIONS (data-driven discoveries) ──`,
-      ...memories.map((m) => `• ${m.content.slice(0, 200)}`),
-      `Use these to teach Nour about patterns he hasn't noticed.`,
-    ].join("\n");
-  } catch {
-    return "";
-  }
 }

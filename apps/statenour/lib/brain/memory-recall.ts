@@ -145,6 +145,16 @@ export const CONTEXT_CATEGORIES = new Set<string>([
   //   the audited defect).
   "task_lesson",
   "reasoning_conclusion",
+  // 2026-08-28 · learning-loops census, gap-2 cleanup · one more dead lane:
+  // · hidden_correlation — correlation-finder's surprising-finding rows
+  //   (stable `corr_a_b` keys, embedded — the policy denylist never named
+  //   the category). Their only prompt path was getCorrelationContext(),
+  //   a v1 system-prompt feeder orphaned by the 2026-07-11 v2 cutover and
+  //   deleted in this wave; this entry is its replacement — relevance-
+  //   gated recall instead of 3 rows every turn. counter_intuitive and
+  //   blind_spot were already whitelisted, so their deleted feeders
+  //   needed no counterpart here.
+  "hidden_correlation",
 ]);
 
 export interface RecallHit {

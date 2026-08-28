@@ -70,15 +70,6 @@ describe("blind-spot-detector", () => {
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(0);
   });
-
-  it("getBlindSpotContext returns empty string with no stored spots", async () => {
-    const { getBlindSpotContext } = await import(
-      "@/lib/brain/blind-spot-detector"
-    );
-    const ctx = await getBlindSpotContext();
-    expect(typeof ctx).toBe("string");
-    expect(ctx).toBe("");
-  });
 });
 
 describe("wisdom-distiller", () => {
@@ -135,14 +126,6 @@ describe("counter-intuitive", () => {
     const result = await findCounterIntuitive();
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(0);
-  });
-
-  it("getCounterIntuitiveContext returns string", async () => {
-    const { getCounterIntuitiveContext } = await import(
-      "@/lib/brain/counter-intuitive"
-    );
-    const ctx = await getCounterIntuitiveContext();
-    expect(typeof ctx).toBe("string");
   });
 });
 
