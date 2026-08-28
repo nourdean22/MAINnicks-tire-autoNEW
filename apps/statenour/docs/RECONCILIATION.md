@@ -1,5 +1,43 @@
 # Reconciliation · statenour-os
 
+> ## 2026-08-28 · escalate-on-ask + agent follow-ups (#1983)
+>
+> Operator decision reversed TWICE mid-flight and the trail is recorded rather than tidied:
+> "all frontier" -> "no dont switch from ollama" -> "keep ollama but escalate". Nothing was built
+> for the first answer (implementation had reached the design boundary only), so there was nothing
+> to revert.
+>
+> **Escalation.** Ollama Cloud stays the base lane for every turn; a turn reaches a metered
+> Anthropic model ONLY on an explicit depth marker. The obvious alternative — classify hard turns
+> and escalate them — was BUILT, MEASURED AND REJECTED: classifyCore answers "does this need the
+> deep-reasoning pipeline", not "how hard is this", and prod shows p50 user message at 64 chars
+> with 371/655 turns under 80, so a length-sensitive classifier under-escalates exactly the terse
+> high-stakes asks this operator sends. Markers are imported from classifier-core, never
+> re-declared. The router's justify invariant is honoured, not bypassed: an explicit /mega IS the
+> per-run justification, nothing reaches max implicitly, and untrusted content is capped below max.
+>
+> **Follow-ups (WP3).** Nick can now schedule himself to speak again — on the EXISTING
+> PostTurnOutbox (kind=agent-followup; nextAttemptAt is the scheduling primitive), because a third
+> queue beside PostTurnOutbox and WorkItem is the standing failure mode. Ships behind THREE
+> independent off switches and fails CLOSED, deliberately inverting getAiConfig's fail-open.
+> Fixed a latent bug on the way in: claimOrphans had no kind filter, so the drain would have
+> mis-executed any new kind as deferred-background work.
+>
+> **Two self-inflicted defects, both caught before merge and both worth keeping:**
+> (1) the escalation lane shipped as a DEAD CONTROL — modelOverride was wired into a variable
+> feeding only flag-gated dead code while streamWithFallback, the path that actually serves, had no
+> such field. Both unit suites were green and correct; the gap sat BETWEEN them. Caught by
+> adversarial review at 95 confidence, fixed across the real chain with a canary asserting the
+> contract across the seam. (2) the new tool was first named scheduleFollowUp, which already exists
+> as a customer-task tool — and metaTools spreads LAST, so it would have SILENTLY SHADOWED a
+> working tool. Caught by catalog-integrity's count assertion.
+>
+> **Flagged · NOT fixed:** mission promotion + Inngest Realtime streaming (substrate verified, build
+> not started — use throttle NOT rateLimit, which silently skips excess runs) · dedupeKey TOCTOU
+> (payload JSON has no unique constraint; bounded by the caps, so duplicate message not runaway) ·
+> no direct ALS integration test (mechanism evidenced on prod instead: entity_audits has 20
+> actor="nick" rows in 30d at the same handler boundary).
+
 > ## 2026-08-28 · Learning-loops wave · 1 ship (#1968) — verdicts now alter what Nick says next
 >
 > Operator-authorized "close the learning loops". MEASURED FIRST (docs/LEARNING-LOOPS-2026-08-28.md):
