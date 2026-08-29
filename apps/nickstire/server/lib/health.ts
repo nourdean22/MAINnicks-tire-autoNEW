@@ -6,6 +6,7 @@
 
 import type { Request, Response } from "express";
 import { createLogger } from "./logger";
+import { resolveNickDeployIdentity } from "./deployIdentity";
 
 const log = createLogger("health");
 const startTime = Date.now();
@@ -237,6 +238,14 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     timestamp: new Date().toISOString(),
     uptime: Math.round((Date.now() - startTime) / 1000),
     version: process.env.npm_package_version || "1.0.0",
+    // WHICH BUILD IS SERVING. `version` is a static package number that never
+    // changes between deploys, so it can never answer "did my merge land?".
+    // Proving a deploy therefore meant watching `uptime` reset — timing
+    // evidence, which a coincidental restart fakes with nothing to catch it.
+    // `resolveNickDeployIdentity` already read RAILWAY_GIT_COMMIT_SHA and had
+    // ZERO consumers: the producing half was built and the consuming half
+    // never was. Consuming it makes every future deploy verifiable in one call.
+    deploy: resolveNickDeployIdentity(process.env),
     checks,
     selfHealing: selfHealingState,
     memory: {
