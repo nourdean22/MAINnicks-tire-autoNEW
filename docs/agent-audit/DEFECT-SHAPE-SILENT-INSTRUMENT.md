@@ -61,6 +61,17 @@ is the one-line version, this is the list:
 - **a `tail -f`-locked log** on Windows — the reader holds the file the writer
   needs, so the artifact you are watching for never appears
 - **a correct query against a stale checkout** — see the last precedent below
+- **vitest silently drops nonexistent files from a MIXED path list** — measured
+  2026-08-29. Given four paths of which two did not exist, it ran the two real
+  ones and printed `Test Files 2 passed (2)` — a green with no mention of the
+  missing two. Given *only* bad paths it does fail loudly
+  (`No test files found, exiting with code 1`), so the hazard is specifically the
+  mixed list, which is what you produce when you guess a filename.
+  **Any "N tests passed" claim where a path was typed from memory may be a report
+  on a suite that never contained the test being proven.** Count the files in the
+  summary against the files you named; if they disagree, you have measured nothing.
+  Caught here while claiming the review rating floor was covered — two of the four
+  named paths were invented, and the real test was `server/reviewRatingFloor.test.ts`.
 
 ## Related precedents in this repo
 

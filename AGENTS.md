@@ -165,8 +165,8 @@ Subject `<type> · <app> · <one-line summary>`. AI commits MUST carry a trailer
 
 - The CLI shell is Windows PowerShell. **Do not chain with `&&`** — parser error. Use `;`.
 - **Mojibake is silent, permanent and unchecked.** A cp1252 round-trip corrupts an em-dash inside the *reader*
-  and the damage gets committed. Prefer ASCII in files you edit programmatically; `grep -c $'
-'` is NOT a CRLF test (it matches every line).
+  and the damage gets committed. Prefer ASCII in files you edit programmatically. `grep -c` for a newline
+  is NOT a CRLF test, and for a NUL byte is NOT a binary test — each matches EVERY line, returning the count.
 - **The PreToolUse guard matches command strings quoted inside documentation** — writing a doc containing a
   forbidden literal via Bash trips it. Use the Write tool, or describe the flag.
 
