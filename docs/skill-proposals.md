@@ -1110,3 +1110,84 @@ statenour primitives documented (existence re-verified at
 - **Confidence:** high (both witnessed with receipts; MSYS truncation also memorized agent-side)
 ||||||| 691e01a9a
 - **Status:** proposed
+
+## 2026-08-28 · escalate-on-ask + agent follow-ups (#1983)
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** I added `modelOverride` to `GetModelOptions`, wired it in
+  `app/api/ai/chat/route.ts`, and shipped a DEAD CONTROL: that `model` variable only feeds
+  `runAlternatePaths` (four flags, all default false), while the turn is served by
+  `streamWithFallback`, which had no such field. `/mega` would have returned the registry default
+  `claude-sonnet-5` with no effort while `X-Escalation-Applied: 1` claimed success. Both unit
+  suites were green and correct — the gap sat BETWEEN them. Caught only by adversarial review at
+  95 confidence (#1983, third commit).
+- **Cost:** would have shipped a headline feature that silently did nothing, plus two dead guards
+  behind it (effort never applied; the daily cap could never match a row).
+- **Proposed edit:** add to the verify checklist: "When adding an option to a request path, grep
+  for which call site actually SERVES the request before wiring it. A hot path often has more than
+  one `getModel`/`buildConfig` construction and only one of them is live. Write the canary ACROSS
+  the seam (assert the option reaches the serving call), never inside either unit — a dead control
+  hides precisely between two well-tested units."
+- **Confidence:** high (witnessed, fixed, canaried red-green)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** I named a new tool `scheduleFollowUp`; that name already existed in
+  `lib/ai/tools/tasks.ts:959` (a CUSTOMER follow-up task). `metaTools` spreads LAST in `nourTools`,
+  so my key would have SILENTLY OVERWRITTEN a working customer-facing tool — no error, and the
+  catalog count stayed flat because one key replaced the other. Caught only by
+  `catalog-integrity`'s count assertion.
+- **Cost:** near-miss; a live tool would have vanished with no signal.
+- **Proposed edit:** "Before adding a tool, `git grep -n '<name>: tool('` across `lib/ai/tools/`.
+  The barrel spreads domain files in order and the LAST one wins, so a duplicate key shadows
+  silently rather than erroring. Also register in BOTH `catalog.ts` and `tool-families.ts` — their
+  category/cost unions differ, and only the pre-commit typecheck catches a wrong one."
+- **Confidence:** high (witnessed, caught, renamed)
+- **Status:** proposed
+
+### P3 · NEW: prior-art-grep
+- **Trigger (witnessed):** twice in one wave I nearly rebuilt something that existed — the tool
+  name above, and a `next_action` table that `PostTurnOutbox` already provided (durable queue with
+  claim/retry/dead-letter and `nextAttemptAt` as a scheduling primitive). The second was caught by
+  research, not by me.
+- **Cost:** a redundant table would have violated the standing "no third queue beside PostTurnOutbox
+  and WorkItem" rule.
+- **Proposed edit:** a short skill that, before ANY new table/tool/queue/flag, runs a fixed grep
+  set (schema models, tool names, cron manifest, feature flags) and requires the answer to be
+  written down before building. Cheap, and it has now fired twice in one session.
+- **Confidence:** medium (two instances, same session)
+- **Status:** proposed
+
+## 2026-08-28b · the finish pass (#1991)
+
+### P1 · NEW: assert-the-consumer
+- **Trigger (witnessed):** FOUR dead controls in one wave, all mine, all the same shape — a writer
+  with no reader, each shipped green because every test asserted the WRITE:
+  (1) `modelOverride` wired into a variable feeding flag-gated dead code while the serving path had
+  no such field (#1983); (2) the daily cap comparing bare model ids against a column stored as
+  `provider/model`, matching nothing (#1983 review); (3) `X-Escalation-*` headers set and claimed
+  "legible" with zero client readers — the grep returned only my own comment about dead controls
+  (#1991); (4) `scheduleSelfFollowUp` registered in nourTools + catalog + TOOL_FAMILIES yet
+  measured unreachable for 4 of 5 realistic phrasings (#1991).
+- **Cost:** two of the four shipped to main and were caught by review, not by me. One was the
+  headline feature of its PR and did nothing. All four passed full green suites.
+- **Proposed edit:** a short skill that fires whenever a change adds a WRITER — a header, an env
+  var, a DB column, a queue row, a tool registration, a response field. It requires, before "done":
+  (a) `git grep` for the consumer and paste the hit; (b) if there is no consumer, either build it in
+  the same change or do not ship the writer; (c) the canary asserts the CONSUMER end, never the
+  producer. Explicitly: *registration is not reachability, a header set is not a header read, and a
+  green unit test on the writer is the exact evidence that will fool you.*
+- **Confidence:** high (four instances, one session, all verified)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** the tool-reachability failure could only be found by RUNNING the pruner
+  against realistic phrasings — `scheduleSelfFollowUp` was correctly registered in all three
+  registries and still surfaced for only 1 of 5 sentences a human would actually type.
+- **Cost:** a shipped feature that the model could almost never invoke.
+- **Proposed edit:** add to the verify checklist: "After adding a chat tool, run `pruneTools`
+  against 5 phrasings you would really type and assert the tool appears. Registration in
+  catalog/TOOL_FAMILIES proves the tool EXISTS, never that the pruner will surface it — the trigger
+  and the attach pattern are different regexes and a tool can match one without the other."
+- **Confidence:** high (measured before and after)
+- **Status:** proposed

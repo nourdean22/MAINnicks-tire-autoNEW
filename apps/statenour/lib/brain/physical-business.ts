@@ -12,7 +12,7 @@ import type { CeoBusinessContextV1 } from "@/lib/nickstire/ceo-context";
 // keeps counting up inside the TTL instead of freezing at the value it
 // had when the row was fetched.
 const CACHE_KEY = "physical_business_context";
-const CACHE_TTL_S = 300; // 5 min · matches violation-context / system-prompt
+const CACHE_TTL_S = 300; // 5 min · matches the system-prompt cache
 
 export async function buildPhysicalBusinessContextBlock(): Promise<string> {
   // The .catch() sits OUTSIDE cached() deliberately. Inside, a hard DB

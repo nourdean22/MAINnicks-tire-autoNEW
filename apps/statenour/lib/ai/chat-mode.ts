@@ -156,6 +156,19 @@ export async function pruneTools(
     addMatching(/score|habit|body|daily|workout|sleep|drift|mood/i);
   }
 
+  // 2026-08-28 · Self-follow-up. MEASURED GAP, not a guess: after
+  // scheduleSelfFollowUp shipped, 4 of 5 realistic phrasings never
+  // surfaced it — "follow up with me tomorrow", "remind me in two hours",
+  // "check back on this", "ping me if..." all missed, because the task
+  // family's TRIGGER needs a word like task/todo/mission and none of them
+  // contain one. The tool matched that family's ATTACH pattern (via
+  // "schedule") but the family never fired, so the feature was
+  // unreachable for exactly the words a human uses to ask for it.
+  // MIRRORED in tests/ai/chat-mode-keyword-families.test.ts.
+  if (/\b(follow[- ]?up|remind me|check back|circle back|nudge me|ping me|check in on|get back to me)\b/.test(text)) {
+    addMatching(/scheduleSelfFollowUp|followup|remind/i);
+  }
+
   // 2026-08-25 · Physical devices (runDeviceCommand demoted from
   // CORE_TOOLS — see the demotion note there). Deterministic trigger for
   // the phrasings the always-on slot existed for. MIRRORED in

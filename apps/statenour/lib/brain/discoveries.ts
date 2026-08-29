@@ -72,10 +72,27 @@ export type DiscoveryVerdict = "investigate" | "known" | "noise";
  *
  * "already knew" is a NOVELTY defect, not an accuracy defect. `ignored`
  * records that it was surfaced and not acted on without asserting it was
- * incorrect, and keeps it out of every correction harvest. The novelty signal
- * itself lives in `resultRef` (`discovery_verdict:known`). Nothing consumes
- * that yet, and that is the honest state: this wave built the measurement,
- * not a consumer for it.
+ * incorrect, and keeps it out of every correction harvest.
+ *
+ * 2026-08-28 · WHAT A `known` VERDICT NOW DOES (this comment used to end
+ * "nothing consumes that yet", and was quoted three times as proof the loop
+ * was open — it had outlived its own truth by one wave):
+ *   · suppresses the whole cluster from the feed, AND the twins the nightly
+ *     engines regenerate — the judged-identity join in listDiscoveries()
+ *     below, which binds on cluster identity with no lastSeen floor.
+ *   · removes the spot from Nick's LIVE surfaces — filterJudgedBlindSpots()
+ *     in blind-spot-identity.ts, consumed by the getBlindSpots AI tool and
+ *     lib/services/ultron-situation.ts.
+ *   · is reported back to the operator at tap time — describeJudgeOutcome()
+ *     in lib/brain/discover-feedback.ts ("suppressed N similar").
+ * Receipts and the AFTER numbers: docs/LEARNING-LOOPS-2026-08-28.md.
+ *
+ * STILL UNCONSUMED, deliberately: the ledger's `resultRef`
+ * (`discovery_verdict:known`) — the per-event novelty TRACE. The behaviour
+ * above reads the verdict COLUMN / metadata, which is the durable source of
+ * truth; resultRef would only be needed to analyse novelty over TIME (e.g.
+ * "is the operator's already-knew rate falling?"), and nothing asks that yet.
+ * Named rather than quietly deleted, so the gap stays auditable.
  */
 const VERDICT_TO_DECISION: Record<DiscoveryVerdict, "accepted" | "dismissed" | "ignored"> = {
   investigate: "accepted",
@@ -253,6 +270,17 @@ export interface ListDiscoveriesResult {
    * the first place. EXACT, never a floor.
    */
   restoredHidden: number;
+  /**
+   * 2026-08-28 · learning-loops wave. Unrated rows withheld because a row with
+   * the SAME cluster identity already carries a `known`/`noise` verdict — a
+   * regenerated twin (a fresh clock key, or a row reinforced back into the
+   * window after its judged sibling aged out). The judged set is fetched with
+   * NO lastSeen floor and tombstones INCLUDED (a tombstone does not unmake a
+   * judgement), so a verdict binds forever. Counted, never silent — an
+   * invisible effect is indistinguishable from no effect. Bounded by the card
+   * scan: a floor whenever `truncated` is true.
+   */
+  suppressedSimilar: number;
 }
 
 /** Hard ceiling on rows scanned per call. Surfaced in the result, never silent. */
@@ -307,6 +335,7 @@ export async function listDiscoveries(
   let scanned = 0;
   let truncated = false;
   let restoredHidden = 0;
+  let suppressedSimilar = 0;
 
   // Page rather than taking `limit * 3` once (review fix, 2026-08-16). The
   // verdict lives in a jsonb blob, so it cannot be filtered in the query
@@ -394,7 +423,52 @@ export async function listDiscoveries(
     if (skip + PAGE >= MAX_SCAN && rows.length === PAGE) truncated = true;
   }
 
-  const unratedCards = clusterDiscoveries(unrated);
+  // Judged-identity suppression (learning-loops wave 2026-08-28, gap 3):
+  // an unrated row whose cluster identity already carries a known/noise
+  // verdict is a regenerated twin — withheld and COUNTED, never silent.
+  // The judged set is fetched with NO lastSeen floor (a verdict older than
+  // the window must still bind the twin regenerated today) and no deletedAt
+  // filter (a tombstone does not unmake a judgement). The column arm is
+  // Prisma-filterable; the metadata arm is OVERFETCHED and re-checked with
+  // readVerdict in JS, because (a) a resurface writes an EXPLICIT metadata
+  // null that must override a stale column (the mirror-must-never-outrank-
+  // the-source rule), and (b) Prisma JSON-path negations drop rows lacking
+  // the key (the 1-of-241 trap documented above). Population is tiny — 10
+  // verdicts all-time on prod — the take is a safety bound, not a page.
+  // Runs AFTER the scan so the cluster-count break above is unaffected;
+  // when the scan truncated, `suppressedSimilar` is a floor like the cards.
+  let keptUnrated = unrated;
+  if (unrated.length > 0) {
+    const judgedRows = await prisma.brainMemory.findMany({
+      where: {
+        category: { in: [...DISCOVERY_CATEGORIES] },
+        OR: [
+          { discoveryVerdict: { in: ["known", "noise"] } },
+          { metadata: { path: ["discoveryVerdict"], equals: "known" } },
+          { metadata: { path: ["discoveryVerdict"], equals: "noise" } },
+        ],
+      },
+      orderBy: { lastSeen: "desc" },
+      take: 500,
+      select: { content: true, metadata: true, discoveryVerdict: true, discoveryProvenance: true },
+    });
+    const suppressedIdentity = new Set<string>();
+    for (const j of judgedRows ?? []) {
+      const v = readVerdict(j.metadata, j.discoveryVerdict);
+      if (v !== "known" && v !== "noise") continue; // explicit-null resurface, or investigate
+      const prov = readProvenance(j.metadata, j.discoveryProvenance);
+      suppressedIdentity.add(`${prov}|${clusterKey(j.content)}`);
+    }
+    if (suppressedIdentity.size > 0) {
+      keptUnrated = unrated.filter((d) => {
+        const hit = suppressedIdentity.has(`${d.provenance}|${clusterKey(d.content)}`);
+        if (hit) suppressedSimilar++;
+        return !hit;
+      });
+    }
+  }
+
+  const unratedCards = clusterDiscoveries(keptUnrated);
   const ratedCards = clusterDiscoveries(rated);
 
   // "include judged" has to actually show judged cards. Concatenating and
@@ -455,6 +529,7 @@ export async function listDiscoveries(
     scanned,
     truncated,
     restoredHidden: exactRestoredHidden,
+    suppressedSimilar,
   };
 }
 

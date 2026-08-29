@@ -822,6 +822,241 @@ this much concurrent merging the flag buys nothing and spends attention.
 > `The operation was canceled` is a cancellation, not a test failure. Confirm by re-running the job;
 > investigate only if the second run fails too.
 
+## A gate is only as wide as its file list — the nav sweep that could not see `features/`
+
+2026-08-28. `tests/repo/system-nav-targets.test.ts` is a well-built control: positive control,
+negative control, and a vacuity check that the page list is non-empty. It reported green while
+`features/chat-v2/components/chat-capability-indicator.tsx:45` linked `href="/system/costs"` — a
+segment with an `/api/system/costs` route but **no page**, so the chat capability badge opened a
+404. The operator clicks it to check provider health.
+
+The gate never saw it. `sourceFiles()` listed `app, lib, config, components` — `features/` and
+`hooks/` are separate tracked source roots and were simply absent from the subject. Every
+assertion was sound; the population was wrong.
+
+**The generalisation, and it is not "add features to the list".** A control has *three* things
+that can be wrong, and the canary pair only tests the first two: the rule, the verdict, and **the
+subject**. A green sweep over the wrong file set is indistinguishable from a green sweep over the
+right one — which is the [orphaned-subject shape](DEFECT-SHAPE-ORPHANED-SUBJECT.md) wearing a
+different hat. So the fix ships with a **subject-coverage assertion**: the test now asserts the
+file list actually contains entries under each of `app/`, `lib/`, `components/`, `features/`,
+`hooks/`. A future narrowing fails loudly and names the directory it stopped seeing.
+
+Probe for this shape elsewhere: for every gate that enumerates its own inputs — `git ls-files --
+<dirs>`, a `readdirSync`, a glob — ask *what source root is not in that list*, then assert the
+subject, not just the verdict.
+
+Mutation receipt: restoring the dead href fails the widened sweep with
+`chat-capability-indicator.tsx -> /system/costs`; the fixed tree passes 5/5.
+
+## Resolved search — `(fastest * 2 + 5)`, carried as unfound across sessions
+
+Recorded because the operator asked for the greps either way, and the answer is a scoping lesson
+rather than a defect.
+
+**Found:** `apps/worker/src/scheduler.ts:112`, inside `deriveStaleWindowMs()`.
+
+**Verdict: correct by design, no action.** It derives the `/health` staleness window from the
+actual cron schedules (`fastest` interval in minutes) instead of a hand-synced constant. Its own
+header records why: the value *was* `5 * 60_000` against a "ticks every ~2 min" assumption, then
+#1696 moved the render loop to a 15-minute cadence and nothing retuned it — so the floor exceeded
+the threshold and `/health` reported stalled for ~10 of every 15 minutes. The `+ 5` is the margin;
+the `* 2` is the multiplier. This expression is the *fix* for a rotted constant, not an instance
+of one.
+
+**Why earlier greps missed it:** they were scoped to `apps/statenour` and `apps/nickstire`. The
+monorepo has **three** apps — `apps/worker/` is a real deploy target with its own scheduler, and a
+two-app sweep silently excludes it. Same failure class as the section above: the rule was fine,
+the subject was short one directory.
+
+Greps that DID find it, from the repo root:
+
+```bash
+git grep -nE '\*\s*2\s*\+\s*5' -- '*.ts' '*.tsx' '*.mjs' '*.js'
+git grep -niE 'fastest[^;]{0,40}(\*|times|x)\s*2' -- '*.ts' '*.tsx'
+```
+
+## A claim about the outside world has an expiry date — and an uncited one is expired by default
+
+The blind instruments catalogued above all fail *inward*: a gate that cannot see its subject, a
+number describing something other than what the reader assumes. This one fails *outward*, and it is
+the general form of at least three instances already in this repo's history.
+
+**The shape.** A statement about a library, API, platform, price or "best practice" is a measurement
+of the world at the moment it was made. Unlike a repo fact, nobody here controls when it stops being
+true, and nothing in the tree changes when it does. It therefore has an expiry date that is invisible
+from the inside — *how you do it* and *how you did it last year* read identically in a model's
+memory, in a PR body, and in a doc.
+
+Three instances, each of which passed review at the time:
+
+| The claim | What it actually was |
+|---|---|
+| ToolHive recommended for the tool layer | Benchmarked at ~15x the operator's scale; the premise did not apply here at all |
+| The Higgsfield cost/capability figures | Never re-checked against the vendor after the first read; the official REST API existed for weeks while sessions concluded there was "no API path" |
+| "3-5 posts a week doubles follower growth" | A study about **likes**, restated as **follower growth** — a real finding about a different variable |
+
+Note the second one especially: the failure was symmetric. The stale claim said a capability was
+*absent*, and that was just as wrong, and just as expensive, as claiming one that had gone away.
+"Not in the repo" is a fact about the repo; "not available" is a claim about the world and needs a
+source.
+
+**The rule (charter rule 7).** Verify current practice *before* you change a library, API, SDK,
+platform behaviour, pricing, config pattern or approach — not after, and not to confirm. Cite it:
+URL and date, in the PR. The search outranks your prior, and a contradiction is a finding to report
+rather than bury. Unverified means do not ship the change: an unverified switch is worse than leaving
+working code alone.
+
+**What is mechanically enforced, and what is not.** `scripts/agent-os/check-source-citation.mjs`
+fires when a PR's diff **adds a dependency** (a `dependencies`/`devDependencies`/`peerDependencies`/
+`optionalDependencies` entry, or a `pnpm-workspace.yaml` catalog move) and the body carries no URL
+*and* date. It is wired as its own job in `agent-policy.yml` because the PR body is only reachable
+from the event payload, not from the tree. `sourceCitation.test.mjs` canaries it in both directions,
+including the two false positives that shaped it: a `"scripts"` entry is not a dependency (#1974),
+and a reel-pack `brief.json` full of `"time": "0:00-0:04"` is not a manifest (#1972).
+
+**Everything else in rule 7 is unenforceable and is deliberately not claimed.** Changing a platform
+assumption, switching an approach on reasoning alone, or quoting a benchmark leaves no syntactic
+trace in a diff. There is no cheap check for it, and inventing one would produce exactly the artifact
+this document exists to catalogue — a control that reports green over a subject it cannot observe.
+That half is on review, and on the coordination session's per-merge audit.
+
+**Probe finding, recorded because it nearly hid the gate's own verdict.** During the adversarial pass
+the gate printed `FAILED` and named three real packages while `$LASTEXITCODE` read `0`. The gate was
+correct; `| Select-Object -First N` was masking the native exit code — the PowerShell twin of the
+`pipe-to-tail` trap already recorded under Verify gates. Re-probed without a pipeline: 1 / 0 / 2 /0
+for uncited-bump, docs-only, blind-invocation and cited-bump respectively. **Assert on the output as
+well as the code**, which is what the "Writing one" step 3 below has said all along.
+
+## A monitor's SCOPE is part of its correctness — the watcher that could not see its own hazard
+
+2026-08-28, found by the watcher's author, against the author's own worktree. The coordination
+session armed a watch over the shared checkout for five invariants, one of which was *"a tree is
+checked out to `main`"* — the direct-commit hazard. It ran, it was green, and it was structurally
+incapable of firing, because it inspected exactly one directory while the hazard can occur in any of
+the **eight** worktrees attached to this repo.
+
+The instance it missed was the author's own: **`gh pr merge --delete-branch` checks the local repo
+out to the default branch after deleting the merged branch.** Merging a PR therefore parks whatever
+worktree you ran it from on `main`, silently, as a side effect of a command whose stated purpose is
+branch cleanup. The watch had flagged that exact hazard for other sessions two turns earlier and
+could not see it happen to itself.
+
+This is [the criterion](#the-criterion--every-canary-must-prove-it-can-see-the-failure) applied to a
+monitor rather than a test, and it generalises past both: **the first question about any instrument
+is whether its subject includes the thing it is watching for.** A test's subject is the code path it
+drives; a monitor's subject is the set of places it looks. Narrowing either one turns a control into
+a reassurance.
+
+Fixed by sweeping `git worktree list` instead of one path — and, per this document's own rule, the
+widened arm was positive-controlled before being trusted: the same loop was pointed at a branch a
+worktree *was* on (`integration-audit`), and it found it. Only then does the `main` result read as a
+real zero rather than a loop that iterates over nothing. Two lines of proof, and without them the
+fix would have been exactly as unverified as the bug.
+
+> **Standing consequence.** After any `gh pr merge --delete-branch`, check where you are standing.
+> The merge succeeding and your checkout being where you left it are different facts.
+
+## "Deployed" is not one fact in a monorepo
+
+Same session, same day. Three merges landed in sequence and the session verified all three against
+`bdnick.info/api/version`, the statenour deploy endpoint. One of those merges touched only
+`scripts/agent-os/`, `.github/workflows/` and `docs/`.
+
+That poll would have run its full fifteen minutes and reported `TIMEOUT`, and **a timeout is
+indistinguishable from a stalled deploy** — the session would have escalated a healthy repo. The
+merge was never going to appear there: Railway watch paths are per-app, so a diff touching no
+`apps/**` path deploys nothing, and a CI-only change has no runtime surface to verify at all.
+
+| what the merge touched | what deploys | how you verify it |
+|---|---|---|
+| `apps/statenour/**` | statenour | `bdnick.info/api/version` contains the SHA |
+| `apps/nickstire/**` | nickstire | `nickstire.org/api/version` contains the SHA |
+| neither (CI, docs, scripts) | **nothing** | the CI job itself ran — there is no deploy to wait for |
+
+The rule: **choose the instrument from the diff's paths, not from habit.** Asking an app endpoint
+about a change that app never received is the blind-instrument shape pointed outward — the
+instrument is healthy, the subject is simply not in it, and the silence gets read as a fault.
+
+**Correction, same session, one turn later — and it is the more instructive half.** The row above
+originally read *"`nickstire.org/api/health` uptime resets"*, and the session stated in its report
+that nickstire "only exposes `/api/health`, so the best I have is a restart proxy." **That was
+false and was never probed.** nickstire serves `/api/version` with a `build.commit` field, exactly
+as statenour does; one `curl` settled it. The weaker method was written into this document as
+though it were a constraint.
+
+A restart proxy and a commit check are not the same claim. *The container is new* does not entail
+*the container carries your merge* — a rebuild triggered by anything else satisfies the proxy while
+your change is still absent. So the documented method was not merely clumsier, it was **unable to
+distinguish the success case from a specific failure case**, which is this document's whole subject.
+
+The general form is already catalogued one section down under
+[claims about the outside world](#a-claim-about-the-outside-world-has-an-expiry-date--and-an-uncited-one-is-expired-by-default),
+and this instance shows it **fails symmetrically**: asserting a capability is ABSENT is as much an
+uncited world-claim as asserting one exists, and costs the same. The Higgsfield REST API sat
+unfound for weeks behind "there is no API path." This was the same error at one-turn scale, by the
+author of that paragraph, which is roughly how durable the lesson is without a probe attached.
+
+> **Before writing "X has no Y" into a doc or a report, spend the one command.** An absence claim
+> needs evidence exactly as much as a presence claim.
+
+### Three in one session, one shape: the instrument was narrower than its author assumed
+
+Worth recording together, because the pattern is more useful than any of the three alone. In a
+single coordination session the same author shipped three instruments and all three were wrong in
+the same direction:
+
+| instrument | what it assumed | what was true |
+|---|---|---|
+| the shared-tree watch | one directory is the repo | **eight worktrees**; it could not see the hazard it was written for, and missed an instance in its own author's tree |
+| the deploy check | nickstire exposes only `/api/health` | `/api/version` with `build.commit` exists, unprobed |
+| the merge audit | `gh pr list --state merged` returns newest-merged first | it sorts by **creation**; `.[0]` returned an older PR and the wrong diff got audited |
+
+None was a hard failure. Each produced a plausible green, or a plausible answer about the wrong
+subject — the reading a busy operator accepts. And each was settled by **one command**: sweep
+`git worktree list`; `curl /api/version`; take the PR number from the squash commit subject
+(`git log -1 --format=%s <sha>` yields `… (#NNNN)`), which is exact rather than inferred from a
+sorted list.
+
+The generalisation is not "be careful". It is that **an instrument's scope, its addressing, and its
+ordering are all part of its correctness, and none of them is visible in a green result.** The
+canary criterion at the top of this document asks whether a test can see its defect; these three ask
+the same question of a monitor, of an endpoint choice, and of a query's sort order. Same criterion,
+three surfaces nobody thinks to point it at.
+
+### The sequel: each fix caused the next one, and only a cross-check ever caught them
+
+The addressing error above did not end when it was fixed. It became three, in a row, in one session,
+each defect introduced by the repair of its predecessor. Recorded in full because the shape —
+*a fix for one addressing bug is not immunity from addressing bugs* — is the same warning
+`guard-red-team` gives about deny-lists, arriving here in a place nobody expected it.
+
+| # | the method | why it broke |
+|---|---|---|
+| 1 | `gh pr list --state merged`, take `.[0]` | sorts by **creation**, not merge time — returned an older PR |
+| 2 | first `#N` in the squash subject | a PR **title** can itself contain a PR reference: `… (#1991) (#1993)` resolved to #1991, the wrong one |
+| 3 | **last** `#N` in the squash subject | PowerShell collapses a single-match result to a **string**, so `[-1]` returned the last *character* — `#1994` became `#4` |
+
+Fix 3 is the sharpest: it worked on the rare two-reference case it was built for and broke the
+common single-reference case, which is every ordinary PR. The correct form needs both halves —
+take the LAST match **and** force an array so one match cannot degrade to a string:
+
+```powershell
+$all = @([regex]::Matches($subject, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
+$prNumber = $all[-1]
+```
+
+**What actually caught #2 and #3 was not vigilance — it was a cross-check between two independent
+views of the same fact.** Comparing the PR's own file list against `git show --name-only` on the
+merge commit: 6-vs-1 exposed the second, 17-vs-4 exposed the third. Neither error announced itself.
+Both returned a confident, well-formed audit *of the wrong pull request*, which is the failure mode
+this whole document exists for — a plausible answer about a subject you did not intend to measure.
+
+> **The durable rule, cheaper than getting the addressing right:** never audit an artifact by one
+> path to it. Resolve it two ways and compare. The comparison costs one command and fails loudly;
+> the addressing fails silently, and it failed silently three times to the session whose job that
+> week was auditing everyone else.
+
 ## Writing one
 
 Copy the shape from any of the three proven controls:

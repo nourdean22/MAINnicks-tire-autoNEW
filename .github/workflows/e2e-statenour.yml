@@ -206,74 +206,111 @@ jobs:
           LISTEN_WAIT=180 \
           SERVE_WAIT=45 \
             bash ../../scripts/ci/wait-for-dev-server.sh
-          TAILPID="$(cat /tmp/.dev-tail.pid 2>/dev/null || echo "")"
-          echo "warming pages (dev cold-compiles each route; be patient)..."
-          # `ps -C node` (used in e1e28c2f6) NEVER matched the dev
-          # server — Next renames its process to `next-server`, so the
-          # 43MB reading that "refuted" memory was measuring the wrong
-          # process. Report free memory + the two largest processes by
-          # RSS instead, whatever they are called.
-          probe() { echo "$(free -m | awk '/^Mem:/ {print "avail="$7"MB"}') · $(ps -eo rss=,comm= --sort=-rss | head -2 | awk '{printf "%s:%dMB ", $2, $1/1024}')"; }
-          # 2026-07-28 · warm() ABORTS on a dead server. Previously every
-          # request ended in `|| echo timeout` and nothing inspected $code,
-          # so when the dev server died mid-loop the step still exited 0 and
-          # the real cause surfaced six minutes later as a pile of unrelated
-          # Playwright failures (run 30203022021: 23 failed, every one a
-          # symptom). A 000 means no HTTP response at all — the server is
-          # gone, and nothing downstream can be trusted.
-          # NOTE: -m 300 is deliberately NOT tightened. A cold tRPC route was
-          # measured at 72s under webpack; a shorter cap would abort honest
-          # compiles. A wedged route is already bounded by the job timeout.
-          # 2026-07-28 · capture curl's EXIT STATUS, don't infer failure from
-          # the body. PR #1141 review (P2), reproduced locally against an
-          # unreachable port: on a connect failure or timeout curl still emits
-          # its --write-out format ("000") AND returns nonzero, so
-          # `$(curl ... || echo "000")` yields "000000" — the equality check
-          # could never match and the abort was a NO-OP. `|| rc=$?` keeps the
-          # step's `set -e` from firing while preserving the real status.
-          warm() {
-            local path="$1"
-            local code rc=0
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 300 "http://localhost:3001$path") || rc=$?
-            echo "  warm $path -> ${code:-none} (curl rc=$rc) · $(probe)"
-            if [ "$rc" -ne 0 ] || [ "$code" = "000" ]; then
-              echo "::error::dev server stopped answering while warming $path — aborting rather than running Playwright against a dead server"
-              echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
-              exit 1
-            fi
-          }
-          # 2026-07-28 · this list now matches what smoke.spec.ts actually
-          # asserts: /missions is tested (it replaced /intelligence/brief,
-          # whose AI-RSC stream never completes hermetically) so it is the
-          # one that must be warm. Warming /intelligence/brief instead spent
-          # budget compiling a route no test touches while leaving a tested
-          # route to cold-compile inside Playwright's per-test budget.
-          for p in / /chat /system /stats /brain /content /pins /photo-improver /missions /system/ai-cost /system/health /system/cockpit-observability; do
-            warm "$p"
-          done
-          # 2026-07-25 · warm the API-contract routes too. The smoke's API
-          # tests use a 10s request cap — a fine bound for a WARMED route,
-          # but next dev cold-compiles each route on first hit, which blew
-          # the cap nondeterministically (rate-limits/costs/intel flaked in
-          # the PR #1089 run; run 8 only passed on timing luck). Status is
-          # irrelevant here — compilation happens regardless of auth.
-          echo "warming API routes..."
-          for p in /api/system/rate-limits "/api/trpc/system.costs?input=%7B%22days%22%3A7%7D" /api/intel "/api/content/history?days=30" /api/social/recent-images /api/brain/wisdom /api/trpc/observability.osSnapshot "/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D"; do
-            warm "$p"
-          done
-          # Liveness gate: the heartbeat was only checked BEFORE the warm
-          # loops, so a server that died during them went undetected.
-          hb_rc=0
-          final=$(curl -s -o /dev/null -w "%{http_code}" -m 30 http://localhost:3001/api/system/heartbeat) || hb_rc=$?
-          if [ "$hb_rc" -ne 0 ] || [ "$final" != "200" ]; then
-            echo "::error::dev server is not healthy after warmup (heartbeat -> ${final:-none}, curl rc=$hb_rc) — aborting before Playwright"
-            echo "--- next dev log tail ---"; tail -40 /tmp/next-start.log || true
-            kill $TAILPID 2>/dev/null || true
-            exit 1
-          fi
-          echo "post-warm heartbeat -> $final · server healthy"
-          kill $TAILPID 2>/dev/null || true
-
+          # 2026-08-28 · the warm loop moved to scripts/ci/warm-routes.sh
+          # (canary: scripts/agent-os/warm-routes.test.mjs, run by
+          # `pnpm agent:verify` on every PR). Same defect class, and the same
+          # reason, as the readiness probe's move on 08-26: the loop could not
+          # tell two OPPOSITE states apart and printed one message for both.
+          #
+          #   curl rc=7 / 000   the server is GONE. Nothing downstream is safe.
+          #   curl rc=28        the server did not ANSWER IN TIME — which it can
+          #                     do while perfectly alive, with one route wedged.
+          #
+          # It tested `[ "$rc" -ne 0 ] || [ "$code" = "000" ]` and called both
+          # "dev server stopped answering". EVERY /api/intel failure sampled on
+          # 2026-08-28 (runs 33203747058, 33200855271, 33192651269, 33115876891
+          # — 4 of 4, back to 08-27) was rc=28 with the server ALIVE: the dev
+          # log's last line is `Compiling /api/intel ...` and nothing follows,
+          # while the handler's own `start GET` trace never prints. The compile
+          # wedges upstream of the route; the handler never runs.
+          #
+          # /api/intel is NOT the culprit and is NOT droppable from this list.
+          # smoke.spec.ts asserts its shape (ok · industry · generatedAt), and
+          # its incremental compile is 671 lines across 4 files with no new
+          # dependencies — apiHandler's entire graph was already compiled by
+          # /api/system/rate-limits, the SAME apiHandler(auth:"owner") wrapper,
+          # 20s earlier. On the passing re-run of the identical commit it warmed
+          # in 330ms. 330ms vs >300s is bimodal: a deadlock, not slowness.
+          #
+          # Memory is the accomplice, not the cause — and the PASSING run proves
+          # it, because it had the LEAST free memory at that point (526MB, vs
+          # 634-843MB in all four failures) and compiled the route fine. Peak
+          # next-server RSS is 6.1-6.3GB on a ~7GB runner in both outcomes, so
+          # do not "fix" this by tuning the heap again.
+          #
+          # ROUTE_TIMEOUT 300 -> 120 is a LOOSENING relative to reality, not a
+          # tightening. The 300s cap (and the 72s figure behind it) was measured
+          # under webpack; this job has run Turbopack since 07-26. Measured
+          # Turbopack cold compiles in these same runs: heartbeat 7.5s, / 12.3s,
+          # /chat 14.0s, /api/trpc/[trpc] 20.1s — the heaviest entrypoint in the
+          # app. 120s is 6x the observed worst case and a wedged route is
+          # unbounded, so no honest compile is at risk. What 300 bought was five
+          # minutes of silence per occurrence.
+          #
+          # The route list is UNCHANGED. Pages first (dev cold-compiles each),
+          # then the API-contract routes: the smoke's API tests use a 30s cap,
+          # fine for a WARMED route but not for a cold compile. /missions is
+          # tested (it replaced /intelligence/brief, whose AI-RSC stream never
+          # completes hermetically) so it is the one that must be warm.
+          echo "warming routes (dev cold-compiles each; be patient)..."
+          # A command substitution, not a heredoc: a `run: |` block is a YAML
+          # block scalar, and a heredoc's terminator must sit at column 0 —
+          # which ends the scalar and stops the workflow parsing entirely.
+          # Each path is single-quoted so a query string's `?` is never
+          # glob-expanded. warm-routes.sh trims the indentation back off.
+          ROUTES=$(
+            echo '/'
+            echo '/chat'
+            echo '/system'
+            echo '/stats'
+            echo '/brain'
+            echo '/content'
+            echo '/pins'
+            echo '/photo-improver'
+            echo '/missions'
+            echo '/system/ai-cost'
+            echo '/system/health'
+            echo '/system/cockpit-observability'
+            echo '/api/system/rate-limits'
+            echo '/api/trpc/system.costs?input=%7B%22days%22%3A7%7D'
+            echo '/api/intel'
+            echo '/api/content/history?days=30'
+            echo '/api/social/recent-images'
+            echo '/api/brain/wisdom'
+            echo '/api/trpc/observability.osSnapshot'
+            echo '/api/trpc/system.promptDiagnostics?input=%7B%22msg%22%3A%22warmup%22%7D'
+          )
+          # On a wedge the per-route retry cannot clear, restart the dev server
+          # once and re-warm from cold. kill_port comes from
+          # wait-for-dev-server.sh (WFDS_LIB=1 defines its functions and runs
+          # nothing) because a restart onto a held port is worse than no restart:
+          # `next dev` spawns children, the new process would die with
+          # EADDRINUSE, and every later probe would answer from the ORIGINAL
+          # wedged server. Sourced inside a subshell so that script's own
+          # defaults cannot leak into warm-routes'. CLEAR_DIR is emptied
+          # deliberately: the wedge is compiler state, not a bad build artifact,
+          # so clearing .next would cost a full cold rebuild for nothing.
+          export BASE_URL=http://localhost:3001
+          export HEALTH_PATH=/api/system/heartbeat
+          export LOG_FILE=/tmp/next-start.log
+          export ROUTE_TIMEOUT=120
+          export HEALTH_TIMEOUT=30
+          export RETRIES=1
+          export MAX_RESTARTS=1
+          export ROUTES
+          # `export` as its own statement, NOT an assignment prefix. Bash removes
+          # prefix assignments once the builtin returns, so `WFDS_LIB=1 . f` left
+          # PORT unset and kill_port died on `set -u` before touching the port —
+          # a restart that frees nothing, onto a port the wedged server still
+          # holds. wait-for-dev-server.test.mjs had already documented this exact
+          # trap; the first draft of this line reproduced it anyway. Chained with
+          # && so a failed kill aborts the restart instead of racing EADDRINUSE.
+          export RESTART_CMD='( export WFDS_LIB=1 PORT=3001; . ../../scripts/ci/wait-for-dev-server.sh && kill_port ) && START_CMD="pnpm exec next dev -p 3001" NODE_OPTIONS="--max-old-space-size=4096" PORT=3001 LISTEN_WAIT=180 SERVE_WAIT=45 CLEAR_DIR= bash ../../scripts/ci/wait-for-dev-server.sh'
+          bash ../../scripts/ci/warm-routes.sh
+          # warm-routes.sh runs the post-warm liveness gate itself and exits
+          # nonzero if the heartbeat is unhealthy, so nothing is left to check
+          # here. Kill whichever tail is current — a restart starts a new one.
+          kill "$(cat /tmp/.dev-tail.pid 2>/dev/null || echo 0)" 2>/dev/null || true
       - name: Install Playwright chromium
         working-directory: apps/statenour
         run: pnpm exec playwright install --with-deps chromium

@@ -508,9 +508,11 @@ flip `SMS_KILL_SWITCH=true` / `VAPI_KILL_SWITCH=true`.
 `main` is worked by **concurrent Claude agent sessions** (a statenour session and a
 nickstire session, often in parallel `.worktrees/`). The protocol that keeps this safe:
 
-**Never push `main` directly.** Work a named branch, then `gh pr create` + `gh pr merge --squash
---delete-branch` (root [`AGENTS.md`](AGENTS.md) → "Branching"). The old `~/push-main.sh` helper
-pushed straight to `main` and is retired.
+**Never push `main` directly.** Work a named branch, then `gh pr create` + `gh pr merge --squash`
+(root [`AGENTS.md`](AGENTS.md) → "Branching"). The old `~/push-main.sh` helper pushed straight to
+`main` and is retired. **Do not pass `--delete-branch`:** it deletes the *local* branch as well as
+the remote one, so `gh` checks your worktree out to `main` to do it — parking a shared tree on the
+one branch nothing may be committed to. Delete the remote ref on its own instead.
 
 When pushing your branch:
 

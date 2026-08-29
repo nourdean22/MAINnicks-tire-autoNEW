@@ -52,7 +52,7 @@ Corollary: a `.env` file is NOT evidence of production config — verify via `cr
 ```bash
 [Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')  # Remove-Item Env:\ trips the deletion guard
 gh pr create --head <branch> --title "<message>" --body "<body>"
-gh pr merge <pr-number> --squash --delete-branch
+gh pr merge <pr-number> --squash ; gh api -X DELETE repos/<o>/<r>/git/refs/heads/<b>  # NOT --delete-branch: parks you on main
 git fetch origin main ; git merge --ff-only     # NEVER reset --hard: a sibling's work may be in your tree
 ```
 
@@ -153,8 +153,8 @@ Every adversarial self-review since 2026-08-12 found real defects in the session
   Flag adjacent rot; don't silently expand scope.
 - **Search for prior art first.** "Not in the repo" is a fact about the repo, not the world — the Higgsfield
   REST API existed for weeks while sessions concluded "no API path".
-- **Prove the instrument sees the target before trusting a green.** Known blind: fixture-only tests;
-  gates that fail open; a `tail -f`-locked log.
+- **Prove the instrument fired at all** — a zero, a green and a surviving mutation are all "no signal".
+  Plant a known positive: [silent instrument](docs/agent-audit/DEFECT-SHAPE-SILENT-INSTRUMENT.md).
 
 ## Commit Attribution
 

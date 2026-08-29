@@ -11,6 +11,18 @@ export async function seedSources(prisma: PrismaClient) {
       refreshInterval: 604800, // 7 days in seconds
     },
     {
+      // Highest-value KEYLESS demand signal for a Cleveland tire shop: snow/freeze
+      // sells winter swaps + batteries, heat sells blowout checks. NWS
+      // (api.weather.gov) primary, Open-Meteo failover — both no key, no card.
+      // domain MUST stay "weather" — ingest.ts switches on that exact string.
+      name: "Cleveland Weather Demand Signal (NWS + Open-Meteo)",
+      url: "https://api.weather.gov",
+      domain: "weather",
+      sourceType: "official",
+      authScore: 95.0,
+      refreshInterval: 86400, // 1 day — forecast-driven, wants daily freshness
+    },
+    {
       name: "Google Search Console SEO Rankings",
       url: "https://gsc.google.com",
       domain: "seo",

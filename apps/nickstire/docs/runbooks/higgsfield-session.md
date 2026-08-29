@@ -223,7 +223,35 @@ only as a stale comment. Auth is the CLI session credential described above.
 
 ---
 
-## 6 - Stop needing a login at all - Higgsfield's OFFICIAL API key lane
+## 6 - Higgsfield's OFFICIAL API key lane - UNFUNDED, read the correction first
+
+> **CORRECTION 2026-08-29 - THIS SECTION WAS A TRAP.** It was titled "Stop
+> needing a login at all" and described the API key as having nothing to expire
+> and no session to revoke. All of that is true and all of it is beside the
+> point, because **the API lane has no money in it.**
+>
+> Verified against the operator's own live billing pages, not documentation:
+>
+> | Lane | Balance | Billing |
+> |---|---|---|
+> | consumer / Ultra (web app + CLI session) | **1,934.62 credits** | paid subscription, ACTIVE |
+> | Higgsfield Cloud API (`Authorization: Key ID:SECRET`) | **0 credits** | no payment method, no purchase history, **0 API calls lifetime**, auto top-up off |
+>
+> `cloud.higgsfield.ai` is a **separate paid product**; the Ultra subscription
+> does **not** fund it. Two API keys already exist on the account with zero
+> lifetime calls - someone followed this section before and stopped here.
+>
+> Provisioning `HIGGSFIELD_API_KEY_ID`/`_SECRET` therefore authenticates
+> cleanly and then **fails at generation on a zero balance** - after paying
+> twice, since the Ultra subscription is already being paid for.
+>
+> **The CLI session lane is the only lane funded by the subscription.** That is
+> why it requires a human device-login and why `reel-pipeline` is staged behind
+> the manual trigger instead of being moved onto API keys. Everything below
+> remains accurate about the API lane's MECHANICS - it is only wrong about it
+> being the escape hatch. Buy Cloud API credits first; the env vars are not the
+> fix on their own.
+
 
 **Shipped 2026-08-17.** Higgsfield has an official REST API with key-based auth
 - `cloud.higgsfield.ai -> API section -> generate a key`. No session, no device

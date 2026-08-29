@@ -18,13 +18,16 @@
  * advanced and the date is NOT recorded, so the next eligible tick retries the
  * same reel — never a skip, never a double-post.
  */
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
-import { shopSettings, reelJobs } from "../../../drizzle/schema";
+import { shopSettings, reelJobs, reelPublishApprovals } from "../../../drizzle/schema";
 import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
+import { shouldDiscloseAi } from "@shared/reelDisclosure";
+import { auditPublishBlock } from "@shared/reelClaimAudit";
+import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import { approvedReelPackAt, resolveApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
 
@@ -211,7 +214,73 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
   const briefId = `autopost-${date}`;
   const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
-  const job = jobs[0];
+  let job = jobs[0];
+  let drainedFrom: string | null = null;
+
+  // DRAIN THE BACKLOG FIRST. The lookup above is scoped to TODAY's briefId, so a
+  // job assembled on a previous day (briefId autopost-<that day>) is never
+  // selected again and its finished mp4 never publishes - even though the
+  // comment below correctly states that publishing an assembled job is meant to
+  // run on ANY pulse. Measured in prod 2026-08-28: 10 jobs stuck in "assembled",
+  // every one with mp4Url set, oldest 2026-08-20, eight of them with no error at
+  // all, while daily-reel-post ran 704 times. Those are finished videos that
+  // could have posted. Oldest first, so the queue drains FIFO.
+  //
+  // THE DRAIN SELECTS ONLY APPROVED JOBS, and that is load-bearing rather than
+  // belt-and-braces. The per-job approval gate further down returns WITHOUT
+  // advancing an index, so a plain oldest-first drain parks on the first
+  // unapproved job and never looks past it - head-of-line blocking. That is
+  // exactly the pathology this whole change exists to remove: before it, the
+  // queue was pinned on job 1710001 (stock-contaminated) and nothing behind it
+  // could ever move. Selecting on approval means approving the ninth job in the
+  // queue actually publishes the ninth job, instead of silently doing nothing.
+  //
+  // A missing approvals table (the DDL is hand-applied and may not have run)
+  // yields an empty set, so nothing drains. That is the correct safe state.
+  if (!job) {
+    let approvedJobIds: number[] = [];
+    try {
+      // Annotated because the shared db handle is loosely typed here, so a
+      // projected select widens to unknown[].
+      const rows: Array<{ jobId: number }> = await d
+        .select({ jobId: reelPublishApprovals.reelJobId })
+        .from(reelPublishApprovals)
+        .where(isNull(reelPublishApprovals.revokedAt));
+      approvedJobIds = [...new Set(rows.map((r) => r.jobId))];
+    } catch (err) {
+      log.warn("daily reel: approvals table unreadable — no reel is drainable", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+      approvedJobIds = [];
+    }
+
+    // inArray([]) is not a safe "match nothing" in every dialect, so the empty
+    // case skips the query outright rather than relying on generated SQL.
+    const stale = approvedJobIds.length
+      ? await d
+          .select()
+          .from(reelJobs)
+          .where(
+            and(
+              eq(reelJobs.status, "assembled"),
+              isNotNull(reelJobs.mp4Url),
+              ne(reelJobs.mp4Url, ""),
+              inArray(reelJobs.id, approvedJobIds),
+            ),
+          )
+          .orderBy(asc(reelJobs.id))
+          .limit(1)
+      : [];
+    if (stale[0]) {
+      job = stale[0];
+      drainedFrom = job.briefId;
+      log.info("draining assembled reel job from a previous day", {
+        jobId: job.id,
+        briefId: job.briefId,
+        today: briefId,
+      });
+    }
+  }
 
   if (!job) {
     // Only ENQUEUE during the best posting hour. Publishing an already-assembled
@@ -598,6 +667,90 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       }
     }
 
+    // ── CONTENT VETO: the hand claim-audit outranks any approval ──────────
+    // Three of the ten rendered reels carry false or overstated factual claims,
+    // two of them burned into audio and pixels where no copy edit can reach
+    // them. A report saying so does not stop an armed pipeline, so the verdicts
+    // are code (shared/reelClaimAudit.ts) and this is where they bite. This
+    // runs BEFORE the approval check deliberately: an operator must not be able
+    // to approve away a false claim about Ohio law.
+    //
+    // The status write is IDEMPOTENT. This cron pulses roughly every 60s and a
+    // held job stays held indefinitely, so an unconditional UPDATE here would
+    // rewrite the same string forever - pointless load on TiDB and a churning
+    // updatedAt that makes a stuck job look freshly touched.
+    {
+      const vetoed = auditPublishBlock(job.id);
+      if (vetoed) {
+        const note = `BLOCKED by claim audit: ${vetoed}`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.error(`daily reel: claim audit VETOES job ${job.id} — not publishing`, { reason: vetoed });
+        return { recordsProcessed: 0, details: `held: claim audit vetoes job ${job.id}; index not advanced` };
+      }
+    }
+
+    // ── ORIGINALITY GATE: has this already gone out? ──────────────────────
+    // Reel 1770003 published on 2026-08-29 after an audit that checked claims,
+    // disclosure, aspect ratio, burned-in text and destination — and never
+    // asked this question. Job 1620001 had published the same script twelve
+    // days earlier (similarity 1.00 on both the on-screen text and the
+    // caption). A repost is demoted by Instagram's originality weighting, not
+    // merely redundant, so this runs BEFORE the approval check: an operator
+    // should not be able to approve a duplicate into the feed.
+    {
+      const { loadPublishedCorpus } = await import("../../services/reelOriginality");
+      const { originalityProblem } = await import("@shared/reelOriginality");
+      const beats = parseReelJobPayload(job.payload).storyboardBeats ?? [];
+      const dupe = originalityProblem(
+        {
+          onScreenText: beats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+          caption,
+          videoUrl,
+        },
+        await loadPublishedCorpus(job.id),
+      );
+      if (dupe) {
+        const note = `BLOCKED as a repost: ${dupe.reason}`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.error(`daily reel: job ${job.id} duplicates already-published content — not publishing`, {
+          match: dupe.label, score: dupe.score, surface: dupe.surface,
+        });
+        return { recordsProcessed: 0, details: `held: job ${job.id} duplicates ${dupe.label}; index not advanced` };
+      }
+    }
+
+    // ── APPROVAL GATE: default-deny, and the reason is written on the job ──
+    // Publishing was armed and unattended; the only thing holding it was a
+    // defective row jammed at the head of the queue, which is an accident, not
+    // a control. Nothing publishes now without a recorded, attributable human
+    // yes bound to THESE caption bytes and THIS asset.
+    //
+    // The hold is written to reel_jobs.error so an operator reading the job
+    // sees why it is sitting there. It is deliberately NOT a new status value:
+    // eight call sites gate on status === "assembled", including the operator's
+    // own manual publish button in adminRoutes, and moving the job out of that
+    // state to make the hold prettier would strand the very path a human uses
+    // to act on the hold.
+    {
+      const problem = await reelApprovalProblem({ jobId: job.id, caption, videoUrl });
+      if (problem) {
+        const note = `HELD awaiting approval [${problem.code}]: ${problem.reason}`.slice(0, 1000);
+        // Idempotent for the same reason as the veto write above.
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.warn(`daily reel: job ${job.id} is not approved to publish — HOLDING`, { code: problem.code });
+        return {
+          recordsProcessed: 0,
+          details: `held: awaiting human approval for job ${job.id} (${problem.code}); index not advanced`,
+        };
+      }
+    }
+
     // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,
     // so two overlapping cron ticks cannot both publish this reel. The loser of
     // the CAS simply reports that another run owns it.
@@ -632,7 +785,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       // "automated": nobody is watching this cron, so an UNREADABLE kill-switch
       // state must stop it rather than let it publish blind.
-      outcome = await publishToSocial({ platforms: ["instagram"], videoUrl, caption, actor: "automated" });
+      // Structured AI self-disclosure, derived from THIS JOB'S CLIPS.
+      //
+      // It used to read isGenerativeProvider(process.env.REEL_VIDEO_PROVIDER) -
+      // the lane configured right now, not the one that rendered the job being
+      // published. Jobs sit in this backlog for days (measured 2026-08-29:
+      // oldest assembled job was nine days old), so flipping the lane to a
+      // stock provider would have published every queued Higgsfield reel with
+      // no is_ai_generated at all - a Meta policy violation on the owner's
+      // business account. The clip storage path is unforgeable and is already
+      // the evidence the stock guard trusts; it decides this too.
+      const isAiGenerated = shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER);
+      outcome = await publishToSocial({
+        platforms: ["instagram"],
+        videoUrl,
+        caption,
+        actor: "automated",
+        isAiGenerated,
+      });
     } catch (pubErr) {
       // THREW — Meta may or may not have accepted the reel. Do NOT restore
       // "assembled" (that risks a double-publish); park it for reconciliation
@@ -659,7 +829,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     }
 
     // Successfully posted live!
-    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, job.id));
+    // error is cleared deliberately: a job that was held for approval carries
+    // the "HELD awaiting approval ..." explanation in that column, and leaving
+    // it on a successfully posted reel would describe a live post as blocked.
+    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
     // Experiment traceability: if this job was assigned to an experiment at
     // enqueue, stamp the published media id + time — the verdict horizon
     // cannot be derived without them. The post is already live; a failed
@@ -700,7 +873,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       progressDetail = `manifest index: ${idx + 1}`;
     }
     log.info(`Successfully posted dynamic reel for job ${job.id}`, { postId: ig.postId });
-    return { recordsProcessed: 1, details: `posted dynamic reel for job ${job.id} (${progressDetail})` };
+    return {
+      recordsProcessed: 1,
+      details: `posted dynamic reel for job ${job.id} (${progressDetail})${drainedFrom ? ` [DRAINED backlog job from ${drainedFrom}]` : ""}`,
+    };
   }
 
   if (["queued", "generating", "assets_ready", "assembling", "uploading", "publishing", "repair_queued"].includes(job.status)) {

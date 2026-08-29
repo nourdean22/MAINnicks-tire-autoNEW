@@ -703,3 +703,98 @@ describe("adding a DUA concept does not perturb prompt compilation", () => {
     expect(runReelPreflight(worldBrief()).status).toBe("pass");
   });
 });
+
+// ─── REAL_EVENT_ASSERTED — the only live protection ────────────────
+//
+// This gate matters more than any other in the file, for a reason that is a
+// fact about the shop rather than the code: THERE IS NO REAL SHOP FOOTAGE.
+// Every frame is generated, so no Layer A asset is ever declared and
+// `checkLayerBoundary` can never fire. Refusing copy that narrates an episode
+// is the only thing left between a synthetic reel and a false claim about this
+// business. It is therefore canaried through the LIVE call path, not the unit
+// function — `runReelDuaChecks` is what production actually invokes.
+
+describe("REAL_EVENT_ASSERTED — blocks through the live derived path", () => {
+  const live = (caption: string) =>
+    runReelDuaChecks({ ...SAMPLE_REEL_BRIEFS[0], selectedCaption: caption })
+      .filter((f) => f.severity === "block" && f.message.includes("REAL_EVENT_ASSERTED"));
+
+  it.each([
+    "We replaced this customer's tie rod last Tuesday.",
+    "This one came in on a flatbed Monday morning.",
+    "A customer brought this in after hitting a pothole on Euclid.",
+    "Here's the before and after.",
+    "We tested this tire and found the belt separated.",
+    "We pulled this rotor off a Civic this morning.",
+  ])("BLOCKS a narrated episode: %s", (caption) => {
+    expect(live(caption).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    "Swing by 17625 Euclid - we'll check all four, no charge.",
+    "Stop by and we'll take a look.",
+    "Road salt corrodes brake lines from the outside in - worth checking in salt season.",
+    "The driver never noticed it; most people do not.",
+    "Your brake pads have a wear indicator that squeals on purpose.",
+    "An OBD scan shows a stored code, and the code names a system, not a part.",
+    "Pulling to one side may indicate alignment is off.",
+    "If you can see the top of Lincoln's head, it's time.",
+    "Most batteries last three to five years.",
+    "We can check tread depth on all four while you wait.",
+  ])("PASSES legitimate present-tense shop copy: %s", (caption) => {
+    expect(live(caption)).toEqual([]);
+  });
+
+  it("needs BOTH a definite actor and a past action in one sentence", () => {
+    // Either half alone is ordinary copy. Only together do they narrate.
+    expect(live("We'll take a look at it.")).toEqual([]);           // agent, no past action
+    expect(live("The belt separated on the highway.")).toEqual([]); // past action, no definite actor
+    expect(live("We replaced the belt.").length).toBeGreaterThan(0); // both
+  });
+
+  it("does not fuse a beat's visual with its on-screen CTA", () => {
+    // The regression: `${b.visual} ${b.onScreenText}` manufactured the sentence
+    // "...pulled into the bay We check all three free" — the only false
+    // positive across 134 committed reel packs. They are separate surfaces now.
+    const brief = {
+      ...SAMPLE_REEL_BRIEFS[0],
+      storyboardBeats: SAMPLE_REEL_BRIEFS[0].storyboardBeats.map((b, i) =>
+        i === 0
+          ? { ...b, visual: "a vehicle is pulled into the bay, no people visible", onScreenText: "We check all three free" }
+          : b,
+      ),
+    };
+    const hits = runReelDuaChecks(brief).filter((f) => f.message.includes("REAL_EVENT_ASSERTED"));
+    expect(hits).toEqual([]);
+  });
+});
+
+describe("REAL_EVENT_ASSERTED — the committed production corpus stays clean", () => {
+  it("raises zero findings across every committed reel pack", () => {
+    const root = path.join(__dirname, "..", "docs", "reel-packs");
+    if (!fs.existsSync(root)) return;
+    const S = (v: unknown): string => (typeof v === "string" ? v : Array.isArray(v) ? v.join(" ") : "");
+    let scanned = 0;
+    const findings: string[] = [];
+
+    for (const dir of fs.readdirSync(root)) {
+      const file = path.join(root, dir, "brief.json");
+      if (!fs.existsSync(file)) continue;
+      const b = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
+      scanned++;
+      const beats = (b.storyboardBeats as Record<string, unknown>[] | undefined) ?? [];
+      const brief = {
+        ...SAMPLE_REEL_BRIEFS[0],
+        selectedCaption: S(b.selectedCaption),
+        voiceoverScript: S(b.voiceoverScript),
+        ...(beats.length ? { storyboardBeats: beats as never } : {}),
+      };
+      for (const f of runReelDuaChecks(brief).filter((x) => x.message.includes("REAL_EVENT_ASSERTED"))) {
+        findings.push(`${dir}: ${f.message.slice(0, 100)}`);
+      }
+    }
+
+    expect(scanned).toBeGreaterThan(100);
+    expect(findings).toEqual([]);
+  });
+});

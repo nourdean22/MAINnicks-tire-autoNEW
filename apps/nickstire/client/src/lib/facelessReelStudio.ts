@@ -480,7 +480,16 @@ export interface ReelVisualWorld {
   lockedInvariants: string;
 }
 
+/**
+ * The single ask a reel is allowed to burn into its end card. Declared on the
+ * brief so a payload review shows everything the viewer will see - see
+ * shared/reelAsk.ts and shared/reelTextSurfaces.ts. Undeclared renders NO card.
+ */
+export type ReelBriefAsk = { kind: "profile" | "dm" | "save" | "visit"; keyword?: string | null };
+
 export interface ReelBrief {
+  /** Declared end-card ask. New briefs default to `profile`; `dm` is opt-in. */
+  ask?: ReelBriefAsk;
   /**
    * Which social_reel_patterns row this brief was built on, when Pattern Lab
    * supplied a structure. This is the cohort key the pattern table was shaped
@@ -1022,7 +1031,15 @@ export function runReelDuaChecks(brief: ReelBrief): PreflightFinding[] {
       { where: "caption", text: brief.selectedCaption ?? "" },
       { where: "voiceover", text: brief.voiceoverScript ?? "" },
       { where: "usefulAbsurdity", text: brief.usefulAbsurdity ?? "" },
-      ...brief.storyboardBeats.map((b) => ({ where: `beat ${b.beatNumber}`, text: `${b.visual} ${b.onScreenText}` })),
+      // Beat visual and on-screen text are DIFFERENT REGISTERS and must never
+      // be concatenated into one string: a shot description ("...pulled into
+      // the bay") fused to a CTA ("We check all three free") manufactures a
+      // sentence nobody wrote. That artefact was the ONLY false positive the
+      // real-event detector produced across 134 committed reel packs.
+      ...brief.storyboardBeats.flatMap((b) => [
+        { where: `beat ${b.beatNumber} visual`, text: b.visual ?? "" },
+        { where: `beat ${b.beatNumber} text`, text: b.onScreenText ?? "" },
+      ]),
     ],
   });
   for (const f of [...report.stated, ...report.inferred]) out.push(asFinding(f));

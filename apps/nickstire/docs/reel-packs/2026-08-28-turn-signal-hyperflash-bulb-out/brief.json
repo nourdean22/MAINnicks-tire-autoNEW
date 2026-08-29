@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-28",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Your blinker flashing fast? That's your car telling you a bulb is out.",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Your blinker flashing fast? That's your car talking to you.",
+      "visualPrompt": "Rear three-quarter shot of a sedan at dusk/night, turn signal visibly blinking at a noticeably fast rate, static-mounted camera, shallow depth of field, slightly urgent pacing."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "A sudden double-speed click, or a dash arrow blinking twice as fast as normal.",
+      "visualPrompt": "Close-up on a dashboard turn-signal indicator arrow blinking rapidly (no other dash details in frame, no driver visible); cut to an exterior close-up of the same blinking tail-light lens.",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: a burned-out turn-signal bulb changes the circuit — the relay speeds up to compensate.",
+      "visualPrompt": "Macro/cutaway shot: a removed turn-signal bulb held in a bulb-testing fixture (no hand), filament visibly broken/dark next to a working bulb for contrast, slow push-in.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "It's easy to miss from the driver's seat — but other drivers can't see your turn at all.",
+      "visualPrompt": "Wide shot from a following vehicle's rough POV at night showing one working taillight/blinker and one dark or malfunctioning side, subtle dramatic emphasis via lighting."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess which bulb. A quick check can spot it in minutes.",
+      "visualPrompt": "Underhood/exterior inspection shot: an inspection light and multimeter probe positioned near a tail-light housing (tools visible, mounted/clipped — no hand in frame), shop bay softly blurred behind.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it becomes a ticket — or a close call. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-electrical knowledge (a burned-out exterior bulb lowers turn-signal circuit resistance, which a thermal or electronic flasher relay reads as reduced load and compensates for by cycling faster -> hyperflash), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#TurnSignal", "#CarTips", "#AutoRepair", "#DriveSafe", "#ClevelandAuto", "#NicksTireAndAuto", "#CarElectrical"],
+    "feedCaption": "🔧 Blinker clicking fast? One clue: a burned-out bulb speeds up the relay — and means other drivers can't see your turn. Don't guess which one — stop by and we'll take a look. 🚗"
+  },
+  "adVariants": [
+    {
+      "hook": "Blinker flashing double-speed?",
+      "caption": "A burned-out turn-signal bulb changes the circuit, so the relay speeds up to compensate — a fast click is your car's own diagnostic.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Notice your turn signal clicking faster lately?",
+      "caption": "One clue mechanics check first: the bulb. Worth checking before it becomes a ticket — or a close call for someone behind you.",
+      "cta": "Bring it in — we'll spot it in minutes."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}

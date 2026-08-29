@@ -34,6 +34,14 @@ export interface BuildChatResponseInput {
   mode: ChatMode;
   modeOverride?: string | null;
   personality: string;
+  /**
+   * 2026-08-28 · escalation provenance. `lane` is what ANSWERED;
+   * `escalation` is what the operator ASKED for and whether they got it.
+   * Both are needed: a refused escalation is invisible if you only report
+   * the lane that served.
+   */
+  lane?: { provider?: string; modelId?: string };
+  escalation?: { tier: string; escalated: boolean; blockedBy?: string; reason: string };
   turnSignal: TurnSignal;
   deeperContextCount: number;
   deeperContextTypes: string[];
@@ -66,6 +74,8 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     contextBlocksFired,
     heartbeatMs = 7_000,
     classification,
+    lane,
+    escalation,
     recalledMemories = [],
     contradictions = [],
     onFinishPromise = Promise.resolve(),
@@ -113,6 +123,21 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
   // Apr 19 · Emit the inferred persona so the client can render a
   // tiny persona hint without needing tabs.
   headers.set("X-Persona", personality);
+  // 2026-08-28 · lane provenance. Nineteen headers existed and NONE named
+  // the provider, model, lane or effort — so five gates could silently
+  // change which brain answered with no way for the operator to tell.
+  if (lane?.provider) headers.set("X-Lane-Provider", lane.provider);
+  if (lane?.modelId) headers.set("X-Lane-Model", lane.modelId);
+  if (escalation && escalation.tier !== "none") {
+    headers.set("X-Escalation-Tier", escalation.tier);
+    headers.set("X-Escalation-Applied", escalation.escalated ? "1" : "0");
+    // The load-bearing one: depth was requested and refused. Without it a
+    // keyless/capped escalation is indistinguishable from never asking.
+    if (escalation.blockedBy) {
+      headers.set("X-Escalation-Blocked", escalation.blockedBy);
+      headers.set("X-Escalation-Reason", escalation.reason.slice(0, 200));
+    }
+  }
   // Apr 19 · Turn-signal telemetry. Client uses these to render the
   // reasoning trace + temperature dot + output-shape badge on each
   // assistant message without re-classifying.

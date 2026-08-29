@@ -217,25 +217,3 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
   };
 }
 
-/**
- * Get time intelligence for system prompt.
- */
-export async function getTimeIntelligenceContext(): Promise<string> {
-  const patterns = await prisma.brainMemory
-    .findMany({
-      where: { category: BRAIN_CATEGORIES.TIME_PATTERN },
-      orderBy: { confidence: "desc" },
-      take: 5,
-      select: { content: true },
-    })
-    .catch(() => []);
-
-  if (patterns.length === 0) return "";
-
-  const lines = [`\n## Time Intelligence (${patterns.length} patterns)`];
-  for (const p of patterns) {
-    lines.push(p.content.slice(0, 200));
-  }
-
-  return lines.join("\n");
-}

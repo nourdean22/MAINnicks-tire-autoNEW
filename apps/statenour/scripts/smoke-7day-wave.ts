@@ -14,7 +14,6 @@ import { prisma } from "@/lib/prisma";
 import { getRecentJudgments, analyzeJudgments } from "@/lib/brain/improve-agent";
 import { runWisdomEvolution } from "@/lib/brain/wisdom-evolution";
 import { computeWisdomViolations } from "@/lib/brain/wisdom-violations";
-import { getViolationContext } from "@/lib/brain/violation-context";
 import { tagWisdomTopics, classifyQueryTopics } from "@/lib/brain/wisdom-topic-tagger";
 import {
   DO_NOT_AUTO_TASKIFY,
@@ -117,20 +116,9 @@ async function main() {
     }),
   );
 
-  // v10.0.414 · violation-context (live DB · cached, also tests the
-  // junk-filter post-cleanup)
-  results.push(
-    await check("violation-context.block", async () => {
-      const block = await getViolationContext();
-      if (block && block.includes("[PROMOTED TO WISDOM]")) {
-        throw new Error("junk filter regression · [PROMOTED TO WISDOM] leaked into prompt");
-      }
-      if (block && block.includes("[PROVEN PATTERN]")) {
-        throw new Error("junk filter regression · [PROVEN PATTERN] leaked into prompt");
-      }
-      return `${block.length} chars · ${block ? "live" : "empty (clean)"}`;
-    }),
-  );
+  // v10.0.414 violation-context check removed 2026-08-28 — the feeder was a
+  // v1 system-prompt orphan and was deleted; computeWisdomViolations above
+  // still covers the underlying engine.
 
   // v10.0.403 · withEfSearch wrapper (live DB · runs in transaction)
   results.push(

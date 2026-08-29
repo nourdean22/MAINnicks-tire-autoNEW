@@ -73,3 +73,50 @@ describe("reconcile-migrations · ADD INDEX is an index, not a column", () => {
     expect(typeof parseStatement).toBe("function");
   });
 });
+
+/**
+ * `✗` MUST MEAN BLOCKING AND NOTHING ELSE.
+ *
+ * The reporter printed `✗` for every per-statement mismatch regardless of
+ * severity. A real run therefore emitted **36 `✗` lines and exited 0**. Two
+ * readers took that as 36 failures and one relayed it as a regression in
+ * another session's work; both readings were wrong, and the output invited
+ * them. A gate whose text reads as failure while it exits 0 is the
+ * lying-surface shape — this one was pointing at us.
+ */
+import { mismatchGlyph, severityLabel } from "../scripts/reconcile-migrations.mjs";
+
+describe("severity is legible from the glyph", () => {
+  const BLOCKING = ["UNRECORDED_BUT_EXACT_MATCH", "UNRECORDED_AND_PARTIAL_MATCH", "UNRECORDED_AND_ABSENT"];
+  const ADVISORY = ["RECORDED_BUT_SCHEMA_MISMATCH", "UNKNOWN_UNSUPPORTED_DDL"];
+
+  it("marks every blocking state with the failure glyph", () => {
+    for (const s of BLOCKING) {
+      expect(mismatchGlyph(s), s).toBe("✗");
+      expect(severityLabel(s), s).toBe("BLOCKING");
+    }
+  });
+
+  // POSITIVE CONTROL, and the whole point: the advisory states that produced
+  // the 36 lines must NOT wear the failure glyph.
+  it("never marks an advisory state with the failure glyph", () => {
+    for (const s of ADVISORY) {
+      expect(mismatchGlyph(s), s).not.toBe("✗");
+      expect(severityLabel(s), s).toBe("advisory");
+    }
+  });
+
+  it("the two real drift states in this repo today are advisory", () => {
+    // Measured 2026-08-29 against production: 16 RECORDED_BUT_SCHEMA_MISMATCH
+    // + 4 UNKNOWN_UNSUPPORTED_DDL = 20 advisory migrations, 36 statement lines,
+    // exit 0. Identical at 6b803e53c and at c0c08921a — pre-existing, not a
+    // regression.
+    expect(mismatchGlyph("RECORDED_BUT_SCHEMA_MISMATCH")).toBe("·");
+    expect(mismatchGlyph("UNKNOWN_UNSUPPORTED_DDL")).toBe("·");
+  });
+
+  it("an unknown state is treated as advisory, never as a silent failure", () => {
+    expect(mismatchGlyph("SOMETHING_NEW")).toBe("·");
+    expect(severityLabel("SOMETHING_NEW")).toBe("advisory");
+  });
+});

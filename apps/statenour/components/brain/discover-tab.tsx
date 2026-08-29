@@ -28,10 +28,18 @@
  *     provenance, and counted, never deleted; the subtitle keeps its original
  *     wording ONLY while it is true, and changes when the restored rows are
  *     toggled in.
- *  3. The footer said judging "teaches the system what you already know". It
- *     did not: lib/brain/discoveries.ts:64 records that nothing consumes the
- *     `known` signal. The copy now says what is true, which is what the
- *     KIND_META provenance lines below have always done for the claims.
+ *  3. The footer said judging "teaches the system what you already know". At
+ *     the time it did not — nothing consumed the `known` signal, so the copy
+ *     was cut back to what was true, which is what the KIND_META provenance
+ *     lines below have always done for the claims.
+ *     2026-08-28: it IS true now, and the copy moved with the behaviour rather
+ *     than ahead of it. A `known` verdict suppresses the cluster and the twins
+ *     the engines regenerate, and drops the spot from Nick's live blind-spot
+ *     surfaces (lib/brain/discoveries.ts VERDICT_TO_DECISION note ·
+ *     filterJudgedBlindSpots · docs/LEARNING-LOOPS-2026-08-28.md). The tap now
+ *     says so out loud — describeJudgeOutcome, rendered below — because the
+ *     only thing worse than an effect that does not exist is one that does and
+ *     is invisible.
  *
  * The `[CRITICAL]` / `[HIGH]` tier prefix is no longer rendered. 92.5% of all
  * blind spots ever written carry one of those two tiers, so as a display label
@@ -52,6 +60,7 @@ import { MasterySectionLabel } from "@/components/mastery/mastery-section-label"
 import { Lightbulb, Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
+import { describeJudgeOutcome, type JudgeOutcome } from "@/lib/brain/discover-feedback";
 
 type Verdict = "investigate" | "known" | "noise";
 
@@ -137,7 +146,7 @@ function currentSeverityWord(content: string): string {
 export function DiscoverTab() {
   const [showRated, setShowRated] = useState(false);
   const [showRestored, setShowRestored] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<JudgeOutcome | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
@@ -148,29 +157,27 @@ export function DiscoverTab() {
   const rate = trpc.brain.rateDiscoveryCluster.useMutation();
 
   const judge = async (id: string, ids: string[], verdict: Verdict) => {
-    setActionError(null);
+    setOutcome(null);
     setPending(id);
     try {
       const res = await rate.mutateAsync({ ids, verdict });
-      // A cluster can partially fail — the nightly consolidate cron
-      // soft-deletes merged duplicates, so a sibling can vanish between render
-      // and tap. Say so rather than reporting a clean sweep. The server may
-      // also rate MORE rows than this card showed, having re-derived full
-      // cluster membership; surface that too rather than letting the number
-      // silently disagree with the "×N shown" chip.
-      if (res.failed > 0) {
-        setActionError(
-          `Saved ${res.rated} — ${res.failed} had already been consolidated away.`,
-        );
-      } else if (res.rated > ids.length) {
-        setActionError(
-          `Saved ${res.rated}: ${res.rated - ids.length} more copies were found beyond this page.`,
-        );
-      }
+      // 2026-08-28 · ALWAYS report the outcome, not only the two exception
+      // paths. Until now the ordinary tap — the one that suppresses a whole
+      // cluster — set no message at all: the card vanished and nothing said
+      // what the verdict had done. The wording per verdict lives in
+      // describeJudgeOutcome, next to the claims it makes about the system.
+      setOutcome(
+        describeJudgeOutcome({
+          verdict,
+          rated: res.rated,
+          failed: res.failed,
+          requested: ids.length,
+        }),
+      );
       await utils.brain.discoveries.invalidate();
     } catch {
       // Honest failure, no optimistic removal — matches FollowUpsList.
-      setActionError("That verdict didn't save — the card stays until the server accepts it.");
+      setOutcome(describeJudgeOutcome({ verdict, rated: 0, failed: 0, requested: ids.length, threw: true }));
     } finally {
       setPending(null);
     }
@@ -204,6 +211,7 @@ export function DiscoverTab() {
   const unratedClusters = query.data?.unratedClusters ?? 0;
   const truncated = query.data?.truncated ?? false;
   const restoredHidden = query.data?.restoredHidden ?? 0;
+  const suppressedSimilar = query.data?.suppressedSimilar ?? 0;
 
   return (
     <div className="space-y-4">
@@ -265,7 +273,36 @@ export function DiscoverTab() {
         </button>
       )}
 
-      {actionError && <p className="text-[11px] text-amber-400">{actionError}</p>}
+      {suppressedSimilar > 0 && (
+        <p className="rounded-lg border border-glass bg-white/[0.02] px-3 py-2 text-[11px] text-fg-secondary">
+          {/* The visible effect of a judgment (learning-loops wave 2026-08-28):
+              an invisible suppression is indistinguishable from no effect. A
+              floor when the card scan stopped early, same as the badge. */}
+          <span className="font-mono uppercase tracking-wider">
+            {suppressedSimilar}
+            {truncated ? "+" : ""} suppressed
+          </span>{" "}
+          — regenerated copies of findings you already judged known or noise. Your verdicts
+          keep applying to new copies automatically.
+        </p>
+      )}
+
+      {outcome && (
+        // Tone-aware: an informational result must not render as a failure.
+        // "N more copies were found beyond this page" used to ride the error
+        // string and paint amber, so the cluster feature working looked broken.
+        <p
+          className={
+            outcome.tone === "info"
+              ? "text-[11px] text-fg-secondary"
+              : "text-[11px] text-amber-400"
+          }
+          role="status"
+          aria-live="polite"
+        >
+          {outcome.text}
+        </p>
+      )}
 
       {items.length === 0 ? (
         <EmptyState
@@ -379,11 +416,12 @@ export function DiscoverTab() {
       <p className="flex items-start gap-2 text-[10px] text-fg-secondary">
         <Lightbulb size={12} className="mt-0.5 shrink-0" />
         <span>
-          &ldquo;Noise&rdquo; suppresses a blind spot from this feed and from Nick&apos;s system
-          prompt until its severity rises. &ldquo;Worth investigating&rdquo; opens a task.
-          &ldquo;Already knew&rdquo; is recorded and nothing reads it yet — it is the only
-          measurement of novelty rather than accuracy, and it is measurement, not tuning, until
-          something consumes it.
+          &ldquo;Already knew&rdquo; and &ldquo;Noise&rdquo; both hide the whole cluster —
+          including the copies the nightly engines regenerate — and a blind spot also drops out
+          of Nick&apos;s live surfaces. &ldquo;Noise&rdquo; additionally becomes a retrieval eval
+          case, and can return if its severity rises; &ldquo;Already knew&rdquo; stays hidden and
+          is the only measurement of novelty rather than accuracy. &ldquo;Worth
+          investigating&rdquo; opens a task.
         </span>
       </p>
     </div>

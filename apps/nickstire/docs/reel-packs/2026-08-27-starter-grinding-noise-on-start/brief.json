@@ -1,0 +1,85 @@
+{
+  "topic": "That grinding sound when you turn the key might be a worn starter",
+  "createdAt": "2026-08-27",
+  "mode": "SCHEDULED",
+  "producedBy": "automated-scheduled-session-no-live-operator",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "durationSeconds": 30,
+  "beats": [
+    {
+      "start": 0,
+      "end": 4,
+      "role": "HOOK",
+      "narration": "That grinding sound when you turn the key isn't your imagination.",
+      "visualPrompt": "Interior POV shot of an ignition/key cylinder area, no hand in frame, dashboard focus, morning light through a windshield, static-mounted camera.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 4,
+      "end": 9,
+      "role": "SYMPTOM",
+      "narration": "It only happens for that one second of cranking — then the engine runs fine.",
+      "visualPrompt": "Cutaway to an engine bay wide shot with a subtle vibration/shudder cue timed to an implied grinding sound, then a quick cut to a dashboard tachometer needle settling to a smooth idle.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 9,
+      "end": 15,
+      "role": "EXPLANATION",
+      "narration": "One clue: a worn starter gear not meshing clean with the flywheel.",
+      "visualPrompt": "Macro/cutaway shot: a starter motor's drive-gear (bendix) assembly removed and resting on a workbench, visible wear on the gear teeth, slow push-in, shop lighting.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 15,
+      "end": 21,
+      "role": "CONSEQUENCE",
+      "narration": "Ignore it, and those flywheel teeth can wear too — then it may not start at all.",
+      "visualPrompt": "Macro shot of a flywheel ring gear with visible worn/chipped teeth on a section, static mount, dim shop-bay lighting for emphasis.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 21,
+      "end": 26,
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess. A quick check can catch it before you're stuck.",
+      "visualPrompt": "Underbody/engine-bay inspection shot: an inspection light or diagnostic tool positioned near the starter motor's mounting location, tool visible mounted/clipped, no hand in frame, shop bay softly blurred behind.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 26,
+      "end": 30,
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before one grind turns into a no-start. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, not AI-generated.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "claimSafety": {
+    "prices": false,
+    "guarantees": false,
+    "timelines": false,
+    "approvedPhrasesUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "entailmentStatus": "not_evaluated",
+    "businessFactsChannelCleared": false,
+    "note": "General automotive-repair knowledge; no live EvidenceRecord or businessFacts row read this session (no DB access)."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 49,
+    "max": 75,
+    "passesFloor": false,
+    "floor": 70
+  },
+  "posting": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#StarterMotor", "#CarNoises", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto", "#WontStart"],
+    "caption": "Hear a grind right when you turn the key, then it runs fine? One clue mechanics check: a worn starter gear not meshing clean with the flywheel. Ignore it and it can eventually leave you stuck. Don't guess — stop by and we'll take a look."
+  },
+  "audioRights": {
+    "musicBedAssigned": false,
+    "note": "No music-rights ledger exists in this repo. Voiceover-only via TTS (not produced this session) is the safe default."
+  }
+}

@@ -77,6 +77,33 @@ export function useChatStream(): ChatRuntimeController {
     return onPageContextChanged(apply);
   }, []);
 
+  // 2026-08-28 · WP2 review fix · automatic re-resume.
+  //
+  // The resume route tails an in-flight turn for a bounded window and then
+  // must close the SSE stream (its own platform maxDuration). Measured deep
+  // turns run 132s mean / 161s worst, so one tail window is routinely NOT
+  // enough — and a closed stream reads to the AI SDK as a completed one
+  // (there is no "partial" status), which also tears down stall detection.
+  // The server flags that case with `X-Resume-Partial: 1`; this reattaches.
+  //
+  // BOUNDED ON PURPOSE. This repo has scar tissue from an auto-resend that
+  // spawned duplicate messages and a retry storm that rate-limited the
+  // pipeline. A resume is NOT a resend — it re-runs no model and mints no
+  // message (the server keys the replay to a deterministic id) — but an
+  // unbounded loop would still hammer the route, so: a hard attempt cap and
+  // a delay between attempts. On exhaustion we stop silently rather than
+  // spin; the in-bubble marker the server appended is what the operator
+  // sees, and a reload always shows the canonical persisted text.
+  const resumeAttemptsRef = useRef(0);
+  const resumeStreamRefForPartial = useRef<(() => void) | null>(null);
+  const onResumePartial = useCallback(() => {
+    if (resumeAttemptsRef.current >= 5) return;
+    resumeAttemptsRef.current += 1;
+    setTimeout(() => {
+      void resumeStreamRefForPartial.current?.();
+    }, 1500);
+  }, []);
+
   const transport = useChatTransport({
     apiPath: "/api/ai/chat",
     transportBodyRef: bodyRef,
@@ -87,6 +114,36 @@ export function useChatStream(): ChatRuntimeController {
     onConversationId: useCallback(
       (id: string) => setActiveConversationId(id),
       [setActiveConversationId],
+    ),
+    onResumePartial,
+    // 2026-08-28 · make escalation legible. The operator explicitly asked
+    // for depth on this turn, so telling them what happened is expected
+    // feedback, not noise — and a REFUSED escalation that says nothing is
+    // indistinguishable from never having asked, which is the exact
+    // silent-gate failure the escalation lane was built to end.
+    onEscalation: useCallback(
+      (info: {
+        tier: string;
+        applied: boolean;
+        blockedBy?: string;
+        reason?: string;
+        laneModel?: string;
+      }) => {
+        if (info.applied) {
+          toast.success(`Depth applied · ${info.tier}`, {
+            description: info.laneModel ? `answered by ${info.laneModel}` : undefined,
+            duration: 4000,
+          });
+          return;
+        }
+        // Blocked: name the remedy, not just the refusal. `reason` is
+        // server-authored and already carries the exact env var or count.
+        toast.error(`Depth requested (${info.tier}) — not applied`, {
+          description: info.reason ?? info.blockedBy ?? "escalation unavailable",
+          duration: 8000,
+        });
+      },
+      [],
     ),
   });
 
@@ -146,6 +203,9 @@ export function useChatStream(): ChatRuntimeController {
   const resumeStreamRef = useRef(chat.resumeStream);
   useEffect(() => {
     resumeStreamRef.current = chat.resumeStream;
+    // Same live handle for the partial-resume path, which is declared
+    // above the transport (it has to be) and so cannot close over `chat`.
+    resumeStreamRefForPartial.current = chat.resumeStream as unknown as () => void;
   }, [chat.resumeStream]);
 
   const regenerateRef = useRef(safeRegenerate);
@@ -285,6 +345,9 @@ export function useChatStream(): ChatRuntimeController {
         ? { body: { providerOverride: "anthropic" as const } }
         : undefined;
       if (turbo) setTurbo(false);
+      // A new turn gets a fresh partial-resume budget; the cap exists to
+      // bound ONE turn's reattachments, not the session's.
+      resumeAttemptsRef.current = 0;
       return chat.sendMessage({ text }, turboOpts);
     },
     append: ((...args: Parameters<typeof chat.sendMessage>) => {

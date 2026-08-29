@@ -83,6 +83,12 @@ export interface PolicyUpsertInput {
   notes?: string | null;
   metadata?: unknown;
   tags?: string[];
+  /**
+   * Explicitly resurrect a soft-deleted row. Default false: upsertPolicy REFUSES
+   * a soft-deleted target rather than updating it and leaving deletedAt set,
+   * which is what made the coverage gate unfixable by its own printed remedy.
+   */
+  restoreDeleted?: boolean;
 }
 
 // ─── Read-side ────────────────────────────────────────────────────────
@@ -117,25 +123,114 @@ export async function getPolicy(id: string): Promise<PolicyRecord | null> {
  * from the registry. Used by the pre-push gate so a new automation
  * can't ship without a declared policy.
  */
-export async function findMissingPolicies(expectedIds: string[]): Promise<string[]> {
-  if (expectedIds.length === 0) return [];
-  const found = await prisma.automationPolicy.findMany({
-    where: { id: { in: expectedIds }, deletedAt: null },
-    select: { id: true },
+export interface PolicyCoverageGap {
+  /** No row at all. `seed-policies.ts` creates these - the printed fix works. */
+  absent: string[];
+  /** Row EXISTS but is soft-deleted. Re-seeding does NOT fix these. */
+  softDeleted: string[];
+}
+
+/**
+ * Coverage gaps, split by the only distinction that changes the remedy.
+ *
+ * WHY THE SPLIT EXISTS. `findMissingPolicies` filters `deletedAt: null`, so a
+ * soft-deleted row reads as missing. `upsertPolicy` matches on `where: { id }`
+ * with no deletedAt filter and its update branch never cleared the column - so
+ * re-seeding a soft-deleted policy reported a successful upsert and changed
+ * nothing. The gate stayed red forever while printing a fix that could not work.
+ * Latent when found (166 prod rows, 0 soft-deleted, 2026-08-28), but the failure
+ * mode is a permanently-red gate, so the two states must be told apart.
+ *
+ * Queries WITHOUT the deletedAt filter, then partitions - one round trip.
+ */
+export async function findPolicyGaps(expectedIds: string[]): Promise<PolicyCoverageGap> {
+  if (expectedIds.length === 0) return { absent: [], softDeleted: [] };
+  const rows = await prisma.automationPolicy.findMany({
+    where: { id: { in: expectedIds } },
+    select: { id: true, deletedAt: true },
   });
-  const foundSet = new Set(found.map((r) => r.id));
-  return expectedIds.filter((id) => !foundSet.has(id));
+  // Truthiness, NOT `=== null`. A Date is always truthy and both null and an
+  // absent key are falsy, so a row shape without the column can never be
+  // misread as tombstoned - which is exactly what `=== null` did, classifying
+  // every policy as soft-deleted (caught by this module's existing tests).
+  const live = new Set(rows.filter((r) => !r.deletedAt).map((r) => r.id));
+  const deleted = new Set(rows.filter((r) => !!r.deletedAt).map((r) => r.id));
+  return {
+    absent: expectedIds.filter((id) => !live.has(id) && !deleted.has(id)),
+    softDeleted: expectedIds.filter((id) => !live.has(id) && deleted.has(id)),
+  };
+}
+
+/**
+ * The operator-facing remedy for a gap. PURE, so the canary can assert that a
+ * soft-deleted gap never renders the re-seed instruction on its own - the exact
+ * lie this whole change removes.
+ */
+export function policyGapRemedy(gap: PolicyCoverageGap): string[] {
+  const lines: string[] = [];
+  if (gap.absent.length > 0) {
+    lines.push(
+      `${gap.absent.length} ABSENT (no row): run \`pnpm tsx scripts/seed-policies.ts\` - it creates them.`,
+    );
+  }
+  if (gap.softDeleted.length > 0) {
+    lines.push(
+      `${gap.softDeleted.length} SOFT-DELETED (row exists, deletedAt set): RE-SEEDING WILL NOT FIX THESE.`,
+    );
+    lines.push(
+      "  upsertPolicy refuses a soft-deleted row rather than silently no-opping.",
+    );
+    lines.push(
+      "  Restore each one deliberately, or retire the cron/rule in code so it is no longer expected.",
+    );
+  }
+  return lines;
+}
+
+/**
+ * Back-compat coverage check: every expected id that is not LIVE, whether it is
+ * absent or soft-deleted. Same contract as before; `findPolicyGaps` is what you
+ * want when the answer changes the remedy.
+ */
+export async function findMissingPolicies(expectedIds: string[]): Promise<string[]> {
+  const gap = await findPolicyGaps(expectedIds);
+  return expectedIds.filter(
+    (id) => gap.absent.includes(id) || gap.softDeleted.includes(id),
+  );
 }
 
 // ─── Write-side ───────────────────────────────────────────────────────
 
 /**
- * Upsert by id — used by the seed script + admin UI. Keeps the policy
- * row in sync with the canonical declaration in code without losing
- * operator-edited fields like `enabled` or `notes` if we re-seed.
+ * Upsert by id. Keeps the policy row in sync with the canonical declaration in
+ * code without losing operator-edited fields like `enabled` or `notes` on a
+ * re-seed.
+ *
+ * The ONLY production caller is scripts/seed-policies.ts (verified 2026-08-28).
+ * This used to say "seed script + admin UI"; the admin routes under
+ * app/api/system/policies read via getPolicy/listPolicies and write via
+ * updatePolicyFields, and never reach this function. The stale half of that
+ * sentence is why refusing a soft-deleted row here looked like it might break
+ * the operator UI - it cannot.
  */
 export async function upsertPolicy(input: PolicyUpsertInput): Promise<PolicyRecord> {
   validatePolicyInput(input);
+  // A soft-deleted row would otherwise take the update branch below, report a
+  // successful upsert, and leave deletedAt set - so the row stays invisible to
+  // every deletedAt: null reader and the coverage gate stays red. Refuse loudly
+  // instead; resurrecting a deliberate retirement must be an explicit decision.
+  const priorState = await prisma.automationPolicy.findFirst({
+    where: { id: input.id },
+    select: { deletedAt: true },
+  });
+  if (priorState?.deletedAt && !input.restoreDeleted) {
+    throw new ServiceError(
+      `Policy "${input.id}" exists but is soft-deleted (deletedAt=${priorState.deletedAt.toISOString()}). ` +
+        "Re-seeding cannot revive it. Pass restoreDeleted: true to resurrect it deliberately, " +
+        "or retire the cron/rule in code so it is no longer expected.",
+      409,
+    );
+  }
   // Prisma 6 distinguishes "set to JSON null" (Prisma.JsonNull) from
   // "DB NULL" (Prisma.DbNull) for nullable Json columns. Coerce the
   // service inputs into the shape Prisma expects.
@@ -174,6 +269,8 @@ export async function upsertPolicy(input: PolicyUpsertInput): Promise<PolicyReco
       successMetric: input.successMetric,
       owner: input.owner ?? "nour",
       tags: input.tags ?? [],
+      // Only an explicit restore clears the tombstone; a routine re-seed never does.
+      ...(input.restoreDeleted ? { deletedAt: null } : {}),
     },
   });
   log.info("policy_upserted", { id: input.id, surface: input.surface });

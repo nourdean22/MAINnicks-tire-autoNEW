@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,200
+Your battery was fine all summer.
+
+2
+00:00:02,200 --> 00:00:04,000
+First cold morning, it's dead.
+
+3
+00:00:04,000 --> 00:00:06,500
+Cold doesn't kill a battery —
+
+4
+00:00:06,500 --> 00:00:09,000
+it exposes one that was already weak.
+
+5
+00:00:09,000 --> 00:00:12,000
+One clue: cranking power fades as a battery ages,
+
+6
+00:00:12,000 --> 00:00:15,000
+and cold cuts what's left.
+
+7
+00:00:15,000 --> 00:00:18,000
+A battery that starts fine at 70 degrees
+
+8
+00:00:18,000 --> 00:00:21,000
+can fail that same test at 20.
+
+9
+00:00:21,000 --> 00:00:23,500
+A load test checks real cranking power —
+
+10
+00:00:23,500 --> 00:00:26,000
+not just a voltage reading.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking before the first cold snap.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.

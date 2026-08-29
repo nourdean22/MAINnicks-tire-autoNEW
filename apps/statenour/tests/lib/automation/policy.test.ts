@@ -48,6 +48,8 @@ vi.mock("@/lib/logger", () => ({
 import {
   upsertPolicy,
   findMissingPolicies,
+  findPolicyGaps,
+  policyGapRemedy,
   setApprovalClass,
   setEnabled,
   logPolicyFire,
@@ -154,15 +156,17 @@ describe("upsertPolicy · validation", () => {
 describe("findMissingPolicies", () => {
   it("returns empty array when all expected ids are present", async () => {
     mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([
-      { id: "cron.a" },
-      { id: "cron.b" },
+      { id: "cron.a", deletedAt: null },
+      { id: "cron.b", deletedAt: null },
     ]);
     const missing = await findMissingPolicies(["cron.a", "cron.b"]);
     expect(missing).toEqual([]);
   });
 
   it("returns the ids absent from the registry", async () => {
-    mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([{ id: "cron.a" }]);
+    mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([
+      { id: "cron.a", deletedAt: null },
+    ]);
     const missing = await findMissingPolicies(["cron.a", "cron.b", "cron.c"]);
     expect(missing).toEqual(["cron.b", "cron.c"]);
   });
@@ -218,5 +222,131 @@ describe("logPolicyFire", () => {
   it("swallows DB errors so a fire-log failure cannot break the firing surface", async () => {
     mockPrisma.automationPolicy.updateMany.mockRejectedValueOnce(new Error("DB down"));
     await expect(logPolicyFire("cron.test", "success")).resolves.toBeUndefined();
+  });
+});
+
+/* -- soft-delete deadlock (2026-08-28) ---------------------------------- */
+/**
+ * THE DEFECT THIS PINS. findMissingPolicies filtered `deletedAt: null`, so a
+ * soft-deleted row read as MISSING and failed the gate. upsertPolicy matched on
+ * `where: { id }` with no deletedAt filter and its update branch never cleared
+ * the column - so the fix the gate printed ("run seed-policies.ts") took the
+ * update branch, reported a successful upsert, and changed nothing. The gate
+ * stayed red forever and its own documented remedy was a silent no-op.
+ *
+ * Latent when found: 166 prod policy rows, 0 soft-deleted. Fixed as a
+ * correctness issue, not an outage.
+ */
+
+describe("findPolicyGaps - absent vs soft-deleted", () => {
+  it("partitions live, absent and soft-deleted", async () => {
+    mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([
+      { id: "cron.live", deletedAt: null },
+      { id: "cron.tombstoned", deletedAt: new Date("2026-08-01") },
+    ]);
+    const gap = await findPolicyGaps(["cron.live", "cron.tombstoned", "cron.absent"]);
+    expect(gap.absent).toEqual(["cron.absent"]);
+    expect(gap.softDeleted).toEqual(["cron.tombstoned"]);
+  });
+
+  // POSITIVE CONTROL: without this, an implementation that reported everything
+  // as a gap would pass the test above.
+  it("reports NO gap when every expected id is live", async () => {
+    mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([
+      { id: "cron.a", deletedAt: null },
+      { id: "cron.b", deletedAt: null },
+    ]);
+    const gap = await findPolicyGaps(["cron.a", "cron.b"]);
+    expect(gap).toEqual({ absent: [], softDeleted: [] });
+  });
+
+  it("short-circuits on empty input without hitting prisma", async () => {
+    expect(await findPolicyGaps([])).toEqual({ absent: [], softDeleted: [] });
+    expect(mockPrisma.automationPolicy.findMany).not.toHaveBeenCalled();
+  });
+
+  it("findMissingPolicies still reports a soft-deleted row as missing", async () => {
+    mockPrisma.automationPolicy.findMany.mockResolvedValueOnce([
+      { id: "cron.tombstoned", deletedAt: new Date("2026-08-01") },
+    ]);
+    expect(await findMissingPolicies(["cron.tombstoned"])).toEqual(["cron.tombstoned"]);
+  });
+});
+
+describe("policyGapRemedy - never print a fix that cannot work", () => {
+  // THE CENTRAL CANARY. Re-seeding cannot revive a tombstoned row, so the
+  // remedy for a soft-deleted gap must not send the operator to seed-policies.
+  it("does NOT offer the re-seed fix for a soft-deleted gap", () => {
+    const lines = policyGapRemedy({ absent: [], softDeleted: ["cron.tombstoned"] }).join(" ");
+    expect(lines).not.toContain("seed-policies.ts");
+    expect(lines).toContain("WILL NOT FIX");
+    expect(lines).toMatch(/restore/i);
+  });
+
+  // POSITIVE CONTROL: the re-seed fix IS the right answer for an absent row,
+  // so the guard must still print it. A remedy that never mentions the seed
+  // would pass the test above while being useless.
+  it("DOES offer the re-seed fix for an absent row", () => {
+    const lines = policyGapRemedy({ absent: ["cron.absent"], softDeleted: [] }).join(" ");
+    expect(lines).toContain("seed-policies.ts");
+    expect(lines).not.toContain("WILL NOT FIX");
+  });
+
+  it("prints both remedies for a mixed gap", () => {
+    const lines = policyGapRemedy({ absent: ["cron.a"], softDeleted: ["cron.b"] }).join(" ");
+    expect(lines).toContain("seed-policies.ts");
+    expect(lines).toContain("WILL NOT FIX");
+  });
+
+  it("prints nothing when there is no gap", () => {
+    expect(policyGapRemedy({ absent: [], softDeleted: [] })).toEqual([]);
+  });
+});
+
+describe("upsertPolicy - soft-deleted target", () => {
+  it("REFUSES a soft-deleted row and never reaches the upsert", async () => {
+    mockPrisma.automationPolicy.findFirst.mockResolvedValueOnce({
+      deletedAt: new Date("2026-08-01"),
+    });
+    await expect(upsertPolicy(validInput)).rejects.toThrow(/soft-deleted/);
+    // The whole point: it must not silently take the update branch.
+    expect(mockPrisma.automationPolicy.upsert).not.toHaveBeenCalled();
+  });
+
+  // POSITIVE CONTROL: a live row still upserts normally, so the refusal above
+  // is discrimination and not a blanket failure.
+  it("PERMITS a live row and calls the upsert", async () => {
+    mockPrisma.automationPolicy.findFirst.mockResolvedValueOnce({ deletedAt: null });
+    mockPrisma.automationPolicy.upsert.mockResolvedValueOnce(baseRow);
+    await expect(upsertPolicy(validInput)).resolves.toBeTruthy();
+    expect(mockPrisma.automationPolicy.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("PERMITS an absent row (create path)", async () => {
+    mockPrisma.automationPolicy.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.automationPolicy.upsert.mockResolvedValueOnce(baseRow);
+    await expect(upsertPolicy(validInput)).resolves.toBeTruthy();
+    expect(mockPrisma.automationPolicy.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("restoreDeleted: true resurrects deliberately, clearing deletedAt", async () => {
+    mockPrisma.automationPolicy.findFirst.mockResolvedValueOnce({
+      deletedAt: new Date("2026-08-01"),
+    });
+    mockPrisma.automationPolicy.upsert.mockResolvedValueOnce(baseRow);
+    await expect(
+      upsertPolicy({ ...validInput, restoreDeleted: true }),
+    ).resolves.toBeTruthy();
+    const arg = mockPrisma.automationPolicy.upsert.mock.calls[0][0];
+    expect(arg.update.deletedAt).toBeNull();
+  });
+
+  // A routine re-seed must NEVER clear a tombstone as a side effect.
+  it("a normal re-seed does not touch deletedAt at all", async () => {
+    mockPrisma.automationPolicy.findFirst.mockResolvedValueOnce({ deletedAt: null });
+    mockPrisma.automationPolicy.upsert.mockResolvedValueOnce(baseRow);
+    await upsertPolicy(validInput);
+    const arg = mockPrisma.automationPolicy.upsert.mock.calls[0][0];
+    expect("deletedAt" in arg.update).toBe(false);
   });
 });

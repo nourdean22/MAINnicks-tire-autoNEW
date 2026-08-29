@@ -29,7 +29,6 @@
         "hooks/use-now-signals.ts",
         "lib/ai/cliche-detector.ts",
         "lib/brain/anti-pattern-auto-promote.ts",
-        "lib/brain/brain-maturity.ts",
         "lib/brain/domain-knowledge-extractor.ts",
         "lib/brain/reflection-engine.ts",
         "lib/chat/direct-actions.ts",

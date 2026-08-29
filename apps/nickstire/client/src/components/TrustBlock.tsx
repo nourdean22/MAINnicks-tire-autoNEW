@@ -53,7 +53,12 @@ export default function TrustBlock({ className = "" }: { className?: string }) {
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <span className="font-heading font-extrabold text-lg text-foreground">
-            RUN BY MOE SINCE 2018
+            {/* Was "RUN BY MOE SINCE 2018" — which told every visitor the shop
+                is run by the previous owner, while /moes-tire states it
+                "transitioned to new ownership and rebranded as Nick's Tire &
+                Auto". Both cannot be true. The year now comes from the single
+                canonical constant so it can never drift again. */}
+            INDEPENDENT SHOP {BUSINESS.founded.display.toUpperCase()}
           </span>
           <span className="text-xs text-foreground/60 mt-1">
             Independent shop, clean standards, and no franchise runaround

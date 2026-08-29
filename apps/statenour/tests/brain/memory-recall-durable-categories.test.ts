@@ -55,6 +55,32 @@ describe("memory-recall · durable personal categories are recallable", () => {
       expect(CONTEXT_CATEGORIES.has(cat), `${cat} was recallable before this wave`).toBe(true);
     }
   });
+
+  // 2026-08-28 · gap-2 cleanup: the three v1 system-prompt feeders
+  // (getBlindSpotContext / getCounterIntuitiveContext / getCorrelationContext)
+  // were deleted as orphans of the prompt-v2 cutover. Their categories'
+  // prompt path is now THIS whitelist — these entries are the wiring the
+  // deletion replaced, so a future trim here silently severs the last
+  // Nick-facing lane for all three Discover engines.
+  it("the Discover-engine categories replace their deleted v1 prompt feeders", () => {
+    for (const cat of ["blind_spot", "counter_intuitive", "hidden_correlation"]) {
+      expect(
+        CONTEXT_CATEGORIES.has(cat),
+        `${cat} lost its v1 prompt feeder; recall is its only prompt path`
+      ).toBe(true);
+    }
+  });
+
+  // 2026-08-28 · v1 feeder-family purge (the remaining 14): time_pattern lost
+  // getTimeIntelligenceContext AND had no other reader anywhere — recall is now
+  // its only lane, same shape as hidden_correlation above. The writer is
+  // analyzeTimePatterns (cron/intelligence), upserting stable `time_*` keys.
+  it("time_pattern replaces its deleted v1 prompt feeder", () => {
+    expect(
+      CONTEXT_CATEGORIES.has("time_pattern"),
+      "time_pattern lost its v1 prompt feeder; recall is its only prompt path"
+    ).toBe(true);
+  });
 });
 
 /**

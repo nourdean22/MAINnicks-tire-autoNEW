@@ -17,6 +17,15 @@ export interface PublishInput {
   videoUrl?: string;
   isStory?: boolean;
   /**
+   * Meta's structured AI self-disclosure (`is_ai_generated` on the container).
+   * REQUIRED for model-generated video: Meta requires self-disclosure on organic
+   * photorealistic generated video or realistic audio and may apply penalties.
+   * Threaded through this choke point deliberately - leaving it optional only at
+   * the metaSocial boundary meant the sole production caller never set it, so the
+   * flag existed in code and was absent from every real publish.
+   */
+  isAiGenerated?: boolean;
+  /**
    * Facebook-only link attachment. Present so callers that need it do not have
    * to reach around this choke point to `metaSocial.socialPost` — which is
    * exactly how `nickActions.socialPost` came to bypass the kill switch.
@@ -243,7 +252,11 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
         if (reelBlockers.length) {
           results.push({ platform: "instagram", success: false, error: `Reel caption blocked by claim-safety: ${reelBlockers.map((b) => b.rule).join(", ")}` });
         } else {
-          const r = await postInstagramReel({ videoUrl: input.videoUrl, caption: input.caption });
+          const r = await postInstagramReel({
+            videoUrl: input.videoUrl,
+            caption: input.caption,
+            isAiGenerated: input.isAiGenerated,
+          });
           results.push({ platform: "instagram", ...r });
         }
       }

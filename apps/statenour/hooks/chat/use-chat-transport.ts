@@ -91,6 +91,37 @@ export interface UseChatTransportOpts<TBody extends object = Record<string, unkn
    * is what was happening in prod pre-2026-04-22.
    */
   onConversationId?: (id: string) => void;
+  /**
+   * 2026-08-28 · WP2 review fix. Fired when a resume response carries
+   * `X-Resume-Partial: 1` — the server replayed an IN-FLIGHT turn and
+   * had to close its tail window before the turn finished.
+   *
+   * This callback is the whole reason the header is not a dead control.
+   * Without a reader, the resume stream ends with a real `finish` chunk,
+   * the AI SDK sets status "ready", `isStreaming` flips false, and
+   * use-stall-detection tears down — leaving a TRUNCATED reply that
+   * looks completed, with no banner and no recovery. That is a worse
+   * failure than the 204 this feature replaced.
+   */
+  onResumePartial?: () => void;
+  /**
+   * 2026-08-28 · escalation provenance. Fired on every turn that carried
+   * a depth marker, whether or not the escalation actually happened.
+   *
+   * THIS CALLBACK IS WHY THE HEADERS ARE NOT A DEAD CONTROL. The chat
+   * route sets X-Escalation-* and X-Lane-* and I shipped that claiming a
+   * refused escalation was "legible" — while nothing on the client read
+   * them, so a blocked escalation looked exactly like never having asked.
+   * Same defect class as the modelOverride wiring gap, caught the same
+   * way: by grepping for the reader instead of trusting the writer.
+   */
+  onEscalation?: (info: {
+    tier: string;
+    applied: boolean;
+    blockedBy?: string;
+    reason?: string;
+    laneModel?: string;
+  }) => void;
 }
 
 export function useChatTransport<TBody extends object = Record<string, unknown>>(
@@ -105,6 +136,8 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
     setDeeperContext,
     setLastRunMode,
     onConversationId,
+    onResumePartial,
+    onEscalation,
   } = opts;
 
   const getBody = useCallback(() => transportBodyRef.current, [transportBodyRef]);
@@ -145,6 +178,27 @@ export function useChatTransport<TBody extends object = Record<string, unknown>>
           //    never made it back into the client body for the next
           //    send). Fire-and-forget: the callback will no-op if the
           //    id matches what's already active.
+          // ── Partial resume (2026-08-28) ────────────────────────────
+          // Read BEFORE anything else can early-return: a partial resume
+          // must never be mistaken for a completed turn.
+          if (res.headers.get("X-Resume-Partial") === "1") {
+            onResumePartial?.();
+          }
+
+          // ── Escalation provenance (2026-08-28) ─────────────────────
+          // Read before anything can early-return: the operator asked for
+          // depth and must learn whether they got it.
+          const escTier = res.headers.get("X-Escalation-Tier");
+          if (escTier) {
+            onEscalation?.({
+              tier: escTier,
+              applied: res.headers.get("X-Escalation-Applied") === "1",
+              blockedBy: res.headers.get("X-Escalation-Blocked") ?? undefined,
+              reason: res.headers.get("X-Escalation-Reason") ?? undefined,
+              laneModel: res.headers.get("X-Lane-Model") ?? undefined,
+            });
+          }
+
           const convId = res.headers.get("X-Conversation-Id");
           // Guard sentinels defensively (server already blanks them): adopting
           // "private"/"temp" as activeConversationId clobbers the real id and

@@ -3373,6 +3373,35 @@ export type ReelJobRow = typeof reelJobs.$inferSelect;
 export type InsertIgAutopostLog = typeof igAutopostLog.$inferInsert;
 
 /**
+ * Recorded human approval to publish one reel. Default-deny: the autonomous
+ * publish door in cron/jobs/dailyReelPost.ts refuses any job without a live,
+ * attributable row here whose caption_sha and video_url still match what is
+ * about to go out. Migration: drizzle/0112_reel_publish_approvals.sql
+ * (hand-applied — no auto-migrate). Decision logic: shared/reelApproval.ts.
+ */
+export const reelPublishApprovals = mysqlTable("reel_publish_approvals", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  reelJobId: int("reel_job_id").notNull(),
+  /** sha256 of the EXACT caption bytes that were approved. */
+  captionSha: varchar("caption_sha", { length: 64 }).notNull(),
+  videoUrl: varchar("video_url", { length: 1000 }).notNull(),
+  approvedBy: varchar("approved_by", { length: 100 }).notNull(),
+  approvedAt: timestamp("approved_at").defaultNow().notNull(),
+  /** TTL parity with social_content_approvals — a stale yes must not fire. */
+  expiresAt: timestamp("expires_at"),
+  /** A withdrawal, not a delete — the ledger keeps who took the yes back. */
+  revokedAt: timestamp("revoked_at"),
+  revokedBy: varchar("revoked_by", { length: 100 }),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_reel_approvals_job").on(table.reelJobId, table.revokedAt),
+]);
+
+export type ReelPublishApprovalRow = typeof reelPublishApprovals.$inferSelect;
+export type InsertReelPublishApproval = typeof reelPublishApprovals.$inferInsert;
+
+/**
  * Scheduled Instagram/Facebook posts — the publish-later queue. The
  * scheduled-posts cron fires due rows (status='pending' AND scheduledAt<=now)
  * through services/socialPublish. Migration: drizzle/0071_scheduled_posts.sql

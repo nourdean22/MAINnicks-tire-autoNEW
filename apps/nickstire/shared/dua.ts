@@ -607,6 +607,7 @@ export type DuaBlockCode =
   | "FABRICATED_EVIDENCE"
   | "CUSTOMER_HUMILIATED"
   | "SAFETY_TRIVIALISED"
+  | "REAL_EVENT_ASSERTED"
   | "FACT_ABSENT"
   | "FACT_UNVERIFIED"
   | "RELEVANCE_BELOW_THRESHOLD"
@@ -818,6 +819,102 @@ export function detectSafetyTrivialisation(c: DuaConcept): DuaFinding[] {
   return detectSafetyTrivialisationIn(frameSurfaces(c), c.usefulFact);
 }
 
+/**
+ * THE NO-REAL-EVENT RULE.
+ *
+ * This is the most load-bearing detector in the file, and the reason is a fact
+ * about the shop rather than about the code: THERE IS NO REAL SHOP FOOTAGE.
+ * Every frame in a reel is generated. The Layer A/B/C boundary was designed on
+ * the assumption that real evidence footage exists and generated material must
+ * be kept out of it — but when nothing is ever filmed, no Layer A asset is ever
+ * declared, so `checkLayerBoundary` can never fire. It is vacuous by
+ * construction here.
+ *
+ * That leaves exactly one thing between a fully synthetic reel and a false
+ * claim about this business: refusing copy that NARRATES AN EPISODE. A reel may
+ * describe a MECHANISM ("road salt corrodes brake lines") for as long as it
+ * likes. It may never assert that a particular thing HAPPENED here — a customer
+ * came in, a part was replaced, a test was run, a before/after was captured —
+ * because none of it did, and no generated frame can be evidence that it did.
+ *
+ * The linguistic signature of an episode is a PAST-TENSE ACTION with a definite
+ * actor: a shop agent ("we replaced"), or a deictic artifact ("this rotor came
+ * in"). Both halves are required IN THE SAME SENTENCE, which is what keeps
+ * "stop by and we'll take a look" (shop agent, no past action) and "the driver
+ * never noticed it" (past action, no definite actor) out of the net.
+ *
+ * A legitimate labelled reenactment — the `review_reconstructed` franchise — is
+ * NOT exempted on the derived path. Nothing there verifies the review, so the
+ * default is to block and make the author declare it.
+ */
+const SHOP_AGENT = /\b(?:we|our\s+(?:shop|techs?|team|guys|bay)|nick'?s)\b/i;
+
+/**
+ * Past-tense actions a shop performs, or that a specific vehicle underwent.
+ *
+ * "pulled" is KEPT, and the reason is a corrected diagnosis worth recording.
+ * Probing 134 committed reel packs produced exactly one false positive, on a
+ * beat describing a car "pulled into the bay". The first fix was to delete the
+ * verb - which also lost the true positive "we pulled this rotor off a Civic".
+ * The verb was never the defect: the CALLER was fusing a beat's visual and its
+ * on-screen CTA into one string, manufacturing a sentence nobody wrote. Splitting
+ * those two registers removed the false positive and kept the true one. Delete
+ * the artefact, not the signal.
+ */
+const EPISODE_VERB =
+  /\b(?:replaced|swapped|installed|mounted|balanced|aligned|repaired|rebuilt|patched|plugged|welded|towed|pulled|removed|drained|flushed|tested|measured|scanned|inspected|diagnosed|fixed|found|caught|spotted|came\s+in|rolled\s+in|showed\s+up|brought\s+in|arrived)\b/i;
+
+/** A definite, on-screen artifact — "this rotor", not "a rotor". */
+const DEICTIC_ARTIFACT =
+  /\bthis\s+(?:one|car|truck|vehicle|tire|wheel|rim|rotor|caliper|pad|battery|belt|hose|line|bearing|filter|customer'?s?)\b/i;
+
+/** Before/after framing asserts two captured moments of one real object. */
+const BEFORE_AFTER_PATTERN =
+  /\bbefore\s*(?:and|\/|vs\.?)\s*after\b|\bhere'?s\s+(?:it\s+)?after\b|\bafter\s+(?:shot|photo|pic|picture)\b/i;
+
+/** A narrated customer incident. */
+const CUSTOMER_INCIDENT_PATTERN =
+  /\b(?:a|one|this)\s+(?:customer|driver|guy|lady|woman|man)\b[^.!?]{0,60}?\b(?:brought|came|called|drove|showed\s+up|rolled)\b/i;
+
+function sentences(text: string): string[] {
+  return text.split(/(?<=[.!?])\s+|\n+/).filter((t) => t.trim().length > 0);
+}
+
+/**
+ * Copy that asserts something actually happened at this shop.
+ *
+ * Blocks on BOTH paths. Unlike `detectInventedMeasurements` this needs no
+ * closed fact/joke pair — it is a shape check over shipping text — so it is
+ * safe on a whole reel and runs where it actually matters.
+ */
+export function detectRealEventAssertions(surfaces: readonly DuaSurface[]): DuaFinding[] {
+  const findings: DuaFinding[] = [];
+  const flag = (where: string, match: string, why: string) =>
+    findings.push({
+      severity: "block",
+      code: "REAL_EVENT_ASSERTED",
+      where,
+      detail:
+        `${why} ("${match.trim()}"). Every frame in this reel is generated, so nothing here can evidence that it happened. ` +
+        "State the mechanism in the general present tense instead — 'road salt corrodes brake lines', not 'we pulled this one last week'.",
+    });
+
+  for (const { where, text } of surfaces) {
+    for (const sentence of sentences(text)) {
+      const verb = sentence.match(EPISODE_VERB);
+      if (verb) {
+        const agent = sentence.match(SHOP_AGENT) ?? sentence.match(DEICTIC_ARTIFACT);
+        if (agent) flag(where, `${agent[0]} ... ${verb[0]}`, "the copy narrates a specific past event at this shop");
+      }
+      const ba = sentence.match(BEFORE_AFTER_PATTERN);
+      if (ba) flag(where, ba[0], "the copy claims a before/after of one real object");
+      const inc = sentence.match(CUSTOMER_INCIDENT_PATTERN);
+      if (inc) flag(where, inc[0], "the copy narrates a customer incident");
+    }
+  }
+  return findings;
+}
+
 export function checkLayerBoundary(assets: readonly DuaAsset[]): DuaFinding[] {
   const findings: DuaFinding[] = [];
   for (const a of assets) {
@@ -918,6 +1015,7 @@ export function runDuaGate(concept: DuaConcept, opts: DuaGateOptions = {}): DuaG
 
   // 3. The three content hard fails.
   findings.push(...detectFabricatedEvidence(concept));
+  findings.push(...detectRealEventAssertions(frameSurfaces(concept)));
   findings.push(...detectCustomerHumiliation(concept));
   findings.push(...detectSafetyTrivialisation(concept));
 
@@ -1116,6 +1214,7 @@ export function runDuaBriefChecks(view: DuaBriefView, opts: DuaGateOptions = {})
   // sourced "44 PSI" in the shipped samples. See its docstring.
   const stated = [
     ...detectFabricatedVerdicts(view.audienceText),
+    ...detectRealEventAssertions(view.audienceText),
     ...detectCustomerHumiliationIn(view.audienceText),
     ...detectSafetyTrivialisationIn(view.audienceText, view.mechanicTruth),
   ];

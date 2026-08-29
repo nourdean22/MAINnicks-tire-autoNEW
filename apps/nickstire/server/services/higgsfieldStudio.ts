@@ -760,11 +760,35 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
 
-  // API-KEY LANE FIRST, CLI SESSION AS FALLBACK. The API key never expires and
-  // has no session to revoke — see docs/runbooks/higgsfield-session.md §6 for
-  // why the CLI session lane keeps needing a human. Preferring it whenever it is
-  // configured means an operator who sets the two env vars stops depending on
-  // the fragile lane WITHOUT this function's callers or signature changing.
+  // API-KEY LANE FIRST, CLI SESSION AS FALLBACK.
+  //
+  // ⚠️ READ THIS BEFORE PROVISIONING THE API KEYS. This comment used to say the
+  // API key "never expires and has no session to revoke", and recommended
+  // setting the two env vars as the escape from the "fragile" CLI lane. That
+  // recommendation was a TRAP, and it nearly cost the operator money on top of a
+  // subscription he already pays for. Corrected 2026-08-29 against his live
+  // billing pages, not against docs:
+  //
+  //   HIGGSFIELD RUNS TWO SEPARATE LEDGERS WITH SEPARATE BILLING.
+  //   · consumer / Ultra  — 1,934.62 credits, paid subscription, ACTIVE. This
+  //     is the ledger the CLI session lane spends, and what `hf account status`
+  //     reads.
+  //   · Higgsfield Cloud API (this lane, Authorization: Key ID:SECRET) — ZERO
+  //     credits. No payment method saved, no purchase history, 0 API calls
+  //     lifetime, auto top-up disabled. cloud.higgsfield.ai is a DISTINCT PAID
+  //     PRODUCT and the Ultra subscription does not fund it. Two API keys
+  //     already exist on the account with 0 lifetime calls — someone walked
+  //     this road before and stopped at the same wall.
+  //
+  // So the API lane is not the durable escape hatch; it is an unfunded lane that
+  // authenticates cleanly and then fails at generation on a zero balance. The
+  // "fragile" CLI session lane is THE ONLY LANE FUNDED BY THE SUBSCRIPTION, and
+  // that is why reel-pipeline is staged behind the manual trigger rather than
+  // moved onto API keys (cron/registry-tier-map.ts MANUAL_TRIGGER_STAGED).
+  //
+  // The preference order below is still correct — if Cloud API credits are ever
+  // PURCHASED, setting the two env vars switches lanes with no caller change.
+  // Buy the credits first; the env vars are not the fix on their own.
   //
   // Falls back to the CLI on ANY API-lane error — including a submit failure, a
   // poll failure, or a genuine generation failure reported by Higgsfield's own

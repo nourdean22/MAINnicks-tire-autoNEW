@@ -1,0 +1,90 @@
+{
+  "topic_slug": "foggy-windshield-recirculate-trick",
+  "date": "2026-08-27",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motion_route_status": "BLOCKED_NO_MOTION_ROUTE",
+  "faceless": true,
+  "length_seconds": 24,
+  "aspect_ratio": "9:16",
+  "hook": "Your windshield is fogging up and you just made it worse.",
+  "cta": "One clue, one fix — stop by and we'll take a look.",
+  "standing_negative_prompt": "faces, hands close enough to show fingerprints or rings, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "start": 0,
+      "end": 3,
+      "vo": "If your windshield's fogging up, don't hit this button.",
+      "prompt": "Close-up dashboard shot, driver's hand reaching toward a car's recirculate button (looping arrow icon), interior car cabin, natural daylight through windshield, shallow depth of field, realistic automotive interior, motion toward the button."
+    },
+    {
+      "index": 2,
+      "start": 3,
+      "end": 7,
+      "vo": "Recirculate traps the moist air already inside your cabin.",
+      "prompt": "Car dashboard recirculate button glowing green/active, time-lapse style fog visibly thickening and creeping across the inside of a windshield, cool humid morning light, realistic condensation texture forming."
+    },
+    {
+      "index": 3,
+      "start": 7,
+      "end": 11,
+      "vo": "That's the opposite of what you want when the glass is already fogged.",
+      "prompt": "Driver's hand pulling back from a car dashboard button, slight camera pan across dashboard vents, foggy windshield still visible in background, realistic automotive interior lighting."
+    },
+    {
+      "index": 4,
+      "start": 11,
+      "end": 16,
+      "vo": "Turn off recirculate, crank the defrost, and add the AC — even in winter.",
+      "prompt": "Close-up of fingers pressing a car's defrost button then AC button on dashboard, vents visibly blowing air toward windshield, cool blue dashboard lighting, realistic automotive interior."
+    },
+    {
+      "index": 5,
+      "start": 16,
+      "end": 20,
+      "vo": "The AC pulls the humidity out of the air so the fog can't reform.",
+      "prompt": "Time-lapse of fog clearing from the inside of a car windshield, vents blowing steadily, morning light brightening through clearing glass, realistic condensation dissipating."
+    },
+    {
+      "index": 6,
+      "start": 20,
+      "end": 24,
+      "vo": "One clue, one fix — stop by and we'll take a look if it's not clearing.",
+      "prompt": "Static end-card frame, clean dashboard/windshield background for text overlay, no motion (SAVE freeze beat).",
+      "is_save_freeze": true
+    }
+  ],
+  "ig_fb_primary_caption": "Your windshield's fogging up and recirculate just made it worse. 🚗💨 Here's the fix — turn it off, crank the defrost, add the AC (yes, even in winter). One clue, one fix. Stop by Nick's Tire & Auto if it's not clearing. #NicksTireAuto #CarCareTips #WindshieldFog #DefrostTrick #EuclidOhio",
+  "hashtags": ["NicksTireAuto", "CarCareTips", "WindshieldFog", "DefrostTrick", "DriveSafe", "ClevelandOhio", "EuclidOhio", "WinterDriving"],
+  "ad_variants": [
+    {
+      "label": "A_curiosity",
+      "hook": "Stop hitting that button when your windshield fogs up.",
+      "caption": "Recirculate feels right but it traps the moisture that's fogging your glass. Defrost + AC clears it fast — even in winter.",
+      "cta": "Save this for your next foggy morning. Questions? Stop by and we'll take a look."
+    },
+    {
+      "label": "B_direct_tip",
+      "hook": "Foggy windshield fix: 10 seconds, no fancy tools.",
+      "caption": "Turn off recirculate, run the defrost, add the AC. Humidity's the enemy — dry air clears the glass.",
+      "cta": "Bookmark this. And if your defrost isn't keeping up, stop by and we'll take a look."
+    }
+  ],
+  "claim_evidence": {
+    "type": "general_hvac_knowledge",
+    "business_fact_rows_used": [],
+    "evidence_records_used": []
+  },
+  "credit_risk": {
+    "generation_attempted": false,
+    "estimated_cost_usd_if_seedance": 1.50,
+    "estimated_cost_usd_if_template_stock": 0,
+    "active_provider": "UNKNOWN"
+  },
+  "audio_rights": {
+    "music_bed_used": false,
+    "vo_only": true,
+    "rights_ledger_status": "NO_LEDGER_EXISTS_REPO_GAP"
+  }
+}

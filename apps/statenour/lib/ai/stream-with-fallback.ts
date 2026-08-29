@@ -115,6 +115,13 @@ export interface StreamWithFallbackOptions {
   forceProviderFirst?: ProviderName;
   /** 2026-08-11 · explicit operator consent to metered lanes (cost firewall). */
   allowMetered?: boolean;
+  /**
+   * 2026-08-28 · per-turn model id for the FORCED provider (chat
+   * escalation). Threaded onto attempt 1 ONLY, exactly like
+   * forceProviderFirst — a rotation must resolve its own provider's
+   * configured model, never carry claude-opus-5 into another namespace.
+   */
+  modelOverride?: string;
   maxAttempts?: number;
   /**
    * 2026-07-05 (audit P3 · b) · how long the first-chunk probe waits
@@ -224,6 +231,7 @@ export async function streamWithFallback(
       model = getModel(opts.taskType, {
         preferLargeContext: opts.preferLargeContext,
         forceProviderFirst: attempt === 1 ? opts.forceProviderFirst : undefined,
+        modelOverride: attempt === 1 ? opts.modelOverride : undefined,
         allowMetered: opts.allowMetered,
       });
       provider = inferProviderName(model);

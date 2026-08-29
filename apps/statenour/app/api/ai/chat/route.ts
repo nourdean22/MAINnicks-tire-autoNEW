@@ -1,6 +1,14 @@
 import { streamText } from "ai";  // (stepCountIs moved into the extracted pipeline modules, 2026-07-25)
 import { getModel, getActiveProviderInfo, isRuntimeProvider, type ProviderName, type TaskType } from "@/lib/ai/provider";  // (GEMINI_SAFETY_OFF moved into ./build-stream-config.ts, 2026-07-25)
 import { canaryDeepForce } from "@/lib/ai/vnext/effort-policy";
+import { updateTurnContext } from "@/lib/agent/turn-context";
+import {
+  resolveEscalation,
+  detectEscalationTier,
+  ESCALATION_DAILY_CAP,
+  countEscalationsToday,
+  type EscalationDecision,
+} from "@/lib/ai/vnext/escalation";
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
 // (query-shape / turn-intelligence / response-contract imports moved
 // into ./derive-turn-signals.ts with the derivation stack, 2026-07-25)
@@ -58,7 +66,13 @@ export async function POST(req: Request) {
   // gets tagged with actor "nick" so the audit trail distinguishes
   // AI mutations from user-direct ones.
   const { withActor } = await import("@/lib/db/actor");
-  return withActor("nick", () => chatPostInner(req));
+  // 2026-08-28 · WP3 · open a turn scope alongside the actor scope, for
+  // the same reason and at the same boundary: tools run several layers
+  // down and need to know which conversation they are in before they can
+  // schedule a follow-up for it. Seeded empty — convId is resolved
+  // partway through the turn and filled in by updateTurnContext.
+  const { withTurnContext } = await import("@/lib/agent/turn-context");
+  return withActor("nick", () => withTurnContext({}, () => chatPostInner(req)));
 }
 
 async function chatPostInner(req: Request) {
@@ -350,6 +364,16 @@ async function chatPostInner(req: Request) {
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
   let allowMetered = false;
+  // 2026-08-28 · escalation decision for this turn. Declared here so the
+  // response builder can report the lane the operator actually got,
+  // including when depth was asked for and REFUSED.
+  let __escalation: EscalationDecision = {
+    escalate: false,
+    tier: "none",
+    reason: "not evaluated",
+  };
+  /** Lane that actually answered — assigned after the fallback resolves. */
+  let __servedLane: { provider?: string; modelId?: string } = {};
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
     // content-mode (heavy v5.0 engine, ~70-100kc), prefer Ollama's
@@ -410,19 +434,77 @@ async function chatPostInner(req: Request) {
     // ONLY the unforced case — tool-mandatory forces and the user override
     // keep absolute precedence. Keyless Anthropic degrades to the normal
     // chain exactly like the high-stakes pin above.
-    effectiveForce = toolMandatoryForce ?? validatedProviderOverride ?? canaryDeepForce(mode);
+    // 2026-08-28 · ESCALATION (operator: "keep ollama but escalate").
+    // Ollama remains the base lane for every turn; an explicit depth
+    // marker (/deep, /thorough, /mega, "comprehensive", "spare no
+    // expense"...) promotes THIS turn to a metered frontier model. The
+    // decision is pure + deterministic — no LLM call decides which LLM
+    // to call. Slots in at the SAME precedence as the deep canary it
+    // supersedes: tool-mandatory forces and the user's own validated
+    // override still win outright.
+    // Cheap gate FIRST: the overwhelming majority of turns carry no depth
+    // marker, and they must not pay a Neon round-trip to learn that. Only
+    // a turn that could actually escalate spends the count query.
+    const __wantsDepth = detectEscalationTier(userContent) !== "none";
+    __escalation = resolveEscalation({
+      userContent,
+      apiKeyPresent: Boolean((process.env.ANTHROPIC_API_KEY ?? "").trim()),
+      escalationsToday: __wantsDepth ? await countEscalationsToday() : 0,
+      dailyCap: ESCALATION_DAILY_CAP,
+      enabled: process.env.NICK_ESCALATION_DISABLED !== "1",
+      privateMode,
+      untrustedInput: __webSearchIntent || __webSearchRecency,
+      conversationEffort: undefined,
+    });
+    effectiveForce =
+      toolMandatoryForce ??
+      validatedProviderOverride ??
+      (__escalation.escalate ? ("anthropic" as const) : undefined) ??
+      canaryDeepForce(mode);
     if (effectiveForce === "anthropic" && !toolMandatoryForce && !validatedProviderOverride) {
       log.info("canary_deep_anthropic", { mode });
+    }
+    // Depth was asked for and refused: log it loudly. A blocked
+    // escalation that nobody can see is the silent-gate defect this
+    // whole lane exists to end.
+    if (__escalation.blockedBy) {
+      log.warn("escalation_blocked", {
+        tier: __escalation.tier,
+        blockedBy: __escalation.blockedBy,
+        reason: __escalation.reason,
+      });
+    } else if (__escalation.escalate) {
+      log.info("escalation_engaged", {
+        tier: __escalation.tier,
+        model: __escalation.model,
+        effort: __escalation.effort,
+      });
     }
     // 2026-08-11 · Turbo consent (cost firewall): metered lanes open ONLY
     // on the operator's own explicit choices — a per-request provider
     // override, or the deep-canary env attestation. Internal tool forces
     // are NOT consent; under the firewall they degrade to the
     // zero-incremental lane.
-    allowMetered = Boolean(validatedProviderOverride) || Boolean(canaryDeepForce(mode));
+    // The force above is INERT without this line: getModel sorts the
+    // forced provider to index 0, then filterByCostFirewall deletes it
+    // from BOTH selection loops because anthropic is cost-class
+    // "metered". Force and consent must move together or the turn
+    // silently serves from ollama with nothing logged.
+    allowMetered =
+      Boolean(validatedProviderOverride) ||
+      Boolean(canaryDeepForce(mode)) ||
+      __escalation.escalate;
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
       allowMetered,
+      // Per-TURN model id: opus-5 for a deep/thorough ask, fable-5 for an
+      // explicit mega. Without it the anthropic lane resolves the global
+      // ANTHROPIC_MODEL default (claude-sonnet-5), which fails
+      // CLAUDE5_FRONTIER_RE — so the turn would silently carry NO effort
+      // and skip the claude5 compat middleware entirely.
+      ...(__escalation.escalate && __escalation.model
+        ? { modelOverride: __escalation.model }
+        : {}),
       ...(effectiveForce ? { forceProviderFirst: effectiveForce } : {}),
     });
     if (toolMandatoryForce) {
@@ -638,6 +720,13 @@ async function chatPostInner(req: Request) {
   // visible in the chat-pipeline log line.
   const streamConfigTimer = stageTracker.start("stream-config");
   convId = resolvedConvId;
+  // Publish the resolved thread + trust posture to the turn scope so a
+  // tool executing below can schedule a follow-up against THIS thread.
+  updateTurnContext({
+    conversationId: convId && convId !== "temp" && convId !== "private" ? convId : null,
+    untrustedInput: __webSearchIntent || __webSearchRecency,
+    privateMode,
+  });
 
   log.info("prompt_built", {
     cacheHit: fromCache,
@@ -906,11 +995,29 @@ async function chatPostInner(req: Request) {
   // ./build-stream-config.ts as a factory over the same shared refs.
   const { streamWithFallback } = await import("@/lib/ai/stream-with-fallback");
   const { buildStreamConfigFactory } = await import("./build-stream-config");
+  // 2026-08-28 · WP2 · durable partial capture. Private mode is excluded
+  // by the same rule that keeps it out of the registry entirely: its
+  // no-persistence semantics are the feature.
+  const { createPartialPersister } = await import(
+    "@/lib/services/chat/active-stream"
+  );
+  const __onPartial =
+    !privateMode && convId ? createPartialPersister(convId) : undefined;
   const __sameTurnFallback = await streamWithFallback({
     taskType: finalTaskType,
     preferLargeContext: finalPreferLargeContext,
     forceProviderFirst: effectiveForce,
     allowMetered,
+    // 2026-08-28 · THIS is the path that actually serves the turn. The
+    // `model` built above only feeds runAlternatePaths (flag-gated, off
+    // by default) — wiring the override there and not here made the whole
+    // escalation lane a dead control: it set X-Escalation-Applied:1 while
+    // silently serving the anthropic DEFAULT (claude-sonnet-5), which
+    // also fails isClaude5ThinkingModel so no effort applied and the
+    // daily cap could never match a row. Caught in adversarial review.
+    ...(__escalation.escalate && __escalation.model
+      ? { modelOverride: __escalation.model }
+      : {}),
     buildConfig: buildStreamConfigFactory({
       persistBase,
       provider,
@@ -932,12 +1039,27 @@ async function chatPostInner(req: Request) {
       startedAt,
       firstTokenRef: __firstTokenRef,
       partialRef: __partialRef,
+      onPartial: __onPartial,
+      escalationEffort: __escalation.escalate ? __escalation.effort : undefined,
       recordTrace,
       resolveOnFinish,
       log,
     }),
   });
   result = __sameTurnFallback.result;
+  // The lane that ANSWERED, taken from the resolved attempt rather than
+  // from getActiveProviderInfo() at the top of this handler — that helper
+  // runs before finalTaskType exists and applies no cost-firewall filter,
+  // so it confidently names a lane getModel would never have selected.
+  {
+    // The winner is the attempt with no failedAt — NOT simply the last
+    // one, because failed attempts are recorded in the same array and a
+    // trailing failure record would misreport the lane that answered.
+    const won =
+      __sameTurnFallback.attempts.find((a) => a.failedAt === null) ??
+      __sameTurnFallback.attempts.at(-1);
+    __servedLane = { provider: won?.provider ?? undefined, modelId: won?.modelId };
+  }
   // v10 B.5 · log fallback trace. If attempts.length > 1, a sync-
   // throw happened on the first provider and we recovered. Log
   // ONLY when there was a failure to keep noise low.
@@ -1043,6 +1165,13 @@ async function chatPostInner(req: Request) {
     "@/lib/services/chat/stream-error-handler"
   );
   return buildChatResponse({
+    lane: __servedLane,
+    escalation: {
+      tier: __escalation.tier,
+      escalated: __escalation.escalate,
+      blockedBy: __escalation.blockedBy,
+      reason: __escalation.reason,
+    },
     streamResponse: result.toUIMessageStreamResponse({
       onError: clientSafeStreamErrorText,
     }),

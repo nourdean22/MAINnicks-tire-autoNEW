@@ -76,6 +76,15 @@ export const GET = cronHandler(async () => {
   const supplementary = suggestionVerdicts + abLabels + thumbs;
   const triggerMet = corrections >= TRIGGER;
 
+  // 2026-08-28 · learning-loops wave: second metric. The 200 above is
+  // FINE-TUNE volume for the UPSTREAMS WATCH rows; eval decision-grade-ness
+  // is a different, nearer gate — LABEL-BEARING harvested cases
+  // (noise-verdict discoveries whose own key is the forbidden key).
+  // 30 mirrors MIN_TRUSTED_LABELS (judge-eval/calibration.ts).
+  const { countLabeledEvalCases } = await import("@/lib/brain/recall-corpus-builder");
+  const labeledCases = await countLabeledEvalCases().catch(() => -1);
+  const LABELED_TRIGGER = 30;
+
   // 30d ledger flow (shown → decided → useful) so the row also answers
   // "is the loop MOVING this month", not just the all-time gate.
   const stats = await outcomeStats(30);
@@ -83,6 +92,8 @@ export const GET = cronHandler(async () => {
   const content =
     `Corpus odometer: ${corrections}/${TRIGGER} intelligence_outcomes corrections` +
     ` (trigger ${triggerMet ? "MET — draft the UPSTREAMS row edit for operator review" : "not met"});` +
+    ` labeled eval cases ${labeledCases < 0 ? "unknown (count failed)" : `${labeledCases}/${LABELED_TRIGGER}`}` +
+    ` (noise-verdict discoveries -> forbiddenKeys — the eval decision-grade gate);` +
     ` supplementary correction-shaped labels ${supplementary}` +
     ` (suggestion verdicts ${suggestionVerdicts} · A/B labels ${abLabels} · chat thumbs ${thumbs});` +
     ` 30d ledger flow: shown ${stats?.shown ?? "unknown"} · decided ${stats?.decided ?? "unknown"}` +
@@ -93,6 +104,8 @@ export const GET = cronHandler(async () => {
     corrections,
     trigger: TRIGGER,
     triggerMet,
+    labeledCases,
+    labeledTrigger: LABELED_TRIGGER,
     suggestionVerdicts,
     tapCounts,
     abLabels,
