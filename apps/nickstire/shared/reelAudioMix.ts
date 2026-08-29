@@ -27,7 +27,7 @@
  * episode 16 - and it is labelled as such deliberately. If it is ever cited as
  * a platform requirement, that citation is wrong.
  */
-import { AUDIO_BUSES, type AudioBus } from "./reelTimeline";
+import { AUDIO_BUSES, type AudioBus, type ReelTimeline } from "./reelTimeline";
 
 /**
  * A production choice, NOT a platform standard. See the module header.
@@ -167,4 +167,71 @@ export function buildMixFragments(
       `loudnorm=I=${PRODUCTION_LOUDNESS_LUFS}:TP=-1.5:LRA=11,aresample=48000[aout]`,
   );
   return { fragments, outLabel: "aout" };
+}
+
+/* ── placing clips in TIME, which is what makes a J-cut real ─────────────── */
+
+/**
+ * Turn a timeline's audio clips into a filtergraph that places each one at its
+ * own start time.
+ *
+ * THIS IS THE STEP THAT MAKES THE TIMELINE A CAPABILITY RATHER THAN A SCHEMA.
+ * `reelTimeline.ts` can describe a J-cut, but a description no renderer reads
+ * is the orphaned-subject defect — the model would claim an overlap the output
+ * does not contain. Each clip is delayed to `startSec` with `adelay`, so a
+ * dialogue clip whose start precedes its beat's picture cut genuinely begins
+ * before that cut in the rendered file.
+ *
+ * `inputLabels` maps clip id -> the filtergraph label of its decoded audio.
+ * Clips with no label are skipped rather than silently mixed as silence.
+ */
+export function buildTimelineAudioGraph(
+  timeline: ReelTimeline,
+  inputLabels: Readonly<Record<string, string>>,
+): { fragments: string[]; outLabel: string } | null {
+  const placed: Partial<Record<AudioBus, string[]>> = {};
+  const fragments: string[] = [];
+
+  for (const clip of timeline.audio) {
+    const src = inputLabels[clip.id];
+    if (!src) continue;
+    const delayMs = Math.max(0, Math.round(clip.startSec * 1000));
+    const durSec = Number((clip.endSec - clip.startSec).toFixed(3));
+    const out = `p_${clip.id}`;
+    // atrim first so a long source cannot outrun its slot, THEN delay into
+    // position. Reversing these would trim away the delay itself.
+    fragments.push(
+      `[${src}]atrim=0:${durSec},asetpts=PTS-STARTPTS,aresample=48000,` +
+        `adelay=${delayMs}|${delayMs}[${out}]`,
+    );
+    (placed[clip.bus] ??= []).push(out);
+  }
+
+  const busLabels: Partial<Record<AudioBus, string>> = {};
+  for (const bus of AUDIO_BUSES) {
+    const parts = placed[bus];
+    if (!parts?.length) continue;
+    if (parts.length === 1) {
+      busLabels[bus] = parts[0];
+    } else {
+      const merged = `bus_${bus}`;
+      fragments.push(`${parts.map((p) => `[${p}]`).join("")}amix=inputs=${parts.length}:duration=longest:normalize=0[${merged}]`);
+      busLabels[bus] = merged;
+    }
+  }
+
+  const mixed = buildMixFragments(busLabels, { totalSec: timeline.durationSec });
+  if (!mixed) return null;
+  return { fragments: [...fragments, ...mixed.fragments], outLabel: mixed.outLabel };
+}
+
+/**
+ * The delay actually emitted for a clip, in seconds. Exported so a test can
+ * assert placement against the timeline rather than eyeballing a filter string.
+ */
+export function emittedDelaySec(fragments: readonly string[], clipId: string): number | null {
+  const line = fragments.find((f) => f.includes(`[p_${clipId}]`));
+  if (!line) return null;
+  const m = /adelay=(\d+)\|/.exec(line);
+  return m ? Number(m[1]) / 1000 : null;
 }

@@ -153,8 +153,8 @@ Every adversarial self-review since 2026-08-12 found real defects in the session
   Flag adjacent rot; don't silently expand scope.
 - **Search for prior art first.** "Not in the repo" is a fact about the repo, not the world — the Higgsfield
   REST API existed for weeks while sessions concluded "no API path".
-- **Prove the instrument sees the target before trusting a green.** Known blind: fixture-only tests;
-  gates that fail open; a `tail -f`-locked log.
+- **Prove the instrument fired at all** — a zero, a green and a surviving mutation are all "no signal".
+  Plant a known positive: [silent instrument](docs/agent-audit/DEFECT-SHAPE-SILENT-INSTRUMENT.md).
 
 ## Commit Attribution
 

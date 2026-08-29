@@ -8,6 +8,7 @@ import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { NEIGHBORHOODS, type Neighborhood } from "@shared/neighborhoods";
+import { isDisplayableReview } from "@shared/reviewDisplay";
 import { BUSINESS } from "@shared/business";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, Menu, X } from "lucide-react";
@@ -400,9 +401,14 @@ export default function NeighborhoodPage() {
               // Pull real Google reviews; fall back to generic-verified list
               // when API is unreachable. Rotate by neighborhood slug so each
               // page feels distinct instead of identical testimonials.
-              const realReviews = googleData?.reviews?.filter((r: { text?: string; author_name?: string }) =>
-                r.text && r.text.length >= 40 && r.text.length <= 400,
-              ) ?? [];
+              // RATING FLOOR, not just a length filter. This block renders the
+              // LIVE Google feed, and that feed carries every rating — its
+              // first entry on 2026-08-29 was a 1-star review opening "If I
+              // could rate 0 I would!!", which failed to render only because it
+              // happened to exceed 400 characters. A shorter negative review
+              // would have shown up as social proof on 59 pages. The floor
+              // matches the one the server-side review queries already apply.
+              const realReviews = googleData?.reviews?.filter(isDisplayableReview) ?? [];
               const source = realReviews.length >= 3 ? realReviews : FALLBACK_REVIEWS;
               // Simple rotation: use slug charCode sum to pick a starting offset
               const offset = (neighborhood.slug || "").split("").reduce((s, c) => s + c.charCodeAt(0), 0) % Math.max(source.length, 1);
