@@ -1538,30 +1538,34 @@
     },
     {
       "capabilityId": "dua-relevance-gate",
-      "name": "Delightfully Useful Absurdity: relevance gate + layer boundary on the reel brief path",
+      "name": "Delightfully Useful Absurdity: no-real-event gate, relevance gate, layer boundary",
       "owner": "operator",
       "evidence": {
         "codeCommit": "shared/dua.ts + shared/duaFranchiseKits.ts, wired into runReelPreflight via runReelDuaChecks(). shared/absurdityConcepts.ts relocated from server/services/ where it had zero consumers since #346 and now supplies the swap corpus.",
         "tests": [
-          "shared/dua.test.ts (101): every gate ships as a canary PAIR - the defect blocks with its own code, the corrected variant passes. Includes the calibration lock over six concepts authored by prior sessions.",
-          "shared/duaFranchiseKits.test.ts (45): kits exhaustive over the 12 registered franchises, muted-first equivalent required, THE METAL's single-spoken-line bible invariant upheld.",
-          "MUTATION PASS 20/20: each gate was broken in the real module and the suite asserted to fail. The near-duplicate cutoff (0.4) survived the first pass at 18/19 - it had no test - and now has its own lock; 0.5 and 0.95 are both caught.",
-          "FALSE-POSITIVE PROBES, all locked as tests: 116 committed reel packs scanned -> 0 findings; 10 legitimate diagnostic sentences pass; 4 fabricated verdicts block."
+          "shared/dua.test.ts (120) + shared/duaFranchiseKits.test.ts (61) = 181 tests, each counted by running that file alone: every gate ships as a canary PAIR - the defect blocks with its own code, the corrected variant passes.",
+          "REAL_EVENT_ASSERTED is canaried through the LIVE call path (runReelDuaChecks), not the unit function: 6/6 narrated episodes block, 10/10 legitimate present-tense shop copy passes, and all 134 committed reel packs scan clean.",
+          "MUTATION PASS 16/16 on the MERGED tree incl. 7 against the real-event gate (verb bank dead, actor check removed, before/after dead, customer-incident dead, severity downgraded, unwired from the derived path, caller re-fuses visual+CTA). Unmutated control green before AND after each run.",
+          "Calibration lock over six concepts authored by prior sessions; the near-duplicate cutoff 0.4 survived the first mutation pass (18/19, no test) and now catches both 0.5 and 0.95."
         ],
         "liveRuns": [],
-        "notes": "Relevance is a GATE, not a score. Terms are weighted by inverse document frequency: the first draft compared raw coverage ratios and reported PORTABLE on 6 of 6 genuinely relevant authored concepts, because generic connectives ('point' 15/100 corpus facts, 'check' 7/100) counted the same as diagnostic ones ('sidewall', 'hygroscopic', 1-2/100). Layer boundary: 'generated' is Layer C exclusive and permission is monotone down the stack. Confining generation to Layer C is a TRUTH control and does NOT discharge the platform AI-labelling duty - any generated asset without a disclosureMode blocks."
+        "notes": "REAL_EVENT_ASSERTED is the load-bearing gate and the reason is a fact about the shop: THERE IS NO REAL SHOP FOOTAGE. Every frame is generated, so no Layer A asset is ever declared and checkLayerBoundary can never fire - it is vacuous by construction. Refusing copy that narrates an EPISODE (past-tense action + definite actor in one sentence) is the only live protection against a false claim about this business. It runs on the DERIVED path, so it is enforced today without anyone authoring a DuaConcept. Relevance, by contrast, measures STEMMED TOKEN-SET OVERLAP - not meaning - and is WARN-only on the derived path. Its swap probe weights terms by inverse document frequency, which is what took a 6-of-6 false-positive rate to zero."
       },
       "blockers": [
         {
           "severity": "P1",
-          "description": "NOTHING AUTHORS A DuaConcept YET. The full gate blocks only when brief.dua is set, and no producer sets it. On the derived path the three content detectors DO block inside the live daily reel cron, but relevance and the swap probe are WARN because reconstructing violation/payoff from a ReelBrief is lossy. Do not read this row as 'relevance is enforced on live reels'."
+          "description": "NOTHING AUTHORS A DuaConcept YET, so checkLayerBoundary, FACT_UNVERIFIED, GENERATED_WITHOUT_DISCLOSURE, the level cap and franchise blockingConditions are UNREACHABLE in production - modules nothing calls. Live today on the derived path: REAL_EVENT_ASSERTED, fabricated verdicts, customer humiliation and safety trivialisation, all at block severity. Relevance and the swap probe are WARN. Do not read this row as 'relevance is enforced on live reels'."
         },
         {
           "severity": "P2",
           "description": "Franchise blockingConditions are English sentences; only four recurring shapes (cost, unsafe-to-drive, street address, remaining-life) have detectors. DuaGateReport.unenforcedConditions carries what could not be checked, so no caller can render a clean franchise verdict without its limits."
         }
       ],
-      "deferredScope": "No pixel inspection - this is a design-time gate over words, run before spend. renderedQa.ts remains the vision critic. No new franchise: 'NASA Alignment' is recorded in UNHOUSED_SHOW_CONCEPTS rather than added as a 13th, because adding one changes the publishing rotation and needs its own requiredEvidence.",
+      "deferredScope": [
+        "No pixel inspection - this is a design-time gate over words, run before spend. renderedQa.ts remains the vision critic.",
+        "No new franchise: 'NASA Alignment' is recorded in UNHOUSED_SHOW_CONCEPTS rather than added as a 13th, because adding one changes the publishing rotation and needs its own requiredEvidence.",
+        "shared/duaFranchiseKits.ts (audio palettes, vocabulary, participation asks) has NO production consumer - module and test only. It is authoring reference, not an enforced surface."
+      ],
       "lastVerifiedAt": "2026-08-29",
       "verificationExpiresAt": "2027-02-28",
       "codeState": "merged",
