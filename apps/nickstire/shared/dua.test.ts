@@ -62,6 +62,7 @@ function base(over: Partial<DuaConcept> = {}): DuaConcept {
     benignResolution: "nothing dramatic happened — the tread simply wore down to where its water channels stop evacuating water",
     usefulFact: "Tread below 2/32 inch loses wet grip because the water channels are too shallow to evacuate water.",
     factSources: ["NHTSA tread depth guidance"],
+    factSourceTypes: ["mechanical_consensus"],
     brandConnection: "tread depth checks are a walk-in at the Euclid Avenue shop",
     audienceParticipation: "Sentence this tire: repair, replace, or dismissed?",
     visualMetaphor: "the worn tread stands in the witness box while its shallow water channels are held against a penny",
@@ -796,5 +797,81 @@ describe("REAL_EVENT_ASSERTED — the committed production corpus stays clean", 
 
     expect(scanned).toBeGreaterThan(100);
     expect(findings).toEqual([]);
+  });
+});
+
+// ─── Review-gate fixes (PR #2014), each with its own canary ────────
+
+describe("an authored concept does not exempt the shipping copy (review P1)", () => {
+  it("still BLOCKS a real-event assertion in the caption when a clean concept exists", () => {
+    // The defect: `if (brief.dua) { ...; return; }` short-circuited the
+    // stated-surface checks. A clean or STALE concept then exempted whatever
+    // the caption was later edited to say.
+    const brief = {
+      ...SAMPLE_REEL_BRIEFS[0],
+      dua: base(),
+      selectedCaption: "We replaced this customer's tie rod last Tuesday.",
+    };
+    const blocks = runReelDuaChecks(brief).filter((f) => f.severity === "block");
+    expect(blocks.map((f) => f.message).join(" ")).toContain("REAL_EVENT_ASSERTED");
+  });
+
+  it("still BLOCKS a humiliated customer in the caption when a clean concept exists", () => {
+    const brief = {
+      ...SAMPLE_REEL_BRIEFS[0],
+      dua: base(),
+      selectedCaption: "Your tires are bald because the owner was too cheap to check.",
+    };
+    expect(runReelDuaChecks(brief).filter((f) => f.severity === "block").map((f) => f.message).join(" "))
+      .toContain("CUSTOMER_HUMILIATED");
+  });
+
+  it("runs BOTH gates — authored findings and stated-surface findings appear together", () => {
+    const brief = {
+      ...SAMPLE_REEL_BRIEFS[0],
+      dua: base({ absurdityLevel: 5 }), // authored-only defect
+      selectedCaption: "We replaced this customer's tie rod last Tuesday.", // stated defect
+    };
+    const msgs = runReelDuaChecks(brief).map((f) => f.message).join(" ");
+    expect(msgs).toContain("ABSURDITY_LEVEL_UNCAPPED");
+    expect(msgs).toContain("REAL_EVENT_ASSERTED");
+  });
+});
+
+describe("FRANCHISE_EVIDENCE_MISSING — requiredEvidence fails closed (review P2)", () => {
+  it("BLOCKS a regulatory franchise whose sources declare no TYPE", () => {
+    // `factSources` is free text: "Ohio EPA" and "some blog" are the same
+    // string to a linter. E-Check turns on the difference.
+    const c = base({ franchiseId: "echeck_escape_room", factSources: ["some blog I read"], factSourceTypes: [] });
+    const f = runDuaGate(c).blocking.find((x) => x.code === "FRANCHISE_EVIDENCE_MISSING");
+    expect(f).toBeDefined();
+    // Distinguish the two branches: "declares no source TYPES" is a different
+    // failure from "declares the wrong ones", and only asserting the code makes
+    // the empty-set branch an equivalent mutant.
+    expect(f!.detail).toContain("declares no source TYPES");
+  });
+
+  it("BLOCKS when the declared types do not include what the franchise requires", () => {
+    const c = base({
+      franchiseId: "echeck_escape_room",
+      factSources: ["a tire forum"],
+      factSourceTypes: ["verified_review"],
+    });
+    const f = runDuaGate(c).blocking.find((x) => x.code === "FRANCHISE_EVIDENCE_MISSING");
+    expect(f).toBeDefined();
+    expect(f!.detail).toContain("declares only verified_review");
+  });
+
+  it("PASSES once the required evidence type is declared", () => {
+    const c = base({
+      franchiseId: "echeck_escape_room",
+      factSources: ["Ohio EPA E-Check program"],
+      factSourceTypes: ["government_source"],
+    });
+    expect(codes(c)).not.toContain("FRANCHISE_EVIDENCE_MISSING");
+  });
+
+  it("asks nothing of a concept with no franchise", () => {
+    expect(codes(base({ franchiseId: undefined }))).not.toContain("FRANCHISE_EVIDENCE_MISSING");
   });
 });

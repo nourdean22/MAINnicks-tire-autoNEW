@@ -42,7 +42,7 @@
  *
  * Pure: no DB, no network, no clock, no side effects.
  */
-import { FRANCHISES, type FranchiseId } from "./contentFranchises";
+import { FRANCHISES, type FranchiseId, type EvidenceRequirement } from "./contentFranchises";
 import { BRAND_CAST, type BrandCharacterId } from "./brandBible";
 import { requiresAiDisclosure, type DisclosureMode } from "./episodeContract";
 import { ABSURDITY_CONCEPTS } from "./absurdityConcepts";
@@ -345,6 +345,14 @@ export interface DuaConcept {
   usefulFact: string;
   /** Proof-source labels for `usefulFact`. Empty means unverified, which blocks. */
   factSources: readonly string[];
+  /**
+   * What KIND of source each label is. Required once a franchise declares
+   * `requiredEvidence`, because a label is just a string: "Ohio EPA" and
+   * "some blog I read" are indistinguishable to a linter, and E-Check and
+   * recall episodes turn on the difference. Absent means the evidence contract
+   * cannot be checked, which BLOCKS rather than passing quietly.
+   */
+  factSourceTypes?: readonly EvidenceRequirement[];
 
   brandConnection: string;
   audienceParticipation: string;
@@ -616,7 +624,8 @@ export type DuaBlockCode =
   | "LAYER_BOUNDARY_VIOLATION"
   | "GENERATED_WITHOUT_DISCLOSURE"
   | "UNKNOWN_ROLE"
-  | "FRANCHISE_BLOCKING_CONDITION";
+  | "FRANCHISE_BLOCKING_CONDITION"
+  | "FRANCHISE_EVIDENCE_MISSING";
 
 export type DuaWarnCode = "ABSURDITY_BELOW_BAND" | "NO_EVIDENCE_LAYER" | "AI_DISCLOSURE_REQUIRED";
 
@@ -1078,6 +1087,33 @@ export function runDuaGate(concept: DuaConcept, opts: DuaGateOptions = {}): DuaG
     if (!franchise) {
       push("block", "FRANCHISE_BLOCKING_CONDITION", "franchiseId", `"${concept.franchiseId}" is not a registered franchise.`);
     } else {
+      // requiredEvidence was declared for all twelve shows and compared against
+      // nothing. `factSources` accepts any nonblank string, so a regulatory
+      // episode backed by an arbitrary blog label returned "pass" — the
+      // franchise's own evidence contract was decorative. Fails CLOSED: an
+      // undeclared source type is unverifiable, not acceptable.
+      if (franchise.requiredEvidence.length > 0) {
+        const declared = new Set(concept.factSourceTypes ?? []);
+        if (declared.size === 0) {
+          push(
+            "block",
+            "FRANCHISE_EVIDENCE_MISSING",
+            "factSourceTypes",
+            `${franchise.name} requires ${franchise.requiredEvidence.join(" or ")} evidence, and this concept declares no source TYPES — only free-text labels, which cannot be checked.`,
+          );
+        } else {
+          const missing = franchise.requiredEvidence.filter((r) => !declared.has(r));
+          if (missing.length === franchise.requiredEvidence.length) {
+            push(
+              "block",
+              "FRANCHISE_EVIDENCE_MISSING",
+              "factSourceTypes",
+              `${franchise.name} requires ${franchise.requiredEvidence.join(" or ")} evidence; this concept declares only ${[...declared].join(", ")}.`,
+            );
+          }
+        }
+      }
+
       for (const condition of franchise.blockingConditions) {
         const hit = matchesBlockingCondition(condition, concept);
         if (hit) {

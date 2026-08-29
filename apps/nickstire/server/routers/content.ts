@@ -1684,6 +1684,38 @@ export const contentAdminRouter = router({
           framePrompt: z.string().max(4000),
           lockedInvariants: z.string().max(4000),
         }).optional(),
+        // Authored DUA concept. zod strips unknown keys, so without this the
+        // field is dropped at the transport boundary and the FULL gate branch in
+        // runReelPreflight is unreachable on this route: invented measurements,
+        // layer/disclosure violations and franchise conditions all disappear
+        // while relevance silently degrades to an advisory warning. Same defect
+        // class as the visualWorld and genomeId strips above.
+        dua: z.object({
+          id: z.string().max(200),
+          franchiseId: z.string().max(80).optional(),
+          absurdityType: z.string().max(80),
+          absurdityLevel: z.number().int().min(0).max(5),
+          levelOptIn: z.boolean().optional(),
+          subject: z.string().max(40),
+          violation: z.string().max(2000),
+          benignResolution: z.string().max(2000),
+          usefulFact: z.string().max(2000),
+          factSources: z.array(z.string().max(400)).readonly(),
+          factSourceTypes: z.array(z.string().max(60)).readonly().optional(),
+          brandConnection: z.string().max(2000),
+          audienceParticipation: z.string().max(2000),
+          visualMetaphor: z.string().max(2000),
+          audioMetaphor: z.string().max(2000),
+          payoff: z.string().max(2000),
+          disclosureMode: z.string().max(60).optional(),
+          roles: z.array(z.string().max(60)).readonly().optional(),
+          assets: z.array(z.object({
+            id: z.string().max(200),
+            layer: z.string().max(40),
+            origin: z.string().max(40),
+            description: z.string().max(1000),
+          })).readonly().optional(),
+        }).optional(),
         motionLens: z.string(),
         objectCharacter: z.string(),
         archetype: z.string(),
@@ -1776,6 +1808,9 @@ export const contentAdminRouter = router({
         motionLens: brief.motionLens,
         objectCharacter: brief.objectCharacter,
         archetype: brief.archetype,
+        // Must survive the whitelist for the same reason it must survive zod:
+        // stripping it here makes the authored DUA gate unreachable downstream.
+        dua: (brief as any).dua,
         // Campaign lineage + approved visual world MUST survive the whitelist:
         // omitting them here silently stripped genomeId (review P2) and the
         // hero-frame URL before inventory + reel_jobs persistence.

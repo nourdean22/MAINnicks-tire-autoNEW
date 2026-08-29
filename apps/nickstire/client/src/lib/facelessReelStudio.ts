@@ -1015,9 +1015,14 @@ export function runReelDuaChecks(brief: ReelBrief): PreflightFinding[] {
     message: `dua/${f.code} (${f.where}): ${f.detail}`,
   });
 
+  // The authored gate runs IN ADDITION TO the stated-surface checks, never
+  // instead of them. An early return here meant a clean or STALE concept
+  // exempted the shipping copy: edit the caption afterwards to ridicule the
+  // driver or to claim a lab confirmed a failure, and nothing would look at it.
+  // The concept describes intent; the caption, voiceover and beats are what
+  // actually ships, and REAL_EVENT_ASSERTED has to see them either way.
   if (brief.dua) {
     for (const f of runDuaGate(brief.dua).findings) out.push(asFinding(f));
-    return out;
   }
 
   const winner = brief.concepts.find((c) => c.id === brief.winningConceptId) ?? brief.concepts[0];
