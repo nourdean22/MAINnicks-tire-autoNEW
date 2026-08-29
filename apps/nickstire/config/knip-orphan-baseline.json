@@ -1,0 +1,5010 @@
+{
+  "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
+  "entries": [
+    {
+      "file": "apps/nickstire/shared/bridgeShapes.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentContinuityQa.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/customerDimension.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/duaFranchiseKits.ts",
+      "symbol": null,
+      "reason": "UNWIRED BY ACCIDENT. Audio palettes, vocabulary and participation asks for all 12 franchises; nothing imports the file at all. Authoring reference today; wiring into reelBriefGen prompt assembly is the fix."
+    },
+    {
+      "file": "apps/nickstire/shared/global-faq.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/internalLinks.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/journey.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/metricsContract.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelVoiceCraft.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/serviceCityCombinator.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/types.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/analytics.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cache.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/security-audit.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/CallbackModal.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ComparisonTable.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/Map.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/SkylineDivider.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/TrustStrip.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/hooks/useMobile.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/analytics.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/commentTriage.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudioSamples.ts",
+      "symbol": null,
+      "reason": "TEST FIXTURE DATA by design — sample briefs consumed only by tests, which this config excludes as consumers. Kept deliberately as named fixtures."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudioSamples.ts",
+      "symbol": null,
+      "reason": "TEST FIXTURE DATA by design — sample carousels consumed only by tests. Kept deliberately as named fixtures."
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/HomeLegacy.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/TireFinderLegacy.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/data/backlinkTargets.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/middleware/errorHandler.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/middleware/performanceMonitor.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/middleware/requestLogger.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/criticPanel.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/editPlanner.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/financingPreQual.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/invoiceGenerator.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/portfolioBalancer.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/quoteEngine.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reuseDecision.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reviewMonitor.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/sentimentAnalysis.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/storyPhotoDirector.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voice-clone.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceDemandClassifier.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/testUtils/sourceAssertions.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/voiceTranscription.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/AdminAlertBar.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/DecoyPricingTable.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/EmailNewsletterCapture.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/ExitIntentModal.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/FeeComparisonTable.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/FrictionlessIntentPanel.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/conversion/UsedTireTrustProtocol.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/payments/AcimaLeaseStrip.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/accordion.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/alert-dialog.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/aspect-ratio.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/avatar.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/breadcrumb.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/button-group.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/calendar.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/carousel.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/chart.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/checkbox.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/collapsible.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/command.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/context-menu.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/drawer.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/field.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/form.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/hover-card.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/input-group.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/input-otp.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/item.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/kbd.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/label.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/menubar.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/navigation-menu.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/pagination.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/popover.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/progress.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/radio-group.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/resizable.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/scroll-area.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/select.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/separator.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/sheet.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/sidebar.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/slider.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/switch.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/table.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/toggle-group.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/toggle.tsx",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/crossSellOutreach.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselStudio/carouselRender.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/types/manusTypes.ts",
+      "symbol": null,
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "HEAVY_SYNC_COOLDOWN_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "evaluateHeavySync",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "VapiDropoffInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "VapiCallbackInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "mapDropoffToBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "mapCallbackToRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/bridge-routes.ts",
+      "symbol": "mapCustomerToLookup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/health.ts",
+      "symbol": "AI_DOWN_FALLBACK_MESSAGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "registerRecoveryAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "registerSmartRecoveryAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "stopSelfHealing",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "getCurrentState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "ValidationError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "DatabaseError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "AIError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "RateLimitError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "AuthError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/errors.ts",
+      "symbol": "NotFoundError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/scheduler.ts",
+      "symbol": "reelPipelineCronShouldFailLoudly",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/scheduler.ts",
+      "symbol": "shopDayStartMs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/scheduler.ts",
+      "symbol": "hasRunThisShopDay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/scheduler.ts",
+      "symbol": "unarmedFlagReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/scheduler.ts",
+      "symbol": "stopTieredScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/storage.ts",
+      "symbol": "publicObjectUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/storage.ts",
+      "symbol": "storageGet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/routes.ts",
+      "symbol": "ALL_ROUTES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/content-generator.ts",
+      "symbol": "generateNotifications",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/content-generator.ts",
+      "symbol": "saveGeneratedNotifications",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/redirects.ts",
+      "symbol": "REDIRECTED_PATHS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/redirects.ts",
+      "symbol": "REDIRECTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/redirects.ts",
+      "symbol": "canonicalPathMiddleware",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/vapi.ts",
+      "symbol": "extractEndedReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/vapi.ts",
+      "symbol": "isForwardedEndedReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/vapi.ts",
+      "symbol": "shouldSendForwardedFollowup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/meta.ts",
+      "symbol": "verifyMetaSignature",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/meta.ts",
+      "symbol": "hasCommentChange",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routes/webhooks/meta.ts",
+      "symbol": "__resetWebhookStateForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/payments.ts",
+      "symbol": "classifyStripeHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/membership-guards.ts",
+      "symbol": "MEMBERSHIP_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "ONE_YEAR_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "AXIOS_TIMEOUT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "GBP_PLACE_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "GBP_DIRECTIONS_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "GBP_CID",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "GBP_EMBED_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/const.ts",
+      "symbol": "STORE_ADDRESS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/messengerBot.ts",
+      "symbol": "sendMessengerReply",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "LocalTimeoutError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "isLocalTimeout",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "withTimeout",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "terminalPaidFailureIsNeedsRegen",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "INSTAGRAM_CAPTION_LIMIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/mediaRegistry.ts",
+      "symbol": "registerAsset",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "metaTitleLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "metaDescriptionLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "noBannedPhrases",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "noEmojis",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "sectionsCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "sectionsContentLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "relatedServicesCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "tagsCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "clevelandAnchorPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "specificNumberAnchorPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "brakeInsiderVocabPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "concessionFirstPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "ALL_CRITERIA",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiCallClassifier.ts",
+      "symbol": "detectIntents",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "PUBLISH_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "DISABLED_REASON",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "CONCEPT_SCORE_MAX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "FEARMONGER_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "GENERIC_MARKETING_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "PRICE_CLAIM_PATTERN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateExactlyFiveSlides",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateSourceGrounding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateNoExternalSideEffects",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "scoreConcept",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "runSafetyChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "buildRepetitionChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "buildCaptionChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "buildPublishChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudio.ts",
+      "symbol": "canPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "VOICE_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "VOICE_RECIPE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "ABSURDITY_RATIO",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "SURFACE_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "CTA_LIBRARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "renderVoiceRulesForPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/voice.ts",
+      "symbol": "KILL_RULE_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/registry-tier-map.ts",
+      "symbol": "extractDisabledTierJobNames",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "SAFE_AREA_MARGIN_PCT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "absoluteClaims",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "hasUnqualifiedPrice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "copyContainsAsk",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "isHomepageDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "destinationBlocker",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPromotability.ts",
+      "symbol": "isPromotable",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/const.ts",
+      "symbol": "COOKIE_NAME",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/const.ts",
+      "symbol": "ONE_YEAR_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "preserveLiveTransferDestinations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "FIRST_MESSAGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "VAPI_TOOLS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "FOLLOW_UP_SYSTEM_PROMPT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "FOLLOW_UP_FIRST_MESSAGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapi.ts",
+      "symbol": "buildFollowUpAssistantConfig",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/resolutionJudge.ts",
+      "symbol": "RESOLUTION_JUDGE_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/resolutionJudge.ts",
+      "symbol": "buildJudgePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/resolutionJudge.ts",
+      "symbol": "renderDialogue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/resolutionJudge.ts",
+      "symbol": "parseJudgeVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsCorpusTurns.ts",
+      "symbol": "attributeResponder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsCorpusTurns.ts",
+      "symbol": "buildConversationTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gsc-data.ts",
+      "symbol": "fetchSearchPerformance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gsc-data.ts",
+      "symbol": "syncSearchPerformance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gsc-data.ts",
+      "symbol": "detectSeasonalPatterns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/declinedWorkRecovery.ts",
+      "symbol": "RECOVERY_EXPERIMENT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/declinedWorkRecovery.ts",
+      "symbol": "recoveryArmForEstimate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "CREATIVE_ROLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "JUDGE_RUBRIC",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "HARD_REJECT_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "CONCEPT_JUDGE_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "anonymizeConcepts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "resolveWinner",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/conceptTournament.ts",
+      "symbol": "parseSingleVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/episodeClaims.ts",
+      "symbol": "noteToHandle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/episodeContract.ts",
+      "symbol": "EPISODE_CONTRACT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/episodeContract.ts",
+      "symbol": "CAPTION_LIMIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/episodeContract.ts",
+      "symbol": "PENDING_WIRING",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/db-helper.ts",
+      "symbol": "requireDb",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldApiClient.ts",
+      "symbol": "higgsfieldApiCredentialsFromEnv",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldApiClient.ts",
+      "symbol": "REEL_CLIP_DEFAULTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "combinePromptWithNegative",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "buildSeedanceArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldStudio.ts",
+      "symbol": "materializeStartImage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/veoStudio.ts",
+      "symbol": "buildVeoRequestBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/promptEvolution.ts",
+      "symbol": "SUCCESS_OUTCOMES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/autonomyControl.ts",
+      "symbol": "autonomyPolicyStrictSchema",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/autonomyControl.ts",
+      "symbol": "clearPolicyCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/autonomyControl.ts",
+      "symbol": "authorize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/dataPipelines.ts",
+      "symbol": "persistPriceFloorSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "GENERATIVE_PROVIDERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "isGenerated",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "hasDisclosure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "realEvidenceClaims",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDisclosure.ts",
+      "symbol": "clipProvenance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelShadowReadout.ts",
+      "symbol": "SHADOW_JUDGE_ROLLOUT_DATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelShadowReadout.ts",
+      "symbol": "shadowJudgeEligibility",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelShadowReadout.ts",
+      "symbol": "isPublished",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsOrchestrator.ts",
+      "symbol": "priorMessagesForInbound",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsOrchestrator.ts",
+      "symbol": "isRepeatedInbound",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsOrchestrator.ts",
+      "symbol": "loadCustomerContext",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "setRuntimePageToken",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "__resetMetaLiveCacheForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "pollContainerReady",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "socialPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "parseInsights",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "GHOST_AGENT_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "RESOLUTION_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "PRICE_LEAK_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "GUARANTEE_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/ghostReplay.ts",
+      "symbol": "PROMPT_INVARIANTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/cities.ts",
+      "symbol": "getCityBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "PRODUCTION_LOUDNESS_LUFS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "BUS_DEFAULTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "DUCKING_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "applicableRules",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "mixProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "buildMixFragments",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAudioMix.ts",
+      "symbol": "emittedDelaySec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTimeline.ts",
+      "symbol": "REVEAL_FUNCTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTimeline.ts",
+      "symbol": "cutOverlaps",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTimeline.ts",
+      "symbol": "MIN_MEANINGFUL_OVERLAP_SEC",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTimeline.ts",
+      "symbol": "musicAlignmentProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTimeline.ts",
+      "symbol": "silenceBudgetSec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/mp4Ingest.ts",
+      "symbol": "MP4_INGEST_FLAG",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/mp4Ingest.ts",
+      "symbol": "looksLikeMp4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/classifiers.ts",
+      "symbol": "screenPromptInjection",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/classifiers.ts",
+      "symbol": "NICKSTIRE_SMS_INTENT_LABELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/classifiers.ts",
+      "symbol": "checkClassifierHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nickgpt-client.ts",
+      "symbol": "buildCustomerMemoryPreamble",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nickgpt-client.ts",
+      "symbol": "checkNickGptHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/documentRetrieval.ts",
+      "symbol": "extractReadableText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/claimEntailment.ts",
+      "symbol": "entailmentAllowsAutonomousPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverEstimateSync.ts",
+      "symbol": "MATCH_WINDOW_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverEstimateSync.ts",
+      "symbol": "MATCH_AMOUNT_TOLERANCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverEstimateSync.ts",
+      "symbol": "backfillMatches",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverEstimateSync.ts",
+      "symbol": "getEstimateSyncStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentGovernor.ts",
+      "symbol": "consumeReservation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/workOrderService.ts",
+      "symbol": "generateWorkOrderNumber",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/workOrderService.ts",
+      "symbol": "getActiveWorkOrders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "getVendorSLA",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "getVendorCosts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "startContinuousMonitoring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vendorHealth.ts",
+      "symbol": "stopContinuousMonitoring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/promiseRisk.ts",
+      "symbol": "getAtRiskJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nickIntelligence.ts",
+      "symbol": "checkPredictiveEscalations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reportIngestion.ts",
+      "symbol": "parseTotalSalesReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reportIngestion.ts",
+      "symbol": "parseTechReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reportIngestion.ts",
+      "symbol": "parseLaborReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reportIngestion.ts",
+      "symbol": "parsePartsReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reportIngestion.ts",
+      "symbol": "generateAnalytics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverMirror.ts",
+      "symbol": "getDataStaleDays",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shopDriverMirror.ts",
+      "symbol": "nameKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "registerJob",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "startAllJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "registerAllJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/revenuePrediction.ts",
+      "symbol": "predictRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/snapFinanceSync.ts",
+      "symbol": "recordFinancingPayment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "TERMINAL_STATES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "canTransition",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "rankOpportunity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "classifyOutcomeMatch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "resolveEstimateIdentity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectUnapprovedEstimates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectPendingCallbacks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectMissedCalls",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectStaleLeads",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectNoShowBookings",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectOverdueHumanPending",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectAbandonedForms",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "summarizeInspectionForQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "collectInspectionDeferrals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityQueue.ts",
+      "symbol": "reconcileOpportunities",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityDraft.ts",
+      "symbol": "buildDraftBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityDraft.ts",
+      "symbol": "bestChannelFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/opportunityDraft.ts",
+      "symbol": "riskLabelFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/auditTrail.ts",
+      "symbol": "getAuditTrail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/socialDeliveryIssues.ts",
+      "symbol": "deriveDeliveryIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/socialDeliveryIssues.ts",
+      "symbol": "gatherDeliveryFacts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/igAutopost.ts",
+      "symbol": "invokeLLMForPosting",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/igAutopost.ts",
+      "symbol": "normalizeHashtags",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/igAutopost.ts",
+      "symbol": "PROMPT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/igAutopost.ts",
+      "symbol": "parseJsonObject",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/abandonedForms.ts",
+      "symbol": "isEligibleForRecovery",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/abandonedForms.ts",
+      "symbol": "getAbandonedFormStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/abandonedForms.ts",
+      "symbol": "__resetPartialsForTest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cwv-telemetry.ts",
+      "symbol": "resetCwvBuffer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "PUBLISH_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "GENERATION_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "INSIGHTS_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "DISABLED_REASON",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "CONCEPT_SCORE_MAX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "FORBIDDEN_CLAIM_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "OVERDIAGNOSIS_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "FEARMONGER_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "GENERIC_MARKETING_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "PRICE_CLAIM_PATTERN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectOverdiagnosis",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectFearmongering",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "detectFabricatedStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateHashtagCap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateReelLengthTarget",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateBeatCount",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateFacelessSubject",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateNoInFrameText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateLoopPlan",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateSourceGrounding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateNoExternalSideEffects",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "scoreReelConcept",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "runSafetyChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "runReelDuaChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildReelContinuityBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "FACELESS_CLEAN_SCENE_DIRECTIVE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "facelessCleanSceneDirective",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "transformToProviderSafeScene",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "compileProviderScene",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildFfmpegChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildInstagramPublishChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildArchiveChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "canPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "canGenerateVideo",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "canAssembleMp4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "canReadInsights",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "extractReelFrames",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "buildContactSheet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "clampVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/renderedQa.ts",
+      "symbol": "evaluateRenderedReel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/postQaOrchestrator.ts",
+      "symbol": "publishGateForDecision",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/photo-assess-pipeline.ts",
+      "symbol": "photoReplyViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/photo-assess-pipeline.ts",
+      "symbol": "DEFAULT_REPLIES_FOR_TEST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRecoverability.ts",
+      "symbol": "classifyRecoverability",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRecoverability.ts",
+      "symbol": "ATTENTION_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRecoverability.ts",
+      "symbol": "FAILED_ATTENTION_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "DRIVE_TOKEN_ROW",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "DRIVE_SCOPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "VAULT_ROOT_NAME",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "getDriveAccessToken",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "_resetTokenCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "driveFindByAssetId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "driveGetFile",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "driveEnsureFolder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "driveUploadBuffer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "ensureRootWorkspace",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "uploadManifest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeVault.ts",
+      "symbol": "reconcileVault",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-gateway.ts",
+      "symbol": "aiGateway",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-gateway.ts",
+      "symbol": "aiChat",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-gateway.ts",
+      "symbol": "aiClassify",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-gateway.ts",
+      "symbol": "aiSummarize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/trpc.ts",
+      "symbol": "__seenProceduresForTest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/index.ts",
+      "symbol": "proposalsRouter",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/instagramStudio.ts",
+      "symbol": "computeStudioItemState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selfHealing.ts",
+      "symbol": "HEALTH_ISSUE_CATEGORIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selfHealing.ts",
+      "symbol": "ISSUE_DELIVERY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selfHealing.ts",
+      "symbol": "__resetAlertThrottleForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selfHealing.ts",
+      "symbol": "selectAlertableIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selfHealing.ts",
+      "symbol": "cronStalenessIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "PROPOSAL_TRANSITIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "canTransition",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "REVIEWABLE_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "createCallbackPayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "createBookingRequestPayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/proposals.ts",
+      "symbol": "getExecutor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/observer.ts",
+      "symbol": "shouldAlertNow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/observer.ts",
+      "symbol": "excludeStagedJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/observer.ts",
+      "symbol": "observedRunFromCronRows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/observer.ts",
+      "symbol": "runLoopShapeCheck",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/cameraProxy.ts",
+      "symbol": "getAllCameras",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/cameraProxy.ts",
+      "symbol": "getViewableUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/appointmentReminders.ts",
+      "symbol": "processAppointmentReminders2h",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/workOrderAutomation.ts",
+      "symbol": "autoCreateWorkOrderFromBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/humanPendingAlerts.ts",
+      "symbol": "composeOverdueAlert",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/humanPendingAlerts.ts",
+      "symbol": "__resetAlertThrottle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/intelligenceEngines.ts",
+      "symbol": "analyzeUnmatchedAlgEstimates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/intelligenceEngines.ts",
+      "symbol": "analyzeGeographicRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/intelligenceEngines.ts",
+      "symbol": "analyzeServiceBundles",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/selectiveRepair.ts",
+      "symbol": "buildRepairPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "MANIFEST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "buildReelShadowJudgeInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/commentResponder.ts",
+      "symbol": "draftCommentReply",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/commentResponder.ts",
+      "symbol": "matchCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/commentResponder.ts",
+      "symbol": "collectActiveCampaignKeywords",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/morningBrief.ts",
+      "symbol": "DECISIONS_UNAVAILABLE_READ_FAILED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/morningBrief.ts",
+      "symbol": "buildDecisionsBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/dripProcessor.ts",
+      "symbol": "checkExistingEnrollment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/winbackProcessor.ts",
+      "symbol": "withOptOutNotice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "checkFinancialSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "checkReputationSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "checkOperationalSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "checkDataSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "checkComplianceSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/safetyMonitor.ts",
+      "symbol": "runFullSafetyCheck",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/followupCadence.ts",
+      "symbol": "nextDueTouch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/promiseLedger.ts",
+      "symbol": "PROMISE_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/promiseLedger.ts",
+      "symbol": "classifyOverdue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsLearningEngine.ts",
+      "symbol": "trackConversionOutcome",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsLearningEngine.ts",
+      "symbol": "sendDailySmsReportToTelegram",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsLearningEngine.ts",
+      "symbol": "stageNexusDefectForTraining",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/failover.ts",
+      "symbol": "checkEngineHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/failover.ts",
+      "symbol": "getEngineHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "symbol": "firstName",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "symbol": "buildMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/fleetScoring.ts",
+      "symbol": "scoreFleetProspect",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/competitorMonitor.ts",
+      "symbol": "buildAlertKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/competitorMonitor.ts",
+      "symbol": "detectChanges",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/competitorMonitor.ts",
+      "symbol": "buildPositionReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpAutoPost.ts",
+      "symbol": "createSpecialPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpAutoPost.ts",
+      "symbol": "createBlogPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpAutoPost.ts",
+      "symbol": "createSeasonalPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/emailCampaigns.ts",
+      "symbol": "personalizeEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/emailCampaigns.ts",
+      "symbol": "CAMPAIGN_TEMPLATES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/emailCampaigns.ts",
+      "symbol": "createCampaign",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
+      "symbol": "analyzeObjections",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
+      "symbol": "getServicePaymentBreakdown",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/pricingIntelligence.ts",
+      "symbol": "getObjectionCoaching",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "runPipeline",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "runAllPipelines",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "getPipelineStatuses",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "getDashboard",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "getPipelineHistory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/orchestrator.ts",
+      "symbol": "getRecentRuns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "fetchRecentReviews",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "analyzeReview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "suggestResponse",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "extractKeywords",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "detectTrends",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "checkReviewVolume",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "monitorCompetitors",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "getPipelineReviews",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/gbp-reviews.ts",
+      "symbol": "getTrendHistory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/liveFeed.ts",
+      "symbol": "notifyRevenueMilestone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/liveFeed.ts",
+      "symbol": "trackReferral",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/liveFeed.ts",
+      "symbol": "trackVipVisit",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/liveFeed.ts",
+      "symbol": "registerLiveFeedListeners",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/liveFeed.ts",
+      "symbol": "getLiveFeedStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/journeyTracker.ts",
+      "symbol": "getJourneySummary",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/pushNotifications.ts",
+      "symbol": "sendPush",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/pushNotifications.ts",
+      "symbol": "pushToCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/phone.ts",
+      "symbol": "formatPhoneDisplay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/phone.ts",
+      "symbol": "phonesEqual",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nonCustomerFilter.ts",
+      "symbol": "INTERNAL_LINES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nonCustomerFilter.ts",
+      "symbol": "exclusionReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nonCustomerFilter.ts",
+      "symbol": "isNonCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/nonCustomerFilter.ts",
+      "symbol": "exclusionNote",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsControl.ts",
+      "symbol": "getGlobalDailyCap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/declinedWorkSource.ts",
+      "symbol": "sourceStateFrom",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/tireSizes.ts",
+      "symbol": "getAllTireSizeSlugs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/aiReceptionist.ts",
+      "symbol": "classifyVoiceIntent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/recoveryReplyCapture.ts",
+      "symbol": "isRecoveryVariant",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiConversionSignals.ts",
+      "symbol": "scoreBand",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiConversionSignals.ts",
+      "symbol": "isConvertedScore",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/customerTurns.ts",
+      "symbol": "MAX_TURNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/customerTurns.ts",
+      "symbol": "MAX_TURN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/customerTurns.ts",
+      "symbol": "extractCustomerTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "extractAssistantTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "extractAssistantTurnsFromMessages",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "PROHIBITED_VOICE_CLAIMS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "BOT_TELLS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "botTellViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "voiceClaimViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/voiceClaimGuard.ts",
+      "symbol": "VOICE_CLAIM_GUARD_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "VAPI_EXTRACT_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "ACTIONABLE_OUTCOMES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "isOutboundCall",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "shouldExtract",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "buildExtractionPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "parseExtraction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiActionExtraction.ts",
+      "symbol": "buildProposalInputs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "getEmailStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "bookingConfirmationTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "followUpTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "reviewRequestTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "newsletterTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "sendBookingConfirmationEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "sendFollowUpEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/email-notify.ts",
+      "symbol": "sendReviewRequestEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/sanitize.ts",
+      "symbol": "sanitizeMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/sanitize.ts",
+      "symbol": "sanitizeFormData",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "SAVE_FREEZE_SECONDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "sanitizeCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "wrapCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "captionFontSize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "CAPTION_SAFE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "estimateCaptionWidthPx",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "capFontSizeToSafeWidth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "briefToSegments",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "segmentsTotalSeconds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "evaluateRenderIntegrity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "buildFfmpegArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "resolveFontPath",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "resolveReelFontPath",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "parseSilencedetect",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "evaluateAudioIntegrity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "pickMusicBed",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "CONTENT_DISTRIBUTION_OBJECTIVES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "DISTRIBUTION_OBJECTIVE_METRICS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "CTA_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "CONTENT_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "EVIDENTIARY_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/instagramStudio.ts",
+      "symbol": "INSTAGRAM_FORMAT_LABELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelVideoPrompt.ts",
+      "symbol": "PROMPT_BLOCKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelVideoPrompt.ts",
+      "symbol": "REQUIRED_BLOCKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelVideoPrompt.ts",
+      "symbol": "promptShapeProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/generationLedger.ts",
+      "symbol": "VEO_DEFAULT_CLIP_SECONDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/generationLedger.ts",
+      "symbol": "spendSinceUsd",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/generationLedger.ts",
+      "symbol": "campaignSpendUsd",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentExperimentStore.ts",
+      "symbol": "assignEpisode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentExperimentStore.ts",
+      "symbol": "attachPublishedMedia",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentExperimentStore.ts",
+      "symbol": "gatherObservations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/templateStockStudio.ts",
+      "symbol": "motionForBeat",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/templateStockStudio.ts",
+      "symbol": "TEMPLATE_CLIP_TIMEOUT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/templateStockStudio.ts",
+      "symbol": "buildBeatClipArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/providerErrors.ts",
+      "symbol": "ERROR_CLASS_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/providerErrors.ts",
+      "symbol": "PROVIDER_ERROR_CLASSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiMeasurement.ts",
+      "symbol": "VAPI_FACTS_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiMeasurement.ts",
+      "symbol": "VAPI_METRIC_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDestinations.ts",
+      "symbol": "DEPLOYED_DESTINATIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDestinations.ts",
+      "symbol": "ALLOWED_ORIGIN_HOSTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDestinations.ts",
+      "symbol": "normalizeDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDestinations.ts",
+      "symbol": "isDeployedDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelDestinations.ts",
+      "symbol": "suggestDestinations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/EmergencyMode.tsx",
+      "symbol": "EmergencyMode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/tooltip.tsx",
+      "symbol": "Tooltip",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/tooltip.tsx",
+      "symbol": "TooltipTrigger",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/tooltip.tsx",
+      "symbol": "TooltipContent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/SpecialsPage.tsx",
+      "symbol": "mapDbCouponToSpecial",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/TireFinder.tsx",
+      "symbol": "OrderModal",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/ollamaScheduler.ts",
+      "symbol": "schedulerSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/_core/ollamaScheduler.ts",
+      "symbol": "__resetSchedulerForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vapiCallArchive.ts",
+      "symbol": "buildArchivePayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/recoveryTargeting.ts",
+      "symbol": "buildPersonalizedRecoveryMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeGenome.ts",
+      "symbol": "genomeFromCarouselBrief",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeGenome.ts",
+      "symbol": "TERRITORY_TO_REEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/evidenceRecords.ts",
+      "symbol": "EVIDENCE_TTL_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/evidenceRecords.ts",
+      "symbol": "isEvidenceRecordLive",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/leadSource.ts",
+      "symbol": "isOperationalCallerLead",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/leadSource.ts",
+      "symbol": "leadSourceLabel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/higgsfieldBinary.ts",
+      "symbol": "HIGGSFIELD_CLI_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/publicFetch.ts",
+      "symbol": "assertPublicIPv4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/publicFetch.ts",
+      "symbol": "embeddedIPv4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/publicFetch.ts",
+      "symbol": "assertPublicIPv6",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/publicFetch.ts",
+      "symbol": "assertPublicHttpUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/autonomyPolicy.ts",
+      "symbol": "OPERATING_MODE_ORDER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gatewayClient.ts",
+      "symbol": "GATEWAY_API_BASE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gatewayClient.ts",
+      "symbol": "gatewayFetch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/tirePriceRanges.ts",
+      "symbol": "CACHE_ROWS_PER_SIZE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsReplyPlanner.ts",
+      "symbol": "GLOBAL_PROHIBITED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsMessageCatalog.ts",
+      "symbol": "TEMPLATE_VARIANTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/expectedArrivals.ts",
+      "symbol": "toShopDateStr",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/expectedArrivals.ts",
+      "symbol": "parseExpectedDate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/sms-scheduler.ts",
+      "symbol": "scheduleBookingReminders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/sms-scheduler.ts",
+      "symbol": "schedulePostServiceReminders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/sms-scheduler.ts",
+      "symbol": "startSmsScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/sms-scheduler.ts",
+      "symbol": "stopSmsScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reviewReplyQa.ts",
+      "symbol": "REPLY_BLOCK_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reviewReplyQa.ts",
+      "symbol": "REPLY_WARN_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/audioQa.ts",
+      "symbol": "AUDIO_DELIVERY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/audioQa.ts",
+      "symbol": "parseLoudnorm",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/audioQa.ts",
+      "symbol": "detectClipping",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/audioQa.ts",
+      "symbol": "composeAudioVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentApprovals.ts",
+      "symbol": "computeMediaHash",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentApprovals.ts",
+      "symbol": "computeBriefHash",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/operatorOverride.ts",
+      "symbol": "OVERRIDE_TTL_HOURS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/operatorOverride.ts",
+      "symbol": "OVERRIDABLE_SEVERITIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/operatorOverride.ts",
+      "symbol": "isOverridableFinding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/operatorOverride.ts",
+      "symbol": "revokeOperatorOverride",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/phoneIdentity.ts",
+      "symbol": "samePhone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/phoneIdentity.ts",
+      "symbol": "PHONE_MATCH_MIN_DIGITS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/nick/utils.ts",
+      "symbol": "FINANCING_OPTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/nick/utils.ts",
+      "symbol": "BAY_MAP",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/_core/errors.ts",
+      "symbol": "HttpError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/_core/errors.ts",
+      "symbol": "BadRequestError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/_core/errors.ts",
+      "symbol": "UnauthorizedError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/_core/errors.ts",
+      "symbol": "NotFoundError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "registerSSERoutes",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "emitToAdmin",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "emitNewLead",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "emitNewBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "emitNewReview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "emitOrderStatusUpdate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/realtime.ts",
+      "symbol": "getRealtimeStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliation.ts",
+      "symbol": "RECONCILIATION_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueReconciliation.ts",
+      "symbol": "LEGACY_BACKFILL_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/loopShapeContract.ts",
+      "symbol": "getLoopContract",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/loopShapeContract.ts",
+      "symbol": "findActionable",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_RECENCY_POINTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_DECLINED_POINTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_AFFINITY_SCORE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "MIN_OBSERVATIONS_TO_SCORE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "TOO_RECENT_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "recencyPoints",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "declinedPoints",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/affinityScoring.ts",
+      "symbol": "legacyConfidence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/shared.ts",
+      "symbol": "SERVICE_CATEGORIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/instagram-data.ts",
+      "symbol": "pickTopThemes",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/instagram-data.ts",
+      "symbol": "MIN_REEL_SIGNAL_ROWS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/creativeFingerprint.ts",
+      "symbol": "fingerprint",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vision-analyzer.ts",
+      "symbol": "checkVisionHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "describeNonJsonContent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "PROTECTED_BRIEF_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "applyCriticPreservingTruth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualWorld.ts",
+      "symbol": "STYLE_DIRECTIVES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualWorld.ts",
+      "symbol": "buildReferenceFramePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualWorld.ts",
+      "symbol": "compileLockedInvariants",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualWorld.ts",
+      "symbol": "visualWorldFromCandidate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "DUA_MODEL_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ABSURDITY_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ABSURDITY_TYPE_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ABSURDITY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ABSURDITY_BAND",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ABSURDITY_LEVEL_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "VISUAL_LAYERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "ASSET_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "LAYER_CONTRACT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "DUA_ROLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "DUA_ROLE_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "mechanismTerms",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "RELEVANCE_SURFACES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "RELEVANCE_MIN_SURFACES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "RELEVANCE_MIN_TERMS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "readRelevance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "SWAP_NEAR_DUPLICATE_WEIGHT_RATIO",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "buildSwapCorpus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "probeFrameSwap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "DUA_SEED_FACTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "DUA_SEED_CORPUS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "frameSurfaces",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectInventedMeasurements",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectFabricatedVerdicts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectFabricatedEvidenceIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectCustomerHumiliationIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectSafetyTrivialisationIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectFabricatedEvidence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectCustomerHumiliation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectSafetyTrivialisation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "REAL_EVENT_GATE_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "detectRealEventAssertions",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "checkLayerBoundary",
+      "reason": "VACUOUS BY CONSTRUCTION, not merely unwired. Forbids generated assets in Layer A (real footage only); with no shop footage no Layer A asset is ever declared, so a consumer would still never fire. Wiring it would produce a control that only LOOKS connected."
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "unenforceableBlockingConditions",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/dua.ts",
+      "symbol": "deriveRelevanceInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/brandBible.ts",
+      "symbol": "NOIR_ENVIRONMENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/brandBible.ts",
+      "symbol": "NOIR_CAMERA_GRAMMAR",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/brandBible.ts",
+      "symbol": "NOIR_COMPOSITION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/brandBible.ts",
+      "symbol": "DISEMBODIED_CAST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adminSecurity.ts",
+      "symbol": "encryptMfaSecret",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/adminPermissions.ts",
+      "symbol": "ADMIN_PERMISSIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/public.ts",
+      "symbol": "vehicleMake",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/winback.ts",
+      "symbol": "getVerifiedTirePurchaseCustomerIds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/winback.ts",
+      "symbol": "personalizeWinbackBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/gatewayTire.ts",
+      "symbol": "getLastAuthFailure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/snap.ts",
+      "symbol": "snapSubmitInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/instagramAdmin.ts",
+      "symbol": "buildReelPublishCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/instagramAdmin.ts",
+      "symbol": "mapInventoryStatusForQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/routers/instagramAdmin.ts",
+      "symbol": "validateFinalMedia",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/receptionistRoi.ts",
+      "symbol": "CAPTURE_LOW",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/receptionistRoi.ts",
+      "symbol": "CAPTURE_HIGH",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/receptionistRoi.ts",
+      "symbol": "estimateRecoveredRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/transferOutcomeEvidence.ts",
+      "symbol": "DEFAULT_REDIAL_WINDOW_MIN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gscMeasurement.ts",
+      "symbol": "GSC_METRIC_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gscMeasurement.ts",
+      "symbol": "aggregateGscDetail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/revenueAttribution.ts",
+      "symbol": "normalizePhone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramStudio.ts",
+      "symbol": "compactCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramStudio.ts",
+      "symbol": "renderCardHtml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramStudio.ts",
+      "symbol": "STUDIO_ASSET_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramStudio.ts",
+      "symbol": "pickSubjectImage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentRun.ts",
+      "symbol": "OPERATIONAL_STATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentRunAttribution.ts",
+      "symbol": "CONTENT_RUN_UTM_PARAM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentRunAttribution.ts",
+      "symbol": "isContentRunId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentRunAttribution.ts",
+      "symbol": "buildTrackedUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/vehicleData.ts",
+      "symbol": "_clearVehicleDataCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adCopyGen.ts",
+      "symbol": "AD_ANGLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adCopyGen.ts",
+      "symbol": "lintAdCopy",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/activityLedger.ts",
+      "symbol": "maskPhone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/activityLedger.ts",
+      "symbol": "maskEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/activityLedger.ts",
+      "symbol": "scrubFreeText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/activityLedger.ts",
+      "symbol": "sanitizeSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/quoteGuard.ts",
+      "symbol": "extractTireSize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/quoteGuard.ts",
+      "symbol": "evaluateQuoteChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/gemini.ts",
+      "symbol": "buildSystemPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/dripCampaigns.ts",
+      "symbol": "createEnrollment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "REEL_CLAIM_AUDIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "condemnedJobIds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelApproval.ts",
+      "symbol": "captionFingerprint",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelApproval.ts",
+      "symbol": "findLiveApproval",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "APPROVED_REEL_PACK_SLUGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "APPROVED_REEL_PACKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "parseApprovedPackRotationIndex",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentTopicSignals.ts",
+      "symbol": "seasonalConditionsForMonth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentTopicSignals.ts",
+      "symbol": "underCoveredServices",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "TOPIC_MINER_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "isNearDuplicate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "rotationPenalty",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "franchiseForSource",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "uncoveredFranchises",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPackRegistry.ts",
+      "symbol": "resolvePacksDir",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPackRegistry.ts",
+      "symbol": "__resetPackCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelOriginality.ts",
+      "symbol": "normalizeForComparison",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelOriginality.ts",
+      "symbol": "jaccardSimilarity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelOriginality.ts",
+      "symbol": "ORIGINALITY_BLOCK_THRESHOLD",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelOriginality.ts",
+      "symbol": "topicOverlap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "NARRATIVE_FRANCHISES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "VISUAL_STYLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "PERSONAS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "detectGenericMarketingLanguage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "generateHookTournament",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "critiqueSocialDraft",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "ALL_SERVICES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "getServiceCoverageStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "selectUnderservedService",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentManufacturing.ts",
+      "symbol": "enforceServiceDiversityQuota",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/costDetailCoverage.ts",
+      "symbol": "COVERAGE_WINDOW_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/costDetailCoverage.ts",
+      "symbol": "MIN_SAMPLE_INVOICES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/costDetailCoverage.ts",
+      "symbol": "assessCoverage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/costDetailCoverage.ts",
+      "symbol": "coverageAlertMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/jobQueue.ts",
+      "symbol": "shutdownJobQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "initCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "cacheGet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "cacheSet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "cacheDeletePattern",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "getCacheStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/cache.ts",
+      "symbol": "shutdownCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/customerPsychoProfile.ts",
+      "symbol": "classifyCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/customerPsychoProfile.ts",
+      "symbol": "getPsychoCounts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/closedLoop.ts",
+      "symbol": "listRegisteredMetrics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/closedLoop.ts",
+      "symbol": "recordWave",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/reviewIdentity.ts",
+      "symbol": "NO_TIME_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpContentGenerator.ts",
+      "symbol": "jaccardSimilarity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpContentGenerator.ts",
+      "symbol": "generateWeeklyPostBatch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelAsk.ts",
+      "symbol": "askSignals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelTextSurfaces.ts",
+      "symbol": "filtergraphTextSources",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelVoice.ts",
+      "symbol": "pickVoiceProvider",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelVoice.ts",
+      "symbol": "buildReelSsml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelVoice.ts",
+      "symbol": "googleTtsRequest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelVoice.ts",
+      "symbol": "formatAssTime",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "EXPERIMENT_REGISTRY_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "MIN_SAMPLES_PER_ARM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "METRIC_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "metricSpec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "findConfounds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentExperiments.ts",
+      "symbol": "armRates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/hooks/useFocusTrap.ts",
+      "symbol": "default",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/RiseInView.tsx",
+      "symbol": "RiseInView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/HeroDustLayer.tsx",
+      "symbol": "HeroDustLayer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/StampLetters.tsx",
+      "symbol": "StampLetters",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ConesBlock.tsx",
+      "symbol": "ConesBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/CommandSearch.tsx",
+      "symbol": "visibleSectionShortcuts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/CommandSearch.tsx",
+      "symbol": "actionVisibleToRole",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/adminSignal.ts",
+      "symbol": "SIGNAL_SEVERITIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/registry.tsx",
+      "symbol": "ADMIN_NAV_GROUPS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/registry.tsx",
+      "symbol": "COMPOUND_REDIRECTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/registry.tsx",
+      "symbol": "resolveInitialSection",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "ADMIN_NAV_GROUPS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "formatRelativeDate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "Toolbar",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "ClickableRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "RowAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "Breadcrumbs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "TimestampLabel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared.tsx",
+      "symbol": "InsightStrip",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seasonal.ts",
+      "symbol": "getSeasonalBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "SEO_SERVICE_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "VEHICLE_MAKE_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "PROBLEM_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "getSEOServiceBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "getVehicleMakeBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/seo-pages.ts",
+      "symbol": "getAllSEOPageSlugs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/QueryState.tsx",
+      "symbol": "QueryLoading",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/QueryState.tsx",
+      "symbol": "QueryEmpty",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/diagnose/SymptomGuide.tsx",
+      "symbol": "SYMPTOM_GUIDE_LINKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/diagnose/SymptomGuide.tsx",
+      "symbol": "SYMPTOM_GUIDE_URGENT_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_PROMO_YEAR",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_SOCIAL_PROOF",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_APPLY_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_BANNER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_STATES_EXCLUDED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "ACIMA_FULL_DISCLAIMER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "buildAcimaUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/acima.ts",
+      "symbol": "trackAcimaClick",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/financing.ts",
+      "symbol": "PAYMENT_METHODS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/FAQPageSchema.tsx",
+      "symbol": "BRAKE_REPAIR_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/FAQPageSchema.tsx",
+      "symbol": "TIRE_REPAIR_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/FAQPageSchema.tsx",
+      "symbol": "OIL_CHANGE_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/PhotoRibbon.tsx",
+      "symbol": "PhotoRibbon",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/tireBrands.ts",
+      "symbol": "TIRE_BRANDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/tireBrands.ts",
+      "symbol": "TIRE_BRAND_SLUGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/disclaimers.ts",
+      "symbol": "ESTIMATE_DISCLAIMERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reviewDisplay.ts",
+      "symbol": "MIN_DISPLAYABLE_REVIEW_RATING",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reviewDisplay.ts",
+      "symbol": "MIN_REVIEW_TEXT_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reviewDisplay.ts",
+      "symbol": "MAX_REVIEW_TEXT_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/data/competitors.ts",
+      "symbol": "getCompetitor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/data/competitors.ts",
+      "symbol": "COMPETITOR_SLUGS_PRIORITIZED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/evidenceResolver.ts",
+      "symbol": "parseEvidenceHandle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/diagnose-safety.ts",
+      "symbol": "URGENCY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/diagnose-safety.ts",
+      "symbol": "maxUrgency",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/diagnose-safety.ts",
+      "symbol": "RED_FLAG_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/diagnose-safety.ts",
+      "symbol": "LIKELIHOOD_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/revenue.ts",
+      "symbol": "predictNoShows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/revenue.ts",
+      "symbol": "analyzePeakDemandWindows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/revenue.ts",
+      "symbol": "summariseMargins",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/revenue.ts",
+      "symbol": "analyzePaymentTrends",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/growth.ts",
+      "symbol": "analyzeWebsiteJourneys",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/engines/growth.ts",
+      "symbol": "analyzeCallPatterns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPerformancePrior.ts",
+      "symbol": "MIN_POSTS_PER_THEME",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPerformancePrior.ts",
+      "symbol": "scorePost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adTemplate.ts",
+      "symbol": "AD_INK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adTemplate.ts",
+      "symbol": "AD_YELLOW",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/adStudio/adTemplate.ts",
+      "symbol": "esc",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "CREATIVE_THESIS_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "CreativeThesisSchema",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_PROTECTED_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_ADAPTABLE_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_NEVER_INTRODUCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/creativeThesis.ts",
+      "symbol": "thesisPreservationViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/evidenceSufficiency.ts",
+      "symbol": "QUOTE_MIN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/evidenceSufficiency.ts",
+      "symbol": "OPERATOR_SUBSTANCE_MIN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentFranchises.ts",
+      "symbol": "FRANCHISE_REGISTRY_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/contentFranchises.ts",
+      "symbol": "franchisesRequiring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/meta-capi.ts",
+      "symbol": "sendCAPIEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/meta-capi.ts",
+      "symbol": "sendContactEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/meta-capi.ts",
+      "symbol": "sendPurchaseEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/integration-failures.ts",
+      "symbol": "resolveIntegrationFailure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/integration-failures.ts",
+      "symbol": "scrubMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/afterHours.ts",
+      "symbol": "getNextOpenTime",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_W",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_H",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_TERRITORY_DESIGNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselSlideRenderer.ts",
+      "symbol": "renderCarouselSlideHtml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shadowPlanner.ts",
+      "symbol": "SEASONAL_PLAYBOOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shadowPlanner.ts",
+      "symbol": "collectPlannerSignals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/shadowPlanner.ts",
+      "symbol": "scoreOpportunity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/contentFormatPlanner.ts",
+      "symbol": "CONTENT_FORMAT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelDirector.ts",
+      "symbol": "genomeConstraintBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/reelDirector.ts",
+      "symbol": "attachResolvedProof",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselDirector.ts",
+      "symbol": "attachResolvedProof",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/carouselBriefGen.ts",
+      "symbol": "parseBriefJson",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/inventoryJobReconcile.ts",
+      "symbol": "classifyInventoryRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/totp.ts",
+      "symbol": "generateTotpCode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/tire-order-guards.ts",
+      "symbol": "PRICE_TOLERANCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/tire-order-guards.ts",
+      "symbol": "ABSOLUTE_MIN_TIRE_PRICE_CENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/attentionMicrostructure.ts",
+      "symbol": "compareBooleanSignal",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/socialIntelligence.ts",
+      "symbol": "GBP_ARCHETYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/socialIntelligence.ts",
+      "symbol": "CREATIVE_TERRITORIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpPerformance.ts",
+      "symbol": "GBP_DAILY_METRICS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/gbpPerformance.ts",
+      "symbol": "normalizeLocationId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/smsAutonomyCensus.ts",
+      "symbol": "classifyLane",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualFamily.ts",
+      "symbol": "STORY_SAFE_TOP",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualFamily.ts",
+      "symbol": "STORY_SAFE_BOTTOM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualFamily.ts",
+      "symbol": "VISUAL_FAMILIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualFamily.ts",
+      "symbol": "DEFAULT_FAMILY_ID",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/visualFamily.ts",
+      "symbol": "getVisualFamily",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "ANTICIPATE_AND_ELEVATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "HIGH_POWERED_MODE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "INTENSITY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "setBusinessIntensityOverride",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelApproval.ts",
+      "symbol": "REEL_APPROVAL_TTL_HOURS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelApproval.ts",
+      "symbol": "APPROVAL_BLOCK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelApproval.ts",
+      "symbol": "isApprovedToPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/localDiscoveryLibrary.ts",
+      "symbol": "LOCAL_DISCOVERY_LIBRARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/localDiscoveryLibrary.ts",
+      "symbol": "categoryForTopic",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/declinedWorkSignals.ts",
+      "symbol": "SIGNAL_CONFIDENCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ScrollProgressBar.tsx",
+      "symbol": "ScrollProgressBar",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/rideDeeplink.ts",
+      "symbol": "gmapsRideFromShop",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/hooks/useReducedMotion.ts",
+      "symbol": "default",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/WalkInCalculatorSection.tsx",
+      "symbol": "PRESETS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/nav.tsx",
+      "symbol": "ADMIN_NAV_GROUPS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/format.ts",
+      "symbol": "formatMoneyShort",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/layout.tsx",
+      "symbol": "Toolbar",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/table.tsx",
+      "symbol": "ClickableRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/table.tsx",
+      "symbol": "RowAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/table.tsx",
+      "symbol": "Breadcrumbs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/cards.tsx",
+      "symbol": "TimestampLabel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/shared/insight.tsx",
+      "symbol": "InsightStrip",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/TireSpinner.tsx",
+      "symbol": "TireSpinner",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "MASTER_PROMPT_SECTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "compileCarouselSlidePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "buildHiggsfieldPromptPack",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "buildCaptionBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/follow-ups.ts",
+      "symbol": "process24hFollowUps",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/follow-ups.ts",
+      "symbol": "process7dReviewRequests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/declinedWorkTopics.ts",
+      "symbol": "normalizePartName",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/declinedWorkTopics.ts",
+      "symbol": "angleFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/declinedWorkTopics.ts",
+      "symbol": "briefFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/declinedWorkTopics.ts",
+      "symbol": "scoreDeclinedTopic",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/fomoEntries.ts",
+      "symbol": "MAX_FOMO_ENTRIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/transformers/language-detect.ts",
+      "symbol": "isSpanish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/MessageCustomerLink.tsx",
+      "symbol": "buildMessageCustomerHref",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/businessDate.ts",
+      "symbol": "BUSINESS_TIME_ZONE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "tomorrowBusinessDateKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "bookingsForDate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "stripHasNothingToSay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/ExceptionFeed.tsx",
+      "symbol": "resolveFeedState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/badge.tsx",
+      "symbol": "badgeVariants",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/button.tsx",
+      "symbol": "buttonVariants",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuPortal",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuGroup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuCheckboxItem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuRadioGroup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuRadioItem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuShortcut",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuSub",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuSubTrigger",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dropdown-menu.tsx",
+      "symbol": "DropdownMenuSubContent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonStatCard",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonChart",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonOverview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/customers/CouponsSection.tsx",
+      "symbol": "getRedeemState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/gbpQaSeeds.ts",
+      "symbol": "gbpQaByCategory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/localRankKeywords.ts",
+      "symbol": "emptyRankReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/voice/format.ts",
+      "symbol": "REASON_PRETTY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/voice/format.ts",
+      "symbol": "OUTCOME_PRETTY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/integrationLogger.ts",
+      "symbol": "logIntegrationEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/services/integrationLogger.ts",
+      "symbol": "clearEventLog",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/retentionCohorts.ts",
+      "symbol": "REACTIVATION_MIN_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/retentionCohorts.ts",
+      "symbol": "REACTIVATION_MAX_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/retentionCohorts.ts",
+      "symbol": "MIN_COHORT_SAMPLE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/server/lib/retentionCohorts.ts",
+      "symbol": "computeRetentionCohorts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/transformers/lazy-load.ts",
+      "symbol": "clearTransformersCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/card.tsx",
+      "symbol": "CardAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/flagPolicy.ts",
+      "symbol": "INVERTED_FLAGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/flagPolicy.ts",
+      "symbol": "CUSTOMER_FACING_FLAGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/siteHealth/sheetsSyncHealth.ts",
+      "symbol": "SHEETS_SYNC_FAILURE_TYPE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/money/moneyMath.ts",
+      "symbol": "DAILY_DECAY_RATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/money/moneyMath.ts",
+      "symbol": "formatMoneyShort",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/proof.ts",
+      "symbol": "getProofConfig",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "SLA_BREACH_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "CALLBACK_WAIT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "HIGH_AT_RISK_CENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/todayPulse.ts",
+      "symbol": "MIRROR_STALE_WARN_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/pages/admin/today/todayPulse.ts",
+      "symbol": "mirrorLagDays",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dialog.tsx",
+      "symbol": "DialogClose",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dialog.tsx",
+      "symbol": "DialogFooter",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dialog.tsx",
+      "symbol": "DialogOverlay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dialog.tsx",
+      "symbol": "DialogPortal",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/client/src/components/ui/dialog.tsx",
+      "symbol": "DialogTrigger",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/serviceFeed.ts",
+      "symbol": "SERVICE_FEED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/serviceFeed.ts",
+      "symbol": "serviceFeedItem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelScore.ts",
+      "symbol": "REEL_SCORE_WEIGHTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelScore.ts",
+      "symbol": "REEL_SCORE_CEILINGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelScore.ts",
+      "symbol": "MIN_COVERAGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelScore.ts",
+      "symbol": "computeReelDistributionScore",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelScore.ts",
+      "symbol": "scoreFromAnalyticsRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPatterns.ts",
+      "symbol": "PATTERN_HOOK_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPatterns.ts",
+      "symbol": "PATTERN_LOOP_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPatterns.ts",
+      "symbol": "PATTERN_CAPTION_HIERARCHIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPatterns.ts",
+      "symbol": "PATTERN_DO_NOT_COPY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/shared/reelPatterns.ts",
+      "symbol": "formatPatternAdaptation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "verify:reel-vo",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "eval:prompts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "ingest:reels",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/nickstire/package.json",
+      "symbol": "lint:orphans",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "verify:auth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "seed:greene:check",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "lint-baseline:snapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "test:e2e:ui",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "apps/statenour/package.json",
+      "symbol": "graphify:sync",
+      "reason": "UNINVOKED, KNOWN. Nothing in the repo runs it; the scheduled sync is scripts/graphify-obsidian-sync.ps1. Its child scripts (graphify:manifest, graphify:ingest) are the only importers of the graphify adapter, so that whole chain is alive only if a human types this command. Reconcile or delete."
+    }
+  ]
+}
