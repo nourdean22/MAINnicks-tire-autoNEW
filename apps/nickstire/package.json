@@ -47,7 +47,8 @@
     "migrations:reconcile": "node scripts/reconcile-migrations.mjs --report",
     "migrations:check": "node scripts/migrations-check.mjs",
     "lint:cron-wiring": "tsx scripts/lint-cron-wiring.ts",
-    "triage:reels": "tsx scripts/build-reel-triage.mjs"
+    "triage:reels": "tsx scripts/build-reel-triage.mjs",
+    "lint:orphans": "node scripts/orphan-check.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

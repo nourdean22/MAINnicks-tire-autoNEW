@@ -109,3 +109,41 @@ jobs:
           pnpm dlx knip@6.32.3 --workspace apps/statenour --reporter markdown | tee -a "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "_Blocking since the 2026-08-27 wire-or-delete wave took the census 341 -> 0 (172 scripts declared as entries, 134 dead files deleted, 24 dynamic-referenced keeps in knip.json ignore with receipts). A new finding = a genuinely unreachable new file: wire it or delete it, never grow the ignore list without a path-reference receipt._" >> "$GITHUB_STEP_SUMMARY"
+
+  orphan-check:
+    name: orphan check (no new unconsumed exports)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # No install needed: the gate reads `git ls-files` plus the source text.
+
+      - name: canary - the check must FAIL on a planted orphan
+        run: |
+          cd apps/nickstire
+          cp shared/reelScore.ts shared/reelScore.ts.bak
+          printf '\nexport function __orphanCanary__() { return 1; }\n' >> shared/reelScore.ts
+          if node scripts/orphan-check.mjs > /dev/null 2>&1; then
+            mv shared/reelScore.ts.bak shared/reelScore.ts
+            echo "::error::orphan-check canary - a planted unconsumed export scanned clean; the gate is blind"
+            exit 1
+          fi
+          mv shared/reelScore.ts.bak shared/reelScore.ts
+          echo "canary ok - planted orphan was caught"
+
+      - name: canary - the check must PASS once the orphan is gone
+        run: |
+          cd apps/nickstire
+          node scripts/orphan-check.mjs > /dev/null || {
+            echo "::error::orphan-check reports failure on an unmodified tree - the gate is stuck red"
+            exit 1
+          }
+          echo "canary ok - clean tree passes"
+
+      - name: gate - no NEW orphaned exports
+        run: cd apps/nickstire && node scripts/orphan-check.mjs
