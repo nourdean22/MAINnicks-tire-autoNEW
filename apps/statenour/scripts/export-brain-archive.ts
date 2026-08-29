@@ -53,6 +53,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
+// Dated-dir + promote-on-success + retention policy. Extracted so the
+// retention/promote BEHAVIOUR is unit-tested against the same functions
+// this script uses (lib/ is tsc-checked; scripts/ is not).
+import {
+  ARCHIVE_FILES,
+  datedDirName,
+  selectRetainedDatedDirs,
+} from "../lib/system/archive-paths";
 
 // Parsed BEFORE any client is constructed. ES imports are hoisted above this
 // block, so `@/lib/prisma` must be imported dynamically inside main() or it
@@ -83,7 +91,17 @@ async function main() {
   const dir = outDir();
   fs.mkdirSync(dir, { recursive: true });
 
-  const target = path.join(dir, "brain-memories.ndjson");
+  // ── dated write target ────────────────────────────────────────────────
+  // 2026-08-29: the exporter used to overwrite the latest files in place,
+  // so one bad night destroyed the previous archive — which held the only
+  // pre-deletion copy of 54,107 brain rows. Now every run writes a DATED
+  // copy first, and only a fully-successful run promotes it to latest.
+  // A crash mid-export damages only today's dated dir.
+  const runStamp = datedDirName(new Date());
+  const datedDir = path.join(dir, runStamp);
+  fs.mkdirSync(datedDir, { recursive: true });
+
+  const target = path.join(datedDir, "brain-memories.ndjson");
   // Write to a temp file and rename at the end: a crash mid-export must not
   // leave a truncated archive where a complete one used to be.
   const tmp = `${target}.partial`;
@@ -123,7 +141,7 @@ async function main() {
   // Paged the same way, into a separate file: they are a different kind of
   // record (no memory row, so no confidence/metadata) and mixing them into the
   // memories archive would make a restore ambiguous about what it is reading.
-  const orphanPath = path.join(dir, "brain-orphans.ndjson");
+  const orphanPath = path.join(datedDir, "brain-orphans.ndjson");
   const orphanTmp = `${orphanPath}.partial`;
   const orphanStream = fs.createWriteStream(orphanTmp, { encoding: "utf8" });
   let orphans = 0;
@@ -168,13 +186,34 @@ async function main() {
     orphanedEmbeddings: orphans,
     categories: Object.keys(byCategory).length,
     byCategory,
+    datedPath: runStamp,
     note:
       "Complete archive. The Obsidian category rollups are a READING surface capped at 100 rows " +
       "per category and exclude soft-deleted rows; these files are the backup and exclude nothing. " +
       "brain-orphans.ndjson holds embeddings whose memory row is gone — the last copy of that text, " +
       "archived but deliberately NOT restored (restoring would return raw content, incl. email, to recall).",
   };
-  fs.writeFileSync(path.join(dir, "brain-memories.manifest.json"), JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(path.join(datedDir, "brain-memories.manifest.json"), JSON.stringify(manifest, null, 2));
+
+  // ── promote to latest, ONLY on full success ───────────────────────────
+  // The dated copies above are complete and renamed into place; copying
+  // them over the latest names can only fail loudly (throws → exit 1),
+  // and even then today's dated dir still holds the good archive.
+  for (const f of ARCHIVE_FILES) {
+    fs.copyFileSync(path.join(datedDir, f), path.join(dir, f));
+  }
+
+  // ── retention: prune dated dirs older than the policy window ─────────
+  // Never touches `snapshots/` (operator-owned, keep forever) or the
+  // latest files — only `dated/<yyyy-mm-dd>` dirs old enough to prune.
+  const datedNames = fs
+    .readdirSync(path.join(dir, "dated"), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => `dated/${e.name}`);
+  const { prune } = selectRetainedDatedDirs(datedNames, new Date());
+  for (const name of prune) {
+    fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+  }
 
   const bytes = fs.statSync(target).size;
   console.log(`\nwrote ${target}`);
@@ -183,6 +222,8 @@ async function main() {
   console.log(`  size ........... ${(bytes / 1e6).toFixed(1)} MB`);
   console.log(`wrote ${orphanPath}`);
   console.log(`  orphans ........ ${orphans}  (last copy — no memory row exists)`);
+  console.log(`promoted ${runStamp} -> latest (${ARCHIVE_FILES.length} files)`);
+  if (prune.length > 0) console.log(`retention pruned ${prune.length} dated dir(s) past the 30d window`);
   await prisma.$disconnect();
 }
 
