@@ -344,7 +344,12 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
     pattern: /\b(?:family|locally).?owned\b/i,
     label: "family-owned / locally-owned",
     why: "Every shop says this",
-    fix: "Named-person specificity: 'Moe's been running this since 2019'. Or VOICE.md's replacement: 'We close at 6 because we have families.'",
+    // The old example read "Moe's been running this since 2019" — TWO defects
+    // in one suggested line: a year that contradicts BUSINESS.founded.year, and
+    // an operator name the site elsewhere says has changed (/moes-tire states
+    // the shop "transitioned to new ownership"). Guidance the voice is told to
+    // speak is a public surface; this one was teaching the contradiction.
+    fix: "Concrete specificity, no invented owner name or date: 'We close at 6 because we have families.' (VOICE.md's replacement)",
     reason: "cliche",
     severity: "block",
     sources: ["VOICE.md", "lint-brand-voice", "igAutopost.generator"],
@@ -593,7 +598,10 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
     pattern: /\bcertified.{0,20}(?:technicians?|mechanics?|professionals?)\b/i,
     label: "certified technicians",
     why: "Corporate-credential framing — Nick's is regular guys who do this every day",
-    fix: "'same crew who's been turning wrenches here since 2019'",
+    // Was "...since 2019" — a third competing founding year, in a file that
+    // feeds generated copy. Tenure claims belong to BUSINESS.founded.year, and
+    // this line does not need a date to make its point.
+    fix: "'same crew who's been turning wrenches here for years'",
     reason: "archetype",
     severity: "block",
     allow: [

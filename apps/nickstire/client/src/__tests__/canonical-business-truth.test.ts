@@ -1,0 +1,196 @@
+/**
+ * ONE canonical source for who this business is, and a check that fails when a
+ * surface disagrees.
+ *
+ * ── WHAT WAS ACTUALLY TRUE, swept 2026-08-29 ────────────────────────────────
+ * The shop's own tenure was asserted with THREE different years across the
+ * repo, plus a fourth off-site:
+ *   2018 — BUSINESS.founded.year, and 26 surfaces ("Euclid Ave since 2018")
+ *   2019 — shared/voice.ts twice, as GUIDANCE the AI voice is told to speak:
+ *          "Moe's been running this since 2019" and "same crew who's been
+ *          turning wrenches here since 2019"
+ *   2022 — BBB's record for the business (off-site, not in this repo)
+ * and the operator identity contradicted itself outright: TrustBlock told every
+ * visitor "RUN BY MOE SINCE 2018" while MoesTireBridgePage says the shop
+ * "transitioned to new ownership and rebranded as Nick's Tire & Auto".
+ *
+ * Both cannot be true. A customer who reads two pages sees a business that does
+ * not know its own history, and the voice file was actively teaching the
+ * contradiction to generated copy.
+ *
+ * ── WHAT THIS ENFORCES, AND WHAT IT DELIBERATELY DOES NOT ───────────────────
+ * It enforces AGREEMENT WITH THE CANONICAL CONSTANT, not a particular year.
+ * Whether 2018 is the right year is the owner's fact to settle - BBB says 2022
+ * and this code cannot adjudicate that. What it can guarantee is that when he
+ * settles it, changing BUSINESS.founded.year moves every surface, and any
+ * surface that drifts away fails a test instead of reaching a customer.
+ *
+ * The phone rule is scoped to the SHOP'S OWN number shape (216-xxx-0005)
+ * rather than every phone in the repo, because competitor numbers appear
+ * legitimately on comparison pages and a blanket rule would flag them. The real
+ * risk is the 862/682 drift already recorded off-site on BBB.
+ */
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { BUSINESS } from "@shared/business";
+
+const ROOT = join(__dirname, "..", "..", "..");
+const SCAN_DIRS = [join(ROOT, "client", "src"), join(ROOT, "shared")];
+
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e);
+    if (e === "node_modules" || e === "__tests__" || e === "dist") continue;
+    if (statSync(p).isDirectory()) sourceFiles(p, out);
+    else if (/\.(ts|tsx)$/.test(e) && !/\.test\.tsx?$/.test(e)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * MENTION IS NOT ASSERTION. A comment that QUOTES a retired value — "was
+ * 'RUN BY MOE SINCE 2018'" — is documentation of a fixed defect, not the
+ * defect. The first version of this scanner had no such rule and immediately
+ * flagged its own fix comments, which is the guard-red-team failure of
+ * blocking your own documentation: the next person deletes the explanation to
+ * get green, and the reason the rule exists is lost.
+ */
+function isCommentLine(text: string): boolean {
+  const t = text.trim();
+  return t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*");
+}
+
+const FILES = SCAN_DIRS.flatMap((d) => sourceFiles(d));
+const LINES: Array<{ file: string; line: number; text: string }> = [];
+for (const f of FILES) {
+  const rel = relative(ROOT, f).replace(/\\/g, "/");
+  readFileSync(f, "utf8").split("\n").forEach((text, i) => {
+    if (!isCommentLine(text)) LINES.push({ file: rel, line: i + 1, text });
+  });
+}
+
+describe("the scanner sees the codebase", () => {
+  // Without this every assertion below passes vacuously against an empty read.
+  it("reads a real, non-trivial file set", () => {
+    expect(FILES.length).toBeGreaterThan(200);
+    expect(LINES.length).toBeGreaterThan(20000);
+  });
+
+  // The comment rule must not become a hole: it has to skip documentation
+  // AND still see the same words in code.
+  it("skips a comment quoting a retired value, but not code asserting it", () => {
+    expect(isCommentLine("            // was RUN BY MOE SINCE 2018")).toBe(true);
+    expect(isCommentLine("             * 'Moe's been running this since 2019'")).toBe(true);
+    expect(isCommentLine("            {/* was RUN BY MOE SINCE 2018 */}")).toBe(true);
+    expect(isCommentLine("            RUN BY MOE SINCE 2018")).toBe(false);
+    expect(isCommentLine('    fix: "running this since 2019",')).toBe(false);
+  });
+});
+
+/* ── the shop's own phone number ─────────────────────────────────────────── */
+
+/** Any phone shaped like the shop's own line. Competitor numbers do not match. */
+const SHOP_PHONE_SHAPE = /\(?216\)?[ .-]?(\d{3})[ .-]?0005/g;
+const CANONICAL_LAST3 = "862";
+
+describe("the shop's phone number has exactly one value", () => {
+  const found = LINES.flatMap((l) =>
+    [...l.text.matchAll(SHOP_PHONE_SHAPE)].map((m) => ({ ...l, exchange: m[1] })),
+  );
+
+  it("POSITIVE CONTROL: the scan actually finds the number in use", () => {
+    expect(found.length).toBeGreaterThan(100);
+  });
+
+  it("every shop-shaped phone uses the canonical exchange", () => {
+    const wrong = found.filter((f) => f.exchange !== CANONICAL_LAST3);
+    expect(
+      wrong.map((w) => `${w.file}:${w.line}`),
+      `phone drift (BBB already carries 682-0005): ${JSON.stringify(wrong.slice(0, 5))}`,
+    ).toEqual([]);
+  });
+
+  it("the canonical constant is the one being used", () => {
+    expect(BUSINESS.phone.display ?? BUSINESS.phone.e164 ?? "").toContain(CANONICAL_LAST3);
+  });
+
+  // MUTATION-STYLE PROOF: the matcher must be able to SEE a wrong number, or
+  // the green above means nothing.
+  it("the matcher detects a drifted number when one exists", () => {
+    const probe = [...'call us at (216) 682-0005 today'.matchAll(SHOP_PHONE_SHAPE)];
+    expect(probe).toHaveLength(1);
+    expect(probe[0][1]).toBe("682");
+  });
+});
+
+/* ── how long the shop has operated ──────────────────────────────────────── */
+
+/**
+ * Phrases that assert THE SHOP'S OWN tenure. Deliberately narrow: "every Sunday
+ * since 2019" is a service schedule and "federal law has required them since
+ * 2008" is about TPMS, and neither is a claim about this business's age.
+ */
+const TENURE_PATTERNS: RegExp[] = [
+  /running this since (\d{4})/i,
+  /turning wrenches here since (\d{4})/i,
+  /serving [^.]{0,60}since (\d{4})/i,
+  /on euclid(?: ave)? since (\d{4})/i,
+  /run by [a-z]+ since (\d{4})/i,
+  /mounting them on euclid ave since (\d{4})/i,
+];
+
+describe("the shop's tenure agrees with the canonical constant", () => {
+  const claims = LINES.flatMap((l) =>
+    TENURE_PATTERNS.flatMap((re) => {
+      const m = re.exec(l.text);
+      return m ? [{ ...l, year: Number(m[1]) }] : [];
+    }),
+  );
+
+  it("POSITIVE CONTROL: tenure claims exist and are found", () => {
+    expect(claims.length).toBeGreaterThan(0);
+  });
+
+  it("every tenure claim uses BUSINESS.founded.year", () => {
+    const wrong = claims.filter((c) => c.year !== BUSINESS.founded.year);
+    expect(
+      wrong.map((w) => `${w.file}:${w.line} says ${w.year}`),
+      `tenure drift from BUSINESS.founded.year=${BUSINESS.founded.year}`,
+    ).toEqual([]);
+  });
+
+  it("the matcher detects a drifted year when one exists", () => {
+    const probe = /turning wrenches here since (\d{4})/i.exec("the crew turning wrenches here since 2019");
+    expect(Number(probe![1])).toBe(2019);
+    expect(Number(probe![1])).not.toBe(BUSINESS.founded.year);
+  });
+});
+
+/* ── who runs the shop ───────────────────────────────────────────────────── */
+
+/**
+ * The site states plainly, on /moes-tire, that the location "transitioned to
+ * new ownership and rebranded as Nick's Tire & Auto". A surface that
+ * simultaneously tells visitors the shop is RUN BY MOE contradicts that in the
+ * customer's face. Whichever is true, both cannot ship.
+ */
+describe("the site does not contradict its own ownership story", () => {
+  const ownershipClaims = LINES.filter((l) => /run by moe/i.test(l.text));
+
+  it("no surface claims the shop is run by the previous owner", () => {
+    expect(
+      ownershipClaims.map((c) => `${c.file}:${c.line}`),
+      "contradicts the new-ownership statement on /moes-tire",
+    ).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: the new-ownership statement is still on the site", () => {
+    const newOwnership = LINES.filter((l) => /new ownership/i.test(l.text));
+    expect(newOwnership.length).toBeGreaterThan(0);
+  });
+
+  it("the matcher would catch the claim if it returned", () => {
+    expect(/run by moe/i.test("RUN BY MOE SINCE 2018")).toBe(true);
+  });
+});
