@@ -118,6 +118,28 @@ const BLOCKING_STATES = new Set([
 /** Only this needs nothing at all; the rest are reported. */
 const CLEAN_STATES = new Set([STATE.RECORDED_AND_MATCHED]);
 
+/**
+ * Marker for a per-statement mismatch line.
+ *
+ * WHY THIS IS NOT ALWAYS `✗`. It was, and the result was a run that printed
+ * **36 `✗` lines and exited 0**. Two readers took that to mean 36 failures;
+ * one of them relayed it as a regression in someone else's work. Both readings
+ * were wrong and the output invited them, because the same glyph marked an
+ * advisory RECORDED_BUT_SCHEMA_MISMATCH and a genuinely blocking one.
+ *
+ * A gate whose output reads as failure while it exits 0 is the lying-surface
+ * shape this repo keeps deleting — it just happened to be pointing at us.
+ * `✗` now means BLOCKING and nothing else.
+ */
+export function mismatchGlyph(state) {
+  return BLOCKING_STATES.has(state) ? "✗" : "·";
+}
+
+/** The word attached to a migration's heading line, for the same reason. */
+export function severityLabel(state) {
+  return BLOCKING_STATES.has(state) ? "BLOCKING" : "advisory";
+}
+
 /* ── read-only enforcement ───────────────────────────────────────────────────── */
 
 const READ_ONLY = /^\s*(SELECT|SHOW)\b/i;
@@ -584,8 +606,8 @@ async function main() {
     if (notClean.length) {
       console.log(`\n  needs attention (${notClean.length}):`);
       for (const r of notClean) {
-        console.log(`\n    ${r.tag}  [${r.state}]  ${r.statements} stmt · ${r.unverifiable} unverifiable`);
-        for (const m of r.mismatches.slice(0, 6)) console.log(`      ✗ ${m}`);
+        console.log(`\n    ${r.tag}  [${r.state}]  ${severityLabel(r.state)}  ${r.statements} stmt · ${r.unverifiable} unverifiable`);
+        for (const m of r.mismatches.slice(0, 6)) console.log(`      ${mismatchGlyph(r.state)} ${m}`);
         if (r.mismatches.length > 6) console.log(`      … ${r.mismatches.length - 6} more`);
         for (const u of r.unsupportedSamples) console.log(`      ? unparsed: ${u.slice(0, 110)}`);
       }
