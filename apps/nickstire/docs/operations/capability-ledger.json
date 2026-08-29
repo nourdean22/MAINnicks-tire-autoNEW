@@ -23,13 +23,18 @@
         ],
         "deploymentId": "railway main auto-deploy (merged through #856)"
       },
-      "blockers": [],
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DELIBERATE, NOT A FAULT - the capability works (30 lifetime publications) and is gated, not broken. STAGED OFF THE SCHEDULER 2026-08-29 (MANUAL_TRIGGER_STAGED). Not for flakiness: Higgsfield runs two separate ledgers and only the CONSUMER/Ultra one is funded - 1,934.62 credits, paid subscription - while Higgsfield Cloud API (Authorization: Key ID:SECRET) holds ZERO credits with no payment method and 0 API calls lifetime despite 2 existing keys. The funded lane is the CLI session, which requires a human browser device-login no cron can perform, so generation is now a human-triggered batch fired via POST /api/admin/run-staged-cron. Publishing is unaffected: daily-reel-post never touches Higgsfield."
+        }
+      ],
       "deferredScope": [
         "edit profiles per archetype",
         "SFX",
         "animated CTA"
       ],
-      "lastVerifiedAt": "2026-08-11",
+      "lastVerifiedAt": "2026-08-29",
       "verificationExpiresAt": "2026-09-10",
       "codeState": "merged",
       "operationalState": "visually_verified",
