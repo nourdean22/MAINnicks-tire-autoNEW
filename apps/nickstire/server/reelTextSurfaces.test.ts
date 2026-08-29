@@ -301,3 +301,57 @@ describe("a CTA must never reach a beat or the voiceover", () => {
     ]) expect(askSignals(s), s).toEqual([]);
   });
 });
+
+/**
+ * ONE ASK PER REEL MEANS ACROSS SURFACES.
+ *
+ * Found by reading a generated brief on 2026-08-29: it declared `ask: profile`
+ * (end card renders "MORE IN OUR BIO") while its caption said "Send this to
+ * someone whose light is on." Every existing check passed — the caption held
+ * exactly one ask and no beat carried a CTA — yet the reel asked for two
+ * different things in two places. The rule was broken through a third door.
+ */
+describe("the caption's ask must agree with the end card", () => {
+  const BEATS = ["That light?", "It won't pass E-Check."];
+
+  it("CATCHES the real mismatch: profile end card, share caption", () => {
+    const p = askLeakageProblem({
+      beats: BEATS,
+      caption: "That check engine light? Send this to someone whose light is on.",
+      declaredAsk: { kind: "profile" },
+    });
+    expect(p).toMatch(/two different asks on two/);
+    expect(p).toMatch(/send-this-to/);
+  });
+
+  it("CATCHES a dm caption under a profile end card", () => {
+    expect(
+      askLeakageProblem({ beats: BEATS, caption: "DM us ECHECK.", declaredAsk: { kind: "profile" } }),
+    ).toMatch(/two different asks/);
+  });
+
+  // POSITIVE CONTROLS — three of them, because this check has three ways to be
+  // satisfied and a guard that blocked all captions would pass the two above.
+  it("PERMITS a caption whose ask IS the declared ask", () => {
+    expect(
+      askLeakageProblem({ beats: BEATS, caption: "More in our bio.", declaredAsk: { kind: "profile" } }),
+    ).toBeNull();
+    expect(
+      askLeakageProblem({ beats: BEATS, caption: "DM us ECHECK.", declaredAsk: { kind: "dm", keyword: "ECHECK" } }),
+    ).toBeNull();
+  });
+
+  it("PERMITS a caption with NO ask — the end card carries it", () => {
+    expect(
+      askLeakageProblem({
+        beats: BEATS,
+        caption: "That check engine light won't pass E-Check in Cuyahoga. Retests are free.",
+        declaredAsk: { kind: "profile" },
+      }),
+    ).toBeNull();
+  });
+
+  it("stays silent when no ask is declared — nothing to be inconsistent with", () => {
+    expect(askLeakageProblem({ beats: BEATS, caption: "Send this to a friend." })).toBeNull();
+  });
+});
