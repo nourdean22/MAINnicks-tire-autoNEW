@@ -1024,6 +1024,39 @@ canary criterion at the top of this document asks whether a test can see its def
 the same question of a monitor, of an endpoint choice, and of a query's sort order. Same criterion,
 three surfaces nobody thinks to point it at.
 
+### The sequel: each fix caused the next one, and only a cross-check ever caught them
+
+The addressing error above did not end when it was fixed. It became three, in a row, in one session,
+each defect introduced by the repair of its predecessor. Recorded in full because the shape —
+*a fix for one addressing bug is not immunity from addressing bugs* — is the same warning
+`guard-red-team` gives about deny-lists, arriving here in a place nobody expected it.
+
+| # | the method | why it broke |
+|---|---|---|
+| 1 | `gh pr list --state merged`, take `.[0]` | sorts by **creation**, not merge time — returned an older PR |
+| 2 | first `#N` in the squash subject | a PR **title** can itself contain a PR reference: `… (#1991) (#1993)` resolved to #1991, the wrong one |
+| 3 | **last** `#N` in the squash subject | PowerShell collapses a single-match result to a **string**, so `[-1]` returned the last *character* — `#1994` became `#4` |
+
+Fix 3 is the sharpest: it worked on the rare two-reference case it was built for and broke the
+common single-reference case, which is every ordinary PR. The correct form needs both halves —
+take the LAST match **and** force an array so one match cannot degrade to a string:
+
+```powershell
+$all = @([regex]::Matches($subject, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
+$prNumber = $all[-1]
+```
+
+**What actually caught #2 and #3 was not vigilance — it was a cross-check between two independent
+views of the same fact.** Comparing the PR's own file list against `git show --name-only` on the
+merge commit: 6-vs-1 exposed the second, 17-vs-4 exposed the third. Neither error announced itself.
+Both returned a confident, well-formed audit *of the wrong pull request*, which is the failure mode
+this whole document exists for — a plausible answer about a subject you did not intend to measure.
+
+> **The durable rule, cheaper than getting the addressing right:** never audit an artifact by one
+> path to it. Resolve it two ways and compare. The comparison costs one command and fails loudly;
+> the addressing fails silently, and it failed silently three times to the session whose job that
+> week was auditing everyone else.
+
 ## Writing one
 
 Copy the shape from any of the three proven controls:
