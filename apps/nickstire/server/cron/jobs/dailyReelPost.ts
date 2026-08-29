@@ -691,6 +691,38 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       }
     }
 
+    // ── ORIGINALITY GATE: has this already gone out? ──────────────────────
+    // Reel 1770003 published on 2026-08-29 after an audit that checked claims,
+    // disclosure, aspect ratio, burned-in text and destination — and never
+    // asked this question. Job 1620001 had published the same script twelve
+    // days earlier (similarity 1.00 on both the on-screen text and the
+    // caption). A repost is demoted by Instagram's originality weighting, not
+    // merely redundant, so this runs BEFORE the approval check: an operator
+    // should not be able to approve a duplicate into the feed.
+    {
+      const { loadPublishedCorpus } = await import("../../services/reelOriginality");
+      const { originalityProblem } = await import("@shared/reelOriginality");
+      const beats = parseReelJobPayload(job.payload).storyboardBeats ?? [];
+      const dupe = originalityProblem(
+        {
+          onScreenText: beats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+          caption,
+          videoUrl,
+        },
+        await loadPublishedCorpus(job.id),
+      );
+      if (dupe) {
+        const note = `BLOCKED as a repost: ${dupe.reason}`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.error(`daily reel: job ${job.id} duplicates already-published content — not publishing`, {
+          match: dupe.label, score: dupe.score, surface: dupe.surface,
+        });
+        return { recordsProcessed: 0, details: `held: job ${job.id} duplicates ${dupe.label}; index not advanced` };
+      }
+    }
+
     // ── APPROVAL GATE: default-deny, and the reason is written on the job ──
     // Publishing was armed and unattended; the only thing holding it was a
     // defective row jammed at the head of the queue, which is an accident, not

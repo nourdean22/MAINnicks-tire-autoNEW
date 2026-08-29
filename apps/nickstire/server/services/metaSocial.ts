@@ -807,6 +807,26 @@ export async function postInstagramReel(params: {
         // Set at container creation and NOT editable afterward, so this cannot
         // retro-fix already-published reels.
         share_to_feed: true,
+        // Location tag — the ONLY tappable per-post field Meta's media endpoint
+        // offers (verified 2026-08-29 against its parameter reference: there is
+        // no link/url/cta parameter at all), and this shop's problem is local
+        // conversion in Euclid / East Side Cleveland.
+        //
+        // OPERATOR-ACCEPTED CAVEAT, recorded because it is customer-visible:
+        // META_PAGE_ID resolves to the right entity at the right address
+        // ("17625 Euclid ave, Cleveland, OH 44112", and its
+        // connected_instagram_account IS this account) but its Page NAME reads
+        // "Moe's Euclid Tire & Auto" while the account presents as Nick's. The
+        // location card therefore shows the older name. The owner was told
+        // explicitly and accepted it while the Facebook page is sorted out.
+        //
+        // REEL_LOCATION_TAG_ENABLED is the instant off switch: set it to
+        // "false" to stop tagging with no deploy. Default ON — only the literal
+        // string "false" disables, so a typo or an unset var keeps the
+        // documented behaviour rather than silently changing it.
+        ...(process.env.REEL_LOCATION_TAG_ENABLED !== "false" && process.env.META_PAGE_ID
+          ? { location_id: process.env.META_PAGE_ID }
+          : {}),
         // Branded cover: prefer an explicit hosted image; otherwise pull a frame
         // from the reel. The generated reel's first frame is the centered Anton
         // hook overlay, so thumb_offset=0 yields an on-brand cover with no hosting.
