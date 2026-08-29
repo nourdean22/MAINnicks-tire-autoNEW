@@ -8,10 +8,18 @@
  * almost-right. An unassigned pack costs a boost. A wrong destination costs the
  * viewer's trust and is indistinguishable from working.
  *
- * THE HOMEPAGE IS NEVER A VALUE HERE. That is the defect being repaired: all
- * eight posts this account has published linked to bare nickstire.org while 175
- * topic pages sat deployed, and the funnel measured 13,871 views -> 74 profile
- * visits -> ONE website tap.
+ * THE HOMEPAGE IS NEVER A VALUE HERE. That is the defect being repaired: the
+ * posts this account has published linked to bare nickstire.org while 175 topic
+ * pages sat deployed, and the funnel measured 13,871 views -> 74 profile visits
+ * -> ONE website tap. (This header used to say "all eight posts"; the count was
+ * wrong - 30 reel_jobs rows carry an igPostId, 29 distinct. See the corrected
+ * measurement in reelDestinations.ts.)
+ *
+ * READ THE PLATFORM-CAPABILITY NOTE in reelDestinations.ts before building
+ * anything that writes a destination into caption text: Instagram Reel captions
+ * render URLs as unclickable plain text, and Meta's media endpoint accepts no
+ * link parameter. These destinations are for the bio link, DM auto-replies and
+ * paid placements - not for organic caption copy.
  *
  * Keys are pack FRANCHISES (the pack id with its date prefix stripped), so a
  * re-dated pack on the same topic keeps its destination.

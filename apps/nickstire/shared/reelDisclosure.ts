@@ -157,3 +157,97 @@ export function disclosureViolation(pack: DisclosurePack): string | null {
 export function requiredPublishParams(pack: DisclosurePack): { is_ai_generated?: true } {
   return isGenerated(pack) ? { is_ai_generated: true } : {};
 }
+
+/* ── Disclosure derived from the ARTIFACT, not from an environment variable ──
+ *
+ * THE DEFECT THIS REPLACES. `dailyReelPost` computed the flag as
+ * `isGenerativeProvider(process.env.REEL_VIDEO_PROVIDER)` - the provider
+ * configured RIGHT NOW, not the one that rendered the job being published.
+ * Jobs sit in the backlog for days. Flip the lane to a stock provider while ten
+ * Higgsfield-rendered reels are queued and every one of them publishes with no
+ * `is_ai_generated`, which is a Meta policy violation on the owner's business
+ * account, not a tidiness problem. The reverse is also wrong: leaving the env on
+ * a generative lane forces a disclosure onto genuinely non-generative footage.
+ *
+ * The storage path is the honest source and we already trust it elsewhere - the
+ * stock guard in `qualityGate.ts` rejects publishes on exactly this evidence,
+ * because "the generator stamps it and no flag can forge it". Same evidence,
+ * same authority, now also used for the disclosure it determines.
+ */
+
+/** Clip-path marker for the free stock lane. Real footage - NOT model output. */
+const STOCK_PATH_MARKER = "template-stock";
+
+/** The Higgsfield generator's filename stamp. */
+const HIGGSFIELD_FILE_PREFIX = "hf_";
+
+/**
+ * Path segments of a URL, query and fragment removed.
+ *
+ * MATCHING IS SEGMENT-AWARE, NOT SUBSTRING. A bare `url.includes(provider)`
+ * scan looked correct and was not: GENERATIVE_PROVIDERS contains "wan", "veo"
+ * and "pika", and every clip URL here ends in a long random hash. "wan"
+ * appears inside a hash roughly one time in ten, which would classify stock
+ * footage as model-generated, force a false AI disclosure onto real video, and
+ * do it intermittently - green on the fixtures, wrong in production.
+ */
+function pathSegments(url: string): string[] {
+  return url.split(/[?#]/)[0].split("/").filter(Boolean);
+}
+
+function isGenerativeClipUrl(url: string): boolean {
+  const segments = pathSegments(url);
+  const filename = segments[segments.length - 1] ?? "";
+  if (filename.startsWith(HIGGSFIELD_FILE_PREFIX)) return true;
+  // A provider name must BE a segment or start one ("veo-abc", "runway_01"),
+  // never merely appear inside a hash.
+  return segments.some((seg) =>
+    GENERATIVE_PROVIDERS.some((p) => seg === p || seg.startsWith(`${p}-`) || seg.startsWith(`${p}_`)),
+  );
+}
+
+export type ClipProvenance = "generative" | "stock" | "unknown";
+
+/**
+ * What actually rendered these clips, read off the storage paths.
+ *
+ * ANY generative clip makes the whole reel generated - a reel is one artifact,
+ * and a viewer cannot tell which three seconds came from a model.
+ *
+ * Stock is tested FIRST because its marker is an explicit, unambiguous path the
+ * stock lane writes; generative detection is the inferential one.
+ */
+export function clipProvenance(clipUrlsJson: string | null | undefined): ClipProvenance {
+  if (!clipUrlsJson) return "unknown";
+  let arr: unknown;
+  try {
+    arr = JSON.parse(clipUrlsJson);
+  } catch {
+    return "unknown";
+  }
+  if (!Array.isArray(arr)) return "unknown";
+  const urls = arr.filter((u): u is string => typeof u === "string").map((u) => u.toLowerCase());
+  if (!urls.length) return "unknown";
+
+  if (urls.every((u) => u.includes(STOCK_PATH_MARKER))) return "stock";
+  if (urls.some(isGenerativeClipUrl)) return "generative";
+  return "unknown";
+}
+
+/**
+ * Whether this specific job must publish with Meta's `is_ai_generated`.
+ *
+ * Provenance from the artifact WINS over the environment. The env provider is
+ * consulted only when the clips say nothing recognisable - an unrecognised path
+ * is not evidence of non-generation, so falling back to the configured lane is
+ * strictly better than assuming either answer.
+ */
+export function shouldDiscloseAi(
+  clipUrlsJson: string | null | undefined,
+  envProvider: string | null | undefined,
+): boolean {
+  const provenance = clipProvenance(clipUrlsJson);
+  if (provenance === "generative") return true;
+  if (provenance === "stock") return false;
+  return isGenerativeProvider(envProvider);
+}
