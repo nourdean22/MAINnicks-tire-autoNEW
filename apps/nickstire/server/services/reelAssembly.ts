@@ -802,6 +802,9 @@ export async function assembleReel(
       beats: (brief.storyboardBeats ?? []).map((b) => b.onScreenText),
       voiceoverScript: brief.voiceoverScript,
       caption: brief.selectedCaption,
+      // Passing the resolved ask makes the check CROSS-SURFACE: a caption with
+      // exactly one ask still fails when it is not the ask the end card renders.
+      declaredAsk: ask,
     });
     if (leak) throw new Error(`refusing to render: ${leak}`);
     const askText = ask ? renderAskText(ask) : null;

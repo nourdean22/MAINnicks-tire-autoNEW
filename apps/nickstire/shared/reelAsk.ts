@@ -154,7 +154,32 @@ export interface AskSurfaces {
   beats?: Array<string | null | undefined>;
   voiceoverScript?: string | null;
   caption?: string | null;
+  /**
+   * The ask this reel DECLARED, if known. When supplied, the caption's ask must
+   * either be absent or be the same ask - see the consistency rule below.
+   */
+  declaredAsk?: ReelAsk | null;
 }
+
+/**
+ * Which ask signal each declared kind legitimately produces in copy.
+ *
+ * THE GAP THIS CLOSES, found by reading a generated brief on 2026-08-29. The
+ * brief declared `ask: profile` - so the end card renders "MORE IN OUR BIO" -
+ * while its caption said "Send this to someone whose light is on." Both surfaces
+ * passed every check: the caption held exactly ONE ask, and no beat carried a
+ * CTA. But the reel still asked for two different things in two places, which is
+ * the rule ("one reel, one ask") broken through a third door.
+ *
+ * `save`/`share` framing has no declared kind of its own, so a share prompt in a
+ * caption is always a SECOND ask unless `save` was the declared one.
+ */
+const ASK_KIND_SIGNALS: Record<ReelAskKind, readonly string[]> = {
+  profile: ["link-in-bio"],
+  dm: ["dm-us", "comment-keyword"],
+  save: ["save-this", "share-this", "send-this-to"],
+  visit: ["stop-by", "call-us"],
+};
 
 /**
  * Why this brief's copy breaks the one-ask rule, or null when it holds.
@@ -196,6 +221,21 @@ export function askLeakageProblem(surfaces: AskSurfaces): string | null {
       `the caption carries ${capHits.length} competing asks (${capHits.join(", ")}). One reel, one ask — ` +
       "a caption asking for a comment, a share and a phone call asks for none of them clearly."
     );
+  }
+
+  // ONE ASK PER REEL MEANS ACROSS SURFACES, NOT WITHIN EACH. A caption holding
+  // exactly one ask still breaks the rule if that ask is not the one the end
+  // card renders — the viewer is asked for two different things in two places.
+  const declared = surfaces.declaredAsk;
+  if (declared && capHits.length === 1) {
+    const allowed = ASK_KIND_SIGNALS[declared.kind] ?? [];
+    if (!allowed.includes(capHits[0])) {
+      return (
+        `the caption asks for "${capHits[0]}" while the declared end-card ask is "${declared.kind}" ` +
+        `(which renders ${JSON.stringify(renderAskText(declared))}). That is two different asks on two ` +
+        "surfaces. Either drop the caption's ask and let the end card carry it, or make them the same ask."
+      );
+    }
   }
 
   return null;
