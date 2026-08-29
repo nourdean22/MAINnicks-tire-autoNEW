@@ -45,7 +45,7 @@ import {
 } from "./dua";
 import { BRAND_CAST } from "./brandBible";
 import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
-import { runReelPreflight, runReelDuaChecks } from "../client/src/lib/facelessReelStudio";
+import { runReelPreflight, runReelDuaChecks, buildHiggsfieldReelPromptPack } from "../client/src/lib/facelessReelStudio";
 
 /**
  * A concept that PASSES every gate. Every defect test below is this object with
@@ -653,5 +653,53 @@ describe("the swap probe's near-duplicate cutoff is calibrated, and stays calibr
 
   it.each(authored.map((a) => [a.id, a] as const))("finds authored concept %s relevant", (_id, input) => {
     expect(readRelevance(input).relevant).toBe(true);
+  });
+});
+
+// ─── Trajectory: DUA is inert on the compiled payload ──────────────
+
+describe("adding a DUA concept does not perturb prompt compilation", () => {
+  /**
+   * `facelessReelStudio.ts` is the Visual World file, so touching it requires
+   * trajectory evidence that locked invariants still reach the final payload.
+   * This diff adds an OPTIONAL `dua` field plus a preflight call, and the claim
+   * being proved is that both are inert on what the provider is actually sent:
+   * the compiled pack is byte-identical with and without the concept, and the
+   * visual world's locked invariants still land in every beat.
+   */
+  const worldBrief = () => ({
+    ...SAMPLE_REEL_BRIEFS[0],
+    visualWorld: {
+      style: "safe" as const,
+      heroFrameUrl: "https://example.invalid/hero.png",
+      framePrompt: "a worn tread block under a single overhead work light",
+      lockedInvariants: "SAME OBJECT: one worn tread block, warm brushed gold key light, deep matte black field.",
+    },
+  });
+
+  it("compiles an identical prompt pack with and without an authored concept", () => {
+    const without = buildHiggsfieldReelPromptPack(worldBrief());
+    const withDua = buildHiggsfieldReelPromptPack({ ...worldBrief(), dua: base() });
+    expect(withDua).toEqual(without);
+  });
+
+  it("still carries the locked invariants into every beat prompt", () => {
+    const pack = buildHiggsfieldReelPromptPack({ ...worldBrief(), dua: base() });
+    expect(pack.length).toBeGreaterThan(0);
+    for (const beat of pack) {
+      expect(beat.prompt).toContain("SAME OBJECT: one worn tread block");
+    }
+  });
+
+  it("stops a brief BEFORE the pack when the authored concept fails the gate", () => {
+    // The one way DUA reaches the payload: it can prevent one being built at
+    // all. prepareCleanReelBrief only compiles the pack after preflight passes.
+    const decorative = base({
+      violation: "a defendant is dragged before a stern tribunal",
+      visualMetaphor: "a gavel hangs above a nervous silence",
+      payoff: "the verdict lands and the room empties",
+    });
+    expect(runReelPreflight({ ...worldBrief(), dua: decorative }).status).toBe("block");
+    expect(runReelPreflight(worldBrief()).status).toBe("pass");
   });
 });

@@ -1502,6 +1502,38 @@
         "deploymentId": "Railway MAINnicks-tire-auto deployment c5b3d60d-24dc-42d9-94b2-a8a4429524ae (SUCCESS, created 2026-08-25T18:11:28Z) — the container that served the 18:21:18Z observed run. Second generation since the staging merge (first: 16:08:28Z post-#1830); campaign-resume automatic runs across both: 0."
       },
       "verificationExpiresAt": "2026-09-24"
+    },
+    {
+      "capabilityId": "dua-relevance-gate",
+      "name": "Delightfully Useful Absurdity: relevance gate + layer boundary on the reel brief path",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "shared/dua.ts + shared/duaFranchiseKits.ts, wired into runReelPreflight via runReelDuaChecks(). shared/absurdityConcepts.ts relocated from server/services/ where it had zero consumers since #346 and now supplies the swap corpus.",
+        "tests": [
+          "shared/dua.test.ts (101): every gate ships as a canary PAIR - the defect blocks with its own code, the corrected variant passes. Includes the calibration lock over six concepts authored by prior sessions.",
+          "shared/duaFranchiseKits.test.ts (45): kits exhaustive over the 12 registered franchises, muted-first equivalent required, THE METAL's single-spoken-line bible invariant upheld.",
+          "MUTATION PASS 20/20: each gate was broken in the real module and the suite asserted to fail. The near-duplicate cutoff (0.4) survived the first pass at 18/19 - it had no test - and now has its own lock; 0.5 and 0.95 are both caught.",
+          "FALSE-POSITIVE PROBES, all locked as tests: 116 committed reel packs scanned -> 0 findings; 10 legitimate diagnostic sentences pass; 4 fabricated verdicts block."
+        ],
+        "liveRuns": [],
+        "notes": "Relevance is a GATE, not a score. Terms are weighted by inverse document frequency: the first draft compared raw coverage ratios and reported PORTABLE on 6 of 6 genuinely relevant authored concepts, because generic connectives ('point' 15/100 corpus facts, 'check' 7/100) counted the same as diagnostic ones ('sidewall', 'hygroscopic', 1-2/100). Layer boundary: 'generated' is Layer C exclusive and permission is monotone down the stack. Confining generation to Layer C is a TRUTH control and does NOT discharge the platform AI-labelling duty - any generated asset without a disclosureMode blocks."
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "NOTHING AUTHORS A DuaConcept YET. The full gate blocks only when brief.dua is set, and no producer sets it. On the derived path the three content detectors DO block inside the live daily reel cron, but relevance and the swap probe are WARN because reconstructing violation/payoff from a ReelBrief is lossy. Do not read this row as 'relevance is enforced on live reels'."
+        },
+        {
+          "severity": "P2",
+          "description": "Franchise blockingConditions are English sentences; only four recurring shapes (cost, unsafe-to-drive, street address, remaining-life) have detectors. DuaGateReport.unenforcedConditions carries what could not be checked, so no caller can render a clean franchise verdict without its limits."
+        }
+      ],
+      "deferredScope": "No pixel inspection - this is a design-time gate over words, run before spend. renderedQa.ts remains the vision critic. No new franchise: 'NASA Alignment' is recorded in UNHOUSED_SHOW_CONCEPTS rather than added as a 13th, because adding one changes the publishing rotation and needs its own requiredEvidence.",
+      "lastVerifiedAt": "2026-08-29",
+      "verificationExpiresAt": "2027-02-28",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
