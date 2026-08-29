@@ -124,6 +124,10 @@ describe("buildFfmpegArgs", () => {
     musicPath: "/t/music.mp3",
     fontPath: "/usr/share/fonts/DejaVuSans-Bold.ttf",
     outPath: "/t/out.mp4",
+    // The end card is now DECLARED rather than concatenated from
+    // brief.campaignKeyword inside the assembler. A fixture with no declared
+    // ask renders no card at all — see reelTextSurfaces.test.ts.
+    askText: "FULL BREAKDOWN IN OUR BIO",
   };
 
   it("lists clip inputs in order, then VO, then music", () => {

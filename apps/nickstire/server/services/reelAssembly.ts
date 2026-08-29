@@ -12,6 +12,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { createLogger } from "../lib/logger";
+import { askProblem, renderAskText, resolveReelAsk } from "@shared/reelAsk";
+import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 
 const log = createLogger("services:reel-assembly");
 
@@ -43,9 +45,9 @@ export interface ReelSegment {
 export const MAX_CLIP_SECONDS = 4;
 const MIN_BEAT_SECONDS = 0.8;
 const DEFAULT_BEAT_SECONDS = 3;
-/** Phase 3.1 save-payload: hold the final frame this long with a SAVE overlay. */
+/** Phase 3.1 save-payload: hold the final frame this long. The overlay text is
+ *  no longer built here — it comes from the declared ask (shared/reelAsk.ts). */
 export const SAVE_FREEZE_SECONDS = 3;
-const SAVE_CTA_TEXT = "SAVE THIS";
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -235,6 +237,14 @@ export interface FfmpegBuildOpts {
   assPath: string | null;
   fontPath: string;
   outPath: string;
+  /**
+   * The single declared end-card ask, already rendered to its final line.
+   * Null draws NO end card - which is the correct outcome when nothing declared
+   * one. This used to be built inside the assembler from `campaignKeyword`,
+   * which is how `SAVE THIS | DM "SALT"` reached the frame of reel 1770003
+   * while its payload declared only five beats. See shared/reelTextSurfaces.ts.
+   */
+  askText?: string | null;
 }
 
 /**
@@ -356,9 +366,16 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   // PTS from the frame index (N/30) gives clones real timestamps on every
   // ffmpeg version; on 8.x it is an identity transform.
   fc.push(`[vcap]tpad=stop_mode=clone:stop_duration=${SAVE_FREEZE_SECONDS},setpts=N/30/TB[vpad]`);
-  fc.push(
-    `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
-  );
+  // The freeze is unconditional so the duration contract and the render-integrity
+  // gate (expectedSec = total + SAVE_FREEZE_SECONDS) are unaffected. Only the
+  // CARD is conditional: no declared ask means no burned-in ask.
+  if (opts.askText) {
+    fc.push(
+      `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
+    );
+  } else {
+    fc.push(`[vpad]null[vout]`);
+  }
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
   const maps: string[] = ["-map", "[vout]"];
@@ -758,18 +775,34 @@ export async function assembleReel(
     const localFontPath = path.join(workDir, "font.ttf");
     await fs.promises.copyFile(origFontPath, localFontPath);
 
-    for (let i = 0; i < segs.length; i++) {
-      // per-line files — see the per-line drawtext note in buildFfmpegArgs
-      const capLines = segs[i].caption.split("\n");
-      for (let j = 0; j < capLines.length; j++) {
-        await fs.promises.writeFile(path.join(workDir, `caption_${i}_${j}.txt`), capLines[j], "utf-8");
-      }
+    // ONE declaration drives the files on disk AND what the filtergraph may
+    // draw. Previously these were two independent places - a per-line write
+    // loop, plus a `SAVE THIS | DM "<keyword>"` string concatenated here - and
+    // nothing made them agree with the storyboard. That is how reel 1770003
+    // shipped six burned-in cards from a five-beat payload.
+    const ask = resolveReelAsk(brief);
+    if (ask) {
+      const askBad = askProblem(ask);
+      // Fail the render rather than burn a malformed or compound ask into a
+      // frame nobody can edit afterwards.
+      if (askBad) throw new Error(`reel ask is invalid: ${askBad}`);
     }
-    const ctaText = brief.campaignKeyword ? `SAVE THIS | DM "${brief.campaignKeyword.toUpperCase()}"` : "SAVE THIS POST";
-    await fs.promises.writeFile(path.join(workDir, "caption_save.txt"), ctaText, "utf-8");
+    const askText = ask ? renderAskText(ask) : null;
+    const surfaces = declaredTextSurfaces(segs, askText, !!assPath);
+    for (const s of surfaces) {
+      await fs.promises.writeFile(path.join(workDir, s.file), s.text, "utf-8");
+    }
 
     const musicPath = pickMusicBed(brief);
-    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath });
+    const args = buildFfmpegArgs({ segs, clipPaths, voPath, assPath, musicPath, fontPath: "font.ttf", outPath, askText });
+
+    // The render must draw exactly what was declared - no more, no less. This
+    // fires BEFORE ffmpeg runs, so an undeclared card costs a failed job rather
+    // than a published frame that no payload review would ever surface.
+    const undeclared = undeclaredTextProblem(args, surfaces, !!brief.voiceoverScript);
+    if (undeclared) {
+      throw new Error(`refusing to render: ${undeclared}`);
+    }
     log.info("assembling reel", { jobId, beats: segs.length, total, usedVo: !!voPath, usedAss: !!assPath, usedMusic: !!musicPath });
     await runFfmpeg(args, 5 * 60 * 1000, workDir);
 
