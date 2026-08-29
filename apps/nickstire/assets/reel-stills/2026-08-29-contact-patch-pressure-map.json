@@ -1,0 +1,59 @@
+{
+  "$comment": "Sidecar for 2026-08-29-contact-patch-pressure-map.png. Disclosure fields are POPULATED, never defaulted - this asset is model-generated and the constraints below govern how it may be captioned.",
+
+  "asset": {
+    "file": "2026-08-29-contact-patch-pressure-map.png",
+    "capturedAt": "2026-08-29",
+    "width": 1536,
+    "height": 2752,
+    "bytes": 6916343,
+    "aspectRatio": "24:43",
+    "aspectRatioNote": "NOT exactly 9:16. 1536/2752 = 0.5581; 9:16 = 0.5625. Close enough to read as vertical, but reelPromotability.ts compares aspectRatio to the literal string '9:16', so this asset must be reframed or the field set honestly - do not label it 9:16 to make a check pass.",
+    "containsText": false,
+    "containsWatermark": false
+  },
+
+  "disclosure": {
+    "hasGeneratedVideo": false,
+    "isGeneratedImage": true,
+    "videoProvider": "higgsfield",
+    "model": "nano_banana_pro",
+    "apiDisclosureFlag": true,
+    "disclosureLabel": "AI-generated illustration",
+    "category": "ai-for-the-unfilmable",
+    "requiredCaptionDisclosure": "AI-generated illustration",
+    "note": "Any post using this asset MUST set Meta's is_ai_generated=true on the container (shared/reelDisclosure.ts). Caption text alone does not satisfy Meta - verified against their ig-user/media reference 2026-08-28."
+  },
+
+  "usageConstraints": {
+    "isEvidence": false,
+    "measurementAuthority": "none",
+    "mustNotClaim": [
+      "that the heat map represents a real measurement, test, or instrument reading",
+      "that it depicts a specific customer's tire, vehicle, or repair",
+      "that it is a before/after comparison of two inflation states",
+      "any numeric pressure, temperature, or wear figure derived from the colours"
+    ],
+    "splitCompositionWarning": "READ THIS BEFORE CAPTIONING. The image is a two-tone split - cyan left half, orange right half, divided by a dash-dot centreline. That styling strongly invites an 'under-inflated vs over-inflated' or 'good vs bad' caption. It does not support one: both halves show essentially the SAME contact-patch pressure distribution, differently coloured. Captioning it as an A/B comparison would fabricate a distinction the image does not depict. Confirmed by looking at the rendered image, not by reading the generation prompt.",
+    "safeFraming": "Use it as a metaphor for how tire pressure concentrates load across the contact patch, and how that shapes where a tire wears. Describe the mechanism, never a measurement."
+  },
+
+  "packAssignment": {
+    "status": "unassigned",
+    "explicitlyNot": "2026-08-17-why-car-pulls",
+    "whyNot": "pulling is an alignment and camber problem. This is a contact-patch load-distribution explainer and does not illustrate pull. The generation prompt was aimed at the wrong pack; filing it there anyway would make it a mislabelled surface.",
+    "suggestedPack": "2026-08-18-uneven-tire-wear-patterns",
+    "whySuggested": "that pack is WEARSHAPE - 'Your tire wear has a shape'. Contact-patch load distribution is the MECHANISM that produces wear shape, so the asset illustrates that pack's causal claim directly. Second choice is 2026-08-17-summer-heat-tire-pressure, which is weaker: that pack is about TPMS and heat, and the contact patch is not its subject.",
+    "assignmentIsAHumanCall": true
+  },
+
+  "provenance": {
+    "lane": "Higgsfield MCP (mcp.higgsfield.ai)",
+    "ledger": "consumer / Ultra",
+    "ledgerProof": "balance 1934.62 before, 1932.62 after, delta exactly 2, matching the get_cost quote. Run with use_unlim:false to force the credit path so a zero delta could not be mistaken for a free-trial consumption.",
+    "creditsSpent": 2,
+    "generatedAt": "2026-08-29",
+    "originalUrl": "https://d8j0ntlcm91z4.cloudfront.net/user_3EUlFhi5ihT6kjumc0oheEh7gg7/hf_20260829_020536_16004069-0081-4d4e-bee6-958f3675ba4a.png",
+    "originalUrlIsNotStorage": "Higgsfield retains outputs for AT LEAST seven days, which is a retention floor and not a guarantee. The CloudFront URL is therefore not durable storage; this committed copy is the durable one. reelPipeline.ts:640-646 makes the same point about generation output - only Higgsfield returns its own CDN URL, and every other provider must be re-hosted through storagePut."
+  }
+}
