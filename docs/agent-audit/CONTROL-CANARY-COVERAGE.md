@@ -1081,3 +1081,25 @@ pnpm agent:verify                                   # both canary suites + parit
 ```
 
 Per-chain link counts come from `apps/<app>/package.json` (`verify:hard`, `verify`) and `lefthook.yml`.
+
+---
+
+## Shape index
+
+Each file below is a defect SHAPE — a recurring way a control looks correct and is not — plus
+the probe for finding the next instance. A shape earns a file when it has been seen twice.
+
+- [`DEFECT-SHAPE-ORPHANED-SUBJECT.md`](DEFECT-SHAPE-ORPHANED-SUBJECT.md) — the gate runs, passes,
+  and never looks at the thing it was written to protect.
+- [`DEFECT-SHAPE-SILENT-INSTRUMENT.md`](DEFECT-SHAPE-SILENT-INSTRUMENT.md) — the measurement
+  returns a clean zero because it cannot see the target at all.
+- [`DEFECT-SHAPE-DISCARDED-ANSWER.md`](DEFECT-SHAPE-DISCARDED-ANSWER.md) — **added 2026-08-29
+  (PR #2019).** The system computed or possessed the right answer and threw it away, then emitted
+  a CONFIDENT wrong output rather than an error. Three instances in one chat-recall path: a tool
+  advertised as FTS that ran a substring match; a search that computed `ts_rank` relevance and
+  re-sorted by `confidence`, burying the operator's own pinned memory under 7,059 bulk chunks at
+  the ceiling confidence; and a prompt with no rule for narrating an empty result, so the model
+  turned one miss into "I don't have reliable information about whether that memory exists".
+  A fourth, found while fixing those: `count` reported the page size, not the match total —
+  112 matches displayed as `16`. Nothing crashes, nothing logs, nothing goes red.
+  **Probe: what did this compute that it does not return?**

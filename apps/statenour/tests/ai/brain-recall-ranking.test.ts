@@ -31,8 +31,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   brainMemory: { findMany: vi.fn() },
-  reflection: { findMany: vi.fn() },
-  brainDump: { findMany: vi.fn() },
+  reflection: { findMany: vi.fn(), count: vi.fn() },
+  brainDump: { findMany: vi.fn(), count: vi.fn() },
   queryRawUnsafe: vi.fn(),
 }));
 
@@ -79,6 +79,8 @@ const ARCHIVE = Array.from({ length: 12 }, (_, i) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.queryRawUnsafe.mockResolvedValue([]);
+  mocks.reflection.count.mockResolvedValue(0);
+  mocks.brainDump.count.mockResolvedValue(0);
 });
 
 describe("searchMemories · relevance outranks confidence", () => {
@@ -190,11 +192,78 @@ describe("searchReflections · multi-word queries must reach the corpus", () => 
     mocks.brainDump.findMany.mockResolvedValue([
       { id: "d-1", date: "2026-08-02", summary: "s", rawThoughts: "t", patterns: null, moodBefore: null },
     ]);
+    mocks.reflection.count.mockResolvedValue(0);
+    mocks.brainDump.count.mockResolvedValue(1);
 
     const out = await searchReflections.execute({ query: "mantra", limit: 8 });
 
     expect(out.reflectionCount).toBe(0);
     expect(out.brainDumpCount).toBe(1);
     expect(out.count).toBe(1);
+  });
+});
+
+describe("searchReflections · the count must be the total, not the page size", () => {
+  /** N reflection rows, of which only `limit` come back in the page. */
+  const rows = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `r-${i}`, date: "2026-08-01", category: "behavior",
+      insight: `insight ${i}`, evidence: "", actionable: false,
+    }));
+
+  it("reports 111 matches when 111 match and 8 are returned", async () => {
+    // The exact production shape: "business" matched 71 reflections + 40
+    // brain dumps; the payload said 16 because each source was capped at 8.
+    mocks.reflection.findMany.mockResolvedValue(rows(8));
+    mocks.brainDump.findMany.mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({ id: `d-${i}`, date: "2026-08-01", summary: "s", rawThoughts: "t", patterns: null, moodBefore: null })),
+    );
+    mocks.reflection.count.mockResolvedValue(71);
+    mocks.brainDump.count.mockResolvedValue(40);
+
+    const out = await searchReflections.execute({ query: "business", limit: 8 });
+
+    expect(out.count).toBe(111);
+    expect(out.returned).toBe(16);
+    expect(out.truncated).toBe(true);
+    expect(out.countExact).toBe(true);
+  });
+
+  it("does not claim truncation when the page IS the whole result", async () => {
+    mocks.reflection.findMany.mockResolvedValue(rows(2));
+    mocks.brainDump.findMany.mockResolvedValue([]);
+    mocks.reflection.count.mockResolvedValue(2);
+    mocks.brainDump.count.mockResolvedValue(0);
+
+    const out = await searchReflections.execute({ query: "discipline", limit: 8 });
+
+    expect(out.count).toBe(2);
+    expect(out.returned).toBe(2);
+    expect(out.truncated).toBe(false);
+  });
+
+  it("marks the total INEXACT rather than reporting a failed count as fact", async () => {
+    // A count that could not be read is UNKNOWN. Reporting it as a confident
+    // number is the defect class this whole change exists to remove.
+    mocks.reflection.findMany.mockResolvedValue(rows(3));
+    mocks.brainDump.findMany.mockResolvedValue([]);
+    mocks.reflection.count.mockRejectedValue(new Error("count failed"));
+    mocks.brainDump.count.mockResolvedValue(0);
+
+    const out = await searchReflections.execute({ query: "x", limit: 8 });
+
+    expect(out.countExact).toBe(false);
+    expect(out.count).toBe(3); // falls back to the page, never invents a total
+  });
+
+  it("still reports zero honestly when nothing matches", async () => {
+    mocks.reflection.findMany.mockResolvedValue([]);
+    mocks.brainDump.findMany.mockResolvedValue([]);
+    mocks.reflection.count.mockResolvedValue(0);
+    mocks.brainDump.count.mockResolvedValue(0);
+
+    const out = await searchReflections.execute({ query: "nothing", limit: 8 });
+    expect(out.count).toBe(0);
+    expect(out.truncated).toBe(false);
   });
 });
