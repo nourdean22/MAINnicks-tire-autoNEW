@@ -5,6 +5,7 @@ import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { getAllBreakerHealth, resetAllBreakers } from "../lib/circuit-breaker";
+import { resolveIsAiGenerated } from "@shared/reelDisclosure";
 
 const serverLog = createLogger("server");
 
@@ -292,7 +293,14 @@ export function registerAdminRoutes(app: Express): void {
 
         let outcome;
         try {
-          outcome = await publishToSocial({ platforms: ["instagram"], videoUrl: job.mp4Url, caption: job.caption || "" });
+          // DEFAULTS TO DISCLOSED. Omitting the flag must not produce an
+            // undisclosed post - see resolveIsAiGenerated in shared/reelDisclosure.
+            outcome = await publishToSocial({
+              platforms: ["instagram"],
+              videoUrl: job.mp4Url,
+              caption: job.caption || "",
+              isAiGenerated: resolveIsAiGenerated(req.body?.isAiGenerated),
+            });
         } catch (pubErr) {
           await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: pubErr instanceof Error ? pubErr.message : String(pubErr) });
           // THREW — we cannot know whether Meta accepted the post. Do NOT restore
