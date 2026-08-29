@@ -1,13 +1,45 @@
 /**
  * Where a reel is allowed to send people.
  *
- * WHY THIS EXISTS, measured rather than asserted. Across every post this account
- * has ever published - eight of them - the link was bare `nickstire.org`, the
- * homepage, and one linked nowhere at all. Meanwhile 175 topic-specific pages
- * were deployed and prerendered the whole time. The reference post was about
- * road salt corroding electrical connections and `/electrical` existed; it
- * linked to the homepage anyway. That mapping gap is the measured cause of the
- * funnel result: 13,871 views produced 74 profile visits and ONE website tap.
+ * WHY THIS EXISTS, measured rather than asserted. Every post this account has
+ * published carried the bare `nickstire.org` homepage as its link, or no link
+ * at all, while 175 topic-specific pages sat deployed and prerendered. The
+ * reference post was about road salt corroding electrical connections and
+ * `/electrical` existed; it linked to the homepage anyway. Funnel result over
+ * 30 days: 13,871 views -> 74 profile visits -> ONE website tap.
+ *
+ * THE COUNT IN THIS HEADER USED TO SAY "eight of them". It was wrong, and it
+ * had been repeated into `reelDestinationMap.ts` as well. Measured 2026-08-29:
+ * `reel_jobs` holds 30 rows carrying an `igPostId` - 29 distinct, because
+ * jobs 750002 and 780001 record the SAME post id - and 26 of those 29 are
+ * present in the account's own analytics cache. A hand-typed count in a
+ * comment is a cache with no invalidation; prefer a query.
+ *
+ * ── WHAT A DESTINATION CAN AND CANNOT DO ON INSTAGRAM ────────────────────
+ * Verified 2026-08-29 against Meta's own parameter reference for
+ * POST /{ig-user-id}/media. The complete accepted set is: access_token,
+ * alt_text, audio_name, caption, collaborators, children, cover_url,
+ * image_url, is_carousel_item, location_id, media_type, product_tags,
+ * share_to_feed, thumb_offset, upload_type, user_tags, trial_params,
+ * branded_content_sponsor_ids, is_paid_partnership, is_ai_generated,
+ * video_url. There is NO link, url, website, destination or call-to-action
+ * parameter, and a URL typed into a Reel caption renders as plain text that
+ * viewers cannot tap.
+ *
+ * So a destination written into caption text is DECORATION at publish time.
+ * It is not wired to anything, which is the precise defect class this module
+ * was built to remove - it would just be a prettier version of it. A
+ * destination's real uses are all OUT of band: the single bio link, a
+ * comment-to-DM auto-reply, or a Story link sticker posted alongside.
+ *
+ * `location_id` is the one per-post, API-settable, genuinely tappable field
+ * in that list, and this shop does not use it. That is the real lever for
+ * local discovery here - not a caption URL.
+ *
+ * This module is therefore still correct and still worth having: it validates
+ * destinations for the bio link, DM replies and any paid placement, and it
+ * stops `/tire-sidewall`-class invented paths reaching a customer. It just
+ * does not, and cannot, attach a link to an organic Reel.
  *
  * The first version of the promotability check asked for `landingDestination`
  * as a FREE-TEXT string. Within minutes of writing it, its own author
