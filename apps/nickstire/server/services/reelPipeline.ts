@@ -16,6 +16,7 @@ import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
 import type { EpisodeContract, EpisodeDeclaration } from "../../shared/episodeContract";
+import { buildStructuredVideoPrompt } from "../../shared/reelVideoPrompt";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -219,6 +220,17 @@ export interface ReelJobBrief {
     visual: string; 
     onScreenText?: string;
     veoOperationName?: string;
+    /**
+     * `motion` and `audioCue` were IN the persisted payload all along and
+     * simply undeclared here, so nothing could read them and the video
+     * model only ever saw `visual`. Verified against prod 2026-08-29: jobs
+     * 1770003/4/5 all carry `motion`, two carry `audioCue`. The whole brief
+     * is JSON.stringify'd at enqueue and a TS type does not strip fields at
+     * runtime, so declaring them IS the fix - no migration. Optional
+     * because 1770004 has `motion` but no `audioCue`.
+     */
+    motion?: string;
+    audioCue?: string;
   }>;
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
@@ -671,7 +683,13 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       const packEntry =
         brief.promptPack?.find((p) => p.beatNumber === beat.beatNumber) ??
         brief.higgsfieldPromptPack?.find((p) => p.beatNumber === beat.beatNumber);
-      const prompt = packEntry?.prompt ?? beat.visual;
+      // An authored pack prompt passes through untouched - it is a human's
+      // wording. Only the GENERATED path is restructured. That path used to
+      // send `beat.visual` alone while `motion` and `audioCue` sat unread in
+      // the same payload; see shared/reelVideoPrompt.ts for the measurement.
+      const prompt =
+        packEntry?.prompt ??
+        buildStructuredVideoPrompt({ visual: beat.visual, motion: beat.motion, audioCue: beat.audioCue });
       const negativePrompt = packEntry?.negativePrompt;
       if (!prompt || !prompt.trim()) throw new Error(`beat ${beat.beatNumber} has no prompt`);
 
