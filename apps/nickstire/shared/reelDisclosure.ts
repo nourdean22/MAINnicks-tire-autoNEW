@@ -279,3 +279,28 @@ export function publishDisclosureProblem(input: {
     apiDisclosureFlag: input.willDiscloseAi,
   });
 }
+
+/**
+ * Resolve Meta's AI self-disclosure for a publish call. DEFAULTS TO DISCLOSED.
+ *
+ * ── WHY THE DEFAULT IS INVERTED ─────────────────────────────────────────────
+ * #2023 added `isAiGenerated` to the tRPC publish input and NOTHING EVER SENT
+ * IT - not the Studio client, not the admin routes. An optional boolean
+ * defaults to absent, absent means the container omits `is_ai_generated`, and
+ * omitted means UNDISCLOSED, which is the harmful direction. The control
+ * existed and its default was the unsafe state, which makes it a reminder
+ * rather than a gate. Reminders fail silently.
+ *
+ * Every gate on the autonomous publish path is fail-closed. This one now
+ * matches: forgetting the flag produces a DISCLOSED post. Opting out stays
+ * possible but must be deliberate, which is the right shape for genuinely
+ * human-shot footage.
+ *
+ * ONLY the boolean `false` opts out. `undefined`, `null`, a missing key, `0`,
+ * `""` and the STRING `"false"` all resolve to true: a JSON body yields a real
+ * boolean, and treating the string as an opt-out would let a stray query
+ * parameter silently undisclose a post.
+ */
+export function resolveIsAiGenerated(explicit?: unknown): boolean {
+  return explicit !== false;
+}

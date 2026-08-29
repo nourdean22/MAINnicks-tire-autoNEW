@@ -77,3 +77,47 @@ describe("is_ai_generated arrives on the Meta container", () => {
     expect((container as Record<string, unknown>).caption).toBe("hello");
   });
 });
+
+/**
+ * The DEFAULT is the whole point of the control, so the default is what these
+ * cover. #2023 added the field and NOTHING SENT IT; an absent optional boolean
+ * meant an UNDISCLOSED post, which is the harmful direction.
+ */
+describe("disclosure DEFAULTS to on, and the default reaches the container", () => {
+  it("THE DEFAULT ARRIVES: nothing specified -> is_ai_generated true on the wire", async () => {
+    const bodies = captureFetch();
+    const { resolveIsAiGenerated } = await import("@shared/reelDisclosure");
+    const { postInstagramReel } = await import("./services/metaSocial");
+    // exactly what adminRoutes does when the caller omits the field
+    await postInstagramReel({
+      videoUrl: "https://example.com/r.mp4",
+      caption: "c",
+      isAiGenerated: resolveIsAiGenerated(undefined),
+    });
+    const container = bodies.find((b) => b && typeof b === "object" && "video_url" in (b as object));
+    expect(container, "no container body was sent").toBeDefined();
+    expect((container as Record<string, unknown>).is_ai_generated).toBe(true);
+  });
+
+  it("ONLY the boolean false opts out", async () => {
+    const { resolveIsAiGenerated } = await import("@shared/reelDisclosure");
+    expect(resolveIsAiGenerated(false)).toBe(false);
+    for (const v of [undefined, null, 0, "", "false", "no", {}]) {
+      expect(resolveIsAiGenerated(v), JSON.stringify(v) + " must NOT opt out").toBe(true);
+    }
+  });
+
+  it("the explicit opt-out actually removes the key from the wire", async () => {
+    const bodies = captureFetch();
+    const { resolveIsAiGenerated } = await import("@shared/reelDisclosure");
+    const { postInstagramReel } = await import("./services/metaSocial");
+    await postInstagramReel({
+      videoUrl: "https://example.com/r.mp4",
+      caption: "c",
+      isAiGenerated: resolveIsAiGenerated(false),
+    });
+    const container = bodies.find((b) => b && typeof b === "object" && "video_url" in (b as object));
+    expect(container).toBeDefined();
+    expect(container as Record<string, unknown>).not.toHaveProperty("is_ai_generated");
+  });
+});
