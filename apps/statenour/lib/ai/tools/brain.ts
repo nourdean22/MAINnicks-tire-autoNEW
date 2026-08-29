@@ -326,28 +326,72 @@ export const brainTools = {
           void import("@/lib/utils/error-log").then(({ logError }) => logError("ai.tools.brain", err, { fn: "searchMemories.ftsQuery" }, "warn"));
         }
       }
-      const where: any = {
-        // v7.9 — searchMemories never returns soft-deleted rows
-        deletedAt: null,
-        // BDN-310 supersession honored (2026-08-19 round-2)
-        supersededById: null,
-        AND: [
-          { confidence: { gte: minConfidence } },
-          { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
-          { OR: [
-            ...(ftsIds.length ? [{ id: { in: ftsIds } }] : []),
-            { content: { contains: query, mode: "insensitive" } },
-            { key: { contains: query, mode: "insensitive" } },
-          ]},
-        ],
-      };
-      if (category) where.AND.push({ category });
-      const memories = await prisma.brainMemory.findMany({
-        where,
-        orderBy: { confidence: "desc" },
-        take: limit,
-        select: { id: true, category: true, key: true, content: true, confidence: true, source: true, updatedAt: true },
-      });
+      // Eligibility predicate, shared by every match lane below. Holds the
+      // three invariants that must never be relaxed: not soft-deleted, not
+      // superseded (BDN-310, 2026-08-19 round-2), still within validity --
+      // plus the caller's confidence floor and optional category filter.
+      const eligible: any[] = [
+        { confidence: { gte: minConfidence } },
+        { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
+      ];
+      if (category) eligible.push({ category });
+
+      // 2026-08-29 · Ordering was `confidence: desc` ALONE. That threw away
+      // the ts_rank relevance computed just above and ranked the corpus by
+      // how SURE we are of each row rather than how well it ANSWERS the
+      // query. Measured on production: all 7,059 `archive_*` bulk-ingest
+      // chunks sit at confidence 1.0, so 36,761 of 38,311 live rows (96%)
+      // outranked the operator's own pinned memory
+      // `mantra_mind_your_business` (confidence 0.4). Searching for that row
+      // BY ITS EXACT KEY returned 10 archive chunks and not the row itself
+      // -- which is why Nick reported he could not confirm it existed.
+      //
+      // Ranking cannot be done by re-sorting one confidence-ordered page:
+      // the buried row is not IN that page. So each match lane is fetched
+      // on its own and merged by lane priority:
+      //   0. exact key hit           -- the operator named the row outright
+      //   1. key substring hit       -- still a deliberate, targeted ask
+      //   2. FTS rank                -- meaning-match, already rank-ordered
+      //   3. content substring hit   -- weakest signal, last
+      // Confidence survives only as the tiebreak WITHIN a lane.
+      const selectCols = { id: true, category: true, key: true, content: true, confidence: true, source: true, updatedAt: true };
+      const laneWhere = (match: any) => ({ deletedAt: null, supersededById: null, AND: [...eligible, match] });
+
+      const [keyRows, ftsRows, contentRows] = await Promise.all([
+        prisma.brainMemory.findMany({
+          where: laneWhere({ key: { contains: query, mode: "insensitive" } }),
+          orderBy: { confidence: "desc" }, take: limit, select: selectCols,
+        }),
+        ftsIds.length
+          ? prisma.brainMemory.findMany({ where: laneWhere({ id: { in: ftsIds } }), take: ftsIds.length, select: selectCols })
+          : Promise.resolve([]),
+        // The content lane is an unindexed ILIKE over ~38k rows -- measured
+        // at 3.1s against production, the single most expensive thing this
+        // tool does. FTS covers content already (stemmed, multi-word, and
+        // index-backed), so this only runs as a FALLBACK: when FTS came back
+        // short it may have missed a literal substring, and recall matters
+        // more than latency. When FTS is satisfied, we skip the scan.
+        ftsIds.length >= limit
+          ? Promise.resolve([])
+          : prisma.brainMemory.findMany({
+              where: laneWhere({ content: { contains: query, mode: "insensitive" } }),
+              orderBy: { confidence: "desc" }, take: limit, select: selectCols,
+            }),
+      ]);
+
+      const ftsOrder = new Map(ftsIds.map((id, i) => [id, i]));
+      const ranked = [...ftsRows].sort((a, b) => (ftsOrder.get(a.id) ?? 0) - (ftsOrder.get(b.id) ?? 0));
+      const exactKey = keyRows.filter((r) => r.key.toLowerCase() === query.trim().toLowerCase());
+
+      const seen = new Set<string>();
+      const memories: typeof keyRows = [];
+      for (const lane of [exactKey, keyRows, ranked, contentRows]) {
+        for (const row of lane) {
+          if (seen.has(row.id) || memories.length >= limit) continue;
+          seen.add(row.id);
+          memories.push(row);
+        }
+      }
       return { count: memories.length, memories };
     },
   }),
@@ -1007,10 +1051,55 @@ export const brainTools = {
       if (startDate) dateFilter.gte = startDate;
       if (endDate) dateFilter.lte = endDate;
       const hasDateFilter = startDate || endDate;
+
+      // 2026-08-29 · This tool was advertised as "FTS over journal
+      // reflections" (lib/ai/tool-families.ts) but ran a literal
+      // `contains` on the WHOLE query string. Any multi-word ask --
+      // which is every natural-language ask the model emits for
+      // "have I thought about this before" -- could only match if that
+      // exact phrase appeared verbatim, so it returned 0 against a
+      // corpus of 210 reflections + 1,181 brain dumps. Measured against
+      // production: "business" -> 71 hits, "mind your business" -> 0.
+      //
+      // Same fix searchMemories already carries: Postgres websearch FTS
+      // supplies stemmed, multi-word ids that are UNIONed into the OR
+      // below. Purely additive -- the ILIKE arms still apply, so an
+      // empty/unparseable tsquery or a missing index degrades to exactly
+      // the old behaviour rather than breaking recall.
+      const ftsFor = async (
+        table: "reflections" | "brain_dumps",
+        columns: string[],
+      ): Promise<string[]> => {
+        if (!query.trim()) return [];
+        try {
+          const expr = columns.map((c) => `coalesce(${c},'')`).join(" || ' ' || ");
+          const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
+            `SELECT id::text AS id FROM ${table}
+             WHERE deleted_at IS NULL
+               AND to_tsvector('english', ${expr}) @@ websearch_to_tsquery('english', $1)
+             ORDER BY ts_rank(to_tsvector('english', ${expr}), websearch_to_tsquery('english', $1)) DESC
+             LIMIT $2`,
+            query,
+            limit * 2,
+          );
+          return rows.map((r) => r.id);
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) =>
+            logError("ai.tools.brain", err, { fn: `searchReflections.fts.${table}` }, "warn"),
+          );
+          return [];
+        }
+      };
+      const [reflectionFtsIds, dumpFtsIds] = await Promise.all([
+        ftsFor("reflections", ["insight", "evidence", "category"]),
+        ftsFor("brain_dumps", ["summary", "raw_thoughts", "patterns"]),
+      ]);
+
       const [reflections, dumps] = await Promise.all([
         prisma.reflection.findMany({
           where: {
             OR: [
+              ...(reflectionFtsIds.length ? [{ id: { in: reflectionFtsIds } }] : []),
               { insight: { contains: q, mode: "insensitive" } },
               { evidence: { contains: q, mode: "insensitive" } },
               { category: { contains: q, mode: "insensitive" } },
@@ -1025,6 +1114,7 @@ export const brainTools = {
         prisma.brainDump.findMany({
           where: {
             OR: [
+              ...(dumpFtsIds.length ? [{ id: { in: dumpFtsIds } }] : []),
               { summary: { contains: q, mode: "insensitive" } },
               { rawThoughts: { contains: q, mode: "insensitive" } },
               { patterns: { contains: q, mode: "insensitive" } },
@@ -1039,6 +1129,15 @@ export const brainTools = {
       ]);
       return {
         query,
+        // 2026-08-29 · `count` is the TOTAL across both sources. The chat
+        // card (components/chat/tool-result-registry.tsx) reads
+        // `count ?? results ?? reflections.length` -- with no `count` it
+        // fell through to the reflections array alone and rendered
+        // "0 matches" for a search that had returned brain dumps.
+        // Measured: query "mantra" -> 0 reflections, 1 brain dump, card
+        // said "0 matches". The total belongs in the payload, not in the
+        // renderer's guesswork.
+        count: reflections.length + dumps.length,
         reflectionCount: reflections.length,
         brainDumpCount: dumps.length,
         reflections,

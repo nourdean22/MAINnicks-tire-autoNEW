@@ -15,6 +15,7 @@ import { MessageActionSheet } from "@/components/chat/message-action-sheet";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
 import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
+import { summarizeToolReceipts, formatToolReceipts, collapseRepeatedToolParts, isEmptyToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
 import { trpc } from "@/lib/trpc/client";
@@ -67,21 +68,26 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
   const toolParts = (message.parts ?? []).filter((part) => part.type.startsWith("tool-")) as Array<{
     type: string;
     state?: string;
+    output?: unknown;
   }>;
   if (toolParts.length === 0 && !traceId) return null;
 
-  const complete = toolParts.filter((part) => part.state === "output-available").length;
-  const failed = toolParts.filter((part) => part.state === "output-error").length;
-  const running = toolParts.length - complete - failed;
+  // 2026-08-29 · This chip said "N verified" over a green shield, computed
+  // purely from `state === "output-available"` -- i.e. "the call did not
+  // throw". The operator screenshotted "3 verified" sitting directly above
+  // five "0 matches" cards. A search that found nothing is not a verified
+  // anything, and "verified" is the word this product uses for receipts it
+  // actually proved. Empty results now get counted and named on their own.
+  const counts = summarizeToolReceipts(toolParts);
+  const allEmpty = counts.total > 0 && counts.returned === 0 && counts.failed === 0 && counts.running === 0;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-void/60 px-3 py-2 text-[11px] text-fg-secondary">
-      <ShieldCheck size={13} className={failed > 0 ? "text-red-400" : "text-emerald-400"} />
-      {toolParts.length > 0 && (
-        <span>
-          Tool receipts: {complete} verified{failed ? ` · ${failed} failed` : ""}{running ? ` · ${running} running` : ""}
-        </span>
-      )}
+      <ShieldCheck
+        size={13}
+        className={counts.failed > 0 ? "text-red-400" : allEmpty ? "text-fg-tertiary" : "text-emerald-400"}
+      />
+      {counts.total > 0 && <span>{formatToolReceipts(counts)}</span>}
       {traceId && (
         <Link
           href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
@@ -262,6 +268,15 @@ export function ChatMessageList({
       {renderedMessages.map((message, messageIndex) => {
         if (isErroredAssistantTurn(message)) return <InterruptedTurnCard key={message.id} message={message} onRetry={onRetry} />;
         const isLatestAssistant = message.role === "assistant" && messageIndex === renderedMessages.length - 1;
+        // 2026-08-29 · When recall was broken the model retried the same
+        // search several times in one turn and the transcript rendered five
+        // byte-identical "0 matches" cards in a row -- on a phone that is
+        // most of the viewport spent saying one thing. Only ADJACENT
+        // identical runs collapse; a different part in between keeps them
+        // separate, because the real sequence is information.
+        const toolRunRepeat = new Map(
+          collapseRepeatedToolParts(message.parts ?? []).map((r) => [r.index, r.repeat]),
+        );
         return (
           <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[88%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed ${message.role === "user" ? "bg-surface text-fg" : "border border-glass bg-raised/85 text-fg"}`}>
@@ -304,9 +319,30 @@ export function ChatMessageList({
                   return <ChatMediaPart key={`${message.id}-${index}`} id={`${message.id}-${index}`} part={part as ChatFilePart} />;
                 }
                 if (part.type.startsWith("tool-")) {
+                  const repeat = toolRunRepeat.get(index);
+                  // Not the head of its run — an identical card already
+                  // stands directly above it.
+                  if (repeat === undefined) return null;
                   const toolName = part.type.replace("tool-", "");
-                  if (isKnownToolName(toolName)) return <ToolResultCard key={`${message.id}-${index}`} toolName={toolName} state={(part as any).state} output={(part as any).output} />;
-                  return <div key={`${message.id}-${index}`} className="mt-2 rounded-lg border border-edge bg-void/50 p-3 text-xs text-fg-secondary">{toolName}: {(part as any).state === "output-available" ? "verified complete" : (part as any).state === "output-error" ? "failed" : "running"}</div>;
+                  const repeatBadge = repeat > 1 ? (
+                    <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
+                      ×{repeat} — same call, same result
+                    </div>
+                  ) : null;
+                  if (isKnownToolName(toolName)) return (
+                    <div key={`${message.id}-${index}`}>
+                      <ToolResultCard toolName={toolName} state={(part as any).state} output={(part as any).output} />
+                      {repeatBadge}
+                    </div>
+                  );
+                  // "verified complete" was the same overclaim as the receipt
+                  // chip: `output-available` only means the call returned.
+                  return (
+                    <div key={`${message.id}-${index}`} className="mt-2 rounded-lg border border-edge bg-void/50 p-3 text-xs text-fg-secondary">
+                      {toolName}: {(part as any).state === "output-available" ? (isEmptyToolOutput((part as any).output) ? "returned no results" : "returned data") : (part as any).state === "output-error" ? "failed" : "running"}
+                      {repeatBadge}
+                    </div>
+                  );
                 }
                 return null;
               })}
