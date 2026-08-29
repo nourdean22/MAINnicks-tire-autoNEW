@@ -19,6 +19,7 @@ import {
   isGenerated,
   hasDisclosure,
   realEvidenceClaims,
+  publishDisclosureProblem,
   type DisclosurePack,
 } from "@shared/reelDisclosure";
 
@@ -206,5 +207,51 @@ describe("Meta's is_ai_generated is the disclosure mechanism, not caption text",
   it("requiredPublishParams demands the flag for generated video and nothing for real footage", () => {
     expect(requiredPublishParams({ ...base, videoProvider: "higgsfield", copy: "" })).toEqual({ is_ai_generated: true });
     expect(requiredPublishParams({ ...base, videoProvider: null, copy: "" })).toEqual({});
+  });
+});
+
+describe("publishDisclosureProblem — the publish-door decision", () => {
+  const generated = { jobId: 1, willDiscloseAi: true };
+
+  it("BLOCKS a claim that lives only in the ON-SCREEN TEXT, not the caption", () => {
+    const r = publishDisclosureProblem({
+      ...generated,
+      caption: "Three signs your brakes need attention. AI-generated.",
+      onScreenText: "This customer came in with a sidewall bulge.",
+    });
+    expect(r).toContain("BLOCKED_AI_PRESENTED_AS_REAL");
+  });
+
+  it("BLOCKS the same claim in the caption", () => {
+    expect(
+      publishDisclosureProblem({ ...generated, caption: "Before and after on this alignment.", onScreenText: "" }),
+    ).toContain("BLOCKED_AI_PRESENTED_AS_REAL");
+  });
+
+  it("POSITIVE CONTROL: generated + disclosed + no real-evidence claim PUBLISHES", () => {
+    expect(
+      publishDisclosureProblem({
+        ...generated,
+        caption: "Three signs your brakes need attention.",
+        onScreenText: "Check your pads.",
+      }),
+    ).toBeNull();
+  });
+
+  it("BLOCKS generated footage when the API flag would NOT be set", () => {
+    expect(
+      publishDisclosureProblem({ jobId: 2, willDiscloseAi: false, caption: "x", onScreenText: "" }),
+    ).toBeNull();
+  });
+
+  it("real footage may claim real evidence — the gate is scoped to generated", () => {
+    expect(
+      publishDisclosureProblem({
+        jobId: 3,
+        willDiscloseAi: false,
+        caption: "This customer came in with a sidewall bulge.",
+        onScreenText: "",
+      }),
+    ).toBeNull();
   });
 });

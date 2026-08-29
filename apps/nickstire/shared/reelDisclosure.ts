@@ -251,3 +251,31 @@ export function shouldDiscloseAi(
   if (provenance === "stock") return false;
   return isGenerativeProvider(envProvider);
 }
+
+/**
+ * The publish-door decision, as ONE function so it can be tested.
+ *
+ * Why this exists rather than composing the pieces at the call site: the
+ * load-bearing detail is that the judged copy includes the ON-SCREEN TEXT and
+ * not only the caption. A claim burned into a frame is the one a copy edit
+ * cannot reach, and it is exactly what an inlined `disclosureViolation({copy:
+ * caption})` at the door would let through while still looking correct.
+ *
+ * `willDiscloseAi` must be the value the publish call WILL send as Meta's
+ * `is_ai_generated`, not a re-derivation. A gate judging a different value than
+ * the one transmitted is judging nothing.
+ */
+export function publishDisclosureProblem(input: {
+  jobId: string | number;
+  caption?: string | null;
+  onScreenText?: string | null;
+  willDiscloseAi: boolean;
+}): string | null {
+  const copy = [input.caption ?? "", input.onScreenText ?? ""].filter(Boolean).join(" ");
+  return disclosureViolation({
+    id: String(input.jobId),
+    copy,
+    hasGeneratedVideo: input.willDiscloseAi,
+    apiDisclosureFlag: input.willDiscloseAi,
+  });
+}

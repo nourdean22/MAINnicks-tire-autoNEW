@@ -25,7 +25,7 @@ import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
-import { shouldDiscloseAi } from "@shared/reelDisclosure";
+import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosure";
 import { auditPublishBlock } from "@shared/reelClaimAudit";
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
@@ -688,6 +688,40 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         }
         log.error(`daily reel: claim audit VETOES job ${job.id} — not publishing`, { reason: vetoed });
         return { recordsProcessed: 0, details: `held: claim audit vetoes job ${job.id}; index not advanced` };
+      }
+    }
+
+    // ── DISCLOSURE GATE: generated footage may not claim a real event ─────
+    // `disclosureViolation` — and `realEvidenceClaims` inside it — had NO
+    // production caller. Its only non-test reference was
+    // shared/reelPromotability.ts, and nothing under server/ imports that, so
+    // the rule "generated footage may never be framed as a real customer,
+    // repair, test or before/after" was enforced NOWHERE on the publish path.
+    // The account is fully generated, which makes that rule the main thing
+    // standing between the shop and a false claim about its own work.
+    //
+    // It runs in the veto chain, BEFORE the approval check, for the same reason
+    // the claim audit does: an operator must not be able to approve away a
+    // claim the footage cannot support.
+    //
+    // The flag judged is the SAME value the publish call will send below, not a
+    // re-derivation — a gate that checks a different value than the one
+    // transmitted is checking nothing.
+    {
+      const dBeats = parseReelJobPayload(job.payload).storyboardBeats ?? [];
+      const violation = publishDisclosureProblem({
+        jobId: job.id,
+        caption,
+        onScreenText: dBeats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+        willDiscloseAi: shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER),
+      });
+      if (violation) {
+        const note = `BLOCKED by disclosure gate: ${violation}`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.error(`daily reel: disclosure gate VETOES job ${job.id} — not publishing`, { reason: violation });
+        return { recordsProcessed: 0, details: `held: disclosure gate vetoes job ${job.id}; index not advanced` };
       }
     }
 
