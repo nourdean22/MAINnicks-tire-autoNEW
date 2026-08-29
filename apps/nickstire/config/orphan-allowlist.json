@@ -1,0 +1,5315 @@
+{
+  "$comment": "Exported symbols with no non-test importer, accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/orphan-check.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
+  "allowed": [
+    {
+      "file": "client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonChart",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonOverview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/AdminSkeletons.tsx",
+      "symbol": "SkeletonStatCard",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/CommandSearch.tsx",
+      "symbol": "actionVisibleToRole",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/CommandSearch.tsx",
+      "symbol": "visibleSectionShortcuts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/admin/MessageCustomerLink.tsx",
+      "symbol": "buildMessageCustomerHref",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/diagnose/SymptomGuide.tsx",
+      "symbol": "SYMPTOM_GUIDE_LINKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/diagnose/SymptomGuide.tsx",
+      "symbol": "SYMPTOM_GUIDE_URGENT_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/FAQPageSchema.tsx",
+      "symbol": "BRAKE_REPAIR_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/FAQPageSchema.tsx",
+      "symbol": "OIL_CHANGE_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/FAQPageSchema.tsx",
+      "symbol": "TIRE_REPAIR_FAQ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/fomoEntries.ts",
+      "symbol": "MAX_FOMO_ENTRIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/Map.tsx",
+      "symbol": "MapView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/payments/AcimaLeaseStrip.tsx",
+      "symbol": "ACIMA_DISCLAIMER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/payments/AcimaLeaseStrip.tsx",
+      "symbol": "anchorWeekly",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/QueryState.tsx",
+      "symbol": "QueryEmpty",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/components/QueryState.tsx",
+      "symbol": "QueryLoading",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/data/competitors.ts",
+      "symbol": "COMPETITOR_SLUGS_PRIORITIZED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/data/competitors.ts",
+      "symbol": "getCompetitor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_APPLY_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_BANNER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_FULL_DISCLAIMER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_PROMO_YEAR",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_SOCIAL_PROOF",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "ACIMA_STATES_EXCLUDED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "buildAcimaUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/acima.ts",
+      "symbol": "trackAcimaClick",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/autonomyPolicy.ts",
+      "symbol": "OPERATING_MODE_ORDER",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/businessDate.ts",
+      "symbol": "BUSINESS_TIME_ZONE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/commentTriage.ts",
+      "symbol": "classifyComment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/commentTriage.ts",
+      "symbol": "COMMENT_KIND_BADGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeGenome.ts",
+      "symbol": "genomeFromCarouselBrief",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeGenome.ts",
+      "symbol": "TERRITORY_TO_REEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "CREATIVE_THESIS_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "CreativeThesisSchema",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_ADAPTABLE_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_NEVER_INTRODUCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "THESIS_PROTECTED_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/creativeThesis.ts",
+      "symbol": "thesisPreservationViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildArchiveChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildFfmpegChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildInstagramPublishChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "buildReelContinuityBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "canAssembleMp4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "canGenerateVideo",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "canPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "canReadInsights",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "compileProviderScene",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "CONCEPT_SCORE_MAX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "DISABLED_REASON",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "FACELESS_CLEAN_SCENE_DIRECTIVE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "facelessCleanSceneDirective",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "FEARMONGER_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "GENERATION_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "GENERIC_MARKETING_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "INSIGHTS_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "PRICE_CLAIM_PATTERN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "PUBLISH_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "runReelDuaChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "transformToProviderSafeScene",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateFacelessSubject",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateLoopPlan",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateNoExternalSideEffects",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateNoInFrameText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudio.ts",
+      "symbol": "validateSourceGrounding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/facelessReelStudioSamples.ts",
+      "symbol": "SAMPLE_REEL_BRIEFS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "getTrafficSource",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "getUTMParameters",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "initGA4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "trackChatInteraction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "trackFormAbandon",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "trackPageView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "trackSearch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/ga4.ts",
+      "symbol": "trackServiceView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/gbpQaSeeds.ts",
+      "symbol": "gbpQaByCategory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "buildCaptionChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "buildPublishChecklist",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "canPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "CONCEPT_SCORE_MAX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "DISABLED_REASON",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "FEARMONGER_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "GENERIC_MARKETING_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "PRICE_CLAIM_PATTERN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "PUBLISH_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "scoreConcept",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateExactlyFiveSlides",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateNoExternalSideEffects",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudio.ts",
+      "symbol": "validateSourceGrounding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "buildCaptionBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "buildHiggsfieldPromptPack",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "compileCarouselSlidePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudioPrompt.ts",
+      "symbol": "MASTER_PROMPT_SECTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/igCarouselStudioSamples.ts",
+      "symbol": "SAMPLE_BRIEFS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/localRankKeywords.ts",
+      "symbol": "emptyRankReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackBookingSubmission",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackCallbackRequest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackChatStart",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackCouponClaim",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackDiagnosticSearch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackDirectionsClick",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackFleetInquiry",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackPhoneCall",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackReferralSubmission",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackReviewPageVisit",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackServicePageView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/metaPixel.ts",
+      "symbol": "trackTireSearch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/rideDeeplink.ts",
+      "symbol": "gmapsRideFromShop",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/transformers/language-detect.ts",
+      "symbol": "isSpanish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/transformers/lazy-load.ts",
+      "symbol": "clearTransformersCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/lib/utm.ts",
+      "symbol": "getSourceLabel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/customers/CouponsSection.tsx",
+      "symbol": "getRedeemState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/instagram/igViews.ts",
+      "symbol": "normalizeIgView",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/instagram/InstagramAdmin.tsx",
+      "symbol": "InstagramAdmin",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/money/moneyMath.ts",
+      "symbol": "DAILY_DECAY_RATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/registry.tsx",
+      "symbol": "COMPOUND_REDIRECTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/registry.tsx",
+      "symbol": "resolveInitialSection",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/siteHealth/sheetsSyncHealth.ts",
+      "symbol": "SHEETS_SYNC_FAILURE_TYPE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "bookingsForDate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "stripHasNothingToSay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/ArrivalLoadStrip.tsx",
+      "symbol": "tomorrowBusinessDateKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/ExceptionFeed.tsx",
+      "symbol": "resolveFeedState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "CALLBACK_WAIT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "HIGH_AT_RISK_CENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/moneyRisks.ts",
+      "symbol": "SLA_BREACH_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/todayPulse.ts",
+      "symbol": "MIRROR_STALE_WARN_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/today/todayPulse.ts",
+      "symbol": "mirrorLagDays",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/voice/format.ts",
+      "symbol": "OUTCOME_PRETTY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/voice/format.ts",
+      "symbol": "REASON_PRETTY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/admin/WalkInCalculatorSection.tsx",
+      "symbol": "PRESETS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "client/src/pages/SpecialsPage.tsx",
+      "symbol": "mapDbCouponToSpecial",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "evaluateHeavySync",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "HEAVY_SYNC_COOLDOWN_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "mapCallbackToRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "mapCustomerToLookup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "mapDropoffToBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "VapiCallbackInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/bridge-routes.ts",
+      "symbol": "VapiDropoffInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/llm.ts",
+      "symbol": "buildSchemaContractMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/llm.ts",
+      "symbol": "isOllamaModel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/llm.ts",
+      "symbol": "normalizeMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/ollamaScheduler.ts",
+      "symbol": "__resetSchedulerForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/ollamaScheduler.ts",
+      "symbol": "schedulerSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/redirects.ts",
+      "symbol": "canonicalPathMiddleware",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/redirects.ts",
+      "symbol": "REDIRECTED_PATHS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/trpc.ts",
+      "symbol": "__seenProceduresForTest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/_core/voiceTranscription.ts",
+      "symbol": "transcribeAudio",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/analytics.ts",
+      "symbol": "extractSource",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/analytics.ts",
+      "symbol": "getTodaySnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/analytics.ts",
+      "symbol": "updateAnalyticsSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cache.ts",
+      "symbol": "CACHE_TTL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cache.ts",
+      "symbol": "serverCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cache.ts",
+      "symbol": "shutdownServerCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/content-generator.ts",
+      "symbol": "generateNotifications",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/content-generator.ts",
+      "symbol": "saveGeneratedNotifications",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/cron-status.ts",
+      "symbol": "buildCronJobStatuses",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/index.ts",
+      "symbol": "registerAllJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/index.ts",
+      "symbol": "registerJob",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/index.ts",
+      "symbol": "startAllJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/appointmentReminders.ts",
+      "symbol": "processAppointmentReminders2h",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/crossSellOutreach.ts",
+      "symbol": "processCrossSellOutreach",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/dailyReelPost.ts",
+      "symbol": "buildReelShadowJudgeInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/dailyReelPost.ts",
+      "symbol": "MANIFEST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/declinedWorkRecovery.ts",
+      "symbol": "RECOVERY_EXPERIMENT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/declinedWorkRecovery.ts",
+      "symbol": "recoveryArmForEstimate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/followupCadence.ts",
+      "symbol": "nextDueTouch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/morningBrief.ts",
+      "symbol": "buildDecisionsBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/morningBrief.ts",
+      "symbol": "DECISIONS_UNAVAILABLE_READ_FAILED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "symbol": "buildMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "symbol": "firstName",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/observer.ts",
+      "symbol": "excludeStagedJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/observer.ts",
+      "symbol": "observedRunFromCronRows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/observer.ts",
+      "symbol": "runLoopShapeCheck",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/observer.ts",
+      "symbol": "shouldAlertNow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/registry-tier-map.ts",
+      "symbol": "extractDisabledTierJobNames",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "symbol": "hasRunThisShopDay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "symbol": "reelPipelineCronShouldFailLoudly",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "symbol": "shopDayStartMs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "symbol": "stopTieredScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "symbol": "unarmedFlagReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/data/backlinkTargets.ts",
+      "symbol": "LOCAL_BACKLINK_TARGETS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/db.ts",
+      "symbol": "addServiceRecord",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/db.ts",
+      "symbol": "createServiceReminder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/db.ts",
+      "symbol": "getUserByOpenId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/db.ts",
+      "symbol": "saveAnalyticsSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/db.ts",
+      "symbol": "upsertUser",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/diagnose-safety.ts",
+      "symbol": "LIKELIHOOD_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/diagnose-safety.ts",
+      "symbol": "maxUrgency",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/diagnose-safety.ts",
+      "symbol": "RED_FLAG_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/diagnose-safety.ts",
+      "symbol": "URGENCY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "bookingConfirmationTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "followUpTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "getEmailStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "newsletterTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "reviewRequestTemplate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "sendBookingConfirmationEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "sendFollowUpEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/email-notify.ts",
+      "symbol": "sendReviewRequestEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/follow-ups.ts",
+      "symbol": "process24hFollowUps",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/follow-ups.ts",
+      "symbol": "process7dReviewRequests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/gemini.ts",
+      "symbol": "buildSystemPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/integration-failures.ts",
+      "symbol": "resolveIntegrationFailure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/integration-failures.ts",
+      "symbol": "scrubMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/adminActivity.ts",
+      "symbol": "armAdminActivityForStartup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/adminActivity.ts",
+      "symbol": "isAdminSessionActive",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/adminActivity.ts",
+      "symbol": "isResumeEdge",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/adminActivity.ts",
+      "symbol": "secondsSinceAdminActive",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "ANTICIPATE_AND_ELEVATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "HIGH_POWERED_MODE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "INTENSITY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-behavior/business-behavior-directive.ts",
+      "symbol": "setBusinessIntensityOverride",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-gateway.ts",
+      "symbol": "aiChat",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-gateway.ts",
+      "symbol": "aiClassify",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-gateway.ts",
+      "symbol": "aiGateway",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai-gateway.ts",
+      "symbol": "aiSummarize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "ALL_CRITERIA",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "brakeInsiderVocabPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "clevelandAnchorPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "concessionFirstPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "metaDescriptionLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "metaTitleLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "noBannedPhrases",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "noEmojis",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "relatedServicesCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "sectionsContentLengthOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "sectionsCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "specificNumberAnchorPresent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/ai/evals/blog-seeder/criteria.ts",
+      "symbol": "tagsCountOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "cacheDeletePattern",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "cacheGet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "cacheSet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "getCacheStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "initCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cache.ts",
+      "symbol": "shutdownCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/circuit-breaker.ts",
+      "symbol": "CircuitBreaker",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/cwv-telemetry.ts",
+      "symbol": "resetCwvBuffer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/db-helper.ts",
+      "symbol": "requireDb",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "AIError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "AuthError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "DatabaseError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "NotFoundError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "RateLimitError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/errors.ts",
+      "symbol": "ValidationError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/jobQueue.ts",
+      "symbol": "shutdownJobQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/membership-guards.ts",
+      "symbol": "MEMBERSHIP_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/phone.ts",
+      "symbol": "formatPhoneDisplay",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/phone.ts",
+      "symbol": "phonesEqual",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/phoneIdentity.ts",
+      "symbol": "PHONE_MATCH_MIN_DIGITS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/phoneIdentity.ts",
+      "symbol": "samePhone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/publicFetch.ts",
+      "symbol": "assertPublicHttpUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/publicFetch.ts",
+      "symbol": "assertPublicIPv4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/publicFetch.ts",
+      "symbol": "assertPublicIPv6",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/publicFetch.ts",
+      "symbol": "embeddedIPv4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/retentionCohorts.ts",
+      "symbol": "computeRetentionCohorts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/retentionCohorts.ts",
+      "symbol": "MIN_COHORT_SAMPLE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/retentionCohorts.ts",
+      "symbol": "REACTIVATION_MAX_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/retentionCohorts.ts",
+      "symbol": "REACTIVATION_MIN_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/reviewIdentity.ts",
+      "symbol": "NO_TIME_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/self-healing.ts",
+      "symbol": "getCurrentState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/self-healing.ts",
+      "symbol": "registerRecoveryAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/self-healing.ts",
+      "symbol": "registerSmartRecoveryAction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/self-healing.ts",
+      "symbol": "stopSelfHealing",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/sentry.ts",
+      "symbol": "captureException",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/sentry.ts",
+      "symbol": "captureMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/sentry.ts",
+      "symbol": "isSentryEnabled",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/timezoneAssert.ts",
+      "symbol": "assertBusinessTimezoneAtBoot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/timezoneAssert.ts",
+      "symbol": "checkBusinessTimezone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/tire-order-guards.ts",
+      "symbol": "ABSOLUTE_MIN_TIRE_PRICE_CENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/tire-order-guards.ts",
+      "symbol": "PRICE_TOLERANCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/tirePriceRanges.ts",
+      "symbol": "CACHE_ROWS_PER_SIZE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/totp.ts",
+      "symbol": "generateTotpCode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/transferOutcomeEvidence.ts",
+      "symbol": "DEFAULT_REDIAL_WINDOW_MIN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/tunnel-status.ts",
+      "symbol": "getTunnelStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/lib/tunnel-status.ts",
+      "symbol": "getTunnelUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/meta-capi.ts",
+      "symbol": "sendCAPIEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/meta-capi.ts",
+      "symbol": "sendContactEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/meta-capi.ts",
+      "symbol": "sendPurchaseEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "AuthenticationError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "AuthorizationError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "globalErrorHandler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "NotFoundError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "RateLimitError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/errorHandler.ts",
+      "symbol": "ValidationError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/performanceMonitor.ts",
+      "symbol": "getPerformanceMetrics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/performanceMonitor.ts",
+      "symbol": "performanceMiddleware",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/performanceMonitor.ts",
+      "symbol": "resetMetrics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/middleware/requestLogger.ts",
+      "symbol": "requestLogger",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "dispatchEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "dispatchVendorHealthSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onBookingCompleted",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onBookingCreated",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onCallbackRequested",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onCampaignResult",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onEmergencyRequest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onInvoiceCreated",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onLeadCaptured",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onRevenueMilestone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onReviewDetected",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onStageChanged",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "onTireOrderPlaced",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "startRetryProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/nour-os-bridge.ts",
+      "symbol": "stopRetryProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "analyzeReview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "checkReviewVolume",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "detectTrends",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "extractKeywords",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "fetchRecentReviews",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "getPipelineReviews",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "getTrendHistory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "monitorCompetitors",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "symbol": "suggestResponse",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gsc-data.ts",
+      "symbol": "detectSeasonalPatterns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gsc-data.ts",
+      "symbol": "fetchSearchPerformance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/gsc-data.ts",
+      "symbol": "syncSearchPerformance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/instagram-data.ts",
+      "symbol": "MIN_REEL_SIGNAL_ROWS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/instagram-data.ts",
+      "symbol": "pickTopThemes",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "getDashboard",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "getPipelineHistory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "getPipelineStatuses",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "getRecentRuns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "runAllPipelines",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/pipelines/orchestrator.ts",
+      "symbol": "runPipeline",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/gatewayTire.ts",
+      "symbol": "getLastAuthFailure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/instagramAdmin.ts",
+      "symbol": "buildReelPublishCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/instagramAdmin.ts",
+      "symbol": "mapInventoryStatusForQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/instagramAdmin.ts",
+      "symbol": "validateFinalMedia",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/instagramStudio.ts",
+      "symbol": "computeStudioItemState",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/messengerBot.ts",
+      "symbol": "sendMessengerReply",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/nick/utils.ts",
+      "symbol": "BAY_MAP",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/nick/utils.ts",
+      "symbol": "FINANCING_OPTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/nick/utils.ts",
+      "symbol": "TECHNICIANS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/public.ts",
+      "symbol": "vehicleMake",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/snap.ts",
+      "symbol": "snapSubmitInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/winback.ts",
+      "symbol": "getVerifiedTirePurchaseCustomerIds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routers/winback.ts",
+      "symbol": "personalizeWinbackBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/meta.ts",
+      "symbol": "__resetWebhookStateForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/meta.ts",
+      "symbol": "hasCommentChange",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/meta.ts",
+      "symbol": "verifyMetaSignature",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/vapi.ts",
+      "symbol": "extractEndedReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/vapi.ts",
+      "symbol": "isForwardedEndedReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/routes/webhooks/vapi.ts",
+      "symbol": "shouldSendForwardedFollowup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sanitize.ts",
+      "symbol": "sanitizeFormData",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sanitize.ts",
+      "symbol": "sanitizeMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/security-audit.ts",
+      "symbol": "getSecurityStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/security-audit.ts",
+      "symbol": "securityScan",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/abandonedForms.ts",
+      "symbol": "__resetPartialsForTest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/abandonedForms.ts",
+      "symbol": "getAbandonedFormStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/abandonedForms.ts",
+      "symbol": "isEligibleForRecovery",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/activityLedger.ts",
+      "symbol": "maskEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/activityLedger.ts",
+      "symbol": "sanitizeSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/activityLedger.ts",
+      "symbol": "scrubFreeText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/adminSecurity.ts",
+      "symbol": "encryptMfaSecret",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/adStudio/adCopyGen.ts",
+      "symbol": "AD_ANGLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/adStudio/adCopyGen.ts",
+      "symbol": "lintAdCopy",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/afterHours.ts",
+      "symbol": "getNextOpenTime",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/aiReceptionist.ts",
+      "symbol": "classifyVoiceIntent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/approvedReelPackRotation.ts",
+      "symbol": "APPROVED_REEL_PACK_SLUGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/approvedReelPackRotation.ts",
+      "symbol": "APPROVED_REEL_PACKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/approvedReelPackRotation.ts",
+      "symbol": "parseApprovedPackRotationIndex",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/audioQa.ts",
+      "symbol": "AUDIO_DELIVERY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/audioQa.ts",
+      "symbol": "composeAudioVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/audioQa.ts",
+      "symbol": "detectClipping",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/audioQa.ts",
+      "symbol": "parseLoudnorm",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/auditTrail.ts",
+      "symbol": "getAuditTrail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/autonomyControl.ts",
+      "symbol": "authorize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/autonomyControl.ts",
+      "symbol": "autonomyPolicyStrictSchema",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/autonomyControl.ts",
+      "symbol": "clearPolicyCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/businessFacts.ts",
+      "symbol": "buildWarrantyFactsPreamble",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/businessFacts.ts",
+      "symbol": "getFact",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/businessFacts.ts",
+      "symbol": "getFactsForChannel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/businessFacts.ts",
+      "symbol": "SEED_FACTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/businessFacts.ts",
+      "symbol": "seedBusinessFacts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/cameraProxy.ts",
+      "symbol": "getAllCameras",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/cameraProxy.ts",
+      "symbol": "getViewableUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselBriefGen.ts",
+      "symbol": "parseBriefJson",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselDirector.ts",
+      "symbol": "attachResolvedProof",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_H",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_TERRITORY_DESIGNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselSlideRenderer.ts",
+      "symbol": "CAROUSEL_W",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselSlideRenderer.ts",
+      "symbol": "renderCarouselSlideHtml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/carouselStudio/carouselRender.ts",
+      "symbol": "buildCarouselSlideHtml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/classifiers.ts",
+      "symbol": "checkClassifierHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/classifiers.ts",
+      "symbol": "NICKSTIRE_SMS_INTENT_LABELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/classifiers.ts",
+      "symbol": "screenPromptInjection",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/closedLoop.ts",
+      "symbol": "listRegisteredMetrics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/closedLoop.ts",
+      "symbol": "recordWave",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/commentResponder.ts",
+      "symbol": "collectActiveCampaignKeywords",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/commentResponder.ts",
+      "symbol": "draftCommentReply",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/commentResponder.ts",
+      "symbol": "matchCampaignKeyword",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/competitorMonitor.ts",
+      "symbol": "buildAlertKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/competitorMonitor.ts",
+      "symbol": "buildPositionReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/competitorMonitor.ts",
+      "symbol": "detectChanges",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "__resetConsentIndexCacheForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "hasSmsOptIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "logAdminLogin",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "logAdminLoginFail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "logSmsOptIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/complianceLog.ts",
+      "symbol": "logSmsOptOut",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "anonymizeConcepts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "CONCEPT_JUDGE_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "CREATIVE_ROLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "HARD_REJECT_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "JUDGE_RUBRIC",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "parseSingleVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/conceptTournament.ts",
+      "symbol": "resolveWinner",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentApprovals.ts",
+      "symbol": "computeBriefHash",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentApprovals.ts",
+      "symbol": "computeMediaHash",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentExperimentStore.ts",
+      "symbol": "assignEpisode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentExperimentStore.ts",
+      "symbol": "attachPublishedMedia",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentExperimentStore.ts",
+      "symbol": "gatherObservations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentFormatPlanner.ts",
+      "symbol": "CONTENT_FORMAT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentGovernor.ts",
+      "symbol": "consumeReservation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "ALL_SERVICES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "critiqueSocialDraft",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "enforceServiceDiversityQuota",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "generateHookTournament",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "getServiceCoverageStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "MEDIA_VISUAL_STYLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "NARRATIVE_FRANCHISES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "PERSONAS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "selectUnderservedService",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentManufacturing.ts",
+      "symbol": "VISUAL_STYLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentRun.ts",
+      "symbol": "OPERATIONAL_STATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentRunAttribution.ts",
+      "symbol": "buildTrackedUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentRunAttribution.ts",
+      "symbol": "CONTENT_RUN_UTM_PARAM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentRunAttribution.ts",
+      "symbol": "isContentRunId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentTopicSignals.ts",
+      "symbol": "seasonalConditionsForMonth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/contentTopicSignals.ts",
+      "symbol": "underCoveredServices",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "symbol": "assessCoverage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "symbol": "COVERAGE_WINDOW_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "symbol": "coverageAlertMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "symbol": "MIN_SAMPLE_INVOICES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "_resetTokenCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "DRIVE_SCOPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "DRIVE_TOKEN_ROW",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "driveEnsureFolder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "driveFindByAssetId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "driveGetFile",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "driveUploadBuffer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "ensureRootWorkspace",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "getDriveAccessToken",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "reconcileVault",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "uploadManifest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/creativeVault.ts",
+      "symbol": "VAULT_ROOT_NAME",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/criticPanel.ts",
+      "symbol": "CRITIC_LENSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/criticPanel.ts",
+      "symbol": "mergePanel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "availabilityConfirmed",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "manualLookupReceived",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "orderReady",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "paymentReceived",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "requestReceived",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerMessageTemplates.ts",
+      "symbol": "sendCustomerMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerPsychoProfile.ts",
+      "symbol": "classifyCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerPsychoProfile.ts",
+      "symbol": "getPsychoCounts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerTurns.ts",
+      "symbol": "extractCustomerTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerTurns.ts",
+      "symbol": "MAX_TURN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/customerTurns.ts",
+      "symbol": "MAX_TURNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dataPipelines.ts",
+      "symbol": "persistPriceFloorSnapshot",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/declinedWorkSignals.ts",
+      "symbol": "SIGNAL_CONFIDENCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/declinedWorkSource.ts",
+      "symbol": "sourceStateFrom",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/documentRetrieval.ts",
+      "symbol": "extractReadableText",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dripCampaigns.ts",
+      "symbol": "createEnrollment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dripProcessor.ts",
+      "symbol": "checkExistingEnrollment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dropOffFlow.ts",
+      "symbol": "sendDropOffConfirmation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dropOffFlow.ts",
+      "symbol": "sendInProgressUpdate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/dropOffFlow.ts",
+      "symbol": "sendReadyForPickup",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/editPlanner.ts",
+      "symbol": "analyzeSourceClip",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/editPlanner.ts",
+      "symbol": "composeAnalysis",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/editPlanner.ts",
+      "symbol": "meanFromSignalstats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/editPlanner.ts",
+      "symbol": "parseFreezeSpans",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/emailCampaigns.ts",
+      "symbol": "CAMPAIGN_TEMPLATES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/emailCampaigns.ts",
+      "symbol": "createCampaign",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/emailCampaigns.ts",
+      "symbol": "personalizeEmail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "declinedPoints",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "legacyConfidence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_AFFINITY_SCORE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_DECLINED_POINTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "MAX_RECENCY_POINTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "MIN_OBSERVATIONS_TO_SCORE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "recencyPoints",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/affinityScoring.ts",
+      "symbol": "TOO_RECENT_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/growth.ts",
+      "symbol": "analyzeCallPatterns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/growth.ts",
+      "symbol": "analyzeWebsiteJourneys",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "symbol": "analyzePaymentTrends",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "symbol": "analyzePeakDemandWindows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "symbol": "predictNoShows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "symbol": "summariseMargins",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/episodeClaims.ts",
+      "symbol": "noteToHandle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/eventBus.ts",
+      "symbol": "initEventBus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/evidenceRecords.ts",
+      "symbol": "EVIDENCE_TTL_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/evidenceRecords.ts",
+      "symbol": "isEvidenceRecordLive",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/evidenceResolver.ts",
+      "symbol": "parseEvidenceHandle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/expectedArrivals.ts",
+      "symbol": "parseExpectedDate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/expectedArrivals.ts",
+      "symbol": "toShopDateStr",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/failover.ts",
+      "symbol": "checkEngineHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/failover.ts",
+      "symbol": "getEngineHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/featureFlags.ts",
+      "symbol": "seedFlags",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/feedbackLoop.ts",
+      "symbol": "checkPendingImpacts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/feedbackLoop.ts",
+      "symbol": "recordBriefResponse",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/financingPreQual.ts",
+      "symbol": "getFinancingPreQual",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/fleetScoring.ts",
+      "symbol": "scoreFleetProspect",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gatewayClient.ts",
+      "symbol": "GATEWAY_API_BASE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gatewayClient.ts",
+      "symbol": "gatewayFetch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpAutoPost.ts",
+      "symbol": "createBlogPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpAutoPost.ts",
+      "symbol": "createSeasonalPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpAutoPost.ts",
+      "symbol": "createSpecialPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpContentGenerator.ts",
+      "symbol": "generateWeeklyPostBatch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpContentGenerator.ts",
+      "symbol": "jaccardSimilarity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpPerformance.ts",
+      "symbol": "GBP_DAILY_METRICS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gbpPerformance.ts",
+      "symbol": "normalizeLocationId",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/generationLedger.ts",
+      "symbol": "campaignSpendUsd",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/generationLedger.ts",
+      "symbol": "spendSinceUsd",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/generationLedger.ts",
+      "symbol": "VEO_DEFAULT_CLIP_SECONDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/ghostReplay.ts",
+      "symbol": "GHOST_AGENT_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/ghostReplay.ts",
+      "symbol": "GUARANTEE_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/ghostReplay.ts",
+      "symbol": "PRICE_LEAK_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/ghostReplay.ts",
+      "symbol": "PROMPT_INVARIANTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/ghostReplay.ts",
+      "symbol": "RESOLUTION_RX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gscMeasurement.ts",
+      "symbol": "aggregateGscDetail",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/gscMeasurement.ts",
+      "symbol": "GSC_METRIC_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldApiClient.ts",
+      "symbol": "higgsfieldApiCredentialsFromEnv",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldApiClient.ts",
+      "symbol": "REEL_CLIP_DEFAULTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldBinary.ts",
+      "symbol": "HIGGSFIELD_CLI_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldStudio.ts",
+      "symbol": "buildSeedanceArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldStudio.ts",
+      "symbol": "combinePromptWithNegative",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/higgsfieldStudio.ts",
+      "symbol": "materializeStartImage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/humanPendingAlerts.ts",
+      "symbol": "__resetAlertThrottle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/humanPendingAlerts.ts",
+      "symbol": "composeOverdueAlert",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/igAutopost.ts",
+      "symbol": "invokeLLMForPosting",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/igAutopost.ts",
+      "symbol": "normalizeHashtags",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/igAutopost.ts",
+      "symbol": "parseJsonObject",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/igAutopost.ts",
+      "symbol": "PROMPT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/instagramStudio.ts",
+      "symbol": "compactCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/instagramStudio.ts",
+      "symbol": "pickSubjectImage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/instagramStudio.ts",
+      "symbol": "renderCardHtml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/instagramStudio.ts",
+      "symbol": "STUDIO_ASSET_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/integrationLogger.ts",
+      "symbol": "clearEventLog",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/integrationLogger.ts",
+      "symbol": "logIntegrationEvent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/intelligenceEngines.ts",
+      "symbol": "analyzeGeographicRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/intelligenceEngines.ts",
+      "symbol": "analyzeServiceBundles",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/intelligenceEngines.ts",
+      "symbol": "analyzeUnmatchedAlgEstimates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/inventoryJobReconcile.ts",
+      "symbol": "classifyInventoryRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/invoiceGenerator.ts",
+      "symbol": "generateInvoiceHTML",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/journeyTracker.ts",
+      "symbol": "getJourneySummary",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/liveFeed.ts",
+      "symbol": "getLiveFeedStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/liveFeed.ts",
+      "symbol": "notifyRevenueMilestone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/liveFeed.ts",
+      "symbol": "registerLiveFeedListeners",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/liveFeed.ts",
+      "symbol": "trackReferral",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/liveFeed.ts",
+      "symbol": "trackVipVisit",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/loopShapeContract.ts",
+      "symbol": "findActionable",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/loopShapeContract.ts",
+      "symbol": "getLoopContract",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "findByChecksum",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "getCurrent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "newVersionFrom",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "registerAsset",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "registerFromBuffer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mediaRegistry.ts",
+      "symbol": "transitionLifecycle",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/metaSocial.ts",
+      "symbol": "__resetMetaLiveCacheForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/metaSocial.ts",
+      "symbol": "parseInsights",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/metaSocial.ts",
+      "symbol": "pollContainerReady",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/metaSocial.ts",
+      "symbol": "setRuntimePageToken",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/metaSocial.ts",
+      "symbol": "socialPost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mp4Ingest.ts",
+      "symbol": "looksLikeMp4",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/mp4Ingest.ts",
+      "symbol": "MP4_INGEST_FLAG",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickgpt-client.ts",
+      "symbol": "buildCustomerMemoryPreamble",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickgpt-client.ts",
+      "symbol": "checkNickGptHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickIntelligence.ts",
+      "symbol": "checkPredictiveEscalations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "applyReinforcement",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "decayedConfidence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "findContradictions",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "getMemoryClusters",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "isPrunableMemory",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "learnFromInteraction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "rankPromptLessons",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "RECEPTIONIST_LESSON_SOURCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nickMemory.ts",
+      "symbol": "trackQuestion",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nonCustomerFilter.ts",
+      "symbol": "exclusionNote",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nonCustomerFilter.ts",
+      "symbol": "exclusionReason",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nonCustomerFilter.ts",
+      "symbol": "INTERNAL_LINES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/nonCustomerFilter.ts",
+      "symbol": "isNonCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/operatorOverride.ts",
+      "symbol": "isOverridableFinding",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/operatorOverride.ts",
+      "symbol": "OVERRIDABLE_SEVERITIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/operatorOverride.ts",
+      "symbol": "OVERRIDE_TTL_HOURS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/operatorOverride.ts",
+      "symbol": "revokeOperatorOverride",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityDraft.ts",
+      "symbol": "bestChannelFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityDraft.ts",
+      "symbol": "buildDraftBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityDraft.ts",
+      "symbol": "riskLabelFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "canTransition",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "classifyOutcomeMatch",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectAbandonedForms",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectInspectionDeferrals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectMissedCalls",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectNoShowBookings",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectOverdueHumanPending",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectPendingCallbacks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectStaleLeads",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "collectUnapprovedEstimates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "rankOpportunity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "reconcileOpportunities",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "resolveEstimateIdentity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "summarizeInspectionForQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "symbol": "TERMINAL_STATES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/payments.ts",
+      "symbol": "classifyStripeHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/photo-assess-pipeline.ts",
+      "symbol": "DEFAULT_REPLIES_FOR_TEST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/photo-assess-pipeline.ts",
+      "symbol": "photoReplyViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/portfolioBalancer.ts",
+      "symbol": "balanceWeek",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/portfolioBalancer.ts",
+      "symbol": "DEFAULT_BALANCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/postQaOrchestrator.ts",
+      "symbol": "publishGateForDecision",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/pricingIntelligence.ts",
+      "symbol": "analyzeObjections",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/pricingIntelligence.ts",
+      "symbol": "getObjectionCoaching",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/pricingIntelligence.ts",
+      "symbol": "getServicePaymentBreakdown",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/promiseLedger.ts",
+      "symbol": "classifyOverdue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/promiseLedger.ts",
+      "symbol": "PROMISE_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/promiseRisk.ts",
+      "symbol": "getAtRiskJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/promptEvolution.ts",
+      "symbol": "SUCCESS_OUTCOMES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "canTransition",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "createBookingRequestPayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "createCallbackPayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "getExecutor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "PROPOSAL_TRANSITIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/proposals.ts",
+      "symbol": "REVIEWABLE_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/pushNotifications.ts",
+      "symbol": "pushToCustomer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/pushNotifications.ts",
+      "symbol": "sendPush",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteEngine.ts",
+      "symbol": "buildQuote",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteEngine.ts",
+      "symbol": "formatQuoteSummary",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteEngine.ts",
+      "symbol": "laborLine",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteEngine.ts",
+      "symbol": "partLine",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteEngine.ts",
+      "symbol": "tireLine",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteGuard.ts",
+      "symbol": "evaluateQuoteChecks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/quoteGuard.ts",
+      "symbol": "extractTireSize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "emitNewBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "emitNewLead",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "emitOrderStatusUpdate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "emitToAdmin",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "getRealtimeStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtime.ts",
+      "symbol": "registerSSERoutes",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtimePush.ts",
+      "symbol": "getRealtimeStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/realtimePush.ts",
+      "symbol": "sseHandler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/receptionistRoi.ts",
+      "symbol": "CAPTURE_HIGH",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/receptionistRoi.ts",
+      "symbol": "CAPTURE_LOW",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/receptionistRoi.ts",
+      "symbol": "estimateRecoveredRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/recoveryReplyCapture.ts",
+      "symbol": "isRecoveryVariant",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/recoveryTargeting.ts",
+      "symbol": "buildPersonalizedRecoveryMessage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelApproval.ts",
+      "symbol": "captionFingerprint",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelApproval.ts",
+      "symbol": "findLiveApproval",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "briefToSegments",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "buildFfmpegArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "capFontSizeToSafeWidth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "CAPTION_SAFE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "captionFontSize",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "estimateCaptionWidthPx",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "evaluateAudioIntegrity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "evaluateRenderIntegrity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "parseSilencedetect",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "pickMusicBed",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "resolveFontPath",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "resolveReelFontPath",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "sanitizeCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "SAVE_FREEZE_SECONDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "segmentsTotalSeconds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelAssembly.ts",
+      "symbol": "wrapCaption",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelBriefGen.ts",
+      "symbol": "applyCriticPreservingTruth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelBriefGen.ts",
+      "symbol": "describeNonJsonContent",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelBriefGen.ts",
+      "symbol": "PROTECTED_BRIEF_FIELDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelDirector.ts",
+      "symbol": "attachResolvedProof",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelDirector.ts",
+      "symbol": "genomeConstraintBlock",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPackRegistry.ts",
+      "symbol": "__resetPackCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPackRegistry.ts",
+      "symbol": "resolvePacksDir",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPipeline.ts",
+      "symbol": "INSTAGRAM_CAPTION_LIMIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPipeline.ts",
+      "symbol": "isLocalTimeout",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPipeline.ts",
+      "symbol": "LocalTimeoutError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelPipeline.ts",
+      "symbol": "terminalPaidFailureIsNeedsRegen",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelRecoverability.ts",
+      "symbol": "ATTENTION_STATUSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelRecoverability.ts",
+      "symbol": "classifyRecoverability",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelRecoverability.ts",
+      "symbol": "FAILED_ATTENTION_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelShadowReadout.ts",
+      "symbol": "isPublished",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelShadowReadout.ts",
+      "symbol": "SHADOW_JUDGE_ROLLOUT_DATE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelShadowReadout.ts",
+      "symbol": "shadowJudgeEligibility",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelVoice.ts",
+      "symbol": "buildReelSsml",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelVoice.ts",
+      "symbol": "formatAssTime",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelVoice.ts",
+      "symbol": "googleTtsRequest",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reelVoice.ts",
+      "symbol": "pickVoiceProvider",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/renderedQa.ts",
+      "symbol": "buildContactSheet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/renderedQa.ts",
+      "symbol": "clampVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/renderedQa.ts",
+      "symbol": "evaluateRenderedReel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/renderedQa.ts",
+      "symbol": "extractReelFrames",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reportIngestion.ts",
+      "symbol": "generateAnalytics",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reportIngestion.ts",
+      "symbol": "parseLaborReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reportIngestion.ts",
+      "symbol": "parsePartsReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reportIngestion.ts",
+      "symbol": "parseTechReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reportIngestion.ts",
+      "symbol": "parseTotalSalesReport",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/resolutionJudge.ts",
+      "symbol": "buildJudgePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/resolutionJudge.ts",
+      "symbol": "parseJudgeVerdict",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/resolutionJudge.ts",
+      "symbol": "renderDialogue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/resolutionJudge.ts",
+      "symbol": "RESOLUTION_JUDGE_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reuseDecision.ts",
+      "symbol": "chooseReuse",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reuseDecision.ts",
+      "symbol": "decideReuse",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reuseDecision.ts",
+      "symbol": "DEFAULT_REUSE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/revenuePrediction.ts",
+      "symbol": "predictRevenue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/revenueReconciliation.ts",
+      "symbol": "LEGACY_BACKFILL_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/revenueReconciliation.ts",
+      "symbol": "RECONCILIATION_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reviewMonitor.ts",
+      "symbol": "calculateReviewVelocity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reviewMonitor.ts",
+      "symbol": "detectService",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reviewMonitor.ts",
+      "symbol": "detectTrustTags",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reviewMonitor.ts",
+      "symbol": "isProofCandidate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/reviewMonitor.ts",
+      "symbol": "processNewReview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "checkComplianceSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "checkDataSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "checkFinancialSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "checkOperationalSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "checkReputationSafety",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "symbol": "runFullSafetyCheck",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/schemaGuard.ts",
+      "symbol": "__stopSchemaGuardReaudit",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/schemaGuard.ts",
+      "symbol": "auditCriticalTables",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/schemaGuard.ts",
+      "symbol": "auditCriticalTablesWithRetry",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/schemaGuard.ts",
+      "symbol": "CRITICAL_TABLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/schemaGuard.ts",
+      "symbol": "startSchemaGuardReaudit",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selectiveRepair.ts",
+      "symbol": "buildRepairPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selfHealing.ts",
+      "symbol": "__resetAlertThrottleForTests",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selfHealing.ts",
+      "symbol": "cronStalenessIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selfHealing.ts",
+      "symbol": "HEALTH_ISSUE_CATEGORIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selfHealing.ts",
+      "symbol": "ISSUE_DELIVERY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/selfHealing.ts",
+      "symbol": "selectAlertableIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shadowPlanner.ts",
+      "symbol": "collectPlannerSignals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shadowPlanner.ts",
+      "symbol": "scoreOpportunity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shadowPlanner.ts",
+      "symbol": "SEASONAL_PLAYBOOK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverEstimateSync.ts",
+      "symbol": "backfillMatches",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverEstimateSync.ts",
+      "symbol": "getEstimateSyncStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverEstimateSync.ts",
+      "symbol": "MATCH_AMOUNT_TOLERANCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverEstimateSync.ts",
+      "symbol": "MATCH_WINDOW_DAYS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverMirror.ts",
+      "symbol": "getDataStaleDays",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverMirror.ts",
+      "symbol": "nameKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverSync.ts",
+      "symbol": "pullRecentTickets",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverSync.ts",
+      "symbol": "pushInvoice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverSync.ts",
+      "symbol": "pushTireOrder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverSync.ts",
+      "symbol": "recordPull",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/shopDriverSync.ts",
+      "symbol": "recordPush",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/sms-scheduler.ts",
+      "symbol": "scheduleBookingReminders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/sms-scheduler.ts",
+      "symbol": "schedulePostServiceReminders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/sms-scheduler.ts",
+      "symbol": "startSmsScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/sms-scheduler.ts",
+      "symbol": "stopSmsScheduler",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsAutonomyCensus.ts",
+      "symbol": "classifyLane",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsControl.ts",
+      "symbol": "getGlobalDailyCap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsCorpusTurns.ts",
+      "symbol": "attributeResponder",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsCorpusTurns.ts",
+      "symbol": "buildConversationTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsLearningEngine.ts",
+      "symbol": "sendDailySmsReportToTelegram",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsLearningEngine.ts",
+      "symbol": "stageNexusDefectForTraining",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsLearningEngine.ts",
+      "symbol": "trackConversionOutcome",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsMessageCatalog.ts",
+      "symbol": "TEMPLATE_VARIANTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsOrchestrator.ts",
+      "symbol": "isRepeatedInbound",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsOrchestrator.ts",
+      "symbol": "loadCustomerContext",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsOrchestrator.ts",
+      "symbol": "priorMessagesForInbound",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsReplyPlanner.ts",
+      "symbol": "GLOBAL_PROHIBITED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "claimDueResponseJobs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "enqueueResponseJob",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "HUMAN_SLA_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "jobStatusFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "providerMsgIdempotencyKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "responseIdempotencyKey",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "runResponseJob",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "startResponseJobProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "stopResponseJobProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/smsResponseJobs.ts",
+      "symbol": "terminalStatusFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/snapFinanceSync.ts",
+      "symbol": "recordFinancingPayment",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/socialDeliveryIssues.ts",
+      "symbol": "deriveDeliveryIssues",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/socialDeliveryIssues.ts",
+      "symbol": "gatherDeliveryFacts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/storyPhotoDirector.ts",
+      "symbol": "planPhotoCrop",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/storyPhotoDirector.ts",
+      "symbol": "planPhotoCrops",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/storyPhotoDirector.ts",
+      "symbol": "planStorySequence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/storyPhotoDirector.ts",
+      "symbol": "STORY_SAFE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "alertGoodReview",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "alertNewBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "alertRevenueMilestone",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "flushMessageQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "getTelegramStats",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "startBatchTimer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/telegram.ts",
+      "symbol": "stopBatchTimer",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/templateStockStudio.ts",
+      "symbol": "buildBeatClipArgs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/templateStockStudio.ts",
+      "symbol": "motionForBeat",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/templateStockStudio.ts",
+      "symbol": "TEMPLATE_CLIP_TIMEOUT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapi.ts",
+      "symbol": "preserveLiveTransferDestinations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "ACTIONABLE_OUTCOMES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "buildExtractionPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "buildProposalInputs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "isOutboundCall",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "parseExtraction",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "shouldExtract",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiActionExtraction.ts",
+      "symbol": "VAPI_EXTRACT_MODEL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiCallArchive.ts",
+      "symbol": "buildArchivePayload",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiCallClassifier.ts",
+      "symbol": "detectIntents",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiConversionSignals.ts",
+      "symbol": "isConvertedScore",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiConversionSignals.ts",
+      "symbol": "scoreBand",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiMeasurement.ts",
+      "symbol": "VAPI_FACTS_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vapiMeasurement.ts",
+      "symbol": "VAPI_METRIC_DEFINITION_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vehicleData.ts",
+      "symbol": "_clearVehicleDataCache",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vendorHealth.ts",
+      "symbol": "getVendorCosts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vendorHealth.ts",
+      "symbol": "getVendorSLA",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vendorHealth.ts",
+      "symbol": "startContinuousMonitoring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vendorHealth.ts",
+      "symbol": "stopContinuousMonitoring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/veoStudio.ts",
+      "symbol": "buildVeoRequestBody",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/vision-analyzer.ts",
+      "symbol": "checkVisionHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualFamily.ts",
+      "symbol": "DEFAULT_FAMILY_ID",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualFamily.ts",
+      "symbol": "getVisualFamily",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualFamily.ts",
+      "symbol": "STORY_SAFE_BOTTOM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualFamily.ts",
+      "symbol": "STORY_SAFE_TOP",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualFamily.ts",
+      "symbol": "VISUAL_FAMILIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualWorld.ts",
+      "symbol": "buildReferenceFramePrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualWorld.ts",
+      "symbol": "compileLockedInvariants",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualWorld.ts",
+      "symbol": "STYLE_DIRECTIVES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/visualWorld.ts",
+      "symbol": "visualWorldFromCandidate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voice-clone.ts",
+      "symbol": "checkVoiceCloneHealth",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voice-clone.ts",
+      "symbol": "cloneVoice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voice-latency.ts",
+      "symbol": "quantile",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voice-latency.ts",
+      "symbol": "VOICE_LATENCY_BREACH_STREAK_THRESHOLD",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voice-latency.ts",
+      "symbol": "VOICE_LATENCY_STAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "BOT_TELLS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "botTellViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "extractAssistantTurns",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "extractAssistantTurnsFromMessages",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "PROHIBITED_VOICE_CLAIMS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "VOICE_CLAIM_GUARD_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceClaimGuard.ts",
+      "symbol": "voiceClaimViolations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceDemandClassifier.ts",
+      "symbol": "classifyVoiceDemand",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceDemandClassifier.ts",
+      "symbol": "LOW_CONFIDENCE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/voiceDemandClassifier.ts",
+      "symbol": "VOICE_INTENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/winbackProcessor.ts",
+      "symbol": "withOptOutNotice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/workOrderAutomation.ts",
+      "symbol": "autoCreateLeadFromBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/workOrderAutomation.ts",
+      "symbol": "autoCreateWorkOrderFromBooking",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/workOrderService.ts",
+      "symbol": "generateWorkOrderNumber",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/services/workOrderService.ts",
+      "symbol": "getActiveWorkOrders",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "attributionCells",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "isMissingSheetTabError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "SHEET_ATTRIBUTION_HEADERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "syncDashboardToSheet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "TIRE_ORDER_SHEET_HEADERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "TIRE_ORDER_SHEET_TAB",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sheets-sync.ts",
+      "symbol": "tireOrderRow",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "carrierBlockedPhones",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "GATEWAY_TIMEOUT_UNCERTAIN",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "getActiveThreads",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "getConversationThread",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "handleDeliveryStatus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "handleInboundSms",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "markPhoneOptedIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "MAX_SEND_ATTEMPTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "recordSendFailure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "recoverStaleSendingRows",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "rehydrateQueuedFromDb",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "shouldAlertStuckQueue",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "SmsSendError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "startDelayedQueueProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "stopDelayedQueueProcessor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/sms.ts",
+      "symbol": "STUCK_QUEUE_THRESHOLD_MINUTES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/storage.ts",
+      "symbol": "publicObjectUrl",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/storage.ts",
+      "symbol": "storageGet",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/testUtils/sourceAssertions.ts",
+      "symbol": "readCode",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "server/testUtils/sourceAssertions.ts",
+      "symbol": "readSource",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/_core/errors.ts",
+      "symbol": "BadRequestError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/_core/errors.ts",
+      "symbol": "HttpError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/_core/errors.ts",
+      "symbol": "NotFoundError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/_core/errors.ts",
+      "symbol": "UnauthorizedError",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/adminPermissions.ts",
+      "symbol": "ADMIN_PERMISSIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/adminSignal.ts",
+      "symbol": "SIGNAL_SEVERITIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/attentionMicrostructure.ts",
+      "symbol": "compareBooleanSignal",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/brandBible.ts",
+      "symbol": "DISEMBODIED_CAST",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/brandBible.ts",
+      "symbol": "NOIR_CAMERA_GRAMMAR",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/brandBible.ts",
+      "symbol": "NOIR_COMPOSITION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/brandBible.ts",
+      "symbol": "NOIR_ENVIRONMENTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/bridgeShapes.ts",
+      "symbol": "BRIDGE_SHAPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/bridgeShapes.ts",
+      "symbol": "RevenueTodayShape",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/bridgeShapes.ts",
+      "symbol": "TopDecisionsShape",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/cities.ts",
+      "symbol": "getCityBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/claimEntailment.ts",
+      "symbol": "entailmentAllowsAutonomousPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "AXIOS_TIMEOUT_MS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "GBP_CID",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "GBP_DIRECTIONS_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "GBP_EMBED_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "GBP_PLACE_URL",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/const.ts",
+      "symbol": "STORE_ADDRESS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentContinuityQa.ts",
+      "symbol": "continuityBlocks",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentContinuityQa.ts",
+      "symbol": "runContinuityQa",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "armRates",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "EXPERIMENT_REGISTRY_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "findConfounds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "METRIC_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "metricSpec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentExperiments.ts",
+      "symbol": "MIN_SAMPLES_PER_ARM",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentFranchises.ts",
+      "symbol": "FRANCHISE_REGISTRY_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentFranchises.ts",
+      "symbol": "franchisesRequiring",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentTopicMiner.ts",
+      "symbol": "franchiseForSource",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentTopicMiner.ts",
+      "symbol": "isNearDuplicate",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentTopicMiner.ts",
+      "symbol": "rotationPenalty",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentTopicMiner.ts",
+      "symbol": "TOPIC_MINER_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/contentTopicMiner.ts",
+      "symbol": "uncoveredFranchises",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/creativeFingerprint.ts",
+      "symbol": "fingerprint",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/customerDimension.ts",
+      "symbol": "buildCustomerDimension",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/customerDimension.ts",
+      "symbol": "evidenceOf",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/customerDimension.ts",
+      "symbol": "speakableFacts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/declinedWorkTopics.ts",
+      "symbol": "angleFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/declinedWorkTopics.ts",
+      "symbol": "briefFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/declinedWorkTopics.ts",
+      "symbol": "normalizePartName",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/declinedWorkTopics.ts",
+      "symbol": "scoreDeclinedTopic",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/disclaimers.ts",
+      "symbol": "ESTIMATE_DISCLAIMERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ABSURDITY_BAND",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ABSURDITY_LEVEL_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ABSURDITY_LEVELS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ABSURDITY_TYPE_SPECS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ABSURDITY_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "ASSET_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "buildSwapCorpus",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "checkLayerBoundary",
+      "reason": "VACUOUS BY CONSTRUCTION, not merely unwired. Forbids generated assets in Layer A (real footage only); with no shop footage no Layer A asset is ever declared, so a consumer would still never fire. Wiring it would produce a control that only LOOKS connected."
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "deriveRelevanceInput",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectCustomerHumiliation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectCustomerHumiliationIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectFabricatedEvidence",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectFabricatedEvidenceIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectFabricatedVerdicts",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectInventedMeasurements",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectRealEventAssertions",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectSafetyTrivialisation",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "detectSafetyTrivialisationIn",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "DUA_MODEL_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "DUA_ROLES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "DUA_SEED_CORPUS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "DUA_SEED_FACTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "frameSurfaces",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "LAYER_CONTRACT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "mechanismTerms",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "probeFrameSwap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "readRelevance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "REAL_EVENT_GATE_ENABLED",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "RELEVANCE_MIN_SURFACES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "RELEVANCE_MIN_TERMS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "RELEVANCE_SURFACES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "SWAP_NEAR_DUPLICATE_WEIGHT_RATIO",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "unenforceableBlockingConditions",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/dua.ts",
+      "symbol": "VISUAL_LAYERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "buildDuaKitFragment",
+      "reason": "UNWIRED BY ACCIDENT. Prompt fragment builder for DUA_FRANCHISE_KITS; same gap as that entry."
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "DUA_AUDIENCE_VOCABULARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "DUA_FRANCHISE_KITS",
+      "reason": "UNWIRED BY ACCIDENT. Audio palettes, vocabulary and participation asks for all 12 franchises; nothing consumes them. Authoring reference today; wiring into reelBriefGen prompt assembly is the fix."
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "DUA_KIT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "kitFor",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "OVERLAY_ONLY_VOCABULARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/duaFranchiseKits.ts",
+      "symbol": "UNHOUSED_SHOW_CONCEPTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/episodeContract.ts",
+      "symbol": "CAPTION_LIMIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/episodeContract.ts",
+      "symbol": "EPISODE_CONTRACT_VERSION",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/episodeContract.ts",
+      "symbol": "PENDING_WIRING",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/evidenceSufficiency.ts",
+      "symbol": "OPERATOR_SUBSTANCE_MIN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/evidenceSufficiency.ts",
+      "symbol": "QUOTE_MIN_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/financing.ts",
+      "symbol": "PAYMENT_METHODS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/flagPolicy.ts",
+      "symbol": "CUSTOMER_FACING_FLAGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/flagPolicy.ts",
+      "symbol": "INVERTED_FLAGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/global-faq.ts",
+      "symbol": "GLOBAL_FAQ_QUESTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/instagramStudio.ts",
+      "symbol": "CONTENT_DISTRIBUTION_OBJECTIVES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/instagramStudio.ts",
+      "symbol": "CONTENT_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/instagramStudio.ts",
+      "symbol": "CTA_TYPES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/instagramStudio.ts",
+      "symbol": "DISTRIBUTION_OBJECTIVE_METRICS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/instagramStudio.ts",
+      "symbol": "EVIDENTIARY_ORIGINS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "BLOG_TAG_TO_SERVICES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "getRelatedServices",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "getServicesForBlogTags",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "SERVICE_RELATIONSHIPS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "SERVICE_TO_CITIES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/internalLinks.ts",
+      "symbol": "serviceSlugToName",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/journey.ts",
+      "symbol": "buildSessionJourneys",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/leadSource.ts",
+      "symbol": "isOperationalCallerLead",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/leadSource.ts",
+      "symbol": "leadSourceLabel",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/localDiscoveryLibrary.ts",
+      "symbol": "categoryForTopic",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/localDiscoveryLibrary.ts",
+      "symbol": "LOCAL_DISCOVERY_LIBRARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "buildEnvelope",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "CANONICAL_METRICS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "getCanonicalMetric",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "isRoiSafe",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "SHOP_TIME_ZONE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/metricsContract.ts",
+      "symbol": "validateEnvelope",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/proof.ts",
+      "symbol": "getProofConfig",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/providerErrors.ts",
+      "symbol": "ERROR_CLASS_PREFIX",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/providerErrors.ts",
+      "symbol": "PROVIDER_ERROR_CLASSES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelApproval.ts",
+      "symbol": "APPROVAL_BLOCK",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelApproval.ts",
+      "symbol": "isApprovedToPublish",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelApproval.ts",
+      "symbol": "REEL_APPROVAL_TTL_HOURS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAsk.ts",
+      "symbol": "askSignals",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "applicableRules",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "buildMixFragments",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "BUS_DEFAULTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "DUCKING_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "emittedDelaySec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "mixProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelAudioMix.ts",
+      "symbol": "PRODUCTION_LOUDNESS_LUFS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelClaimAudit.ts",
+      "symbol": "condemnedJobIds",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelClaimAudit.ts",
+      "symbol": "REEL_CLAIM_AUDIT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDestinations.ts",
+      "symbol": "ALLOWED_ORIGIN_HOSTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDestinations.ts",
+      "symbol": "DEPLOYED_DESTINATIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDestinations.ts",
+      "symbol": "isDeployedDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDestinations.ts",
+      "symbol": "normalizeDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDestinations.ts",
+      "symbol": "suggestDestinations",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDisclosure.ts",
+      "symbol": "clipProvenance",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDisclosure.ts",
+      "symbol": "GENERATIVE_PROVIDERS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDisclosure.ts",
+      "symbol": "hasDisclosure",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDisclosure.ts",
+      "symbol": "isGenerated",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelDisclosure.ts",
+      "symbol": "realEvidenceClaims",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelOriginality.ts",
+      "symbol": "jaccardSimilarity",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelOriginality.ts",
+      "symbol": "normalizeForComparison",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelOriginality.ts",
+      "symbol": "ORIGINALITY_BLOCK_THRESHOLD",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelOriginality.ts",
+      "symbol": "topicOverlap",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPerformancePrior.ts",
+      "symbol": "MIN_POSTS_PER_THEME",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPerformancePrior.ts",
+      "symbol": "scorePost",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "absoluteClaims",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "copyContainsAsk",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "destinationBlocker",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "hasUnqualifiedPrice",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "isHomepageDestination",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "isPromotable",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelPromotability.ts",
+      "symbol": "SAFE_AREA_MARGIN_PCT",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelScore.ts",
+      "symbol": "computeReelDistributionScore",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelScore.ts",
+      "symbol": "MIN_COVERAGE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelScore.ts",
+      "symbol": "REEL_SCORE_CEILINGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelScore.ts",
+      "symbol": "REEL_SCORE_WEIGHTS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTextSurfaces.ts",
+      "symbol": "filtergraphTextSources",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTimeline.ts",
+      "symbol": "cutOverlaps",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTimeline.ts",
+      "symbol": "MIN_MEANINGFUL_OVERLAP_SEC",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTimeline.ts",
+      "symbol": "musicAlignmentProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTimeline.ts",
+      "symbol": "REVEAL_FUNCTIONS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelTimeline.ts",
+      "symbol": "silenceBudgetSec",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVideoPrompt.ts",
+      "symbol": "PROMPT_BLOCKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVideoPrompt.ts",
+      "symbol": "promptShapeProblem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVideoPrompt.ts",
+      "symbol": "REQUIRED_BLOCKS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "MAX_INTERNAL_PAUSE_SEC",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "MIN_PITCH_STDDEV_HZ",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "PRONUNCIATION_LEXICON",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "pronunciationDirective",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "relevantLexicon",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "scoreTake",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reelVoiceCraft.ts",
+      "symbol": "selectTake",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reviewDisplay.ts",
+      "symbol": "MAX_REVIEW_TEXT_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reviewDisplay.ts",
+      "symbol": "MIN_DISPLAYABLE_REVIEW_RATING",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reviewDisplay.ts",
+      "symbol": "MIN_REVIEW_TEXT_CHARS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reviewReplyQa.ts",
+      "symbol": "REPLY_BLOCK_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/reviewReplyQa.ts",
+      "symbol": "REPLY_WARN_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seasonal.ts",
+      "symbol": "getSeasonalBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "getAllSEOPageSlugs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "getSEOServiceBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "getVehicleMakeBySlug",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "PROBLEM_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "SEO_SERVICE_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/seo-pages.ts",
+      "symbol": "VEHICLE_MAKE_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/serviceCityCombinator.ts",
+      "symbol": "generateServiceCityPages",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/serviceCityCombinator.ts",
+      "symbol": "getServiceCityPage",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/serviceCityCombinator.ts",
+      "symbol": "TOTAL_SERVICE_CITY_PAGES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/serviceFeed.ts",
+      "symbol": "serviceFeedItem",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/tireBrands.ts",
+      "symbol": "TIRE_BRAND_SLUGS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/tireBrands.ts",
+      "symbol": "TIRE_BRANDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/tireSizes.ts",
+      "symbol": "getAllTireSizeSlugs",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "ABSURDITY_RATIO",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "CTA_LIBRARY",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "KILL_RULE_IDS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "renderVoiceRulesForPrompt",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "SURFACE_RULES",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "VOICE_PATTERNS",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    },
+    {
+      "file": "shared/voice.ts",
+      "symbol": "VOICE_RECIPE",
+      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+    }
+  ]
+}
