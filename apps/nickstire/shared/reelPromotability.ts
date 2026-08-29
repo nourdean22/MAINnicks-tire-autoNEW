@@ -39,6 +39,7 @@
  * nobody later cites this file as "Meta requires" for something Meta never said.
  */
 import { disclosureViolation, isGenerativeProvider, type DisclosurePack } from "./reelDisclosure";
+import { destinationProblem, isHomepagePath } from "./reelDestinations";
 
 /**
  * Safe-area margin, top and bottom, to keep clear of text and logos.
@@ -155,22 +156,12 @@ export function copyContainsAsk(copy: string): boolean {
   return ASK_PATTERNS.some((re) => re.test(copy ?? ""));
 }
 
-/** True when the URL/path points at the site root, ignoring query and hash. */
+/**
+ * True when the destination resolves to the site root.
+ * Delegates to reelDestinations, which owns normalization now.
+ */
 export function isHomepageDestination(dest: string): boolean {
-  const d = (dest ?? "").trim();
-  if (!d) return false;
-  let path = d;
-  if (/^https?:\/\//i.test(d)) {
-    try {
-      path = new URL(d).pathname;
-    } catch {
-      return false;
-    }
-  } else {
-    // Bare path: strip query and hash before judging it.
-    path = d.split(/[?#]/)[0];
-  }
-  return path === "" || path === "/";
+  return isHomepagePath(dest);
 }
 
 export function destinationBlocker(f: PromotabilityFacts): PromotabilityBlocker | null {
@@ -189,15 +180,15 @@ export function destinationBlocker(f: PromotabilityFacts): PromotabilityBlocker 
         "Promoting an undeclared destination pays for traffic with nowhere specific to land.",
     };
   }
-  if (isHomepageDestination(dest)) {
+  // TYPED against the deployed route set, not free text. The free-text version
+  // let its own author recommend "/tire-sidewall" - a path that does not exist
+  // and answers HTTP 200 with the generic app shell.
+  const problem = destinationProblem(dest);
+  if (problem) {
     return {
-      code: "DESTINATION_IS_HOMEPAGE",
+      code: isHomepagePath(dest) ? "DESTINATION_IS_HOMEPAGE" : "DESTINATION_NOT_DEPLOYED",
       source: "first-party",
-      reason:
-        `CTA "${askText.slice(0, 60)}" lands on the homepage. Measured baseline: 74 profile visits and ` +
-        "ONE website tap from 13,871 views (0.53% profile-visit rate). Paying to send more people " +
-        "into that is buying the same non-conversion he currently gets for free. Point it at the " +
-        "specific service page.",
+      reason: `CTA "${askText.slice(0, 60)}" cannot be used: ${problem}`,
     };
   }
   return null;

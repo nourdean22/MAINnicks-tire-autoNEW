@@ -15,6 +15,7 @@
 import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promotabilityBlockers } from "../shared/reelPromotability.ts";
+import { PACK_DESTINATIONS, DELIBERATELY_UNASSIGNED } from "../shared/reelDestinationMap.ts";
 
 const ROOT = "docs/reel-packs";
 const COST = { "real-footage": 0, stills: 1, generated: 2, undetermined: 3 };
@@ -48,6 +49,9 @@ for (const d of readdirSync(ROOT).sort()) {
 
   // Promotability is assessed only when there is copy to assess. No copy means
   // unassessed (null), which is NOT the same as ineligible.
+  const franchise = d.replace(/^\d{4}-\d{2}-\d{2}-/, "") || d;
+  const landingDestination = PACK_DESTINATIONS[franchise] ?? null;
+  const unassignedReason = landingDestination ? null : (DELIBERATELY_UNASSIGNED[franchise] ?? "no curated match yet");
   const blockers = copy
     ? promotabilityBlockers({
         id: d,
@@ -56,7 +60,7 @@ for (const d of readdirSync(ROOT).sort()) {
         aspectRatio: "9:16",
         safeAreaRespected: null,
         ctaText: null,
-        landingDestination: null,
+        landingDestination,
       })
     : null;
 
@@ -68,6 +72,8 @@ for (const d of readdirSync(ROOT).sort()) {
     status,
     blockReason,
     actuals: null,
+    landingDestination,
+    unassignedReason,
     promotable: blockers ? blockers.length === 0 : null,
     promotionBlockers: blockers ? blockers.map((b) => `${b.code}(${b.source}): ${b.reason}`) : null,
   });
@@ -77,6 +83,11 @@ rows.sort((a, b) => a.cost - b.cost || a.id.localeCompare(b.id));
 const totals = {};
 for (const r of rows) totals[r.status] = (totals[r.status] || 0) + 1;
 const unexplained = rows.filter((r) => r.status !== "publishable" && !r.blockReason).map((r) => r.id);
+const dest = {
+  assigned: rows.filter((r) => r.landingDestination).length,
+  unassigned: rows.filter((r) => !r.landingDestination).length,
+  distinctDestinations: new Set(rows.map((r) => r.landingDestination).filter(Boolean)).size,
+};
 const promo = { promotable: rows.filter((r) => r.promotable === true).length, notPromotable: rows.filter((r) => r.promotable === false).length, unassessed: rows.filter((r) => r.promotable === null).length };
 
 writeFileSync(join(ROOT, "TRIAGE.json"), JSON.stringify({
@@ -84,7 +95,10 @@ writeFileSync(join(ROOT, "TRIAGE.json"), JSON.stringify({
   note: "Concepts as rows. No weighted rubric - ranked by cost ascending until actuals exist. Every non-publishable row carries blockReason; UNKNOWN is not a permitted state. promotable=null means UNASSESSED (no copy to read), not ineligible.",
   totals: { all: rows.length, ...totals },
   promotability: promo,
+  destinations: dest,
   unexplained,
   concepts: rows,
 }, null, 2) + "\n");
-console.log(`TRIAGE.json: ${rows.length} concepts`, totals, "| promotability:", promo, "| unexplained:", unexplained.length);
+console.log(`TRIAGE.json: ${rows.length} concepts`, totals);
+console.log("  destinations:", dest);
+console.log("  promotability:", promo, "| unexplained:", unexplained.length);
