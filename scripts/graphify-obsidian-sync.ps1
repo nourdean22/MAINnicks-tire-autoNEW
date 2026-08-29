@@ -265,5 +265,37 @@ if ($backups.Count -gt $keepBackups) {
     Log "vault backups: $($backups.Count) present (keep $keepBackups) - nothing to rotate"
 }
 
+# 5. INGEST THE VAULT INTO THE BRAIN (added 2026-08-29).
+#
+# WHY HERE AND NOT A CRON ROUTE. The ingest reads the vault off the local
+# filesystem (scripts/ingest-obsidian-candidates.ts uses fs.readdirSync /
+# fs.readFileSync on a vault root). Railway has no access to this laptop's
+# Obsidian folder, so a server-side cron could not read a single note - it
+# is not a preference, it is the only placement that can work at all.
+#
+# WHY IT MATTERS: the vault->brain bridge already worked end to end
+# (ingest-obsidian-candidates.ts:119 reads notes -> :177
+# persistKnowledgeCandidate -> brain_memories) but ONLY when the operator
+# remembered to run it by hand. The vault is where he actually writes, so
+# every note he took between manual runs was invisible to Nick. This is the
+# whole fix: the weekly task that already refreshes the vault now also
+# feeds it forward.
+#
+# Runs LAST and NON-FATALLY, deliberately. Steps 1-3 produce the graph, the
+# report and the digests; if the ingest fails, those artifacts are already
+# on disk and the run should still count as a success. A failure here is
+# logged loudly and re-attempted next week rather than failing the sync.
+$statenour = Join-Path $RepoRoot "apps\statenour"
+Log "ingesting vault notes into brain_memories (pnpm obsidian:ingest)..."
+Push-Location $statenour
+& pnpm run obsidian:ingest 2>&1 | Add-Content -Path $log
+$ingestCode = $LASTEXITCODE
+Pop-Location
+if ($ingestCode -ne 0) {
+    Log "WARN: obsidian ingest exited $ingestCode - vault artifacts are intact; will retry next run"
+} else {
+    Log "obsidian ingest OK - vault notes are now reachable from chat recall"
+}
+
 Release-GraphLock
 Log "=== sync done (labels: $labelStatus) ==="

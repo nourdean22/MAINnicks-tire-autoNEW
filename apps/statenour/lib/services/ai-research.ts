@@ -8,13 +8,18 @@
  * drift between consumers structurally impossible.
  *
  * Routes a query through `routeQuery` (Perplexity → Grok → Venice) and
- * logs the call to the arsenal-activity feed. Returns the explicit flat
- * `ResearchResult` shape — no Prisma row reaches the AppRouter (TS2589
- * firewall satisfied trivially).
+ * returns the explicit flat `ResearchResult` shape — no Prisma row reaches
+ * the AppRouter (TS2589 firewall satisfied trivially).
+ *
+ * (2026-08-29) arsenal_logs writing REMOVED from this call path: the table
+ * had one reachable writer (lib/integrations/arsenal-log.ts, deleted) and,
+ * confirmed three independent ways, ZERO readers — no find/count/aggregate
+ * in the tree, no raw SQL against `arsenal_logs`, and `ArsenalLog` appears
+ * exactly once in schema.prisma, so it is not a relation target and could
+ * not be read through an `include`. Prod held 2 rows, newest 2026-04-10.
  */
 
 import { routeQuery } from "@/lib/ai/router";
-import { logArsenalActivity } from "@/lib/integrations/arsenal-log";
 
 /** A multi-model research answer · content + provider + citations. */
 export interface ResearchResult {
@@ -35,42 +40,17 @@ export type ResearchTaskType =
 /**
  * Run a multi-model research query. The REST route and the `ai.research`
  * procedure both call this. `taskType` defaults to "research" (the
- * Perplexity-first citation chain). Re-throws on total provider failure
- * so the caller can surface the error.
+ * Perplexity-first citation chain). Provider failure propagates to the
+ * caller.
  */
 export async function runResearch(input: {
   query: string;
   taskType?: ResearchTaskType;
   systemPrompt?: string;
 }): Promise<ResearchResult> {
-  const start = Date.now();
-  try {
-    const result = await routeQuery(
-      input.query,
-      input.taskType ?? "research",
-      input.systemPrompt,
-    );
-    logArsenalActivity({
-      toolId: result?.provider || "multi-model",
-      action: "research",
-      status: "success",
-      durationMs: Date.now() - start,
-      inputPreview: input.query?.slice(0, 200),
-      resultPreview: (result?.content ?? JSON.stringify(result))?.slice(
-        0,
-        1000,
-      ),
-    });
-    return result;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    logArsenalActivity({
-      toolId: "multi-model",
-      action: "research",
-      status: "error",
-      durationMs: Date.now() - start,
-      errorMessage: message,
-    });
-    throw err;
-  }
+  return routeQuery(
+    input.query,
+    input.taskType ?? "research",
+    input.systemPrompt,
+  );
 }
