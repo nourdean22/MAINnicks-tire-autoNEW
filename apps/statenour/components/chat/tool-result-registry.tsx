@@ -362,10 +362,21 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     icon: Eye,
     color: "emerald",
     link: { href: "/journal", label: "Journal" },
+    // 2026-08-29 · `count` is now the TOTAL matched, not the returned page.
+    // When the two differ the card says so -- "111 matches · showing 16" --
+    // rather than printing a page size as if it were the answer. `~` marks
+    // the case where a count query failed and the total is a floor, not a
+    // measurement.
     subtitle: (out) => {
-      const o = out as { count?: number; results?: unknown[]; reflections?: unknown[] } | null;
+      const o = out as {
+        count?: number; returned?: number; truncated?: boolean; countExact?: boolean;
+        results?: unknown[]; reflections?: unknown[];
+      } | null;
       const n = o?.count ?? o?.results?.length ?? o?.reflections?.length;
-      return typeof n === "number" ? `${n} match${n === 1 ? "" : "es"}` : null;
+      if (typeof n !== "number") return null;
+      const approx = o?.countExact === false ? "~" : "";
+      const base = `${approx}${n} match${n === 1 ? "" : "es"}`;
+      return o?.truncated && typeof o.returned === "number" ? `${base} · showing ${o.returned}` : base;
     },
   },
   getRecentReflections: {

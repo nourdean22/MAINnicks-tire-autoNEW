@@ -1095,7 +1095,38 @@ export const brainTools = {
         ftsFor("brain_dumps", ["summary", "raw_thoughts", "patterns"]),
       ]);
 
-      const [reflections, dumps] = await Promise.all([
+      // 2026-08-29 (round 2) · `count` was `returned rows`, capped by
+      // `limit`. A query matching 111 rows displayed "16 matches" with
+      // nothing anywhere saying it was a page. Smaller than the "0 matches"
+      // lie this tool shipped with, but the same species: the number is
+      // wrong and nothing tells you it is wrong. The totals are now counted
+      // separately from the page, so `count` is the real answer to "how much
+      // is there" and `returned` says how much came back.
+      // `as const` on `mode` is load-bearing: hoisting these object literals
+      // out of the call site widened "insensitive" to `string`, which Prisma's
+      // QueryMode enum rejects. Caught by tsc, not by the tests.
+      const reflectionWhere = {
+        OR: [
+          ...(reflectionFtsIds.length ? [{ id: { in: reflectionFtsIds } }] : []),
+          { insight: { contains: q, mode: "insensitive" as const } },
+          { evidence: { contains: q, mode: "insensitive" as const } },
+          { category: { contains: q, mode: "insensitive" as const } },
+        ],
+        ...(hasDateFilter ? { date: dateFilter } : {}),
+        deletedAt: null,
+      };
+      const dumpWhere = {
+        OR: [
+          ...(dumpFtsIds.length ? [{ id: { in: dumpFtsIds } }] : []),
+          { summary: { contains: q, mode: "insensitive" as const } },
+          { rawThoughts: { contains: q, mode: "insensitive" as const } },
+          { patterns: { contains: q, mode: "insensitive" as const } },
+        ],
+        ...(hasDateFilter ? { date: dateFilter } : {}),
+        deletedAt: null,
+      };
+
+      const [reflections, dumps, reflectionTotal, dumpTotal] = await Promise.all([
         prisma.reflection.findMany({
           where: {
             OR: [
@@ -1126,6 +1157,11 @@ export const brainTools = {
           take: limit,
           select: { id: true, date: true, summary: true, rawThoughts: true, patterns: true, moodBefore: true },
         }).catch((): never[] => []),
+        // Totals. `null` on failure, never 0 -- a count that could not be
+        // read is UNKNOWN, and reporting it as zero would reintroduce the
+        // exact confident-wrong-number this change exists to remove.
+        prisma.reflection.count({ where: reflectionWhere }).catch((): null => null),
+        prisma.brainDump.count({ where: dumpWhere }).catch((): null => null),
       ]);
       return {
         query,
@@ -1137,9 +1173,22 @@ export const brainTools = {
         // Measured: query "mantra" -> 0 reflections, 1 brain dump, card
         // said "0 matches". The total belongs in the payload, not in the
         // renderer's guesswork.
-        count: reflections.length + dumps.length,
+        // TOTAL matches across both sources -- what "how many are there"
+        // means. Falls back to the returned page only when a count query
+        // failed, so it is never larger than the truth by guesswork.
+        count: (reflectionTotal ?? reflections.length) + (dumpTotal ?? dumps.length),
+        // How many actually came back in this payload. When it is smaller
+        // than `count`, the reader is looking at a page, and `truncated`
+        // says so outright rather than leaving it to be inferred.
+        returned: reflections.length + dumps.length,
+        truncated:
+          (reflectionTotal ?? reflections.length) + (dumpTotal ?? dumps.length) >
+          reflections.length + dumps.length,
+        countExact: reflectionTotal !== null && dumpTotal !== null,
         reflectionCount: reflections.length,
         brainDumpCount: dumps.length,
+        reflectionTotal: reflectionTotal ?? reflections.length,
+        brainDumpTotal: dumpTotal ?? dumps.length,
         reflections,
         brainDumps: dumps.map((d) => ({
           id: d.id,
