@@ -226,3 +226,78 @@ describe("declaredTextSurfaces mirrors the assembler's file layout", () => {
     expect(declaredTextSurfaces([{ caption: "a" }], "").map((s) => s.file)).not.toContain("caption_save.txt");
   });
 });
+
+/* ── the ask must not leak into content surfaces ────────────────────────── */
+
+import { askLeakageProblem, askSignals } from "@shared/reelAsk";
+
+/**
+ * MEASURED 2026-08-29 on three freshly generated briefs. Every one of them put
+ * "Comment <KEYWORD>" into storyboard beat 5 AND into the voiceover, and every
+ * caption carried three competing asks. The declared end-card ask governed the
+ * end card only — the model wrote its own CTA straight into the pixels through
+ * a door the end-card fix never covered. The master prompt was the cause: it
+ * literally specified "soft CTA: DM/comment the campaign keyword + business
+ * close (phone / address / website)".
+ *
+ * The fixtures below are the REAL generated strings.
+ */
+describe("a CTA must never reach a beat or the voiceover", () => {
+  const REAL_BEATS = [
+    "Cuyahoga County E-Check:",
+    "A lit check engine light doesn't stop your test.",
+    "It just fails it.",
+    "Get the code read before you test.",
+    "Comment ECHECK and we'll take a look.",
+  ];
+
+  it("CATCHES the CTA beat that generation actually produced", () => {
+    const p = askLeakageProblem({ beats: REAL_BEATS });
+    expect(p).toMatch(/beat 5/);
+    expect(p).toMatch(/comment-keyword/);
+  });
+
+  it("CATCHES a spoken CTA — unreachable by any later copy edit", () => {
+    const p = askLeakageProblem({
+      voiceoverScript: "Get the code read first. Then test with the light off. Comment ECHECK and we'll take a look.",
+    });
+    expect(p).toMatch(/voiceover/);
+  });
+
+  it("CATCHES the three competing asks in the real generated caption", () => {
+    const caption =
+      "That check engine light won't stop your Cuyahoga County E-Check. Get the code read before you test. " +
+      "Send this to someone whose E-Check is coming up. Comment ECHECK and we'll take a look. (216) 862-0005";
+    expect(askSignals(caption)).toHaveLength(3);
+    expect(askLeakageProblem({ caption })).toMatch(/3 competing asks/);
+  });
+
+  // POSITIVE CONTROLS. Content that teaches and asks nothing must pass, or the
+  // guard blocks every brief and gets switched off.
+  it("PASSES beats that teach and ask nothing", () => {
+    expect(
+      askLeakageProblem({
+        beats: REAL_BEATS.slice(0, 4),
+        voiceoverScript: "In Cuyahoga County, a lit check engine light doesn't stop your E-Check. It just fails it.",
+        caption: "That check engine light won't stop your Cuyahoga County E-Check. It just fails it.",
+      }),
+    ).toBeNull();
+  });
+
+  it("PERMITS exactly one ask in the caption", () => {
+    expect(askLeakageProblem({ caption: "Your tire may be leaking at the wheel. More in our bio." })).toBeNull();
+    expect(askSignals("More in our bio.")).toEqual(["link-in-bio"]);
+  });
+
+  it("counts a phone number as an ask — it competes with the declared one", () => {
+    expect(askSignals("Call today (216) 862-0005")).toContain("call-us");
+  });
+
+  it("does not fire on ordinary teaching copy", () => {
+    for (const s of [
+      "Cleveland salt creeps into the bead seat.",
+      "A lit check engine light doesn't stop your test.",
+      "Alignment is NOT balancing.",
+    ]) expect(askSignals(s), s).toEqual([]);
+  });
+});

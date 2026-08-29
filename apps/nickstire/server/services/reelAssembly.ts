@@ -12,7 +12,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { createLogger } from "../lib/logger";
-import { askProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
+import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 
 const log = createLogger("services:reel-assembly");
@@ -795,6 +795,15 @@ export async function assembleReel(
       // frame nobody can edit afterwards.
       if (askBad) throw new Error(`reel ask is invalid: ${askBad}`);
     }
+    // The declared ask governs the END CARD. This catches a CTA that leaked
+    // into a BEAT or the voiceover, which is a second, permanent ask — measured
+    // on freshly generated briefs 2026-08-29, all three had one.
+    const leak = askLeakageProblem({
+      beats: (brief.storyboardBeats ?? []).map((b) => b.onScreenText),
+      voiceoverScript: brief.voiceoverScript,
+      caption: brief.selectedCaption,
+    });
+    if (leak) throw new Error(`refusing to render: ${leak}`);
     const askText = ask ? renderAskText(ask) : null;
     const surfaces = declaredTextSurfaces(segs, askText, !!assPath);
     for (const s of surfaces) {
