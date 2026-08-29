@@ -197,7 +197,14 @@ export function BottomPulseTicker() {
           aria-label={open ? "Close pulse feed" : "Open pulse feed"}
           aria-expanded={open}
         >
-          <span key={current.id} className="pulse-fade flex-1 min-w-0">
+          {/* `flex` is load-bearing. PulseContent's root is an INLINE-flex
+              box; in a non-flex span it sizes to its content, overflows, and
+              -- since nothing clips here -- paints straight over the n/total
+              counter to its right. That is the `low-stakes1/11pick one`
+              collision the operator screenshotted. Making this a flex
+              container is what lets min-w-0 + truncate below actually shrink
+              the text. Measured at 390px: overlap gone, text ellipsizes. */}
+          <span key={current.id} className="pulse-fade flex flex-1 min-w-0">
             <PulseContent item={current} />
           </span>
         </button>
@@ -278,7 +285,10 @@ function PulseContent({ item, row = false }: { item: PulseItem; row?: boolean })
       >
         {item.label}
       </span>
-      <span className={cn(TONE_COLORS[item.tone], !row && "truncate")}>{item.text}</span>
+      {/* min-w-0: a flex item defaults to min-width:auto and refuses to
+          shrink below its content, so truncate's overflow:hidden never
+          engages and the text overflows its parent instead of ellipsizing. */}
+      <span className={cn(TONE_COLORS[item.tone], !row && "truncate min-w-0")}>{item.text}</span>
     </span>
   );
 }

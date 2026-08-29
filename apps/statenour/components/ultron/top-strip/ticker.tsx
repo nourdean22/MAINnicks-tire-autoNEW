@@ -180,17 +180,36 @@ export function Ticker({ mode, reason }: TickerProps = {}) {
           aria-label={open ? "Close feed" : "Open feed"}
           aria-expanded={open}
         >
-          <span key={current.id} className="edge-fade flex-1 min-w-0">
+          {/* `flex` is load-bearing, not cosmetic. ItemView's root is an
+              INLINE-flex box; inside a non-flex span it sizes to content and
+              overflows, and because nothing here clips, the overflow paints
+              straight over the n/total counter and the dismiss button to its
+              right. Measured at a 375px viewport: the label rendered 667px
+              wide inside a 270px wrapper and ran 408px past the counter's
+              left edge -- the `committing⁴ᐟ¹³ to same-wee` overlap the
+              operator screenshotted. Making this a flex container lets
+              min-w-0 + truncate downstream actually shrink the label
+              (664px -> 305px, ellipsized). Adding overflow-hidden here
+              instead does NOT fix it -- verified in the browser. */}
+          <span key={current.id} className="edge-fade flex flex-1 min-w-0">
             <ItemView item={current} />
           </span>
         </button>
 
+        {/* Position in the brain-signal feed: which item of how many is on
+            screen right now. It read as a bare "4/13" painted over the
+            headline text with nothing saying what it counted -- the operator
+            flagged it as its own defect. The overlap is fixed above; this
+            adds the meaning. `title` explains it on hover/long-press and the
+            sr-only text gives screen readers the same sentence, so the
+            visible glyph can stay compact. */}
         {items.length > 1 && (
           <span
             className="shrink-0 text-[9px] tabular-nums text-[var(--text-tertiary)] select-none"
-            aria-hidden
+            title={`Signal ${safeIdx + 1} of ${items.length} — tap to open the full feed`}
           >
-            {safeIdx + 1}/{items.length}
+            <span className="sr-only">Signal {safeIdx + 1} of {items.length}. </span>
+            <span aria-hidden>{safeIdx + 1}/{items.length}</span>
           </span>
         )}
 
@@ -278,7 +297,10 @@ function ItemView({ item, row = false }: { item: TickerItem; row?: boolean }) {
       {item.symbol && (
         <span className="shrink-0 font-bold uppercase tracking-wider text-[10px]">{item.symbol}</span>
       )}
-      <span className={cn(row ? "" : "truncate", item.symbol && "text-[var(--text-secondary)]")}>{label}</span>
+      {/* min-w-0: a flex item defaults to min-width:auto, which refuses to
+          shrink below its content, so `truncate`'s overflow:hidden never
+          engages and the text overflows instead of ellipsizing. */}
+      <span className={cn(row ? "" : "truncate min-w-0", item.symbol && "text-[var(--text-secondary)]")}>{label}</span>
       {delta != null && (
         <span className={cn("shrink-0 tabular-nums", deltaColor)}>
           {delta > 0 ? "▲" : delta < 0 ? "▼" : "·"}

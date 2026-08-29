@@ -65,10 +65,46 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
     };
   }, []);
 
+  /**
+   * Autosize · 2026-08-29.
+   *
+   * This effect used to depend on `draft` ALONE, and it latched. Measured on
+   * a 390x844 viewport: an EMPTY textarea (rows=1, one line of text) carried
+   * an inline `height: 200px` -- the max-height clamp -- making the composer
+   * 276px, 32% of the viewport, and pushing the last message off screen
+   * behind it. That is the "text clipped behind the composer" the operator
+   * screenshotted.
+   *
+   * The latch: the effect runs once on mount, before layout has settled, so
+   * scrollHeight is measured against an unconstrained width, wraps to many
+   * lines, and clamps to 200. `draft` is "" and stays "", so the effect never
+   * re-runs and the wrong height sticks until the operator types.
+   *
+   * The fix is re-measuring on resize, NOT special-casing the empty draft.
+   * An earlier attempt here collapsed the empty box to min-h-11 (44px) and
+   * clipped the second line of the placeholder -- verified in the browser at
+   * 390px. Measuring is the right instrument; it was only ever pointed at
+   * the wrong moment. With a settled width the same code yields 68px for the
+   * empty placeholder and grows correctly from there.
+   */
   useEffect(() => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = "auto";
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const resize = () => {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    };
+
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    // Observe the PARENT: the textarea's own box is what we mutate, so
+    // observing it would re-enter on every write.
+    const parent = el.parentElement;
+    if (!parent) return;
+    const ro = new ResizeObserver(resize);
+    ro.observe(parent);
+    return () => ro.disconnect();
   }, [draft]);
 
   const {

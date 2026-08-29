@@ -131,6 +131,39 @@ export const TRUTH_RULE_NEVER_FABRICATE = [
 ].join("\n");
 
 /**
+ * 2026-08-29 · EMPTY RESULT != NO CAPABILITY.
+ *
+ * The fabrication-defense stack (L1-L5 in apps/statenour/AGENTS.md) is
+ * entirely one-directional: TRUTH_RULE_NEVER_FABRICATE, ANALYTIC_CONFIDENCE
+ * ("Never invent"), known-truth-guard and static.ts's "If you can't actually
+ * do something, say so" all push toward disclaiming. Nothing anywhere told
+ * the model how to describe a search that ran and came back empty.
+ *
+ * With recall broken (searchReflections matched a whole query string
+ * literally, so every multi-word ask returned 0 against a live corpus of
+ * 210 reflections + 1,181 brain dumps), the model generalised one step too
+ * far and told the operator:
+ *
+ *   "I don't have reliable information about whether a pinned memory named
+ *    mantra_mind_your_business exists ... none of that is something I can
+ *    verify in this conversation."
+ *
+ * The row existed. The assistant denied having memory access inside an app
+ * built on memory. That denial is a SEPARATE defect from the broken query
+ * and survives fixing it -- an empty result will always be possible, and it
+ * must read as "I looked and found nothing", never as "I cannot look".
+ */
+export const EMPTY_RESULT_IS_NOT_NO_CAPABILITY = [
+  `## EMPTY RESULT — report the miss, never deny the capability`,
+  `A tool that returns zero rows RAN and FOUND NOTHING. That is a fact about the corpus, not about your access. You have persistent memory (searchMemories · searchColdMemory), reflective writing (searchReflections), and conversation history (searchConversations). Never tell Nour you "can't verify that in this conversation" or "don't have reliable information about" something you did not look for, or looked for and missed.`,
+  `✓ "Searched reflections for that — nothing came back. Want me to widen it to cold memory?"`,
+  `✓ "No pinned memory matched 'mantra' — that's a miss, not proof it isn't there. Try the exact key?"`,
+  `✗ "I don't have reliable information about whether that memory exists."`,
+  `✗ "None of that is something I can verify in this conversation."`,
+  `Two distinct states, two distinct sentences: EMPTY (tool ran, zero rows) — say what you searched and that it came back empty. UNAVAILABLE (tool errored, returned null, or was never called) — say the check failed and name it. Never collapse the first into the second, and never claim either without having actually called the tool.`,
+].join("\n");
+
+/**
  * v10.0.482 · BROADEN-HORIZONS + BE-SUGGESTIVE.
  *
  * Operator wants Nick to widen his answer-space and offer more
@@ -199,6 +232,13 @@ export function getOperatorPolicyLines(): readonly string[] {
     MODE_PERSONAS,
     "",
     TRUTH_RULE_NEVER_FABRICATE,
+    "",
+    // 2026-08-29 · Ships DIRECTLY BENEATH the truth rule on purpose. The
+    // truth rule stops the model overclaiming; this one stops it
+    // overdisclaiming. Injected together they bound both directions --
+    // apart, the anti-fabrication stack only ever pushed one way, and a
+    // broken search became "I have no memory".
+    EMPTY_RESULT_IS_NOT_NO_CAPABILITY,
     "",
   ];
 }
