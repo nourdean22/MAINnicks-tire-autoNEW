@@ -287,14 +287,24 @@ if ($backups.Count -gt $keepBackups) {
 # logged loudly and re-attempted next week rather than failing the sync.
 $statenour = Join-Path $RepoRoot "apps\statenour"
 Log "ingesting vault notes into brain_memories (pnpm obsidian:ingest)..."
-Push-Location $statenour
-& pnpm run obsidian:ingest 2>&1 | Add-Content -Path $log
-$ingestCode = $LASTEXITCODE
-Pop-Location
-if ($ingestCode -ne 0) {
-    Log "WARN: obsidian ingest exited $ingestCode - vault artifacts are intact; will retry next run"
+$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+if (-not $pnpmCommand) {
+    # PowerShell command-not-found is non-terminating here and leaves
+    # $LASTEXITCODE untouched (usually 0 from the Python step above). A
+    # preflight is therefore required: otherwise a missing pnpm falsely logs
+    # "obsidian ingest OK" and the weekly bridge looks healthy while doing
+    # nothing. Keep the sync non-fatal, but make the skipped ingest explicit.
+    Log "WARN: obsidian ingest skipped - pnpm is not available on PATH; vault artifacts are intact; will retry next run"
 } else {
-    Log "obsidian ingest OK - vault notes are now reachable from chat recall"
+    Push-Location $statenour
+    & $pnpmCommand.Source run obsidian:ingest 2>&1 | Add-Content -Path $log
+    $ingestCode = $LASTEXITCODE
+    Pop-Location
+    if ($ingestCode -ne 0) {
+        Log "WARN: obsidian ingest exited $ingestCode - vault artifacts are intact; will retry next run"
+    } else {
+        Log "obsidian ingest OK - vault notes are now reachable from chat recall"
+    }
 }
 
 Release-GraphLock
