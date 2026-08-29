@@ -62,3 +62,57 @@ describe("deliberate non-assignment is recorded, not silent", () => {
     expect(overlap, `in both maps: ${JSON.stringify(overlap)}`).toEqual([]);
   });
 });
+
+/* -- review findings from PR #1998, each locked ---------------------------- */
+
+import { readdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { normalizeDestination, ALLOWED_ORIGIN_HOSTS } from "@shared/reelDestinations";
+
+const franchises = new Set(
+  readdirSync(resolve(process.cwd(), "docs/reel-packs"), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name.replace(/^\d{4}-\d{2}-\d{2}-/, "")),
+);
+
+describe("map keys must match real pack franchises (review #1998)", () => {
+  // "wd-transfer-case-bind-tight-turns" was a dead key - the real franchise is
+  // "4wd-...". The value-only test could not see it, so the entry was never read
+  // and the pack silently fell through to "no curated match yet".
+  it("every PACK_DESTINATIONS key is an existing pack franchise", () => {
+    const orphans = Object.keys(PACK_DESTINATIONS).filter((k) => !franchises.has(k));
+    expect(orphans, `keys matching no pack: ${JSON.stringify(orphans)}`).toEqual([]);
+  });
+
+  it("every DELIBERATELY_UNASSIGNED key is an existing pack franchise", () => {
+    const orphans = Object.keys(DELIBERATELY_UNASSIGNED).filter((k) => !franchises.has(k));
+    expect(orphans, `keys matching no pack: ${JSON.stringify(orphans)}`).toEqual([]);
+  });
+
+  it("the specific dead key is fixed", () => {
+    expect(PACK_DESTINATIONS["4wd-transfer-case-bind-tight-turns"]).toBe("/transmission");
+    expect(PACK_DESTINATIONS["wd-transfer-case-bind-tight-turns"]).toBeUndefined();
+  });
+
+  // POSITIVE CONTROL: the fixture itself must be real, or the two tests above
+  // pass vacuously against an empty set.
+  it("the franchise set is non-trivial", () => {
+    expect(franchises.size).toBeGreaterThan(100);
+  });
+});
+
+describe("absolute URLs must point at Nick's (review #1998)", () => {
+  it("REJECTS a foreign origin reusing a valid pathname", () => {
+    expect(normalizeDestination("https://example.com/brakes")).toBeNull();
+    expect(destinationProblem("https://example.com/brakes")).toMatch(/no landing destination is declared/);
+  });
+
+  // POSITIVE CONTROL: the real origins still work, or every campaign URL breaks.
+  it("PERMITS the configured Nick's origins", () => {
+    for (const host of ALLOWED_ORIGIN_HOSTS) {
+      expect(normalizeDestination(`https://${host}/brakes`)).toBe("/brakes");
+      expect(destinationProblem(`https://${host}/brakes`)).toBeNull();
+    }
+    expect(normalizeDestination("/brakes")).toBe("/brakes");
+  });
+});

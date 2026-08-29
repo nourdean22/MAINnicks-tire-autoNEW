@@ -24,7 +24,6 @@
 export const PACK_DESTINATIONS: Readonly<Record<string, string>> = {
   // ── Brakes ────────────────────────────────────────────────────────────
   "squealing-vs-grinding-brakes": "/brakes-grinding",
-  "grinding-noise-when-braking": "/grinding-noise-when-braking",
   "brake-dust-normal-vs-check-pads": "/brakes",
   "brake-fluid-moisture-test": "/brakes",
   "brake-pedal-sinks-overnight": "/brakes",
@@ -118,7 +117,7 @@ export const PACK_DESTINATIONS: Readonly<Record<string, string>> = {
   "transmission-fluid-color-test": "/transmission",
   "rough-shifting-check-fluid-first": "/transmission",
   "torque-converter-shudder-40-45mph": "/transmission",
-  "wd-transfer-case-bind-tight-turns": "/transmission",
+  "4wd-transfer-case-bind-tight-turns": "/transmission",
 
   // ── Check-engine / diagnostics / emissions ────────────────────────────
   "check-engine-light": "/check-engine-light-on",

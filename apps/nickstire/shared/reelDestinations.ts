@@ -47,13 +47,20 @@ const DEPLOYED_SET = new Set(DEPLOYED_DESTINATIONS);
  * Accepts a bare path or an absolute URL; strips query and hash, and drops a
  * trailing slash so "/brakes/" and "/brakes" are the same destination.
  */
+export const ALLOWED_ORIGIN_HOSTS: readonly string[] = ["nickstire.org", "www.nickstire.org"];
+
 export function normalizeDestination(dest: string | null | undefined): string | null {
   const d = (dest ?? "").trim();
   if (!d) return null;
   let path = d;
   if (/^https?:\/\//i.test(d)) {
     try {
-      path = new URL(d).pathname;
+      const u = new URL(d);
+      // An absolute URL must point at Nick's. Stripping the origin before
+      // validating meant https://example.com/brakes normalised to /brakes and
+      // was certified as deployed - an off-site link wearing a valid pathname.
+      if (!ALLOWED_ORIGIN_HOSTS.includes(u.hostname.toLowerCase())) return null;
+      path = u.pathname;
     } catch {
       return null;
     }

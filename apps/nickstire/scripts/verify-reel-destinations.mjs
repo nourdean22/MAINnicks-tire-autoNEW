@@ -15,12 +15,13 @@
  * Read-only. Issues GET requests to the public site and writes nothing.
  *
  * Usage:
- *   node scripts/verify-reel-destinations.mjs /brakes /alignment /tire-sidewall
+ *   pnpm exec tsx scripts/verify-reel-destinations.mjs /brakes /alignment /tire-sidewall
  *   node scripts/verify-reel-destinations.mjs --all      # every PRERENDER_ROUTES path
  *   node scripts/verify-reel-destinations.mjs --assigned # paths used in TRIAGE.json
  * Exit code is non-zero if any checked path is NOT live.
  */
 import { readFileSync } from "node:fs";
+import { PRERENDER_ROUTES } from "../shared/routes.ts";
 
 const ORIGIN = process.env.NICKSTIRE_ORIGIN || "https://nickstire.org";
 const TIMEOUT_MS = 20000;
@@ -41,11 +42,11 @@ const args = process.argv.slice(2);
 let paths = args.filter((a) => !a.startsWith("--"));
 
 if (args.includes("--all") || args.includes("--assigned")) {
-  const src = readFileSync(new URL("../shared/routes.ts", import.meta.url), "utf8");
-  // Paths are read from the registry source rather than imported, so this
-  // script stays runnable as plain node without a TS loader.
-  const all = [...src.matchAll(/path:\s*"([^"]+)"/g)].map((m) => m[1]);
-  if (args.includes("--all")) paths = [...new Set(all)];
+  // Load the DERIVED registry, never a regex over its source. Scraping missed
+  // the 30 tire-size paths built with a template literal and wrongly included
+  // prerender:false entries such as /admin, so a green --all run left deployed
+  // routes unchecked while reporting a confident total.
+  if (args.includes("--all")) paths = [...new Set(PRERENDER_ROUTES.map((r) => r.path))];
   if (args.includes("--assigned")) {
     const triage = JSON.parse(readFileSync(new URL("../docs/reel-packs/TRIAGE.json", import.meta.url), "utf8"));
     paths = [...new Set(triage.concepts.map((c) => c.landingDestination).filter(Boolean))];
@@ -70,10 +71,13 @@ let dead = 0;
 for (const p of paths) {
   const r = await titleOf(p);
   const isShell = r.title !== null && r.title === shell.title;
-  const ok = r.title !== null && !isShell;
+  // A non-shell title is NOT sufficient. A custom 404 or a transient 5xx error
+  // page has its own title and would otherwise be reported LIVE - the same
+  // class of mistake as trusting the status code alone, in the other direction.
+  const ok = r.status === 200 && r.title !== null && !isShell;
   if (ok) live++;
   else dead++;
-  const verdict = ok ? "LIVE " : isShell ? "SHELL" : "ERROR";
+  const verdict = ok ? "LIVE " : isShell ? "SHELL" : r.status !== 200 && r.status !== 0 ? `HTTP${r.status}` : "ERROR";
   console.log(`  ${verdict}  HTTP ${r.status}  ${p}${ok ? `  — ${r.title.slice(0, 60)}` : ""}${r.error ? `  (${r.error})` : ""}`);
 }
 
