@@ -158,7 +158,7 @@ STATUS: UNAVAILABLE
   sections.push(evidenceText);
 
   sections.push(`# HIDDEN PERSUASION (how the reel sells without selling)
-The viewer should finish feeling smarter, not advertised to. Authority is implied through specificity (the exact clue, the exact season, the exact Cleveland road behavior), never claimed. The only ask is a soft keyword CTA. Demand without pressure.`);
+The viewer should finish feeling smarter, not advertised to. Authority is implied through specificity (the exact clue, the exact season, the exact Cleveland road behavior), never claimed. Demand without pressure. There is exactly ONE ask, it is declared on the brief rather than written into the copy, and it is rendered once on the end card - so write none yourself (see CAPTION STRUCTURE).`);
 
   sections.push(`# RESEARCH STANDARD
 Every reel is built on ONE verifiable mechanic truth. Acceptable proof source families: ${PROOF_SOURCE_FAMILIES.join(", ")}. Attach at least one PROOF source note (label is enough; URL optional) plus optionally a PAIN-POINT source showing drivers actually ask this. If you cannot ground the fact, output status "needs_research" and STOP — do not fabricate.`);
@@ -210,8 +210,18 @@ One prompt per beat: vertical 9:16, clip length = beat duration, subject + motio
 Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. A cut/push/text change every 1.5-2.5s. Audio: music bed + the REQUIRED voiceover script (see VOICEOVER CONTRACT) - and the reel must STILL teach muted. Pick a face-free cover frame.`);
 
   sections.push(`# CAPTION STRUCTURE
-7 hook options (first lines). Selected caption = hook + 1-2 plain-English teaching lines + soft CTA: DM/comment the campaign keyword + business close (${STUDIO_BRAND.phone} / ${STUDIO_BRAND.address} / ${STUDIO_BRAND.website}). 3-12 hashtags, locally weighted. ASCII characters only.
-Approved campaign keywords: ${CAMPAIGN_KEYWORDS.join(", ")}.`);
+7 hook options (first lines). Selected caption = hook + 1-2 plain-English teaching lines. 3-12 hashtags, locally weighted. ASCII characters only.
+
+ONE ASK PER REEL, AND IT IS NOT YOURS TO WRITE. The ask is a declared field on
+the brief and is rendered once, on the end card. Do NOT write a call to action
+anywhere: not in the caption, not in a storyboard beat's onScreenText, and not
+in the voiceover. That means no "comment <KEYWORD>", no "DM us", no "send this
+to a friend", no "save this", no "stop by", and no phone/address/website block.
+Beats and the voiceover are burned into the video and cannot be edited after
+rendering, so a CTA there is a second permanent ask that contradicts the
+declared one. A caption carrying a comment prompt AND a share prompt AND a
+phone number asks for none of them clearly.
+Approved campaign keywords (a topic tag for reporting - NOT something to say out loud): ${CAMPAIGN_KEYWORDS.join(", ")}.`);
 
   sections.push(`# CLAIM SAFETY (hard blocks)
 Forbidden: prices, "free" (except "free check"), guarantees, exact wait times, "in stock", "best in Cleveland", "everyone uses us", unsafe diagnosis, "you definitely need", "your ___ is broken", "dangerous to drive" without qualification, "guaranteed same-day", fake urgency.

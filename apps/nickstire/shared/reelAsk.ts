@@ -119,6 +119,88 @@ export function askProblem(ask: ReelAsk | null | undefined): string | null {
  */
 export const DEFAULT_REEL_ASK: ReelAsk = { kind: "profile" };
 
+/**
+ * Ask language, wherever it appears. Used to keep CTAs OUT of the content
+ * surfaces and to count them in the caption.
+ *
+ * WHY THIS EXISTS, found by auditing generated output on 2026-08-29. The
+ * declared `ask` governs the END CARD only. Nothing stopped the brief
+ * generator writing a CTA into a storyboard BEAT — and it did, on all three
+ * freshly generated briefs: "Comment ECHECK and we'll take a look." as beat 5,
+ * repeated in the voiceover. That is a second ask, burned into pixels and
+ * audio, contradicting the declared `profile` end card. The compound-ask defect
+ * came straight back through a door the end-card fix did not cover.
+ */
+const ASK_PATTERNS: Array<{ id: string; re: RegExp }> = [
+  { id: "comment-keyword", re: /\bcomment\s+["']?[A-Z]{3,}\b/i },
+  { id: "dm-us", re: /\bdm\s+(us|me)\b/i },
+  { id: "send-this-to", re: /\bsend\s+th(is|ese)\s+to\b/i },
+  { id: "save-this", re: /\bsave\s+th(is|ese)\b/i },
+  { id: "share-this", re: /\bshare\s+th(is|ese)\b/i },
+  { id: "link-in-bio", re: /\b(link|more|full\s+\w+)\s+in\s+(our\s+)?bio\b/i },
+  { id: "tap-follow", re: /\b(tap|click|swipe)\s+(the\s+)?(link|up|here)\b|\bfollow\s+us\b/i },
+  { id: "call-us", re: /\bcall\s+us\b|\(\d{3}\)\s*\d{3}-\d{4}|\b\d{3}-\d{3}-\d{4}\b/ },
+  { id: "stop-by", re: /\bstop\s+by\b|\bcome\s+(in|see\s+us)\b|\bbook\s+now\b/i },
+];
+
+/** Which ask signals appear in a piece of copy. */
+export function askSignals(text: string | null | undefined): string[] {
+  const t = String(text ?? "");
+  return ASK_PATTERNS.filter((p) => p.re.test(t)).map((p) => p.id);
+}
+
+export interface AskSurfaces {
+  /** On-screen text of every storyboard beat, in order. */
+  beats?: Array<string | null | undefined>;
+  voiceoverScript?: string | null;
+  caption?: string | null;
+}
+
+/**
+ * Why this brief's copy breaks the one-ask rule, or null when it holds.
+ *
+ * BEATS AND VOICEOVER MUST CARRY NO ASK AT ALL. They are content, and they are
+ * the two surfaces a later copy edit cannot reach — a CTA there is permanent.
+ * The ask belongs on the end card, which is declared and rendered from one
+ * field.
+ *
+ * THE CAPTION MAY CARRY AT MOST ONE. A phone number counts: it is a request to
+ * act, and "send this / comment WORD / call us" is three asks competing in one
+ * caption, which is how the published 1770003 caption read before it was cut
+ * down to one.
+ */
+export function askLeakageProblem(surfaces: AskSurfaces): string | null {
+  const beats = surfaces.beats ?? [];
+  for (let i = 0; i < beats.length; i++) {
+    const hits = askSignals(beats[i]);
+    if (hits.length) {
+      return (
+        `storyboard beat ${i + 1} contains a call to action (${hits.join(", ")}): ` +
+        `${JSON.stringify(String(beats[i]).slice(0, 80))}. Beats are content. The ask is declared once and ` +
+        "rendered on the end card — a CTA burned into a beat is a second, permanent ask that no copy edit can reach."
+      );
+    }
+  }
+
+  const voHits = askSignals(surfaces.voiceoverScript);
+  if (voHits.length) {
+    return (
+      `the voiceover contains a call to action (${voHits.join(", ")}). Spoken asks cannot be edited after ` +
+      "render, and they compete with the declared end-card ask."
+    );
+  }
+
+  const capHits = askSignals(surfaces.caption);
+  if (capHits.length > 1) {
+    return (
+      `the caption carries ${capHits.length} competing asks (${capHits.join(", ")}). One reel, one ask — ` +
+      "a caption asking for a comment, a share and a phone call asks for none of them clearly."
+    );
+  }
+
+  return null;
+}
+
 /** The brief fields this resolver reads. Kept narrow so any brief shape fits. */
 export interface AskBearingBrief {
   /** The declared ask. When present it WINS - nothing is inferred. */

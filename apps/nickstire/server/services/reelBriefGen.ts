@@ -315,11 +315,25 @@ function coerceEnum<T extends string>(v: string, record: Record<string, { label:
   );
   return (hit ? hit[0] : Object.keys(record)[0]) as T;
 }
+/**
+ * SILENT FALLBACK, now audible. An out-of-enum keyword became
+ * CAMPAIGN_KEYWORDS[0] — "POTHOLE" — with no signal at all. Measured
+ * 2026-08-29: briefs generated for EXHAUST and ALIGN both came back tagged
+ * POTHOLE while their copy still said "Comment EXHAUST" / "Comment ALIGN", so
+ * the recorded campaign disagreed with the words on screen. A wrong value is
+ * worse than a missing one, because nothing downstream can tell it was guessed.
+ */
 function coerceKeyword(v: string): CampaignKeyword {
   const up = v.trim().toUpperCase();
-  return (CAMPAIGN_KEYWORDS as readonly string[]).includes(up)
-    ? (up as CampaignKeyword)
-    : (CAMPAIGN_KEYWORDS[0] as CampaignKeyword);
+  if ((CAMPAIGN_KEYWORDS as readonly string[]).includes(up)) return up as CampaignKeyword;
+  if (up) {
+    log.warn("campaign keyword is not in CAMPAIGN_KEYWORDS — falling back, and the fallback is a GUESS", {
+      requested: up,
+      fallback: CAMPAIGN_KEYWORDS[0],
+      allowed: CAMPAIGN_KEYWORDS.length,
+    });
+  }
+  return CAMPAIGN_KEYWORDS[0] as CampaignKeyword;
 }
 
 /**
