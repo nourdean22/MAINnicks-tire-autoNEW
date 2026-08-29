@@ -240,6 +240,37 @@ export interface ManualTriggerStagedJob {
 
 export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
   {
+    name: "reel-pipeline",
+    why:
+      "NOT staged for flakiness - staged because the only Higgsfield lane funded by the " +
+      "operator's paid subscription requires a human browser login. Verified on his account " +
+      "2026-08-29: consumer/Ultra holds 1,934.62 credits and is what the CLI session lane spends; " +
+      "Higgsfield Cloud API (Authorization: Key ID:SECRET) is a SEPARATE paid product holding ZERO " +
+      "credits, with no payment method and 0 API calls lifetime despite 2 keys already existing. " +
+      "The Ultra subscription does not fund the API lane, so the API keys are not an escape hatch - " +
+      "provisioning them would authenticate cleanly and then fail at generation on a zero balance. " +
+      "The session lane needs `higgsfield auth login` in a browser, which no cron can do, so " +
+      "generation becomes a human-triggered batch instead of an unattended job that dies between logins.",
+    promote:
+      "the LEDGER fact changes, not the failure rate: either Higgsfield Cloud API credits are " +
+      "purchased and HIGGSFIELD_API_KEY_ID/SECRET are set (higgsfieldStudio prefers that lane " +
+      "automatically when configured), or Higgsfield ships a non-interactive credential for the " +
+      "consumer ledger. Promoting because 'it looks stable now' re-creates a cron that dies " +
+      "silently the next time the refresh token is revoked.",
+  },
+  {
+    name: "higgsfield-session-keepalive",
+    why:
+      "exists only to rotate the CLI session token before reel-pipeline renders. With generation " +
+      "staged there is nothing to keep alive between batches, and left on schedule it re-fails every " +
+      "15 minutes against the same dead session - 296 failed runs in 72h measured 2026-08-29, which " +
+      "is half of the ~50 Telegram alerts delivered in three days. Staging one of this pair without " +
+      "the other is the half-done shape review caught on PR #1830.",
+    promote:
+      "promote together with reel-pipeline and never before it - a keepalive for a job that does not " +
+      "run is pure alert noise pointed at a session nothing is using.",
+  },
+  {
     name: "campaign-resume",
     why:
       "can call processCampaignSends() for a campaign still 'active' with rows left 'pending', " +

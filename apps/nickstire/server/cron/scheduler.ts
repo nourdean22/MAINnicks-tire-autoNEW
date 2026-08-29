@@ -751,7 +751,39 @@ export function startTieredScheduler(): void {
         // (no CLI spawn) when no creds are configured. A failed refresh is
         // LOUD — the operator needs to re-login only when the refresh token
         // itself is revoked, not on ordinary inactivity.
+        // ─── 2026-08-29 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // NOT STAGED FOR BEING FLAKY. Read this before promoting it back.
+        //
+        // Higgsfield runs TWO SEPARATE LEDGERS with separate billing, verified
+        // on the operator's own signed-in account 2026-08-29:
+        //   · consumer / Ultra  - 1,934.62 credits, paid subscription, active.
+        //     This is what the CLI session lane spends, and `hf account status`
+        //     reads exactly this balance.
+        //   · Higgsfield Cloud API (Authorization: Key ID:SECRET) - ZERO
+        //     credits, no payment method saved, no purchase history, 0 API
+        //     calls lifetime. cloud.higgsfield.ai is a distinct paid product;
+        //     the Ultra subscription does NOT fund it. Two API keys already
+        //     exist on the account with 0 lifetime calls - someone walked this
+        //     road before and stopped at this same wall.
+        //
+        // So the CLI session lane is not a legacy fallback, it is THE ONLY LANE
+        // FUNDED BY THE SUBSCRIPTION HE ALREADY PAYS FOR - and it requires a
+        // human browser device-login (`higgsfield auth login`) that no cron can
+        // perform. Generation therefore becomes a HUMAN-TRIGGERED BATCH: the
+        // operator authenticates, fires this job manually, and a block of the
+        // paid credits is spent inside that window.
+        //
+        // `enabled: false` stops the SCHEDULER ONLY - same semantics as the
+        // 2026-08-25 staging above. Fire via POST /api/admin/run-staged-cron.
+        //
+        // Promotion requires the ledger fact to change, not the flakiness to
+        // improve. Deleting this flag while the session lane still needs a
+        // browser click re-creates a cron that dies silently between logins.
+        // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
+        // cronControlPlane.test.ts fails if they disagree.
         name: "higgsfield-session-keepalive",
+        enabled: false,
         handler: async () => {
           const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
           if (!(await getHiggsfieldCredentialsJson())) return { recordsProcessed: 0, details: "no higgsfield creds — skip" };
@@ -1005,7 +1037,39 @@ export function startTieredScheduler(): void {
         // (gen -> assets_ready), then assemble one assets_ready job into a
         // finished MP4 (assembling -> assembled). The gated publish is a later
         // stage.
+        // ─── 2026-08-29 · STAGED BEHIND THE MANUAL TRIGGER ───────────────
+        //
+        // NOT STAGED FOR BEING FLAKY. Read this before promoting it back.
+        //
+        // Higgsfield runs TWO SEPARATE LEDGERS with separate billing, verified
+        // on the operator's own signed-in account 2026-08-29:
+        //   · consumer / Ultra  - 1,934.62 credits, paid subscription, active.
+        //     This is what the CLI session lane spends, and `hf account status`
+        //     reads exactly this balance.
+        //   · Higgsfield Cloud API (Authorization: Key ID:SECRET) - ZERO
+        //     credits, no payment method saved, no purchase history, 0 API
+        //     calls lifetime. cloud.higgsfield.ai is a distinct paid product;
+        //     the Ultra subscription does NOT fund it. Two API keys already
+        //     exist on the account with 0 lifetime calls - someone walked this
+        //     road before and stopped at this same wall.
+        //
+        // So the CLI session lane is not a legacy fallback, it is THE ONLY LANE
+        // FUNDED BY THE SUBSCRIPTION HE ALREADY PAYS FOR - and it requires a
+        // human browser device-login (`higgsfield auth login`) that no cron can
+        // perform. Generation therefore becomes a HUMAN-TRIGGERED BATCH: the
+        // operator authenticates, fires this job manually, and a block of the
+        // paid credits is spent inside that window.
+        //
+        // `enabled: false` stops the SCHEDULER ONLY - same semantics as the
+        // 2026-08-25 staging above. Fire via POST /api/admin/run-staged-cron.
+        //
+        // Promotion requires the ledger fact to change, not the flakiness to
+        // improve. Deleting this flag while the session lane still needs a
+        // browser click re-creates a cron that dies silently between logins.
+        // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
+        // cronControlPlane.test.ts fails if they disagree.
         name: "reel-pipeline",
+        enabled: false,
         // requiresFlag (not requiresEnv): the stages compare against the
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.

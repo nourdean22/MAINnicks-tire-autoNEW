@@ -34,16 +34,89 @@ import {
 
 const log = createLogger("cron:observer");
 
-/** In-memory dedupe: jobName → ms timestamp of last alert. Cleared on restart. */
+/**
+ * Alert dedupe, PERSISTED. Was an in-memory Map "cleared on restart", which made
+ * ALERT_SUPPRESS_MS decorative: every Railway deploy reset it, so a permanently
+ * failing job re-alerted on each restart. Measured 2026-08-29 - reel-pipeline and
+ * higgsfield-session-keepalive were failing continuously (295 and 296 runs in 72h)
+ * and the observer sent 2 alerts on each of 25 separate runs, roughly 50 delivered
+ * Telegram messages in three days against a 6h window, because that day's merges
+ * kept restarting the container.
+ *
+ * The Map stays as a per-process cache; shop_settings is the source of truth.
+ */
 const lastAlertAt: Map<string, number> = new Map();
 const ALERT_SUPPRESS_MS = 6 * 60 * 60 * 1000; // 6 hours
+const ALERT_KV_PREFIX = "cron_observer_last_alert:";
+
+/**
+ * The suppression judge. PURE, so the canary can prove BOTH directions against
+ * fixtures it controls: suppressed inside the window, and - the control that
+ * matters - alerting again once the window genuinely elapses. Persisting a
+ * timestamp is one edit away from suppressing forever, and "it never alerted
+ * again" is indistinguishable from "nothing was wrong".
+ */
+export function shouldAlertNow(
+  lastAlertAtMs: number | null,
+  nowMs: number,
+  suppressMs: number = ALERT_SUPPRESS_MS,
+): boolean {
+  if (lastAlertAtMs === null || !Number.isFinite(lastAlertAtMs)) return true;
+  return nowMs - lastAlertAtMs >= suppressMs;
+}
+
+/** Read a persisted last-alert time. Null = never alerted (or storage down). */
+async function readLastAlertAt(key: string): Promise<number | null> {
+  const cached = lastAlertAt.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return null;
+    const { shopSettings } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await d.select().from(shopSettings).where(eq(shopSettings.key, ALERT_KV_PREFIX + key)).limit(1);
+    if (!rows.length) return null;
+    const n = Number(rows[0].value);
+    if (!Number.isFinite(n)) return null;
+    lastAlertAt.set(key, n);
+    return n;
+  } catch (err) {
+    // Storage down: return null so the alert still FIRES. Failing open here is
+    // deliberate - an un-suppressed duplicate is recoverable, a silent outage is not.
+    log.warn(`[cron-observer] could not read alert dedupe for ${key}; alerting rather than suppressing`, {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/** Persist a last-alert time so a restart cannot clear it. */
+async function writeLastAlertAt(key: string, whenMs: number): Promise<void> {
+  lastAlertAt.set(key, whenMs);
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return;
+    const { shopSettings } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const k = ALERT_KV_PREFIX + key;
+    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, k)).limit(1);
+    if (existing.length > 0) {
+      await d.update(shopSettings).set({ value: String(whenMs), updatedBy: "system" }).where(eq(shopSettings.key, k));
+    } else {
+      await d.insert(shopSettings).values({ key: k, value: String(whenMs), label: `cron observer last alert: ${key}`, category: "general", updatedBy: "system" });
+    }
+  } catch (err) {
+    log.warn(`[cron-observer] could not persist alert dedupe for ${key}`, { err: err instanceof Error ? err.message : String(err) });
+  }
+}
 /**
  * Shape verdicts (dormant / anomalous / unknown / missing) persist for days by
  * nature, and the observer runs every 15 minutes — a 6h window would page the
  * operator 4× a day about the same dormancy. Once a day is the useful cadence.
  */
 const SHAPE_ALERT_SUPPRESS_MS = 24 * 60 * 60 * 1000;
-const shapeLastAlertAt: Map<string, number> = new Map();
 /**
  * Rows examined per loop for shape classification. Must exceed the largest
  * dormantAfterRuns in LOOP_CONTRACTS (14) plus the head run, or a long dormancy
@@ -280,8 +353,8 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     const now = Date.now();
 
     for (const f of failing) {
-      const lastAlert = lastAlertAt.get(f.jobName) ?? 0;
-      if (now - lastAlert < ALERT_SUPPRESS_MS) {
+      const lastAlert = await readLastAlertAt(f.jobName);
+      if (!shouldAlertNow(lastAlert, now, ALERT_SUPPRESS_MS)) {
         alertsSkipped++;
         continue;
       }
@@ -295,7 +368,7 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
 
       const ok = await sendTelegramMessage(text, "critical");
       if (ok) {
-        lastAlertAt.set(f.jobName, now);
+        await writeLastAlertAt(f.jobName, now);
         alertsSent++;
         log.warn(`[cron-observer] alert sent for ${f.jobName} (${f.consecutiveFailures} failures)`);
       } else {
@@ -311,15 +384,15 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
       let shapeAlerts = 0;
       for (const f of findings) {
         const key = `${f.loop}:${f.verdict}`;
-        const lastAlert = shapeLastAlertAt.get(key) ?? 0;
-        if (now - lastAlert < SHAPE_ALERT_SUPPRESS_MS) continue;
+        const lastAlert = await readLastAlertAt(`shape:${key}`);
+        if (!shouldAlertNow(lastAlert, now, SHAPE_ALERT_SUPPRESS_MS)) continue;
         const text =
           `📉 Loop shape: \`${f.loop}\` → ${f.verdict}${f.ros ? ` (${f.ros})` : ""}\n` +
           `${f.summary}\n` +
           `First check: ${f.firstCheck.slice(0, 400)}`;
         const ok = await sendTelegramMessage(text, "critical");
         if (ok) {
-          shapeLastAlertAt.set(key, now);
+          await writeLastAlertAt(`shape:${key}`, now);
           shapeAlerts++;
           log.warn(`[cron-observer] shape alert sent for ${f.loop} (${f.verdict})`);
         } else {

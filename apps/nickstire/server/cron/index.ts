@@ -317,6 +317,26 @@ export function registerAllJobs(): void {
   // a dyno mid-campaign, processCampaignSends() dies and the campaign sits
   // in status='active' with unsent pending rows. This recovers them so
   // real customers never get permanently skipped.
+  // REACHABILITY FOR THE STAGED HIGGSFIELD LANE (2026-08-29).
+  // Both jobs live in the TIERS, not here, and POST /api/admin/run-staged-cron
+  // resolves through runJobByName (this registry) - not runTierJobByName. So a
+  // tier-only job listed in MANUAL_TRIGGER_STAGED would be unreachable by the
+  // one sanctioned manual path, and "staged" would mean decommissioned. That is
+  // the exact defect review caught on PR #1830, and cronControlPlane.test.ts
+  // fails if it recurs. Registering does NOT schedule anything: startAllJobs()
+  // throws (see below), so this registry only ever provides lookup by name.
+  registerJob("reel-pipeline", 15 * 60 * 1000, async () => {
+    const { runTierJobByName } = await import("./scheduler");
+    const r = await runTierJobByName("reel-pipeline");
+    return { recordsProcessed: r.recordsProcessed, details: r.details };
+  });
+
+  registerJob("higgsfield-session-keepalive", 15 * 60 * 1000, async () => {
+    const { runTierJobByName } = await import("./scheduler");
+    const r = await runTierJobByName("higgsfield-session-keepalive");
+    return { recordsProcessed: r.recordsProcessed, details: r.details };
+  });
+
   registerJob("campaign-resume", 5 * 60 * 1000, async () => {
     const { resumeStuckCampaigns } = await import("../routers/campaigns");
     return resumeStuckCampaigns();
