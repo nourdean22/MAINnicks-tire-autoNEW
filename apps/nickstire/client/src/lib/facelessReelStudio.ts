@@ -473,7 +473,16 @@ export interface ReelVisualWorld {
   lockedInvariants: string;
 }
 
+/**
+ * The single ask a reel is allowed to burn into its end card. Declared on the
+ * brief so a payload review shows everything the viewer will see - see
+ * shared/reelAsk.ts and shared/reelTextSurfaces.ts. Undeclared renders NO card.
+ */
+export type ReelBriefAsk = { kind: "profile" | "dm" | "save" | "visit"; keyword?: string | null };
+
 export interface ReelBrief {
+  /** Declared end-card ask. New briefs default to `profile`; `dm` is opt-in. */
+  ask?: ReelBriefAsk;
   /**
    * Which social_reel_patterns row this brief was built on, when Pattern Lab
    * supplied a structure. This is the cohort key the pattern table was shaped

@@ -23,17 +23,24 @@ import {
   filtergraphTextSources,
   undeclaredTextProblem,
 } from "@shared/reelTextSurfaces";
-import { askProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
+import { askProblem, renderAskText, resolveReelAsk, DEFAULT_REEL_ASK, type ReelAsk } from "@shared/reelAsk";
 import { buildFfmpegArgs, briefToSegments } from "./services/reelAssembly";
 
 /* ── the ask: exactly one, and it can express a profile visit ───────────── */
 
 describe("one reel, one ask", () => {
   it("renders each kind as a SINGLE imperative", () => {
-    expect(renderAskText({ kind: "profile" })).toBe("FULL BREAKDOWN IN OUR BIO");
+    expect(renderAskText({ kind: "profile" })).toBe("MORE IN OUR BIO");
     expect(renderAskText({ kind: "dm", keyword: "salt" })).toBe("DM US SALT");
     expect(renderAskText({ kind: "save" })).toBe("SAVE THIS");
     expect(renderAskText({ kind: "visit" })).toBe("STOP BY NICK'S");
+  });
+
+  // The profile ask makes a claim about a DESTINATION this code cannot verify.
+  // The live bio links the homepage, so "full breakdown" (an earlier draft)
+  // would have promised topic-specific content that is not there.
+  it("the profile ask does not over-claim what is at the destination", () => {
+    expect(renderAskText({ kind: "profile" })).not.toMatch(/FULL BREAKDOWN|GUIDE|EVERYTHING/);
   });
 
   // The exact string that shipped on 1770003 must be unreachable.
@@ -78,18 +85,31 @@ describe("one reel, one ask", () => {
       expect(ask).toEqual({ kind: "profile" });
     });
 
-    // Compatibility shim: old briefs keep an end card, reduced to ONE ask.
-    it("falls back to a SINGLE dm ask for a legacy keyword — never the compound", () => {
-      const ask = resolveReelAsk({ campaignKeyword: "SALT" });
-      expect(ask).toEqual({ kind: "dm", keyword: "SALT" });
-      expect(renderAskText(ask!)).toBe("DM US SALT");
+    // THE ASYMMETRY. `dm` promises an interaction nothing currently answers —
+    // there is no keyword automation in this codebase, and the live SALT reel
+    // is the proof. So it must be declared deliberately and can NEVER arrive by
+    // default or by inference. An earlier version derived it from
+    // campaignKeyword; that silently produced the one ask nobody answers.
+    it("NEVER infers a dm ask from a legacy campaignKeyword", () => {
+      const ask = resolveReelAsk({ campaignKeyword: "SALT" } as never);
+      expect(ask).toBeNull();
     });
 
-    // Nothing declared => no card. This is what makes undeclared text
-    // impossible rather than merely detectable.
+    it("permits dm only when it is explicitly declared", () => {
+      expect(resolveReelAsk({ ask: { kind: "dm", keyword: "SALT" } })).toEqual({ kind: "dm", keyword: "SALT" });
+    });
+
+    // Nothing declared => no card. This is what keeps a payload review
+    // sufficient: a brief that declares no ask must not render one anyway.
     it("returns null when nothing declares an ask", () => {
       expect(resolveReelAsk({})).toBeNull();
       expect(resolveReelAsk(null)).toBeNull();
+    });
+
+    it("the generator default is profile, not dm", () => {
+      expect(DEFAULT_REEL_ASK).toEqual({ kind: "profile" });
+      expect(askProblem(DEFAULT_REEL_ASK)).toBeNull();
+      expect(renderAskText(DEFAULT_REEL_ASK)).toMatch(/BIO/);
     });
 
     it("ignores a declared ask that is itself invalid rather than rendering it", () => {

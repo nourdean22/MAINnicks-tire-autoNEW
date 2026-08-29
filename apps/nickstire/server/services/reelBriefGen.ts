@@ -18,6 +18,7 @@
  */
 import { invokeLLM, resolveEffectiveModel, type OutputSchema } from "../_core/llm";
 import { createLogger } from "../lib/logger";
+import { DEFAULT_REEL_ASK } from "@shared/reelAsk";
 import { buildFacelessReelSystemPrompt } from "../../client/src/lib/facelessReelStudioPrompt";
 import { serializeThesisForPrompt, type CreativeThesis } from "../../client/src/lib/creativeThesis";
 import { applyCreativeSkills } from "./skillRouter";
@@ -1153,6 +1154,14 @@ If any aspect is not perfect, rewrite the fields directly. OUTPUT ONLY the corre
     clevelandAngle: str(parsed.clevelandAngle),
     sourceNotes,
     factBucket: coerceEnum<FactBucket>(str(parsed.factBucket), FACT_BUCKETS),
+    // The end-card ask is DECLARED on every generated brief, so a payload
+    // review shows everything the viewer will see. `profile` is the default
+    // because it is the only ask that reaches a landing page (Meta's media
+    // endpoint has no link parameter and Reel captions render URLs as
+    // unclickable text, so the bio is the sole route), it needs no keyword,
+    // and it needs nobody to answer it. `dm` is opt-in only — it must be set
+    // deliberately, and only where somebody is actually replying.
+    ask: DEFAULT_REEL_ASK,
     campaignKeyword: coerceKeyword(str(parsed.campaignKeyword)),
     archetype: coerceEnum<ReelArchetype>(str(parsed.archetype), REEL_ARCHETYPES),
     motionLens: coerceEnum<MotionLens>(str(parsed.motionLens), MOTION_LENSES),
