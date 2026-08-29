@@ -19,6 +19,8 @@
  * worse than the defect it fixes.
  */
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import {
   runDuaGate,
   runDuaBriefChecks,
@@ -27,6 +29,9 @@ import {
   mechanismTerms,
   buildSwapCorpus,
   unenforceableBlockingConditions,
+  detectFabricatedVerdicts,
+  detectCustomerHumiliationIn,
+  detectSafetyTrivialisationIn,
   DUA_SEED_FACTS,
   DUA_SEED_CORPUS,
   ABSURDITY_BAND,
@@ -507,5 +512,110 @@ describe("wired into runReelPreflight — the derived path", () => {
     });
     expect(report.stated).toEqual([]);
     expect(report.inferred.every((f) => f.severity === "warn")).toBe(true);
+  });
+});
+
+// ─── Locked probe verdicts ─────────────────────────────────────────
+//
+// Guard-red-team: every verified false positive becomes a permanent
+// allow-example, every verified catch a permanent deny-example. The probe set
+// only grows. These are the sentences the detectors were actually run against
+// before shipping, not the ones that were imagined.
+
+describe("locked allow-examples — legitimate copy the detectors must NEVER block", () => {
+  it.each([
+    // "shows" is correct diagnostic English; only conclusion verbs assert a verdict.
+    "An OBD scan shows a stored code, and the code names a system, not a part.",
+    "A scan can point to the circuit, but do not guess the component.",
+    "The readiness monitors report not ready until the drive cycle completes.",
+    // Safety mechanism named, resolved by a check rather than by doing nothing.
+    "Road salt corrodes brake lines from the outside in — worth checking in salt season.",
+    "A blowout is sudden; a slow leak is not. Both are worth checking.",
+    // Neutral second-person and driver mentions — the bulk of real reel copy.
+    "The driver never noticed it; most people do not.",
+    "Your brake pads have a wear indicator that squeals on purpose.",
+    "You can check this yourself with a penny in ten seconds.",
+    "Test the battery under load — a resting voltage can look fine.",
+    "Reports of pothole damage rise every spring on Euclid Avenue.",
+  ])("passes: %s", (text) => {
+    const surfaces = [{ where: "copy", text }];
+    expect([
+      ...detectFabricatedVerdicts(surfaces),
+      ...detectCustomerHumiliationIn(surfaces),
+      ...detectSafetyTrivialisationIn(surfaces, text),
+    ]).toEqual([]);
+  });
+});
+
+describe("locked deny-examples — fabricated verdicts the frame may never assert", () => {
+  it.each([
+    "The lab confirms the tread failed at the shoulder.",
+    "Our analysis proved the caliper was seized.",
+    "The study concluded that this brand lasts longest.",
+    "The test determined the alignment was out.",
+  ])("blocks: %s", (text) => {
+    expect(detectFabricatedVerdicts([{ where: "copy", text }])).toHaveLength(1);
+  });
+});
+
+describe("the real production corpus stays clean", () => {
+  it("raises zero block-severity findings across every committed reel pack", () => {
+    // 116 briefs shipped by prior sessions. A detector that fires on these is a
+    // detector that blocks the product, which is worse than the defect it fixes
+    // — the exact warning reel-fabricated-stat.test.ts opens with. Fixtures are
+    // committed files, never live config.
+    const root = path.join(__dirname, "..", "docs", "reel-packs");
+    if (!fs.existsSync(root)) return; // packs are committed; absence is not a pass signal worth failing on
+    const str = (v: unknown): string => (typeof v === "string" ? v : Array.isArray(v) ? v.join(" ") : "");
+    let scanned = 0;
+    const findings: string[] = [];
+
+    for (const dir of fs.readdirSync(root)) {
+      const file = path.join(root, dir, "brief.json");
+      if (!fs.existsSync(file)) continue;
+      const brief = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
+      scanned++;
+      const beats = (brief.storyboardBeats as Record<string, unknown>[] | undefined) ?? [];
+      const surfaces = [
+        { where: "caption", text: str(brief.selectedCaption) },
+        { where: "voiceover", text: str(brief.voiceoverScript) },
+        ...beats.map((b, i) => ({ where: `beat ${i + 1}`, text: `${str(b.visual)} ${str(b.onScreenText)}` })),
+      ];
+      const fact = `${str(brief.mechanicTruth)} ${str(brief.selectedCaption)}`;
+      for (const f of [
+        ...detectFabricatedVerdicts(surfaces),
+        ...detectCustomerHumiliationIn(surfaces),
+        ...detectSafetyTrivialisationIn(surfaces, fact),
+      ]) {
+        findings.push(`${dir}: ${f.code} (${f.where})`);
+      }
+    }
+
+    expect(scanned).toBeGreaterThan(100);
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("the gate cannot report a clean franchise contract without its caveats", () => {
+  it("carries the unenforceable conditions on the report itself", () => {
+    // `unenforceableBlockingConditions` existed as a separate call a caller
+    // could simply not make — which is the built-unwired shape. It rides on the
+    // report now, so a passing verdict arrives with its own limits attached.
+    const report = runDuaGate(base({ franchiseId: "tire_autopsy" }));
+    expect(report.unenforcedConditions.join(" ")).toContain("customer");
+  });
+
+  it("computes the list per franchise rather than returning a constant", () => {
+    // Pothole Court's three conditions (cost, unsafe-to-drive, named street)
+    // are ALL covered by detectors, so its list is legitimately empty. Tire
+    // Autopsy's "presenting a generated tire as a specific customer's tire" is
+    // not mechanically checkable and must show up. A constant would fail one of
+    // these two whichever value it took.
+    expect(runDuaGate(base({ franchiseId: "pothole_court" })).unenforcedConditions).toEqual([]);
+    expect(runDuaGate(base({ franchiseId: "tire_autopsy" })).unenforcedConditions.length).toBeGreaterThan(0);
+  });
+
+  it("reports no unenforced conditions when no franchise was declared", () => {
+    expect(runDuaGate(base({ franchiseId: undefined })).unenforcedConditions).toEqual([]);
   });
 });

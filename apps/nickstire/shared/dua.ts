@@ -635,8 +635,17 @@ export interface DuaFinding {
 const MEASUREMENT_TOKEN =
   /\d+(?:\.\d+)?(?:\/\d+)?\s*(?:psi|mph|miles?|inch(?:es)?|\/32|degrees?|volts?|amps?|%|percent|pounds?|lbs?|ft-?lbs?|nm|years?|months?|weeks?|days?|hours?|minutes?|seconds?)\b/gi;
 
-/** Assertions that a test was run and returned a result. The frame may stage an
- *  examination; it may not report findings the evidence never produced. */
+/**
+ * Assertions that a test was run and returned a result. The frame may stage an
+ * examination; it may not report findings the evidence never produced.
+ *
+ * "show" / "shows" / "showed" are DELIBERATELY ABSENT from the verb list. "An
+ * OBD scan shows a stored code" is correct diagnostic English and appears in
+ * this shop's real content; "the scan confirms the caliper seized" is a verdict
+ * the scan never returned. The verbs kept here all assert a CONCLUSION. Probed
+ * against ten legitimate diagnostic sentences and four fabricated verdicts —
+ * both sets are locked as tests.
+ */
 const FABRICATED_VERDICT_PATTERN =
   /\b(?:lab|labs|test|tests|testing|study|studies|analysis|scan|scans|report|reports|data|research|survey|poll|census|statistics)\b[^.!?]{0,40}?\b(?:confirm|confirms|confirmed|prove|proves|proved|proven|conclude|concludes|concluded|determine|determines|determined|certif\w+|measured|recorded)\b/i;
 
@@ -860,6 +869,16 @@ export interface DuaGateReport {
   blocking: DuaFinding[];
   relevance: RelevanceReading;
   swap: SwapProbe;
+  /**
+   * The franchise blocking conditions this gate could NOT mechanically check.
+   *
+   * Carried ON the report rather than left to a separate call, so a caller
+   * cannot render "franchise contract enforced" without also holding the list
+   * of what was not enforced. A `pass` here means "nothing detectable fired",
+   * never "this episode satisfies its show's contract" — the conditions are
+   * English sentences and only the recurring shapes are executable.
+   */
+  unenforcedConditions: string[];
 }
 
 /**
@@ -971,7 +990,15 @@ export function runDuaGate(concept: DuaConcept, opts: DuaGateOptions = {}): DuaG
   }
 
   const blocking = findings.filter((f) => f.severity === "block");
-  return { version: DUA_MODEL_VERSION, status: blocking.length > 0 ? "block" : "pass", findings, blocking, relevance, swap };
+  return {
+    version: DUA_MODEL_VERSION,
+    status: blocking.length > 0 ? "block" : "pass",
+    findings,
+    blocking,
+    relevance,
+    swap,
+    unenforcedConditions: concept.franchiseId ? unenforceableBlockingConditions(concept.franchiseId) : [],
+  };
 }
 
 /**
