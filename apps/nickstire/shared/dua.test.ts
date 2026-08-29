@@ -29,6 +29,8 @@ import {
   mechanismTerms,
   buildSwapCorpus,
   unenforceableBlockingConditions,
+  detectRealEventAssertions,
+  REAL_EVENT_GATE_ENABLED,
   detectFabricatedVerdicts,
   detectCustomerHumiliationIn,
   detectSafetyTrivialisationIn,
@@ -715,58 +717,68 @@ describe("adding a DUA concept does not perturb prompt compilation", () => {
 // business. It is therefore canaried through the LIVE call path, not the unit
 // function — `runReelDuaChecks` is what production actually invokes.
 
-describe("REAL_EVENT_ASSERTED — blocks through the live derived path", () => {
+describe("REAL_EVENT_ASSERTED — one narrow rule, proven by cases", () => {
   const live = (caption: string) =>
     runReelDuaChecks({ ...SAMPLE_REEL_BRIEFS[0], selectedCaption: caption })
       .filter((f) => f.severity === "block" && f.message.includes("REAL_EVENT_ASSERTED"));
 
   it.each([
-    "We replaced this customer's tie rod last Tuesday.",
-    "This one came in on a flatbed Monday morning.",
-    "A customer brought this in after hitting a pothole on Euclid.",
-    "Here's the before and after.",
-    "We tested this tire and found the belt separated.",
+    "Customer came in today with this exact tire.",
+    "A customer brought this in last Tuesday.",
+    "We replaced this customer's tie rod this morning.",
     "We pulled this rotor off a Civic this morning.",
-  ])("BLOCKS a narrated episode: %s", (caption) => {
-    expect(live(caption).length).toBeGreaterThan(0);
+    "Here's the before and after.",
+  ])("BLOCKS a fabricated customer story: %s", (c) => {
+    expect(live(c).length).toBeGreaterThan(0);
   });
 
+  // The narrowing is the point. The first version fired on all of these, which
+  // is worse than no gate: it trains everyone to route around it.
   it.each([
-    "Swing by 17625 Euclid - we'll check all four, no charge.",
+    "Road salt corrodes the wheel bead seat.",
+    "We see this every winter on Euclid Avenue.",
+    "We'd refuse this tire.",
+    "Cleveland winters are brutal on brake lines.",
+    "We found a cracked belt.",
+    "The tire is guilty. The metal doesn't lie.",
+    "This may indicate alignment is off.",
+    "Swing by 17625 Euclid - we'll check all four.",
     "Stop by and we'll take a look.",
-    "Road salt corrodes brake lines from the outside in - worth checking in salt season.",
-    "The driver never noticed it; most people do not.",
-    "Your brake pads have a wear indicator that squeals on purpose.",
-    "An OBD scan shows a stored code, and the code names a system, not a part.",
-    "Pulling to one side may indicate alignment is off.",
-    "If you can see the top of Lincoln's head, it's time.",
     "Most batteries last three to five years.",
-    "We can check tread depth on all four while you wait.",
-  ])("PASSES legitimate present-tense shop copy: %s", (caption) => {
-    expect(live(caption)).toEqual([]);
+  ])("PASSES general fact, shop voice, local reference and opinion: %s", (c) => {
+    expect(live(c)).toEqual([]);
   });
 
-  it("needs BOTH a definite actor and a past action in one sentence", () => {
-    // Either half alone is ordinary copy. Only together do they narrate.
-    expect(live("We'll take a look at it.")).toEqual([]);           // agent, no past action
-    expect(live("The belt separated on the highway.")).toEqual([]); // past action, no definite actor
-    expect(live("We replaced the belt.").length).toBeGreaterThan(0); // both
+  it("needs BOTH an incident and a specificity anchor", () => {
+    expect(live("A customer came in with a bad tire.")).toEqual([]);   // incident, no anchor
+    expect(live("We checked it this morning.")).toEqual([]);            // anchor, no incident
+    expect(live("A customer came in this morning.").length).toBeGreaterThan(0);
+  });
+
+  it("leaves all six authored concepts clean", () => {
+    for (const b of SAMPLE_REEL_BRIEFS) {
+      for (const c of b.concepts) {
+        const txt = [c.hook, c.usefulAbsurdity, c.captionAngle, c.loopIdea, ...c.beatOutline].join(". ");
+        expect(detectRealEventAssertions([{ where: c.id, text: txt }])).toEqual([]);
+      }
+    }
+  });
+
+  it("is removable with one line", () => {
+    // REAL_EVENT_GATE_ENABLED = false is the whole switch.
+    expect(REAL_EVENT_GATE_ENABLED).toBe(true);
   });
 
   it("does not fuse a beat's visual with its on-screen CTA", () => {
-    // The regression: `${b.visual} ${b.onScreenText}` manufactured the sentence
-    // "...pulled into the bay We check all three free" — the only false
-    // positive across 134 committed reel packs. They are separate surfaces now.
     const brief = {
       ...SAMPLE_REEL_BRIEFS[0],
       storyboardBeats: SAMPLE_REEL_BRIEFS[0].storyboardBeats.map((b, i) =>
         i === 0
-          ? { ...b, visual: "a vehicle is pulled into the bay, no people visible", onScreenText: "We check all three free" }
+          ? { ...b, visual: "a vehicle is pulled into the bay today, no people visible", onScreenText: "We check all three free" }
           : b,
       ),
     };
-    const hits = runReelDuaChecks(brief).filter((f) => f.message.includes("REAL_EVENT_ASSERTED"));
-    expect(hits).toEqual([]);
+    expect(runReelDuaChecks(brief).filter((f) => f.message.includes("REAL_EVENT_ASSERTED"))).toEqual([]);
   });
 });
 
