@@ -19,6 +19,13 @@
  * affordances only; they cannot reach Instagram on their own.
  */
 
+import {
+  runDuaGate,
+  runDuaBriefChecks,
+  type DuaConcept,
+  type DuaFinding,
+} from "@shared/dua";
+
 // ─── Modes & statuses ─────────────────────────────────────────────
 
 export type ReelStudioMode = "draft" | "asset_prep" | "publish_prep";
@@ -503,6 +510,12 @@ export interface ReelBrief {
   motionLens: MotionLens;
   objectCharacter: ObjectCharacter;
   usefulAbsurdity: string;
+  /** Authored Delightfully Useful Absurdity concept. OPTIONAL on purpose: this
+   *  model postdates every existing brief, so absence must not break them. When
+   *  present, `runReelPreflight` runs the FULL DUA gate at block severity; when
+   *  absent it falls back to the lossy derived checks. Authoring one is what
+   *  buys the strong guarantee. */
+  dua?: DuaConcept;
 
   concepts: ReelConcept[];
   winningConceptId: string | null;
@@ -960,8 +973,60 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
     if (p.sceneStatus === "corrected") push("production", "warn", `beat ${p.beatNumber}: provider scene auto-corrected (${(p.sceneFindings ?? []).join("; ")})`);
   }
 
+  // Truth: Delightfully Useful Absurdity. Every brief here carries an absurd
+  // frame (`usefulAbsurdity`) and until now nothing checked that the frame
+  // taught the fact rather than decorating it — the absurdity score is averaged
+  // into a 60-point total, so an irrelevant joke and a relevant one were worth
+  // the same. Severity splits on what is STATED vs what is INFERRED; see the
+  // adoption-seam comment in shared/dua.ts for why.
+  for (const f of runReelDuaChecks(brief)) findings.push(f);
+
   const blocking = findings.filter((f) => f.severity === "block");
   return { status: blocking.length ? "block" : "pass", findings, blocking };
+}
+
+/**
+ * DUA findings for a brief, mapped into preflight categories.
+ *
+ * Two paths, deliberately different severities:
+ *   · `brief.dua` authored  -> the full gate, every hard fail BLOCKS.
+ *   · no authored concept   -> the three content detectors still BLOCK, because
+ *                              they read text that will actually ship; relevance
+ *                              and the swap probe WARN, because reconstructing
+ *                              `violation`/`payoff` from a brief is lossy and
+ *                              blocking live generation on this file's own
+ *                              approximation is not the same as blocking on an
+ *                              author's declaration.
+ */
+export function runReelDuaChecks(brief: ReelBrief): PreflightFinding[] {
+  const out: PreflightFinding[] = [];
+  const asFinding = (f: DuaFinding): PreflightFinding => ({
+    category: "truth",
+    severity: f.severity,
+    message: `dua/${f.code} (${f.where}): ${f.detail}`,
+  });
+
+  if (brief.dua) {
+    for (const f of runDuaGate(brief.dua).findings) out.push(asFinding(f));
+    return out;
+  }
+
+  const winner = brief.concepts.find((c) => c.id === brief.winningConceptId) ?? brief.concepts[0];
+  const report = runDuaBriefChecks({
+    usefulAbsurdity: brief.usefulAbsurdity ?? "",
+    mechanicTruth: brief.mechanicTruth ?? "",
+    hook: winner?.hook ?? "",
+    captionAngle: winner?.captionAngle ?? brief.selectedCaption ?? "",
+    loopIdea: winner?.loopIdea ?? "",
+    audienceText: [
+      { where: "caption", text: brief.selectedCaption ?? "" },
+      { where: "voiceover", text: brief.voiceoverScript ?? "" },
+      { where: "usefulAbsurdity", text: brief.usefulAbsurdity ?? "" },
+      ...brief.storyboardBeats.map((b) => ({ where: `beat ${b.beatNumber}`, text: `${b.visual} ${b.onScreenText}` })),
+    ],
+  });
+  for (const f of [...report.stated, ...report.inferred]) out.push(asFinding(f));
+  return out;
 }
 
 /** Map runSafetyChecks findings into preflight categories. */
