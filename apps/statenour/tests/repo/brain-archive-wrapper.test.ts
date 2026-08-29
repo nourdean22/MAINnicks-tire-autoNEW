@@ -28,6 +28,67 @@ const isWindows = process.platform === "win32";
 const scriptPath = path.join(__dirname, "..", "..", "scripts", "run-brain-archive.ps1");
 
 describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
+  it("exits 0 and logs run ok when the native export completes successfully", () => {
+    const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault-ok-"));
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo-ok-"));
+    const bin = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-bin-"));
+    try {
+      fs.writeFileSync(path.join(repo, "package.json"), '{"name":"fixture"}');
+      fs.mkdirSync(path.join(repo, "scripts"), { recursive: true });
+      fs.writeFileSync(path.join(repo, "scripts", "export-brain-archive.ts"), "// healthy fixture\n");
+
+      // Keep this canary independent of the machine's installed pnpm/tsx
+      // versions. The shim is still a native command from the wrapper's point
+      // of view and records that the export invocation completed successfully.
+      fs.writeFileSync(
+        path.join(bin, "pnpm.cmd"),
+        '@echo off\r\nnode "%~dp0fixture-export.cjs" %*\r\nexit /b %ERRORLEVEL%\r\n',
+      );
+      fs.writeFileSync(
+        path.join(bin, "fixture-export.cjs"),
+        'require("node:fs").writeFileSync(require("node:path").join(process.cwd(), "fixture-export-ran.txt"), process.argv.slice(2).join(" "));\n',
+      );
+
+      const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
+      const stdout = execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          scriptPath,
+          "-RepoDir",
+          repo,
+          "-EnvFile",
+          path.join(repo, "nonexistent.env"),
+        ],
+        {
+          env: {
+            ...process.env,
+            [pathKey]: `${bin}${path.delimiter}${process.env[pathKey] ?? ""}`,
+            OBSIDIAN_VAULT_PATH: vault,
+          },
+          timeout: 60_000,
+          encoding: "utf8",
+        },
+      );
+
+      expect(fs.readFileSync(path.join(repo, "fixture-export-ran.txt"), "utf8")).toContain(
+        "scripts/export-brain-archive.ts",
+      );
+      const logPath = path.join(vault, "Statenour", "_archive", "archive-run.log");
+      const log = fs.readFileSync(logPath, "utf8");
+      expect(stdout).toMatch(/=== run ok ===/);
+      expect(log).toContain("=== run ok ===");
+      expect(log).not.toMatch(/FATAL:/);
+    } finally {
+      fs.rmSync(vault, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
+  });
+
   it("exits nonzero and logs FATAL when the export itself fails — the 08-29 swallowed-error shape", () => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-vault-"));
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "brain-archive-test-repo-"));
@@ -137,7 +198,12 @@ describe.skipIf(!isWindows)("run-brain-archive.ps1 loud failure", () => {
       // must have happened FIRST. That ordering is the whole point: the
       // irreplaceable file survives even a stale/broken exporter.
       expect(exitCode).not.toBe(0);
-      const today = new Date().toISOString().slice(0, 10);
+      const localNow = new Date();
+      const today = [
+        localNow.getFullYear(),
+        String(localNow.getMonth() + 1).padStart(2, "0"),
+        String(localNow.getDate()).padStart(2, "0"),
+      ].join("-");
       const backup = path.join(
         archiveDir,
         "snapshots",
