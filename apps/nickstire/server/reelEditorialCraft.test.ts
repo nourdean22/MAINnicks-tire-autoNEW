@@ -345,3 +345,45 @@ describe("take selection", () => {
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+/* ── the timeline must reach the filtergraph ─────────────────────────────── */
+
+import { buildTimelineAudioGraph, emittedDelaySec } from "@shared/reelAudioMix";
+
+/**
+ * A timeline that DESCRIBES a J-cut while the renderer ignores it is the
+ * orphaned-subject defect wearing a schema. These assert the emitted graph,
+ * which is what determines the rendered file.
+ */
+describe("timeline placement reaches the graph", () => {
+  const labels = { vo1: "0:a", vo2: "1:a", vo3: "2:a", amb: "3:a" };
+
+  it("delays each clip to its own start time, not to its beat's cut", () => {
+    const built = buildTimelineAudioGraph(EDITED, labels)!;
+    // vo2 belongs to a beat whose picture starts at 4.0s but the audio starts
+    // at 3.4s — the J-cut. The delay must be 3.4, not 4.0.
+    expect(emittedDelaySec(built.fragments, "vo2")).toBeCloseTo(3.4, 3);
+    expect(emittedDelaySec(built.fragments, "vo1")).toBeCloseTo(0.2, 3);
+  });
+
+  it("POSITIVE CONTROL: a locked timeline emits delays equal to its cuts", () => {
+    const built = buildTimelineAudioGraph(MACHINE_CADENCE, { vo1: "0:a", vo2: "1:a", vo3: "2:a" })!;
+    expect(emittedDelaySec(built.fragments, "vo2")).toBeCloseTo(4.0, 3);
+  });
+
+  it("trims before delaying, so a long source cannot outrun its slot", () => {
+    const built = buildTimelineAudioGraph(EDITED, labels)!;
+    const line = built.fragments.find((f) => f.includes("[p_vo2]"))!;
+    expect(line.indexOf("atrim")).toBeLessThan(line.indexOf("adelay"));
+  });
+
+  it("skips a clip with no decoded input rather than mixing silence for it", () => {
+    const built = buildTimelineAudioGraph(EDITED, { vo1: "0:a" })!;
+    expect(emittedDelaySec(built.fragments, "vo1")).not.toBeNull();
+    expect(emittedDelaySec(built.fragments, "vo2")).toBeNull();
+  });
+
+  it("returns null when nothing is placeable", () => {
+    expect(buildTimelineAudioGraph(EDITED, {})).toBeNull();
+  });
+});
