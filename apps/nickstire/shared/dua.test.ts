@@ -619,3 +619,39 @@ describe("the gate cannot report a clean franchise contract without its caveats"
     expect(runDuaGate(base({ franchiseId: undefined })).unenforcedConditions).toEqual([]);
   });
 });
+
+describe("the swap probe's near-duplicate cutoff is calibrated, and stays calibrated", () => {
+  /**
+   * Six concepts authored by prior sessions, mapped onto the three structural
+   * surfaces. This is the only relevance corpus in the repo that this file did
+   * not write, which is exactly what makes it the honest false-positive lock.
+   *
+   * Measured while calibrating: excluding near-duplicates at a 0.5 weight ratio
+   * left `c-pressure-1` beaten by ANOTHER sidewall-PSI fact and reported
+   * portable; 0.4 clears all six. Without this test that cutoff is a magic
+   * number nothing defends — the mutation pass caught it surviving at 0.95.
+   */
+  const authored = SAMPLE_REEL_BRIEFS.flatMap((b) =>
+    b.concepts.map((c) => ({
+      id: c.id,
+      usefulFact: `${b.mechanicTruth} ${c.coreFact}`,
+      violation: `${c.hook} ${c.usefulAbsurdity}`,
+      visualMetaphor: `${c.usefulAbsurdity} ${c.beatOutline.join(" ")}`,
+      payoff: `${c.loopIdea} ${c.captionAngle} ${c.saveShareReason}`,
+    })),
+  );
+
+  it("has a corpus to test against", () => {
+    expect(authored.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it.each(authored.map((a) => [a.id, a] as const))("does not call authored concept %s portable", (_id, input) => {
+    const probe = probeFrameSwap(input);
+    expect(probe.comparedAgainst).toBeGreaterThan(50);
+    expect(probe.portable).toBe(false);
+  });
+
+  it.each(authored.map((a) => [a.id, a] as const))("finds authored concept %s relevant", (_id, input) => {
+    expect(readRelevance(input).relevant).toBe(true);
+  });
+});
