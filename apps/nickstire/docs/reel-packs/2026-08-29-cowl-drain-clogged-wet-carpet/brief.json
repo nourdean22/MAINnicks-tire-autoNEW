@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-08-29",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present).",
+  "topic": "Wet carpet after it rains? It might not be a leak at all.",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Wet carpet after it rains? It might not be a leak at all.",
+      "visualPrompt": "Interior shot of a car footwell, wet carpet with visible pooled water, macro angle, no driver visible, soft overcast light through the window suggesting after rain."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "Water pooling under the mats, a musty smell, no visible drip anywhere.",
+      "visualPrompt": "Close-up macro on soaked interior carpet with standing water droplets; cut to an exterior close-up of the wiper-cowl panel with visible leaf and grit debris (no hand in frame).",
+      "renderIntegrityNote": "Split into two ~2.5s sub-shots before real generation to satisfy the 1.5-2.5s visual-change cadence."
+    },
+    {
+      "index": 3,
+      "role": "explanation_cutaway",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "One clue: leaves and debris clog the drain under your wipers, and water backs up straight into the cabin.",
+      "visualPrompt": "Macro/cutaway shot: cowl panel lifted, showing a drain channel packed with leaves and grit, water pooling instead of draining through it, slow push-in.",
+      "renderIntegrityNote": "Split into two sub-shots (wide + macro push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "consequence_proof",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Left alone, that trapped water can rust the floor pan and short out wiring under the carpet.",
+      "visualPrompt": "Close-up of a rust-stained floor-pan section and an exposed wiring harness with light corrosion near the firewall, dim garage lighting, subtle dramatic emphasis."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Don't guess where it's coming from. A quick check under the cowl can spot it fast.",
+      "visualPrompt": "Inspection shot: a mounted/clipped inspection light beam illuminating the cowl drain channel (no hand in frame), shop bay softly blurred behind.",
+      "renderIntegrityNote": "Split into two sub-shots before real generation."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking before it gets worse. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["one clue", "can", "worth checking", "don't guess", "stop by and we'll take a look"]
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive knowledge (the cowl/plenum panel beneath the wiper arms channels rainwater to a drain; leaves and debris blocking that drain cause water to back up over the plenum's rear lip and drip into the cabin near the firewall), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 4,
+      "winningConceptFloor": 0
+    },
+    "note": "Self-estimated against the published rubric; not a substitute for a live calculateReelQualityScore() run."
+  },
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "aspectRatio": "9:16",
+    "resolution": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#CarTips", "#AutoRepair", "#CarInterior", "#ClevelandAuto", "#NicksTireAndAuto", "#CarLeak", "#RainyDayCarCare"],
+    "feedCaption": "🌧️ Wet carpet after it rains? One clue: a clogged cowl drain backs water up right into the cabin — not a window seal. Don't guess where it's coming from — stop by and we'll take a look. 🚗"
+  },
+  "adVariants": [
+    {
+      "hook": "Wet carpet every time it rains?",
+      "caption": "It might not be your window seals at all — a clogged cowl drain under the wipers can back rainwater straight into the cabin.",
+      "cta": "Stop by and we'll take a look."
+    },
+    {
+      "hook": "Musty smell, soaked floor mats, no visible leak?",
+      "caption": "One clue mechanics check first: the drain under your wipers. Worth checking before trapped water rusts the floor pan.",
+      "cta": "Bring it in — we'll spot it in minutes."
+    }
+  ],
+  "finalStatus": "READY_FOR_HUMAN_APPROVAL"
+}
