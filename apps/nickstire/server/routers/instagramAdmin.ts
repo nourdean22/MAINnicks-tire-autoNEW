@@ -1419,6 +1419,18 @@ Keep it under 200 characters.`;
       imageUrl: z.string().url().optional(),
       imageUrls: z.array(z.string().url()).min(2).max(10).optional(),
       videoUrl: z.string().url().optional(),
+      /**
+       * Meta's structured AI self-disclosure. Reaches the container via the
+       * `...input` spread into publishToSocial below, which already types it and
+       * forwards it to metaSocial's `is_ai_generated`.
+       *
+       * This lane had NO way to set it. The autonomous reel path computes it and
+       * the disclosure gate refuses generated footage without it - but this manual
+       * lane bypasses that gate, so an externally produced generated video
+       * published here went out with no self-disclosure at all. Caption text is
+       * NOT the platform mechanism.
+       */
+      isAiGenerated: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const database = await db();
