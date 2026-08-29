@@ -82,3 +82,66 @@ describe("shouldAlertNow", () => {
     expect(shouldAlertNow(null, NOW, SUPPRESS_24H)).toBe(true);
   });
 });
+
+/* -- review findings from PR #1996, each locked ---------------------------- */
+
+import { excludeStagedJobs } from "./cron/observer";
+import { MANUAL_TRIGGER_STAGED } from "./cron/registry-tier-map";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const snap = (jobName: string) => ({
+  jobName,
+  consecutiveFailures: 295,
+  latestError: "preflight: higgsfield session dead",
+  latestFailureAt: new Date(NOW),
+});
+
+describe("staged jobs do not page (review #1996)", () => {
+  // A staged job stops writing rows, so its LAST rows stay failures forever and
+  // the lookback reads a frozen streak as current. Without this the staging
+  // commit would have paged ~8 times a day for the whole lookback window.
+  it("drops every job listed in MANUAL_TRIGGER_STAGED", () => {
+    const stagedNames = MANUAL_TRIGGER_STAGED.map((j) => j.name);
+    expect(stagedNames.length).toBeGreaterThan(0);
+    const out = excludeStagedJobs(stagedNames.map(snap));
+    expect(out).toEqual([]);
+  });
+
+  // POSITIVE CONTROL: a job that is NOT staged must still page. A filter that
+  // dropped everything would pass the test above and silence the whole observer.
+  it("STILL pages for a job that is not staged", () => {
+    const out = excludeStagedJobs([snap("some-live-job")]);
+    expect(out).toHaveLength(1);
+    expect(out[0].jobName).toBe("some-live-job");
+  });
+
+  it("keeps live jobs while dropping staged ones in the same batch", () => {
+    const mixed = [snap("reel-pipeline"), snap("some-live-job"), snap("higgsfield-session-keepalive")];
+    expect(excludeStagedJobs(mixed).map((f) => f.jobName)).toEqual(["some-live-job"]);
+  });
+});
+
+describe("staged adapters must not nest the cron lock (review #1996)", () => {
+  // runJobByName already holds the lock; re-acquiring it returns "skipped",
+  // which the adapter discarded — reporting a completion for a run that never
+  // happened. Asserted on the SOURCE because the defect is which function the
+  // adapter calls, and a green result is exactly what the bug produced.
+  it("the staged adapters call runTierJobHandlerUnlocked, never runTierJobByName", () => {
+    const src = readFileSync(resolve(process.cwd(), "server/cron/index.ts"), "utf8");
+    for (const name of ["reel-pipeline", "higgsfield-session-keepalive"]) {
+      const idx = src.indexOf(`registerJob("${name}"`);
+      expect(idx, `${name} adapter missing`).toBeGreaterThan(-1);
+      // Strip comments first: this adapter's own comment EXPLAINS why it must
+      // not call runTierJobByName, and asserting on raw text made the
+      // explanation trip the check. Mention is not execution - the same
+      // false-positive class the guard-red-team notes warn about.
+      const block = src
+        .slice(idx, idx + 900)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      expect(block, `${name} must not nest the lock`).not.toContain("runTierJobByName");
+      expect(block, `${name} must use the unlocked path`).toContain("runTierJobHandlerUnlocked");
+    }
+  });
+});

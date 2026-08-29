@@ -326,15 +326,19 @@ export function registerAllJobs(): void {
   // fails if it recurs. Registering does NOT schedule anything: startAllJobs()
   // throws (see below), so this registry only ever provides lookup by name.
   registerJob("reel-pipeline", 15 * 60 * 1000, async () => {
-    const { runTierJobByName } = await import("./scheduler");
-    const r = await runTierJobByName("reel-pipeline");
-    return { recordsProcessed: r.recordsProcessed, details: r.details };
+    // UNLOCKED on purpose: runJobByName already holds this job's cron lock.
+    // Calling runTierJobByName here would re-acquire it, get "held-by-other",
+    // and report a completion for a run that never happened (PR #1996 review).
+    const { runTierJobHandlerUnlocked } = await import("./scheduler");
+    return runTierJobHandlerUnlocked("reel-pipeline");
   });
 
   registerJob("higgsfield-session-keepalive", 15 * 60 * 1000, async () => {
-    const { runTierJobByName } = await import("./scheduler");
-    const r = await runTierJobByName("higgsfield-session-keepalive");
-    return { recordsProcessed: r.recordsProcessed, details: r.details };
+    // UNLOCKED on purpose: runJobByName already holds this job's cron lock.
+    // Calling runTierJobByName here would re-acquire it, get "held-by-other",
+    // and report a completion for a run that never happened (PR #1996 review).
+    const { runTierJobHandlerUnlocked } = await import("./scheduler");
+    return runTierJobHandlerUnlocked("higgsfield-session-keepalive");
   });
 
   registerJob("campaign-resume", 5 * 60 * 1000, async () => {

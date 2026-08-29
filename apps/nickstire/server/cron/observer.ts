@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { sendTelegramMessage } from "../services/telegram";
 import { createLogger } from "../lib/logger";
+import { MANUAL_TRIGGER_STAGED } from "./registry-tier-map";
 import {
   classifyRun,
   LOOP_CONTRACTS,
@@ -214,7 +215,26 @@ async function fetchFailingJobs(): Promise<JobFailureSnapshot[]> {
       failing.push({ jobName, consecutiveFailures: streak, latestError, latestFailureAt });
     }
   }
-  return failing;
+  return excludeStagedJobs(failing);
+}
+
+/**
+ * Drop jobs that were DELIBERATELY taken off the scheduler.
+ *
+ * Found in review of PR #1996: a staged job stops writing new cron_log rows, but
+ * its last rows are still failures, so the lookback keeps reading a FROZEN
+ * streak as if it were current. Staging reel-pipeline and
+ * higgsfield-session-keepalive would therefore have kept paging the operator
+ * about them - up to 8 alerts a day between the two - for the whole lookback
+ * window, which is the opposite of the alert-noise fix that staging was for.
+ *
+ * A staged job not running is the intended state, not an incident. Pure and
+ * exported so the canary can prove BOTH that staged jobs are dropped and that
+ * unstaged ones still page.
+ */
+export function excludeStagedJobs(failing: JobFailureSnapshot[]): JobFailureSnapshot[] {
+  const staged = new Set(MANUAL_TRIGGER_STAGED.map((j) => j.name));
+  return failing.filter((f) => !staged.has(f.jobName));
 }
 
 export interface CronRunRow {

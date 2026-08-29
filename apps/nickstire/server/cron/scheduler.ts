@@ -2758,6 +2758,33 @@ export function getTierStatuses(): Array<{ name: string; intervalMin: number; jo
 /**
  * Run a single tier job by name. Searches all tiers.
  */
+/**
+ * Run a tier job's handler WITHOUT acquiring the cron lock, for callers that
+ * ALREADY hold it.
+ *
+ * Found in review of PR #1996: `runJobByName` (cron/index.ts) acquires the lock
+ * for the job name and then invokes its handler. A staged-job adapter that
+ * called `runTierJobByName` from inside that handler would try to take the SAME
+ * lock with a new token, get `held-by-other`, and return status "skipped" - and
+ * the adapter discarded that status, so the outer runner recorded a successful
+ * completion while NOTHING GENERATED. That is staging-as-silent-decommission
+ * wearing a green tick, which is the exact failure the staging canary exists to
+ * prevent.
+ *
+ * THROWS on handler error, deliberately: the caller's own try/catch is what
+ * records status='failed', so swallowing here would convert a real failure into
+ * "completed" a second time.
+ */
+export async function runTierJobHandlerUnlocked(
+  jobName: string,
+): Promise<{ recordsProcessed?: number; details?: string }> {
+  for (const tier of tiers) {
+    const job = tier.jobs.find((j) => j.name === jobName);
+    if (job) return await job.handler();
+  }
+  throw new Error(`Tier job "${jobName}" not found — cannot run its handler`);
+}
+
 export async function runTierJobByName(jobName: string): Promise<{ status: string; recordsProcessed?: number; details?: string }> {
   for (const tier of tiers) {
     const job = tier.jobs.find(j => j.name === jobName);
