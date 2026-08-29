@@ -2,8 +2,8 @@
  * POST /api/integrations/research — Multi-model research endpoint.
  * Routes to Perplexity (citations), Grok (real-time), or local model.
  *
- * actions-surface REST→tRPC slice (2026-05-22) · the routing +
- * arsenal-logging logic moved to the shared
+ * actions-surface REST→tRPC slice (2026-05-22) · the routing logic moved
+ * to the shared
  * `lib/services/ai-research.runResearch` service · this route AND the
  * new `trpc.ai.research` procedure call the same function · drift
  * impossible. The route stays mounted as the rollback path.

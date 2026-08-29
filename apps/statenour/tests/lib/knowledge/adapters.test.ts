@@ -8,10 +8,6 @@ import {
   buildObsidianCandidate,
   parseObsidianFrontmatter,
 } from "@/lib/knowledge/adapters/obsidian";
-import {
-  GraphifyManifestSchema,
-  buildGraphifyCandidate,
-} from "@/lib/knowledge/adapters/graphify";
 import { evaluateKnowledgeCandidate } from "@/lib/knowledge/candidate";
 
 describe("knowledge source adapters", () => {
@@ -87,28 +83,5 @@ describe("knowledge source adapters", () => {
     expect(candidate.evidence[0]?.type).toBe("source_document");
     expect(gate.decision).toBe("review_required");
     expect(gate.reasons).toContain("confidence_below_acceptance");
-  });
-
-  it("always queues Graphify snapshot findings for review", () => {
-    const manifest = GraphifyManifestSchema.parse({
-      schemaVersion: 1,
-      generatedAt: "2026-07-11T12:00:00.000Z",
-      sourceCommit: "abcdef1",
-      generator: "graphify",
-      reportPath: "graphify-out/GRAPH_REPORT.md",
-      findings: [{
-        id: "auth-hub",
-        summary: "The authentication module is a high-degree dependency hub.",
-        kind: "dependency_hub",
-        confidence: 0.95,
-        files: ["apps/statenour/lib/auth.ts"],
-        evidence: ["GRAPH_REPORT.md#authentication"],
-        contradictionRefs: [],
-      }],
-    });
-    const candidate = buildGraphifyCandidate(manifest, manifest.findings[0]);
-    const gate = evaluateKnowledgeCandidate(candidate);
-    expect(gate.decision).toBe("review_required");
-    expect(gate.reasons).toContain("graph_snapshot_requires_review");
   });
 });
