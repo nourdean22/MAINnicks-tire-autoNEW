@@ -55,6 +55,21 @@ Read the list. If every entry is the module itself, its test, or documentation,
 you have built a producer with no consumer. A transitive caller counts; a
 docstring does not.
 
+## This pattern is now mechanically gated
+
+Since 2026-08-29 the ninth instance cannot merge quietly: `pnpm lint:orphans`
+(local) / the `knip-orphan-gate` job (CI) runs [knip](https://knip.dev) over the
+nickstire workspace and fails on any NEW unconsumed export, unreachable file, or
+package.json script with zero invokers. Existing findings live in
+`apps/nickstire/config/knip-orphan-baseline.json`, each with a reason. It also
+checks the thing no static JS/TS analyser can see: a script referenced nowhere,
+which is how `graphify:sync` kept a whole import chain alive on the strength of
+a command a human might someday type.
+
+The hand-rolled first version of this gate (regex name-matching, #2026) was
+replaced by knip the same day on operator instruction: knip resolves the actual
+module graph rather than matching symbol names.
+
 ## How to not write it
 
 - **Assert the consuming path, not the artifact.** A test that calls the resolver
