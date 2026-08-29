@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:01,800
+YOUR TIRES ARE EXPIRING.
+
+2
+00:00:01,800 --> 00:00:05,000
+Tread isn't the only thing that wears out.
+
+3
+00:00:05,000 --> 00:00:09,000
+There's a 4-digit code stamped on the sidewall.
+
+4
+00:00:09,000 --> 00:00:13,000
+Week. Then year. That's the birthday.
+
+5
+00:00:13,000 --> 00:00:17,000
+Deep tread can still mean an old, unsafe tire.
+
+6
+00:00:17,000 --> 00:00:19,700
+Go read your sidewall today.
