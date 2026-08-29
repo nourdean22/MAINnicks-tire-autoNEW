@@ -97,9 +97,18 @@ const STATE = {
  * would be the tool crying wolf about its own blind spot, and a permanently red
  * gate teaches everyone to ignore it.
  *
- * What DOES fail: an UNRECORDED migration (the database does not know about DDL
- * that exists), a file missing from the journal (a fresh env would skip it), and
- * a journal entry with no file (a fresh env would crash). Those are unambiguous.
+ * What DOES fail HERE: an UNRECORDED migration — the database does not know
+ * about DDL that exists. That is the only state this script exits non-zero on.
+ *
+ * JOURNAL DRIFT IS REPORTED HERE, NOT GATED HERE. This paragraph used to claim
+ * that "a file missing from the journal" and "a journal entry with no file"
+ * also fail. Measured 2026-08-29 by planting an unjournaled .sql file: the run
+ * printed `on disk but NOT journaled ... (1)` and still exited 0. Only the
+ * three UNRECORDED_* states are in BLOCKING_STATES. The journal IS gated — by
+ * `server/__tests__/migration-journal.test.ts` in the vitest suite, which is
+ * what actually caught an unjournaled 0112 the same day — just not by this
+ * file. A comment claiming a guard that lives somewhere else is how a real gap
+ * gets assumed covered.
  */
 const BLOCKING_STATES = new Set([
   STATE.UNRECORDED_BUT_EXACT_MATCH,

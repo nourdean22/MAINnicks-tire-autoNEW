@@ -12,7 +12,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { createLogger } from "../lib/logger";
-import { askProblem, renderAskText, resolveReelAsk } from "@shared/reelAsk";
+import { askProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
 
 const log = createLogger("services:reel-assembly");
@@ -31,6 +31,14 @@ export interface ReelAssemblyBrief {
   hashtags?: string[];
   voiceoverScript?: string;
   storyboardBeats: AssemblyBeat[];
+  /**
+   * The declared end-card ask. Undeclared renders NO card — there is
+   * deliberately no inference from campaignKeyword any more (shared/reelAsk.ts
+   * explains why: it silently produced the one ask nothing answers, and it
+   * reopened the payload-vs-render truth gap).
+   */
+  ask?: ReelAsk | null;
+  /** Retained for topic/telemetry use. It NO LONGER drives the end card. */
   campaignKeyword?: string;
 }
 

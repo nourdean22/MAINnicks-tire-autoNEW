@@ -65,7 +65,14 @@ export function renderAskText(ask: ReelAsk): string {
     case "profile":
       // No keyword, no automation, no promise the business must staff. Sends
       // the viewer to the profile, which is where the only clickable link is.
-      return "FULL BREAKDOWN IN OUR BIO";
+      //
+      // WORDING IS DELIBERATELY MODEST. An earlier draft read "FULL BREAKDOWN
+      // IN OUR BIO". Checked against the live account 2026-08-29: the bio links
+      // http://nickstire.org, the HOMEPAGE - not a page about the reel's topic.
+      // "Full breakdown" would therefore promise something the destination does
+      // not contain, which is a claim about a destination this code cannot
+      // verify. "More" is true of any shop profile with a site behind it.
+      return "MORE IN OUR BIO";
     case "dm":
       return `DM US ${String(ask.keyword ?? "").toUpperCase().trim()}`;
     case "save":
@@ -100,29 +107,44 @@ export function askProblem(ask: ReelAsk | null | undefined): string | null {
   return null;
 }
 
+/**
+ * What a newly generated brief declares unless something overrides it.
+ *
+ * `profile` is the default because it is the ONLY ask that routes to a landing
+ * page by construction, it needs no keyword, and it needs nobody to answer it.
+ * `dm` is the exception: it must be declared deliberately, and only where there
+ * is a real reason to converse (a quote, a photo of the damage) AND somebody is
+ * actually replying. It can never arrive by default or by fallback - the live
+ * SALT reel is the proof of why, asking for DMs that no automation answers.
+ */
+export const DEFAULT_REEL_ASK: ReelAsk = { kind: "profile" };
+
 /** The brief fields this resolver reads. Kept narrow so any brief shape fits. */
 export interface AskBearingBrief {
   /** The declared ask. When present it WINS - nothing is inferred. */
   ask?: ReelAsk | null;
-  /** Legacy: the only ask signal older briefs carry. */
-  campaignKeyword?: string | null;
 }
 
 /**
- * The ask this brief will render, or null for no end card at all.
+ * The ask this brief will render, or null for NO END CARD.
  *
- * A DECLARED ask wins outright. The fallback exists only so the hundreds of
- * briefs written before this field existed do not silently lose their end card,
- * and it is deliberately reduced to a SINGLE ask - a keyword becomes a `dm`
- * ask, never `SAVE THIS | DM "X"`. New briefs should declare `ask`; the
- * fallback is a compatibility shim, not a default worth relying on.
+ * THERE IS NO FALLBACK, AND THAT IS THE POINT. An earlier version inferred a
+ * `dm` ask from `campaignKeyword` so legacy briefs would keep an end card. Two
+ * things were wrong with it:
  *
- * Returning null when nothing is known is the point: an end card that nobody
- * declared is exactly the defect this module exists to make impossible.
+ *   1. It silently produced the one ask nothing answers. An unanswered ask is
+ *      worse than no ask.
+ *   2. It reopened the truth gap this whole area exists to close. If a brief
+ *      that declares no ask still renders a card, then reading the payload
+ *      again fails to tell you what is in the frame - which is exactly the
+ *      defect that let `SAVE THIS | DM "SALT"` reach reel 1770003.
+ *
+ * So an undeclared ask renders nothing. New briefs always declare one
+ * (DEFAULT_REEL_ASK), so nothing generated from here loses its card; only
+ * legacy briefs, whose payloads genuinely never declared an ask, render without
+ * - which is the honest outcome rather than a card nobody asked for.
  */
 export function resolveReelAsk(brief: AskBearingBrief | null | undefined): ReelAsk | null {
   if (brief?.ask && askProblem(brief.ask) === null) return brief.ask;
-  const kw = String(brief?.campaignKeyword ?? "").trim();
-  if (kw) return { kind: "dm", keyword: kw };
   return null;
 }
