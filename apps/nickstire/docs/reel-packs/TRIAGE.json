@@ -9,8 +9,8 @@
   },
   "promotability": {
     "promotable": 3,
-    "notPromotable": 132,
-    "unassessed": 1
+    "notPromotable": 133,
+    "unassessed": 0
   },
   "destinations": {
     "assigned": 104,
@@ -79,12 +79,14 @@
       "productionType": "generated",
       "cost": 2,
       "status": "needs-work",
-      "blockReason": "no captions.srt - the reel cannot be assembled without them",
+      "blockReason": "requires generated video: costs credits, and publishing needs Meta's is_ai_generated=true plus a caption making no real-evidence claim",
       "actuals": null,
       "landingDestination": "/tires",
       "unassignedReason": null,
-      "promotable": null,
-      "promotionBlockers": null
+      "promotable": false,
+      "promotionBlockers": [
+        "DISCLOSURE_NOT_SATISFIED(meta): not organically publishable either, so it cannot be promoted: BLOCKED_MISSING_AI_DISCLOSURE: pack \"2026-08-14-tire-expiration\" contains model-generated video but the publish call would not set Meta's is_ai_generated=true. Meta requires self-disclosure on organic photorealistic generated video or realistic audio and may apply penalties for its absence. Fix: pass is_ai_generated=true on the media container."
+      ]
     },
     {
       "id": "2026-08-15-tread-fingerprint",
