@@ -52,6 +52,7 @@ import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
+import { reconcileStreamText } from "./reconcile-stream-text";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -121,6 +122,8 @@ export interface BuildOnFinishInput {
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
+  /** Full visible text collected from text-delta callbacks, when available. */
+  partialRef?: { text: string };
   // ─── trace ────────────────────────────────────────────────────
   traceId: string;
   recordTrace: (
@@ -207,6 +210,18 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         log,
       });
       let text = __salvaged.text;
+      if (deps.partialRef?.text) {
+        const reconciled = reconcileStreamText(text, deps.partialRef.text);
+        if (reconciled.relation !== "exact") {
+          log.info("stream_text_reconciled", {
+            relation: reconciled.relation,
+            finalChars: text.length,
+            accumulatedChars: deps.partialRef.text.length,
+            recoveredChars: reconciled.recoveredChars,
+          });
+          text = reconciled.text;
+        }
+      }
       const { reasoningText, hasToolCalls, finishReason, usage } = __salvaged;
       const ev = event as unknown as { steps?: unknown };
 

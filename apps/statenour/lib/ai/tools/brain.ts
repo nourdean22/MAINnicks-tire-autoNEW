@@ -18,6 +18,7 @@ import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { classifyThought as classifyThoughtFn } from "@/lib/brain/journal-ingest";
 import { runKnowledgeSync } from "@/lib/brain/knowledge-sync";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { buildBroadSearchFtsQuery, normalizeMemoryKeyQuery } from "@/lib/brain/search-query";
 
 export const brainTools = {
   surfaceAntiPatterns: tool({
@@ -302,6 +303,8 @@ export const brainTools = {
       // still apply), degrading to the old behavior when the tsquery is empty/
       // unparseable or the index is absent.
       const _ftsQuery = (query ?? "").trim();
+      const _ftsSearchQuery = buildBroadSearchFtsQuery(_ftsQuery);
+      const normalizedKeyQuery = normalizeMemoryKeyQuery(_ftsQuery);
       let ftsIds: string[] = [];
       if (_ftsQuery) {
         try {
@@ -317,7 +320,7 @@ export const brainTools = {
              ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
              LIMIT $3`,
             minConfidence,
-            _ftsQuery,
+            _ftsSearchQuery,
             limit * 2,
           );
           ftsIds = rows.map((r) => r.id);
@@ -357,11 +360,17 @@ export const brainTools = {
       const selectCols = { id: true, category: true, key: true, content: true, confidence: true, source: true, updatedAt: true };
       const laneWhere = (match: any) => ({ deletedAt: null, supersededById: null, AND: [...eligible, match] });
 
-      const [keyRows, ftsRows, contentRows] = await Promise.all([
+      const [keyRows, normalizedKeyRows, ftsRows, contentRows] = await Promise.all([
         prisma.brainMemory.findMany({
           where: laneWhere({ key: { contains: query, mode: "insensitive" } }),
           orderBy: { confidence: "desc" }, take: limit, select: selectCols,
         }),
+        normalizedKeyQuery && normalizedKeyQuery !== _ftsQuery.toLowerCase()
+          ? prisma.brainMemory.findMany({
+              where: laneWhere({ key: { contains: normalizedKeyQuery, mode: "insensitive" } }),
+              orderBy: { confidence: "desc" }, take: limit, select: selectCols,
+            })
+          : Promise.resolve([]),
         ftsIds.length
           ? prisma.brainMemory.findMany({ where: laneWhere({ id: { in: ftsIds } }), take: ftsIds.length, select: selectCols })
           : Promise.resolve([]),
@@ -381,11 +390,14 @@ export const brainTools = {
 
       const ftsOrder = new Map(ftsIds.map((id, i) => [id, i]));
       const ranked = [...ftsRows].sort((a, b) => (ftsOrder.get(a.id) ?? 0) - (ftsOrder.get(b.id) ?? 0));
-      const exactKey = keyRows.filter((r) => r.key.toLowerCase() === query.trim().toLowerCase());
+      const exactKey = [...keyRows, ...normalizedKeyRows].filter((r) => {
+        const key = r.key.toLowerCase();
+        return key === _ftsQuery.toLowerCase() || key === normalizedKeyQuery;
+      });
 
       const seen = new Set<string>();
       const memories: typeof keyRows = [];
-      for (const lane of [exactKey, keyRows, ranked, contentRows]) {
+      for (const lane of [exactKey, keyRows, normalizedKeyRows, ranked, contentRows]) {
         for (const row of lane) {
           if (seen.has(row.id) || memories.length >= limit) continue;
           seen.add(row.id);
@@ -1047,6 +1059,7 @@ export const brainTools = {
     }),
     execute: async ({ query, startDate, endDate, limit }) => {
       const q = query.toLowerCase();
+      const ftsQuery = buildBroadSearchFtsQuery(query);
       const dateFilter: { gte?: string; lte?: string } = {};
       if (startDate) dateFilter.gte = startDate;
       if (endDate) dateFilter.lte = endDate;
@@ -1079,7 +1092,7 @@ export const brainTools = {
                AND to_tsvector('english', ${expr}) @@ websearch_to_tsquery('english', $1)
              ORDER BY ts_rank(to_tsvector('english', ${expr}), websearch_to_tsquery('english', $1)) DESC
              LIMIT $2`,
-            query,
+            ftsQuery,
             limit * 2,
           );
           return rows.map((r) => r.id);
@@ -1602,4 +1615,3 @@ export const brainTools = {
   }),
 
 };
-

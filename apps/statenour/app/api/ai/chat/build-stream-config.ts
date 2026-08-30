@@ -379,6 +379,7 @@ export function buildStreamConfigFactory(deps: {
         provider: fbProvider,
         modelId: fbModelId,
         model: __fbModel,
+        partialRef: __partialRef,
         onWorkComplete: resolveOnFinish,
       }) as Parameters<typeof streamText>[0]["onFinish"],
     } as never);

@@ -912,6 +912,7 @@ async function chatPostInner(req: Request) {
     recallReceipts,
     startedAt,
     firstTokenRef: __firstTokenRef,
+    partialRef: __partialRef,
     traceId: __traceId,
     recordTrace,
     messages,

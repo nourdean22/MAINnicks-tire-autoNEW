@@ -103,6 +103,22 @@ describe("searchMemories · relevance outranks confidence", () => {
     expect(out.count).toBeGreaterThan(0);
   });
 
+  it("also finds a pinned key when the model asks in natural language", async () => {
+    mocks.brainMemory.findMany.mockImplementation(async ({ where }: any) => {
+      const match = where.AND[where.AND.length - 1];
+      if (match?.key?.contains === "mind_your_business") return [PINNED];
+      return [];
+    });
+
+    const out = await searchMemories.execute({
+      query: "mind your business",
+      minConfidence: 0.3,
+      limit: 10,
+    });
+
+    expect(out.memories[0].key).toBe("mantra_mind_your_business");
+  });
+
   it("does not let confidence-1.0 archive bulk bury a confidence-0.4 pinned row", async () => {
     mocks.brainMemory.findMany.mockImplementation(async ({ where }: any) => {
       const match = where.AND[where.AND.length - 1];
@@ -172,6 +188,16 @@ describe("searchReflections · multi-word queries must reach the corpus", () => 
     const where = mocks.reflection.findMany.mock.calls[0][0].where;
     expect(where.OR).toContainEqual({ id: { in: ["r-42"] } });
     expect(out.reflectionCount).toBe(1);
+  });
+
+  it("sends meaningful multi-word terms as an OR query to FTS", async () => {
+    mocks.reflection.findMany.mockResolvedValue([]);
+    mocks.brainDump.findMany.mockResolvedValue([]);
+
+    await searchReflections.execute({ query: "what do I tell myself when I am anxious", limit: 8 });
+
+    const ftsArguments = mocks.queryRawUnsafe.mock.calls.map((call) => String(call[1]));
+    expect(ftsArguments).toContain("myself or anxious");
   });
 
   it("degrades to the substring match when FTS throws, rather than losing recall", async () => {
