@@ -139,4 +139,47 @@ describe("ChatMessageList · visible per-message actions", () => {
     const markup = render({ tts: speakingTts });
     expect(markup.split('aria-label="More actions"').length - 1).toBe(2);
   });
+
+  // ── 2026-08-30 · review P1 — the safety canary ──────────────────────
+  // Regeneration replays the whole turn, side-effecting tool calls
+  // included. A turn that ran one must NOT offer Regenerate — a casual
+  // tap would re-run the SMS/quote/payment on the shop. Catalog-driven:
+  // any tool flagged sideEffecting is covered.
+  it("BREAKS: no Regenerate on an assistant turn that ran a side-effecting tool", () => {
+    const sideEffectMessages = [
+      { id: "m1", role: "user", parts: [{ type: "text", text: "text Brennen a quote" }] },
+      {
+        id: "m2",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Sent." },
+          // createQuickQuote is flagged sideEffecting in TOOL_CATALOG.
+          { type: "tool-createQuickQuote", state: "output-available", output: {} },
+        ],
+      },
+    ] as unknown as UIMessage[];
+    const markup = renderToStaticMarkup(
+      <ChatMessageList
+        messages={sideEffectMessages}
+        isLoading={false}
+        error={undefined}
+        onRetry={() => {}}
+        tts={speakingTts as never}
+      />,
+    );
+    expect(markup).not.toContain('aria-label="Regenerate reply"');
+    // Read and Copy still on offer — only the replay is refused.
+    expect(markup).toContain('aria-label="Read aloud"');
+    expect(markup).toContain('aria-label="Copy message"');
+  });
+
+  // ── 2026-08-30 · review P2 — the auto-narration preference lives here
+  // now (the composer dial was removed by operator directive). Without a
+  // surface the persisted preference is a dead control.
+  it("exposes the persisted auto-read preference on the row", () => {
+    const on = render({ tts: speakingTts });
+    expect(on).toContain("Auto-read replies is on (tap to turn off)");
+    const off = render({ tts: { ...speakingTts, enabled: false } });
+    expect(off).toContain("Auto-read replies is off (tap to turn on)");
+  });
 });

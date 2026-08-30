@@ -15,6 +15,7 @@ import { MessageActionSheet } from "@/components/chat/message-action-sheet";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
 import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
+import { sideEffectingTools } from "@/lib/ai/tools/catalog";
 import { summarizeToolReceipts, formatToolReceipts, collapseRepeatedToolParts, isEmptyToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
@@ -37,6 +38,24 @@ function textOf(message: UIMessage): string {
     .map((part) => part.text)
     .join("\n")
     .trim();
+}
+
+/**
+ * 2026-08-30 · review P1. Regeneration replays the whole assistant turn —
+ * tool calls included. If that turn executed a side-effecting tool
+ * (quote, SMS, payment…), a casual Regenerate tap would re-run it on the
+ * shop. The message row refuses to offer Regenerate on such turns; the
+ * operator can still send a new message. Catalog-driven so a tool newly
+ * flagged `sideEffecting` is covered without touching this file.
+ */
+function turnHasSideEffect(message: UIMessage): boolean {
+  const names = new Set(sideEffectingTools());
+  return (message.parts ?? []).some(
+    (part) =>
+      typeof part.type === "string" &&
+      part.type.startsWith("tool-") &&
+      names.has(part.type.replace("tool-", "")),
+  );
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -68,10 +87,13 @@ function MessageActionButton({
   onClick,
   icon,
   label,
+  text,
   active,
 }: {
   onClick: () => void;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  /** Optional compact text instead of an icon (e.g. "1.25x", "auto"). */
+  text?: string;
   label: string;
   active?: boolean;
 }) {
@@ -80,15 +102,18 @@ function MessageActionButton({
       type="button"
       onClick={onClick}
       aria-label={label}
+      aria-pressed={active}
       title={label}
+      // 2026-08-30 · review P2: 48×48 minimum touch target (iOS-PWA
+      // house rule; 32px visual glyph inside a 48px hit area).
       className={
-        "flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md px-1.5 text-[11px] transition " +
+        "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-[11px] transition " +
         (active
           ? "text-sky-300"
           : "text-fg-tertiary hover:bg-white/[0.05] hover:text-fg-secondary")
       }
     >
-      {icon}
+      {icon ?? text}
     </button>
   );
 }
@@ -98,6 +123,10 @@ function MessageActions({
   text,
   isSpeaking,
   canSpeak,
+  narrationOn,
+  onToggleNarration,
+  onCycleRate,
+  rate,
   onCopy,
   onEdit,
   onSpeak,
@@ -109,6 +138,11 @@ function MessageActions({
   text: string;
   isSpeaking: boolean;
   canSpeak: boolean;
+  /** Auto-narration preference (persisted). */
+  narrationOn: boolean;
+  onToggleNarration: () => void;
+  onCycleRate: () => void;
+  rate: number;
   onCopy: () => void;
   onEdit?: () => void;
   onSpeak: () => void;
@@ -129,12 +163,32 @@ function MessageActions({
         <MessageActionButton onClick={onEdit} icon={<Pencil size={14} />} label="Edit and resend" />
       )}
       {role === "assistant" && canSpeak && (
-        <MessageActionButton
-          onClick={isSpeaking ? onStopSpeak : onSpeak}
-          icon={isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
-          label={isSpeaking ? "Stop reading" : "Read aloud"}
-          active={isSpeaking}
-        />
+        <>
+          <MessageActionButton
+            onClick={isSpeaking ? onStopSpeak : onSpeak}
+            icon={isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            label={isSpeaking ? "Stop reading" : "Read aloud"}
+            active={isSpeaking}
+          />
+          {/* 2026-08-30 · review P2: the composer's global read/rate chips
+              were removed by the operator's no-dials directive — this row
+              is where the persistent preference lives now. Auto-narration
+              toggle (works with per-message Read; default off), rate while
+              active. A preference with no surface is a dead control. */}
+          {isSpeaking && (
+            <MessageActionButton
+              onClick={onCycleRate}
+              label={`Narration speed ${rate}x (tap to cycle)`}
+              text={`${rate}x`}
+            />
+          )}
+          <MessageActionButton
+            onClick={onToggleNarration}
+            label={narrationOn ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
+            text={narrationOn ? "auto" : undefined}
+            active={narrationOn && !isSpeaking}
+          />
+        </>
       )}
       {role === "assistant" && onRetry && (
         <MessageActionButton onClick={onRetry} icon={<RotateCcw size={14} />} label="Regenerate reply" />
@@ -457,6 +511,10 @@ export function ChatMessageList({
                     text={bodyText}
                     canSpeak={Boolean(tts?.supported)}
                     isSpeaking={tts?.speakingMessageId === message.id}
+                    narrationOn={Boolean(tts?.enabled)}
+                    onToggleNarration={() => tts?.toggle()}
+                    onCycleRate={() => tts?.cycleRate()}
+                    rate={tts?.rate ?? 1}
                     onCopy={() => void copyToClipboard(bodyText)}
                     onEdit={
                       role === "user"
@@ -469,7 +527,14 @@ export function ChatMessageList({
                     }
                     onSpeak={() => tts?.speakMessage(message.id, bodyText)}
                     onStopSpeak={() => tts?.stop()}
-                    onRetry={role === "assistant" && isLatestAssistant ? onRetry : undefined}
+                    // 2026-08-30 · review P1: never offer Regenerate on a
+                    // turn that ran a side-effecting tool — replay would
+                    // re-run it on the shop.
+                    onRetry={
+                      role === "assistant" && isLatestAssistant && !turnHasSideEffect(message)
+                        ? onRetry
+                        : undefined
+                    }
                     onMore={() => setActionSheetMsg({ id: message.id, role, text: bodyText })}
                   />
                 );

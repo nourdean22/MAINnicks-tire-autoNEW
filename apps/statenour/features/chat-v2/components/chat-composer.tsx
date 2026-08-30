@@ -71,10 +71,38 @@ export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
     };
   }, []);
 
+  /**
+   * Autosize · 2026-08-29, restored 2026-08-30 (review P2).
+   *
+   * This effect must re-measure on RESIZE, not only on `draft` change.
+   * Measured on a 390x844 viewport: with a draft-only dependency the
+   * effect runs once on mount, before layout has settled, so
+   * scrollHeight is measured against an unconstrained width, wraps to
+   * many lines, and clamps to 200 — an EMPTY textarea carried inline
+   * `height: 200px`, making the composer 276px, 32% of the viewport,
+   * pushing the last message off screen ("text clipped behind the
+   * composer"). The wrong height then latched until the operator typed.
+   *
+   * The fix is re-measuring on resize, NOT special-casing the empty
+   * draft. Observe the PARENT: the textarea's own box is what we
+   * mutate, so observing it would re-enter on every write.
+   */
   useEffect(() => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = "auto";
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    const el = textareaRef.current;
+    if (!el) return;
+
+    const resize = () => {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    };
+
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    const parent = el.parentElement;
+    if (!parent) return;
+    const ro = new ResizeObserver(resize);
+    ro.observe(parent);
+    return () => ro.disconnect();
   }, [draft]);
 
   const {
