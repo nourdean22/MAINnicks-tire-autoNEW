@@ -227,6 +227,12 @@ jobs:
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:cron-wiring
 
+      # Keep the orphan census in the package verify chain and in the named CI
+      # parity lane. A verify link without either is an unobserved control.
+      - name: Nickstire · orphan gate
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:orphans
+
       - name: Nickstire · route registry validation
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto validate:routes
