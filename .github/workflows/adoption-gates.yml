@@ -153,4 +153,4 @@ jobs:
           echo "canary ok - clean tree passes"
 
       - name: gate - no NEW unconsumed exports, files, or scripts
-        run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
+        run: pnpm --filter nicks-tire-auto run lint:orphans
