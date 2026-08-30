@@ -324,7 +324,7 @@ export function ChatIsland() {
       <ChatMediaDock />
 
       <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
-        <ChatComposer chat={chat} tts={tts} />
+        <ChatComposer chat={chat} />
       </div>
 
       {/* BDN-315 · desktop focus panel. Overlays like the memory

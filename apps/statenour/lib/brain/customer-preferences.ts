@@ -43,7 +43,9 @@ const log = rootLogger.withSurface("brain/customer-preferences");
 
 export interface CustomerDetailInput {
   customer: {
-    id: string;
+    /** TiDB INT arrives as a JSON number over the bridge despite this
+     * declared type — coerce with String() before any BrainMemory key use. */
+    id: string | number;
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;
@@ -226,8 +228,18 @@ export function inferCustomerPreferences(
     return status === "declined" || status === "walked" || status === "expired";
   }).length;
 
+  // 2026-08-30 · id coercion. nickstire's `customers.id` is a TiDB
+  // autoincrement INT, so the bridge returns `customer.id` as a JSON
+  // number — but `BrainMemory.key` is a String column and
+  // `CustomerDetailInput` declares `id: string`. The daily recompute
+  // cron upserted the raw number and threw
+  // "Invalid value provided. Expected String, provided Int" for EVERY
+  // customer (64+ error blocks in one 5k-line log window; preferences
+  // have never persisted since the 2026-07-10 phone-keyed rewrite).
+  // Coerce once, here, at the declared-contract boundary.
+  const customerId = String(input.customer.id);
   const out: Omit<CustomerPreferences, "summary"> = {
-    customerId: input.customer.id,
+    customerId,
     inferredAt: new Date().toISOString(),
     visitFrequency,
     paymentBehavior,

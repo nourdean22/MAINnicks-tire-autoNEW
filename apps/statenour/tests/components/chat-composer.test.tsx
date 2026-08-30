@@ -58,4 +58,31 @@ describe("ChatComposer Component", () => {
     const markup = renderToStaticMarkup(<ChatComposer chat={mockChat} />);
     expect(markup).toContain('placeholder="Ask, analyze, create, or tell Nick to act…"');
   });
+
+  // 2026-08-28 · Operator directive: no capability dials in the composer.
+  // posture/depth were a thinking tax; turbo was provably DEAD (it armed
+  // providerOverride:"anthropic" with no ANTHROPIC_API_KEY in any env, so
+  // it silently degraded every time); private was removed by decision.
+  // Read-aloud and Edit moved onto the messages themselves. This pins the
+  // removal so a future refactor cannot quietly reintroduce a knob.
+  it("renders no capability chips — the composer is input only", () => {
+    const mockChat = { status: "idle", sendText: vi.fn(), append: vi.fn() } as any;
+    const markup = renderToStaticMarkup(<ChatComposer chat={mockChat} />);
+
+    expect(markup).not.toContain("authority-controls");
+    expect(markup).not.toContain("private-lab-banner");
+    expect(markup).not.toContain("control-sheet-");
+    for (const chip of ["posture", "depth", "turbo", "private"]) {
+      expect(markup.toLowerCase()).not.toContain(`>${chip}<`);
+    }
+  });
+
+  it("keeps the controls that act on the draft itself", () => {
+    const mockChat = { status: "idle", sendText: vi.fn(), append: vi.fn() } as any;
+    const markup = renderToStaticMarkup(<ChatComposer chat={mockChat} />);
+
+    expect(markup).toContain('aria-label="Attach image, audio or PDF"');
+    expect(markup).toContain('aria-label="Voice input"');
+    expect(markup).toContain('aria-label="Send message"');
+  });
 });

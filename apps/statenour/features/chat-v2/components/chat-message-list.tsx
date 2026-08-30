@@ -4,7 +4,7 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, ExternalLink, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX, Wrench } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -15,6 +15,7 @@ import { MessageActionSheet } from "@/components/chat/message-action-sheet";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
 import { ReasoningTraceLive } from "@/components/chat/reasoning-trace-live";
 import { extractContextBlocks, extractQuality, extractCitations } from "@/lib/chat/extract-message-metadata";
+import { sideEffectingTools } from "@/lib/ai/tools/catalog";
 import { summarizeToolReceipts, formatToolReceipts, collapseRepeatedToolParts, isEmptyToolOutput } from "@/lib/ai/receipts/tool-receipt-summary";
 import { toast } from "sonner";
 import { useLazyRenderMessages } from "@/hooks/chat/use-lazy-render-messages";
@@ -39,6 +40,24 @@ function textOf(message: UIMessage): string {
     .trim();
 }
 
+/**
+ * 2026-08-30 · review P1. Regeneration replays the whole assistant turn —
+ * tool calls included. If that turn executed a side-effecting tool
+ * (quote, SMS, payment…), a casual Regenerate tap would re-run it on the
+ * shop. The message row refuses to offer Regenerate on such turns; the
+ * operator can still send a new message. Catalog-driven so a tool newly
+ * flagged `sideEffecting` is covered without touching this file.
+ */
+function turnHasSideEffect(message: UIMessage): boolean {
+  const names = new Set(sideEffectingTools());
+  return (message.parts ?? []).some(
+    (part) =>
+      typeof part.type === "string" &&
+      part.type.startsWith("tool-") &&
+      names.has(part.type.replace("tool-", "")),
+  );
+}
+
 async function copyToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
@@ -46,6 +65,137 @@ async function copyToClipboard(text: string): Promise<void> {
   } catch {
     toast.error("Clipboard blocked by browser");
   }
+}
+
+/**
+ * 2026-08-28 · VISIBLE per-message actions.
+ *
+ * Copy / Edit / Read / Retry already existed — but only inside
+ * MessageActionSheet, reachable ONLY by long-pressing a bubble. An
+ * undiscoverable gesture is indistinguishable from a missing feature,
+ * and the operator reported exactly that ("I want the read and edit
+ * buttons underneath the messages themselves"). The sheet stays as the
+ * overflow surface for the long tail (pin, fork, save-as-belief,
+ * delete, feedback, reasoning); the four actions worth a thumb are now
+ * always on screen, under the message they act on.
+ *
+ * Read is gated on tts.supported — a dead control that looks alive is
+ * this repo's signature defect, and a Read button with no speech engine
+ * behind it is exactly that.
+ */
+function MessageActionButton({
+  onClick,
+  icon,
+  label,
+  text,
+  active,
+}: {
+  onClick: () => void;
+  icon?: React.ReactNode;
+  /** Optional compact text instead of an icon (e.g. "1.25x", "auto"). */
+  text?: string;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      // 2026-08-30 · review P2: 48×48 minimum touch target (iOS-PWA
+      // house rule; 32px visual glyph inside a 48px hit area).
+      className={
+        "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-[11px] transition " +
+        (active
+          ? "text-sky-300"
+          : "text-fg-tertiary hover:bg-white/[0.05] hover:text-fg-secondary")
+      }
+    >
+      {icon ?? text}
+    </button>
+  );
+}
+
+function MessageActions({
+  role,
+  text,
+  isSpeaking,
+  canSpeak,
+  narrationOn,
+  onToggleNarration,
+  onCycleRate,
+  rate,
+  onCopy,
+  onEdit,
+  onSpeak,
+  onStopSpeak,
+  onRetry,
+  onMore,
+}: {
+  role: "user" | "assistant";
+  text: string;
+  isSpeaking: boolean;
+  canSpeak: boolean;
+  /** Auto-narration preference (persisted). */
+  narrationOn: boolean;
+  onToggleNarration: () => void;
+  onCycleRate: () => void;
+  rate: number;
+  onCopy: () => void;
+  onEdit?: () => void;
+  onSpeak: () => void;
+  onStopSpeak: () => void;
+  onRetry?: () => void;
+  onMore: () => void;
+}) {
+  if (!text.trim()) return null;
+  return (
+    <div
+      className={
+        "mt-1.5 flex items-center gap-0.5 " + (role === "user" ? "justify-end" : "justify-start")
+      }
+      data-testid={`message-actions-${role}`}
+    >
+      <MessageActionButton onClick={onCopy} icon={<Copy size={14} />} label="Copy message" />
+      {role === "user" && onEdit && (
+        <MessageActionButton onClick={onEdit} icon={<Pencil size={14} />} label="Edit and resend" />
+      )}
+      {role === "assistant" && canSpeak && (
+        <>
+          <MessageActionButton
+            onClick={isSpeaking ? onStopSpeak : onSpeak}
+            icon={isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            label={isSpeaking ? "Stop reading" : "Read aloud"}
+            active={isSpeaking}
+          />
+          {/* 2026-08-30 · review P2: the composer's global read/rate chips
+              were removed by the operator's no-dials directive — this row
+              is where the persistent preference lives now. Auto-narration
+              toggle (works with per-message Read; default off), rate while
+              active. A preference with no surface is a dead control. */}
+          {isSpeaking && (
+            <MessageActionButton
+              onClick={onCycleRate}
+              label={`Narration speed ${rate}x (tap to cycle)`}
+              text={`${rate}x`}
+            />
+          )}
+          <MessageActionButton
+            onClick={onToggleNarration}
+            label={narrationOn ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
+            text={narrationOn ? "auto" : undefined}
+            active={narrationOn && !isSpeaking}
+          />
+        </>
+      )}
+      {role === "assistant" && onRetry && (
+        <MessageActionButton onClick={onRetry} icon={<RotateCcw size={14} />} label="Regenerate reply" />
+      )}
+      <MessageActionButton onClick={onMore} icon={<MoreHorizontal size={14} />} label="More actions" />
+    </div>
+  );
 }
 
 function isErroredAssistantTurn(message: UIMessage): boolean {
@@ -348,6 +498,47 @@ export function ChatMessageList({
               })}
               {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceIdRef?.current : null} />}
               {message.role === "assistant" && <TypedToolCards message={message} />}
+              {/* 2026-08-28 · always-visible actions. Suppressed on the
+                  assistant turn that is still streaming: Copy would
+                  capture a half-written reply and Read would narrate a
+                  moving target. */}
+              {!(isLoading && isLatestAssistant) && (() => {
+                const bodyText = textOf(message);
+                const role = message.role === "user" ? "user" : "assistant";
+                return (
+                  <MessageActions
+                    role={role}
+                    text={bodyText}
+                    canSpeak={Boolean(tts?.supported)}
+                    isSpeaking={tts?.speakingMessageId === message.id}
+                    narrationOn={Boolean(tts?.enabled)}
+                    onToggleNarration={() => tts?.toggle()}
+                    onCycleRate={() => tts?.cycleRate()}
+                    rate={tts?.rate ?? 1}
+                    onCopy={() => void copyToClipboard(bodyText)}
+                    onEdit={
+                      role === "user"
+                        ? () => {
+                            setDraft(bodyText);
+                            setEditingMessageId(message.id);
+                            haptic.tap();
+                          }
+                        : undefined
+                    }
+                    onSpeak={() => tts?.speakMessage(message.id, bodyText)}
+                    onStopSpeak={() => tts?.stop()}
+                    // 2026-08-30 · review P1: never offer Regenerate on a
+                    // turn that ran a side-effecting tool — replay would
+                    // re-run it on the shop.
+                    onRetry={
+                      role === "assistant" && isLatestAssistant && !turnHasSideEffect(message)
+                        ? onRetry
+                        : undefined
+                    }
+                    onMore={() => setActionSheetMsg({ id: message.id, role, text: bodyText })}
+                  />
+                );
+              })()}
             </div>
           </div>
         );

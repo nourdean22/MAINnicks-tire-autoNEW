@@ -18,7 +18,6 @@ import { SlashCommandDropdown, type SlashCommandAction } from "@/components/chat
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import type { TtsApi } from "../hooks/use-tts";
 
 function messageText(message: { parts?: Array<{ type?: string; text?: string }> }): string {
   return (message.parts ?? [])
@@ -28,7 +27,7 @@ function messageText(message: { parts?: Array<{ type?: string; text?: string }> 
     .trim();
 }
 
-export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?: TtsApi }) {
+export function ChatComposer({ chat }: { chat: ChatRuntimeController }) {
   const draft = useChatUiStore((s) => s.draft);
   const setDraft = useChatUiStore((s) => s.setDraft);
   const editingMessageId = useChatUiStore((s) => s.editingMessageId);
@@ -43,15 +42,22 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
   const setActiveConversationId = useChatUiStore((s) => s.setActiveConversationId);
   const setHistoryDrawerOpen = useChatUiStore((s) => s.setHistoryDrawerOpen);
   const setDiagnosticReport = useChatUiStore((s) => s.setDiagnosticReport);
-  // 2026-07-22 · authority-kernel controls
-  const privateMode = useChatUiStore((s) => s.privateMode);
-  const setPrivateMode = useChatUiStore((s) => s.setPrivateMode);
-  const turbo = useChatUiStore((s) => s.turbo);
-  const setTurbo = useChatUiStore((s) => s.setTurbo);
-  const posture = useChatUiStore((s) => s.posture);
-  const setPosture = useChatUiStore((s) => s.setPosture);
-  const depth = useChatUiStore((s) => s.depth);
-  const setDepth = useChatUiStore((s) => s.setDepth);
+  // 2026-08-28 · COMPOSER CHIPS REMOVED (operator directive).
+  // Gone: posture · depth · turbo · private · the global read/rate
+  // toggles. Rationale, per control:
+  //   · posture/depth — capability dials. Choosing "how much thinking"
+  //     per message is the system's job, not a tax on the operator.
+  //   · turbo — provably DEAD, not merely redundant: it armed
+  //     providerOverride:"anthropic", and ANTHROPIC_API_KEY is absent
+  //     from every env (local + Railway), so it silently degraded to
+  //     the normal chain every time. A dead control that looks alive is
+  //     this repo's signature defect; it does not get to keep living.
+  //   · private — removed by operator decision; everything persists.
+  //   · read/rate — read-aloud belongs ON the message being read, not
+  //     on the composer. It moved to the per-message action row.
+  // The store fields survive at their defaults so the transport
+  // contract is untouched by this UI-only pass; the routing pass owns
+  // deleting them for real.
 
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -66,26 +72,20 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
   }, []);
 
   /**
-   * Autosize · 2026-08-29.
+   * Autosize · 2026-08-29, restored 2026-08-30 (review P2).
    *
-   * This effect used to depend on `draft` ALONE, and it latched. Measured on
-   * a 390x844 viewport: an EMPTY textarea (rows=1, one line of text) carried
-   * an inline `height: 200px` -- the max-height clamp -- making the composer
-   * 276px, 32% of the viewport, and pushing the last message off screen
-   * behind it. That is the "text clipped behind the composer" the operator
-   * screenshotted.
+   * This effect must re-measure on RESIZE, not only on `draft` change.
+   * Measured on a 390x844 viewport: with a draft-only dependency the
+   * effect runs once on mount, before layout has settled, so
+   * scrollHeight is measured against an unconstrained width, wraps to
+   * many lines, and clamps to 200 — an EMPTY textarea carried inline
+   * `height: 200px`, making the composer 276px, 32% of the viewport,
+   * pushing the last message off screen ("text clipped behind the
+   * composer"). The wrong height then latched until the operator typed.
    *
-   * The latch: the effect runs once on mount, before layout has settled, so
-   * scrollHeight is measured against an unconstrained width, wraps to many
-   * lines, and clamps to 200. `draft` is "" and stays "", so the effect never
-   * re-runs and the wrong height sticks until the operator types.
-   *
-   * The fix is re-measuring on resize, NOT special-casing the empty draft.
-   * An earlier attempt here collapsed the empty box to min-h-11 (44px) and
-   * clipped the second line of the placeholder -- verified in the browser at
-   * 390px. Measuring is the right instrument; it was only ever pointed at
-   * the wrong moment. With a settled width the same code yields 68px for the
-   * empty placeholder and grows correctly from there.
+   * The fix is re-measuring on resize, NOT special-casing the empty
+   * draft. Observe the PARENT: the textarea's own box is what we
+   * mutate, so observing it would re-enter on every write.
    */
   useEffect(() => {
     const el = textareaRef.current;
@@ -98,8 +98,6 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
 
     resize();
     if (typeof ResizeObserver === "undefined") return;
-    // Observe the PARENT: the textarea's own box is what we mutate, so
-    // observing it would re-enter on every write.
     const parent = el.parentElement;
     if (!parent) return;
     const ro = new ResizeObserver(resize);
@@ -304,44 +302,6 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
     },
   );
 
-  // UI-1 (2026-07-28): the pills used to CYCLE on tap — the operator had
-  // to memorize the rotation order and guess each value's meaning. Now a
-  // tap opens an explicit in-DOM control sheet (iOS-PWA primitive — no
-  // native popovers) with every option labeled and described; the pill
-  // is just the collapsed state.
-  const POSTURES = ["auto", "execute", "counsel", "spar"] as const;
-  const DEPTHS = ["auto", "standard", "deep"] as const;
-  const [openControl, setOpenControl] = useState<null | "posture" | "depth">(null);
-
-  const CONTROL_OPTIONS: Record<
-    "posture" | "depth",
-    { title: string; options: Array<{ value: string; label: string; hint: string }> }
-  > = {
-    posture: {
-      title: "Posture — how Nick engages",
-      options: [
-        { value: "auto", label: "Auto", hint: "Nick picks the stance per message" },
-        { value: "execute", label: "Execute", hint: "Direct — do the thing, minimal debate" },
-        { value: "counsel", label: "Counsel", hint: "Advise with options before acting" },
-        { value: "spar", label: "Spar", hint: "Challenge my thinking, push back hard" },
-      ],
-    },
-    depth: {
-      title: "Depth — how much thinking",
-      options: [
-        { value: "auto", label: "Auto", hint: "Nick chooses per question" },
-        { value: "standard", label: "Standard", hint: "Fast, focused answer" },
-        { value: "deep", label: "Deep", hint: "Slower, thorough multi-step analysis" },
-      ],
-    },
-  };
-
-  const applyControl = (control: "posture" | "depth", value: string) => {
-    if (control === "posture") setPosture(value as (typeof POSTURES)[number]);
-    else setDepth(value as (typeof DEPTHS)[number]);
-    setOpenControl(null);
-  };
-
   return (
     <form
       onSubmit={onSubmit}
@@ -366,9 +326,12 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
         attachImgFromDrop(e);
       }}
     >
-      {/* 2026-08-18 · edit-resend banner. Editing is armed by tapping a
-          sent message; it must be VISIBLE and cancellable — an invisible
-          armed cascade-delete would be a destructive surprise. */}
+      {/* 2026-08-18 · edit-resend banner. Editing is armed by the Edit
+          button on a sent message (2026-08-28: promoted out of the
+          long-press sheet into the visible per-message action row), or
+          by tapping the bubble. Either way it must be VISIBLE and
+          cancellable — an invisible armed cascade-delete would be a
+          destructive surprise. */}
       {editingMessageId && (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-gold/35 bg-gold/10 px-3 py-1.5 text-[11px] text-gold">
           <span className="min-w-0 truncate">
@@ -386,157 +349,6 @@ export function ChatComposer({ chat, tts }: { chat: ChatRuntimeController; tts?:
           </button>
         </div>
       )}
-      {privateMode && (
-        <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-gold" data-testid="private-lab-banner">
-          Private Lab · no history · no memory · no learning · provider retention applies
-        </div>
-      )}
-      <div className="flex items-center gap-1.5 px-1" data-testid="authority-controls">
-        <button
-          type="button"
-          onClick={() => setOpenControl(openControl === "posture" ? null : "posture")}
-          aria-label={`Posture: ${posture} (tap to choose)`}
-          aria-expanded={openControl === "posture"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-            posture === "auto"
-              ? "border-glass text-fg-tertiary hover:text-fg-secondary"
-              : posture === "spar"
-                ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                : "border-gold/40 bg-gold/10 text-gold",
-          )}
-        >
-          {posture === "auto" ? "posture" : posture}
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpenControl(openControl === "depth" ? null : "depth")}
-          aria-label={`Depth: ${depth} (tap to choose)`}
-          aria-expanded={openControl === "depth"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-            depth === "auto" ? "border-glass text-fg-tertiary hover:text-fg-secondary" : "border-gold/40 bg-gold/10 text-gold",
-          )}
-        >
-          {depth === "auto" ? "depth" : depth}
-        </button>
-        <div className="flex-1" />
-        {/* 2026-08-27 · read-aloud. Rendered ONLY when an engine exists —
-            a dead control that looks alive is this repo's signature
-            defect. While narrating, the first tap STOPS (audio halts
-            mid-sentence); a second tap turns the preference off. */}
-        {tts?.supported && (
-          <button
-            type="button"
-            onClick={() => (tts.narrating ? tts.stop() : tts.toggle())}
-            aria-pressed={tts.enabled}
-            aria-label={
-              tts.narrating
-                ? "Reading aloud (tap to stop)"
-                : tts.enabled
-                  ? "Read replies aloud is on (tap to turn off)"
-                  : "Read replies aloud is off (tap to turn on)"
-            }
-            className={cn(
-              "flex min-h-11 items-center gap-1 rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-              tts.narrating
-                ? "animate-pulse border-sky-500/60 bg-sky-500/15 text-sky-300"
-                : tts.enabled
-                  ? "border-sky-500/50 bg-sky-500/10 text-sky-300"
-                  : "border-glass text-fg-tertiary hover:text-fg-secondary",
-            )}
-          >
-            {tts.narrating
-              ? tts.narratingEngine === "web-speech"
-                ? "reading · device voice"
-                : "reading · stop"
-              : tts.enabled
-                ? "read · on"
-                : "read"}
-          </button>
-        )}
-        {tts?.supported && tts.enabled && (
-          <button
-            type="button"
-            onClick={() => tts.cycleRate()}
-            aria-label={"Narration speed " + tts.rate + "x (tap to cycle)"}
-            className={cn(
-              "flex min-h-11 items-center rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition",
-              tts.rate === 1
-                ? "border-glass text-fg-tertiary hover:text-fg-secondary"
-                : "border-sky-500/50 bg-sky-500/10 text-sky-300",
-            )}
-          >
-            {tts.rate}x
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setTurbo(!turbo)}
-          aria-label={turbo ? "Turbo armed for the next message (tap to disarm)" : "Turbo off (tap to arm one message on the external model)"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-            turbo ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-glass text-fg-tertiary hover:text-fg-secondary",
-          )}
-        >
-          {turbo ? "turbo · armed" : "turbo"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPrivateMode(!privateMode)}
-          aria-label={privateMode ? "Private Lab on (tap to turn off)" : "Private Lab off (tap to turn on)"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg border px-3 text-[10px] font-semibold uppercase tracking-wider transition",
-            privateMode ? "border-gold/60 bg-gold/15 text-gold" : "border-glass text-fg-tertiary hover:text-fg-secondary",
-          )}
-        >
-          {privateMode ? "private · on" : "private"}
-        </button>
-      </div>
-      {openControl && (() => {
-        const sheet = CONTROL_OPTIONS[openControl];
-        return (
-        <div
-          className="rounded-xl border border-glass bg-elevated p-3 space-y-1.5"
-          data-testid={`control-sheet-${openControl}`}
-          role="listbox"
-          aria-label={sheet.title}
-        >
-          <div className="flex items-center justify-between pb-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
-              {sheet.title}
-            </p>
-            <span className="text-[10px] text-fg-tertiary">this conversation</span>
-          </div>
-          {sheet.options.map((opt) => {
-            const current =
-              openControl === "posture" ? posture : depth;
-            const selected = current === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => applyControl(openControl, opt.value)}
-                className={cn(
-                  "flex w-full items-baseline gap-2 rounded-lg border px-3 py-2 text-left transition",
-                  selected
-                    ? "border-gold/50 bg-gold/10"
-                    : "border-transparent hover:border-glass hover:bg-white/[0.03]",
-                )}
-              >
-                <span className={cn("text-[12px] font-semibold", selected ? "text-gold" : "text-fg-secondary")}>
-                  {opt.label}
-                </span>
-                <span className="text-[11px] text-fg-tertiary">{opt.hint}</span>
-                {selected && <span className="ml-auto text-[10px] text-gold">current</span>}
-              </button>
-            );
-          })}
-        </div>
-        );
-      })()}
       {slash.show && (
         <SlashCommandDropdown
           filtered={slash.filtered}
