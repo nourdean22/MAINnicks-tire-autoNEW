@@ -13,6 +13,7 @@ const MAX_SAFE_GAP = 2_000;
 
 export type StreamTextRelation =
   | "exact"
+  | "accumulator-replaces-empty"
   | "accumulator-has-prefix"
   | "accumulator-has-suffix"
   | "final-has-suffix"
@@ -34,6 +35,18 @@ export function reconcileStreamText(
 
   if (!accumulatedText) {
     return { text: finalText, relation: "ambiguous", recoveredChars: 0 };
+  }
+
+  // The SDK can omit every visible delta from its final event. The caller
+  // still sends this through the normal salvage/sanitization pipeline before
+  // it is persisted, so leaked provider reasoning is not accepted as answer
+  // text merely because it was present in the raw accumulator.
+  if (!finalText) {
+    return {
+      text: accumulatedText,
+      relation: "accumulator-replaces-empty",
+      recoveredChars: accumulatedText.length,
+    };
   }
 
   const gap = Math.abs(accumulatedText.length - finalText.length);

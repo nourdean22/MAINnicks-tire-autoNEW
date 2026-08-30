@@ -18,6 +18,14 @@ describe("reconcileStreamText", () => {
     });
   });
 
+  it("recovers the accumulator when the final event is empty", () => {
+    expect(reconcileStreamText("", "Hello there")).toEqual({
+      text: "Hello there",
+      relation: "accumulator-replaces-empty",
+      recoveredChars: 11,
+    });
+  });
+
   it("recovers a missing trailing delta", () => {
     expect(reconcileStreamText("Hello", "Hello there")).toEqual({
       text: "Hello there",

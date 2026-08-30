@@ -201,26 +201,30 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // ./salvage-event-text.ts. `ev` stays for the tool-telemetry walk
       // below (same cast as before).
       const { salvageEventText } = await import("./salvage-event-text");
+      const streamReconciliation = deps.partialRef?.text
+        ? reconcileStreamText(event.text ?? "", deps.partialRef.text)
+        : null;
+      const eventForSalvage =
+        streamReconciliation && streamReconciliation.relation !== "exact"
+          ? { ...event, text: streamReconciliation.text }
+          : event;
       const __salvaged = salvageEventText({
-        event,
+        event: eventForSalvage,
         provider,
         modelId,
         mode,
         promptChars: finalSystemPrompt.length,
         log,
       });
-      let text = __salvaged.text;
-      if (deps.partialRef?.text) {
-        const reconciled = reconcileStreamText(text, deps.partialRef.text);
-        if (reconciled.relation !== "exact") {
-          log.info("stream_text_reconciled", {
-            relation: reconciled.relation,
-            finalChars: text.length,
-            accumulatedChars: deps.partialRef.text.length,
-            recoveredChars: reconciled.recoveredChars,
-          });
-          text = reconciled.text;
-        }
+      const text = __salvaged.text;
+      if (streamReconciliation && streamReconciliation.relation !== "exact") {
+        log.info("stream_text_reconciled", {
+          relation: streamReconciliation.relation,
+          finalChars: event.text?.length ?? 0,
+          accumulatedChars: deps.partialRef?.text.length ?? 0,
+          recoveredChars: streamReconciliation.recoveredChars,
+          salvagedChars: text.length,
+        });
       }
       const { reasoningText, hasToolCalls, finishReason, usage } = __salvaged;
       const ev = event as unknown as { steps?: unknown };
