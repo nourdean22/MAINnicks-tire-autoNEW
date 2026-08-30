@@ -76,7 +76,7 @@ const srv=http.createServer((q,r)=>{
   if(q.url==="/__exit"){r.writeHead(200);r.end("bye");srv.close();setTimeout(()=>process.exit(0),50);return;}
   if(q.url!=="/wedge"){r.writeHead(200);r.end("ok");return;}
   hits++;
-  if(mode==="dies"){r.socket.destroy();setTimeout(()=>process.exit(1),20);return;}
+  if(mode==="dies"){r.socket.destroy();process.exit(1);return;}
   const hang=(mode==="wedge-stuck")||(mode==="wedge-boot"&&boots<2)||(mode==="wedge-retry"&&hits<2);
   if(hang)return; // never res.end() -> curl hits -m and returns rc=28
   r.writeHead(200);r.end("ok");

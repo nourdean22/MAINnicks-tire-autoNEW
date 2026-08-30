@@ -312,7 +312,7 @@ priority at working code. Name the denominator, or do not quote the number.
 ## Counting unit
 
 **One control = one thing that can independently stop working without anyone noticing.** A `verify`
-chain of 15 links is 15 controls, because link 9 can rot while 1-8 stay green and the chain still
+chain of 16 links is 16 controls, because link 9 can rot while 1-8 stay green and the chain still
 reports pass. The denominator below is what is enumerated here, not a claim that the enumeration is
 complete — an unlisted control is not a covered one.
 
@@ -339,7 +339,7 @@ complete — an unlisted control is not a covered one.
 | lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
 | statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** |
 | statenour `check:policy-coverage` | 1 | **1** | Was wired into **nothing** for months; wired into `verify:hard` and canaried 2026-08-22 — see [the dead control](#the-dead-control) |
-| nickstire `verify` | 15 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
+| nickstire `verify` | 16 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
 | Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
 | statenour `cron-heartbeat` **outcome lane** | 1 | **1** | Detects run-but-fail, which the silence check structurally cannot. Proven by `cron-heartbeat-failing-lane.test.ts` |
@@ -357,7 +357,7 @@ complete — an unlisted control is not a covered one.
 | statenour `check:anti-slop` | 1 | 1 | wired into `verify:hard` after running nowhere at all. **2026-08-25 · the canary now EXECUTES the gate** against planted offenders (purple gradient, Inter import, Roboto import) and proves the `anti-slop-allow` waiver is by-signature — a new hit in an already-waived file still fires. The previous arms read the script's source and its wiring only, and that blindness was hiding a live regex bug — see [the rule in one sentence](#the-rule-in-one-sentence) |
 | statenour `check:et-clock` — bare `getHours()`/`getDay()` | 1 | 1 | forced-TZ test in a child process, plus a canary that reintroduces a bare reading and asserts the lint goes red |
 | agent-os `check-gate-reachability` — every `check:*`/`lint:*` is invoked by something | 1 | 1 | the meta-gate: catches the **unwired control** shape at author time. Six arms incl. one that runs the checker against the LIVE repo, so a new orphan reddens `agent:verify` |
-| **Total** | **64** | **19** | **29.7 %** |
+| **Total** | **65** | **19** | **29.2 %** |
 
 ---
 
@@ -386,7 +386,7 @@ passes.** Without that second half, a control that failed unconditionally would 
 | `graphify-session-context.ps1` (SessionStart) | injects graph context | A silent failure degrades every later decision invisibly |
 | statenour `check:env`, `check:runbooks`, `check:prompt-injection`, `check:audit-deps`, `check:lint-baseline`, `check:raw-sql`, `check:crons`, `check:soft-delete`, `check:get-auth`, `check:mutations:strict`, `check:stale-docs`, `prompt:size-check` | 12 distinct invariants | `tsconfig.json` excludes `scripts/`, so **none of these is typechecked**; a broken import passes every gate and fails only at runtime |
 | lefthook `pre-commit` x9, `pre-push` x1 | staged lint, typecheck, secrets, build | Git-level, applies to **every** agent and human — the widest blast radius and the least proof |
-| nickstire `verify` — 14 of 15 links | PII, routes, prerender, migrations, SQL (now incl. `lint:cron-wiring`, its own canary unwritten) | Only `lint:brand-voice` is proven |
+| nickstire `verify` — 15 of 16 links | PII, routes, prerender, migrations, SQL (now incl. `lint:cron-wiring`, its own canary unwritten) | Only `lint:brand-voice` is proven |
 | Daily-brief delivery path | that the operator actually sees a P1 | Instance ten, below |
 
 ---

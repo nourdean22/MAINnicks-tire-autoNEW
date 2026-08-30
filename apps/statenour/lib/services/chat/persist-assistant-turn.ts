@@ -52,6 +52,7 @@ import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
+import { reconcileStreamText } from "./reconcile-stream-text";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -121,6 +122,8 @@ export interface BuildOnFinishInput {
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
+  /** Full visible text collected from text-delta callbacks, when available. */
+  partialRef?: { text: string };
   // ─── trace ────────────────────────────────────────────────────
   traceId: string;
   recordTrace: (
@@ -198,15 +201,31 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // ./salvage-event-text.ts. `ev` stays for the tool-telemetry walk
       // below (same cast as before).
       const { salvageEventText } = await import("./salvage-event-text");
+      const streamReconciliation = deps.partialRef?.text
+        ? reconcileStreamText(event.text ?? "", deps.partialRef.text)
+        : null;
+      const eventForSalvage =
+        streamReconciliation && streamReconciliation.relation !== "exact"
+          ? { ...event, text: streamReconciliation.text }
+          : event;
       const __salvaged = salvageEventText({
-        event,
+        event: eventForSalvage,
         provider,
         modelId,
         mode,
         promptChars: finalSystemPrompt.length,
         log,
       });
-      let text = __salvaged.text;
+      const text = __salvaged.text;
+      if (streamReconciliation && streamReconciliation.relation !== "exact") {
+        log.info("stream_text_reconciled", {
+          relation: streamReconciliation.relation,
+          finalChars: event.text?.length ?? 0,
+          accumulatedChars: deps.partialRef?.text.length ?? 0,
+          recoveredChars: streamReconciliation.recoveredChars,
+          salvagedChars: text.length,
+        });
+      }
       const { reasoningText, hasToolCalls, finishReason, usage } = __salvaged;
       const ev = event as unknown as { steps?: unknown };
 
