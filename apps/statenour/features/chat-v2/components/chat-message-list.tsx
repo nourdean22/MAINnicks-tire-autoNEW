@@ -4,7 +4,7 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, ExternalLink, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX, Wrench } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -46,6 +46,102 @@ async function copyToClipboard(text: string): Promise<void> {
   } catch {
     toast.error("Clipboard blocked by browser");
   }
+}
+
+/**
+ * 2026-08-28 · VISIBLE per-message actions.
+ *
+ * Copy / Edit / Read / Retry already existed — but only inside
+ * MessageActionSheet, reachable ONLY by long-pressing a bubble. An
+ * undiscoverable gesture is indistinguishable from a missing feature,
+ * and the operator reported exactly that ("I want the read and edit
+ * buttons underneath the messages themselves"). The sheet stays as the
+ * overflow surface for the long tail (pin, fork, save-as-belief,
+ * delete, feedback, reasoning); the four actions worth a thumb are now
+ * always on screen, under the message they act on.
+ *
+ * Read is gated on tts.supported — a dead control that looks alive is
+ * this repo's signature defect, and a Read button with no speech engine
+ * behind it is exactly that.
+ */
+function MessageActionButton({
+  onClick,
+  icon,
+  label,
+  active,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={
+        "flex min-h-8 min-w-8 items-center justify-center gap-1 rounded-md px-1.5 text-[11px] transition " +
+        (active
+          ? "text-sky-300"
+          : "text-fg-tertiary hover:bg-white/[0.05] hover:text-fg-secondary")
+      }
+    >
+      {icon}
+    </button>
+  );
+}
+
+function MessageActions({
+  role,
+  text,
+  isSpeaking,
+  canSpeak,
+  onCopy,
+  onEdit,
+  onSpeak,
+  onStopSpeak,
+  onRetry,
+  onMore,
+}: {
+  role: "user" | "assistant";
+  text: string;
+  isSpeaking: boolean;
+  canSpeak: boolean;
+  onCopy: () => void;
+  onEdit?: () => void;
+  onSpeak: () => void;
+  onStopSpeak: () => void;
+  onRetry?: () => void;
+  onMore: () => void;
+}) {
+  if (!text.trim()) return null;
+  return (
+    <div
+      className={
+        "mt-1.5 flex items-center gap-0.5 " + (role === "user" ? "justify-end" : "justify-start")
+      }
+      data-testid={`message-actions-${role}`}
+    >
+      <MessageActionButton onClick={onCopy} icon={<Copy size={14} />} label="Copy message" />
+      {role === "user" && onEdit && (
+        <MessageActionButton onClick={onEdit} icon={<Pencil size={14} />} label="Edit and resend" />
+      )}
+      {role === "assistant" && canSpeak && (
+        <MessageActionButton
+          onClick={isSpeaking ? onStopSpeak : onSpeak}
+          icon={isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+          label={isSpeaking ? "Stop reading" : "Read aloud"}
+          active={isSpeaking}
+        />
+      )}
+      {role === "assistant" && onRetry && (
+        <MessageActionButton onClick={onRetry} icon={<RotateCcw size={14} />} label="Regenerate reply" />
+      )}
+      <MessageActionButton onClick={onMore} icon={<MoreHorizontal size={14} />} label="More actions" />
+    </div>
+  );
 }
 
 function isErroredAssistantTurn(message: UIMessage): boolean {
@@ -348,6 +444,36 @@ export function ChatMessageList({
               })}
               {message.role === "assistant" && <ToolReceiptSummary message={message} traceId={isLatestAssistant ? lastTraceIdRef?.current : null} />}
               {message.role === "assistant" && <TypedToolCards message={message} />}
+              {/* 2026-08-28 · always-visible actions. Suppressed on the
+                  assistant turn that is still streaming: Copy would
+                  capture a half-written reply and Read would narrate a
+                  moving target. */}
+              {!(isLoading && isLatestAssistant) && (() => {
+                const bodyText = textOf(message);
+                const role = message.role === "user" ? "user" : "assistant";
+                return (
+                  <MessageActions
+                    role={role}
+                    text={bodyText}
+                    canSpeak={Boolean(tts?.supported)}
+                    isSpeaking={tts?.speakingMessageId === message.id}
+                    onCopy={() => void copyToClipboard(bodyText)}
+                    onEdit={
+                      role === "user"
+                        ? () => {
+                            setDraft(bodyText);
+                            setEditingMessageId(message.id);
+                            haptic.tap();
+                          }
+                        : undefined
+                    }
+                    onSpeak={() => tts?.speakMessage(message.id, bodyText)}
+                    onStopSpeak={() => tts?.stop()}
+                    onRetry={role === "assistant" && isLatestAssistant ? onRetry : undefined}
+                    onMore={() => setActionSheetMsg({ id: message.id, role, text: bodyText })}
+                  />
+                );
+              })()}
             </div>
           </div>
         );
