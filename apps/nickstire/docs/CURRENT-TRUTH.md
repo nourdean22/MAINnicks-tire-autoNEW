@@ -14,9 +14,11 @@ producer loads the selected pack's reviewed files, embeds their hash and raw
 content in a versioned Episode Contract, and holds rather than generating a
 replacement brief when the pack input is absent or malformed. `reel_jobs` now
 has additive durable episode identity, idempotency, queue-state, and
-morning/midday/evening production-slot fields from migration 0113. Enqueue
-fails closed until that hand-applied migration and its uniqueness indexes are
-present; it has not been applied by this change.
+morning/midday/evening production-slot fields from migration 0113. Production
+TiDB received that hand-applied migration on 2026-08-31 after deploy
+`699e54900`: all seven nullable fields and all three required indexes were
+read back from `information_schema`. Enqueue still fails closed if that schema
+contract cannot be read.
 
 The queue projection distinguishes production readiness from publication
 scheduling. A READY buffer of three is maintained only while inventory is at
