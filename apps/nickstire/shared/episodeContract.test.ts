@@ -5,6 +5,7 @@ import {
   requiresAiDisclosure,
   EPISODE_CONTRACT_VERSION,
   HASHTAG_CAP,
+  contractFromDeclaration,
   type EpisodeContract,
 } from "./episodeContract";
 
@@ -15,6 +16,8 @@ function contract(over: Partial<EpisodeContract> = {}): EpisodeContract {
   return {
     schemaVersion: EPISODE_CONTRACT_VERSION,
     episodeId: "ep_1",
+    approvedPackSlug: null,
+    productionSlot: "morning",
     createdAt: new Date().toISOString(),
     objective: "UTILITY",
     disclosureMode: "visibly_animated",
@@ -166,6 +169,24 @@ describe("publication shape", () => {
       experiment: { experimentId: "exp1", armId: null, primaryVariable: "hook_style" },
     }));
     expect(r.blocks).toContain("EXPERIMENT_INCOMPLETE");
+  });
+});
+
+describe("approved production-pack continuity", () => {
+  it("fails closed when a pack slug has no immutable snapshot", () => {
+    const r = preflightEpisode(contract({ approvedPackSlug: "2026-08-31-example" }));
+    expect(r.allowed).toBe(false);
+    expect(r.blocks).toContain("APPROVED_PACK_CONTENT_MISSING");
+  });
+
+  it("derives a stable pack identity and idempotency key", () => {
+    const c = contractFromDeclaration(
+      { id: "daily", approvedPackSlug: "2026-08-31-example", selectedCaption: "caption", hashtags: [] },
+      { objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE" },
+    );
+    expect(c.episodeId).toBe("pack_2026-08-31-example");
+    expect(c.publication.idempotencyKey).toBe("episode:pack_2026-08-31-example:episode-contract-v1");
+    expect(c.productionSlot).toBe("morning");
   });
 });
 

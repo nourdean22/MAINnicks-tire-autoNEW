@@ -423,7 +423,12 @@ export class HiggsfieldApiSubmittedError extends Error {
  */
 export async function generateReelClipVideoViaApi(
   req: DopVideoRequest,
-  opts: { pollIntervalMs?: number; timeoutMs?: number } = {},
+  opts: {
+    pollIntervalMs?: number;
+    timeoutMs?: number;
+    /** Persist the provider handle before polling can outlive the worker. */
+    onSubmitted?: (requestId: string) => Promise<void> | void;
+  } = {},
 ): Promise<string> {
   // DB-AWARE, not env-only (P1 review, 2026-08-17). This line read
   // `higgsfieldApiCredentialsFromEnv()` and that defeated the entire feature: with
@@ -447,7 +452,11 @@ export async function generateReelClipVideoViaApi(
   const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
   // Matches the CLI lane's floor/default so operator-facing latency expectations
   // do not silently change based on which lane happened to run.
-  const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
+  // Leave margin before the reel worker's six-minute clip timeout so a local
+  // timeout can persist the request ID and the next run can reconcile it.
+  const timeoutMs = opts.timeoutMs !== undefined
+    ? Math.max(1, opts.timeoutMs)
+    : Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 5 * 60_000 + 30_000);
   const deadline = Date.now() + timeoutMs;
 
   // THE VENDOR'S OWN OpenAPI SPEC (docs.higgsfield.ai/docs/openapi.json, read
@@ -553,6 +562,44 @@ export async function generateReelClipVideoViaApi(
   }
   const requestId = submitted.request_id;
   log.info("Higgsfield API generation submitted", { requestId, path: usedPath });
+
+  // This callback is the durable spend boundary. The worker wraps the whole
+  // provider call in its own timeout, so waiting until poll eventually throws
+  // is too late: the outer timeout could win while the paid remote operation
+  // is still running. A callback lets the caller record the request ID
+  // immediately and makes every later failure resumable instead of retryable.
+  try {
+    await opts.onSubmitted?.(requestId);
+  } catch (err) {
+    throw new HiggsfieldApiSubmittedError(
+      requestId,
+      `Higgsfield API request ${requestId} was submitted but its durable handle could not be persisted: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  return pollHiggsfieldRequest(requestId, { pollIntervalMs, timeoutMs, credentials: creds });
+}
+
+/**
+ * Resume polling a request that was already submitted. A request ID is a
+ * durable spend boundary: callers must use this after a local timeout instead
+ * of submitting the same prompt again. `credentials` is internal so the
+ * submit path does not resolve the DB twice; external recovery resolves the
+ * current DB-backed key.
+ */
+export async function pollHiggsfieldRequest(
+  requestId: string,
+  opts: { pollIntervalMs?: number; timeoutMs?: number; credentials?: HiggsfieldApiCredentials } = {},
+): Promise<string> {
+  const creds = opts.credentials ?? (await getHiggsfieldApiCredentials());
+  if (!creds) throw new Error("Higgsfield API credentials unavailable while reconciling request — do not submit a replacement");
+  const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
+  // Leave margin before the reel worker's six-minute clip timeout so a local
+  // timeout can persist the request ID and the next run can reconcile it.
+  const timeoutMs = opts.timeoutMs !== undefined
+    ? Math.max(1, opts.timeoutMs)
+    : Math.max(60_000, Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 5 * 60_000 + 30_000);
+  const deadline = Date.now() + timeoutMs;
 
   while (true) {
     if (Date.now() >= deadline) {

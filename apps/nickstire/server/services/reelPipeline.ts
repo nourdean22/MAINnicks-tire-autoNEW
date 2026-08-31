@@ -15,8 +15,9 @@
 import { createLogger } from "../lib/logger";
 import type { ReelAssemblyBrief } from "./reelAssembly";
 import type { CtaType } from "../../shared/instagramStudio";
-import type { EpisodeContract, EpisodeDeclaration } from "../../shared/episodeContract";
+import type { ApprovedProductionPackSnapshot, EpisodeContract, EpisodeDeclaration, ProductionSlot } from "../../shared/episodeContract";
 import { buildStructuredVideoPrompt } from "../../shared/reelVideoPrompt";
+import { queueStateForReelStatus } from "../../shared/reelQueue";
 
 const log = createLogger("services:reel-pipeline");
 
@@ -202,6 +203,9 @@ export const INSTAGRAM_CAPTION_LIMIT = 2200;
 
 export interface ReelJobBrief {
   id?: string;
+  approvedPackSlug?: string;
+  approvedProductionPack?: ApprovedProductionPackSnapshot;
+  productionSlot?: ProductionSlot;
   topic?: string;
   campaignKeyword?: string;
   /**
@@ -231,6 +235,8 @@ export interface ReelJobBrief {
      */
     motion?: string;
     audioCue?: string;
+    /** Higgsfield API request already submitted; resume polling, never resubmit. */
+    higgsfieldRequestId?: string;
   }>;
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
@@ -245,6 +251,52 @@ export interface ReelJobBrief {
     framePrompt: string;
     lockedInvariants: string;
   };
+}
+
+/**
+ * The 0113 columns are intentionally required by the durable enqueue path. A
+ * missing operator-applied migration must stop before reservations or paid
+ * work, rather than silently creating a legacy row that has no identity.
+ */
+async function assertEpisodeQueueSchemaReady(d: any): Promise<void> {
+  if (typeof d.execute !== "function") {
+    throw new Error("REEL_EPISODE_SCHEMA_NOT_APPLIED: database adapter cannot verify migration 0113; enqueue fail closed");
+  }
+  try {
+    const { sql } = await import("drizzle-orm");
+    const result = await d.execute(sql`
+      SELECT COLUMN_NAME AS column_name
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'reel_jobs'
+        AND COLUMN_NAME IN ('episode_id', 'episode_version', 'idempotency_key', 'queue_state', 'production_slot', 'production_ready_at', 'publication_scheduled_at')
+    `);
+    const rows = Array.isArray(result) ? result[0] : result;
+    const names = new Set((Array.isArray(rows) ? rows : []).map((row: any) => String(row.column_name ?? row.COLUMN_NAME ?? "")));
+    const required = ["episode_id", "episode_version", "idempotency_key", "queue_state", "production_slot", "production_ready_at", "publication_scheduled_at"];
+    const missing = required.filter((name) => !names.has(name));
+    if (missing.length) throw new Error(`missing columns: ${missing.join(", ")}`);
+
+    const indexResult = await d.execute(sql`
+      SELECT INDEX_NAME AS index_name
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'reel_jobs'
+        AND INDEX_NAME IN ('uniq_reel_jobs_episode_version', 'uniq_reel_jobs_idempotency')
+    `);
+    const indexRows = Array.isArray(indexResult) ? indexResult[0] : indexResult;
+    const indexes = new Set((Array.isArray(indexRows) ? indexRows : []).map((row: any) => String(row.index_name ?? row.INDEX_NAME ?? "")));
+    const missingIndexes = ["uniq_reel_jobs_episode_version", "uniq_reel_jobs_idempotency"].filter((name) => !indexes.has(name));
+    if (missingIndexes.length) throw new Error(`missing uniqueness indexes: ${missingIndexes.join(", ")}`);
+  } catch (err) {
+    throw new Error(`REEL_EPISODE_SCHEMA_NOT_APPLIED: apply drizzle/0113_reel_episode_contract_queue.sql before enqueue; enqueue fail closed (${err instanceof Error ? err.message : String(err)})`);
+  }
+}
+
+async function findReelJobByIdempotency(d: any, reelJobs: any, idempotencyKey: string): Promise<any | null> {
+  const query = d.select().from(reelJobs).where((await import("drizzle-orm")).eq(reelJobs.idempotencyKey, idempotencyKey));
+  const rows = typeof query.limit === "function" ? await query.limit(1) : await query;
+  return rows[0]?.id != null ? rows[0] : null;
 }
 
 /**
@@ -273,6 +325,7 @@ export async function enqueueReelJob(
   const d = await getDb();
   if (!d) throw new Error("DB not available");
   const { reelJobs } = await import("../../drizzle/schema");
+  await assertEpisodeQueueSchemaReady(d);
 
   // Contract preflight runs FIRST — before the legacy preflight, before the
   // spend boundary, before the governor reservation — so a contract defect
@@ -318,6 +371,23 @@ export async function enqueueReelJob(
       throw new Error(`Episode contract blocked (${pre.blocks.length}): ${pre.detail.join("; ")}`);
     }
     (brief as { episodeContract?: EpisodeContract }).episodeContract = contract;
+  }
+
+  const episodeContract = (brief as { episodeContract?: EpisodeContract }).episodeContract;
+  const idempotencyKey = episodeContract?.publication.idempotencyKey;
+  if (!episodeContract || !idempotencyKey) {
+    throw new Error("REEL_EPISODE_CONTRACT_INVALID: enqueue requires a durable Episode Contract identity");
+  }
+  // Avoid reserving a content slot or generation budget for a row that already
+  // exists. The unique index below remains the race-safe authority when two
+  // workers pass this read concurrently.
+  const existingBeforeReservation = await findReelJobByIdempotency(d, reelJobs, idempotencyKey);
+  if (existingBeforeReservation) {
+    log.info("reel enqueue deduplicated by episode idempotency key", {
+      jobId: existingBeforeReservation.id,
+      idempotencyKey,
+    });
+    return { jobId: Number(existingBeforeReservation.id) };
   }
 
   // M10: deterministic preflight — do NOT reserve paid generation for a brief
@@ -432,10 +502,33 @@ export async function enqueueReelJob(
       briefId: String(brief.id ?? "unknown"),
       payload: JSON.stringify(brief),
       status: "queued",
+      episodeId: episodeContract.episodeId,
+      episodeVersion: episodeContract.schemaVersion,
+      idempotencyKey,
+      queueState: queueStateForReelStatus("queued"),
+      productionSlot: episodeContract.productionSlot,
       caption,
       source,
     });
   } catch (insertErr) {
+    // A concurrent enqueue may have won the unique index between the
+    // pre-check and insert. Return its durable row, but release this caller's
+    // reservation so the losing attempt does not consume queue capacity.
+    try {
+      const existingAfterRace = await findReelJobByIdempotency(d, reelJobs, idempotencyKey);
+      if (existingAfterRace) {
+        const resId = (brief as { contentReservationId?: string }).contentReservationId;
+        if (resId) {
+          const { releaseReservation } = await import("./contentGovernor");
+          await releaseReservation(resId);
+        }
+        log.info("reel enqueue race resolved by durable idempotency key", {
+          jobId: existingAfterRace.id,
+          idempotencyKey,
+        });
+        return { jobId: Number(existingAfterRace.id) };
+      }
+    } catch { /* preserve the original insert error */ }
     const resId = (brief as { contentReservationId?: string }).contentReservationId;
     if (resId) {
       try {
@@ -598,7 +691,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
   // future second worker can't double-process the same row.
   const claimRes = await d
     .update(reelJobs)
-    .set({ status: "generating", attempts: attempt })
+    .set({ status: "generating", queueState: queueStateForReelStatus("generating"), attempts: attempt })
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "queued")));
   const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
   if (affectedRows !== 1) return { processed: false }; // another worker claimed it
@@ -734,9 +827,9 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
 
       if (activeProvider === "higgsfield") {
         // Higgsfield/Seedance is a single blocking call (submit+poll+rehost
-        // internally) — no resumable op name. Each beat's URL is persisted right
-        // after success below, so a job retry resume-skips completed beats. A
-        // local timeout requeues and regenerates only the unfinished beat.
+        // internally), but the API lane now persists its request ID. Each
+        // beat's URL is persisted right after success below, and an ambiguous
+        // API timeout resumes the same remote request on the next pulse.
         const { generateReelClipVideo } = await import("./higgsfieldStudio");
         // Image conditioning (milestone 6, flag-gated REEL_IMAGE_CONDITIONING):
         // the identity-drift killer. EVERY beat anchors on the SAME approved
@@ -750,26 +843,61 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         const hero = brief.visualWorld?.heroFrameUrl;
         const startImageUrl = hero && /\.(jpe?g|png|webp)([?#]|$)/i.test(hero) ? hero : undefined;
         try {
-          finalClipUrl = await withTimeout(
-            generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
-            GEN_CLIP_TIMEOUT_MS,
-            `higgsfield beat ${beat.beatNumber}`,
-          );
+          const { higgsfieldRequestId } = beat;
+          if (higgsfieldRequestId) {
+            const { pollHiggsfieldRequest, HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
+            try {
+              finalClipUrl = await withTimeout(
+                pollHiggsfieldRequest(higgsfieldRequestId),
+                GEN_CLIP_TIMEOUT_MS,
+                `higgsfield reconcile beat ${beat.beatNumber}`,
+              );
+            } catch (reconcileErr) {
+              // A terminal remote failure is known-safe to replace. Any other
+              // submitted error remains attached so the next pulse reconciles
+              // the same paid request rather than buying a duplicate.
+              if (reconcileErr instanceof HiggsfieldApiSubmittedError && /generation (failed|cancelled|canceled)/i.test(reconcileErr.message)) {
+                delete beat.higgsfieldRequestId;
+                await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+              }
+              throw reconcileErr;
+            }
+          } else {
+            finalClipUrl = await withTimeout(
+              generateReelClipVideo({
+                prompt,
+                negativePrompt,
+                startImageUrl,
+                // Keep the provider's own poll deadline inside the worker's
+                // deadline, even when an operator configured a longer CLI/API
+                // timeout. The callback persists the handle before polling;
+                // this margin also makes the submitted-error path observable
+                // before the outer timeout can win.
+                higgsfieldPollTimeoutMs: Math.max(1, GEN_CLIP_TIMEOUT_MS - 30_000),
+                onHiggsfieldRequestSubmitted: async (requestId) => {
+                  beat.higgsfieldRequestId = requestId;
+                  await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+                },
+              }),
+              GEN_CLIP_TIMEOUT_MS,
+              `higgsfield beat ${beat.beatNumber}`,
+            );
+          }
         } catch (genErr) {
-          // 2026-08-20 · Higgsfield stock-fallback remediation · the silent
-          // stock fallback is DEAD (operator decision: silence over stock,
-          // reversing the 2026-08-03 "degrade beats going dark" tradeoff). A
-          // paid provider that cannot render is NEVER substituted with
-          // template-stock — it throws here, and the terminal handler below
-          // routes the job to `needs_regen` (a distinct, non-publishable,
-          // operator-actionable state) and alerts once per job. The keystone
-          // publish guard (qualityGate.reelClipsIncludeStock) is the backstop
-          // that blocks any stock artifact from ever reaching a platform.
+          const { HiggsfieldApiSubmittedError } = await import("./higgsfieldApiClient");
+          if (genErr instanceof HiggsfieldApiSubmittedError && !/generation (failed|cancelled|canceled)/i.test(genErr.message)) {
+            // Persist the remote handle BEFORE the outer retry classifier sees
+            // the error. A request that may still bill is never blindly
+            // duplicated on the next pulse.
+            beat.higgsfieldRequestId = genErr.requestId;
+            await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+          }
           throw genErr;
         }
         clipUrls[i] = finalClipUrl;
+        delete beat.higgsfieldRequestId;
         await d.update(reelJobs)
-          .set({ clipUrlsJson: JSON.stringify(clipUrls), updatedAt: new Date() })
+          .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(brief), updatedAt: new Date() })
           .where(eq(reelJobs.id, job.id));
         log.info("reel clip generated (higgsfield) and saved progressively", { jobId: job.id, beat: beat.beatNumber, of: beats.length });
         continue;
@@ -848,7 +976,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     await d
       .update(reelJobs)
       // reset attempts so the assembly stage gets its own fresh retry budget
-      .set({ status: "assets_ready", clipUrlsJson: JSON.stringify(clipUrls), error: null, attempts: 0 })
+      .set({ status: "assets_ready", queueState: queueStateForReelStatus("assets_ready"), clipUrlsJson: JSON.stringify(clipUrls), error: null, attempts: 0, productionReadyAt: new Date() })
       .where(eq(reelJobs.id, job.id));
     // Provider spend is complete at this point — settle the reservation with
     // clips × per-clip estimate (flagged estimate; no USD feed from the CLI).
@@ -893,9 +1021,10 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
         .where(eq(reelJobs.id, job.id))
         .limit(1);
       freshPayload = fresh?.payload;
-      const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string }> };
+      const parsed = JSON.parse(fresh?.payload ?? "{}") as { storyboardBeats?: Array<{ veoOperationName?: string; higgsfieldRequestId?: string }> };
       hasRemoteOperationId = (parsed.storyboardBeats ?? []).some(
-        (b) => typeof b?.veoOperationName === "string" && b.veoOperationName.length > 0,
+        (b) => (typeof b?.veoOperationName === "string" && b.veoOperationName.length > 0) ||
+          (typeof b?.higgsfieldRequestId === "string" && b.higgsfieldRequestId.length > 0),
       );
     } catch { /* unreadable payload — treat as no handle, i.e. the cautious branch */ }
 
@@ -922,6 +1051,7 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       .update(reelJobs)
       .set({
         status: nextStatus,
+        queueState: queueStateForReelStatus(nextStatus),
         attempts: nextAttempts,
         error: stampError(verdict, msg).slice(0, 1000),
       })
@@ -1016,7 +1146,7 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
   // Atomic claim: only the worker that flips assets_ready->assembling proceeds.
   const claimRes = await d
     .update(reelJobs)
-    .set({ status: "assembling", attempts: attempt })
+    .set({ status: "assembling", queueState: queueStateForReelStatus("assembling"), attempts: attempt })
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assets_ready")));
   const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
   if (affectedRows !== 1) return { processed: false }; // another worker claimed it
@@ -1031,7 +1161,7 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     const { assembleReel } = await import("./reelAssembly");
     const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
 
-    await d.update(reelJobs).set({ status: "assembled", mp4Url, error: null }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), mp4Url, error: null, productionReadyAt: new Date() }).where(eq(reelJobs.id, job.id));
     // Rendered creative QA (flag-gated; default OFF so prod behavior is
     // unchanged until the operator arms it). Best-effort: QA never fails an
     // assembled job - its verdict is evidence for the approve gate.
@@ -1101,7 +1231,7 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     const msg = err instanceof Error ? err.message : String(err);
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
     const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready";
-    await d.update(reelJobs).set({ status: nextStatus, error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
     if (nextStatus === "failed") await releaseFailedJobReservation(job.payload, job.id);
     log.warn("reel assembly failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
@@ -1156,7 +1286,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
     if (job.status === "publishing") {
       const res = await d
         .update(reelJobs)
-        .set({ status: "publish_ambiguous", error: `publish claim stuck >${Math.round(STUCK_JOB_MS / 60_000)}m — reconcile with Meta before any retry (the post may be LIVE)` })
+        .set({ status: "publish_ambiguous", queueState: queueStateForReelStatus("publish_ambiguous"), error: `publish claim stuck >${Math.round(STUCK_JOB_MS / 60_000)}m — reconcile with Meta before any retry (the post may be LIVE)` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       const moved = affectedRowCount(res);
       if (moved === 1) {
@@ -1172,6 +1302,7 @@ export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
       .update(reelJobs)
       .set({
         status: nextStatus,
+        queueState: queueStateForReelStatus(nextStatus),
         error: `recovered from stuck '${job.status}' (no progress >${Math.round(STUCK_JOB_MS / 60_000)}m)`,
       })
       .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, job.status)));

@@ -29,11 +29,70 @@ import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosu
 import { auditPublishBlock } from "@shared/reelClaimAudit";
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
-import { approvedReelPackAt, resolveApprovedPackRotationIndex } from "../../services/approvedReelPackRotation";
+import {
+  approvedReelPackAt,
+  buildBriefFromApprovedProductionPack,
+  loadApprovedProductionPack,
+  resolveApprovedPackRotationIndex,
+} from "../../services/approvedReelPackRotation";
+import {
+  decideReadyBuffer,
+  normalizeProductionTargetHour,
+  productionSlotForHour,
+  queueStateForReelStatus,
+  readyCandidateIsUsable,
+} from "@shared/reelQueue";
 
 const log = createLogger("cron:daily-reel-post");
 
 const POST_HOUR_ET = 9;
+export const REEL_READY_TARGET = 3;
+export const REEL_READY_LOW_WATERMARK = 1;
+
+function hasReadyClipManifest(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const clips = JSON.parse(value) as unknown;
+    return Array.isArray(clips) && clips.length > 0 && clips.every((clip) => typeof clip === "string" && clip.trim().length > 0);
+  } catch {
+    return false;
+  }
+}
+
+/** Count only inventory that can actually advance through the next gate. */
+async function countUsableReadyEpisodes(d: any): Promise<number> {
+  const rows = await d
+    .select({
+      id: reelJobs.id,
+      status: reelJobs.status,
+      clipUrlsJson: reelJobs.clipUrlsJson,
+      mp4Url: reelJobs.mp4Url,
+      caption: reelJobs.caption,
+      error: reelJobs.error,
+    })
+    .from(reelJobs)
+    .where(inArray(reelJobs.status, ["assets_ready", "assembled"]))
+    .orderBy(asc(reelJobs.id));
+
+  let usable = 0;
+  for (const row of rows) {
+    const assembled = row.status === "assembled";
+    const hasAsset = assembled
+      ? Boolean(typeof row.mp4Url === "string" && row.mp4Url.trim() && typeof row.caption === "string" && row.caption.trim())
+      : hasReadyClipManifest(row.clipUrlsJson);
+    // An old approval hold is stale once the live exact-asset/exact-caption
+    // approval now passes. Other errors are QA/claim/provider vetoes and stay
+    // out of the usable buffer until an operator or a repair clears them.
+    const error = typeof row.error === "string" ? row.error.trim() : "";
+    const hasBlockingError = Boolean(error && !error.startsWith("HELD awaiting approval"));
+    const hasLiveApproval = assembled && hasAsset && !hasBlockingError
+      ? (await reelApprovalProblem({ jobId: Number(row.id), caption: String(row.caption), videoUrl: String(row.mp4Url) })) === null
+      : false;
+    if (readyCandidateIsUsable({ status: String(row.status), hasAsset, hasBlockingError, hasLiveApproval })) usable += 1;
+    if (usable >= REEL_READY_TARGET) break;
+  }
+  return usable;
+}
 
 // reels 5-30 in calendar order. Captions are claim-safe: no prices, no "free"
 // except "free check", no guarantees/best/kill-words. Verified by the unit test.
@@ -292,12 +351,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       const { getBestPostingTimes } = await import("../../pipelines/instagram-data");
       const times = await getBestPostingTimes({ limit: 1 });
-      if (times.length && Number.isFinite(times[0].hourOfDay)) targetHour = times[0].hourOfDay;
+      if (times.length && Number.isInteger(times[0].hourOfDay) && times[0].hourOfDay >= 0 && times[0].hourOfDay <= 23) {
+        targetHour = times[0].hourOfDay;
+      }
     } catch (err) {
       log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
     }
-    if (hour !== targetHour) {
-      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
+    const normalizedTargetHour = normalizeProductionTargetHour(targetHour);
+    if (hour !== normalizedTargetHour) {
+      return { recordsProcessed: 0, details: `not production hour (ET ${hour}:00, want ${normalizedTargetHour}:00; analytics selected ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
@@ -308,6 +370,19 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     }
     if (!approvedPack && idx >= MANIFEST.length) {
       return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
+    }
+
+    // Production is allowed to refill only a genuinely low READY buffer. This
+    // is intentionally separate from the publication schedule: an assembled
+    // episode can wait for its exact human approval while production remains
+    // paused once usable inventory is above the low-watermark.
+    const usableReadyCount = await countUsableReadyEpisodes(d);
+    const readyDecision = decideReadyBuffer(usableReadyCount, REEL_READY_TARGET, REEL_READY_LOW_WATERMARK);
+    if (readyDecision !== "refill") {
+      return {
+        recordsProcessed: 0,
+        details: `production held: usable READY buffer ${usableReadyCount >= REEL_READY_TARGET ? `>=${REEL_READY_TARGET}` : usableReadyCount} (${readyDecision}); publication remains separately approval-gated`,
+      };
     }
 
     // Topic authority is the LIVE MINER, not the hardcoded manifest. The
@@ -347,14 +422,34 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       topicOrigin = "manifest_fallback";
     }
 
-    log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
-    // Regenerate on a preflight block: generateReelBriefAI is non-deterministic
-    // and a brief that trips the M10 preflight (in-frame-text / free-claim) would
-    // otherwise silently cost the day's reel (this cron generates once). The
-    // helper retries and only attaches the visual-world anchor (flag-gated
-    // REEL_AUTO_VISUAL_WORLD) + builds the prompt pack for a brief that passed.
-    let prepared;
-    try {
+    let prepared: { brief: Record<string, any>; attempts: number };
+    if (approvedPack) {
+      // An approved pack is already production input. Do not reduce it to a
+      // topic and ask a fresh model to replace the reviewed beats/caption.
+      const snapshot = loadApprovedProductionPack(approvedPack.slug);
+      const packBrief = snapshot
+        ? buildBriefFromApprovedProductionPack(approvedPack, snapshot, briefId)
+        : null;
+      if (!snapshot || !packBrief) {
+        return {
+          recordsProcessed: 0,
+          details: `held: approved pack ${approvedPack.slug} has no complete machine-readable production input; no topic-only regeneration`,
+        };
+      }
+      (packBrief as { approvedProductionPack?: unknown }).approvedProductionPack = snapshot;
+      prepared = { brief: packBrief, attempts: 0 };
+      log.info("daily reel using exact approved production pack contents", {
+        slug: approvedPack.slug,
+        contentSha256: snapshot.contentSha256,
+      });
+    } else {
+      try {
+      log.info(`Generating fresh dynamic storyboard brief for topic: "${topic}"`);
+      // Regenerate on a preflight block: generateReelBriefAI is non-deterministic
+      // and a brief that trips the M10 preflight (in-frame-text / free-claim) would
+      // otherwise silently cost the day's reel (this cron generates once). The
+      // helper retries and only attaches the visual-world anchor (flag-gated
+      // REEL_AUTO_VISUAL_WORLD) + builds the prompt pack for a brief that passed.
       // 6, not 3. The truth gate now BLOCKS an ungrounded brief instead of
       // warning, and measured compliance on real briefs was 5/12 — at ~42% per
       // attempt, 3 tries skip the day's reel roughly once a week (0.58^3 ≈ 20%);
@@ -384,15 +479,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // whole bridge — packs stay a review queue, they just stop colliding.
       let packTopics: string[] = [];
       try {
-        const { packCoveredTopics, listCommittedPacks } = await import("../../services/reelPackRegistry");
+        const { packCoveredTopics } = await import("../../services/reelPackRegistry");
         packTopics = packCoveredTopics(30);
-        if (approvedPack) {
-          const selected = listCommittedPacks().find((pack) => pack.slug === approvedPack.slug);
-          const allowed = new Set([approvedPack.topic, selected?.topic, selected?.campaignKeyword]
-            .filter((value): value is string => Boolean(value))
-            .map((value) => value.toLowerCase().trim()));
-          packTopics = packTopics.filter((candidate) => !allowed.has(candidate.toLowerCase().trim()));
-        }
         if (packTopics.length) log.info("avoiding topics already covered by committed packs", { count: packTopics.length });
       } catch (err) {
         log.warn("pack registry unavailable — proceeding without pack awareness", {
@@ -400,24 +488,28 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         });
       }
       prepared = await prepareCleanReelBrief(
-        { topic, hookStyle, ...(packTopics.length ? { additionalAvoidTopics: packTopics } : {}) },
-        { maxAttempts: 6 },
-      );
-    } catch (err) {
-      if (err instanceof PreflightExhaustedError) {
-        // Deliberate benign skip: every candidate deterministically preflight-
-        // blocked. No reel today; retries fresh tomorrow.
-        log.warn("daily reel: all briefs preflight-blocked — skipping today", { err: err.message });
-        return { recordsProcessed: 0, details: `skipped — all briefs preflight-blocked: ${err.message}` };
+          { topic, hookStyle, ...(packTopics.length ? { additionalAvoidTopics: packTopics } : {}) },
+          { maxAttempts: 6 },
+        );
+      } catch (err) {
+        if (err instanceof PreflightExhaustedError) {
+          // Deliberate benign skip: every candidate deterministically preflight-
+          // blocked. No reel today; retries fresh tomorrow.
+          log.warn("daily reel: all briefs preflight-blocked — skipping today", { err: err.message });
+          return { recordsProcessed: 0, details: `skipped — all briefs preflight-blocked: ${err.message}` };
+        }
+        // Any OTHER failure (provider outage, parse/auth error, timeout, DB) is a
+        // real generator fault — do NOT swallow it as a normal idle tick. Rethrow
+        // so the cron run fails loudly and monitoring alerts.
+        throw err;
       }
-      // Any OTHER failure (provider outage, parse/auth error, timeout, DB) is a
-      // real generator fault — do NOT swallow it as a normal idle tick. Rethrow
-      // so the cron run fails loudly and monitoring alerts.
-      throw err;
     }
     const { brief } = prepared;
     brief.id = briefId;
-    if (approvedPack) (brief as { approvedPackSlug?: string }).approvedPackSlug = approvedPack.slug;
+    if (approvedPack) {
+      (brief as { approvedPackSlug?: string }).approvedPackSlug = approvedPack.slug;
+      (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(normalizedTargetHour);
+    }
 
     // The brief's factual spine, joined to real evidence records. mechanicTruth
     // becomes the claim; proof-kind sourceNotes become handles the resolver
@@ -444,6 +536,10 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // caption carries its ask in prose. Declared NONE rather than guessed, so
       // the governor's repetition check is not fed a fabricated CTA.
       ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+      productionSlot: productionSlotForHour(normalizedTargetHour),
+      ...(approvedPack
+        ? { approvedProductionPack: (brief as { approvedProductionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot }).approvedProductionPack }
+        : {}),
       claims: claimPacket.claims,
       evidence: claimPacket.evidence,
     });
@@ -788,7 +884,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // EXACTLY-ONCE: claim assembled -> publishing BEFORE the external Meta call,
     // so two overlapping cron ticks cannot both publish this reel. The loser of
     // the CAS simply reports that another run owns it.
-    const claimRes = await d.update(reelJobs).set({ status: "publishing" })
+    const claimRes = await d.update(reelJobs).set({ status: "publishing", queueState: queueStateForReelStatus("publishing"), publicationScheduledAt: new Date() })
       .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assembled")));
     const { affectedRowCount } = await import("../../lib/db-affected");
     const claimed = affectedRowCount(claimRes);
@@ -809,7 +905,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl,
     });
     if (!attemptId) {
-      await d.update(reelJobs).set({ status: "assembled" })
+      await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       log.error(`daily reel: could not record a publish attempt for job ${job.id} — HOLDING rather than publishing unrecorded`);
       return { recordsProcessed: 0, details: "held: publish-attempt ledger unavailable; index not advanced" };
@@ -844,7 +940,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
       await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: msg });
       await d.update(reelJobs)
-        .set({ status: "publish_ambiguous", error: `publish threw: ${msg.slice(0, 300)}` })
+        .set({ status: "publish_ambiguous", queueState: queueStateForReelStatus("publish_ambiguous"), error: `publish threw: ${msg.slice(0, 300)}` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       log.error(`daily reel: publish THREW — job ${job.id} parked publish_ambiguous; verify on Instagram before retrying`, { err: msg });
       throw pubErr;
@@ -856,7 +952,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (!ig?.success) {
       // Cleanly-returned failure: Meta explicitly did not accept it, so the
       // claim is safe to release for a later retry.
-      await d.update(reelJobs).set({ status: "assembled" })
+      await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
       return { recordsProcessed: 0, details: `Publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
@@ -866,7 +962,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // error is cleared deliberately: a job that was held for approval carries
     // the "HELD awaiting approval ..." explanation in that column, and leaving
     // it on a successfully posted reel would describe a live post as blocked.
-    await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
     // Experiment traceability: if this job was assigned to an experiment at
     // enqueue, stamp the published media id + time — the verdict horizon
     // cannot be derived without them. The post is already live; a failed

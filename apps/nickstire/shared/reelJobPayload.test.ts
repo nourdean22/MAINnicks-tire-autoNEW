@@ -16,12 +16,18 @@ describe("parseReelJobPayload", () => {
       clevelandAngle: "Euclid winters",
       storyboardBeats: [{ beatNumber: 1, visual: "a tire", motion: "", onScreenText: "text" }],
       episodeContract: { script: { ctaType: "SEND", voiceover: "hello" }, evidence: [{ entailment: "supported" }] },
+      approvedPackSlug: "2026-08-16-wheel-bearing-hum",
+      productionSlot: "morning",
+      approvedProductionPack: { packId: "2026-08-16-wheel-bearing-hum", contentSha256: "a".repeat(64) },
     });
     const v = parseReelJobPayload(payload);
     expect(v.topic).toBe("bald tires");
     expect(v.storyboardBeats?.[0].beatNumber).toBe(1);
     expect(v.episodeContract?.script?.ctaType).toBe("SEND");
     expect(v.episodeContract?.evidence?.[0].entailment).toBe("supported");
+    expect(v.approvedPackSlug).toBe("2026-08-16-wheel-bearing-hum");
+    expect(v.productionSlot).toBe("morning");
+    expect(v.approvedProductionPack?.packId).toBe("2026-08-16-wheel-bearing-hum");
   });
 
   it("never throws on unparsable JSON — returns an empty view", () => {

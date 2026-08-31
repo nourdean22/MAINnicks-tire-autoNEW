@@ -2,6 +2,36 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/shared/episodeContract.ts",
+      "symbol": "PRODUCTION_SLOTS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The runtime accepts only the three named production slots through the typed EpisodeContract declaration; this value is exported so the seam test can assert the canonical set without duplicating it."
+    },
+    {
+      "file": "apps/nickstire/shared/reelQueue.ts",
+      "symbol": "EPISODE_QUEUE_STATES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The queue state list is the canonical finite state vocabulary used by the persisted queue mapping; it is exported so the seam test can assert that no unmodeled state is introduced."
+    },
+    {
+      "file": "apps/nickstire/shared/reelQueue.ts",
+      "symbol": "PRODUCTION_SLOT_WINDOWS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The three ET production windows are the canonical slot semantics used by productionSlotForHour; this export lets the boundary test pin the exact windows without a second copy."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "REEL_READY_TARGET",
+      "reason": "INTENTIONAL TEST-VISIBLE OPERATING POLICY. The daily production job exports the READY target so its low-watermark test can assert the configured inventory policy directly; publication remains separately gated."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "REEL_READY_LOW_WATERMARK",
+      "reason": "INTENTIONAL TEST-VISIBLE OPERATING POLICY. The daily production job exports the READY low-watermark so its buffer test can assert the refill boundary directly; it only holds or refills production and cannot publish."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPackRegistry.ts",
+      "symbol": "listCommittedPacks",
+      "reason": "PRE-EXISTING TEST-VISIBLE HELPER. The function is consumed by packCoveredTopics in the same service and retained as the registry test seam; it does not represent an unreachable production module or a new capability in this Reel contract change."
+    },
+    {
       "file": "apps/nickstire/shared/bridgeShapes.ts",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

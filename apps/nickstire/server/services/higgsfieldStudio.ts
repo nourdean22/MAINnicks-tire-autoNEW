@@ -756,9 +756,17 @@ export async function higgsfieldSessionLiveness(): Promise<HiggsfieldSessionLive
   }
 }
 
-export async function generateReelClipVideo(req: string | { prompt: string; negativePrompt?: string; startImageUrl?: string }): Promise<string> {
+export async function generateReelClipVideo(req: string | {
+  prompt: string;
+  negativePrompt?: string;
+  startImageUrl?: string;
+  higgsfieldPollTimeoutMs?: number;
+  onHiggsfieldRequestSubmitted?: (requestId: string) => Promise<void> | void;
+}): Promise<string> {
   const prompt = typeof req === "string" ? req : combinePromptWithNegative(req.prompt, req.negativePrompt);
   const startImageUrl = typeof req === "string" ? undefined : req.startImageUrl;
+  const higgsfieldPollTimeoutMs = typeof req === "string" ? undefined : req.higgsfieldPollTimeoutMs;
+  const onHiggsfieldRequestSubmitted = typeof req === "string" ? undefined : req.onHiggsfieldRequestSubmitted;
 
   // API-KEY LANE FIRST, CLI SESSION AS FALLBACK.
   //
@@ -804,7 +812,10 @@ export async function generateReelClipVideo(req: string | { prompt: string; nega
     await import("./higgsfieldApiClient");
   if (await getHiggsfieldApiCredentials()) {
     try {
-      return await generateReelClipVideoViaApi({ prompt, startImageUrl });
+      return await generateReelClipVideoViaApi(
+        { prompt, startImageUrl },
+        { timeoutMs: higgsfieldPollTimeoutMs, onSubmitted: onHiggsfieldRequestSubmitted },
+      );
     } catch (err) {
       // THE FALLBACK IS ONLY SAFE BEFORE SUBMIT. Once a generation is submitted
       // Higgsfield may bill for it, and DoP has no resumable handle — so

@@ -25,6 +25,7 @@ import {
   higgsfieldApiCredentialsFromEnv,
   REEL_CLIP_DEFAULTS,
   HiggsfieldApiSubmittedError,
+  pollHiggsfieldRequest,
   probeHiggsfieldApiCredentials,
 } from "./services/higgsfieldApiClient";
 
@@ -275,10 +276,15 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const onSubmitted = vi.fn();
+      const p = generateReelClipVideoViaApi(
+        { prompt: "x", startImageUrl: HERO },
+        { pollIntervalMs: 1_000, timeoutMs: 1, onSubmitted },
+      );
       const assertion = expect(p).rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
+      expect(onSubmitted).toHaveBeenCalledWith("req_spend_1");
       await p.catch((e: unknown) => {
         expect((e as HiggsfieldApiSubmittedError).requestId).toBe("req_spend_1");
         expect((e as HiggsfieldApiSubmittedError).spendMayHaveOccurred).toBe(true);
@@ -298,6 +304,17 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     await expect(generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1 }))
       .rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
+  });
+
+  it("reconciles an existing request without issuing a second POST", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.method).toBe("GET");
+      return { status: 200, text: async () => JSON.stringify({ status: "completed", request_id: "req_resume_1", video: { url: "https://cdn.test/resumed.mp4" } }) } as Response;
+    });
+    global.fetch = fetchMock;
+    creds();
+    await expect(pollHiggsfieldRequest("req_resume_1", { pollIntervalMs: 1 })).resolves.toBe("https://cdn.test/resumed.mp4");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("a completed-but-URL-less response is submitted-typed — it definitely billed", async () => {

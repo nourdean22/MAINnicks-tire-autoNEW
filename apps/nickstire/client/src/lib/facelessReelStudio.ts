@@ -418,6 +418,8 @@ export interface StoryboardBeat {
   purpose: string; // why this beat exists
   audioCue: string; // sfx/music direction (works muted regardless)
   safeZoneNotes: string; // IG UI safe-zone guidance
+  /** Higgsfield API request already submitted; resume polling after ambiguity. */
+  higgsfieldRequestId?: string;
 }
 
 export interface SafetyFinding {

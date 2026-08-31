@@ -29,6 +29,7 @@ import { GBP_ARCHETYPES } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 import { dispatch } from "../services/eventBus";
+import { queueStateForReelStatus } from "@shared/reelQueue";
 
 const log = createLogger("routers:content");
 
@@ -2527,7 +2528,7 @@ export const contentAdminRouter = router({
           if (pubResult.igPostId) {
             permalink = await getInstagramPermalink(pubResult.igPostId);
             await db.update(reelJobs)
-              .set({ status: "posted", igPostId: pubResult.igPostId })
+              .set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: pubResult.igPostId })
               .where(eq(reelJobs.id, jobId));
           } else {
             log.error("Instagram publish failed", { pubResult });
@@ -2744,7 +2745,7 @@ export const contentAdminRouter = router({
           // The content already went out through the queue; only the job row
           // never heard. Close the ghost — CAS on status so a concurrent
           // change is never overwritten.
-          await d.update(reelJobs).set({ status: "published", updatedAt: new Date() })
+          await d.update(reelJobs).set({ status: "published", queueState: queueStateForReelStatus("published"), updatedAt: new Date() })
             .where(and(eq(reelJobs.id, input.jobId), eq(reelJobs.status, "assembled")));
           return { outcome: "job_marked_published" as const, draftId: job.briefId };
         }
@@ -2891,7 +2892,7 @@ export const contentAdminRouter = router({
       const CLOSEABLE = ["assembled", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "failed", "needs_regen"];
       const res = await d
         .update(reelJobs)
-        .set({ status: "failed", error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
+        .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: `${input.mode === "archive" ? "archived" : "discarded"} by operator: ${input.reason}`.slice(0, 500) })
         .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, CLOSEABLE)));
       if (affectedRowCount(res) !== 1) {
         await recordOperatorAction({ action: "discard", outcome: ACTION_OUTCOME.refused, operatorId: ctx.user?.id ?? null, jobId: input.jobId, detail: { reason: input.reason } });
@@ -3109,6 +3110,18 @@ export const contentAdminRouter = router({
         if (beat && typeof beat === "object") delete (beat as Record<string, unknown>).veoOperationName;
       }
 
+      // Regeneration is a new paid episode, even when it preserves the old
+      // creative brief. Do not let the approved-pack identity or the old brief
+      // id collapse it into the original unique episode row.
+      const { randomUUID } = await import("crypto");
+      const regeneratedEpisodeId = `regen_${input.jobId}_${randomUUID()}`;
+      brief.id = regeneratedEpisodeId;
+      const preservedPack = (brief as { approvedProductionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot; episodeContract?: { productionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot } }).approvedProductionPack
+        ?? (brief as { episodeContract?: { productionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot } }).episodeContract?.productionPack;
+      const priorSlot = (brief as { productionSlot?: string; episodeContract?: { productionSlot?: string } }).productionSlot
+        ?? (brief as { episodeContract?: { productionSlot?: string } }).episodeContract?.productionSlot;
+      const productionSlot = priorSlot === "morning" || priorSlot === "midday" || priorSlot === "evening" ? priorSlot : undefined;
+
       const { enqueueReelJob } = await import("../services/reelPipeline");
       const { withOperatorAction } = await import("../services/operatorActionLog");
       // The two typed refusals, so the classifier below can test identity
@@ -3121,6 +3134,9 @@ export const contentAdminRouter = router({
           objective: "DISCOVERY",
           disclosureMode: "visibly_animated",
           ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+          episodeId: regeneratedEpisodeId,
+          ...(productionSlot ? { productionSlot } : {}),
+          ...(preservedPack ? { approvedProductionPack: preservedPack } : {}),
         }),
         {
           /**
@@ -3159,7 +3175,7 @@ export const contentAdminRouter = router({
         // can no longer be reached with, and which it could not have closed
         // anyway: marking a row `failed` does not stop the worker holding it.
         const res = await d.update(reelJobs)
-          .set({ status: "failed", error: `superseded by regenerated job ${newJobId} (operator ${ctx.user?.id ?? "?"})`.slice(0, 500) })
+          .set({ status: "failed", queueState: queueStateForReelStatus("failed"), error: `superseded by regenerated job ${newJobId} (operator ${ctx.user?.id ?? "?"})`.slice(0, 500) })
           .where(and(eq(reelJobs.id, input.jobId), inArray(reelJobs.status, [...REGENERABLE_STATUSES])));
         if (affectedRowCount(res) !== 1) log.warn("regenerate: old job not closed (state changed under us)", { jobId: input.jobId });
       } catch (err) {

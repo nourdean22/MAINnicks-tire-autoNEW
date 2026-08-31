@@ -18,6 +18,7 @@
  */
 import { createLogger } from "../lib/logger";
 import { probeUrl } from "./reelRecoverability";
+import { queueStateForReelStatus } from "../../shared/reelQueue";
 
 const log = createLogger("services:reel-reassemble");
 
@@ -87,7 +88,7 @@ export async function reassembleFromClips(jobId: number): Promise<ReassembleResu
   // a concurrent runner cannot assemble the same job twice.
   const claim = await d
     .update(reelJobs)
-    .set({ status: "assembling" })
+    .set({ status: "assembling", queueState: queueStateForReelStatus("assembling") })
     .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembled")));
   if (affectedRowCount(claim) !== 1) {
     return fail("another process claimed this job first");
@@ -125,7 +126,7 @@ export async function reassembleFromClips(jobId: number): Promise<ReassembleResu
 
     await d
       .update(reelJobs)
-      .set({ status: "assembled", mp4Url, error: null, payload: JSON.stringify(fresh) })
+      .set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), mp4Url, error: null, productionReadyAt: new Date(), payload: JSON.stringify(fresh) })
       .where(eq(reelJobs.id, jobId));
 
     log.warn("reel re-assembled from surviving clips — QA and approval invalidated", {
@@ -138,7 +139,7 @@ export async function reassembleFromClips(jobId: number): Promise<ReassembleResu
     // idempotent — so unlike a publish, returning to the prior state is safe.
     await d
       .update(reelJobs)
-      .set({ status: "assembled", error: `re-assembly failed: ${(err instanceof Error ? err.message : String(err)).slice(0, 400)}` })
+      .set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), error: `re-assembly failed: ${(err instanceof Error ? err.message : String(err)).slice(0, 400)}` })
       .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembling")));
     log.error("re-assembly failed — job returned to 'assembled'", { jobId, err });
     return fail(err instanceof Error ? err.message : String(err));
