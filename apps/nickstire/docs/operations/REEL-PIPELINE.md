@@ -12,9 +12,11 @@ The approved-pack rotation is a production-input queue, not a topic list.
 an `episode-contract-v1` snapshot, and refuses topic-only regeneration when the
 reviewed input is missing or malformed. `reel_jobs` carries stable episode and
 idempotency identity, an explicit queue-state projection, and a
-`morning`/`midday`/`evening` production slot. The additive migration is
-`drizzle/0113_reel_episode_contract_queue.sql`; it is hand-applied and enqueue
-fails closed until all required columns and uniqueness indexes are readable.
+`morning`/`midday`/`evening` production slot. The additive migration
+`drizzle/0113_reel_episode_contract_queue.sql` was hand-applied to production
+TiDB on 2026-08-31 after deploy `699e54900`; read-back confirmed all seven
+columns and the episode-version, idempotency, and queue indexes. Enqueue still
+fails closed if all required columns and uniqueness indexes are not readable.
 
 The 30 unmaterialized 2026-08-31 slugs introduced by `27e993fb2` were removed
 from the rotation. They may be re-added only with tracked pack directories and
