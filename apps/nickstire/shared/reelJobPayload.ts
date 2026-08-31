@@ -27,12 +27,14 @@
  * live production pipeline; this fixes the sites this run introduced.
  */
 import type { StoryboardBeat } from "../client/src/lib/facelessReelStudio";
-import type { EpisodeContract } from "./episodeContract";
+import type { ApprovedProductionPackSnapshot, EpisodeContract, ProductionSlot } from "./episodeContract";
 
 export interface ReelJobPayloadView {
   topic?: string;
   /** A human-reviewed pack selected by the daily rotation. */
   approvedPackSlug?: string;
+  approvedProductionPack?: ApprovedProductionPackSnapshot;
+  productionSlot?: ProductionSlot;
   archetype?: string;
   objectCharacter?: string;
   mechanicTruth?: string;

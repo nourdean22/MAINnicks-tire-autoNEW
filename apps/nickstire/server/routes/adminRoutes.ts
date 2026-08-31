@@ -6,6 +6,7 @@ import { createLogger } from "../lib/logger";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { getAllBreakerHealth, resetAllBreakers } from "../lib/circuit-breaker";
 import { resolveIsAiGenerated } from "@shared/reelDisclosure";
+import { queueStateForReelStatus } from "@shared/reelQueue";
 
 const serverLog = createLogger("server");
 
@@ -273,7 +274,7 @@ export function registerAdminRoutes(app: Express): void {
         // two concurrent/retried publishes can't both post (mirrors the
         // affectedRows-guarded CAS the pipeline stages use). The loser 409s.
         const { and } = await import("drizzle-orm");
-        const claim = await d.update(reelJobs).set({ status: "publishing" }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembled")));
+        const claim = await d.update(reelJobs).set({ status: "publishing", queueState: queueStateForReelStatus("publishing"), publicationScheduledAt: new Date() }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "assembled")));
         const claimed = (claim[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
         if (claimed !== 1) { res.status(409).json({ error: "job is already being published or is no longer assembled" }); return; }
 
@@ -285,7 +286,7 @@ export function registerAdminRoutes(app: Express): void {
         const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../services/publishAttemptLedger");
         const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url });
         if (!attemptId) {
-          await d.update(reelJobs).set({ status: "assembled" })
+          await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
             .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
           res.status(503).json({ error: "publish-attempt ledger unavailable — refusing to publish unrecorded" });
           return;
@@ -308,7 +309,7 @@ export function registerAdminRoutes(app: Express): void {
           // reconciliation. A cleanly-returned failure below IS safe to restore.
           const msg = pubErr instanceof Error ? pubErr.message : String(pubErr);
           await d.update(reelJobs)
-            .set({ status: "publish_ambiguous", error: `publish threw: ${msg.slice(0, 300)}` })
+            .set({ status: "publish_ambiguous", queueState: queueStateForReelStatus("publish_ambiguous"), error: `publish threw: ${msg.slice(0, 300)}` })
             .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
           serverLog.error("[Admin] reel-canary publish threw — parked publish_ambiguous", { jobId, error: msg });
           res.status(502).json({ error: "publish threw — job parked as publish_ambiguous; verify on Instagram before retrying", detail: msg, publishGate });
@@ -322,13 +323,13 @@ export function registerAdminRoutes(app: Express): void {
         });
         if (!ig?.success) {
           // release the claim so a retry can re-attempt (publishing -> assembled)
-          await d.update(reelJobs).set({ status: "assembled" }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
+          await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null }).where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
           res.status(502).json({ error: ig?.error ?? "publish failed", publishGate });
           return;
         }
         let permalink: string | null = null;
         try { if (ig.postId) permalink = await getInstagramPermalink(ig.postId); } catch { /* permalink best-effort */ }
-        await d.update(reelJobs).set({ status: "posted", igPostId: ig.postId }).where(eq(reelJobs.id, jobId));
+        await d.update(reelJobs).set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: ig.postId }).where(eq(reelJobs.id, jobId));
         res.json({ ok: true, action, jobId, igPostId: ig.postId ?? null, permalink, publishGate, forced: publishGate !== "proceed" });
         return;
       }

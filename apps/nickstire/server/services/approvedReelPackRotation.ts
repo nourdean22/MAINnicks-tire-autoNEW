@@ -1,8 +1,14 @@
 /**
  * Operator-approved human-review packs, in the order they enter the daily
- * Reel generator. A pack supplies its reviewed topic; generation, claims,
- * spend, rendered QA, and the publish door remain the normal pipeline's job.
+ * Reel generator. A pack supplies the reviewed production input; generation,
+ * claims, spend, rendered QA, and the publish door remain the normal
+ * pipeline's job.
  */
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
+import { resolvePacksDir } from "./reelPackRegistry";
 export const APPROVED_REEL_PACK_SLUGS = [
   "2026-08-16-wheel-bearing-hum",
   "2026-08-16-check-engine-light",
@@ -73,6 +79,133 @@ export const APPROVED_REEL_PACK_SLUGS = [
 export interface ApprovedReelPack {
   slug: (typeof APPROVED_REEL_PACK_SLUGS)[number];
   topic: string;
+}
+
+function readOptionalFile(dir: string, name: string): string | null {
+  try {
+    return fs.readFileSync(path.join(dir, name), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/** Load the exact reviewed files; no topic-only fallback is allowed. */
+export function loadApprovedProductionPack(slug: string): ApprovedProductionPackSnapshot | null {
+  const packsDir = resolvePacksDir();
+  if (!packsDir) return null;
+  const packDir = path.join(packsDir, slug);
+  const briefJson = readOptionalFile(packDir, "brief.json");
+  if (!briefJson) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    const value = JSON.parse(briefJson) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    parsed = value as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const readme = readOptionalFile(packDir, "README.md");
+  const captionsSrt = readOptionalFile(packDir, "captions.srt");
+  const contentSha256 = createHash("sha256")
+    .update(`brief.json\0${briefJson}\0README.md\0${readme ?? ""}\0captions.srt\0${captionsSrt ?? ""}`)
+    .digest("hex");
+  return {
+    packId: slug,
+    sourcePath: `apps/nickstire/docs/reel-packs/${slug}`,
+    contentSha256,
+    files: { briefJson, readme, captionsSrt },
+    parsed,
+  };
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function arrayOfStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function primaryCaptionFromReadme(readme: string | null): string {
+  if (!readme) return "";
+  const section = readme.match(/\*\*Primary caption[^\n]*\n([\s\S]*?)(?:\n\*\*Ad-ready|\n---|$)/i)?.[1] ?? "";
+  const lines = section.split(/\r?\n/);
+  const quoted = lines.filter((line) => /^\s*>/.test(line)).map((line) => line.replace(/^\s*>\s?/, "").trimEnd());
+  return quoted.join("\n").replace(/(^|\s)#[A-Za-z0-9_-]+/g, "$1").replace(/[ \t]+\n/g, "\n").trim();
+}
+
+function hashtagsFromCaption(caption: string): string[] {
+  return [...caption.matchAll(/#[A-Za-z0-9_-]+/g)].map((match) => match[0]).slice(0, 5);
+}
+
+/**
+ * Normalize the two pack JSON shapes currently in the repo without changing
+ * their reviewed copy. Missing machine fields remain explicit compatibility
+ * defaults; the full source files stay in the Episode Contract snapshot.
+ */
+export function buildBriefFromApprovedProductionPack(
+  pack: ApprovedReelPack,
+  snapshot: ApprovedProductionPackSnapshot,
+  briefId: string,
+): Record<string, unknown> | null {
+  const source = snapshot.parsed;
+  const rawBeats = Array.isArray(source.storyboardBeats) ? source.storyboardBeats : Array.isArray(source.beats) ? source.beats : [];
+  const storyboardBeats = rawBeats.map((raw, index) => {
+    const beat = raw as Record<string, unknown>;
+    const beatNumber = Number(beat.beatNumber ?? beat.beat ?? beat.index ?? index + 1);
+    const startSecond = Number(beat.startSecond ?? index * 5);
+    const endSecond = Number(beat.endSecond ?? startSecond + 5);
+    return {
+      beatNumber,
+      startSecond,
+      endSecond,
+      visual: stringValue(beat.visual) || stringValue(beat.providerScene) || stringValue(beat.visualPrompt),
+      motion: stringValue(beat.motion),
+      onScreenText: stringValue(beat.onScreenText) || stringValue(beat.caption),
+      purpose: stringValue(beat.purpose) || stringValue(beat.intent) || stringValue(beat.role),
+      audioCue: stringValue(beat.audioCue) || stringValue(beat.audioNote),
+      safeZoneNotes: stringValue(beat.safeZoneNotes),
+    };
+  });
+  const selectedCaption = stringValue(source.selectedCaption) || primaryCaptionFromReadme(snapshot.files.readme);
+  if (storyboardBeats.length < 4 || !selectedCaption) return null;
+  const hashtags = arrayOfStrings(source.hashtags).length ? arrayOfStrings(source.hashtags).slice(0, 5) : hashtagsFromCaption(selectedCaption);
+  const voiceoverScript = stringValue(source.voiceoverScript) || storyboardBeats.map((beat) => {
+    const raw = rawBeats[beat.beatNumber - 1] as Record<string, unknown> | undefined;
+    return stringValue(raw?.narration) || stringValue(raw?.vo);
+  }).filter(Boolean).join(" ");
+  const campaignKeyword = stringValue(source.campaignKeyword) || pack.slug.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-/g, " ");
+  const topic = stringValue(source.topic) || pack.topic;
+  return {
+    id: briefId,
+    topic,
+    mechanicTruth: stringValue(source.mechanicTruth) || topic,
+    driverConfusion: stringValue(source.driverConfusion) || stringValue(source.hookText) || topic,
+    clevelandAngle: stringValue(source.clevelandAngle),
+    sourceNotes: Array.isArray(source.sourceNotes) ? source.sourceNotes : [],
+    factBucket: "invisible_killers",
+    campaignKeyword,
+    archetype: "tiny_cinematic_story",
+    motionLens: "extreme_macro_push_in",
+    objectCharacter: "rust_creeping_villain",
+    usefulAbsurdity: stringValue(source.usefulAbsurdity),
+    concepts: [],
+    winningConceptId: null,
+    storyboardBeats,
+    promptPack: [],
+    higgsfieldPromptPack: [],
+    ffmpegAssemblyNotes: stringValue(source.ffmpegAssemblyNotes),
+    voiceoverScript,
+    captionHooks: [selectedCaption.split(/\r?\n/)[0]],
+    selectedCaption,
+    hashtags,
+    avoidedForRepetition: "approved production pack",
+    qualityScore: 0,
+    assetPlan: "approved production-pack asset plan",
+    instagramUrl: null,
+    operatorNotes: `Approved production pack ${pack.slug}; source content is immutable in the episode contract.`,
+    approvedPackSlug: pack.slug,
+  };
 }
 
 function topicFromSlug(slug: string): string {

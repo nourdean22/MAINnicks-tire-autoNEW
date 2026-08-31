@@ -5,6 +5,33 @@
 
 Every claim in this document was observed live during the 2026-07-16/17 arc, not inferred from code. Live behavior overrides this document; update it in the change that alters a contract.
 
+## 2026-08-31 contract update
+
+The approved-pack rotation is a production-input queue, not a topic list.
+`dailyReelPost` loads the exact reviewed pack files, hashes and embeds them in
+an `episode-contract-v1` snapshot, and refuses topic-only regeneration when the
+reviewed input is missing or malformed. `reel_jobs` carries stable episode and
+idempotency identity, an explicit queue-state projection, and a
+`morning`/`midday`/`evening` production slot. The additive migration is
+`drizzle/0113_reel_episode_contract_queue.sql`; it is hand-applied and enqueue
+fails closed until all required columns and uniqueness indexes are readable.
+
+Production readiness (`production_ready_at`) is separate from publication
+scheduling (`publication_scheduled_at`). The daily producer refills only when
+the READY buffer is at or below one episode, targeting three. An assembled
+episode still requires the exact-asset + exact-caption human approval row
+before the existing `publishToSocial` Meta choke point can run.
+
+Higgsfield API request IDs are persisted before an ambiguous retry. A later
+worker polls that same request and does not submit a replacement; only a
+provider-reported terminal failure clears the handle for a new attempt.
+PySceneDetect is deferred: the current lane already has ffprobe,
+render-integrity, and frame-sampling QA, while a Python runtime would add no
+contract value until a fixture-backed cut-list adapter exists. The hookup is
+specified as: pin the runtime, add `detectSceneCuts(mp4Path)`, compare cuts to
+storyboard boundaries in rendered QA, and ship red/green fixtures before
+enabling it.
+
 ## End-to-end flow
 
 ```
@@ -33,7 +60,7 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 | `HIGGSFIELD_CREDENTIALS_JSON` | **seed only** | the CLI ROTATES tokens on refresh; rotated pairs are persisted to `app_secret_kv.higgsfield_credentials_json`, which is preferred over this var (#798). Re-login only if BOTH die: `higgsfield auth login` (device flow), then paste `~/.config/higgsfield/credentials.json` into this var |
 | `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg fonts-dejavu-core` | runtime system packages | Railway migrated this service to **Railpack, which ignores `nixpacks.toml`** — the ffmpeg declaration there is dead config |
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
-| `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` | degrade instead of going dark | when the paid provider returns a `PAUSE_PROVIDER` verdict (plan wall, dead session), render the rest of that reel on the free local ffmpeg lane. **Since #1558 (2026-08-13) this same flag also arms the JOB-level rescue**: any paid provider (Veo included — Veo previously had NO fallback path at all) whose failure `nextStatusFor` rules terminal re-queues ONE forced `template_stock` attempt (`forceProvider` in the payload, stale Veo op handles stripped, Telegram alert) instead of terminal-failing. Resumed paid clips still settle at the paid rate. **Off by default** — it changes what the shop publishes |
+| `REEL_FALLBACK_TO_TEMPLATE_STOCK` | legacy compatibility flag | Paid-provider failures remain non-publishable (`needs_regen`); the former silent stock fallback is removed. Do not use this flag to bypass exact-asset QA or human approval. |
 
 ## Meta publishing contract
 
@@ -114,10 +141,9 @@ too - every other provider re-hosts through `storagePut`.
    `assertDurableStorageForGeneration` passes and the free lane will not refuse.
    Do NOT set `REEL_ALLOW_EPHEMERAL_STORAGE` - it buys nothing now and it disarms
    a fail-closed guard that exists because prod once lost clips.
-2. **Arm the fallback** - `REEL_FALLBACK_TO_TEMPLATE_STOCK=true` (set in prod
-   2026-08-05). Reels degrade to the free lane the next time the paid provider
-   returns a `PAUSE_PROVIDER` verdict, instead of the job going terminal and the
-   account going quiet.
+2. **Do not arm a silent fallback.** Paid-provider failures remain
+   non-publishable and surface as `needs_regen`; the operator must reconcile the
+   provider and explicitly regenerate.
 3. **Judge the first one.** No `template_stock` reel has ever been published, so
    whether the format earns reach is unmeasured. **Repair-loop note (2026-08-11):**
    pixel-defect blocks on this lane no longer dead-end in `needs_paid_repair` —
@@ -129,11 +155,11 @@ too - every other provider re-hosts through `storagePut`.
    re-verdicts the NEW mp4, and publish happens only if THAT passes. The
    2026-08-05 job 1410001 sat 39 pulses in `needs_paid_repair` because the
    "paid" label was stamped when regen meant Higgsfield credits — the decision
-   layer now reads the same cost truth the execution layer already did. Note that this lane is **NOT
-   draft-first**: `cron/jobs/dailyReelPost.ts` sees an `assembled` job and calls
-   `publishToSocial` itself, with no approval step - the `approveDraft` gate
-   belongs to the admin surface, not this cron. To hold one for review set
-   `REEL_PUBLISH_ENABLED=false` and it assembles and waits. Setting
+   layer now reads the same cost truth the execution layer already did. The
+   daily cron requires a live `reel_publish_approvals` row bound to the exact
+   caption and exact MP4 before calling `publishToSocial`; missing or unreadable
+   approval holds the job. `REEL_PUBLISH_ENABLED=false` remains an independent
+   publish kill switch. Setting
    `REEL_AUTOPOST_ENABLED=false` instead stops generation entirely, because that
    cron both ENQUEUES and PUBLISHES.
 4. **Then cancel**, and pin `REEL_VIDEO_PROVIDER=template_stock` so the selector

@@ -10,7 +10,11 @@
         "tests": [
           "client/faceless-reel-studio.test.ts (37): IN_FRAME_TEXT_PATTERN hard-block, gloves/hands/arms faceless detection, lens-aware clean-scene directive, hard-gate scoring override; server/visualWorld.test.ts: positive framePrompt with no pink-elephant DO-NOT negation quoted into beats",
           "server/reelAssembly render-integrity tests",
-          "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph"
+          "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph",
+          "server/approvedReelPackRotation.test.ts: rotation length and completion derive from the actual approved array; exact pack snapshot loader canary",
+          "shared/episodeContract.test.ts: approved-pack content mismatch blocks; stable episode identity and idempotency key",
+          "shared/reelQueue.test.ts: explicit state projection, production slots, and READY low-watermark decisions",
+          "server/higgsfieldApiClient.test.ts: an existing request reconciles with GET-only polling and never issues a second POST"
         ],
         "liveRuns": [
           "IG 18124540093661758 (reel/Da6DDnzlelQ — job 690001, operator-override publish that surfaced the garbled-text/Nixs-logo/gloved-hands defect classes now fixed in #855+#856)",
@@ -26,7 +30,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "DELIBERATE, NOT A FAULT - the capability works (30 lifetime publications) and is gated, not broken. STAGED OFF THE SCHEDULER 2026-08-29 (MANUAL_TRIGGER_STAGED). Not for flakiness: Higgsfield runs two separate ledgers and only the CONSUMER/Ultra one is funded - 1,934.62 credits, paid subscription - while Higgsfield Cloud API (Authorization: Key ID:SECRET) holds ZERO credits with no payment method and 0 API calls lifetime despite 2 existing keys. The funded lane is the CLI session, which requires a human browser device-login no cron can perform, so generation is now a human-triggered batch fired via POST /api/admin/run-staged-cron. Publishing is unaffected: daily-reel-post never touches Higgsfield."
+          "description": "DELIBERATE, NOT A FAULT - the capability works (30 lifetime publications) and is gated, not broken. STAGED OFF THE SCHEDULER 2026-08-29 (MANUAL_TRIGGER_STAGED). Not for flakiness: Higgsfield runs two separate ledgers and only the CONSUMER/Ultra one is funded - 1,934.62 credits, paid subscription - while Higgsfield Cloud API (Authorization: Key ID:SECRET) holds ZERO credits with no payment method and 0 API calls lifetime despite 2 existing keys. The funded lane is the CLI session, which requires a human browser device-login no cron can perform, so generation is now a human-triggered batch fired via POST /api/admin/run-staged-cron. Publishing remains behind the exact-asset + exact-caption human approval choke point. Migration 0113 is additive and hand-applied; enqueue fails closed until its reel_jobs identity/state columns are present."
         }
       ],
       "deferredScope": [

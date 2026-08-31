@@ -23,6 +23,7 @@
  */
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
+import { queueStateForReelStatus } from "../../shared/reelQueue";
 
 const log = createLogger("services:selective-repair");
 
@@ -176,6 +177,7 @@ export async function requestBeatRepair(input: {
       payload: JSON.stringify(payload),
       mp4Url: null,
       status: "repair_queued",
+      queueState: queueStateForReelStatus("repair_queued"),
       attempts: 0,
       error: null,
     })
@@ -224,7 +226,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   // followed by a re-select ALSO saw status=repair_rendering, so two workers
   // could both proceed and double-spend the same repair).
   const { affectedRowCount } = await import("../lib/db-affected");
-  const claimRes = await d.update(reelJobs).set({ status: "repair_rendering", updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
+  const claimRes = await d.update(reelJobs).set({ status: "repair_rendering", queueState: queueStateForReelStatus("repair_rendering"), updatedAt: new Date() }).where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "repair_queued")));
   if (affectedRowCount(claimRes) !== 1) return { processed: false };
   const [claimed] = await d.select().from(reelJobs).where(eq(reelJobs.id, job.id)).limit(1);
   if (!claimed) return { processed: false };
@@ -233,7 +235,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   const queue: RepairQueueEntry[] = payload.repairQueue ?? [];
   const entry = queue.find((e) => e.state === "queued" || e.state === "rendering");
   if (!entry) {
-    await d.update(reelJobs).set({ status: "repair_failed", error: "repair_queued with no queue entry" }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "repair_failed", queueState: queueStateForReelStatus("repair_failed"), error: "repair_queued with no queue entry" }).where(eq(reelJobs.id, job.id));
     return { processed: true, jobId: job.id, status: "repair_failed", error: "no queue entry" };
   }
   entry.state = "rendering";
@@ -243,7 +245,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   const emergency = await getEmergencyControlsFresh();
   if (emergency.controls.globalKillSwitch || emergency.controls.generationKillSwitch) {
     entry.state = "queued";
-    await d.update(reelJobs).set({ status: "repair_queued", payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "repair_queued", queueState: queueStateForReelStatus("repair_queued"), payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
     log.warn("repair deferred — kill switch armed", { jobId: job.id });
     return { processed: true, jobId: job.id, status: "repair_queued", error: "kill switch armed" };
   }
@@ -251,7 +253,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   const attemptNumber = entry.attempts.length + 1;
   if (attemptNumber > MAX_PROVIDER_ATTEMPTS) {
     entry.state = "failed";
-    await d.update(reelJobs).set({ status: "repair_failed", payload: JSON.stringify(payload), error: `repair ${entry.logicalRepairId} exhausted ${MAX_PROVIDER_ATTEMPTS} provider attempts` }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "repair_failed", queueState: queueStateForReelStatus("repair_failed"), payload: JSON.stringify(payload), error: `repair ${entry.logicalRepairId} exhausted ${MAX_PROVIDER_ATTEMPTS} provider attempts` }).where(eq(reelJobs.id, job.id));
     return { processed: true, jobId: job.id, status: "repair_failed" };
   }
 
@@ -297,7 +299,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
   } catch (err) {
     // Budget breach at attempt time: leave queued for tomorrow's window.
     entry.state = "queued";
-    await d.update(reelJobs).set({ status: "repair_queued", payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
+    await d.update(reelJobs).set({ status: "repair_queued", queueState: queueStateForReelStatus("repair_queued"), payload: JSON.stringify(payload) }).where(eq(reelJobs.id, job.id));
     return { processed: true, jobId: job.id, status: "repair_queued", error: err instanceof Error ? err.message : "reservation failed" };
   }
 
@@ -362,7 +364,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
 
     await d
       .update(reelJobs)
-      .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(payload), status: "assets_ready", attempts: 0, error: null })
+      .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(payload), status: "assets_ready", queueState: queueStateForReelStatus("assets_ready"), productionReadyAt: new Date(), attempts: 0, error: null })
       .where(eq(reelJobs.id, job.id));
     log.info("beat repair rendered — job handed to assembly", { jobId: job.id, beat: entry.beatNumber, attempt: attemptNumber });
     return { processed: true, jobId: job.id, status: "assets_ready" };
@@ -374,7 +376,7 @@ export async function processNextRepairJob(): Promise<{ processed: boolean; jobI
     entry.state = exhausted ? "failed" : "queued";
     await d
       .update(reelJobs)
-      .set({ status: exhausted ? "repair_failed" : "repair_queued", payload: JSON.stringify(payload), error: attempt.error })
+      .set({ status: exhausted ? "repair_failed" : "repair_queued", queueState: queueStateForReelStatus(exhausted ? "repair_failed" : "repair_queued"), payload: JSON.stringify(payload), error: attempt.error })
       .where(eq(reelJobs.id, job.id));
     log.warn("repair provider attempt failed", { jobId: job.id, attempt: attemptNumber, exhausted });
     return { processed: true, jobId: job.id, status: exhausted ? "repair_failed" : "repair_queued", error: attempt.error };

@@ -110,6 +110,11 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
 
     const captured: Array<Record<string, unknown>> = [];
     const fakeDb = {
+      execute: () => Promise.resolve([[...[
+        "episode_id", "episode_version", "idempotency_key", "queue_state", "production_slot", "production_ready_at", "publication_scheduled_at",
+      ].map((column_name) => ({ column_name })), ...[
+        "uniq_reel_jobs_episode_version", "uniq_reel_jobs_idempotency",
+      ].map((index_name) => ({ index_name }))]]),
       select: () => ({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) }),
       insert: () => ({ values: (v: Record<string, unknown>) => { captured.push(v); return Promise.resolve({ insertId: 42 }); } }),
     };
@@ -135,6 +140,7 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
 
   it("cron enqueue FAILS CLOSED when kill-switch state is unverifiable (storage unreachable)", async () => {
     const throwingDb = {
+      execute: () => Promise.reject(new Error("conn refused")),
       select: () => ({ from: () => ({ where: () => Promise.reject(new Error("conn refused")), orderBy: () => ({ limit: () => Promise.reject(new Error("conn refused")) }) }) }),
       insert: () => ({ values: () => Promise.resolve({ insertId: 1 }) }),
     };
@@ -145,5 +151,21 @@ describe("trajectory: visualWorld + genomeId survive the SERVICE enqueue into th
     await expect(enqueueReelJob({ ...base, id: "x" } as never, "cron", {
       objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE",
     })).rejects.toThrow(/fail closed/);
+  });
+
+  it("enqueue FAILS CLOSED when migration columns exist but uniqueness indexes do not", async () => {
+    const partialMigrationDb = {
+      execute: () => Promise.resolve([[...
+        [
+          "episode_id", "episode_version", "idempotency_key", "queue_state", "production_slot", "production_ready_at", "publication_scheduled_at",
+        ].map((column_name) => ({ column_name })),
+      ]]),
+    };
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(partialMigrationDb) }));
+    vi.resetModules();
+    const { enqueueReelJob } = await import("./services/reelPipeline");
+    await expect(enqueueReelJob({ ...SAMPLE_REEL_BRIEFS[0], id: "partial-migration" } as never, "cron", {
+      objective: "DISCOVERY", disclosureMode: "visibly_animated", ctaType: "NONE",
+    })).rejects.toThrow(/uniqueness indexes/);
   });
 });

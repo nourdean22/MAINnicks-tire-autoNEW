@@ -447,7 +447,9 @@ export async function generateReelClipVideoViaApi(
   const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
   // Matches the CLI lane's floor/default so operator-facing latency expectations
   // do not silently change based on which lane happened to run.
-  const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 6 * 60_000));
+  // Leave margin before the reel worker's six-minute clip timeout so a local
+  // timeout can persist the request ID and the next run can reconcile it.
+  const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 5 * 60_000 + 30_000));
   const deadline = Date.now() + timeoutMs;
 
   // THE VENDOR'S OWN OpenAPI SPEC (docs.higgsfield.ai/docs/openapi.json, read
@@ -553,6 +555,28 @@ export async function generateReelClipVideoViaApi(
   }
   const requestId = submitted.request_id;
   log.info("Higgsfield API generation submitted", { requestId, path: usedPath });
+
+  return pollHiggsfieldRequest(requestId, { pollIntervalMs, timeoutMs, credentials: creds });
+}
+
+/**
+ * Resume polling a request that was already submitted. A request ID is a
+ * durable spend boundary: callers must use this after a local timeout instead
+ * of submitting the same prompt again. `credentials` is internal so the
+ * submit path does not resolve the DB twice; external recovery resolves the
+ * current DB-backed key.
+ */
+export async function pollHiggsfieldRequest(
+  requestId: string,
+  opts: { pollIntervalMs?: number; timeoutMs?: number; credentials?: HiggsfieldApiCredentials } = {},
+): Promise<string> {
+  const creds = opts.credentials ?? (await getHiggsfieldApiCredentials());
+  if (!creds) throw new Error("Higgsfield API credentials unavailable while reconciling request — do not submit a replacement");
+  const pollIntervalMs = opts.pollIntervalMs ?? 5_000;
+  // Leave margin before the reel worker's six-minute clip timeout so a local
+  // timeout can persist the request ID and the next run can reconcile it.
+  const timeoutMs = Math.max(60_000, opts.timeoutMs ?? (Number(process.env.HIGGSFIELD_CLI_TIMEOUT_MS) || 5 * 60_000 + 30_000));
+  const deadline = Date.now() + timeoutMs;
 
   while (true) {
     if (Date.now() >= deadline) {

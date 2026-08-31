@@ -25,6 +25,23 @@ import type { EntailmentVerdict } from "./claimEntailment";
 
 export const EPISODE_CONTRACT_VERSION = "episode-contract-v1" as const;
 
+export const PRODUCTION_SLOTS = ["morning", "midday", "evening"] as const;
+export type ProductionSlot = (typeof PRODUCTION_SLOTS)[number];
+
+/** Immutable snapshot of the approved pack that authorized production. */
+export interface ApprovedProductionPackSnapshot {
+  packId: string;
+  sourcePath: string;
+  contentSha256: string;
+  /** Raw files are retained so downstream workers never need to reconstruct the reviewed pack. */
+  files: {
+    briefJson: string;
+    readme: string | null;
+    captionsSrt: string | null;
+  };
+  parsed: Record<string, unknown>;
+}
+
 /** Instagram's caption ceiling, hashtags included. */
 export const CAPTION_LIMIT = 2200;
 
@@ -71,6 +88,11 @@ export interface EpisodeEvidence {
 export interface EpisodeContract {
   schemaVersion: typeof EPISODE_CONTRACT_VERSION;
   episodeId: string;
+  /** Stable queue identity; null for legacy non-pack jobs. */
+  approvedPackSlug: string | null;
+  productionSlot: ProductionSlot;
+  /** The exact reviewed production input, when this episode came from a pack. */
+  productionPack?: ApprovedProductionPackSnapshot;
   createdAt: string;
   objective: EpisodeObjective;
   disclosureMode: DisclosureMode;
@@ -111,7 +133,8 @@ export type BlockCode =
   | "DISCLOSURE_MISSING"
   | "CTA_MISSING"
   | "HASHTAG_CAP_EXCEEDED"
-  | "EXPERIMENT_INCOMPLETE";
+  | "EXPERIMENT_INCOMPLETE"
+  | "APPROVED_PACK_CONTENT_MISSING";
 
 /**
  * Instagram's hard cap. Certified at 3-12 in this repo once while the real
@@ -191,6 +214,13 @@ export function preflightEpisode(
 
   if (episode.schemaVersion !== EPISODE_CONTRACT_VERSION) {
     add("SCHEMA_INVALID", `unknown schemaVersion "${episode.schemaVersion}"`);
+  }
+
+  if (episode.approvedPackSlug && episode.productionPack?.packId !== episode.approvedPackSlug) {
+    add(
+      "APPROVED_PACK_CONTENT_MISSING",
+      `approved pack ${episode.approvedPackSlug} has no matching immutable production-pack snapshot`,
+    );
   }
 
   if (!episode.claims.length) {
@@ -291,6 +321,10 @@ export interface EpisodeDeclaration {
   objective: EpisodeObjective;
   disclosureMode: DisclosureMode;
   ctaType: EpisodeContract["script"]["ctaType"];
+  episodeId?: string;
+  idempotencyKey?: string;
+  productionSlot?: ProductionSlot;
+  approvedProductionPack?: ApprovedProductionPackSnapshot;
   claims?: EpisodeClaim[];
   evidence?: EpisodeEvidence[];
   experiment?: Partial<EpisodeContract["experiment"]>;
@@ -312,6 +346,7 @@ export function fromReelJobBrief(
   const missing: string[] = [];
   const str = (k: string) => (typeof brief[k] === "string" ? (brief[k] as string) : "");
   const arr = (k: string) => (Array.isArray(brief[k]) ? (brief[k] as string[]) : []);
+  const approvedPackSlug = str("approvedPackSlug") || null;
 
   if (!overrides.objective) missing.push("objective");
   if (!overrides.disclosureMode) missing.push("disclosureMode");
@@ -322,6 +357,9 @@ export function fromReelJobBrief(
   const contract: EpisodeContract = {
     schemaVersion: EPISODE_CONTRACT_VERSION,
     episodeId: overrides.episodeId ?? `ep_${String(brief.id ?? "unknown")}`,
+    approvedPackSlug: overrides.approvedPackSlug ?? approvedPackSlug,
+    productionSlot: overrides.productionSlot ?? "morning",
+    productionPack: overrides.productionPack,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     objective: overrides.objective ?? "DISCOVERY",
     disclosureMode: overrides.disclosureMode ?? "visibly_animated",
@@ -359,6 +397,10 @@ export function contractFromDeclaration(
   return fromReelJobBrief(brief, {
     objective: decl.objective,
     disclosureMode: decl.disclosureMode,
+    episodeId: decl.episodeId ?? (typeof brief.approvedPackSlug === "string" ? `pack_${brief.approvedPackSlug}` : undefined),
+    approvedPackSlug: typeof brief.approvedPackSlug === "string" ? brief.approvedPackSlug : null,
+    productionSlot: decl.productionSlot ?? "morning",
+    productionPack: decl.approvedProductionPack,
     claims: decl.claims ?? [],
     evidence: decl.evidence ?? [],
     experiment: {
@@ -373,7 +415,9 @@ export function contractFromDeclaration(
       hashtags: Array.isArray(brief.hashtags) ? (brief.hashtags as string[]) : [],
     },
     publication: {
-      idempotencyKey: `ep_${String(brief.id ?? "unknown")}`,
+      idempotencyKey:
+        decl.idempotencyKey ??
+        `episode:${decl.episodeId ?? (typeof brief.approvedPackSlug === "string" ? `pack_${brief.approvedPackSlug}` : String(brief.id ?? "unknown"))}:${EPISODE_CONTRACT_VERSION}`,
       // Derived from the declared mode, never passed in — a caller cannot
       // declare photorealistic output and then opt out of disclosing it.
       disclosureRequired: requiresAiDisclosure(decl.disclosureMode),

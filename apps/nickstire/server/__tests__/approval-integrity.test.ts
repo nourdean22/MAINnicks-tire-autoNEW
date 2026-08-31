@@ -21,6 +21,18 @@ vi.mock("../db", () => {
   };
 
   const dbMock = {
+    execute: async (query: any) => {
+      const text = query?.queryChunks?.flatMap((chunk: any) => chunk.value ?? []).join(" ") ?? "";
+      if (!text.includes("INFORMATION_SCHEMA")) throw new Error("mock security storage unavailable");
+      return [[
+        ...[
+          "episode_id", "episode_version", "idempotency_key", "queue_state", "production_slot", "production_ready_at", "publication_scheduled_at",
+        ].map((column_name) => ({ column_name })),
+        ...[
+          "uniq_reel_jobs_episode_version", "uniq_reel_jobs_idempotency",
+        ].map((index_name) => ({ index_name })),
+      ]];
+    },
     select: () => ({
       from: () => ({
         where: () => ({

@@ -7,6 +7,30 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Reel pipeline contract update (2026-08-31)
+
+The approved Reel rotation is now an exact production-pack queue. The daily
+producer loads the selected pack's reviewed files, embeds their hash and raw
+content in a versioned Episode Contract, and holds rather than generating a
+replacement brief when the pack input is absent or malformed. `reel_jobs` now
+has additive durable episode identity, idempotency, queue-state, and
+morning/midday/evening production-slot fields from migration 0113. Enqueue
+fails closed until that hand-applied migration and its uniqueness indexes are
+present; it has not been applied by this change.
+
+The queue projection distinguishes production readiness from publication
+scheduling. A READY buffer of three is maintained only while inventory is at
+or below the low-watermark of one. An assembled job still cannot publish
+without the existing exact-asset + exact-caption human approval and
+`publishToSocial` choke point. Higgsfield API request IDs are persisted and
+reconciled by polling the same remote request after an ambiguous response;
+unknown remote state never triggers a blind duplicate paid submission.
+
+PySceneDetect remains deferred. The current ffprobe/render-integrity and
+frame-sampling checks are compatible and lower-risk; the concrete future hook
+is a pinned Python runtime plus a fixture-tested `detectSceneCuts(mp4Path)`
+adapter compared with storyboard boundaries before enabling it.
+
 ## Two things you will notice before you notice anything else (2026-08-09)
 
 **`[tRPC first-call]` lines in Railway logs are deliberate, and they are an
@@ -119,6 +143,12 @@ Verify first with `SELECT` on the same key — the row's value should contain `"
 - Semantic parity checks must verify identity, metadata, H1, canonical URL and structured data for key routes.
 
 ## Automated systems
+
+The historical Reel bullet below records earlier runtime observations. Its
+claims about topic-only handoff and unapproved cron publishing are superseded
+by the 2026-08-31 contract update above; the current implementation loads
+reviewed pack content, separates production from publication, and requires the
+existing exact-asset + exact-caption approval choke point.
 
 - GSC dimensional ingestion and SEO analysis
 - VAPI end-of-call ingestion and daily evaluation

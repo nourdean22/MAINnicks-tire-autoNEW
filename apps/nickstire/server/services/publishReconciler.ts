@@ -204,6 +204,7 @@ export async function applyReconciliation(args: {
   const { eq, and, inArray } = await import("drizzle-orm");
   const { affectedRowCount } = await import("../lib/db-affected");
   const { recordPublishOutcome, OUTCOME } = await import("./publishAttemptLedger");
+  const { queueStateForReelStatus } = await import("../../shared/reelQueue");
 
   const isScheduled = args.kind === "scheduled_post";
 
@@ -220,7 +221,7 @@ export async function applyReconciliation(args: {
       return d.update(scheduledPosts).set({ status, ...extra })
         .where(and(eq(scheduledPosts.id, args.jobId), inArray(scheduledPosts.status, RECONCILABLE)));
     }
-    return d.update(reelJobs).set({ status, ...extra })
+    return d.update(reelJobs).set({ status, queueState: queueStateForReelStatus(status), ...extra })
       .where(and(eq(reelJobs.id, args.jobId), inArray(reelJobs.status, RECONCILABLE)));
   };
 
@@ -241,7 +242,9 @@ export async function applyReconciliation(args: {
     return { ok: true, detail: "Marked as published. This will not be retried." };
   }
 
-  const res = await applyStatus(RELEASED, { error: "reconciled: did not reach Instagram — safe to retry" });
+  const res = await applyStatus(RELEASED, isScheduled
+    ? { error: "reconciled: did not reach Instagram — safe to retry" }
+    : { error: "reconciled: did not reach Instagram — safe to retry", publicationScheduledAt: null });
   if (affectedRowCount(res) !== 1) {
     return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
   }

@@ -3348,8 +3348,18 @@ export const reelJobs = mysqlTable("reel_jobs", {
   // reservation). Widened after the live-render drive hit it at ~70KB (job
   // 720002 chain). See drizzle/0090_reel_jobs_payload_mediumtext.sql.
   payload: mediumtext("payload").notNull(),
-  /** queued | generating | assets_ready | assembling | uploading | publishing | posted | failed */
+  /** Legacy execution status retained for compatibility with existing readers. */
   status: varchar("status", { length: 20 }).default("queued").notNull(),
+  /** Stable episode identity and contract version. Added by 0113. */
+  episodeId: varchar("episode_id", { length: 191 }),
+  episodeVersion: varchar("episode_version", { length: 32 }),
+  /** Database-enforced exactly-once enqueue key. Added by 0113. */
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
+  /** Explicit queue projection; null means a legacy row predating 0113. */
+  queueState: varchar("queue_state", { length: 32 }),
+  productionSlot: varchar("production_slot", { length: 16 }),
+  productionReadyAt: timestamp("production_ready_at"),
+  publicationScheduledAt: timestamp("publication_scheduled_at"),
   /** JSON array of re-hosted source clip URLs, one per storyboard beat. */
   clipUrlsJson: text("clipUrlsJson"),
   voUrl: varchar("voUrl", { length: 1000 }),
@@ -3367,6 +3377,9 @@ export const reelJobs = mysqlTable("reel_jobs", {
 }, (table) => [
   index("idx_reel_jobs_status").on(table.status),
   index("idx_reel_jobs_created").on(table.createdAt),
+  uniqueIndex("uniq_reel_jobs_episode_version").on(table.episodeId, table.episodeVersion),
+  uniqueIndex("uniq_reel_jobs_idempotency").on(table.idempotencyKey),
+  index("idx_reel_jobs_queue").on(table.queueState, table.productionSlot, table.createdAt),
 ]);
 
 export type ReelJobRow = typeof reelJobs.$inferSelect;

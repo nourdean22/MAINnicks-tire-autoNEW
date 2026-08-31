@@ -40,6 +40,11 @@ function goldenDb(opts: { killSwitchPolicy?: boolean } = {}) {
     : "briefJson" in t && "contentType" in t ? "social_content_inventory"
     : "unknown";
   const db = {
+    execute: () => Promise.resolve([[...[
+      "episode_id", "episode_version", "idempotency_key", "queue_state", "production_slot", "production_ready_at", "publication_scheduled_at",
+    ].map((column_name) => ({ column_name })), ...[
+      "uniq_reel_jobs_episode_version", "uniq_reel_jobs_idempotency",
+    ].map((index_name) => ({ index_name }))]]),
     select: (_proj?: unknown) => ({
       from: (t: Record<string, unknown>) => {
         const name = tableName(t);
