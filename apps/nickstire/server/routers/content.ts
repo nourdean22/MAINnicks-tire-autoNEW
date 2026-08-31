@@ -3110,6 +3110,18 @@ export const contentAdminRouter = router({
         if (beat && typeof beat === "object") delete (beat as Record<string, unknown>).veoOperationName;
       }
 
+      // Regeneration is a new paid episode, even when it preserves the old
+      // creative brief. Do not let the approved-pack identity or the old brief
+      // id collapse it into the original unique episode row.
+      const { randomUUID } = await import("crypto");
+      const regeneratedEpisodeId = `regen_${input.jobId}_${randomUUID()}`;
+      brief.id = regeneratedEpisodeId;
+      const preservedPack = (brief as { approvedProductionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot; episodeContract?: { productionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot } }).approvedProductionPack
+        ?? (brief as { episodeContract?: { productionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot } }).episodeContract?.productionPack;
+      const priorSlot = (brief as { productionSlot?: string; episodeContract?: { productionSlot?: string } }).productionSlot
+        ?? (brief as { episodeContract?: { productionSlot?: string } }).episodeContract?.productionSlot;
+      const productionSlot = priorSlot === "morning" || priorSlot === "midday" || priorSlot === "evening" ? priorSlot : undefined;
+
       const { enqueueReelJob } = await import("../services/reelPipeline");
       const { withOperatorAction } = await import("../services/operatorActionLog");
       // The two typed refusals, so the classifier below can test identity
@@ -3122,6 +3134,9 @@ export const contentAdminRouter = router({
           objective: "DISCOVERY",
           disclosureMode: "visibly_animated",
           ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
+          episodeId: regeneratedEpisodeId,
+          ...(productionSlot ? { productionSlot } : {}),
+          ...(preservedPack ? { approvedProductionPack: preservedPack } : {}),
         }),
         {
           /**

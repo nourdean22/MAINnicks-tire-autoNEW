@@ -34,6 +34,31 @@ export function productionSlotForHour(hour: number): ProductionSlot {
   return "evening";
 }
 
+/**
+ * Analytics can legitimately select an overnight engagement hour, while the
+ * production contract intentionally has no 00:00-05:00 slot. Move those
+ * selections to the next supported morning boundary instead of making the
+ * daily producer fail forever on an hour it can never satisfy.
+ */
+export function normalizeProductionTargetHour(hour: number): number {
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    throw new Error(`invalid ET target hour: ${hour}`);
+  }
+  return hour < PRODUCTION_SLOT_WINDOWS.morning.startHour ? PRODUCTION_SLOT_WINDOWS.morning.startHour : hour;
+}
+
+/** A row counts toward READY only when its current asset and gate facts are usable. */
+export function readyCandidateIsUsable(input: {
+  status: string;
+  hasAsset: boolean;
+  hasBlockingError: boolean;
+  hasLiveApproval: boolean;
+}): boolean {
+  if (input.hasBlockingError || !input.hasAsset) return false;
+  if (input.status === "assets_ready") return true;
+  return input.status === "assembled" && input.hasLiveApproval;
+}
+
 /** Map the worker's transport status to the durable queue state. */
 export function queueStateForReelStatus(status: string): EpisodeQueueState {
   switch (status) {

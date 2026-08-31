@@ -35,13 +35,64 @@ import {
   loadApprovedProductionPack,
   resolveApprovedPackRotationIndex,
 } from "../../services/approvedReelPackRotation";
-import { decideReadyBuffer, productionSlotForHour, queueStateForReelStatus } from "@shared/reelQueue";
+import {
+  decideReadyBuffer,
+  normalizeProductionTargetHour,
+  productionSlotForHour,
+  queueStateForReelStatus,
+  readyCandidateIsUsable,
+} from "@shared/reelQueue";
 
 const log = createLogger("cron:daily-reel-post");
 
 const POST_HOUR_ET = 9;
 export const REEL_READY_TARGET = 3;
 export const REEL_READY_LOW_WATERMARK = 1;
+
+function hasReadyClipManifest(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const clips = JSON.parse(value) as unknown;
+    return Array.isArray(clips) && clips.length > 0 && clips.every((clip) => typeof clip === "string" && clip.trim().length > 0);
+  } catch {
+    return false;
+  }
+}
+
+/** Count only inventory that can actually advance through the next gate. */
+async function countUsableReadyEpisodes(d: any): Promise<number> {
+  const rows = await d
+    .select({
+      id: reelJobs.id,
+      status: reelJobs.status,
+      clipUrlsJson: reelJobs.clipUrlsJson,
+      mp4Url: reelJobs.mp4Url,
+      caption: reelJobs.caption,
+      error: reelJobs.error,
+    })
+    .from(reelJobs)
+    .where(inArray(reelJobs.status, ["assets_ready", "assembled"]))
+    .orderBy(asc(reelJobs.id));
+
+  let usable = 0;
+  for (const row of rows) {
+    const assembled = row.status === "assembled";
+    const hasAsset = assembled
+      ? Boolean(typeof row.mp4Url === "string" && row.mp4Url.trim() && typeof row.caption === "string" && row.caption.trim())
+      : hasReadyClipManifest(row.clipUrlsJson);
+    // An old approval hold is stale once the live exact-asset/exact-caption
+    // approval now passes. Other errors are QA/claim/provider vetoes and stay
+    // out of the usable buffer until an operator or a repair clears them.
+    const error = typeof row.error === "string" ? row.error.trim() : "";
+    const hasBlockingError = Boolean(error && !error.startsWith("HELD awaiting approval"));
+    const hasLiveApproval = assembled && hasAsset && !hasBlockingError
+      ? (await reelApprovalProblem({ jobId: Number(row.id), caption: String(row.caption), videoUrl: String(row.mp4Url) })) === null
+      : false;
+    if (readyCandidateIsUsable({ status: String(row.status), hasAsset, hasBlockingError, hasLiveApproval })) usable += 1;
+    if (usable >= REEL_READY_TARGET) break;
+  }
+  return usable;
+}
 
 // reels 5-30 in calendar order. Captions are claim-safe: no prices, no "free"
 // except "free check", no guarantees/best/kill-words. Verified by the unit test.
@@ -300,12 +351,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     try {
       const { getBestPostingTimes } = await import("../../pipelines/instagram-data");
       const times = await getBestPostingTimes({ limit: 1 });
-      if (times.length && Number.isFinite(times[0].hourOfDay)) targetHour = times[0].hourOfDay;
+      if (times.length && Number.isInteger(times[0].hourOfDay) && times[0].hourOfDay >= 0 && times[0].hourOfDay <= 23) {
+        targetHour = times[0].hourOfDay;
+      }
     } catch (err) {
       log.warn("best-posting-time lookup failed; using default hour", { err: err instanceof Error ? err.message : String(err) });
     }
-    if (hour !== targetHour) {
-      return { recordsProcessed: 0, details: `not post hour (ET ${hour}:00, want ${targetHour}:00) — waiting to enqueue` };
+    const normalizedTargetHour = normalizeProductionTargetHour(targetHour);
+    if (hour !== normalizedTargetHour) {
+      return { recordsProcessed: 0, details: `not production hour (ET ${hour}:00, want ${normalizedTargetHour}:00; analytics selected ${targetHour}:00) — waiting to enqueue` };
     }
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
@@ -322,16 +376,12 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // is intentionally separate from the publication schedule: an assembled
     // episode can wait for its exact human approval while production remains
     // paused once usable inventory is above the low-watermark.
-    const readyRows = await d
-      .select({ id: reelJobs.id })
-      .from(reelJobs)
-      .where(inArray(reelJobs.status, ["assets_ready", "assembled"]))
-      .limit(REEL_READY_TARGET + 1);
-    const readyDecision = decideReadyBuffer(readyRows.length, REEL_READY_TARGET, REEL_READY_LOW_WATERMARK);
+    const usableReadyCount = await countUsableReadyEpisodes(d);
+    const readyDecision = decideReadyBuffer(usableReadyCount, REEL_READY_TARGET, REEL_READY_LOW_WATERMARK);
     if (readyDecision !== "refill") {
       return {
         recordsProcessed: 0,
-        details: `production held: READY buffer ${readyRows.length >= REEL_READY_TARGET ? `>=${REEL_READY_TARGET}` : readyRows.length} (${readyDecision}); publication remains separately approval-gated`,
+        details: `production held: usable READY buffer ${usableReadyCount >= REEL_READY_TARGET ? `>=${REEL_READY_TARGET}` : usableReadyCount} (${readyDecision}); publication remains separately approval-gated`,
       };
     }
 
@@ -458,7 +508,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     brief.id = briefId;
     if (approvedPack) {
       (brief as { approvedPackSlug?: string }).approvedPackSlug = approvedPack.slug;
-      (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(hour);
+      (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(normalizedTargetHour);
     }
 
     // The brief's factual spine, joined to real evidence records. mechanicTruth
@@ -486,7 +536,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // caption carries its ask in prose. Declared NONE rather than guessed, so
       // the governor's repetition check is not fed a fabricated CTA.
       ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
-      productionSlot: productionSlotForHour(hour),
+      productionSlot: productionSlotForHour(normalizedTargetHour),
       ...(approvedPack
         ? { approvedProductionPack: (brief as { approvedProductionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot }).approvedProductionPack }
         : {}),

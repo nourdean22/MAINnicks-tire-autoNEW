@@ -97,7 +97,9 @@ function arrayOfStrings(value: unknown): string[] {
 
 function primaryCaptionFromReadme(readme: string | null): string {
   if (!readme) return "";
-  const section = readme.match(/\*\*Primary caption[^\n]*\n([\s\S]*?)(?:\n\*\*Ad-ready|\n---|$)/i)?.[1] ?? "";
+  const section = readme.match(/(?:\*\*Primary caption[^\n]*|\*\*Caption \(primary\):[^\n]*)\n([\s\S]*?)(?:\n\*\*Ad-ready|\n---|$)/i)?.[1]
+    ?? readme.match(/### Variant A[^\n]*\n([\s\S]*?)(?:\n### |\n## |$)/i)?.[1]
+    ?? "";
   const lines = section.split(/\r?\n/);
   const quoted = lines.filter((line) => /^\s*>/.test(line)).map((line) => line.replace(/^\s*>\s?/, "").trimEnd());
   return quoted.join("\n").replace(/(^|\s)#[A-Za-z0-9_-]+/g, "$1").replace(/[ \t]+\n/g, "\n").trim();
@@ -105,6 +107,33 @@ function primaryCaptionFromReadme(readme: string | null): string {
 
 function hashtagsFromCaption(caption: string): string[] {
   return [...caption.matchAll(/#[A-Za-z0-9_-]+/g)].map((match) => match[0]).slice(0, 5);
+}
+
+/**
+ * Older reviewed packs stored provenance in `slateSource` or README prose
+ * rather than the machine-readable sourceNotes array. Preserve that reviewed
+ * provenance at the brief boundary. If a pack has no external source field,
+ * the immutable pack itself is named explicitly; claim evidence remains a
+ * separate resolver concern and stays a warning until the registry can verify
+ * the handle.
+ */
+function reviewedSourceNoteFromPack(
+  source: Record<string, unknown>,
+  snapshot: ApprovedProductionPackSnapshot,
+  supports: string,
+): { label: string; kind: "proof"; supports: string } {
+  const metadataSource = stringValue(source.slateSource) || stringValue(source.source);
+  const readmeLines = snapshot.files.readme?.split(/\r?\n/) ?? [];
+  const sourceLineIndex = readmeLines.findIndex((line) => /\bsource:\s*/i.test(line));
+  let readmeSource = "";
+  if (sourceLineIndex >= 0) {
+    const line = readmeLines[sourceLineIndex];
+    readmeSource = line.replace(/^.*\bsource:\s*/i, "").trim();
+    if (!readmeSource && readmeLines[sourceLineIndex + 1]) readmeSource = readmeLines[sourceLineIndex + 1].trim();
+  }
+  const raw = metadataSource || readmeSource || `${snapshot.sourcePath}/brief.json (operator-reviewed production input)`;
+  const markdownLabel = raw.match(/\[([^\]]+)\]/)?.[1];
+  return { label: (markdownLabel || raw).replace(/[`]/g, "").trim(), kind: "proof", supports };
 }
 
 /**
@@ -118,25 +147,31 @@ export function buildBriefFromApprovedProductionPack(
   briefId: string,
 ): Record<string, unknown> | null {
   const source = snapshot.parsed;
-  const rawBeats = Array.isArray(source.storyboardBeats) ? source.storyboardBeats : Array.isArray(source.beats) ? source.beats : [];
+  const rawBeats = Array.isArray(source.storyboardBeats)
+    ? source.storyboardBeats
+    : Array.isArray(source.beats)
+      ? source.beats
+      : Array.isArray(source.storyboard)
+        ? source.storyboard
+        : [];
   const storyboardBeats = rawBeats.map((raw, index) => {
     const beat = raw as Record<string, unknown>;
     const beatNumber = Number(beat.beatNumber ?? beat.beat ?? beat.index ?? index + 1);
-    const startSecond = Number(beat.startSecond ?? index * 5);
-    const endSecond = Number(beat.endSecond ?? startSecond + 5);
+    const startSecond = Number(beat.startSecond ?? beat.start ?? index * 5);
+    const endSecond = Number(beat.endSecond ?? beat.end ?? startSecond + 5);
     return {
       beatNumber,
       startSecond,
       endSecond,
       visual: stringValue(beat.visual) || stringValue(beat.providerScene) || stringValue(beat.visualPrompt),
       motion: stringValue(beat.motion),
-      onScreenText: stringValue(beat.onScreenText) || stringValue(beat.caption),
-      purpose: stringValue(beat.purpose) || stringValue(beat.intent) || stringValue(beat.role),
+      onScreenText: stringValue(beat.onScreenText) || stringValue(beat.caption) || stringValue(beat.overlay),
+      purpose: stringValue(beat.purpose) || stringValue(beat.intent) || stringValue(beat.role) || stringValue(beat.label),
       audioCue: stringValue(beat.audioCue) || stringValue(beat.audioNote),
       safeZoneNotes: stringValue(beat.safeZoneNotes),
     };
   });
-  const selectedCaption = stringValue(source.selectedCaption) || primaryCaptionFromReadme(snapshot.files.readme);
+  const selectedCaption = stringValue(source.selectedCaption) || stringValue(source.caption) || primaryCaptionFromReadme(snapshot.files.readme);
   if (storyboardBeats.length < 4 || !selectedCaption) return null;
   const hashtags = arrayOfStrings(source.hashtags).length ? arrayOfStrings(source.hashtags).slice(0, 5) : hashtagsFromCaption(selectedCaption);
   const voiceoverScript = stringValue(source.voiceoverScript) || storyboardBeats.map((beat) => {
@@ -145,13 +180,20 @@ export function buildBriefFromApprovedProductionPack(
   }).filter(Boolean).join(" ");
   const campaignKeyword = stringValue(source.campaignKeyword) || pack.slug.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-/g, " ");
   const topic = stringValue(source.topic) || pack.topic;
+  const sourceNotes = Array.isArray(source.sourceNotes) ? source.sourceNotes : [];
+  const hasProofSource = sourceNotes.some((note) =>
+    Boolean(note && typeof note === "object" && (note as Record<string, unknown>).kind === "proof"),
+  );
   return {
     id: briefId,
     topic,
     mechanicTruth: stringValue(source.mechanicTruth) || topic,
     driverConfusion: stringValue(source.driverConfusion) || stringValue(source.hookText) || topic,
     clevelandAngle: stringValue(source.clevelandAngle),
-    sourceNotes: Array.isArray(source.sourceNotes) ? source.sourceNotes : [],
+    sourceNotes: hasProofSource ? sourceNotes : [
+      ...sourceNotes,
+      reviewedSourceNoteFromPack(source, snapshot, stringValue(source.mechanicTruth) || topic),
+    ],
     factBucket: "invisible_killers",
     campaignKeyword,
     archetype: "tiny_cinematic_story",

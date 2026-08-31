@@ -52,5 +52,16 @@ describe("approved Reel-pack rotation", () => {
     expect(brief?.approvedPackSlug).toBe(pack.slug);
     expect(brief?.selectedCaption).toEqual(expect.any(String));
     expect((brief?.storyboardBeats as unknown[]).length).toBeGreaterThanOrEqual(4);
+    expect((brief?.sourceNotes as Array<{ kind?: string }>).some((note) => note.kind === "proof")).toBe(true);
+  });
+
+  it("gives every currently approved tracked pack a proof-shaped source note", () => {
+    for (const pack of APPROVED_REEL_PACKS) {
+      const snapshot = loadApprovedProductionPack(pack.slug);
+      expect(snapshot, pack.slug).not.toBeNull();
+      const brief = snapshot && buildBriefFromApprovedProductionPack(pack, snapshot, `autopost-${pack.slug}`);
+      expect(brief, pack.slug).not.toBeNull();
+      expect((brief?.sourceNotes as Array<{ kind?: string }>).some((note) => note.kind === "proof"), pack.slug).toBe(true);
+    }
   });
 });

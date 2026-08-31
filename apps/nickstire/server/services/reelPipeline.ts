@@ -864,7 +864,21 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
             }
           } else {
             finalClipUrl = await withTimeout(
-              generateReelClipVideo({ prompt, negativePrompt, startImageUrl }),
+              generateReelClipVideo({
+                prompt,
+                negativePrompt,
+                startImageUrl,
+                // Keep the provider's own poll deadline inside the worker's
+                // deadline, even when an operator configured a longer CLI/API
+                // timeout. The callback persists the handle before polling;
+                // this margin also makes the submitted-error path observable
+                // before the outer timeout can win.
+                higgsfieldPollTimeoutMs: Math.max(1, GEN_CLIP_TIMEOUT_MS - 30_000),
+                onHiggsfieldRequestSubmitted: async (requestId) => {
+                  beat.higgsfieldRequestId = requestId;
+                  await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
+                },
+              }),
               GEN_CLIP_TIMEOUT_MS,
               `higgsfield beat ${beat.beatNumber}`,
             );

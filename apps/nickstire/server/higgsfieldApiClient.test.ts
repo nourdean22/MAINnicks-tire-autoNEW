@@ -276,10 +276,15 @@ describe("SPEND SAFETY: a submitted generation must never be retried elsewhere",
     creds();
     vi.useFakeTimers();
     try {
-      const p = generateReelClipVideoViaApi({ prompt: "x", startImageUrl: HERO }, { pollIntervalMs: 1_000, timeoutMs: 1 });
+      const onSubmitted = vi.fn();
+      const p = generateReelClipVideoViaApi(
+        { prompt: "x", startImageUrl: HERO },
+        { pollIntervalMs: 1_000, timeoutMs: 1, onSubmitted },
+      );
       const assertion = expect(p).rejects.toBeInstanceOf(HiggsfieldApiSubmittedError);
       await vi.advanceTimersByTimeAsync(65_000);
       await assertion;
+      expect(onSubmitted).toHaveBeenCalledWith("req_spend_1");
       await p.catch((e: unknown) => {
         expect((e as HiggsfieldApiSubmittedError).requestId).toBe("req_spend_1");
         expect((e as HiggsfieldApiSubmittedError).spendMayHaveOccurred).toBe(true);

@@ -48,6 +48,17 @@ describe("content.ts regenerateReelFromBrief — stale veoOperationName is strip
       /for \(const beat of beats\) \{\s*if \(beat && typeof beat === "object"\) delete \(beat as Record<string, unknown>\)\.veoOperationName;/,
     );
   });
+
+  it("assigns a fresh durable episode identity while preserving the approved pack snapshot", () => {
+    const fnStart = CONTENT.indexOf("REGENERABLE_STATUSES, isRegenerable } = await import(\"../services/reelRecoverability\");");
+    const enqueueIdx = CONTENT.indexOf('const { enqueueReelJob } = await import("../services/reelPipeline");', fnStart);
+    const body = CONTENT.slice(fnStart, enqueueIdx);
+    expect(body).toContain("const regeneratedEpisodeId = `regen_${input.jobId}_${randomUUID()}`;");
+    expect(body).toContain("brief.id = regeneratedEpisodeId;");
+    const call = CONTENT.slice(enqueueIdx, CONTENT.indexOf("// Close the old one", enqueueIdx));
+    expect(call).toContain("episodeId: regeneratedEpisodeId");
+    expect(call).toContain("approvedProductionPack: preservedPack");
+  });
   it("the strip happens before THIS function's own enqueueReelJob call, not after", () => {
     // content.ts imports enqueueReelJob in more than one procedure — anchor the
     // search to regenerateReelFromBrief's own body (from its CLOSEABLE-sibling
