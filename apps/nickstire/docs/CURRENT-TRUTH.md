@@ -26,6 +26,11 @@ without the existing exact-asset + exact-caption human approval and
 reconciled by polling the same remote request after an ambiguous response;
 unknown remote state never triggers a blind duplicate paid submission.
 
+The unmaterialized 2026-08-31 rotation slugs from `27e993fb2` are not in the
+approved queue until their exact tracked pack directories and reviewed files
+exist. This prevents the cursor from pinning on a missing production input;
+adding a future pack requires its complete snapshot before adding its slug.
+
 PySceneDetect remains deferred. The current ffprobe/render-integrity and
 frame-sampling checks are compatible and lower-risk; the concrete future hook
 is a pinned Python runtime plus a fixture-tested `detectSceneCuts(mp4Path)`

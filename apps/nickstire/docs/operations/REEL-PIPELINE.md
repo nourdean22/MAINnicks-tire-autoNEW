@@ -16,6 +16,11 @@ idempotency identity, an explicit queue-state projection, and a
 `drizzle/0113_reel_episode_contract_queue.sql`; it is hand-applied and enqueue
 fails closed until all required columns and uniqueness indexes are readable.
 
+The 30 unmaterialized 2026-08-31 slugs introduced by `27e993fb2` were removed
+from the rotation. They may be re-added only with tracked pack directories and
+reviewed `brief.json` inputs, so a missing pack cannot permanently pin the
+cursor at the first unavailable episode.
+
 Production readiness (`production_ready_at`) is separate from publication
 scheduling (`publication_scheduled_at`). The daily producer refills only when
 the READY buffer is at or below one episode, targeting three. An assembled
