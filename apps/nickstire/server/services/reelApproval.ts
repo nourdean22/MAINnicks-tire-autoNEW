@@ -152,7 +152,7 @@ export interface ReelPublishSubject {
  * so approving what the draft shows would fingerprint text the cron never
  * sends. The operator must see, and consent to, the bytes that actually ship.
  */
-export async function loadReelPublishSubject(jobId: number): Promise<ReelPublishSubject | null> {
+async function loadReelPublishSubject(jobId: number): Promise<ReelPublishSubject | null> {
   const { getDb } = await import("../db");
   const d = await getDb();
   if (!d) return null;
