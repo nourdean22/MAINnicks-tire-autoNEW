@@ -102,6 +102,30 @@ const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
     reason:
       "Retrospective artifact — a task deleted after the mission closed still counted toward that mission's footprint at the time. openCount vs taskCount pull opposite directions from one groupBy; needs splitting, not filtering.",
   },
+  {
+    file: "lib/ai/tools/brain.ts",
+    contains: "where: reflectionWhere",
+    reason:
+      "FALSE POSITIVE of the 12-line window: the where is a hoisted variable and reflectionWhere carries `deletedAt: null` at its definition (~:1129). The count is correctly filtered; the scanner cannot see through the identifier.",
+  },
+  {
+    file: "lib/ai/tools/brain.ts",
+    contains: "where: dumpWhere",
+    reason:
+      "FALSE POSITIVE, same shape: dumpWhere carries `deletedAt: null` at its definition (~:1139). Verified 2026-09-01.",
+  },
+  {
+    file: "app/api/cron/data-cleanup/route.ts",
+    contains: "brainGcWhere",
+    reason:
+      "Count↔delete parity is the invariant: this count feeds judgeSweep (the #2043 circuit breaker) and MUST mirror the deleteMany's where exactly — the GC deliberately judges the true hard-delete candidate set, tombstones included. Adding deletedAt here alone would desync the breaker from the action it caps.",
+  },
+  {
+    file: "app/api/cron/data-cleanup/route.ts",
+    contains: "judgeSweep(candidates)",
+    reason:
+      "Same parity invariant for the per-category retention sweeps: the count is the deletion candidate census the circuit breaker judges, and it must equal the deleteMany where. Tombstone inclusion is deliberate (retention sweeps purge soft-deleted rows past their window too).",
+  },
 ];
 
 function isAllowlisted(relFile: string, snippet: string): string | null {
