@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
 import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
+import {
+  NEVER_HARD_DELETE_CATEGORIES,
+  judgeSweep,
+  type SweepVerdict,
+} from "@/lib/brain/hard-delete-guard";
 export const maxDuration = 60;
 
 /**
@@ -54,16 +59,35 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.local_sync_log = localSyncLogs.count;
 
-  // BrainMemory: garbage collect expired low-confidence memories
-  const brainGc = await prisma.brainMemory.deleteMany({
-    where: {
-      OR: [
-        { expiresAt: { lt: new Date() } },
-        { confidence: { lt: 0.1 }, updatedAt: { lt: daysAgo(30) } },
-      ],
-    },
-  });
-  deletedByTable.brain_memories_gc = brainGc.count;
+  // BrainMemory: garbage collect expired low-confidence memories.
+  //
+  // 2026-09-01 · GUARDED. This predicate hard-deleted 54,107 rows in a single
+  // run (AuditEvent 2026-08-28T07:01:07Z) because it scoped on expiry alone —
+  // no category filter, no deletedAt filter, so LIVE rows in any category
+  // carrying a TTL were in range. Three changes, none of which alter the
+  // intended behaviour on a normal night:
+  //   · durable/operator categories are never eligible (guard 1)
+  //   · operator-authored rows are never eligible, whatever their category
+  //     (same CURATED_GUARD shape the consolidation engine uses)
+  //   · the sweep is COUNTED first and refuses to run over the cap (guard 2)
+  const blockedSweeps: SweepVerdict[] = [];
+  const brainGcWhere = {
+    OR: [
+      { expiresAt: { lt: new Date() } },
+      { confidence: { lt: 0.1 }, updatedAt: { lt: daysAgo(30) } },
+    ],
+    category: { notIn: [...NEVER_HARD_DELETE_CATEGORIES] },
+    NOT: [{ createdBy: "user" }, { source: "manual" }],
+  };
+  const brainGcCandidates = await prisma.brainMemory.count({ where: brainGcWhere });
+  const brainGcVerdict = judgeSweep(brainGcCandidates);
+  if (!brainGcVerdict.allowed) {
+    blockedSweeps.push({ ...brainGcVerdict, reason: `brain_memories_gc — ${brainGcVerdict.reason}` });
+    deletedByTable.brain_memories_gc = 0;
+  } else {
+    const brainGc = await prisma.brainMemory.deleteMany({ where: brainGcWhere });
+    deletedByTable.brain_memories_gc = brainGc.count;
+  }
 
   // ── Commitment auto-expiry (2026-07-11) ──
   // Mirrors personal-pulse's own "abandoned-in-practice" floor: anything
@@ -122,9 +146,31 @@ export const GET = cronHandler(async () => {
   // so CronJobLog entries are self-explaining.
   const brainMemoryReport: Array<{ category: string; days: number; deleted: number; why: string }> = [];
   for (const v of BRAIN_MEMORY_RETENTION) {
-    const r = await prisma.brainMemory.deleteMany({
-      where: { category: v.category, updatedAt: { lt: daysAgo(v.days) } },
-    });
+    // Same two guards as brainGc above. A category listed in BOTH the
+    // retention table and NEVER_HARD_DELETE is a contradiction the code must
+    // resolve conservatively: keep the rows, and say so in the report.
+    if (NEVER_HARD_DELETE_CATEGORIES.includes(v.category)) {
+      brainMemoryReport.push({
+        category: v.category, days: v.days, deleted: 0,
+        why: `${v.why} — SKIPPED: category is in NEVER_HARD_DELETE_CATEGORIES`,
+      });
+      deletedByTable[`brain_${v.category}_${v.days}d`] = 0;
+      continue;
+    }
+    const where = {
+      category: v.category,
+      updatedAt: { lt: daysAgo(v.days) },
+      NOT: [{ createdBy: "user" }, { source: "manual" }],
+    };
+    const candidates = await prisma.brainMemory.count({ where });
+    const verdict = judgeSweep(candidates);
+    if (!verdict.allowed) {
+      blockedSweeps.push({ ...verdict, reason: `brain_${v.category} — ${verdict.reason}` });
+      deletedByTable[`brain_${v.category}_${v.days}d`] = 0;
+      brainMemoryReport.push({ category: v.category, days: v.days, deleted: 0, why: `${v.why} — BLOCKED by sweep cap` });
+      continue;
+    }
+    const r = await prisma.brainMemory.deleteMany({ where });
     deletedByTable[`brain_${v.category}_${v.days}d`] = r.count;
     brainMemoryReport.push({ category: v.category, days: v.days, deleted: r.count, why: v.why });
   }
@@ -282,5 +328,18 @@ export const GET = cronHandler(async () => {
       // failing the whole cleanup.
     });
 
-  return { deletedByTable, totalDeleted, brainMemoryReport };
+  // resultCount makes the volume visible in cron_job_logs, which recorded NULL
+  // on every run to date — including the night 54,107 rows were deleted.
+  // ok:false files the run as FAILED (lib/services/cron-manager.ts
+  // reportedFailureReason) so a blocked sweep is an alarm, not a footnote.
+  return {
+    ...(blockedSweeps.length > 0
+      ? { ok: false as const, reason: blockedSweeps.map((b) => b.reason).join(" | ") }
+      : {}),
+    resultCount: totalDeleted,
+    deletedByTable,
+    totalDeleted,
+    brainMemoryReport,
+    blockedSweeps,
+  };
 });

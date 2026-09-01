@@ -37,6 +37,10 @@ vi.mock("@/lib/prisma", () => {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     create: vi.fn().mockResolvedValue({}),
+    // 2026-09-01 · the brain_memories sweeps now COUNT before deleting
+    // (hard-delete circuit breaker). A fake that omits `count` does not model
+    // what the system does, and the route died on `.count is not a function`.
+    count: vi.fn().mockResolvedValue(0),
   });
   const prisma = new Proxy(
     {},
