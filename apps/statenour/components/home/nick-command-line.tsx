@@ -287,6 +287,7 @@ export function NickCommandLine() {
             onKeyDown={onKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
+            aria-label="Ask Nick"
             placeholder="Ask Nick, or / for commands…"
             rows={1}
             className="min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-snug text-fg placeholder:text-fg-tertiary focus:outline-none sm:text-[16px]"
