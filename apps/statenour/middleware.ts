@@ -104,6 +104,18 @@ export const config = {
     // so ONLY paths that actually END in an asset extension are skipped.
     // Without the anchor, any path merely CONTAINING ".png"/".js"/etc.
     // mid-path (e.g. /api/relationships/x.png/laws) skipped auth + CSP.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
+    //
+    // 2026-09-01 audit W-4 follow-up (PR review) · the exclusion is now
+    // ROOT-LEVEL only (`[^/]+` instead of `.*` before the extension). The
+    // previous form skipped the middleware for ANY path ending in an asset
+    // extension, so `/decisions/1.png`, `/decisions/1.js`, `/decisions/1.css`
+    // and `/decisions/1.svg` never reached the session check at all — 200
+    // unauthenticated on production, live-probed. Every public/ asset lives
+    // at the root, so nothing served is affected; a nested page path ending
+    // in ".png" now runs the middleware, fails isStaticFile (root-level
+    // only) and redirects to sign-in. tests/security/middleware-boundary
+    // .test.ts compiles THIS pattern with Next's own path-to-regexp and
+    // asserts both halves.
+    "/((?!_next/static|_next/image|favicon.ico|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
   ],
 };

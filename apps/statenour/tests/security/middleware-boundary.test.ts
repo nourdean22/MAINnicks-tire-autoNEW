@@ -28,13 +28,24 @@ import { NextRequest } from "next/server";
 import { readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { isPublic, isStaticFile } from "@/lib/security/route-policy";
 
 // `export default auth(handler)` — with `auth` as identity, the default export
 // IS the handler and `req.auth` is simply absent (no session).
 vi.mock("@/auth", () => ({ auth: (handler: unknown) => handler }));
 
-import middleware from "@/middleware";
+import middleware, { config as middlewareConfig } from "@/middleware";
+
+// Next compiles `config.matcher` with its bundled path-to-regexp. Use THAT
+// copy, with the options Next passes, so this test exercises the matcher the
+// way production does rather than a hand-written approximation of it.
+const { pathToRegexp } = createRequire(import.meta.url)("next/dist/compiled/path-to-regexp") as {
+  pathToRegexp: (path: string, keys?: unknown[], options?: Record<string, unknown>) => RegExp;
+};
+const MATCHER = pathToRegexp(middlewareConfig.matcher[0], [], { delimiter: "/", sensitive: false, strict: false });
+/** True iff Next would run the middleware for this path at all. */
+const middlewareRuns = (path: string) => MATCHER.test(path);
 
 type Decision = { status: number; location: string | null; next: string | null };
 
@@ -107,7 +118,20 @@ afterAll(() => {
 });
 
 describe("W-4 · the production probes are denied without a session", () => {
-  it.each(["/decisions/1.2", "/decisions/9.9", "/decisions/abc.def", "/decisions/1.2.3", "/people/nour@example.com"])(
+  it.each([
+    "/decisions/1.2",
+    "/decisions/9.9",
+    "/decisions/abc.def",
+    "/decisions/1.2.3",
+    "/people/nour@example.com",
+    // PR-review follow-up · an extension-suffixed page segment. These were
+    // 200 on production because the MATCHER skipped the middleware for them;
+    // the matcher half is asserted separately below, this is the function half.
+    "/decisions/1.png",
+    "/decisions/1.js",
+    "/decisions/1.css",
+    "/decisions/1.svg",
+  ])(
     "%s → 307 to /auth/sign-in (was 200 on prod)",
     async (path) => {
       const d = await decide(path);
@@ -124,6 +148,41 @@ describe("W-4 · the production probes are denied without a session", () => {
   it("a dotted path under a private API prefix stays 401, never 200", async () => {
     const d = await decide("/api/system/diagnostics/x.json");
     expect(d.status).toBe(401);
+  });
+});
+
+describe("config.matcher · the middleware RUNS for extension-suffixed page paths (PR-review follow-up)", () => {
+  // The boundary test above calls the middleware function directly, so it is
+  // blind to paths the matcher never routes to it. `/decisions/1.png` was
+  // exactly that: 200 unauthenticated on production after the classifier fix,
+  // because `.*\.(png|...)$` skipped the middleware for ANY nested path ending
+  // in an asset extension. The exclusion is now root-level only.
+  it.each(["/decisions/1.png", "/decisions/1.js", "/decisions/1.css", "/decisions/1.svg", "/decisions/1.2", "/manifest.webmanifest", "/robots.txt", "/missions"])(
+    "%s → middleware runs",
+    (path) => {
+      expect(middlewareRuns(path), path).toBe(true);
+    },
+  );
+
+  it.each(["/favicon.ico", "/favicon-32x32.png", "/sw.js", "/apple-touch-icon.png", "/_next/static/chunks/main.js", "/_next/image"])(
+    "%s → skipped by the matcher (root-level asset or Next internal)",
+    (path) => {
+      expect(middlewareRuns(path), path).toBe(false);
+    },
+  );
+
+  it("every page route with a .png-suffixed dynamic segment BOTH reaches the middleware AND is denied", async () => {
+    const leaks: string[] = [];
+    for (const path of pageRoutes("1.png")) {
+      if (isPublic(path)) continue;
+      if (!middlewareRuns(path)) {
+        leaks.push(`${path} → matcher skips middleware`);
+        continue;
+      }
+      const d = await decide(path);
+      if (!denied(d, path)) leaks.push(`${path} → ${d.status} ${d.location ?? d.next ?? ""}`);
+    }
+    expect(leaks, `extension-suffixed page paths reachable without a session:\n${leaks.join("\n")}`).toEqual([]);
   });
 });
 
