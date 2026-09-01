@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+Your car alarm goes off
+
+2
+00:00:02,000 --> 00:00:04,000
+at two in the morning — again — and nothing's wrong.
+
+3
+00:00:04,000 --> 00:00:06,500
+No broken glass, no forced entry.
+
+4
+00:00:06,500 --> 00:00:09,000
+Just the alarm, blaring, for no clear reason.
+
+5
+00:00:09,000 --> 00:00:12,000
+Most random alarms trace back to one of two things —
+
+6
+00:00:12,000 --> 00:00:15,000
+the hood latch switch, or the key fob battery.
+
+7
+00:00:15,000 --> 00:00:18,000
+A loose hood pin switch can send a false "break-in" signal.
+
+8
+00:00:18,000 --> 00:00:21,000
+A weak fob battery can do the same thing.
+
+9
+00:00:21,000 --> 00:00:23,500
+Checking those two spots first
+
+10
+00:00:23,500 --> 00:00:26,000
+can rule out the most common causes before anything else.
+
+11
+00:00:26,000 --> 00:00:28,000
+One clue, easy to check.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
