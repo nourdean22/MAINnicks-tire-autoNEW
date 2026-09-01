@@ -1191,3 +1191,36 @@ statenour primitives documented (existence re-verified at
   and the attach pattern are different regexes and a tool can match one without the other."
 - **Confidence:** high (measured before and after)
 - **Status:** proposed
+
+## 2026-09-01 · Command Surface wave (#2047/#2048)
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** verify:hard went red on `tests/components/mobile-a11y.test.tsx` —
+  its `readSource()` guards read the SOURCE TEXT of two components deleted in #2047
+  (`components/home/inbox-tasks-triage.tsx`, `inbox-triage-card.tsx`) by string path. The
+  deletion sweep had grepped imports only; string-path readers were invisible to it.
+- **Cost:** one red full-gate run (~4 min) + fix commit `2a61a511c`. Upside captured: the
+  retargeted canary exposed that the replacement textarea was itself placeholder-only (WCAG
+  4.1.2) — a defect the session's own self-audit had wrongly claimed was handled.
+- **Proposed edit:** add a Traps bullet: "Deleting a file? Grep tests/ for its PATH STRING
+  (`grep -rn '<basename>' tests/`), not just its import — source-reading guards
+  (readSource/readFileSync) reference files by string and survive import sweeps. When the
+  guard's subject dies, retarget the CONTRACT at the replacement surface, don't delete the
+  canary."
+- **Confidence:** medium (once, but the repo has a whole family of readSource-style guards)
+- **Status:** proposed
+
+### P2 · statenour-verify (deploy-confirmation section)
+- **Trigger (witnessed):** two failures in one confirmation. (a) The skill's own snippet pipes
+  through `jq`, which is NOT on PATH in this machine's git-bash — the ancestry check printed
+  "not yet" with an EMPTY deployed var while the raw curl showed `1b8a945` already live; a
+  wrong "not deployed" was nearly reported. (b) A 20-minute background poll loop for the same
+  confirmation was `[killed]` at the turn boundary — background pollers don't survive turns;
+  the one-shot curl answered instantly.
+- **Cost:** one misleading probe output + a wasted re-arm cycle.
+- **Proposed edit:** in "Confirming a merge is DEPLOYED": note `jq` may be absent in git-bash —
+  fall back to `grep -o '"commit":"[a-f0-9]*"'` on the raw body, and treat an EMPTY deployed
+  var as "check broken", never "not deployed". Prefer per-turn one-shot checks over
+  long-running background poll loops (turn boundaries kill them).
+- **Confidence:** high (both legs witnessed this session; empty-var-as-bad-news recurs repo-wide)
+- **Status:** proposed
