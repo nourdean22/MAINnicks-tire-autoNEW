@@ -147,7 +147,10 @@ export function NickSidePane({
         aria-label={open ? "close nick side pane" : "open nick side pane"}
         aria-expanded={open}
         className={cn(
-          "fixed bottom-4 right-4 z-40 inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
+          // Execution Deck fix (2026-09-01): the FAB sat at bottom-4/z-40 —
+          // INSIDE the fixed tab bar's ~96px z-[55] band, painted under it.
+          // Dock it above the measured chrome height and above the bar.
+          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-4 z-[56] inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
           "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
           "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
           "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
@@ -172,7 +175,7 @@ export function NickSidePane({
           {/* Backdrop · mobile only · tap to close. lg:hidden keeps
            *  desktop fully usable (no overlay). */}
           <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[58] bg-black/40 backdrop-blur-sm lg:hidden"
             onClick={toggle}
             aria-hidden
           />
@@ -180,7 +183,9 @@ export function NickSidePane({
             role="complementary"
             aria-label="nick assistant"
             className={cn(
-              "fixed z-50 flex flex-col bg-[var(--bg-base)] border-[var(--border-default)]",
+              // z-[59]: above the z-[55] tab bar — the open sheet used to sit
+              // UNDER the chrome, which overlapped its top edge on mobile.
+              "fixed z-[59] flex flex-col bg-[var(--bg-base)] border-[var(--border-default)]",
               // Mobile bottom-sheet · 80vh max · 60vh min (2026-05-26
               // mobile-tightening · iPhone SE keyboard-up was leaving the
               // thread region < 30vh, the 60vh floor keeps the chat

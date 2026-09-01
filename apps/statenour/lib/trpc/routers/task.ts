@@ -45,6 +45,7 @@ import { OutcomeRating } from "@prisma/client";
 import {
   checkTask,
   startTask,
+  parkTask,
   breakPromise,
   createTaskFromAPI,
   scoreTaskWithAI,
@@ -56,6 +57,7 @@ import { buildTodayCompound } from "@/lib/services/today-compound";
 import { buildNextMove } from "@/lib/services/next-move";
 import { buildGoalNextActions } from "@/lib/services/goal-next-actions";
 import { buildTaskRescue, buildDomainAnchors } from "@/lib/services/task-rescue";
+import { buildMissionsDeck } from "@/lib/missions/deck";
 import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
 import {
   createMissionLink,
@@ -269,6 +271,15 @@ export const taskRouter = router({
     const [rescue, anchors] = await Promise.all([buildTaskRescue(), buildDomainAnchors()]);
     return { rescue, anchors };
   }),
+
+  /**
+   * Execution Deck (2026-09-01) · the /missions page's ONE read. Server-
+   * composed sections (next move · capacity · triage · missions · lanes ·
+   * rhythms · waiting · evidence · readiness) from a single ranked pass —
+   * replaces five separate client polls. Flat JSON, guarded sources
+   * (failures land in `unmeasured`, never as fake zeros).
+   */
+  deck: operatorProcedure.query(async () => buildMissionsDeck()),
 
   /**
    * Phase PP · owner-only · list goals with optional horizon / domain
@@ -498,6 +509,27 @@ export const taskRouter = router({
    * startedAt). Emits TaskEvent.started when transitioning into
    * DOING so the history view + drift detector see the start.
    */
+  /**
+   * Execution Deck (2026-09-01) · park a DOING task with a ready-to-resume
+   * note ("where I stopped / what's next"). DOING → READY + TaskEvent
+   * kind "parked" payload.note; the deck hero surfaces the note on resume.
+   */
+  park: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64), note: z.string().max(500) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await parkTask(input.id, input.note);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
   start: operatorProcedure
     .input(z.object({ id: z.string().min(1).max(64) }))
     .mutation(async ({ input }) => {

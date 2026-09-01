@@ -5,7 +5,12 @@ export function useExecutionFocus(
   tasks: Task[],
   missions: Project[],
   queuedTaskId: string | null,
-  activeTaskId?: string
+  activeTaskId?: string,
+  /** Execution Deck (2026-09-01): the server-picked next move. One ordering
+   *  brain — when the deck has an answer, focus mode agrees with the hero
+   *  instead of re-deriving a different pick from the stale autoPriority
+   *  column. The heuristic below survives only as the offline fallback. */
+  deckHeroTaskId?: string | null,
 ) {
   const focusedTask = useMemo(() => {
     // 1. First choice: active task from CommandCenterState
@@ -24,6 +29,18 @@ export function useExecutionFocus(
           t.status !== "ARCHIVED"
       );
       if (queuedTask) return queuedTask;
+    }
+
+    // 2. The deck's decided move — same selector the hero shows.
+    if (deckHeroTaskId) {
+      const heroTask = tasks.find(
+        (t) =>
+          t.id === deckHeroTaskId &&
+          t.status !== "DONE" &&
+          t.status !== "WAITING" &&
+          t.status !== "ARCHIVED",
+      );
+      if (heroTask) return heroTask;
     }
 
     // We only care about open (non-DONE, non-WAITING, non-ARCHIVED) tasks for focus recommendations
@@ -79,7 +96,7 @@ export function useExecutionFocus(
     });
 
     return sortedOpen[0] || null;
-  }, [tasks, queuedTaskId, activeTaskId]);
+  }, [tasks, queuedTaskId, activeTaskId, deckHeroTaskId]);
 
   const focusedTaskMission = useMemo(() => {
     if (!focusedTask || !focusedTask.missionId) return null;

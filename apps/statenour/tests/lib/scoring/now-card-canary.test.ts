@@ -16,9 +16,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BLOCKED_MULTIPLIER,
   HABIT_CLASS_MULTIPLIER,
   HABIT_LOOPS,
   NOW_WEIGHTS,
+  SHOP_CLASS_MULTIPLIER,
   dollarAmountFromTitle,
   scoreTaskPriority,
   type RankedMissionRef,
@@ -113,5 +115,89 @@ describe("now-card canary: overdue revenue beats a hydration habit", () => {
     expect(dollarAmountFromTitle("Collect $1,846.50 from Hicks")).toBe(1846.5);
     expect(dollarAmountFromTitle("Drink water — 6+ bottles")).toBe(0);
     expect(dollarAmountFromTitle("costs $ dollars")).toBe(0);
+  });
+});
+
+// ── Execution Deck scorer v2 (2026-09-01) ──────────────────────────────
+// New terms pinned in both directions: each behavior asserts the effect
+// AND that removing the input removes the effect (no silent flips).
+
+const base: TaskPriorityCandidate = {
+  title: "Neutral task",
+  missionId: "m-none",
+  status: "READY",
+  roiScore: 50,
+  frictionScore: 20,
+  energyRequired: "MEDIUM",
+  loopKind: "ONCE",
+  lastTouchedAt: new Date(NOW.getTime() - 1 * DAY),
+  dueDate: null,
+};
+
+describe("deck scorer v2: continuous due ramp", () => {
+  it("pressure builds monotonically as the deadline approaches", () => {
+    const at = (days: number) =>
+      scoreTaskPriority({ ...base, dueDate: new Date(NOW.getTime() + days * DAY) }, noMissions, NOW).score;
+    // 20d out sits at the floor; 10d > 20d; 3d > 10d; due today > 3d.
+    expect(at(10)).toBeGreaterThan(at(20));
+    expect(at(3)).toBeGreaterThan(at(10));
+    expect(at(0)).toBeGreaterThan(at(3));
+  });
+
+  it("saturates a week overdue — 8d and 80d overdue score identically on the due term", () => {
+    const at = (days: number) =>
+      scoreTaskPriority({ ...base, dueDate: new Date(NOW.getTime() - days * DAY) }, noMissions, NOW).score;
+    expect(at(8)).toBe(at(80));
+  });
+
+  it("a far-future date still beats no date at all", () => {
+    const dated = scoreTaskPriority(
+      { ...base, dueDate: new Date(NOW.getTime() + 60 * DAY) },
+      noMissions,
+      NOW,
+    ).score;
+    const undated = scoreTaskPriority(base, noMissions, NOW).score;
+    expect(dated).toBeGreaterThan(undated);
+  });
+});
+
+describe("deck scorer v2: blocked, active, and the shop boundary", () => {
+  it("waitingOn parks the row (multiplier) and names the blocker", () => {
+    const free = scoreTaskPriority(base, noMissions, NOW);
+    const blocked = scoreTaskPriority({ ...base, waitingOn: "Eddy" }, noMissions, NOW);
+    expect(blocked.score).toBe(Math.round(free.score * BLOCKED_MULTIPLIER));
+    expect(blocked.explanation).toContain("waiting on Eddy");
+    // Whitespace-only is not a blocker.
+    const ghost = scoreTaskPriority({ ...base, waitingOn: "   " }, noMissions, NOW);
+    expect(ghost.score).toBe(free.score);
+  });
+
+  it("a DOING task outranks its identical READY twin (resume beats switch)", () => {
+    const ready = scoreTaskPriority(base, noMissions, NOW);
+    const doing = scoreTaskPriority({ ...base, status: "DOING" }, noMissions, NOW);
+    expect(doing.score).toBeGreaterThan(ready.score);
+    expect(doing.explanation).toContain("in progress");
+  });
+
+  it("BUSINESS-domain tasks are dampened on the personal OS…", () => {
+    const shopMissions = new Map<string, RankedMissionRef>([
+      ["m-shop", { id: "m-shop", rank: 3, rankScore: 50, domain: "BUSINESS" }],
+    ]);
+    const personal = scoreTaskPriority({ ...base, missionId: "m-none" }, noMissions, NOW);
+    const shop = scoreTaskPriority({ ...base, missionId: "m-shop" }, shopMissions, NOW);
+    expect(shop.score).toBeLessThan(personal.score);
+    expect(shop.explanation).toContain(`shop ×${SHOP_CLASS_MULTIPLIER}`);
+  });
+
+  it("…UNLESS the due ramp is hot — an overdue judgment item is exempt", () => {
+    const shopMissions = new Map<string, RankedMissionRef>([
+      ["m-shop", { id: "m-shop", rank: 3, rankScore: 50, domain: "BUSINESS" }],
+    ]);
+    const overdueShop = scoreTaskPriority(
+      { ...base, missionId: "m-shop", dueDate: new Date(NOW.getTime() - 10 * DAY) },
+      shopMissions,
+      NOW,
+    );
+    expect(overdueShop.explanation).not.toContain("shop ×");
   });
 });

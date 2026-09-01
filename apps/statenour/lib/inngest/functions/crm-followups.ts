@@ -90,8 +90,11 @@ export const crmFollowups = inngest.createFunction(
               missionId: inboxMissionId,
               status: "READY",
               effort: "M15",
-              roiScore: 4,
-              frictionScore: 2,
+              // 0-100 scale (task-priority.ts polarity header). The old 4/2
+              // values were a leftover 1-5 scale: under NOW_WEIGHTS they made
+              // every CRM follow-up rank almost entirely on "easy".
+              roiScore: 50,
+              frictionScore: 30,
               energyRequired: "LOW",
               context: "PHONE",
               finishCondition: "Message sent and logged",

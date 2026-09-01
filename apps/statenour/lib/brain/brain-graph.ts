@@ -329,7 +329,9 @@ export async function getBrainGraph(params: {
     let status: BrainGraphNode["status"] = "active";
     if (t.status === "DONE") status = "done";
     else if (t.status === "INBOX") status = "stale";
-    else if (t.driftRisk && t.driftRisk > 70) status = "risk";
+    // driftRisk increments +1/day (stale-tasks cron); the cron itself alerts
+    // at >3. The old >70 threshold here meant "risk" after 70 DAYS — never.
+    else if (t.driftRisk && t.driftRisk > 5) status = "risk";
     addNode({
       id: t.id,
       type: "task",

@@ -7,11 +7,21 @@ export async function getHealthGovernorContext(): Promise<string> {
   return decision.promptGuardrailText;
 }
 
+/** Readiness reads older than this are refused — a 6-week-old health log
+ *  must never render as a confident "96/100" (Execution Deck P0, 2026-09-01). */
+const READINESS_MAX_AGE_MS = 2 * 86_400_000;
+
 export async function getLatestGovernorDecision(): Promise<HealthGovernorDecision | null> {
   try {
     const latestLog = await prisma.personalDailyLog.findFirst({
       orderBy: { logDate: "desc" },
     });
+
+    // Freshness bound: no recent log → no reading. Null renders as
+    // absent/unknown downstream — never as a stale score.
+    if (!latestLog || Date.now() - new Date(latestLog.logDate).getTime() > READINESS_MAX_AGE_MS) {
+      return null;
+    }
 
     const latestState = await prisma.stateLog.findFirst({
       orderBy: { createdAt: "desc" },

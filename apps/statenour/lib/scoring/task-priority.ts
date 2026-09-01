@@ -1,4 +1,4 @@
-import { daysUntil } from "@/lib/utils/datetime";
+import { daysUntil, hourET } from "@/lib/utils/datetime";
 
 // ── CANONICAL PRIORITY POLARITY ─────────────────────────────────────
 // autoPriority / manualPriorityOverride are 0-100 where HIGHER = MORE
@@ -27,25 +27,42 @@ export const PRIORITY_MEDIUM_MIN = 40;
 // Weights live in this one block. Change them here or not at all.
 export const NOW_WEIGHTS = {
   /** Hand-assigned at write time (measured 1.68 bits) — deliberately demoted. */
-  roi: 0.15,
-  /** Deadline proximity — overdue saturates at 100. */
-  dueUrgency: 0.25,
+  roi: 0.13,
+  /** Deadline proximity — continuous 21-day ramp (see getDueUrgency). */
+  dueUrgency: 0.27,
   /** Days since lastTouchedAt — older open loops climb. */
-  staleness: 0.15,
+  staleness: 0.13,
   /** Dollar amount parsed from the title — $0 today, armed for invoice imports. */
-  dollar: 0.15,
+  dollar: 0.12,
   /** Mission rank of the parent mission. */
   mission: 0.15,
   /** Inverse frictionScore. */
-  friction: 0.1,
-  /** Energy fit — low-energy tasks are cheap to start. */
+  friction: 0.09,
+  /** Energy fit vs the operator's clock — morning favors HIGH, evening LOW. */
   energy: 0.05,
+  /** Started work (DOING / startedAt): an open loop outranks a fresh start —
+   *  attention residue makes resuming cheaper than switching (Execution Deck
+   *  §6). Sized so a strong READY task still clears the HIGH band (60) —
+   *  the band thresholds feed the MIT picker and must stay reachable. */
+  active: 0.06,
 } as const;
 
 /** Multiplier applied AFTER the weighted sum for DAILY/WEEKLY loops: a
  *  habit is maintenance, not attention — it must never outrank business
  *  work on equal terms. Mirrors the hard exclusion in derive-briefing. */
 export const HABIT_CLASS_MULTIPLIER = 0.5;
+
+/** A task waiting on someone/something is parked, not urgent — but never
+ *  invisible: the multiplier keeps it ranked so a 60-day-blocked row can
+ *  still surface via staleness instead of vanishing. */
+export const BLOCKED_MULTIPLIER = 0.35;
+
+/** Boundary rule (Execution Deck §3): StateNour is the personal OS. A
+ *  BUSINESS-domain task is dampened here — the shop is run from
+ *  nickstire.org/admin — UNLESS its due ramp is hot (>=75), because an
+ *  overdue judgment item is exactly what this surface exists to catch. */
+export const SHOP_CLASS_MULTIPLIER = 0.7;
+export const SHOP_OVERDUE_EXEMPT_MIN = 75;
 
 /** Loop kinds that are habits. Single source — derive-briefing imports this. */
 export const HABIT_LOOPS = new Set(["DAILY", "WEEKLY"]);
@@ -85,12 +102,18 @@ export type TaskPriorityCandidate = {
   lastTouchedAt?: string | Date | null;
   loopKind?: string | null;
   manualPriorityOverride?: number | null;
+  /** Free-text blocker ("Eddy", "parts delivery") — presence parks the row. */
+  waitingOn?: string | null;
+  /** Set when the operator started this task — resuming beats switching. */
+  startedAt?: string | Date | null;
 };
 
 export type RankedMissionRef = {
   id: string;
   rank: number;
   rankScore: number;
+  /** MissionDomain of the parent — drives the shop boundary dampening. */
+  domain?: string | null;
 };
 
 export type TaskPriorityResult = {
@@ -99,6 +122,13 @@ export type TaskPriorityResult = {
   manual: boolean;
 };
 
+/**
+ * Continuous due ramp (Taskwarrior-shaped, 0-100). Pressure builds BEFORE
+ * the deadline instead of jumping a staircase: floor 20 from 14 days out,
+ * linear climb through the deadline (due today ≈ 73), saturating at 100
+ * once a task is 7 days overdue. An undated task sits just below the
+ * floor (10) so "far away" still beats "never".
+ */
 function getDueUrgency(dueDate: string | Date | null | undefined, now: Date) {
   const remaining = daysUntil(dueDate, now);
 
@@ -106,27 +136,17 @@ function getDueUrgency(dueDate: string | Date | null | undefined, now: Date) {
     return 10;
   }
 
-  if (remaining <= 0) {
+  const daysOverdue = -remaining;
+
+  if (daysOverdue >= 7) {
     return 100;
   }
 
-  if (remaining < 1) {
-    return 90;
+  if (daysOverdue >= -14) {
+    return Math.round(((daysOverdue + 14) * 80) / 21 + 20);
   }
 
-  if (remaining === 1) {
-    return 75;
-  }
-
-  if (remaining <= 3) {
-    return 60;
-  }
-
-  if (remaining <= 7) {
-    return 40;
-  }
-
-  return 10;
+  return 20;
 }
 
 /** Days since the task was last touched; null when never touched. */
@@ -160,6 +180,22 @@ function getDollarUrgency(amount: number): number {
   return Math.min(100, Math.round(25 * Math.log10(amount + 1)));
 }
 
+/**
+ * Energy fit vs the operator's ET clock: mornings reward HIGH-energy work,
+ * afternoons MEDIUM, evenings LOW. The weight (0.05) keeps this a nudge,
+ * never a decider — it breaks ties between otherwise-equal candidates.
+ */
+function getEnergyFit(energyRequired: string, now: Date): number {
+  const h = hourET(now);
+  if (h < 12) {
+    return energyRequired === "HIGH" ? 100 : energyRequired === "MEDIUM" ? 75 : 55;
+  }
+  if (h < 18) {
+    return energyRequired === "MEDIUM" ? 100 : energyRequired === "LOW" ? 75 : 60;
+  }
+  return energyRequired === "LOW" ? 100 : energyRequired === "MEDIUM" ? 60 : 30;
+}
+
 export function scoreTaskPriority(
   task: TaskPriorityCandidate,
   missionRankings: Map<string, RankedMissionRef>,
@@ -181,8 +217,13 @@ export function scoreTaskPriority(
   const dollarUrgency = getDollarUrgency(dollars);
   const inverseFriction = Math.max(0, 100 - task.frictionScore);
   const missionWeight = !mission ? 10 : mission.rank === 1 ? 100 : mission.rank === 2 ? 70 : 50;
-  const energyBonus = task.energyRequired === "LOW" ? 100 : task.energyRequired === "MEDIUM" ? 70 : 45;
+  const energyBonus = getEnergyFit(task.energyRequired, now);
+  const isDoing = task.status === "DOING" || Boolean(task.startedAt);
+  const activeBonus = isDoing ? 100 : 0;
   const isHabit = HABIT_LOOPS.has((task.loopKind ?? "").toUpperCase());
+  const isBlocked = typeof task.waitingOn === "string" && task.waitingOn.trim().length > 0;
+  const isShopDampened =
+    (mission?.domain ?? "").toUpperCase() === "BUSINESS" && dueUrgency < SHOP_OVERDUE_EXEMPT_MIN;
 
   const weighted =
     task.roiScore * NOW_WEIGHTS.roi +
@@ -191,8 +232,13 @@ export function scoreTaskPriority(
     dollarUrgency * NOW_WEIGHTS.dollar +
     missionWeight * NOW_WEIGHTS.mission +
     inverseFriction * NOW_WEIGHTS.friction +
-    energyBonus * NOW_WEIGHTS.energy;
-  const score = Math.round(weighted * (isHabit ? HABIT_CLASS_MULTIPLIER : 1));
+    energyBonus * NOW_WEIGHTS.energy +
+    activeBonus * NOW_WEIGHTS.active;
+  const multiplier =
+    (isHabit ? HABIT_CLASS_MULTIPLIER : 1) *
+    (isBlocked ? BLOCKED_MULTIPLIER : 1) *
+    (isShopDampened ? SHOP_CLASS_MULTIPLIER : 1);
+  const score = Math.round(weighted * multiplier);
 
   // One line, material terms only — "picked because: $846 · overdue 108d".
   const remaining = daysUntil(task.dueDate, now);
@@ -202,8 +248,11 @@ export function scoreTaskPriority(
     if (remaining <= 0) parts.push(`overdue ${Math.abs(Math.round(remaining))}d`);
     else parts.push(`due in ${Math.round(remaining)}d`);
   }
+  if (isDoing) parts.push("in progress");
+  if (isBlocked) parts.push(`waiting on ${task.waitingOn!.trim()} ×${BLOCKED_MULTIPLIER}`);
   if (touchDays !== null && touchDays >= 3) parts.push(`untouched ${touchDays}d`);
   if (isHabit) parts.push(`habit ×${HABIT_CLASS_MULTIPLIER}`);
+  if (isShopDampened) parts.push(`shop ×${SHOP_CLASS_MULTIPLIER}`);
   if (mission && mission.rank <= 2) parts.push(`mission #${mission.rank}`);
   if (task.roiScore !== 50) parts.push(`roi ${task.roiScore}`);
   if (parts.length === 0) parts.push("no strong signal");

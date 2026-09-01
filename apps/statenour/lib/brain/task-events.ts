@@ -52,7 +52,10 @@ export type TaskEventKind =
   | "stale_flagged"
   | "revived"
   | "waiting"
-  | "killed";
+  | "killed"
+  /** Execution Deck (2026-09-01): DOING → READY with a ready-to-resume
+   *  note in payload.note — read back by the deck's next-move hero. */
+  | "parked";
 
 export interface TaskEventInput {
   taskId: string;

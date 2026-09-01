@@ -155,19 +155,20 @@ export function MissionCard({
     if (!task) return;
 
     try {
+      // Execution Deck P0 (2026-09-01): per-step refetch skipped; settle once.
       if (targetIndex < sourceIndex) {
-        // Moving up
         for (let i = sourceIndex; i > targetIndex; i--) {
-          await actions.handleMoveTask(task.id, "up");
+          await actions.handleMoveTask(task.id, "up", { skipRefetch: true });
         }
       } else {
-        // Moving down
         for (let i = sourceIndex; i < targetIndex; i++) {
-          await actions.handleMoveTask(task.id, "down");
+          await actions.handleMoveTask(task.id, "down", { skipRefetch: true });
         }
       }
     } catch (err) {
       console.error("Failed to reorder task via drag & drop", err);
+    } finally {
+      await actions.settleReorder();
     }
   };
 
