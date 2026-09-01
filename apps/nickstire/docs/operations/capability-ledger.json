@@ -1596,7 +1596,11 @@
           "description": "Migration drizzle/0112_reel_publish_approvals.sql is hand-applied and has NOT been applied to production TiDB - 0113 got a read-back receipt on 2026-08-31, 0112 has none anywhere in docs. Until it runs, findLiveApproval catches on the missing table, the drain reads zero approvals, and NO reel can publish - which is the state production has been in since 2026-08-29. The surface shipped here is therefore inert on arrival by design: fail-closed is correct, but it means this capability does nothing at all until the DDL lands. Apply script: apps/nickstire/scripts/migrations/apply-0112-reel-publish-approvals.ts - additive, idempotent, prints the target host, refuses to execute any statement that is not CREATE TABLE IF NOT EXISTS, and post-checks the columns, the index and the id column type before reporting success."
         }
       ],
-      "deferredScope": "Supersede-then-insert is not wrapped in a transaction: a transient insert failure after a successful revoke downgrades an approved reel to held. Fail-closed, so the safe direction, and deliberately left rather than hidden. listReelPublishQueue does one approval lookup per row (N+1, bounded at 25) — acceptable for an admin screen, not for a hot path.",
+      "deferredScope": [
+        "Supersede-then-insert is not wrapped in a transaction: a transient insert failure after a successful revoke downgrades an approved reel to held. Fail-closed, so the safe direction, and left deliberately rather than hidden.",
+        "listReelPublishQueue does one findLiveApproval per row (N+1, bounded at 25) - acceptable for an admin screen, not for a hot path.",
+        "expiresAt uses the same new Date(Date.now()+TTL) construction as contentApprovals.ts. If TiDB timestamp read-back skews, an approval outlives 72h - a mild fail-open, matched to prior art rather than forked into a second scheme."
+      ],
       "lastVerifiedAt": "2026-09-01",
       "codeState": "merged",
       "operationalState": "unit_verified",
