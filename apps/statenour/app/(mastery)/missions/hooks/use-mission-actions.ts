@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { logger as rootLogger } from "@/lib/logger";
-import { formatReward, type TaskReward, type LevelUpPayload } from "@/lib/mastery/task-reward";
+import { formatReward, type TaskReward } from "@/lib/mastery/task-reward";
 import type { Task, Project } from "@/components/actions/shared";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import { useRouter } from "next/navigation";
@@ -22,8 +22,6 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   const telemetry = useMissionSurfaceTelemetry("missions");
 
   const setRetroState = useMissionUIStore((s) => s.setRetroState);
-  const setLevelUpState = useMissionUIStore((s) => s.setLevelUpState);
-  const triggerXpParticle = useMissionUIStore((s) => s.triggerXpParticle);
   const openTaskEdit = useMissionUIStore((s) => s.openTaskEdit);
   const openMissionEdit = useMissionUIStore((s) => s.openMissionEdit);
 
@@ -35,6 +33,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   const decomposeTask = trpc.task.decompose.useMutation();
   const reorderMissionMut = trpc.task.reorderMission.useMutation();
   const reorderTaskMut = trpc.task.reorderTask.useMutation();
+  const parkTaskMut = trpc.task.park.useMutation();
 
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,7 +50,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     await Promise.all([
       utils.task.list.invalidate(),
       utils.task.missions.invalidate(),
-      utils.operator.characterSheet.invalidate(),
+      utils.task.deck.invalidate(),
       utils.operator.commandCenterState.invalidate(),
     ]);
   }, [utils]);
@@ -87,7 +86,6 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       const isDaily = loopKind === "DAILY";
       const isWeekly = loopKind === "WEEKLY";
       const isRecurring = isDaily || isWeekly;
-      let xpAdded = 0;
       // Outcome capture, calibrated against the prompt-fatigue literature
       // (2026-08-19: Apple caps its own review prompt at 3/365d; ESM
       // compliance decays with prompts/day; Complice/Intend batch reflection
@@ -134,8 +132,6 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
-          if (res.reward?.levelUp) setLevelUpState(res.reward.levelUp);
-          if (res.reward?.xpCredited) xpAdded = res.reward.xpCredited;
         } else {
           const res = await updateTask.mutateAsync({ id, fields: { status: "DONE", ...outcomeFields } });
           const reward = (res as unknown as { reward?: TaskReward }).reward;
@@ -143,10 +139,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
           if (msg) {
             toast.success(msg, { duration: 4500, action: { label: "Stats", onClick: () => router.push("/stats") } });
           }
-          if (reward?.levelUp) setLevelUpState(reward.levelUp);
-          if (reward?.xpCredited) xpAdded = reward.xpCredited;
         }
-        if (xpAdded > 0) triggerXpParticle(xpAdded);
         await refetchAll();
 
         if (wasOpen && task?.missionId && !isRecurring) {
@@ -161,7 +154,7 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
         toast.error("Could not complete task.");
       }
     },
-    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setLevelUpState, triggerXpParticle, setRetroState, collectOutcome],
+    [tasks, missions, updateTask, checkTaskMut, refetchAll, telemetry, router, setRetroState, collectOutcome],
   );
 
   const handleStartTask = useCallback(
@@ -227,6 +220,51 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
       telemetry.event("editMissionOpen", { missionId });
     },
     [missions, openMissionEdit, telemetry],
+  );
+
+  // Execution Deck (2026-09-01) · park a DOING task with a resume note.
+  // The note rides a TaskEvent (kind "parked"); the deck hero replays it.
+  const handleParkTask = useCallback(
+    async (id: string, note: string) => {
+      try {
+        telemetry.event("parkTask", { taskId: id, hasNote: note.trim().length > 0 });
+        await parkTaskMut.mutateAsync({ id, note });
+        await refetchAll();
+        toast.success("Parked — the note is waiting for you on resume.");
+      } catch (err) {
+        log.error("parkTask_failed", { err });
+        toast.error("Could not park the task.");
+      }
+    },
+    [parkTaskMut, refetchAll, telemetry],
+  );
+
+  // Execution Deck (2026-09-01) · hand a task to Nick: the row parks as
+  // waiting-on-Nick and the side pane opens PREFILLED (never auto-sent —
+  // $0 doctrine: the operator fires the turn). Draft-first delegation:
+  // Nick's output comes back through chat/approvals, never as applied change.
+  const handleDelegateTask = useCallback(
+    async (task: Task) => {
+      try {
+        telemetry.event("delegateTask", { taskId: task.id });
+        await updateTask.mutateAsync({ id: task.id, fields: { waitingOn: "Nick" } });
+        const action = (task as unknown as { nextPhysicalAction?: string | null }).nextPhysicalAction;
+        window.dispatchEvent(
+          new CustomEvent("statenour:open-nick", {
+            detail: {
+              pendingPrompt: `Take this task and do the legwork — draft what you can, list what you need from me, and don't execute anything external:\n"${task.title}"${action ? `\nFirst step on file: ${action}` : ""}`,
+              submitOnMount: false,
+            },
+          }),
+        );
+        await refetchAll();
+        toast.success("Handed to Nick — review his draft in the pane.");
+      } catch (err) {
+        log.error("delegateTask_failed", { err });
+        toast.error("Could not hand the task to Nick.");
+      }
+    },
+    [updateTask, refetchAll, telemetry],
   );
 
   const handleSnoozeTask = useCallback(
@@ -333,32 +371,41 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   );
 
   const handleMoveMission = useCallback(
-    async (missionId: string, direction: "up" | "down") => {
+    async (missionId: string, direction: "up" | "down", opts?: { skipRefetch?: boolean }) => {
       try {
         telemetry.event("reorderMission", { missionId, direction });
         const res = await reorderMissionMut.mutateAsync({ missionId, direction });
-        if (res.ok) await refetchAll();
+        // Multi-step drags pass skipRefetch and settle once at the end —
+        // the old per-step refetch made an 8-position drag 32 round trips.
+        if (res.ok && !opts?.skipRefetch) await refetchAll();
       } catch (err) {
         log.error("reorderMission_failed", { err });
         toast.error("Could not reorder mission.");
+        throw err;
       }
     },
     [reorderMissionMut, refetchAll, telemetry],
   );
 
   const handleMoveTask = useCallback(
-    async (taskId: string, direction: "up" | "down") => {
+    async (taskId: string, direction: "up" | "down", opts?: { skipRefetch?: boolean }) => {
       try {
         telemetry.event("reorderTask", { taskId, direction });
         const res = await reorderTaskMut.mutateAsync({ taskId, direction });
-        if (res.ok) await refetchAll();
+        if (res.ok && !opts?.skipRefetch) await refetchAll();
       } catch (err) {
         log.error("reorderTask_failed", { err });
         toast.error("Could not reorder task.");
+        throw err;
       }
     },
     [reorderTaskMut, refetchAll, telemetry],
   );
+
+  /** One settle for a multi-step drag. */
+  const settleReorder = useCallback(async () => {
+    await refetchAll();
+  }, [refetchAll]);
 
   const handleQuickAdd = useCallback(
     async (text: string) => {
@@ -412,11 +459,14 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
     handleUpdateTaskFields,
     handleEditTask,
     handleSnoozeTask,
+    handleParkTask,
+    handleDelegateTask,
     handleDecomposeTask,
     handleCompleteMission,
     handleArchiveMission,
     handleMoveMission,
     handleMoveTask,
+    settleReorder,
     handleQuickAdd,
     handleEditMission,
     submitting,

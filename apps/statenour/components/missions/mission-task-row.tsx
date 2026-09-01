@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Bot,
   Check,
   Clock,
   Pencil,
@@ -97,7 +98,7 @@ export function MissionTaskRow({
 }: MissionTaskRowProps) {
   const actions = useMissionDispatch();
   const [busy, setBusy] = useState<
-    "complete" | "start" | "delete" | "snooze" | "decompose" | null
+    "complete" | "start" | "delete" | "snooze" | "decompose" | "delegate" | null
   >(null);
   // Wave AV · 2026-05-28 · snooze popover · open state local to the row.
   const [snoozeOpen, setSnoozeOpen] = useState(false);
@@ -532,6 +533,25 @@ export function MissionTaskRow({
               className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
               <Play size={12} strokeWidth={2} />
+            </button>
+          )}
+          {actions.handleDelegateTask && !task.waitingOn && (
+            <button
+              type="button"
+              onClick={async () => {
+                setBusy("delegate");
+                try {
+                  await actions.handleDelegateTask!(task);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              disabled={busy !== null}
+              aria-label="hand to Nick"
+              title="Hand to Nick — he drafts, you review"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-violet-300 hover:bg-violet-500/10 active:scale-95 transition-transform disabled:opacity-50"
+            >
+              <Bot size={12} strokeWidth={2} />
             </button>
           )}
           <button

@@ -96,19 +96,22 @@ export function MissionFeed({
     if (!mission) return;
 
     try {
+      // Execution Deck P0 (2026-09-01): steps skip their per-step refetch and
+      // settle ONCE — the old loop fired a full 4-cache invalidation per step,
+      // making an 8-position drag 32 round trips.
       if (targetIndex < sourceIndex) {
-        // Moving up
         for (let i = sourceIndex; i > targetIndex; i--) {
-          await actions.handleMoveMission(mission.id, "up");
+          await actions.handleMoveMission(mission.id, "up", { skipRefetch: true });
         }
       } else {
-        // Moving down
         for (let i = sourceIndex; i < targetIndex; i++) {
-          await actions.handleMoveMission(mission.id, "down");
+          await actions.handleMoveMission(mission.id, "down", { skipRefetch: true });
         }
       }
     } catch (err) {
       console.error("Failed to reorder mission via drag & drop", err);
+    } finally {
+      await actions.settleReorder();
     }
   };
 

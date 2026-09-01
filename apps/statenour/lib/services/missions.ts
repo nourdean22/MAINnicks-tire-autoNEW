@@ -438,7 +438,7 @@ export async function resolveInboxMissionId(): Promise<string> {
         successMetric: "Catch-all for quick captures · sorted into projects later.",
         domain: "PERSONAL",
         status: "ACTIVE",
-        priority: 50,
+        priority: 5, // 1-10 scale (was 50 -- saturated the rankMissions term)
         roiScore: 50,
         neglectCost: 50,
       },
@@ -492,7 +492,7 @@ export async function resolveGeneralAnchorId(
         canonicalDomain: domain,
         systemKind: GENERAL_ANCHOR_KIND,
         status: "ACTIVE",
-        priority: 50,
+        priority: 5, // 1-10 scale (was 50 -- saturated the rankMissions term)
         roiScore: 50,
         neglectCost: 50,
       },

@@ -764,6 +764,45 @@ export async function startTask(id: string): Promise<StartTaskResult> {
   return { ok: true, task: updated };
 }
 
+// ─── parkTask ─────────────────────────────────────────────────
+// Execution Deck (2026-09-01): the interruption-recovery half of start.
+// DOING → READY with a one-line "where I stopped / what's next" note
+// stored as a TaskEvent (kind "parked", payload.note). The deck's hero
+// reads the latest note back on resume — attention-residue literature
+// says this ~1-minute note is what makes the next block start clean.
+
+export async function parkTask(id: string, note: string): Promise<StartTaskResult> {
+  const task = await prisma.task.findUnique({
+    where: { id },
+    select: { id: true, status: true, startedAt: true, lastTouchedAt: true },
+  });
+  if (!task) throw new ServiceError("Task not found", 404);
+  if (task.status !== "DOING") {
+    throw new ServiceError("Only a task in progress can be parked.", 400);
+  }
+
+  const now = new Date();
+  const updated = await prisma.task.update({
+    where: { id },
+    data: {
+      status: "READY",
+      startedAt: null,
+      lastTouchedAt: now,
+      ...auditUpdate(),
+    },
+    select: { id: true, status: true, startedAt: true, lastTouchedAt: true },
+  });
+
+  emitTaskEventAsync({
+    taskId: id,
+    kind: "parked",
+    source: "service:task-actions.parkTask",
+    payload: { note: note.trim().slice(0, 500) },
+  });
+
+  return { ok: true, task: updated };
+}
+
 // ─── breakPromise ──────────────────────────────────────────────
 
 const PATTERN_RULES: Array<{ pattern: string; regex: RegExp }> = [

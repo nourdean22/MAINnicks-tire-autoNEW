@@ -39,6 +39,7 @@ export { auditTodaysLeads } from "./audit-todays-leads";
 
 // Consolidated Stack workflows
 export { crmFollowups } from "./crm-followups";
+export { taskDueReminder } from "./task-due-reminder";
 export { operatingRhythm } from "./operating-rhythm";
 export { automationEngineTick } from "./automation-engine";
 

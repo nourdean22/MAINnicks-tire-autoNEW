@@ -15,7 +15,7 @@
  * Reduces choice fatigue completely.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Play,
   Pause,
@@ -40,6 +40,9 @@ interface ExecutionPanelProps {
   onDelete: (id: string) => void | Promise<void>;
   onEdit: (task: Task) => void;
   onUpdateTask: (id: string, fields: any) => void | Promise<void>;
+  /** Execution Deck (2026-09-01): park a DOING task with a ready-to-resume
+   *  note. When absent, Pause falls back to a bare status flip. */
+  onPark?: (id: string, note: string) => void | Promise<void>;
   onExit: () => void;
 }
 
@@ -67,6 +70,7 @@ export function ExecutionPanel({
   onDelete,
   onEdit,
   onUpdateTask,
+  onPark,
   onExit,
 }: ExecutionPanelProps) {
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -74,18 +78,68 @@ export function ExecutionPanel({
   const [blockReason, setBlockReason] = useState("");
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
+  const [showParkForm, setShowParkForm] = useState(false);
+  const [parkNote, setParkNote] = useState("");
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
 
+  // Focus session keeps the screen alive while a task is in flight
+  // (Screen Wake Lock — full iOS PWA support since 18.4). Best-effort:
+  // every path is try/caught, and visibility loss releases it anyway.
+  useEffect(() => {
+    if (!isDoing) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let cancelled = false;
+    const request = async () => {
+      try {
+        const wl = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+        if (!wl) return;
+        const acquired = await wl.request("screen");
+        if (cancelled) void acquired.release();
+        else lock = acquired;
+      } catch {
+        /* denied or unsupported — a focus session works without it */
+      }
+    };
+    void request();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void request();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      if (lock) void lock.release().catch(() => {});
+    };
+  }, [isDoing, task.id]);
+
   const handleStartPause = async () => {
+    if (isDoing) {
+      // Park, don't just pause: the one-line "where I stopped" note is
+      // what makes the next block start clean (attention residue).
+      setShowParkForm(true);
+      return;
+    }
     setSubmitting("start");
     try {
-      if (isDoing) {
-        await onUpdateTask(task.id, { status: "READY" });
+      await onStart(task.id);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const handleParkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting("park");
+    try {
+      if (onPark) {
+        await onPark(task.id, parkNote);
       } else {
-        await onStart(task.id);
+        await onUpdateTask(task.id, { status: "READY" });
       }
+      setShowParkForm(false);
+      setParkNote("");
     } finally {
       setSubmitting(null);
     }
@@ -206,6 +260,50 @@ export function ExecutionPanel({
           )}
         </div>
 
+        {/* Sub-form: Park with a ready-to-resume note */}
+        {showParkForm && (
+          <form
+            onSubmit={handleParkSubmit}
+            className="p-3 bg-zinc-950/60 rounded-lg border border-[var(--gold)]/25 space-y-2.5 animate-slide-down"
+          >
+            <label
+              htmlFor="park-note-input"
+              className="block text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]/90"
+            >
+              Where did you stop? What&apos;s the next physical step?
+            </label>
+            <input
+              id="park-note-input"
+              autoFocus
+              type="text"
+              maxLength={500}
+              value={parkNote}
+              onChange={(e) => setParkNote(e.target.value)}
+              placeholder="e.g. drywall cut — tape the seam next"
+              className="w-full rounded-md border border-[var(--gold)]/30 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+            />
+            <div className="flex justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowParkForm(false);
+                  setParkNote("");
+                }}
+                className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-400 hover:text-zinc-200 min-h-[44px]"
+              >
+                Keep going
+              </button>
+              <button
+                type="submit"
+                disabled={submitting === "park"}
+                className="px-2.5 py-1.5 rounded bg-[var(--gold)] text-black font-medium hover:bg-[var(--gold)]/85 min-h-[44px]"
+              >
+                {submitting === "park" ? "Parking…" : "Park task"}
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* Sub-form: Block/Wait Input */}
         {showBlockForm && (
           <form
@@ -321,7 +419,7 @@ export function ExecutionPanel({
         )}
 
         {/* 3-5 Primary Execution Controls */}
-        {!showBlockForm && !showSnoozeOptions && !showAbandonConfirm && (
+        {!showBlockForm && !showSnoozeOptions && !showAbandonConfirm && !showParkForm && (
           <div className="grid grid-cols-2 gap-2.5 pt-2">
             {/* Start / Pause */}
             <button
@@ -337,7 +435,7 @@ export function ExecutionPanel({
             >
               {isDoing ? (
                 <>
-                  <Pause size={14} fill="currentColor" /> Pause Task
+                  <Pause size={14} fill="currentColor" /> Park Task
                 </>
               ) : (
                 <>

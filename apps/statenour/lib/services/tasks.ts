@@ -464,6 +464,13 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
   // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
   // commits so analytics never blocks the user-facing write path.
   emitTaskEventAsync({ taskId: result.task.id, kind: "created", source: "service:createTask" });
+  // Execution Deck (2026-09-01): arm the due-time reminder sleeper when the
+  // task is born with a future due date (fire-and-forget).
+  if (result.task.dueDate) {
+    void import("@/lib/services/task-due-reminders").then(({ syncDueReminder }) =>
+      syncDueReminder(result.task.id, null, result.task.dueDate),
+    );
+  }
   // v8.0 Phase 2A — entity-audit create.
   void logCreate("task", result.task.id, result.task as unknown as Record<string, unknown>, {
     source: "service:createTask",
@@ -955,6 +962,14 @@ export async function updateTask(id: string, input: unknown) {
     });
 
     await syncTaskPriorities(tx);
+
+    // Execution Deck (2026-09-01): a due-date change re-arms the server-side
+    // reminder sleeper (fire-and-forget — never blocks the PATCH).
+    if (payload.dueDate !== undefined) {
+      void import("@/lib/services/task-due-reminders").then(({ syncDueReminder }) =>
+        syncDueReminder(id, existing.dueDate, task.dueDate),
+      );
+    }
 
     const hydrated = await tx.task.findUnique({
       where: { id: task.id },

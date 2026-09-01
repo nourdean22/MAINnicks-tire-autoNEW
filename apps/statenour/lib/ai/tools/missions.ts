@@ -317,11 +317,14 @@ export const missionsTools = {
     }),
     execute: async ({ title, domain, priority, successMetric, tasks }) => {
       // Create mission first
+      // The tool contract is 1-100 (model-friendly); Mission.priority is
+      // 1-10 (validators + rankMissions clamp). Writing 1-100 raw saturated
+      // the ranking term at 100 for every chat-created mission.
       const mission = await prisma.mission.create({
         data: {
           title,
           domain,
-          priority,
+          priority: Math.max(1, Math.min(10, Math.round(priority / 10))),
           roiScore: priority,
           neglectCost: Math.round(priority * 0.7),
           successMetric,
