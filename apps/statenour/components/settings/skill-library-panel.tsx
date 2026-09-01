@@ -14,7 +14,7 @@
  *   • Graduated  — proven + silent. Reference only; no more nudging.
  *
  * Data lives in BrainMemory (category "skill" + "skill_pending") so
- * there's no schema. All curation goes through /api/skills.
+ * there's no schema. All curation goes through trpc.operator.curateSkill.
  */
 
 import { useCallback, useMemo, useState } from "react";

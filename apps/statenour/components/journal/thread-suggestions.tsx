@@ -59,6 +59,7 @@ export function ThreadSuggestions({
   // the {data} envelope so no manual unwrap is needed.
   const suggestionsQuery = trpc.journal.suggestions.useQuery(undefined, {
     refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
   const suggestions: Suggestion[] = suggestionsQuery.data ?? [];
   const loading = suggestionsQuery.isLoading;
@@ -66,7 +67,9 @@ export function ThreadSuggestions({
   const load = () => suggestionsQuery.refetch();
 
   useEffect(() => {
-    if (refreshSignal != null) suggestionsQuery.refetch();
+    // > 0, not != null: the page seeds useState(0), and 0 != null fired a
+    // redundant refetch on every mount right after the initial fetch.
+    if (refreshSignal != null && refreshSignal > 0) suggestionsQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSignal]);
 

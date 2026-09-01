@@ -78,9 +78,20 @@ export function SystemInfoCard() {
             system
           </span>
         </div>
+        {/* The dot was hardcoded green — it announced LIVE while both
+            reads were erroring. It now tells the truth it already knew. */}
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-400 pulse-live" />
-          <span className="text-[10px] text-green-400 font-mono">LIVE</span>
+          {healthError ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-rose-400" />
+              <span className="text-[10px] text-rose-300 font-mono">STALE</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-green-400 pulse-live" />
+              <span className="text-[10px] text-green-400 font-mono">LIVE</span>
+            </>
+          )}
         </div>
       </div>
       <div className="space-y-1 text-[11px] font-mono text-[var(--text-tertiary)]">

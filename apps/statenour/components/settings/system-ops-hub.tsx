@@ -9,7 +9,7 @@
  * components/settings/* pattern (ai-settings-panel · cron-control-panel
  * · skill-library-panel · identity-panel · system-data-cards).
  *
- * Why the move: file-size hygiene (page.tsx now stays ~540 LOC instead
+ * Why the move: file-size hygiene (settings/page.tsx is a thin shell (~28 LOC) instead
  * of 935) + makes the system-ops nav structure independently editable
  * from the settings page composition.
  *

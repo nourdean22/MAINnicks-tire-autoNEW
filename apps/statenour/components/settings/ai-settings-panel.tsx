@@ -11,7 +11,7 @@
  * Settings page. Each card writes to its own endpoint:
  *
  *   /api/settings/ai-config    — AI config GET/PATCH/DELETE
- *   /api/drive/sync            — POST manual sync / GET stats
+ *   trpc.operator.syncDrive            — POST manual sync / GET stats
  *
  * Live mutation pattern: every slider / toggle fires PATCH with the
  * single field, the server merges + writes to brain_memory row, the
@@ -84,6 +84,28 @@ export function AiSettingsPanel() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [disabledTool, setDisabledTool] = useState("");
+  // A failed config load used to leave the panel on "loading…" forever —
+  // silent failure is indistinguishable from slow. Named error instead.
+  const [configError, setConfigError] = useState(false);
+  // Per-device toggles read their real store (localStorage) — the DB copy
+  // had no reader and lied on any second device. Lazy init is guarded for
+  // the server render, where window is absent.
+  const [hapticOn, setHapticOn] = useState(() => {
+    try {
+      if (typeof window === "undefined") return true;
+      return localStorage.getItem("nour:haptic-enabled") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const [speedRibbonOn, setSpeedRibbonOn] = useState(() => {
+    try {
+      if (typeof window === "undefined") return false;
+      return localStorage.getItem("nour:chat:speed-ribbon") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // Phase UU.2 (2026-05-22) · REST→tRPC · config + cold-memory stats
   // stay in local state (the panel mutates `config` optimistically on
@@ -95,7 +117,10 @@ export function AiSettingsPanel() {
   const loadConfig = useCallback(async () => {
     try {
       setConfig((await utils.operator.aiConfig.fetch()) as AiConfig);
-    } catch {}
+      setConfigError(false);
+    } catch {
+      setConfigError(true);
+    }
   }, [utils]);
 
   const loadStats = useCallback(async () => {
@@ -203,7 +228,22 @@ export function AiSettingsPanel() {
   if (!config) {
     return (
       <GlassCard>
-        <p className="text-[11px] text-[var(--text-tertiary)]">loading…</p>
+        {configError ? (
+          <div className="flex items-center gap-3">
+            <p role="alert" className="text-[11px] text-rose-300/90">
+              AI config unreadable — the read failed. State unknown, not defaults.
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadConfig()}
+              className="rounded border border-[var(--border-default)] px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] min-h-[44px]"
+            >
+              retry
+            </button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-[var(--text-tertiary)]">loading…</p>
+        )}
       </GlassCard>
     );
   }
@@ -276,21 +316,15 @@ export function AiSettingsPanel() {
           />
         </div>
 
-        {/* Default provider */}
-        <Row label="Default Provider">
-          <SegmentedSelect
-            value={config.defaultProvider || "auto"}
-            options={["auto", "ollama", "gemini", "openai", "anthropic", "openrouter"]}
-            onChange={(v) =>
-              patch({
-                defaultProvider:
-                  v === "auto"
-                    ? undefined
-                    : (v as "ollama" | "gemini" | "openai" | "anthropic" | "openrouter"),
-              })
-            }
-          />
-        </Row>
+        {/* 2026-09-01 settings audit: Default Provider, Temperature,
+            Reasoning Effort, AI Web Search and Semantic Tool Pruning were
+            REMOVED — each wrote a config field with ZERO runtime readers
+            (provider/temperature/effort/search are decided per turn by
+            classifyTurn + the provider chain; pruneTools never consulted
+            toolEmbeddingsEnabled). A control that writes to nothing is a
+            lie with a nice label. Wire a reader before resurfacing any of
+            them. Survivors below are the fields the runtime actually reads:
+            defaultMode (derive-turn-signals) + disabledTools (prepare-tools). */}
 
         {/* Default mode */}
         <Row label="Default Mode">
@@ -306,79 +340,31 @@ export function AiSettingsPanel() {
           />
         </Row>
 
-        {/* Temperature */}
-        <Row label={`Temperature ${config.temperature != null ? config.temperature.toFixed(2) : "auto"}`}>
-          <input
-            type="range"
-            min={0}
-            max={2}
-            step={0.05}
-            value={config.temperature ?? 0.7}
-            onChange={(e) => patch({ temperature: parseFloat(e.target.value) })}
-            className="w-32 accent-[var(--gold)]"
-          />
-          {config.temperature != null && (
-            <button
-              onClick={() => patch({ temperature: undefined })}
-              className="text-[9px] text-[var(--text-tertiary)] hover:text-red-400"
-            >
-              clear
-            </button>
-          )}
-        </Row>
-
-        {/* Reasoning effort */}
-        <Row label="Reasoning Effort">
-          <SegmentedSelect
-            value={config.reasoningEffort || "auto"}
-            options={["auto", "low", "medium", "high", "max"]}
-            onChange={(v) =>
-              patch({
-                reasoningEffort:
-                  v === "auto" ? undefined : (v as "low" | "medium" | "high" | "max"),
-              })
-            }
-          />
-        </Row>
-
-        {/* Web search */}
-        <Row label="AI Web Search">
-          <SegmentedSelect
-            value={config.webSearch || "auto"}
-            options={["auto", "on", "off"]}
-            onChange={(v) =>
-              patch({ webSearch: v as "auto" | "on" | "off" })
-            }
-          />
-        </Row>
-
-        {/* Toggles */}
+        {/* Device toggles — localStorage is the ONLY store (the old dual
+            DB write had no reader and made a second device's switch lie). */}
         <Row label="Haptic Feedback">
           <Toggle
-            value={!!config.hapticFeedback}
+            value={hapticOn}
             onChange={(v) => {
               haptic.setEnabled(v);
-              patch({ hapticFeedback: v });
+              setHapticOn(v);
             }}
           />
         </Row>
         <Row label="Speed Ribbon (per-message timing)">
           <Toggle
-            value={!!config.showSpeedRibbon}
+            value={speedRibbonOn}
             onChange={(v) => {
               try {
                 localStorage.setItem("nour:chat:speed-ribbon", v ? "1" : "0");
               } catch {}
-              patch({ showSpeedRibbon: v });
+              setSpeedRibbonOn(v);
             }}
           />
         </Row>
-        <Row label="Semantic Tool Pruning">
-          <Toggle
-            value={!!config.toolEmbeddingsEnabled}
-            onChange={(v) => patch({ toolEmbeddingsEnabled: v })}
-          />
-        </Row>
+        <p className="mt-1 text-[9px] text-[var(--text-tertiary)]">
+          These two are per-device (stored in this browser).
+        </p>
       </GlassCard>
 
       {/* ── Tool Opt-in / Opt-out (#13) ── */}

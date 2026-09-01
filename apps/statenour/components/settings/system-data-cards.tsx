@@ -18,6 +18,17 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Activity, AlertTriangle, Gauge, Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 
+/** Truth discipline (2026-09-01): a FAILED read must never render like a
+ *  measured quiet. Each card stays silent on genuine emptiness but names
+ *  itself unmeasured when its query errors. */
+function UnmeasuredLine({ label }: { label: string }) {
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-wide text-[var(--text-tertiary)]">
+      {label}: unmeasured — the read failed (not zero).
+    </p>
+  );
+}
+
 // ── Health trend (7-day sparkline) ────────────────────────────
 // Phase UU.2 (2026-05-22) · REST→tRPC · the 7-day trend is now a typed
 // query (system.healthTrend). The legacy route wrapped its report in
@@ -28,6 +39,7 @@ function HealthTrendCard() {
   const trendQuery = trpc.system.healthTrend.useQuery({ range: "7d" });
   const data = trendQuery.data ?? null;
 
+  if (trendQuery.isError) return <UnmeasuredLine label="Health trend" />;
   if (trendQuery.isPending || !data || data.series.length === 0) return null;
 
   const max = Math.max(
@@ -139,6 +151,7 @@ function ErrorRateCard() {
     .slice(0, 5);
 
   // Silent when loading or no errors — don't clutter
+  if (errorQuery.isError) return <UnmeasuredLine label="Error rate" />;
   if (errorQuery.isPending || !summary || summary.totalErrors === 0)
     return null;
 
@@ -202,6 +215,7 @@ function IntegrationQuotasCard() {
 
   // No metered provider probes left after Venice was retired — hide the
   // card entirely instead of rendering a misleading empty "0/0 live".
+  if (quotasQuery.isError) return <UnmeasuredLine label="Integration quotas" />;
   if (quotasQuery.isPending || !summary || probes.length === 0) return null;
 
   return (
@@ -260,6 +274,7 @@ function MemoryOfDayCard() {
   const motdQuery = trpc.brain.memoryOfTheDay.useQuery();
   const data = motdQuery.data ?? null;
 
+  if (motdQuery.isError) return <UnmeasuredLine label="Memory of the day" />;
   if (motdQuery.isPending || !data?.memory) return null;
   const m = data.memory;
   const ageStr =

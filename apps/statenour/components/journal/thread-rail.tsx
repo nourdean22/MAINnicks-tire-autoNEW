@@ -58,7 +58,7 @@ export function ThreadRail({
   // before (both return null below).
   const threadsQuery = trpc.journal.threads.useQuery(
     { includeDormant: true },
-    { refetchOnWindowFocus: false },
+    { refetchOnWindowFocus: false, staleTime: 60_000 },
   );
   const threads: Thread[] = threadsQuery.data ?? [];
   const error = threadsQuery.error;
@@ -66,7 +66,9 @@ export function ThreadRail({
   const reload = () => threadsQuery.refetch();
 
   useEffect(() => {
-    if (refreshSignal != null) threadsQuery.refetch();
+    // > 0, not != null: the page seeds useState(0), and 0 != null fired a
+    // redundant refetch on every mount right after the initial fetch.
+    if (refreshSignal != null && refreshSignal > 0) threadsQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSignal]);
 

@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { relativeTimeMinutes as timeAgo } from "@/lib/utils/datetime";
 
-// CronRow shape is inferred from the system.cronCatalog procedure
+// CronRow shape is inferred from the systemAutomation.cronCatalog procedure
 // return type — kept as a type alias only for the local helpers'
 // signatures (Phase UU.2 · REST→tRPC).
 type CronRow = {
@@ -96,7 +96,7 @@ export function CronControlPanel() {
   const [firing, setFiring] = useState<string | null>(null);
 
   // Phase UU.2 (2026-05-22) · REST→tRPC · the catalog is a typed query
-  // (system.cronCatalog). The legacy route wrapped the row array in
+  // (systemAutomation.cronCatalog). The legacy route wrapped the row array in
   // `{ data }`; the procedure returns the array directly. loadedAt is
   // derived from React Query's dataUpdatedAt so the FreshnessChip stays
   // accurate. load()/refresh repoint to refetch.
@@ -123,8 +123,11 @@ export function CronControlPanel() {
     async (jobName: string, nextEnabled: boolean) => {
       setToggling(jobName);
       // Optimistic — patch the React Query cache so the switch flips
-      // instantly, exactly as the prior setRows optimistic update did.
-      utils.system.cronCatalog.setData(undefined, (prev) =>
+      // instantly. 2026-09-01 audit fix: this wrote utils.SYSTEM.cronCatalog
+      // — a valid (procedures are spread into both routers) but UNRENDERED
+      // key, so the switch never moved until a manual refresh. The query
+      // above is systemAutomation.cronCatalog; patch THAT cache.
+      utils.systemAutomation.cronCatalog.setData(undefined, (prev) =>
         prev?.map((r) =>
           r.jobName === jobName ? { ...r, enabled: nextEnabled } : r,
         ),
@@ -137,7 +140,7 @@ export function CronControlPanel() {
         toast.success(`${jobName} ${nextEnabled ? "enabled" : "disabled"}`);
       } catch (e) {
         // Revert the optimistic patch.
-        utils.system.cronCatalog.setData(undefined, (prev) =>
+        utils.systemAutomation.cronCatalog.setData(undefined, (prev) =>
           prev?.map((r) =>
             r.jobName === jobName ? { ...r, enabled: !nextEnabled } : r,
           ),

@@ -50,6 +50,7 @@ export function ThreadRadar({
   // collapses to the empty-radar surface, both exactly as before.
   const convergenceQuery = trpc.journal.convergence.useQuery(undefined, {
     refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
   const candidates: Candidate[] = convergenceQuery.data ?? [];
   const error = convergenceQuery.error;

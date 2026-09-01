@@ -35,6 +35,11 @@ export function truncateAtWord(text: string, max: number): string {
 
 export type FeedSource = "dump" | "reflection" | "situation" | "decision" | "retro";
 
+// 2026-09-01 audit: FeedEntry used to carry `raw` — the ENTIRE Prisma row
+// per entry, duplicating rawThoughts/insight/situation beside the already
+// extracted body (~2x wire per entry x 50/page) with ZERO client readers
+// (components/journal/types.ts never declared it). Removed; add a typed
+// field, not the whole row, if a reader ever needs more.
 export interface FeedEntry {
   id: string;
   source: FeedSource;
@@ -58,7 +63,6 @@ export interface FeedEntry {
   linkStatus?: string | null;
   linkConfidence?: number | null;
   linkedGoalTitle?: string | null;
-  raw: Record<string, unknown>;
 }
 
 export interface FeedCounts {
@@ -261,7 +265,6 @@ export async function buildJournalFeed(args: {
       missionId: d.missionId,
       linkStatus: d.linkStatus,
       linkConfidence: d.linkConfidence,
-      raw: d as unknown as Record<string, unknown>,
     });
   }
 
@@ -287,7 +290,6 @@ export async function buildJournalFeed(args: {
       missionId: r.missionId,
       linkStatus: r.linkStatus,
       linkConfidence: r.linkConfidence,
-      raw: r as unknown as Record<string, unknown>,
     });
   }
 
@@ -312,7 +314,6 @@ export async function buildJournalFeed(args: {
       missionId: s.missionId,
       linkStatus: s.linkStatus,
       linkConfidence: s.linkConfidence,
-      raw: s as unknown as Record<string, unknown>,
     });
   }
 
@@ -336,7 +337,6 @@ export async function buildJournalFeed(args: {
       missionId: d.missionId,
       linkStatus: d.linkStatus,
       linkConfidence: d.linkConfidence,
-      raw: d as unknown as Record<string, unknown>,
     });
   }
 
@@ -364,7 +364,6 @@ export async function buildJournalFeed(args: {
       linkedTopics: [],
       tasksCreated: typeof meta.taskCount === "number" ? meta.taskCount : 0,
       confidence: m.confidence,
-      raw: m as unknown as Record<string, unknown>,
     });
   }
 

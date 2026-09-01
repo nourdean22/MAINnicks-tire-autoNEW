@@ -26,10 +26,16 @@ const HIGH_RISK_FLAGS = new Set(["NICK_AUTONOMY", "NICK_CONFIDENCE_TIER"]);
 export function IntelligenceFlagsPanel() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  
-  // Use tRPC to query the current flags state
+  // Persist-vs-apply honesty: the mutation reports whether the runtime
+  // actually reloaded the override cache. Saved-but-not-applied must never
+  // read as success (2026-09-01 audit — the panel used to discard it).
+  const [applyNotice, setApplyNotice] = useState<string | null>(null);
+
+  // Flags change on operator action, not by themselves — 10s polling was
+  // a 37-flag payload every tick for nothing. 60s + focus refetch.
   const { data, isLoading, refetch } = trpc.operator.featureFlags.useQuery(undefined, {
-    refetchInterval: 10_000, // auto-refresh every 10s
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   const setOverrideMutation = trpc.operator.setFeatureFlagOverride.useMutation();
@@ -53,11 +59,22 @@ export function IntelligenceFlagsPanel() {
     async (key: string, value: "true" | "false" | null) => {
       haptic.select();
       try {
-        await setOverrideMutation.mutateAsync({ key, value });
-        haptic.success();
+        const res = await setOverrideMutation.mutateAsync({ key, value });
+        // "Persistence and activation are DIFFERENT facts" — the router
+        // says so and returns both. Honor the distinction.
+        if (res?.runtimeApplied === false) {
+          haptic.warn();
+          setApplyNotice(
+            `${key}: saved, but NOT yet live — ${res.runtimeReason ?? "runtime cache did not reload"}. Other instances converge within ~30s.`,
+          );
+        } else {
+          haptic.success();
+          setApplyNotice(null);
+        }
         refetch();
       } catch (err) {
         haptic.error();
+        setApplyNotice(`${key}: save failed — nothing changed.`);
         console.error("Failed to update feature flag override:", err);
       }
     },
@@ -89,9 +106,16 @@ export function IntelligenceFlagsPanel() {
 
       {/* Description */}
       <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-        Live-control Nick's experimental reasoning engines, recall multipliers, and background autonomy levels. 
-        Overrides bypass current Railway environment configurations instantly.
+        Live-control Nick&apos;s reasoning engines, recall multipliers, and background autonomy levels.
+        Overrides apply within ~30s. Flags marked ENV ONLY are read straight from the environment
+        at boot — change those in Railway, not here.
       </p>
+
+      {applyNotice && (
+        <p role="alert" className="rounded-md border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[10.5px] text-amber-200/90">
+          {applyNotice}
+        </p>
+      )}
 
       {/* Filters & Search Row */}
       <div className="flex flex-col sm:flex-row gap-2">
