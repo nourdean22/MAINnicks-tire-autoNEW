@@ -97,13 +97,12 @@ export function JournalInsightsPreview() {
     refetchOnWindowFocus: false,
     staleTime: 2 * 60 * 1000,
   });
-  const utils = trpc.useUtils();
-
   // Loop-closure wave (audit 2026-07-15) · accepts go through the
   // journal.promoteNextAction seam so the take row's per-layer promoted
-  // flag is stamped server-side — the home hub's latestNextAction stops
-  // resurfacing accepted actions, and re-accepting after a remount is
+  // flag is stamped server-side — re-accepting after a remount is
   // rejected server-side instead of minting a duplicate task.
+  // (latestNextAction, the old home-hub consumer, was deleted 2026-09-01
+  // as a zero-caller procedure — its invalidate went with it.)
   const promoteMut = trpc.journal.promoteNextAction.useMutation();
   const [promotingKey, setPromotingKey] = useState<string | null>(null);
 
@@ -117,10 +116,7 @@ export function JournalInsightsPreview() {
     try {
       await promoteMut.mutateAsync({ entryId: item.entryId, kind });
       toast.success("Task created in Inbox");
-      await Promise.all([
-        refetch(),
-        utils.journal.latestNextAction.invalidate(),
-      ]);
+      await refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create task";
       toast.error(message);
@@ -192,9 +188,52 @@ export function JournalInsightsPreview() {
       </header>
 
       <div className="space-y-3">
-        {activeInsights.slice(0, 5).map((item) => (
-          <div
+        {/* Attention budget (2026-09-01): every entry used to render its full
+            next-action + idea + challenge triplet with three ACCEPT buttons —
+            two entries on screen meant six standing decisions. One primary
+            take per entry now (next action wins, then idea, then challenge);
+            the rest sit behind a per-entry disclosure. Cap 3 entries. */}
+        {activeInsights.slice(0, 3).map((item) => (
+          <InsightEntry
             key={item.id}
+            item={item}
+            acceptButton={acceptButton}
+          />
+        ))}
+        {activeInsights.length > 3 && (
+          <p className="font-mono text-[9px] text-zinc-600">
+            +{activeInsights.length - 3} more entr{activeInsights.length - 3 === 1 ? "y" : "ies"} with takes — scroll the archive below.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function InsightEntry({
+  item,
+  acceptButton,
+}: {
+  item: InsightPreviewItem;
+  acceptButton: (
+    item: InsightPreviewItem,
+    kind: TakeKind,
+    promoted: boolean,
+    accent: string,
+  ) => React.ReactNode;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  // Primary = the actionable one; ideas and challenges are reading, not
+  // deciding, until the operator asks for them.
+  const primary: TakeKind = item.nextAction ? "nextAction" : item.idea ? "idea" : "challenge";
+  const hiddenCount = [
+    primary !== "nextAction" && item.nextAction,
+    primary !== "idea" && item.idea,
+    primary !== "challenge" && item.challenge,
+  ].filter(Boolean).length;
+
+  return (
+          <div
             className="rounded-lg border border-zinc-900 bg-zinc-950/20 p-3 space-y-2 transition-all hover:border-zinc-800"
           >
             {/* Source entry title */}
@@ -213,7 +252,7 @@ export function JournalInsightsPreview() {
             {/* Take details */}
             <div className="space-y-1.5 pt-0.5">
               {/* Next Move */}
-              {item.nextAction && (
+              {item.nextAction && (showAll || primary === "nextAction") && (
                 <div className="flex items-start gap-2 p-2 rounded-md bg-emerald-500/[0.03] border border-emerald-500/10">
                   <Zap size={11} className="text-emerald-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -241,7 +280,7 @@ export function JournalInsightsPreview() {
               )}
 
               {/* Bold Idea */}
-              {item.idea && (
+              {item.idea && (showAll || primary === "idea") && (
                 <div className="flex items-start gap-2 p-2 rounded-md bg-violet-500/[0.02] border border-violet-500/10">
                   <Lightbulb size={11} className="text-violet-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -262,7 +301,7 @@ export function JournalInsightsPreview() {
               )}
 
               {/* Sharp Challenge */}
-              {item.challenge && (
+              {item.challenge && (showAll || primary === "challenge") && (
                 <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.02] border border-amber-500/10">
                   <Target size={11} className="text-amber-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -281,10 +320,16 @@ export function JournalInsightsPreview() {
                   )}
                 </div>
               )}
+              {hiddenCount > 0 && !showAll && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  className="min-h-[32px] rounded px-1.5 font-mono text-[9px] uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
+                >
+                  +{hiddenCount} more take{hiddenCount === 1 ? "" : "s"} ▾
+                </button>
+              )}
             </div>
           </div>
-        ))}
-      </div>
-    </section>
   );
 }

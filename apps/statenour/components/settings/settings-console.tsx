@@ -2,9 +2,9 @@
 
 import { useState, useId } from "react";
 import { cn } from "@/lib/utils";
+import type { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { User, Cpu, Zap, Activity, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { GlassCard } from "@/components/ui/glass-card";
 import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
 import { IntelligenceFlagsPanel } from "@/components/settings/intelligence-flags-panel";
 import { PeopleScoringPanel } from "@/components/settings/people-scoring-panel";
@@ -59,7 +59,9 @@ const DOMAINS: DomainConfig[] = [
   },
 ];
 
-export function SettingsConsole({ pulse }: { pulse: any }) {
+type SettingsPulse = ReturnType<typeof useSystemPulse>;
+
+export function SettingsConsole({ pulse }: { pulse: SettingsPulse }) {
   const [activeDomain, setActiveDomain] = useState<DomainId>("identity");
   const headingId = useId();
 
@@ -68,11 +70,14 @@ export function SettingsConsole({ pulse }: { pulse: any }) {
   return (
     <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start w-full relative">
       {/* LEFT PANE: Navigation Matrix */}
-      <aside className="w-full lg:w-64 shrink-0 flex flex-col gap-2 sticky top-6">
+      <aside className="w-full lg:w-64 shrink-0 flex flex-col gap-2 lg:sticky lg:top-6">
         <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.2em] text-[var(--gold)]/70 px-2 pb-2">
           Domains
         </h2>
-        <nav className="flex flex-col gap-1">
+        {/* Mobile: one compact wrapping row (the old stacked list spent a full
+            viewport on navigation before any control appeared). Desktop keeps
+            the sidebar. */}
+        <nav className="flex flex-row flex-wrap gap-1 lg:flex-col">
           {DOMAINS.map((domain) => {
             const isActive = activeDomain === domain.id;
             const Icon = domain.icon;
@@ -80,8 +85,9 @@ export function SettingsConsole({ pulse }: { pulse: any }) {
               <button
                 key={domain.id}
                 onClick={() => setActiveDomain(domain.id)}
+                aria-pressed={isActive}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-left transition-all",
+                  "flex min-h-[44px] items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg text-[13px] lg:text-sm text-left transition-all",
                   isActive
                     ? "bg-[var(--gold)]/10 text-[var(--gold)] font-medium border border-[var(--gold)]/20"
                     : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)] border border-transparent"
@@ -95,7 +101,7 @@ export function SettingsConsole({ pulse }: { pulse: any }) {
         </nav>
 
         {/* Pointer for Habits */}
-        <div className="mt-8 px-2">
+        <div className="mt-3 lg:mt-8 px-2">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-2">
             Links
           </p>

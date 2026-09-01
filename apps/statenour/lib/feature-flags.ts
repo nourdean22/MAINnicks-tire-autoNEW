@@ -74,6 +74,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Auth bypasses ──────────────────────────────────────────────
   {
     key: "AUTH_ALLOW_MOCK_IN_PROD",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Permits the mock operator session even in production. Intended ONLY for emergency operator access when OAuth is broken. Logs a SECURITY warning every request when active.",
     status: "experimental",
     onValue: "1",
@@ -82,6 +85,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "LOCAL_DEV_BYPASS_AUTH",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Skips auth checks entirely in local dev / preview. Never honored in production.",
     status: "stable",
     onValue: "1",
@@ -92,6 +98,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── AI provider pinning ────────────────────────────────────────
   {
     key: "AI_PROVIDER",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Pins the active AI provider · bypasses the routing matrix. Use for incident triage when one provider is misbehaving.",
     status: "stable",
     onValue: "venice|openai|anthropic|gemini",
@@ -102,6 +111,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Telemetry / observability ──────────────────────────────────
   {
     key: "QUIET_DB_LOG",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Suppresses Prisma query logs in dev. Useful when iterating on UI and the query stream drowns out application logs.",
     status: "stable",
     onValue: "1",
@@ -112,6 +124,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Wave-200 substrates ────────────────
   {
     key: "BRAINTRUST_API_KEY",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description:
       "UNUSED since 2026-08-25: braintrust-wrap.ts was deleted after three months with zero call sites — the key never enabled anything despite sitting set in Railway (the 'present-implies-on' claim this entry used to make was never true end-to-end). Eval-dataset scripts (scripts/export-eval-datasets.ts) are the only remaining Braintrust surface and read this key at manual-upload time only. Operator may delete the Railway var; tracing is Langfuse (LANGFUSE_* keys).",
     status: "deprecated",
@@ -123,6 +138,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Wave AG · BGE rerank backend (HF Inference) ────────────────
   {
     key: "BGE_RERANK",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Routes brain rerank through BAAI/bge-reranker-v2-m3 on HuggingFace Inference API ($0.0001/call · ~250ms) instead of Cohere ($2/1000 calls · ~150ms). The orchestrator in lib/brain/rerank.ts handles fallback to Cohere when BGE fails OR when this flag is OFF. Requires HF_API_KEY.",
     status: "experimental",
     onValue: "true",
@@ -133,6 +151,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // ── Wave AJ · Replicate FLUX image generation backend ────────
   {
     key: "REPLICATE_FLUX",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Routes image generation through Replicate's flux-schnell (~$0.003/img · 4-step distilled). lib/ai/gemini-image.ts checks this flag and delegates to lib/ai/replicate-flux.ts when ON. Requires REPLICATE_API_KEY. (Venice was the comparison point when this flag was written; Venice is RETIRED — lib/ai/venice-image.ts no longer exists and `venice` is not in RUNTIME_PROVIDERS.)",
     status: "experimental",
     onValue: "true",
@@ -310,6 +331,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_SPAR_VS",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description:
       "Verbalized Sampling in SPAR's DIVERGE step: the model verbalizes a probability per candidate and draws from the tail of its own distribution instead of returning N phrasings of its modal answer (arXiv 2510.01171, ICML 2026 — 1.6-2.1x diversity, training-free, orthogonal to temperature). Only step 1 changes; attack/tension/converge are byte-identical. EXPERIMENTAL because every published gain is frontier-model and Nick's fast lane is small — the same kill shot as BDN-201, so measure on the A/B harness before trusting it there. Also costs 5 candidate generations per diverge turn.",
     status: "experimental",
@@ -349,6 +373,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   // /system/migrations board + getFlag() see them. 2026-06-04 · M1.
   {
     key: "NICK_PRIME_PROMPT",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "DEPRECATED (2026-07-11 review) · v2 prompt cutover is complete and v2 is the SOLE builder. This flag is a no-op — isPromptV2Enabled() returns true unconditionally and buildSystemPrompt never consults it. There is no v1 builder to roll back to; do not treat this as a rollback lever.",
     status: "deprecated",
     onValue: "1",
@@ -376,6 +403,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_HIGH_SPEC_GATE",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Gates the high-spec model path in the chat route — when `on`, eligible turns use the higher-spec model tier. Default off, reversible.",
     status: "experimental",
     onValue: "on",
@@ -384,6 +414,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_CHAT_INTENSITY",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Selects Nick's chat behavior-directive intensity: MINIMAL (MINIMAL/0/OFF) · STANDARD (default) · HIGH (HIGH/1/ON). Tunes how assertive the behavior directives are. Unset or STANDARD = baseline.",
     status: "experimental",
     onValue: "MINIMAL|HIGH|ON|OFF|0|1",
@@ -392,6 +425,9 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "INNGEST_MEGA_V2",
+    // 2026-09-01 audit: consumer reads raw process.env at module load —
+    // a DB override never reaches it. readOnly keeps the board honest.
+    readOnly: true,
     description: "Activates the Inngest mega fan-out dispatcher — the daily morning/evening cron children fan out via Inngest instead of the Railway cron path. Must equal `true` (disable the Railway cron to avoid double-fire). OFF = mega fan-out returns skipped.",
     status: "canary",
     onValue: "true",

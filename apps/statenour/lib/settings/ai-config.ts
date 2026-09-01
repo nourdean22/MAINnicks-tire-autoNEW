@@ -27,6 +27,14 @@ export interface AiConfig {
   // ── Provider + mode overrides ──
   // These force the chat pipeline to use specific settings. Omit to
   // keep automatic detection (quick/standard/deep + default ordering).
+  // ── ACCEPTED-LEGACY, NO RUNTIME READER (2026-09-01 settings audit) ──
+  // defaultProvider / temperature / reasoningEffort / webSearch /
+  // toolEmbeddingsEnabled + the hapticFeedback/showSpeedRibbon DB halves
+  // are still accepted by the patch schema so old stored rows stay valid,
+  // but NOTHING reads them at runtime (the turn router decides provider/
+  // temperature/effort/search per message; the device toggles live in
+  // localStorage). Their Settings controls were removed the same day —
+  // wire a reader before resurfacing any of them in UI.
   defaultProvider?: ProviderName;
   defaultMode?: ChatMode;
   defaultTaskType?: TaskType;

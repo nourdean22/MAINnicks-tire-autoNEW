@@ -4,7 +4,7 @@
  * components/settings/operating-rhythm-toggle.tsx · 2026-06-02
  *
  * The ONLY autopilot flag a worker actually reads:
- * `adhd_operating_rhythm` (lib/brain/operating-rhythm.ts:131 — the
+ * `adhd_operating_rhythm` (lib/brain/operating-rhythm.ts:141 — the
  * 5x-daily Telegram checkpoint cron disables itself when this flag is
  * explicitly false). The prior 13-toggle AutoPilotControls grid carried
  * 12 other flags + shadow-mode + mood-dimming + proof-of-life badges

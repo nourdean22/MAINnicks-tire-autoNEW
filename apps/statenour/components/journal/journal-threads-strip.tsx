@@ -85,7 +85,7 @@ const PACE_STYLE: Record<Pace, { dot: string; ring: string; label: string }> = {
 export function JournalThreadsStrip() {
   const threadsQuery = trpc.journal.threads.useQuery(
     { includeDormant: true },
-    { refetchOnWindowFocus: false },
+    { refetchOnWindowFocus: false, staleTime: 60_000 },
   );
 
   const chips = useMemo<ChipData[]>(() => {

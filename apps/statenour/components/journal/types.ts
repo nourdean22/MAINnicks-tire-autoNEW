@@ -10,7 +10,6 @@
  */
 import type { ComponentType } from "react";
 import {
-  AlertTriangle,
   Circle,
   Eye,
   Flame,
@@ -78,7 +77,11 @@ export const TYPE_META: Record<
   decision: { label: "Decision", icon: Flame, color: "text-[var(--gold)]", bg: "bg-[var(--gold)]/10", border: "border-[var(--gold)]/30" },
   reflection: { label: "Reflection", icon: Eye, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
   planning: { label: "Planning", icon: NotebookPen, color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/30" },
-  venting: { label: "Venting", icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/30" },
+  // 2026-09-01 · venting was styled as a red ⚠ ALERT — raw feeling
+  // rendered as an error state. Alarm color is a scarce resource for
+  // real failures; venting is normal journaling and gets a neutral
+  // warm tone + the same Circle mark as raw capture.
+  venting: { label: "Venting", icon: Circle, color: "text-orange-300/80", bg: "bg-orange-400/[0.07]", border: "border-orange-400/20" },
 };
 
 export const SOURCE_ICON: Record<string, IconComponent> = {
