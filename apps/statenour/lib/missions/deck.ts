@@ -24,7 +24,7 @@ import {
   scoreTaskPriority,
   type RankedMissionRef,
 } from "@/lib/scoring/task-priority";
-import { isGeneralAnchor, isUserProject, missionHasEndState } from "@/lib/services/mission-helpers";
+import { isGeneralAnchor, isUserProject } from "@/lib/services/mission-helpers";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { getLatestGovernorDecision } from "@/lib/health-governor/health-governor-guardrails";
 import { startOfDayET, toDateString } from "@/lib/utils/datetime";
@@ -87,9 +87,6 @@ export type DeckMission = {
   deadline: string | null;
   openCount: number;
   doneCount: number;
-  /** Only when the mission declares an end state — a lane has no 100%. */
-  progressPct: number | null;
-  nextTask: { id: string; title: string; why: string } | null;
 };
 
 export type DeckLane = {
@@ -123,7 +120,6 @@ export type DeckEvidenceRow = {
   id: string;
   title: string;
   missionTitle: string | null;
-  completedAtET: string;
 };
 
 export type DeckReadiness =
@@ -370,8 +366,12 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   try {
     const rescue = await buildTaskRescue();
     rescueCount = rescue.findings.length;
+    // One task, one attention slot: a finding about the task that ALREADY
+    // owns the hero (or already queued above) never re-queues in triage —
+    // the self-audit caught the hero's own staleness finding double-billing.
+    const already = new Set(triageRows.map((r) => r.taskId).filter(Boolean));
+    if (heroPick) already.add(heroPick.id);
     for (const f of rescue.findings.slice(0, 4)) {
-      const already = new Set(triageRows.map((r) => r.taskId).filter(Boolean));
       if (f.taskId && already.has(f.taskId)) continue;
       triageRows.push({
         kind: "rescue",
@@ -391,24 +391,21 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   };
 
   // ── missions — finite user projects only (§10.5) ───────────────────
+  // Slimmed to the fields the page actually reads (WIP slots + counts) —
+  // per-mission progress/next-task live on MissionCard, and shipping a
+  // second unread copy in this payload was the "cost nobody collects"
+  // defect class this rebuild exists to kill (self-audit trim).
   const deckMissions: DeckMission[] = userProjects
     .map((m: { id: string; title: string; deadline?: string | null }) => {
       const mine = scored.filter((t: ScoredTask) => t.missionId === m.id);
       const open = mine.filter(isOpen).filter((t: ScoredTask) => !isHabit(t));
       const done = mine.filter((t: ScoredTask) => t.status === "DONE");
-      const next = open
-        .filter((t: ScoredTask) => !isBlocked(t))
-        .sort((a: ScoredTask, b: ScoredTask) => b._score - a._score)[0];
-      const total = open.length + done.length;
-      const hasEnd = missionHasEndState(missionById.get(m.id) as Parameters<typeof missionHasEndState>[0]);
       return {
         id: m.id,
         title: m.title,
         deadline: m.deadline ?? null,
         openCount: open.length,
         doneCount: done.length,
-        progressPct: hasEnd && total > 0 ? Math.round((done.length / total) * 100) : null,
-        nextTask: next ? { id: next.id, title: next.title, why: next._why } : null,
       };
     })
     .sort((a: DeckMission, b: DeckMission) => {
@@ -521,7 +518,6 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
       id: t.id,
       title: t.title,
       missionTitle: titleOf(t.missionId),
-      completedAtET: toDateString(new Date(t.lastCompletedAt ?? t.updatedAt ?? now)),
     })),
     count: doneToday.length,
   };

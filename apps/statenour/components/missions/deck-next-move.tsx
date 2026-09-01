@@ -73,11 +73,15 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
       >
         {task.title}
       </h2>
-      {task.nextPhysicalAction && (
-        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
-          First: {task.nextPhysicalAction}
-        </p>
-      )}
+      {/* Quick-add falls back nextPhysicalAction = title; echoing the
+          title twice reads as filler, so the line earns its row only
+          when it says something the title doesn't. */}
+      {task.nextPhysicalAction &&
+        task.nextPhysicalAction.trim().toLowerCase() !== task.title.trim().toLowerCase() && (
+          <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+            First: {task.nextPhysicalAction}
+          </p>
+        )}
       {kind === "resume" && resumeNote && (
         <p className="mt-2 rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-base)]/60 px-3 py-2 text-[13px] text-[var(--text-primary)]">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--gold)]/80">
