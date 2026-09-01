@@ -149,6 +149,36 @@ describe("deck · next move eligibility (the boundary pin)", () => {
     const deck = await buildMissionsDeck(NOW);
     expect(deck.nextMove).toBeNull();
   });
+
+  it("PROD-shape pin: a business USER PROJECT (no anchor flag) is dampened via mission domain", async () => {
+    // Live prod's "GENERAL BUSINESS & NICKS TIRE" row is a real Mission
+    // (systemKind null), NOT a GENERAL anchor — so the hero's anchor
+    // exclusion is inert there and the boundary rides entirely on the
+    // scorer's domain multiplier. This pins that path end-to-end.
+    const shopProject = {
+      ...project,
+      id: "m-shop-project",
+      title: "GENERAL BUSINESS & NICKS TIRE",
+      systemKind: null,
+      domain: "BUSINESS",
+      deadline: null,
+    };
+    mocks.mission.findMany.mockResolvedValue([shopProject, project]);
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-shop", title: "drop off signs", missionId: "m-shop-project" }),
+      task({ id: "t-home", title: "Fix the bathroom ceiling", missionId: "m-bathroom" }),
+    ]);
+    const deck = await buildMissionsDeck(NOW);
+    // Equal terms → the personal task wins BECAUSE of shop ×0.7…
+    expect(deck.nextMove?.task.id).toBe("t-home");
+    // …and the dampening is named on the shop alternate (instrument fired,
+    // not a coincidence of other terms).
+    const shopAlt = deck.nextMove?.alternates.find((a) => a.id === "t-shop");
+    expect(shopAlt?.why).toContain("shop ×");
+    // A business user project stays HERO-ELIGIBLE (judgment items must be
+    // able to win when genuinely hot) — it is dampened, never excluded.
+    expect(deck.nextMove?.alternates.map((a) => a.id)).toContain("t-shop");
+  });
 });
 
 describe("deck · sections tell the truth about their shapes", () => {
@@ -170,7 +200,8 @@ describe("deck · sections tell the truth about their shapes", () => {
     expect(deck.lanes[deck.lanes.length - 1]?.isShop).toBe(true);
 
     const bathroom = deck.missions.find((m) => m.id === "m-bathroom");
-    expect(bathroom?.progressPct).toBe(50); // deadline = declared end state
+    expect(bathroom?.openCount).toBe(1);
+    expect(bathroom?.doneCount).toBe(1);
     expect(deck.missionSlotsOpen).toBe(MISSION_WIP_CAP - 1);
     // Anchors are lanes, never missions.
     expect(deck.missions.map((m) => m.id)).not.toContain("m-general-business");
