@@ -7,7 +7,9 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { homeHealthState, type HomeHealthSlice } from "@/components/home/home-health-chip";
+// Command Surface (2026-09-01): the pure verdict moved out of the retired
+// chip component into lib/home so the SERVER brief builder shares it.
+import { homeHealthState, type HomeHealthSlice } from "@/lib/home/health-state";
 
 function slice(over: Partial<HomeHealthSlice> = {}): HomeHealthSlice {
   return {

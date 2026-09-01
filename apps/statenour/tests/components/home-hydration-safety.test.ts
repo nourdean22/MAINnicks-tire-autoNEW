@@ -67,8 +67,10 @@ function stripCallBodies(src: string, callee: string): string {
 }
 
 describe("Home · the first client render must match the server render", () => {
-  it("CognitivePartner reads the brief day-stamp in an effect, never in a useState initializer", () => {
-    const src = read("components/home/cognitive-partner.tsx");
+  // Command Surface (2026-09-01): CognitivePartner became NickCommandLine;
+  // the morning-brief stamp discipline moved with it, so the lock follows.
+  it("NickCommandLine reads the brief day-stamp in an effect, never in a useState initializer", () => {
+    const src = read("components/home/nick-command-line.tsx");
 
     // The state must start from an SSR-reachable constant.
     expect(src).toMatch(/useState\(false\)/);

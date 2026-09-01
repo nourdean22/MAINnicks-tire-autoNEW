@@ -185,19 +185,21 @@ describe("A8 · settings toggles expose switch role + state + name", () => {
   });
 });
 
-describe("A8 · home triage form controls have accessible names", () => {
-  it("inbox-tasks-triage date inputs are labelled (schedule + snooze)", () => {
-    // Bare <input type=date> has no intrinsic name; the nearby caption
-    // was not programmatically associated (WCAG 4.1.2).
-    const src = readSource("components/home/inbox-tasks-triage.tsx");
-    expect(src).toContain('aria-label="Select due date"');
-    expect(src).toContain('aria-label="Snooze until custom date"');
+describe("A8 · home form controls have accessible names", () => {
+  // The 2026-06-19 triage components this block originally guarded were
+  // deleted in the Command Surface rebuild (2026-09-01); the contract
+  // moves to the new page's form controls in nick-command-line.tsx.
+  it("nick command line input is labelled (not placeholder-only)", () => {
+    // A placeholder is not a reliable accessible name (WCAG 4.1.2).
+    const src = readSource("components/home/nick-command-line.tsx");
+    expect(src).toContain('aria-label="Ask Nick"');
+    expect(src).toContain('aria-label="send"');
   });
 
-  it("inbox-triage-card next-action input is labelled (not placeholder-only)", () => {
-    // A placeholder is not a reliable accessible name.
-    const src = readSource("components/home/inbox-triage-card.tsx");
-    expect(src).toContain('aria-label="Next physical action"');
+  it("nick response region is a labelled live log", () => {
+    const src = readSource("components/home/nick-command-line.tsx");
+    expect(src).toContain('role="log"');
+    expect(src).toContain(`aria-label="Nick's response"`);
   });
 });
 

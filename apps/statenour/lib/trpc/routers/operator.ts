@@ -35,6 +35,7 @@ import {
 } from "@/lib/services/compound-chain";
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { HOME_SIGNAL_KINDS, recordHomeSignal } from "@/lib/observability/home-decision-metrics";
+import { buildOperatorBrief, buildBriefChanges } from "@/lib/home/operator-brief";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
@@ -1561,6 +1562,28 @@ export const operatorRouter = router({
    * audio (/api/morning-brief/today.mp3) stays REST — tRPC can't
    * carry a binary mp3 body.
    */
+  /**
+   * Command Surface (2026-09-01) · owner-only · the Home page's compiled
+   * brief — state line, lead recommendation, judgment queue, horizon,
+   * attention-budget receipt. ALL composition lives in
+   * lib/home/operator-brief.ts (doctrine in its header); this procedure is
+   * a thin delegate. Deliberately uncached at this layer: the heavy inner
+   * sources carry their own caches, and judgment verdicts must read fresh
+   * after an invalidate — a server TTL here would serve a decided item
+   * back for its whole window.
+   */
+  brief: operatorProcedure.query(async () => buildOperatorBrief()),
+
+  /**
+   * Command Surface · the "since last visit" semantic diff. `since` is the
+   * client's localStorage cursor (ms epoch — inherently client state);
+   * everything ELSE — which queries, which labels, the clamp — is decided
+   * server-side. Replaces SinceLastVisitCard's 20-row audit timeline.
+   */
+  briefChanges: operatorProcedure
+    .input(z.object({ since: z.number().int().nonnegative() }))
+    .query(async ({ input }) => buildBriefChanges(input.since)),
+
   morningBrief: operatorProcedure.query(
     async (): Promise<MorningBriefView> => readMorningBrief(),
   ),

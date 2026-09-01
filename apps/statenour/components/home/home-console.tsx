@@ -1,87 +1,98 @@
 "use client";
 
 /**
- * HomeConsole — an attention-first daily router.
+ * HomeConsole — the StateNour Command Surface (2026-09-01 rewrite).
  *
- * Order is intentional: establish context, surface the measured system state,
- * show the single best action, then expose decisions and conversation. The
- * existing child components keep their data, routes, and honest loading/error
- * behavior; this file owns the page hierarchy only.
+ * Home is a compiled view of the operator's state, not a dashboard. One
+ * server brief (`operator.brief`, built by lib/home/operator-brief.ts)
+ * feeds a FIXED six-section structure whose CONTENT adapts:
+ *
+ *   1 · State line — date · measured health · one sentence of state
+ *   2 · The brief — one recommended move, real reasons, ≤2 alternatives
+ *   3 · Nick — a single command line (slash routing; power hidden until asked)
+ *   4 · Needs judgment — the only queue: things only Nour can decide
+ *   5 · Horizon — one pointer per time scope, never a task list
+ *   6 · Since last visit — a semantic diff, not a timeline
+ *
+ * Structure never rearranges itself (adaptive-UI research: layout churn
+ * destroys the user's mental model); sections render nothing — not empty
+ * chrome — when they have nothing true to say. Reasoning lives server-side;
+ * this tree renders decisions, it does not manufacture them. The attention
+ * budget (≤7 actionable objects) is enforced in the builder and carried in
+ * the payload as a receipt.
+ *
+ * Absent by design: dashboard grid, stat gauges, glass-glow chrome, nested
+ * mini-apps, Nick's Tire anything (shop surfaces live at nickstire.org/admin
+ * and /business — never on the personal command surface).
  */
 
-import Link from "next/link";
-import { HomeIdentityHeader } from "./home-identity-header";
-import { CognitivePartner } from "./cognitive-partner";
-import { FollowUpsList } from "./follow-ups-list";
-import { ContradictionSlot } from "./contradiction-slot";
-import { ProposedCommitments } from "./proposed-commitments";
-import { ExecutiveActionMatrix } from "./executive-action-matrix";
-import { HomeHealthChip } from "./home-health-chip";
-import { SinceLastVisitCard } from "@/components/ultron/since-last-visit-card";
+import { trpc } from "@/lib/trpc/client";
+import { BriefStateLine } from "./brief-state-line";
+import { BriefLead } from "./brief-lead";
+import { NickCommandLine } from "./nick-command-line";
+import { JudgmentQueue } from "./judgment-queue";
+import { HorizonLine } from "./horizon-line";
+import { ChangeLine } from "./change-line";
 
 export function HomeConsole() {
-  return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 px-3 pb-8 sm:px-6">
-      <section aria-label="Today" className="space-y-3">
-        <HomeIdentityHeader />
+  const briefQ = trpc.operator.brief.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-edge pb-3">
-          <HomeHealthChip />
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-[0.12em]">
-            <Link
-              href="/brain"
-              className="inline-flex min-h-[44px] items-center rounded-lg border border-edge bg-base-layer px-3 text-fg-tertiary transition-colors duration-150 hover:border-edge-hover hover:text-fg"
-            >
-              Brain graph →
-            </Link>
-            <Link
-              href="/system"
-              className="inline-flex min-h-[44px] items-center rounded-lg border border-edge bg-base-layer px-3 text-fg-tertiary transition-colors duration-150 hover:border-edge-hover hover:text-fg"
-            >
-              System →
-            </Link>
-          </div>
-        </div>
+  const brief = briefQ.data ?? null;
+  // First-load failure only (TanStack v5 doctrine): a failed background
+  // refetch keeps the cached brief and gets the compact stale badge below.
+  const unreadable = briefQ.isError && !brief;
+  const refreshFailed = briefQ.isError && !!brief;
+
+  return (
+    <div className="mx-auto flex w-full max-w-[720px] flex-col px-4 pb-10 sm:px-6">
+      <BriefStateLine
+        state={brief?.state ?? null}
+        loading={briefQ.isLoading}
+        unreadable={unreadable}
+      />
+
+      {refreshFailed && (
+        <p className="mt-2 text-[10px] font-mono uppercase tracking-wider text-rose-300/80">
+          refresh failed · showing last confirmed brief
+        </p>
+      )}
+
+      {unreadable ? (
+        <section
+          aria-label="brief unreadable"
+          className="mt-6 rounded-xl border border-rose-500/25 bg-rose-500/5 p-4"
+        >
+          <p role="heading" aria-level={2} className="text-sm font-semibold text-rose-300">
+            The brief couldn&apos;t be built
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-fg-secondary">
+            The read failed — state unknown, not empty. Nick still works below.
+          </p>
+          <button
+            type="button"
+            onClick={() => void briefQ.refetch()}
+            className="mt-3 inline-flex min-h-[44px] items-center rounded-lg border border-edge px-3 text-[11px] font-mono uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          >
+            Retry
+          </button>
+        </section>
+      ) : (
+        <BriefLead lead={brief?.lead ?? null} loading={briefQ.isLoading} />
+      )}
+
+      <section aria-label="Nick" className="mt-7">
+        <NickCommandLine />
       </section>
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)] lg:items-start">
-        {/* #1897 review · mobile order is deliberate. Below lg the grid stacks
-            in DOM-then-order order, and the first cut put the whole sidebar
-            LAST — Ask Nick, the primary interface on the phone-first surface,
-            fell below the matrix and three decision queues. `order-first`
-            restores chat as the second element on mobile (matching the page
-            this replaces), and `lg:order-none` hands placement back to DOM
-            order on desktop so the left column stays first.
-            SinceLastVisitCard moved OUT of the sidebar for the same reason:
-            riding along at order-first would put up to 20 history rows above
-            the matrix on a phone — history reads last, so it renders last. */}
-        <aside className="min-w-0 order-first lg:order-none lg:sticky lg:top-4">
-          <section aria-label="Ask Nick" className="rounded-xl border border-edge bg-raised p-3 sm:p-4">
-            <div className="mb-2 px-1">
-              <h2 className="text-balance text-sm font-semibold text-fg">Ask Nick</h2>
-              <p className="mt-1 text-pretty text-xs text-fg-tertiary">Think, decide, or act from here.</p>
-            </div>
-            <CognitivePartner />
-          </section>
-        </aside>
+      <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
 
-        <div className="min-w-0 space-y-5 lg:order-first">
-          {/* The highest-leverage surface comes before every queue. */}
-          <section aria-label="What matters now" className="min-w-0">
-            <ExecutiveActionMatrix />
-          </section>
+      <HorizonLine horizon={brief?.horizon ?? null} />
 
-          <section aria-label="Decisions awaiting" className="min-w-0 space-y-4">
-            <ContradictionSlot />
-            <FollowUpsList />
-            <ProposedCommitments />
-          </section>
-
-          <section aria-label="Since last visit" className="min-w-0">
-            <SinceLastVisitCard limit={20} />
-          </section>
-        </div>
-      </div>
+      <ChangeLine />
     </div>
   );
 }
