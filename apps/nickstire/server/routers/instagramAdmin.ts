@@ -1049,6 +1049,97 @@ Keep it under 200 characters.`;
       return { success: true };
     }),
 
+  /* ── AUTONOMOUS REEL PUBLISH APPROVALS ────────────────────────────────────
+   * A SEPARATE LANE from approveDraft below, and deliberately so.
+   *
+   * approveDraft writes `social_content_approvals`, keyed on
+   * (inventory_id, version) — that covers reels published through Studio. The
+   * autonomous cron works off `reel_jobs` rows, which carry no inventory_id,
+   * so that table has nothing to key on. #2000 added the reel_jobs-keyed
+   * `reel_publish_approvals` and its default-deny gate, but shipped no writer:
+   * the table had three readers and none of them could create a row, so the
+   * cron could never publish again. These three procedures are that writer.
+   *
+   * Approving here does NOT publish. It records consent; the cron still has to
+   * clear rendered QA, the claim audit, the disclosure gate and the originality
+   * gate, all of which run BEFORE approval is even consulted.
+   * ──────────────────────────────────────────────────────────────────────── */
+
+  /** Assembled reels the autonomous cron could publish, with their real approval state. */
+  reelPublishQueue: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ input }) => {
+      const { listReelPublishQueue } = await import("../services/reelApproval");
+      return listReelPublishQueue(input?.limit ?? 25);
+    }),
+
+  /**
+   * Record one attributable human yes, bound to the exact caption bytes and
+   * exact asset the cron will send.
+   *
+   * `expectedCaptionSha` / `expectedVideoUrl` are what the operator had on
+   * screen. The service refuses if the live row has moved on since — an
+   * approval must never be recorded against bytes nobody read.
+   */
+  approveReelPublish: adminProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      expectedCaptionSha: z.string().length(64),
+      expectedVideoUrl: z.string().min(1),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Same standard as approveDraft: no fallback approver. An unattributed
+      // row is one the gate rejects anyway (APPROVAL_BLOCK.anonymous).
+      if (!ctx.user?.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Approver identity must be verified. No fallback approver ID allowed.",
+        });
+      }
+      const { recordReelApproval, ReelApprovalWriteError } = await import("../services/reelApproval");
+      try {
+        const res = await recordReelApproval({
+          jobId: input.jobId,
+          approvedBy: `admin:${ctx.user.id}`,
+          expectedCaptionSha: input.expectedCaptionSha,
+          expectedVideoUrl: input.expectedVideoUrl,
+          note: input.note,
+        });
+        log.info("reel publish approval recorded", {
+          jobId: input.jobId, approvalId: res.approvalId, by: `admin:${ctx.user.id}`,
+        });
+        return res;
+      } catch (err) {
+        if (err instanceof ReelApprovalWriteError) {
+          // The refusal reason is the whole value here — an operator who is
+          // told only "failed" cannot tell a stale review from a permanent veto.
+          throw new TRPCError({
+            code:
+              err.code === "stale_review" ? "CONFLICT"
+              : err.code === "job_not_found" ? "NOT_FOUND"
+              : err.code === "no_database" ? "INTERNAL_SERVER_ERROR"
+              : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /** Withdraw a previously granted approval. A withdrawal, never a delete. */
+  revokeReelPublish: adminProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Revoker identity must be verified." });
+      }
+      const { revokeReelApproval } = await import("../services/reelApproval");
+      const res = await revokeReelApproval({ jobId: input.jobId, revokedBy: `admin:${ctx.user.id}` });
+      log.info("reel publish approval revoked", { jobId: input.jobId, revoked: res.revoked });
+      return res;
+    }),
+
   approveDraft: adminProcedure
     .input(z.object({
       id: z.string(),
