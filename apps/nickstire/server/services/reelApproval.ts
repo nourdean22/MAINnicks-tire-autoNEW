@@ -262,7 +262,14 @@ export async function recordReelApproval(args: {
     .set({ revokedAt: new Date(), revokedBy: `superseded by ${approvedBy}`.slice(0, 100) })
     .where(and(eq(reelPublishApprovals.reelJobId, args.jobId), isNull(reelPublishApprovals.revokedAt)));
 
-  const approvalId = `rappr_${randomUUID()}`;
+  // BARE UUID — exactly 36 chars, which is exactly `id varchar(36)` in
+  // drizzle/0112_reel_publish_approvals.sql. A readable prefix does not fit:
+  // `rappr_` + a 36-char UUID is 42, and TiDB runs STRICT_TRANS_TABLES, so an
+  // over-width id is REJECTED and the approval row is LOST — the first tap
+  // would have failed and the reel would have stayed held. contentApprovals.ts
+  // can afford its `appr_` prefix because social_content_approvals.id is wider;
+  // this column is UUID-sized on purpose. Widths are pinned by a test.
+  const approvalId = randomUUID();
   // Same TTL semantics and the same construction as contentApprovals.ts — one
   // yes authorizes for 72h and then a stale approval must not fire unattended.
   const expiresAt = new Date(Date.now() + REEL_APPROVAL_TTL_HOURS * 3600_000);

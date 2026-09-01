@@ -18,6 +18,8 @@
  * The paired canary immediately after it mutates the caption and requires the
  * gate to block, so "accepts everything" cannot pass either.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { approvalProblem, APPROVAL_BLOCK, REEL_APPROVAL_TTL_HOURS } from "@shared/reelApproval";
 
@@ -266,6 +268,72 @@ describe("recordReelApproval", () => {
       }),
     ).rejects.toMatchObject({ code: "content_vetoed" });
     expect(ops, "an operator must not be able to approve away a false claim").toHaveLength(0);
+  });
+});
+
+/**
+ * WIDTH CONTRACT — TiDB runs STRICT_TRANS_TABLES, so a value that does not fit
+ * its column is REJECTED and the row is LOST. For this table that means the
+ * approval silently never exists and the reel stays held forever.
+ *
+ * Caught for real: the first draft built the id as `rappr_${randomUUID()}` =
+ * 42 chars into `id varchar(36)`. Every approval would have failed on the very
+ * first tap. The widths are read OUT OF THE MIGRATION rather than restated here
+ * so this test cannot drift from the DDL that actually shapes the table.
+ */
+describe("column width contract (drizzle/0112)", () => {
+  const ddl = readFileSync(
+    resolve(__dirname, "../drizzle/0112_reel_publish_approvals.sql"),
+    "utf8",
+  );
+  const widthOf = (column: string): number => {
+    const m = new RegExp("`" + column + "` (?:var)?char\\((\\d+)\\)").exec(ddl);
+    if (!m) throw new Error(`0112 does not declare a width for ${column}`);
+    return Number(m[1]);
+  };
+
+  it("the generated approval id fits `id`", async () => {
+    const { recordReelApproval, captionFingerprint } = await svc();
+    selectQueue.push([assembledRow]);
+    await recordReelApproval({
+      jobId: JOB_ID,
+      approvedBy: "admin:1",
+      expectedCaptionSha: captionFingerprint(CAPTION),
+      expectedVideoUrl: VIDEO,
+    });
+    const ins = ops.find((o): o is Extract<Op, { kind: "insert" }> => o.kind === "insert")!;
+    expect(String(ins.values.id).length).toBeLessThanOrEqual(widthOf("id"));
+  });
+
+  it("the caption fingerprint fits `caption_sha` exactly", async () => {
+    const { captionFingerprint } = await svc();
+    expect(captionFingerprint(CAPTION).length).toBe(widthOf("caption_sha"));
+  });
+
+  it("a long approver is truncated to fit `approved_by`", async () => {
+    const { recordReelApproval, captionFingerprint } = await svc();
+    selectQueue.push([assembledRow]);
+    await recordReelApproval({
+      jobId: JOB_ID,
+      approvedBy: "admin:".concat("9".repeat(400)),
+      expectedCaptionSha: captionFingerprint(CAPTION),
+      expectedVideoUrl: VIDEO,
+    });
+    const ins = ops.find((o): o is Extract<Op, { kind: "insert" }> => o.kind === "insert")!;
+    expect(String(ins.values.approvedBy).length).toBeLessThanOrEqual(widthOf("approved_by"));
+  });
+
+  it("the supersede marker fits `revoked_by`", async () => {
+    const { recordReelApproval, captionFingerprint } = await svc();
+    selectQueue.push([assembledRow]);
+    await recordReelApproval({
+      jobId: JOB_ID,
+      approvedBy: "admin:".concat("9".repeat(400)),
+      expectedCaptionSha: captionFingerprint(CAPTION),
+      expectedVideoUrl: VIDEO,
+    });
+    const upd = ops.find((o): o is Extract<Op, { kind: "update" }> => o.kind === "update")!;
+    expect(String(upd.set.revokedBy).length).toBeLessThanOrEqual(widthOf("revoked_by"));
   });
 });
 
