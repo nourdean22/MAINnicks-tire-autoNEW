@@ -1,0 +1,29 @@
+1
+00:00:00,000 --> 00:00:04,000
+Power seat suddenly won't move?
+Don't assume the motor's dead yet.
+
+2
+00:00:04,000 --> 00:00:09,000
+No hum, no click, nothing at all
+when you press the switch.
+
+3
+00:00:09,000 --> 00:00:15,000
+One clue: a blown fuse or corroded
+connector can look identical to a dead motor.
+
+4
+00:00:15,000 --> 00:00:21,000
+Chase the wrong part first and you
+can pay for a motor you didn't need.
+
+5
+00:00:21,000 --> 00:00:26,000
+Don't guess which one it is
+before you check.
+
+6
+00:00:26,000 --> 00:00:30,000
+Worth checking before you replace
+the wrong part. Nick's Tire & Auto.
