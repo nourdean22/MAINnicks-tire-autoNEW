@@ -252,16 +252,6 @@ export async function recordReelApproval(args: {
   const { reelPublishApprovals } = await import("../../drizzle/schema");
   const { eq, and, isNull } = await import("drizzle-orm");
 
-  // SUPERSEDE, don't accumulate. Re-approving after a caption fix would
-  // otherwise leave the void older row live; `findLiveApproval` takes the
-  // newest so publishing would still be correct, but the drain selects on "has
-  // ANY non-revoked row", and a ledger where two contradictory yeses are both
-  // live is not an audit trail. Revoking first keeps exactly one live row.
-  await d
-    .update(reelPublishApprovals)
-    .set({ revokedAt: new Date(), revokedBy: `superseded by ${approvedBy}`.slice(0, 100) })
-    .where(and(eq(reelPublishApprovals.reelJobId, args.jobId), isNull(reelPublishApprovals.revokedAt)));
-
   // BARE UUID — exactly 36 chars, which is exactly `id varchar(36)` in
   // drizzle/0112_reel_publish_approvals.sql. A readable prefix does not fit:
   // `rappr_` + a 36-char UUID is 42, and TiDB runs STRICT_TRANS_TABLES, so an
@@ -273,14 +263,36 @@ export async function recordReelApproval(args: {
   // Same TTL semantics and the same construction as contentApprovals.ts — one
   // yes authorizes for 72h and then a stale approval must not fire unattended.
   const expiresAt = new Date(Date.now() + REEL_APPROVAL_TTL_HOURS * 3600_000);
-  await d.insert(reelPublishApprovals).values({
-    id: approvalId,
-    reelJobId: args.jobId,
-    captionSha: subject.captionSha,
-    videoUrl: subject.videoUrl,
-    approvedBy: approvedBy.slice(0, 100),
-    expiresAt,
-    note: args.note?.trim() ? args.note.trim().slice(0, 500) : null,
+
+  // SUPERSEDE + INSERT AS ONE UNIT.
+  //
+  // Supersede, don't accumulate: re-approving after a caption fix would leave
+  // the void older row live. `findLiveApproval` takes the newest so publishing
+  // would still be correct, but the DRAIN selects on "has ANY non-revoked row",
+  // and a ledger holding two contradictory live yeses is not an audit trail.
+  //
+  // ATOMIC because the two halves fail in opposite directions. Un-transacted,
+  // a revoke that succeeds followed by an insert that fails leaves the job with
+  // NO live approval: an operator who was re-approving a caption fix silently
+  // loses the yes they already had, and the reel drops back to held with the
+  // UI reporting an error but not that it also destroyed the prior consent.
+  // Fail-closed is the safe direction, which is exactly why it would have gone
+  // unnoticed. One transaction makes the pair all-or-nothing, so a failed
+  // re-approval leaves the previous approval standing.
+  await d.transaction(async (tx: typeof d) => {
+    await tx
+      .update(reelPublishApprovals)
+      .set({ revokedAt: new Date(), revokedBy: `superseded by ${approvedBy}`.slice(0, 100) })
+      .where(and(eq(reelPublishApprovals.reelJobId, args.jobId), isNull(reelPublishApprovals.revokedAt)));
+    await tx.insert(reelPublishApprovals).values({
+      id: approvalId,
+      reelJobId: args.jobId,
+      captionSha: subject.captionSha,
+      videoUrl: subject.videoUrl,
+      approvedBy: approvedBy.slice(0, 100),
+      expiresAt,
+      note: args.note?.trim() ? args.note.trim().slice(0, 500) : null,
+    });
   });
 
   return { approvalId, expiresAt, captionSha: subject.captionSha, videoUrl: subject.videoUrl };

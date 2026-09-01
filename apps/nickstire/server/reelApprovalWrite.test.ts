@@ -24,11 +24,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { approvalProblem, APPROVAL_BLOCK, REEL_APPROVAL_TTL_HOURS } from "@shared/reelApproval";
 
 type Op =
-  | { kind: "update"; set: Record<string, unknown> }
-  | { kind: "insert"; values: Record<string, unknown> };
+  | { kind: "update"; set: Record<string, unknown>; inTx: boolean }
+  | { kind: "insert"; values: Record<string, unknown>; inTx: boolean };
 
 const ops: Op[] = [];
 let selectQueue: unknown[][] = [];
+/** Depth of the fake transaction, so ops can record whether they were inside one. */
+let txDepth = 0;
+/** Set to make the fake insert throw, simulating a mid-transaction failure. */
+let insertShouldThrow = false;
 
 function makeSelectChain(): Record<string, unknown> {
   const chain: Record<string, unknown> = {};
@@ -43,17 +47,32 @@ const database = {
   update: () => ({
     set: (set: Record<string, unknown>) => ({
       where: () => {
-        ops.push({ kind: "update", set });
+        ops.push({ kind: "update", set, inTx: txDepth > 0 });
         return Promise.resolve([{ affectedRows: 1 }, []]);
       },
     }),
   }),
   insert: () => ({
     values: (values: Record<string, unknown>) => {
-      ops.push({ kind: "insert", values });
+      if (insertShouldThrow) return Promise.reject(new Error("simulated insert failure"));
+      ops.push({ kind: "insert", values, inTx: txDepth > 0 });
       return Promise.resolve();
     },
   }),
+  /**
+   * The fake cannot roll back — so the tests assert the MECHANISM (both writes
+   * are issued inside the transaction scope) rather than pretending to observe
+   * a rollback a mock could never perform. Asserting a rollback here would be
+   * asserting the mock, not the code.
+   */
+  transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+    txDepth += 1;
+    try {
+      return await fn(database);
+    } finally {
+      txDepth -= 1;
+    }
+  },
 };
 
 let dbAvailable = true;
@@ -94,6 +113,8 @@ beforeEach(() => {
   ops.length = 0;
   selectQueue = [];
   dbAvailable = true;
+  txDepth = 0;
+  insertShouldThrow = false;
 });
 
 describe("recordReelApproval", () => {
@@ -195,6 +216,39 @@ describe("recordReelApproval", () => {
     // a window where two contradictory yeses are both live.
     expect(ops.map((o) => o.kind)).toEqual(["update", "insert"]);
     expect(String((ops[0] as Extract<Op, { kind: "update" }>).set.revokedBy)).toContain("superseded");
+  });
+
+  it("supersede and insert are ONE transaction, so a failed re-approval keeps the old yes", async () => {
+    const { recordReelApproval, captionFingerprint } = await svc();
+    selectQueue.push([assembledRow]);
+    await recordReelApproval({
+      jobId: JOB_ID,
+      approvedBy: "admin:9",
+      expectedCaptionSha: captionFingerprint(CAPTION),
+      expectedVideoUrl: VIDEO,
+    });
+    // Un-transacted, a revoke that lands before a failing insert leaves the job
+    // with NO live approval: the operator silently loses the yes they already
+    // had. Fail-closed, which is exactly why it would go unnoticed.
+    expect(ops.every((o) => o.inTx), "both writes must be inside the transaction").toBe(true);
+  });
+
+  it("a mid-transaction insert failure surfaces instead of half-applying", async () => {
+    const { recordReelApproval, captionFingerprint } = await svc();
+    selectQueue.push([assembledRow]);
+    insertShouldThrow = true;
+    await expect(
+      recordReelApproval({
+        jobId: JOB_ID,
+        approvedBy: "admin:9",
+        expectedCaptionSha: captionFingerprint(CAPTION),
+        expectedVideoUrl: VIDEO,
+      }),
+    ).rejects.toThrow(/simulated insert failure/);
+    // No approval row was written. The revoke that preceded it is inside the
+    // same transaction, so a real database rolls it back — which is the whole
+    // reason the two statements had to be paired.
+    expect(ops.some((o) => o.kind === "insert")).toBe(false);
   });
 
   it("refuses a review that went stale between render and tap", async () => {
