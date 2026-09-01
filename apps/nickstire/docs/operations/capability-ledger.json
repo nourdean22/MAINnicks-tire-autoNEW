@@ -1575,6 +1575,36 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reel-publish-approval-write-path",
+      "name": "Human approval as a precondition for autonomous reel publish (the writer + its operator surface)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "this diff — server/services/reelApproval.ts (recordReelApproval/revokeReelApproval/listReelPublishQueue), server/routers/instagramAdmin.ts (3 adminProcedures), client/src/pages/admin/instagram/ReelQueue.tsx (Autonomous publish section)",
+        "tests": [
+          "server/reelApprovalWrite.test.ts (17): the load-bearing case is feeds_the_real_gate, which runs the row this module WRITES through the same approvalProblem the publish door CALLS and requires null. Refusal-direction tests were never the risk — #2000 already blocked everything perfectly. Mutation-proven: binding to a normalised caption turns 3 of 17 red, while the caption canary still PASSES because a wrongly-bound row also blocks, which is exactly why the positive assertion is the load-bearing one.",
+          "server/reelApprovalWrite.test.ts column-width contract: widths are read OUT OF drizzle/0112_reel_publish_approvals.sql rather than restated, so the assertions cannot drift from the DDL. This caught a real shipped defect — the id was built as a prefixed UUID (42 chars) against id varchar(36); under STRICT_TRANS_TABLES that insert is REJECTED and the row LOST, so every approval would have failed on the first tap. Mutation-proven: reintroducing the prefix turns exactly that test red.",
+          "server/__tests__/trpc-auth-tier.test.ts (4) — the three new procedures declare an auth tier; server/__tests__/approval-integrity.test.ts + server/autonomyBoundary.test.ts = 29 passed alongside.",
+          "server/reelApprovalWrite.test.ts atomicity pair (19 tests total): supersede + insert are issued inside ONE transaction, and a mid-transaction insert failure surfaces rather than half-applying. Raised by the automated review gate as P2 and FIXED rather than deferred - un-transacted, a revoke that lands before a failing insert silently destroys the approval the operator already had, and because that direction is fail-closed it would never have been noticed. Mutation-proven: unwrapping the transaction turns exactly that test red."
+        ],
+        "verifiedAgainst": "The cron itself, not memory: cron/jobs/dailyReelPost.ts:555 and :567 derive videoUrl=reel_jobs.mp4Url and caption=reel_jobs.caption, and :869 passes exactly those into reelApprovalProblem. The writer binds to those two columns read live off reel_jobs. Binding instead to the Studio draft caption (caption + blank line + hashtags) would have produced an approval that is void the instant it is read.",
+        "limits": "NOT deployed and NOT exercised against a real database. The rendered UI was never opened in a browser: pnpm dev binds to production TiDB and boots the tiered scheduler (ig-autopost, SMS, reel-pipeline), which nickstire-verifier-reel-pipeline forbids as a customer-facing side-effect risk. Server logic is unit- and mutation-verified; the client is typecheck- and lint-verified only (lint:source, 0 client dialog globals)."
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "Migration drizzle/0112_reel_publish_approvals.sql is hand-applied and has NOT been applied to production TiDB - 0113 got a read-back receipt on 2026-08-31, 0112 has none anywhere in docs. Until it runs, findLiveApproval catches on the missing table, the drain reads zero approvals, and NO reel can publish - which is the state production has been in since 2026-08-29. The surface shipped here is therefore inert on arrival by design: fail-closed is correct, but it means this capability does nothing at all until the DDL lands. Apply script: apps/nickstire/scripts/migrations/apply-0112-reel-publish-approvals.ts - additive, idempotent, prints the target host, refuses to execute any statement that is not CREATE TABLE IF NOT EXISTS, and post-checks the columns, the index and the id column type before reporting success."
+        }
+      ],
+      "deferredScope": [
+        "listReelPublishQueue does one findLiveApproval per row (N+1, bounded at 25) - acceptable for an admin screen, not for a hot path.",
+        "expiresAt uses the same new Date(Date.now()+TTL) construction as contentApprovals.ts. If TiDB timestamp read-back skews, an approval outlives 72h - a mild fail-open, matched to prior art rather than forked into a second scheme."
+      ],
+      "lastVerifiedAt": "2026-09-01",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled"
     }
   ],
   "axes": {

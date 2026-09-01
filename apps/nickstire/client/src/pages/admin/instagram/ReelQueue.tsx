@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Film, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle, Check, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Loader2, Film, RefreshCw, Send, CheckCircle2, XCircle, AlertTriangle, Check, ChevronDown, ChevronUp, Eye, ShieldCheck, ShieldAlert, Ban } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,45 @@ export default function ReelQueue() {
   const [showSafeZones, setShowSafeZones] = useState(true);
   /** Trial-reel numbers as typed (strings; empty = not entered, never zero). */
   const [trialForm, setTrialForm] = useState<Record<string, string>>({});
+
+  /** Two-tap approve for the AUTONOMOUS lane (reel_jobs), keyed by job id. */
+  const [confirmApproveJobId, setConfirmApproveJobId] = useState<number | null>(null);
+
+  /* ── Autonomous publish queue ───────────────────────────────────────────
+   * Separate from the draft cards below on purpose. These rows are read
+   * straight off `reel_jobs` and show the EXACT caption bytes the cron will
+   * send — not the Studio draft's composed caption. Approving the composed
+   * one would fingerprint text the cron never publishes, so the approval
+   * would be void the instant the gate read it. */
+  const {
+    data: publishQueue,
+    isLoading: queueLoading,
+    isError: queueIsError,
+    error: queueError,
+    refetch: refetchQueue,
+  } = trpc.instagramAdmin.reelPublishQueue.useQuery();
+
+  const approveReelPublish = trpc.instagramAdmin.approveReelPublish.useMutation({
+    onSuccess: (res: any) => {
+      toast.success("Approved for autonomous publish", {
+        description: `The cron may now publish this reel until ${new Date(res.expiresAt).toLocaleString()}.`,
+      });
+      refetchQueue();
+    },
+    onError: (err) => toast.error("Approval NOT recorded", { description: err.message }),
+  });
+
+  const revokeReelPublish = trpc.instagramAdmin.revokeReelPublish.useMutation({
+    onSuccess: (res: any) => {
+      toast.success(res.revoked > 0 ? "Approval withdrawn" : "Nothing to withdraw", {
+        description: res.revoked > 0
+          ? "The cron will hold this reel again."
+          : "This reel had no live approval.",
+      });
+      refetchQueue();
+    },
+    onError: (err) => toast.error("Revoke failed", { description: err.message }),
+  });
 
   const recordTrial = trpc.instagramAdmin.recordTrialResult.useMutation({
     onSuccess: () => {
@@ -351,6 +390,168 @@ export default function ReelQueue() {
           Refresh
         </Button>
       </div>
+
+      {/* ── AUTONOMOUS PUBLISH QUEUE ────────────────────────────────────────
+          The daily cron is default-deny since #2000: it publishes nothing
+          without a recorded, attributable yes bound to the exact caption bytes
+          and the exact rendered asset. This is where that yes is given. The
+          caption shown is read straight off `reel_jobs` — it is the literal
+          text that will post, which is why it renders as preformatted bytes
+          rather than prose. */}
+      <Card className="border-primary/30">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4" /> Autonomous publish — approval required
+              </CardTitle>
+              <CardDescription className="mt-1">
+                The daily cron publishes nothing without a yes recorded here. One approval covers the
+                exact caption and exact video shown, for 72 hours; a re-render or a caption edit voids it.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" className="min-h-11 flex-none" onClick={() => refetchQueue()} disabled={queueLoading}>
+              {queueLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* A table that cannot be read is NOT an empty queue. Migration 0112 is
+              hand-applied; until it runs, every reel is held and the reason is
+              invisible from the rows themselves. */}
+          {publishQueue && !publishQueue.approvalsTableReadable && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+              <ShieldAlert className="mt-0.5 h-4 w-4 flex-none text-amber-500" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-semibold text-amber-600">The approvals table cannot be read</p>
+                <p className="mt-1 text-muted-foreground">
+                  <code>reel_publish_approvals</code> is unreadable, so no approval can be recorded and
+                  no reel can publish. Migration <code>drizzle/0112_reel_publish_approvals.sql</code> is
+                  hand-applied — it likely has not been run against production TiDB yet.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {queueLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : queueIsError ? (
+            /* Unknown, never "empty" — the same standard as the queue below. */
+            <p className="text-sm text-muted-foreground">
+              Could not read the publish queue. This is unknown, not empty. {queueError?.message}
+            </p>
+          ) : !publishQueue?.entries.length ? (
+            <p className="text-sm text-muted-foreground">
+              No assembled reels are waiting. Nothing to approve — the pipeline produces before it publishes.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {publishQueue.entries.map((entry: any) => {
+                const approved = entry.approvalProblem === null;
+                const vetoed = Boolean(entry.vetoReason);
+                return (
+                  <div key={entry.jobId} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[128px_minmax(0,1fr)]">
+                    <div className="mx-auto w-32">
+                      <div className="relative aspect-[9/16] w-full overflow-hidden rounded bg-black">
+                        <video src={entry.videoUrl} className="absolute inset-0 h-full w-full object-contain" controls muted playsInline preload="metadata" />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">job {entry.jobId}</Badge>
+                        {vetoed ? (
+                          <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" /> vetoed</Badge>
+                        ) : approved ? (
+                          <Badge className="gap-1 bg-green-600 hover:bg-green-700"><ShieldCheck className="h-3 w-3" /> approved</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1"><ShieldAlert className="h-3 w-3" /> {entry.approvalProblem.code}</Badge>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Exact caption that will publish
+                        </p>
+                        <pre className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded border bg-muted/20 p-2 text-xs leading-5">{entry.caption}</pre>
+                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">sha {entry.captionSha.slice(0, 16)}…</p>
+                      </div>
+
+                      {vetoed ? (
+                        <div className="rounded border border-red-500/40 bg-red-500/5 p-2 text-xs text-muted-foreground">
+                          <span className="font-semibold text-red-500">Cannot be approved. </span>{entry.vetoReason}
+                        </div>
+                      ) : approved ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            Approved by {entry.approvedBy}
+                            {entry.expiresAt ? ` · expires ${new Date(entry.expiresAt).toLocaleString()}` : ""}
+                          </p>
+                          <Button
+                            size="sm" variant="outline" className="min-h-11"
+                            disabled={revokeReelPublish.isPending}
+                            onClick={() => revokeReelPublish.mutate({ jobId: entry.jobId })}
+                          >
+                            Withdraw approval
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-muted-foreground">{entry.approvalProblem.reason}</p>
+                          {/* Two-tap, in-DOM: window.confirm is silently
+                              suppressed in the installed iOS PWA. */}
+                          {confirmApproveJobId === entry.jobId ? (
+                            <div className="space-y-2 rounded-lg border border-green-600/40 bg-green-600/5 p-3">
+                              <p className="text-xs">
+                                Approve the caption above, exactly as written, and the video shown?
+                                The cron may then publish it to Instagram unattended within 72 hours.
+                              </p>
+                              <div className="flex justify-end gap-2">
+                                <Button size="sm" variant="ghost" className="min-h-11" onClick={() => setConfirmApproveJobId(null)}>Cancel</Button>
+                                <Button
+                                  size="sm" className="min-h-11 bg-green-600 text-white hover:bg-green-700"
+                                  disabled={approveReelPublish.isPending}
+                                  onClick={() => {
+                                    setConfirmApproveJobId(null);
+                                    approveReelPublish.mutate({
+                                      jobId: entry.jobId,
+                                      // What was ON SCREEN. The server refuses if the
+                                      // live row has changed since this rendered.
+                                      expectedCaptionSha: entry.captionSha,
+                                      expectedVideoUrl: entry.videoUrl,
+                                    });
+                                  }}
+                                >
+                                  {approveReelPublish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                  Yes — approve
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm" className="min-h-11 bg-green-600 text-white hover:bg-green-700"
+                              onClick={() => setConfirmApproveJobId(entry.jobId)}
+                            >
+                              <Check className="mr-2 h-4 w-4" /> Approve for publish…
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {entry.holdReason && (
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          <span className="font-semibold">Current hold on the job: </span>{entry.holdReason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         {(["all", "needs_review", "ready", "scheduled", "published", "rejected"] as const).map((status) => (
