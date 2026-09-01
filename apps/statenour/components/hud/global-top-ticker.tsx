@@ -32,8 +32,9 @@ import { Ticker } from "@/components/ultron/top-strip/ticker";
 
 export function GlobalTopTicker() {
   const pathname = usePathname();
-  // Home is the lean launcher (its own HomeStatePulse strip) — skip the
-  // global top ticker there so the landing surface stays uncluttered.
+  // Home is the lean launcher (its own BriefStateLine health line + the
+  // bottom pulse ticker) — skip the global top ticker there so the landing
+  // surface stays uncluttered.
   if (pathname === "/") return null;
 
   return (

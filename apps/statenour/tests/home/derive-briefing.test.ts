@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from "vitest";
 
-import { deriveBriefing, type BriefingInputs } from "@/components/home/derive-briefing";
+import { deriveBriefing, type BriefingInputs } from "@/lib/home/derive-briefing";
 
 /** A board with nothing on it — arms override what they test. */
 const base: BriefingInputs = {
