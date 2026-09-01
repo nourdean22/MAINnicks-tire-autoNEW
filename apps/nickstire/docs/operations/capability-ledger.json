@@ -1591,7 +1591,10 @@
         "limits": "NOT deployed and NOT exercised against a real database. The rendered UI was never opened in a browser: pnpm dev binds to production TiDB and boots the tiered scheduler (ig-autopost, SMS, reel-pipeline), which nickstire-verifier-reel-pipeline forbids as a customer-facing side-effect risk. Server logic is unit- and mutation-verified; the client is typecheck- and lint-verified only (lint:source, 0 client dialog globals)."
       },
       "blockers": [
-        "Migration drizzle/0112_reel_publish_approvals.sql is hand-applied and has NOT been applied to production TiDB. Until it runs, no approval row can be written and no reel can publish. Apply script: apps/nickstire/scripts/migrations/apply-0112-reel-publish-approvals.ts (additive, idempotent, refuses any non-CREATE statement)."
+        {
+          "severity": "P1",
+          "description": "Migration drizzle/0112_reel_publish_approvals.sql is hand-applied and has NOT been applied to production TiDB - 0113 got a read-back receipt on 2026-08-31, 0112 has none anywhere in docs. Until it runs, findLiveApproval catches on the missing table, the drain reads zero approvals, and NO reel can publish - which is the state production has been in since 2026-08-29. The surface shipped here is therefore inert on arrival by design: fail-closed is correct, but it means this capability does nothing at all until the DDL lands. Apply script: apps/nickstire/scripts/migrations/apply-0112-reel-publish-approvals.ts - additive, idempotent, prints the target host, refuses to execute any statement that is not CREATE TABLE IF NOT EXISTS, and post-checks the columns, the index and the id column type before reporting success."
+        }
       ],
       "deferredScope": "Supersede-then-insert is not wrapped in a transaction: a transient insert failure after a successful revoke downgrades an approved reel to held. Fail-closed, so the safe direction, and deliberately left rather than hidden. listReelPublishQueue does one approval lookup per row (N+1, bounded at 25) — acceptable for an admin screen, not for a hot path.",
       "lastVerifiedAt": "2026-09-01",
