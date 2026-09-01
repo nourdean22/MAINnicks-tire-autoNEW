@@ -4,7 +4,6 @@ import {
   MessageSquare,
   ListTodo,
   Settings,
-  Store,
   NotebookPen,
   Activity,
   Pin,
@@ -27,14 +26,14 @@ import {
 // hardcoded cmdK list, and the FloatingHome orb) — all now consolidated here.
 //
 // Sections are the operator's OS-loop VERBS: capture → execute → reflect →
-// money → operate. `bottomTab` items are the 4 always-visible daily content
+// operate. `bottomTab` items are the 4 always-visible daily content
 // tabs (rendered in the bar; excluded from the MORE sheet by `bySection`).
 // `/system` owns its own sub-surfaces via the System hub grid, so the
 // system/* children are NOT listed here. Hidden routes (the /chat alias,
 // /decisions/[id], /auth/sign-in) and redirect stubs (/goals, /scoreboard)
 // are intentionally absent. See docs/audits/IA-REORG-DESIGN.md §2 + §5.
 
-export type NavSection = "capture" | "execute" | "reflect" | "money" | "operate";
+export type NavSection = "capture" | "execute" | "reflect" | "operate";
 
 export interface NavEntry {
   href: string;
@@ -45,9 +44,9 @@ export interface NavEntry {
   bottomTab?: boolean;
   /** Rendered as a flat one-tap MORE row (vs a hub that owns its own tabs). */
   flatRow?: boolean;
-  /** External link — opens in a new tab (e.g. nickstire.org/admin). */
+  /** External link — opens in a new tab. No current entries; renderers keep the branch. */
   external?: boolean;
-  /** Footer placement in the MORE sheet (Settings · Admin). */
+  /** Footer placement in the MORE sheet (Settings). */
   footer?: boolean;
   /** Hub routes that own in-page tabs — lets ⌘K hint sub-surfaces. */
   tabs?: { key: string; label: string }[];
@@ -78,19 +77,15 @@ export const NAV: NavEntry[] = [
     tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
 
-  // ── MONEY ── the shop /business hub. The personal /money page (former
-  // /finance + /wealth tabs) was deleted 2026-07-29 per the operator's WP-9
-  // verdict — its models died in the 2026-06-21 schema purge and the tabs had
-  // been in honest retired-state since 07-28. Shop money lives in Business.
-  { href: "/business", label: "Business", icon: Store, section: "money",
-    tabs: [{ key: "money", label: "Money" }, { key: "funnel", label: "Funnel" }, { key: "clients", label: "Clients" }] },
-
   // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)
+  // The money section (/business hub) + the external nickstire.org/admin
+  // footer link were removed 2026-09-01 on operator verdict — both dead in
+  // practice. The /business PAGE stays routable; only nav links died. The
+  // personal /money page predeceased them (2026-07-29, WP-9 verdict).
   { href: "/system", label: "System", icon: Activity, section: "operate" },
 
   // ── FOOTER ──
   { href: "/settings", label: "Settings", icon: Settings, section: "operate", footer: true },
-  { href: "https://nickstire.org/admin", label: "Admin", icon: Store, section: "operate", external: true, footer: true },
 ];
 
 /** The 4 always-visible bottom content tabs (a synthetic "More" is added by the renderer). */

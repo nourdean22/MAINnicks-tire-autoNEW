@@ -40,8 +40,7 @@ const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
   { key: "capture", label: "Capture", ordinal: "01" },
   { key: "execute", label: "Execute", ordinal: "02" },
   { key: "reflect", label: "Reflect", ordinal: "03" },
-  { key: "money", label: "Money", ordinal: "04" },
-  { key: "operate", label: "Operate", ordinal: "05" },
+  { key: "operate", label: "Operate", ordinal: "04" },
 ];
 
 function isActiveHref(pathname: string, href: string): boolean {
@@ -213,10 +212,10 @@ export function MoreSheet() {
           if (rows.length === 0) return null;
           return (
             <div key={key} className="border-t border-[var(--border-default)] px-3 py-2">
-              {/* 2026-08-12 · Capture -> Execute -> Reflect -> Money ->
-                  Operate is a real sequence (the operator's own OS loop),
-                  not five arbitrary buckets — the ordinal makes that
-                  legible instead of five identical gray labels. */}
+              {/* 2026-08-12 · Capture -> Execute -> Reflect -> Operate is a
+                  real sequence (the operator's own OS loop), not arbitrary
+                  buckets — the ordinal makes that legible instead of
+                  identical gray labels. (Money dropped 2026-09-01.) */}
               <div className="mb-1.5 flex items-center gap-2 px-1">
                 <span
                   aria-hidden
@@ -257,7 +256,7 @@ export function MoreSheet() {
           );
         })}
 
-        {/* Footer — Settings + external Admin */}
+        {/* Footer — Settings (external Admin link removed 2026-09-01) */}
         <div className="flex items-center gap-2 border-t border-[var(--border-default)] px-3 py-3">
           {footer.map((n) => {
             const Icon = n.icon;
