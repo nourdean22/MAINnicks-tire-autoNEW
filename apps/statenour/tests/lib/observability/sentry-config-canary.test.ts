@@ -22,15 +22,18 @@ import {
 import { maskLangfuseData } from "@/lib/observability/langfuse";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const REAL_DSN = "https://f407a7a6923c4dcd1e0b05fc843e8d66@o4511337798172672.ingest.us.sentry.io/4511671613784064";
+// Synthetic, deliberately. Real key material must never enter the tree — the
+// first draft of this file put the operator's live Langfuse secret here and
+// gitleaks caught it on #2079.
+const SAMPLE_DSN = "https://00000000000000000000000000000000@o000000.ingest.us.sentry.io/0000000";
 
 describe("resolveSentryDsn · fails closed", () => {
-  it("accepts a real DSN", () => {
-    expect(resolveSentryDsn({ SENTRY_DSN: REAL_DSN })).toBe(REAL_DSN);
+  it("accepts a well-formed DSN", () => {
+    expect(resolveSentryDsn({ SENTRY_DSN: SAMPLE_DSN })).toBe(SAMPLE_DSN);
   });
 
   it("prefers the public DSN when both are set (the client can only see that one)", () => {
-    expect(resolveSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: REAL_DSN, SENTRY_DSN: "https://other@o1.ingest.us.sentry.io/2" })).toBe(REAL_DSN);
+    expect(resolveSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: SAMPLE_DSN, SENTRY_DSN: "https://other@o1.ingest.us.sentry.io/2" })).toBe(SAMPLE_DSN);
   });
 
   it("treats missing, placeholder and malformed values as NOT configured", () => {
@@ -52,8 +55,8 @@ describe("sentryInitOptions · the block every runtime config spreads", () => {
     expect(opts.dsn).toBeUndefined();
   });
 
-  it("enables with a real DSN, and keeps PII off and tracing at zero", () => {
-    const opts = sentryInitOptions({ SENTRY_DSN: REAL_DSN, RAILWAY_ENVIRONMENT_NAME: "production", RAILWAY_GIT_COMMIT_SHA: "abc123" });
+  it("enables with a well-formed DSN, and keeps PII off and tracing at zero", () => {
+    const opts = sentryInitOptions({ SENTRY_DSN: SAMPLE_DSN, RAILWAY_ENVIRONMENT_NAME: "production", RAILWAY_GIT_COMMIT_SHA: "abc123" });
     expect(opts.enabled).toBe(true);
     expect(opts.sendDefaultPii).toBe(false);
     expect(opts.tracesSampleRate).toBe(0);
@@ -73,9 +76,9 @@ describe("sentryInitOptions · the block every runtime config spreads", () => {
 describe("scrubSentryEvent · secrets never reach the vendor", () => {
   it("masks keys and bearer tokens in message, exception values and breadcrumbs", () => {
     const event = scrubSentryEvent({
-      message: "failed with sk-lf-d7d7fe66-1e5d-4c55-b2df-881e861a4a2b",
+      message: "failed with sk-lf-00000000-0000-4000-8000-000000000000",
       exception: { values: [{ value: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123" }] },
-      breadcrumbs: [{ message: "used pk-lf-1e34be2b-7178-41db-84c3-d71cd9c5e93e" }],
+      breadcrumbs: [{ message: "used pk-lf-11111111-1111-4111-8111-111111111111" }],
     });
     expect(event.message).toBe("failed with sk-[REDACTED]");
     expect(event.exception?.values?.[0].value).toBe("Authorization: Bearer [REDACTED]");
@@ -89,9 +92,9 @@ describe("scrubSentryEvent · secrets never reach the vendor", () => {
   });
 
   it("shares ONE redaction with Langfuse — a secret is masked identically on both exports", () => {
-    const secret = "sk-lf-d7d7fe66-1e5d-4c55-b2df-881e861a4a2b";
-    const viaSentry = scrubSentryEvent({ message: secret }).message;
-    const viaLangfuse = maskLangfuseData(secret);
+    const fakeKey = "sk-lf-00000000-0000-4000-8000-000000000000";
+    const viaSentry = scrubSentryEvent({ message: fakeKey }).message;
+    const viaLangfuse = maskLangfuseData(fakeKey);
     expect(viaSentry).toBe(viaLangfuse);
   });
 });

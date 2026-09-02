@@ -140,7 +140,7 @@ describe("processor options", () => {
     expect(opts.environment).toBe("production");
     expect(opts.release).toBe("0123456789abcdef0123456789abcdef01234567");
     expect(typeof opts.mask).toBe("function");
-    expect(opts.mask({ data: "key sk-lf-d7d7fe66-1e5d-4c55-b2df-881e861a4a2b here" })).toBe("key sk-[REDACTED] here");
+    expect(opts.mask({ data: "key sk-lf-00000000-0000-4000-8000-000000000000 here" })).toBe("key sk-[REDACTED] here");
   });
 
   it("resolveLangfuseEnvironment: LANGFUSE_TRACING_ENVIRONMENT wins, illegal values collapse to 'default' instead of dropping spans", async () => {
@@ -164,7 +164,7 @@ describe("processor options", () => {
   it("maskLangfuseData: keys and bearer tokens are redacted, ordinary text and non-strings pass through", async () => {
     const m = await fresh();
     expect(m.maskLangfuseData("Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123")).toBe("Authorization: Bearer [REDACTED]");
-    expect(m.maskLangfuseData("pk-lf-1e34be2b-7178-41db-84c3-d71cd9c5e93e")).toBe("pk-[REDACTED]");
+    expect(m.maskLangfuseData("pk-lf-11111111-1111-4111-8111-111111111111")).toBe("pk-[REDACTED]");
     expect(m.maskLangfuseData("the desk-lamp task-list is fine")).toBe("the desk-lamp task-list is fine");
     expect(m.maskLangfuseData(42)).toBe(42);
     expect(m.maskLangfuseData(undefined)).toBeUndefined();
