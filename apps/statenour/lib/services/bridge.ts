@@ -116,7 +116,10 @@ export async function fetchShopSnapshot(): Promise<ShopSnapshot | null> {
           completedCount: 0,
         },
         revenue: {
-          todayEstimate: rev?.totalDollars ?? 0,
+          // null, not 0, when the revenue_today query returned nothing: the
+          // Command Surface falls through to the last pushed reading, and a
+          // failed bridge read can no longer show as a $0 day (2026-09-02).
+          todayEstimate: rev?.totalDollars ?? null,
           weekEstimate: null,
         },
         syncHealth: { overall: "healthy" as const, services: {} },

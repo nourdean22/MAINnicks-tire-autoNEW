@@ -84,9 +84,11 @@ export interface NourState {
   dayOfWeek: string;
   isWeekend: boolean;
 
-  // Live data
-  todayRevenue: number;
-  weekRevenue: number;
+  // Live data — null = no reading (bridge and last sync both failed), NOT zero.
+  todayRevenue: number | null;
+  weekRevenue: number | null;
+  /** Why revenue is unknown; null when a reading exists. */
+  revenueReason: string | null;
   pipelineValue: number;
   pipelineDecay: number;
   staleLeads: number;
@@ -126,8 +128,9 @@ const DEFAULT_STATE: NourState = {
   timeOfDay: "morning",
   dayOfWeek: "",
   isWeekend: false,
-  todayRevenue: 0,
-  weekRevenue: 0,
+  todayRevenue: null,
+  weekRevenue: null,
+  revenueReason: "not loaded yet",
   pipelineValue: 0,
   pipelineDecay: 0,
   staleLeads: 0,
@@ -275,8 +278,10 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
         timeOfDay,
         dayOfWeek,
         isWeekend,
-        todayRevenue: cmd?.shop?.todayRevenue ?? 0,
-        weekRevenue: cmd?.shop?.weekRevenue ?? 0,
+        // `?? null`, never `?? 0`: a missing reading stays unknown (2026-09-02).
+        todayRevenue: cmd?.shop?.todayRevenue ?? null,
+        weekRevenue: cmd?.shop?.weekRevenue ?? null,
+        revenueReason: cmd ? (cmd.shop?.revenueReason ?? null) : "command data unavailable",
         pipelineValue: aging?.rawPipelineValue ?? 0,
         pipelineDecay: aging?.decayRate ?? 0,
         staleLeads: cmd?.brief?.staleLeads ?? 0,
