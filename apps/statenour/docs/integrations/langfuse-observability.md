@@ -1,17 +1,19 @@
 # Langfuse observability — wiring, deployment options, activation
 
-**Status (2026-08-25):** SDK wired end-to-end and proven offline; **dormant until the
-operator sets keys** (an operator-side Railway env edit — protected operation, never
-agent-initiated). One decision + three env vars activate it.
+**Status (2026-09-02):** Langfuse is wired end-to-end and enabled in production.
+Sentry error monitoring is also deployed and configured. `/api/version` reports
+`langfuse: true` and `sentry: true` on Railway deployment
+`bc0a81be-491d-4d88-99de-87a0ffa3d23a` (commit `3e387b5`).
 
 ## Why Langfuse, and why now
 
-- **There is no working LLM observability today.** `braintrust-wrap.ts` shipped
-  2026-05-17 and has had **zero callers** ever since (grep receipt in PR #1837);
-  `BRAINTRUST_API_KEY` sits set-but-unused in Railway. The eval corpus stands at
-  3/200 scenarios with a hand-run harvest. The register's 2026-07-28 Langfuse
-  REJECT assumed "native receipts + AgentTrace + trace pages cover the need" —
-  the operator's 2026-08-25 directive states they do not.
+- **Before this integration there was no working LLM observability.**
+  `braintrust-wrap.ts` shipped 2026-05-17 and had **zero callers** (grep receipt
+  in PR #1837); the legacy `BRAINTRUST_API_KEY` was set-but-unused in Railway.
+  The eval corpus stood at 3/200 scenarios with a hand-run harvest. The
+  register's 2026-07-28 Langfuse REJECT assumed "native receipts + AgentTrace +
+  trace pages cover the need" — the operator's 2026-08-25 directive rejected
+  that assumption.
 - **License verified 2026-08-25:** "This repository is MIT licensed, except for the
   `ee` folders" (github.com/langfuse/langfuse). The SDK packages used here
   (`@langfuse/otel` 5.10.1) are MIT.
@@ -40,7 +42,7 @@ producer), and `propagateAttributes` (needs `@langfuse/tracing`; on the AI SDK
 path every call sets its own attributes through the helper instead). The two
 side chat surfaces were wired 2026-09-02.
 
-## Deployment decision — proposal with costs (operator's call)
+## Deployment decision — Cloud Hobby, US region
 
 Measured volume: **764 chat requests / 14 days** (`ai_generations`, 2026-08-25) ≈
 **1,640/mo**. A traced turn emits roughly 3–8 observations ("units"): ~5k–13k
@@ -52,9 +54,10 @@ units/mo.
 | Langfuse Cloud — Core | $29/mo · 100k units + $8/100k · 90-day retention | Upgrade trigger: >50k units/mo (≈6–10× current chat volume) or needing >30d lookback. |
 | Self-host (OSS, free license) | Railway containers: web + async worker + ClickHouse + Redis + S3-compatible store (Postgres exists — Neon). Realistic $30–60/mo infra + upgrade/ops burden | The register's 2026-07-28 sizing objection was correct and still is: this stack for one operator is not worth it at current volume. Reopen if data residency or retention economics change. |
 
-**Recommendation: Cloud Hobby, US region.** Zero cost, zero infra, real-time
-ingestion with SDK v5. The wiring is identical for all three options — only the
-env vars differ.
+**Selected: Cloud Hobby, US region.** Zero cost, zero infra, real-time ingestion
+with SDK v5. The Railway project is configured with the operator-provided project
+keys and `https://us.cloud.langfuse.com`. Secret values are intentionally absent
+from this repository and from this document.
 
 ## Activation (operator)
 
@@ -73,9 +76,27 @@ Locally the same three lines go in `apps/statenour/.env.local` (git-ignored; an
 agent never writes that file — the repo hook blocks it, and a key that has been
 pasted into a chat or a screenshot should be rotated in Langfuse before use).
 
-Next deploy: boot log shows `langfuse_started`, `/api/health` → `langfuse.status:
-"started"`, and every non-private model call lands as a trace named after its
-call site (`nick-chat`, `weekly-review`, `telegram-ask`, …).
+The deployed boot log showed `langfuse_started`, and `/api/version` reports the
+Langfuse integration configured. `/api/health` is operator-authenticated and was
+not used as an unauthenticated health receipt. The last authenticated Langfuse
+API check succeeded, but returned zero traces at that check time; a trace landing
+receipt still requires triggering a non-private model call and reading it back.
+
+## Sentry error monitoring
+
+The Next.js integration is live through `@sentry/nextjs` 10.73.0. Runtime hooks
+cover the client, server, edge, request-error, and router-transition paths:
+
+| Concern | Source | Current behavior |
+|---|---|---|
+| Client initialization | `instrumentation-client.ts` + `sentry.client.config.ts` | Uses `NEXT_PUBLIC_SENTRY_DSN` when present |
+| Server and edge initialization | `instrumentation.ts` + runtime config files | Uses `SENTRY_DSN` when present |
+| Next.js integration | `next.config.ts` | Wraps the production build with Sentry source-map/error hooks |
+| Privacy/performance defaults | Sentry config | `sendDefaultPii: false`; tracing disabled with `tracesSampleRate: 0` |
+
+Both DSN variables are configured on Railway. This proves configuration and
+deployment, not that an event has been emitted; no synthetic Sentry event was
+created as part of this rollout.
 
 ### Verification loop (the `langfuse` skill's required step, run once keys exist)
 

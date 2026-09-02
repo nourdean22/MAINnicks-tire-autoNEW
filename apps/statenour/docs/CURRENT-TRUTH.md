@@ -2,8 +2,21 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-08-16**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-02**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-09-02 — observability is deployed
+
+- **Langfuse tracing is enabled in production.** Every AI SDK model-call site
+  uses the shared `langfuseTelemetry()` helper; private-mode turns are excluded
+  and exported keys/bearer tokens are masked. Railway `/api/version` reports
+  `langfuse: true` on commit `3e387b5e1`.
+- **Sentry error monitoring is configured in production.** Client, server, edge,
+  request-error, and router-transition hooks are deployed; `/api/version` reports
+  `sentry: true`. Default PII capture is off and performance tracing is disabled.
+- **Receipt boundary:** this proves deployed configuration, not a Sentry event
+  receipt. The last authenticated Langfuse API check succeeded but returned zero
+  traces at that time; verify a real non-private model call by reading it back.
 
 ## Since 2026-07-20 (verified 2026-07-28 — headline deltas)
 
