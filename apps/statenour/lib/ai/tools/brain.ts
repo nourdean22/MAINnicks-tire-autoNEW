@@ -75,7 +75,8 @@ export const brainTools = {
         count: top.length,
         patterns: top.map((r) => ({
           key: r.key,
-          description: r.content,
+          // anti-pattern descriptions are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
+          description: fenceContent("surfaceAntiPatterns", "curated_memory", r.content),
           confidence: r.confidence,
           lastSeen: r.updatedAt.toISOString().slice(0, 10),
           metadata: r.metadata,
@@ -766,7 +767,7 @@ export const brainTools = {
             if (finalScore < 0.08) return null;
             return {
               key: r.key,
-              lesson: r.content,
+              lesson: fenceContent("checkAntiPattern", "curated_memory", r.content),
               severity: meta.severity ?? "warn",
               domain: meta.domain ?? "other",
               attempt: meta.attempt ?? "",
@@ -1005,7 +1006,8 @@ export const brainTools = {
         orderBy: { confidence: "desc" },
         take: 5,
       });
-      return { correlations: correlations.map((c) => ({ content: c.content, confidence: c.confidence })) };
+      // correlation sentences are system-generated stored text → curated_memory (2026-09-02, #2065 review)
+      return { correlations: correlations.map((c) => ({ content: fenceContent("getHabitRevenueCorrelation", "curated_memory", c.content), confidence: c.confidence })) };
     },
   }),
 

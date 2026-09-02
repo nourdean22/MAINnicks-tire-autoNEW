@@ -22,6 +22,7 @@
  */
 
 import { tool } from "ai";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
@@ -168,7 +169,8 @@ export const missionsTools = {
           };
           return {
             missionTitle: m.missionTitle ?? null,
-            retro: r.content,
+            // mission retros are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
+            retro: fenceContent("getMissionRetros", "curated_memory", r.content),
             closedAt: r.createdAt.toISOString(),
             tasksAtClose: m.taskCount ?? null,
             openAtClose: m.openCount ?? null,

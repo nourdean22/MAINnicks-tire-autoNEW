@@ -77,50 +77,96 @@ const modules = importedLibModules().map((spec) => {
 });
 
 // ── the other door: TOOL RESULTS ──────────────────────────────────────────
-// The same rows reach the model as tool output. A tool under lib/ai/tools
-// that reads BrainMemory / chat rows and puts `.content` into its result
-// must fence it (searchColdMemory, searchConversations, the customer-360
-// notes were all bare until 2026-09-02).
-// Keyed on READING the rows, not on a render idiom: searchMemories returned
-// whole rows (`{ count, memories }`) and no `.content` interpolation regex
-// would ever have seen it. A tool file that reads BrainMemory / chat rows
-// either fences what it returns or says, per file, which app-authored
-// categories it reads and why they are not ingestion content.
+// The same rows reach the model as tool output. Analysed PER TOOL, not per
+// file (#2065 review): a file-level "contains fenceContent" let the first
+// fenced tool in the 1,600-line brain.ts vouch for every other tool in it,
+// while surfaceAntiPatterns and getHabitRevenueCorrelation still returned raw
+// content. Each `name: tool({ ... })` block is its own subject: if it reads
+// BrainMemory / chat rows AND touches `.content`, it must call fenceContent
+// inside that block, or be allowlisted by name with the categories it reads.
+// searchMemories returned WHOLE rows, so the key is reading + touching
+// content, never a render idiom.
 const TOOLS_DIR = join(APP_ROOT, "lib/ai/tools");
 const READS_ROWS = /prisma\.(brainMemory|chatMessage)\b|searchColdMemory\(|semanticSearch\(|recallMemoriesForQuery\(|getContextualMemories\(/;
+
+export interface ToolAnalysis {
+  file: string;
+  tool: string;
+  reads: boolean;
+  touchesContent: boolean;
+  fenced: boolean;
+}
+
+/**
+ * Pure, so the mutation canary below can run it on a doctored source string.
+ * Splits a tool file on its `  name: tool({` block starts (the exported tools
+ * object literal); each block runs to the next start or EOF.
+ */
+export function analyzeToolSource(file: string, src: string): ToolAnalysis[] {
+  const lines = src.split("\n");
+  const starts: Array<[number, string]> = [];
+  lines.forEach((l, i) => {
+    const m = l.match(/^  ([a-zA-Z]+): tool\(\{/);
+    if (m) starts.push([i, m[1]]);
+  });
+  return starts.map(([i, tool], k) => {
+    const seg = lines.slice(i, k + 1 < starts.length ? starts[k + 1][0] : lines.length).join("\n");
+    return { file, tool, reads: READS_ROWS.test(seg), touchesContent: /\.content\b/.test(seg), fenced: /\bfenceContent\(/.test(seg) };
+  });
+}
+
+/** Per-TOOL allowlist: reads rows + touches content, deliberately unfenced, with the categories it reads. */
 const TOOL_ALLOWLIST: Record<string, string> = {
-  "goals.ts": "reads/writes BRAIN_CATEGORIES.WEEKLY_TARGET + undo_token rows the app itself writes · no ingestion category",
-  "habits.ts": "counts coach_event rows and reads IDENTITY_SNAPSHOT · app-authored · no content returned from an ingestion category",
-  "missions.ts": "reads mission_retro rows the missions engine writes · app-authored",
-  "tasks.ts": "reads/writes DECISION_LOG, decision_replay_due, LESSON, IDENTITY_SNAPSHOT, undo_token · all app-authored ledgers",
-  "tool-idempotency.ts": "dedupe tokens only · selects expiresAt, never content",
+  "goals.ts:getWeeklyTargets": "WEEKLY_TARGET rows are numbers the operator set via setWeeklyTargets · app-authored ledger",
+  "habits.ts:weeklyReview": "IDENTITY_SNAPSHOT (numeric axes) + coach_event rows the app writes · no stored free text from an ingestion category",
+  "habits.ts:analyzeWeek": "IDENTITY_SNAPSHOT (numeric axes) + coach_event rows the app writes · no stored free text from an ingestion category",
+  "tasks.ts:getDecisionsDueForReplay": "decision_replay_due rows hold decisions Nour journaled himself via journalDecision · operator-authored",
+  "tasks.ts:decisionPreFlight": "IDENTITY_SNAPSHOT numeric axes only",
+  "tasks.ts:dailyPulse": "IDENTITY_SNAPSHOT numeric axes only",
+  "tasks.ts:endOfDay": "IDENTITY_SNAPSHOT numeric axes only",
 };
-const toolFiles = readdirSync(TOOLS_DIR)
+
+const toolAnalyses: ToolAnalysis[] = readdirSync(TOOLS_DIR)
   .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-  .map((f) => {
-    const src = readFileSync(join(TOOLS_DIR, f), "utf-8");
-    return { file: f, reads: READS_ROWS.test(src), fences: /\bfenceContent\(/.test(src) };
+  .flatMap((f) => analyzeToolSource(f, readFileSync(join(TOOLS_DIR, f), "utf-8")));
+const toolKey = (t: ToolAnalysis) => `${t.file}:${t.tool}`;
+const subjects = toolAnalyses.filter((t) => t.reads && t.touchesContent);
+
+describe("tool-result fencing gate · every TOOL that reads memory or chat rows and touches content fences what it returns, or explains", () => {
+  it("enumerates the tools (sanity · the splitter must find the real blocks)", () => {
+    expect(toolAnalyses.length).toBeGreaterThanOrEqual(150);
+    expect(subjects.length).toBeGreaterThanOrEqual(12);
+    for (const k of ["brain.ts:searchMemories", "brain.ts:searchColdMemory", "brain.ts:searchConversations", "brain.ts:surfaceAntiPatterns", "brain.ts:getHabitRevenueCorrelation", "business.ts:findCustomer", "missions.ts:getMissionRetros"]) {
+      expect(subjects.map(toolKey), `${k} must be a subject`).toContain(k);
+    }
   });
 
-describe("tool-result fencing gate · every lib/ai/tools file that reads memory or chat rows fences what it returns, or explains", () => {
-  it("enumerates the tool files (sanity)", () => {
-    expect(toolFiles.length).toBeGreaterThanOrEqual(6);
-    const readers = toolFiles.filter((t) => t.reads).map((t) => t.file);
-    expect(readers, "the two memory-returning tool files must be detected as readers").toEqual(expect.arrayContaining(["brain.ts", "business.ts"]));
+  it("no subject tool is unfenced unless allowlisted by name with the categories it reads", () => {
+    const bare = subjects.filter((t) => !t.fenced && !(toolKey(t) in TOOL_ALLOWLIST)).map(toolKey);
+    expect(bare, `tools that read BrainMemory / chat rows and touch .content with no <tool_data> fence inside their own block:\n${bare.join("\n")}`).toEqual([]);
   });
 
-  it("no reader is unfenced unless allowlisted with a per-category reason", () => {
-    const bare = toolFiles.filter((t) => t.reads && !t.fences && !(t.file in TOOL_ALLOWLIST)).map((t) => t.file);
-    expect(bare, `tool files reading BrainMemory / chat rows with no <tool_data> fence — fence the returned content, or allowlist with the categories they read:\n${bare.join("\n")}`).toEqual([]);
-  });
-
-  it("inverse · an allowlist entry that stops reading rows, or starts fencing, must leave the list", () => {
-    const stale = Object.keys(TOOL_ALLOWLIST).filter((f) => {
-      const t = toolFiles.find((x) => x.file === f);
-      return !t || !t.reads || t.fences;
+  it("inverse · an allowlist entry that is no longer a subject, or now fences, must leave the list", () => {
+    const stale = Object.keys(TOOL_ALLOWLIST).filter((k) => {
+      const t = toolAnalyses.find((x) => toolKey(x) === k);
+      return !t || !(t.reads && t.touchesContent) || t.fenced;
     });
     expect(stale, `stale TOOL_ALLOWLIST entries:\n${stale.join("\n")}`).toEqual([]);
-    for (const [f, reason] of Object.entries(TOOL_ALLOWLIST)) expect(reason.length, `${f} needs a real reason`).toBeGreaterThan(20);
+    for (const [k, reason] of Object.entries(TOOL_ALLOWLIST)) expect(reason.length, `${k} needs a real reason`).toBeGreaterThan(20);
+  });
+
+  it("mutation canary · stripping ONE tool's fence makes exactly that tool bare (the gate sees per tool, not per file)", () => {
+    const src = readFileSync(join(TOOLS_DIR, "brain.ts"), "utf-8");
+    const before = analyzeToolSource("brain.ts", src);
+    expect(before.find((t) => t.tool === "searchColdMemory")?.fenced).toBe(true);
+    const mutated = src.replace('fenceContent("searchColdMemory", "memory_recall", m.content.slice(0, 600))', "m.content.slice(0, 600)");
+    expect(mutated).not.toBe(src);
+    const after = analyzeToolSource("brain.ts", mutated);
+    const bareAfter = after.filter((t) => t.reads && t.touchesContent && !t.fenced).map((t) => t.tool);
+    expect(bareAfter).toContain("searchColdMemory");
+    // and ONLY that one changed — the other fenced tools in the same file still count as fenced
+    expect(after.find((t) => t.tool === "searchMemories")?.fenced).toBe(true);
+    expect(after.find((t) => t.tool === "searchConversations")?.fenced).toBe(true);
   });
 });
 

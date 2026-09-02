@@ -596,7 +596,8 @@ export const businessTools = {
         hasAdvisory: true,
         date: latest.key.replace(/^weekly_/, ""),
         generatedAt: latest.createdAt.toISOString(),
-        headline: latest.content,
+        // the advisory headline is LLM-generated stored text → curated_memory (2026-09-02, #2065 review)
+        headline: fenceContent("pricingAdvisorySummary", "curated_memory", latest.content),
         confidence: latest.confidence,
         fleetMedianWinRate: snap?.fleetMedianWinRate ?? null,
         outliers: snap?.outliers ?? [],
