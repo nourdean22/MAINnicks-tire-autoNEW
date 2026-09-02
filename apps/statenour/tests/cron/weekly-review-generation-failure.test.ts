@@ -83,6 +83,22 @@ describe("weekly-review · a provider failure is a named outcome, not a thrown r
     expect(res.weekStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("returns the exact shape cron-manager files as a FAILED row", async () => {
+    // Does returning instead of throwing hide the failure? No — and this pins
+    // why. lib/services/cron-manager.ts:31 reportedFailureReason() keys on an
+    // EXPLICIT `ok: false`, files the row as status:"failed" with `reason` as
+    // the error column, and calls publishCronFailure. A missing `ok` is NOT a
+    // failure claim, so the shape has to be exactly this one.
+    //
+    // That mechanism's own header names ollama-model-liveness among ~7 routes
+    // that reported failure while logging success. Depending on it silently is
+    // how this change would rot into the swallow it was written to avoid.
+    mockGenerateText.mockRejectedValue(new Error("provider down"));
+    const res = await call();
+    expect(res.ok, "must be an explicit false — a falsy or missing ok is not a failure claim").toBe(false);
+    expect(typeof res.reason, "cron-manager reads `reason` for the error column").toBe("string");
+  });
+
   it("PLANTED POSITIVE · a succeeding run is NOT reported as failed", async () => {
     // Without this, a catch that swallowed everything — or a handler that
     // returned {ok:false} unconditionally — would pass the two tests above.

@@ -67,10 +67,18 @@ export const GET = cronHandler(async () => {
     };
   } catch (err) {
     // Re-throw so cronHandler → logCronRun records this run FAILED and
-    // fires the cron.failure brain-bus event. Returning {ok:false}
-    // RESOLVED the promise → logCronRun logged status:"success" (it never
-    // inspects the returned .ok), so this detector showed GREEN on
-    // /system/crons while silently dead.
+    // fires the cron.failure brain-bus event.
+    //
+    // 2026-09-02 · the second half of this comment WAS true and is not any
+    // more, which matters because it argues against a pattern the codebase
+    // now depends on. It used to read: returning {ok:false} resolved the
+    // promise, logCronRun logged status:"success" because it never inspected
+    // the returned .ok, and the detector showed GREEN while silently dead.
+    // lib/services/cron-manager.ts:31 reportedFailureReason() fixed that for
+    // the whole class — an EXPLICIT ok:false is now filed as status:"failed"
+    // with `reason` in the error column, and publishCronFailure still fires.
+    // Re-throwing here is still correct (it also fails the HTTP response);
+    // it is no longer the only way to record a failure.
     throw err instanceof Error ? err : new Error("correlation-alarm failed");
   }
 });
