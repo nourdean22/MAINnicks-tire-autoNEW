@@ -30,8 +30,10 @@ import { normalizePhone } from "../lib/phone";
 import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
-import { shouldAuditMessage } from "./nexusAuditSampler";
-import { nexusAuditJobs } from "../../drizzle/schema";
+// 2026-09-01 (audit F-18): the Nexus audit sampler + nexus_audit_jobs enqueue
+// are gone. The consumer (nexusAuditor.ts) was never scheduled and was deleted
+// in #1329; this file kept filling a queue nothing read. See
+// docs/ADMIN-LOOPS-ARCHAEOLOGY-BOUNDARY-2026-09-01.md §1.3.
 
 const log = createLogger("sms-orchestrator");
 
@@ -597,8 +599,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
   let variantAssignmentReason = "system_default";
   let nickgptDraftId: number | null = null;
   let preflightResult: any = null;
-  let nexusAuditEnqueued = false;
-  let nexusSampleReason = "not_sampled";
   let detectedIntent = "general";
   let confScore = 0;
   let finalBodyToSend = "";
@@ -1577,34 +1577,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
       }
       providerUsed = "shop";
 
-      if (status === "sent" || status === "queued") {
-        // Moved sampler out of here to evaluate it unconditionally below.
-      }
-    }
-
-    const phoneLast4 = normalizedPhone.replace(/\D/g, "").slice(-4);
-    const sampleResult = shouldAuditMessage({
-      phoneLast4,
-      eventType: event.type,
-      body: finalBodyToSend,
-      variantKey: finalVariantKey,
-      sourceType: finalVariantKey.includes("nickgpt") ? "nickgpt" : "deterministic_template",
-      confidence: confScore,
-      requiresHumanApproval,
-      autoSent: status === "sent" || status === "queued",
-      preflight: preflightResult,
-      status,
-      isTestNumber: false,
-      isReplayDryRun: process.env.REPLAY_DRY_RUN === "true",
-      idempotencyKey,
-      correlationId,
-      orchestrationId: orchestrationId || undefined,
-      nickgptDraftId: nickgptDraftId || undefined
-    });
-    
-    if (sampleResult.shouldAudit) {
-      nexusAuditEnqueued = true;
-      nexusSampleReason = sampleResult.sampleReason;
     }
 
   } catch (orchestrateError) {
@@ -1689,31 +1661,6 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
         finalResult.id = row?.id;
       }
 
-      if (nexusAuditEnqueued && finalResult.id) {
-        try {
-          await db.insert(nexusAuditJobs).values({
-            jobType: "sms_audit",
-            sourceTable: sourceTable || "sms_orchestrations",
-            sourceId: String(sourceId || finalResult.id),
-            orchestrationId: String(finalResult.id),
-            nickgptDraftId: nickgptDraftId || undefined,
-            correlationId,
-            idempotencyKey,
-            sampleReason: nexusSampleReason,
-            payloadJson: JSON.stringify({ 
-               body: finalBodyToSend, 
-               phoneLast4: normalizedPhone.replace(/\D/g, "").slice(-4),
-               variantKey: finalVariantKey,
-               sourceType: finalVariantKey.includes("nickgpt") ? "nickgpt" : "deterministic_template",
-               preflightReason: preflightResult?.reasonCode
-            }),
-            priority: nexusSampleReason === "nickgpt_model_reply" ? 1 : 2,
-            status: "pending"
-          });
-        } catch (auditErr) {
-          log.warn("Failed to enqueue nexus audit job (non-fatal)", auditErr);
-        }
-      }
     } catch (dbErr) {
       log.warn("Failed to write log row to sms_orchestrations table", dbErr);
     }

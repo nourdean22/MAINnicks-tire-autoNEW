@@ -4253,46 +4253,53 @@ export type IntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$infe
 export type InsertIntelligenceDecisionLedger = typeof intelligenceDecisionLedger.$inferInsert;
 
 // ─── SIGNAL FORGE NEXUS ────────────────────────────────
+//
+// 2026-09-01 (audit F-18 / artifact 4 §1.3): `nexus_audit_jobs` REMOVED from
+// the schema. Its consumer, nexusAuditor.ts, was never scheduled and was
+// deleted in #1329 as "built, tested and never wired"; the producer in
+// smsOrchestrator kept enqueueing into a queue nothing drained. The producer
+// is gone with this change; the table itself is dropped by the hand-applied
+// drizzle/0115_drop_nexus_audit_jobs.sql (operator-gated, destructive).
 
-export const nexusAuditJobs = mysqlTable("nexus_audit_jobs", {
+// ─── LLM CALL LEDGER (2026-09-01, audit F-21) ─────────────
+//
+// One row per invokeLLM() call: model, lane, tokens, latency, outcome. There
+// was no per-call record at all — spend and failure rates per lane were
+// unknowable. Writes are gated behind LLM_LEDGER_ENABLED=true until
+// drizzle/0116_llm_calls.sql is applied (nothing selects from this table, so
+// the definition is safe to ship ahead of the DDL).
+export const llmCalls = mysqlTable("llm_calls", {
   id: int("id").autoincrement().primaryKey(),
-  jobType: varchar("jobType", { length: 100 }).notNull(),
-  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
-  priority: int("priority").default(0).notNull(),
-  sourceTable: varchar("sourceTable", { length: 100 }).notNull(),
-  sourceId: varchar("sourceId", { length: 100 }).notNull(),
-  orchestrationId: varchar("orchestrationId", { length: 100 }),
-  nickgptDraftId: int("nickgptDraftId"),
-  correlationId: varchar("correlationId", { length: 100 }),
-  idempotencyKey: varchar("idempotencyKey", { length: 100 }),
-  reasonCode: varchar("reasonCode", { length: 100 }),
-  riskTier: varchar("riskTier", { length: 50 }),
-  sampleReason: varchar("sampleReason", { length: 255 }),
-  attempts: int("attempts").default(0).notNull(),
-  maxAttempts: int("maxAttempts").default(3).notNull(),
-  nextRunAt: timestamp("nextRunAt").defaultNow().notNull(),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  lastError: text("lastError"),
-  payloadJson: text("payloadJson"),
-  resultJson: text("resultJson"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  calledAt: timestamp("calledAt").defaultNow().notNull(),
+  /** Model actually used after resolveEffectiveModel (e.g. gemini-2.5-flash). */
+  model: varchar("model", { length: 96 }).notNull(),
+  /** ollama | gemini | openai | anthropic | unknown — derived from the model id. */
+  provider: varchar("provider", { length: 24 }).notNull(),
+  /** Caller-supplied purpose/lane when present, else "unlabeled". */
+  lane: varchar("lane", { length: 64 }).notNull(),
+  promptTokens: int("promptTokens"),
+  completionTokens: int("completionTokens"),
+  latencyMs: int("latencyMs").notNull(),
+  /** 1 = returned, 0 = threw. */
+  ok: int("ok").notNull(),
+  /** First 200 chars of the error when ok = 0. */
+  error: varchar("error", { length: 200 }),
+  /** Whether the call carried image parts (routes to the vision lane). */
+  hadImages: int("hadImages").default(0).notNull(),
 }, (table) => [
-  index("idx_nexus_job_status").on(table.status, table.nextRunAt),
-  index("idx_nexus_job_orchestration").on(table.orchestrationId),
-  index("idx_nexus_job_draft").on(table.nickgptDraftId),
-  index("idx_nexus_job_correlation").on(table.correlationId),
-  index("idx_nexus_job_sample").on(table.sampleReason),
-  index("idx_nexus_job_created").on(table.createdAt),
+  index("idx_llm_calls_called").on(table.calledAt),
+  index("idx_llm_calls_lane").on(table.lane, table.calledAt),
 ]);
 
-export type NexusAuditJob = typeof nexusAuditJobs.$inferSelect;
-export type InsertNexusAuditJob = typeof nexusAuditJobs.$inferInsert;
+export type LlmCall = typeof llmCalls.$inferSelect;
+export type InsertLlmCall = typeof llmCalls.$inferInsert;
 
 export const nickgptDefectLedger = mysqlTable("nickgpt_defect_ledger", {
   id: int("id").autoincrement().primaryKey(),
-  auditJobId: int("auditJobId").references(() => nexusAuditJobs.id, { onDelete: "set null" }),
+  // 2026-09-01: was a FK to nexus_audit_jobs (retired, see 0115). Kept as a
+  // plain nullable int so existing rows and the column stay readable; the DB
+  // constraint is dropped by 0115 before the table it points at.
+  auditJobId: int("auditJobId"),
   orchestrationId: varchar("orchestrationId", { length: 100 }),
   nickgptDraftId: int("nickgptDraftId"),
   phoneHashOrLast4: varchar("phoneHashOrLast4", { length: 64 }).notNull(),
