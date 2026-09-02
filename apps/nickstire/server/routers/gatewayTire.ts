@@ -1235,7 +1235,7 @@ export const gatewayTireRouter = router({
       installationDate: z.string().optional(),
       paymentStatus: z.enum(["paid", "unpaid"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const d = await db();
       if (!d) return { success: false };
 
@@ -1245,6 +1245,21 @@ export const gatewayTireRouter = router({
 
       const updates: Record<string, any> = {};
       if (input.status) updates.status = input.status;
+      // 2026-09-01 (audit F-19): every status transition gets a receipt with
+      // actor, time, from → to. The audit ledger already exists; nothing used
+      // it here, so "ordered"/"delivered" were unverifiable claims.
+      if (input.status && input.status !== currentOrder.status) {
+        const { logAdminAction } = await import("../services/auditTrail");
+        logAdminAction({
+          action: "tireorder.status_changed",
+          entityType: "tire_order",
+          entityId: currentOrder.orderNumber ?? String(currentOrder.id),
+          details: `Tire order ${currentOrder.orderNumber ?? currentOrder.id}: ${currentOrder.status} → ${input.status}`,
+          previousValue: String(currentOrder.status),
+          newValue: input.status,
+          actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        }).catch(() => { /* audit must never block the update */ });
+      }
       if (input.adminNotes !== undefined) updates.adminNotes = input.adminNotes;
       if (input.gatewayOrderRef !== undefined) updates.gatewayOrderRef = input.gatewayOrderRef;
       if (input.expectedDelivery) updates.expectedDelivery = new Date(input.expectedDelivery);

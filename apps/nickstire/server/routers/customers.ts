@@ -671,15 +671,19 @@ export const customersRouter = router({
 
       const { sendSms } = await import("../sms");
       // Wave-108: admin → customer messages via shop gateway (Twilio fallback).
-      const result = await sendSms(customer.phone, input.message, { via: "shop" });
+      const result = await sendSms(customer.phone, input.message, { via: "shop", humanInitiated: true, messageClass: "customer_followup" });
 
-      // Audit trail — log SMS sends for Nick AI learning
-      if (result.success) {
+      // Audit trail — log SMS sends for Nick AI learning.
+      // 2026-09-01 (audit F-3): a text parked for the 8 AM window is audited
+      // as queued, not sent.
+      const { smsOutcome: manualSmsOutcome } = await import("../lib/smsOutcome");
+      const manualOutcome = manualSmsOutcome(result);
+      if (manualOutcome === "sent" || manualOutcome === "queued") {
         logAdminAction({
-          action: "customer.sms_sent",
+          action: manualOutcome === "sent" ? "customer.sms_sent" : "customer.sms_queued",
           entityType: "customer",
           entityId: input.customerId,
-          details: `SMS sent to ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
+          details: `SMS ${manualOutcome} to ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
           newValue: input.message,
           metadata: { phone: customer.phone },
         }).catch((e) => { log.warn("[routers/customers] fire-and-forget failed:", e); });
@@ -747,6 +751,7 @@ export const customersRouter = router({
         .limit(batchSize);
 
       let sent = 0;
+      let queued = 0;
       let failed = 0;
 
       for (const c of untexted) {
@@ -759,8 +764,12 @@ export const customersRouter = router({
         // Wave-108: review-request batch via shop gateway so customer
         // sees the same shop number on the request as on prior visits.
         const result = await sendSms(c.phone, msg, { via: "shop" });
-        if (result.success) {
-          sent++;
+        // 2026-09-01 (audit F-3): a queued text still consumes the customer
+        // (it will go out at 8 AM) but is counted as queued, not sent.
+        const { smsOutcome: batchOutcome } = await import("../lib/smsOutcome");
+        const outcome = batchOutcome(result);
+        if (outcome === "sent" || outcome === "queued") {
+          if (outcome === "sent") sent++; else queued++;
           await d.update(customers)
             .set({ smsCampaignSent: 1, smsCampaignDate: new Date() })
             .where(eq(customers.id, c.id));
@@ -782,7 +791,7 @@ export const customersRouter = router({
             SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
           )`);
 
-      return { sent, failed, remaining: rem?.count ?? 0 };
+      return { sent, queued, failed, remaining: rem?.count ?? 0 };
     }),
 
   /** Update customer segment */

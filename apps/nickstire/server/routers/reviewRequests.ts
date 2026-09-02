@@ -193,6 +193,7 @@ export async function processReviewRequestQueue() {
   const batch = pending.slice(0, remaining);
 
   let sent = 0;
+  let queued = 0;
   let failed = 0;
 
   for (const req of batch) {
@@ -208,10 +209,13 @@ export async function processReviewRequestQueue() {
 
     const result = await sendSms(`+1${req.phone}`, withOptOut(message), { via: "shop" });
 
-    if (result.success) {
+    // 2026-09-01 (audit F-3): a request parked for the 8 AM window is marked
+    // (it will go out — the claim holds) but counted as queued, not sent.
+    const { smsOutcome } = await import("../lib/smsOutcome");
+    const outcome = smsOutcome(result);
+    if (outcome === "sent" || outcome === "queued") {
       await markReviewRequestSent(req.id, result.sid);
-      sent++;
-      // Review request sent
+      if (outcome === "sent") sent++; else queued++;
     } else {
       await markReviewRequestFailed(req.id, result.error || "Unknown error");
       failed++;
@@ -222,7 +226,7 @@ export async function processReviewRequestQueue() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  return { processed: batch.length, sent, failed };
+  return { processed: batch.length, sent, queued, failed };
 }
 
 // ─── tRPC ROUTER ─────────────────────────────────────

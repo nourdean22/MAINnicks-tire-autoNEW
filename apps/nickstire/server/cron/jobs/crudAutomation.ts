@@ -95,8 +95,10 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
         try {
           if (optedOut.has(String(b.phone).replace(/\D/g, "").slice(-10))) continue;
           // Wave-108: no-show outreach via shop gateway (1:1)
-          await sendSms(String(b.phone), `Looks like we missed you for your drop-off at Nick's Tire & Auto. Whenever it's easy, pull up any day — first-come, first-served, 7 days a week. (216) 862-0005 or nickstire.org`, { via: "shop" });
-          smsSent++;
+          const noShowResult = await sendSms(String(b.phone), `Looks like we missed you for your drop-off at Nick's Tire & Auto. Whenever it's easy, pull up any day — first-come, first-served, 7 days a week. (216) 862-0005 or nickstire.org`, { via: "shop" });
+          // 2026-09-01 (audit F-3): count only texts that will reach the customer.
+          const { smsWillReachCustomer: noShowWillReach } = await import("../../lib/smsOutcome");
+          if (noShowWillReach(noShowResult)) smsSent++;
         } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 5) break; // Rate limit
       }
@@ -164,8 +166,10 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
         try {
           if (optedOut.has(String(b.phone).replace(/\D/g, "").slice(-10))) continue;
           // Wave-108: expired-booking rebook via shop gateway (1:1)
-          await sendSms(String(b.phone), `Your booking window at Nick's Tire & Auto has passed — no problem. We're walk-in, first-come first-served, so just pull up any day. (216) 862-0005 or nickstire.org`, { via: "shop" });
-          smsSent++;
+          const rebookResult = await sendSms(String(b.phone), `Your booking window at Nick's Tire & Auto has passed — no problem. We're walk-in, first-come first-served, so just pull up any day. (216) 862-0005 or nickstire.org`, { via: "shop" });
+          // 2026-09-01 (audit F-3): count only texts that will reach the customer.
+          const { smsWillReachCustomer: rebookWillReach } = await import("../../lib/smsOutcome");
+          if (rebookWillReach(rebookResult)) smsSent++;
         } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 10) break;
       }
@@ -208,8 +212,10 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
           const [claimRes] = await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id} AND status = 'new'`);
           if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
           // Wave-108: callback fallback via shop gateway (1:1)
-          await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
-          smsSent++;
+          const cbResult = await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
+          // 2026-09-01 (audit F-3): count only texts that will reach the customer.
+          const { smsWillReachCustomer: cbWillReach } = await import("../../lib/smsOutcome");
+          if (cbWillReach(cbResult)) smsSent++;
         } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
       }
     }

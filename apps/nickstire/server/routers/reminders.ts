@@ -71,6 +71,7 @@ export const remindersRouter = router({
 export async function processReminderQueue() {
   const due = await getDueReminders();
   let sent = 0;
+  let queued = 0;
   let failed = 0;
 
   for (const reminder of due) {
@@ -98,9 +99,13 @@ export async function processReminderQueue() {
 
       // Wave-108: appointment reminder via shop gateway (1:1 transactional)
       const result = await sendSms(reminder.phone, message, { via: "shop" });
-      if (result.success) {
+      // 2026-09-01 (audit F-3): a reminder parked for the 8 AM window is
+      // marked (it will go out — no re-send) but counted as queued, not sent.
+      const { smsOutcome } = await import("../lib/smsOutcome");
+      const outcome = smsOutcome(result);
+      if (outcome === "sent" || outcome === "queued") {
         await markReminderSent(reminder.id, result.sid);
-        sent++;
+        if (outcome === "sent") sent++; else queued++;
       } else {
         failed++;
       }
@@ -110,5 +115,5 @@ export async function processReminderQueue() {
     }
   }
 
-  return { processed: due.length, sent, failed };
+  return { processed: due.length, sent, queued, failed };
 }

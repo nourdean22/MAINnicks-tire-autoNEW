@@ -25,6 +25,9 @@ export type AuditAction =
   | "booking.priority_changed"
   | "booking.deleted"
   | "customer.sms_sent"
+  // 2026-09-01 · audit F-3: a text parked for the 8 AM window is not sent yet;
+  // the receipt says queued so nobody reads it as delivered.
+  | "customer.sms_queued"
   | "customer.email_sent"
   | "customer.notes_updated"
   | "customer.segment_changed"
@@ -53,6 +56,9 @@ export type AuditAction =
   // 2026-06-11 · refund action types
   | "tireorder.refunded"
   | "tireorder.refund_failed"
+  // 2026-09-01 · audit F-19: a tire order's status changes carried no actor,
+  // no time and no history — "ordered" was a human claim with no receipt.
+  | "tireorder.status_changed"
   | "invoice.refunded"
   | "invoice.refund_failed"
   // 2026-06-12 · nonstop nick membership overrides

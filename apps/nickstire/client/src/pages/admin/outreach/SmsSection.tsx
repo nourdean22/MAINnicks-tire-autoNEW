@@ -293,7 +293,10 @@ function ThreadView({
         message: reply.trim(),
         customerName: conversation.customerName || undefined,
       });
-      if (res.success) toast.success("Sent");
+      // 2026-09-01 (audit F-7): a reply parked for the quiet-hours window is
+      // not "Sent" — say when it will go out.
+      if (res.success && res.queued) toast.info("Queued — goes out at 8 AM (quiet hours)");
+      else if (res.success) toast.success("Sent");
       else toast.error("Send failed — check gateway status");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed");
@@ -591,7 +594,8 @@ function NewConversationDialog({
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: (res) => {
       if (res.success && res.conversationId) {
-        toast.success("Sent");
+        if (res.queued) toast.info("Queued — goes out at 8 AM (quiet hours)");
+        else toast.success("Sent");
         void utils.smsConversations.list.invalidate();
         onCreated(res.conversationId);
       } else {

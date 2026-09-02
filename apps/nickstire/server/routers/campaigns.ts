@@ -34,8 +34,14 @@ const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) 
   special_offer: (_firstName: string, offer?: string) =>
     `${offer || "10% off your next visit"} at Nick's Tire & Auto — walk in any day, first-come, first-served. ${BUSINESS.phone.display}`,
 
-  winback: (_firstName: string) =>
-    `It's been a while — come back to Nick's Tire & Auto for 10% off your next visit. Walk in any day, no appointment. ${BUSINESS.phone.display}`,
+  // 2026-09-01 (audit F-20): a draft created by the GPT bridge carries its
+  // own copy in customMessage; render it verbatim (with {firstName} filled)
+  // so what the operator previews is what was drafted. No customMessage →
+  // the standing win-back copy.
+  winback: (firstName: string, customMessage?: string) =>
+    customMessage && customMessage.trim().length > 0
+      ? customMessage.replace(/\{firstName\}/g, firstName || "there")
+      : `It's been a while — come back to Nick's Tire & Auto for 10% off your next visit. Walk in any day, no appointment. ${BUSINESS.phone.display}`,
 };
 
 /**
@@ -430,6 +436,7 @@ export async function processCampaignSends(
   }
 
   let totalSent = 0;
+  let totalQueued = 0; // parked for the 8 AM window (audit F-3)
   let totalFailed = 0;
 
   while (true) {
@@ -481,6 +488,7 @@ export async function processCampaignSends(
 
     // Process each send with rate limiting
     let batchSent = 0;
+    let batchQueued = 0;
     let batchFailed = 0;
     for (const send of pendingSends) {
       // At-most-once claim — flip status 'pending' -> 'sent' BEFORE the
@@ -499,12 +507,16 @@ export async function processCampaignSends(
       try {
         const result = await sendSms(send.phone, send.messageBody, { via: "shop", variantKey });
 
-        if (result.success) {
+        // 2026-09-01 (audit F-3): a text parked for the 8 AM window keeps its
+        // claimed 'sent' row (it will go out; the claim blocks a re-send) but
+        // is counted as queued in the run receipt.
+        const { smsOutcome } = await import("../lib/smsOutcome");
+        const outcome = smsOutcome(result);
+        if (outcome === "sent" || outcome === "queued") {
           await d.update(smsCampaignSends).set({
             twilioSid: result.sid || null,
           }).where(eq(smsCampaignSends.id, send.id));
-          batchSent++;
-          totalSent++;
+          if (outcome === "sent") { batchSent++; totalSent++; } else { batchQueued++; totalQueued++; }
         } else {
           await d.update(smsCampaignSends).set({
             status: "failed",
@@ -552,12 +564,13 @@ export async function processCampaignSends(
     dispatch("campaign_sent", {
       campaignId,
       sent: totalSent,
+      queued: totalQueued,
       failed: totalFailed,
       campaignType: campaign?.template || "unknown",
     })
   ).catch((e) => { log.warn("[routers/campaigns] fire-and-forget failed:", e); });
 
-  console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
+  console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalQueued} queued for 8 AM, ${totalFailed} failed`);
 }
 
 /**

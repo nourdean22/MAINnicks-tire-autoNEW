@@ -731,6 +731,7 @@ export const winbackRouter = router({
       .limit(50); // Process in batches of 50
 
     let sent = 0;
+    let queued = 0;
     let failed = 0;
 
     for (const { send } of pendingSends) {
@@ -754,14 +755,18 @@ export const winbackRouter = router({
 
       const result = await sendSms(send.phone, send.personalizedBody, { via: "shop" });
 
-      if (result.success) {
+      // 2026-09-01 (audit F-3): a queued text keeps its claim and counts in the
+      // campaign total (it will go out), but the run receipt says queued.
+      const { smsOutcome } = await import("../lib/smsOutcome");
+      const outcome = smsOutcome(result);
+      if (outcome === "sent" || outcome === "queued") {
         await d.update(winbackSends).set({
           twilioSid: result.sid,
         }).where(eq(winbackSends.id, send.id));
 
         // Update campaign sent count
         await d.execute(sql`UPDATE winback_campaigns SET sentCount = sentCount + 1 WHERE id = ${send.campaignId}`);
-        sent++;
+        if (outcome === "sent") sent++; else queued++;
       } else {
         await d.update(winbackSends).set({
           status: "failed",
@@ -771,7 +776,7 @@ export const winbackRouter = router({
       }
     }
 
-    return { processed: pendingSends.length, sent, failed };
+    return { processed: pendingSends.length, sent, queued, failed };
   }),
 
   /** Get recent send activity for a campaign */

@@ -1018,11 +1018,16 @@ export const invoicesRouter = router({
 
         try {
           const smsResult = await sendSms(row.customerPhone, body, { via: "shop", messageClass: "customer_marketing" });
-          if (smsResult.success) {
+          // 2026-09-01 (audit F-3): a text parked for the 8 AM window will reach
+          // the customer, so the estimate is still marked followed-up — but the
+          // operator's result must say queued, not sent.
+          const { smsOutcome } = await import("../../lib/smsOutcome");
+          const outcome = smsOutcome(smsResult);
+          if (outcome === "sent" || outcome === "queued") {
             succeededIds.push(row.id);
-            results.push({ id: row.id, sent: true });
+            results.push({ id: row.id, sent: outcome === "sent", reason: outcome === "queued" ? "queued_for_8am_window" : undefined });
           } else {
-            results.push({ id: row.id, sent: false, reason: smsResult.error || "send_failed" });
+            results.push({ id: row.id, sent: false, reason: smsResult.error || (outcome === "uncertain" ? "delivery_uncertain" : "send_failed") });
           }
         } catch (err) {
           results.push({ id: row.id, sent: false, reason: err instanceof Error ? err.message : "unknown_error" });

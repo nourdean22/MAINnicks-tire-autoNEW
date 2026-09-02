@@ -217,14 +217,19 @@ export async function sendCustomerMessage(
         messageClass: "customer_confirmation",
         variantKey: smsVariantKey,
       });
-      smsSent = smsResult.success;
-      if (smsSent) {
+      // 2026-09-01 (audit F-3): `smsSent` used to be `success`, which is also
+      // true for a confirmation parked until 8 AM. The receipt now names the
+      // outcome; a queued confirmation is audited as queued.
+      const { smsOutcome } = await import("../lib/smsOutcome");
+      const outcome = smsOutcome(smsResult);
+      smsSent = outcome === "sent";
+      if (outcome === "sent" || outcome === "queued") {
         const { logAdminAction } = await import("./auditTrail");
         await logAdminAction({
-          action: "customer.sms_sent",
+          action: outcome === "sent" ? "customer.sms_sent" : "customer.sms_queued",
           entityType: "tire_order",
           entityId: orderNumber,
-          details: `Sent confirmation SMS (${templateKey}): ${preview.sms}`,
+          details: `${outcome === "sent" ? "Sent" : "Queued for the 8 AM window"} confirmation SMS (${templateKey}): ${preview.sms}`,
         });
       }
     } catch (e) {

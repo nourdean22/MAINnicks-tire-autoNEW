@@ -40,7 +40,19 @@ export default function FollowUpsSection() {
 
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => {
-      toast.success(`Processed ${data.total} follow-ups`);
+      // 2026-09-01 · the receipt names what actually happened. "Processed N"
+      // used to count bookings consumed, not texts sent (audit F-1).
+      if (data.error) {
+        toast.error(`Follow-ups failed: ${data.error.slice(0, 140)}`);
+      } else if (data.sent + data.queued + data.failed === 0) {
+        toast.warning(data.skipReason ? `Nothing sent — ${data.skipReason}` : "Nothing eligible to send");
+      } else {
+        const parts = [`${data.sent} sent`];
+        if (data.queued) parts.push(`${data.queued} queued for 8 AM`);
+        if (data.failed) parts.push(`${data.failed} failed`);
+        if (data.skipped) parts.push(`${data.skipped} skipped`);
+        (data.failed > 0 ? toast.warning : toast.success)(parts.join(" · "));
+      }
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },
