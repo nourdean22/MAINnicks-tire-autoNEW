@@ -11,13 +11,16 @@
  * Sentry's provider, and Langfuse held ZERO rows while the boot log said
  * `langfuse_started` and /api/version said `langfuse: true`.
  *
- * Three guards, because one would not have caught it:
+ * Four guards, because one would not have caught it:
  *   1. BEHAVIOUR — a non-recording tracer must produce status "failed", never
  *      "started". This is the check whose absence let a dead pipeline score
  *      green for hours.
  *   2. BEHAVIOUR — when the processor rides on a host provider (Sentry), we
  *      must NOT construct a NodeSDK; a second registration is the bug itself.
- *   3. SOURCE — instrumentation.ts must build the processor BEFORE Sentry and
+ *   3. BEHAVIOUR — if the handover did not actually happen (Sentry's init
+ *      returns early during `next build` and can throw), own the provider
+ *      ourselves rather than leaving tracing dead.
+ *   4. SOURCE — instrumentation.ts must build the processor BEFORE Sentry and
  *      hand it over, with a mutation canary proving the scan can fail.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -96,7 +99,7 @@ beforeEach(() => {
     process.env[k] = "pk-lf-test";
   }
   mocks.sdkCtor.mockClear();
-  mocks.sdkStart.mockClear();
+  mocks.sdkStart.mockReset();
   mocks.recording = true;
   mocks.traceId = "abcdef01234567890abcdef012345678";
   mocks.providerName = "NodeTracerProvider";
@@ -143,6 +146,30 @@ describe("tracer provider conflict · a started processor is not a working pipel
     expect(mocks.sdkCtor).toHaveBeenCalledTimes(1);
     const cfg = mocks.sdkCtor.mock.calls[0][0] as { spanProcessors: unknown[] };
     expect(cfg.spanProcessors).toHaveLength(1);
+  });
+
+  it("SELF-HEALS: told Sentry took the processor but nothing records, it owns the provider itself", async () => {
+    // Sentry's init returns early during `next build` and can throw, so the
+    // handover is not guaranteed. Before this, that combination reported
+    // "failed" and left tracing dead with a perfectly good fallback unused.
+    mocks.recording = false;
+    mocks.sdkStart.mockImplementation(() => {
+      mocks.recording = true;
+    });
+    const m = await fresh();
+    await m.buildLangfuseSpanProcessor();
+    m.markLangfuseAttachedToHostProvider();
+
+    expect(await m.initLangfuseTracing()).toBe("started");
+    expect(mocks.sdkCtor, "the fallback provider must actually be constructed").toHaveBeenCalledTimes(1);
+  });
+
+  it("still reports failed when even the fallback cannot record", async () => {
+    mocks.recording = false;
+    const m = await fresh();
+    await m.buildLangfuseSpanProcessor();
+    m.markLangfuseAttachedToHostProvider();
+    expect(await m.initLangfuseTracing()).toBe("failed");
   });
 
   it("buildLangfuseSpanProcessor is idempotent and returns null when unconfigured", async () => {

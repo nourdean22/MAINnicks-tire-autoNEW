@@ -32,9 +32,17 @@ export async function register() {
       "@/lib/observability/langfuse"
     );
     const langfuseProcessor = await buildLangfuseSpanProcessor().catch(() => null);
-    const { initSentryServer } = await import("./sentry.server.config");
-    initSentryServer(langfuseProcessor ? [langfuseProcessor] : []);
-    if (langfuseProcessor) markLangfuseAttachedToHostProvider();
+    try {
+      const { initSentryServer } = await import("./sentry.server.config");
+      initSentryServer(langfuseProcessor ? [langfuseProcessor] : []);
+      // Only claim the handover AFTER Sentry actually took it. Sentry's init
+      // returns early during `next build` and can throw; marking on faith
+      // would skip our own NodeSDK and leave tracing dead with no fallback.
+      if (langfuseProcessor) markLangfuseAttachedToHostProvider();
+    } catch {
+      // Sentry must never be able to abort boot. Langfuse then falls back to
+      // owning the provider itself in initLangfuseTracing().
+    }
   }
   if (process.env.NEXT_RUNTIME === "edge") {
     const { initSentryEdge } = await import("./sentry.edge.config");

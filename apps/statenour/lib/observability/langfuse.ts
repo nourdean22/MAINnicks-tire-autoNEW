@@ -351,7 +351,26 @@ export async function initLangfuseTracing(): Promise<TracingStatus> {
     // Prove the instrument fired. A started processor, a green status and a
     // dead pipeline were indistinguishable before this check: ask the SAME
     // tracer name the AI SDK uses for a span and require it to RECORD.
-    const selfCheck = await langfuseSpanRecordingSelfCheck();
+    let selfCheck = await langfuseSpanRecordingSelfCheck();
+
+    // Self-heal: we were told Sentry took the processor, but nothing records.
+    // Sentry's init returns early during `next build` and can throw, so the
+    // handover is not guaranteed. Own the provider ourselves rather than
+    // leaving tracing dead.
+    if (!selfCheck.recording && st.attachedToHostProvider) {
+      const OTEL_SDK_NODE_FALLBACK = "@opentelemetry/sdk-node";
+      const { NodeSDK } = (await import(OTEL_SDK_NODE_FALLBACK)) as {
+        NodeSDK: new (cfg: { spanProcessors: unknown[] }) => { start(): void };
+      };
+      new NodeSDK({ spanProcessors: [spanProcessor] }).start();
+      st.attachedToHostProvider = false;
+      selfCheck = await langfuseSpanRecordingSelfCheck();
+      log.warn("langfuse_host_provider_handover_failed", {
+        reason: "Sentry did not wire the processor in; fell back to owning the tracer provider",
+        recovered: selfCheck.recording,
+      });
+    }
+
     if (!selfCheck.recording) {
       st.status = "failed";
       log.error("langfuse_tracer_not_recording", {

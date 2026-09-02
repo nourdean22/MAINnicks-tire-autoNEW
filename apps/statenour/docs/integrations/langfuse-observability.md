@@ -74,6 +74,10 @@ only one can have it:
   to Sentry's provider, and Langfuse received nothing. `langfuse_started` still
   appeared in the boot log; `/api/version` still said `langfuse: true`.
 
+**Reordering is NOT the fix.** Sentry's `initOtel.js` force-replaces a
+pre-existing registry when its own registration is refused, so putting Langfuse
+first just moves the breakage onto Sentry. One provider, shared.
+
 **The rule now:** build the Langfuse span processor FIRST, hand it to
 `Sentry.init({ openTelemetrySpanProcessors: [processor] })` (Sentry's supported
 option — it appends them to its own provider), and only construct a `NodeSDK`
