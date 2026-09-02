@@ -1,5 +1,15 @@
 # StateNour - What To Do Monday (synthesis of the 2026-09-01 brief + audit)
 
+> **Status as of 2026-09-02 (added after the wave shipped - the body below is the plan as written on 2026-09-01):**
+> R1 closed by #2058 `1bc3d43b0` (BOTH halves - the review found a second one: the matcher skipped
+> middleware for `/decisions/1.png`), re-probed live on production: every bypass shape 307.
+> R2 closed in the same PR. R3 (P-1 + S-1), R4 (W-1, W-3) and R5's UI half shipped in #2059
+> `b7d0f62f3`; R5's auth half is in #2058. R6 shipped fail-CLOSED in #2060 on operator instruction.
+> Still open: R7 `/business`, R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
+> `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` unset), R9 the AI SDK major, the 13 parked components,
+> drive/calendar/reviews intake, and the S-1 end-to-end attack (still a hypothesis - never run).
+> Ship history: `apps/statenour/docs/RECONCILIATION.md` top entry.
+
 **Read this instead of the other two when deciding what to do.** It ranks actions; the sources
 carry the evidence. It is a decision document, so it says where the two sources disagree and
 which one it follows.
