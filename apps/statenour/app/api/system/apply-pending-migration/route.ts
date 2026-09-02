@@ -33,6 +33,32 @@ export const maxDuration = 60;
 
 /** Inlined, idempotent migration statements (operator-controlled · deploy-gated). */
 const MIGRATIONS: Record<string, string[]> = {
+  // Restore six indexes the live DB is missing · 2026-09-02 · reported by the
+  // schema sentinel on /system/health (5 HIGH + 1 MEDIUM). Additive and
+  // idempotent; nothing is dropped or deleted. Full reasoning, the built-in
+  // control that proves the sentinel is not false-positiving, and the
+  // read-only duplicate preflight to run if a unique create fails, are in
+  // prisma/migrations-pending/20260902000000_restore_idempotency_partials/migration.sql
+  //
+  // Short version: 20260429190000_universal_idempotency created all six
+  // partial uniques in one file; five are gone from pg_indexes while
+  // autonomous_actions and entity_audits — same expectation shape, same
+  // checker — still pass. Prisma cannot express a partial unique, so none of
+  // these are known to it, and an index Prisma does not know about is one
+  // `db push` will drop. That is failure mode #1 in the sentinel's own header.
+  //
+  // A CREATE UNIQUE INDEX here CAN fail on pre-existing duplicate keys. That
+  // failure is safe — no rows touched, the route stops and returns it — and
+  // deduplicating is a DELETE against real operator data, deliberately not
+  // automated here.
+  "20260902000000_restore_idempotency_partials": [
+    `CREATE UNIQUE INDEX IF NOT EXISTS "scheduled_actions_idempotency_key_uniq" ON "scheduled_actions"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "task_events_idempotency_key_uniq" ON "task_events"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "goal_events_idempotency_key_uniq" ON "goal_events"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "reflections_idempotency_key_uniq" ON "reflections"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "decision_replays_idempotency_key_uniq" ON "decision_replays"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS "chat_messages_searchable_tsv_idx" ON "chat_messages" USING GIN ("searchable_tsv")`,
+  ],
   // Drop 42 duplicate indexes across 24 tables (~18.7 MB) · 2026-08-06 ·
   // indexes only, zero data touched, fully reversible. Matches
   // prisma/migrations-pending/20260806120000_drop_duplicate_indexes/migration.sql
