@@ -1321,3 +1321,72 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** "Before calling a multi-commit wave done, dispatch reviewers per subsystem with a file:line brief and a 'verified OK / not checked' answer shape, then verify their top findings yourself; a single author pass over more than 20 files has not once been sufficient (2026-08-12 onward)."
 - **Confidence:** high (24 findings the author's pass missed)
 - **Status:** accepted 2026-09-02 (operator) · applied to the skill the same day
+
+## 2026-09-02c · observability arc (#2080 · #2082 · #2083)
+
+### P1 · `statenour-verify` — typecheck is not the build, for a SECOND reason
+- **Trigger (witnessed):** in the #2080 review round I moved a shared constant by
+  importing `./langfuse` from `lib/observability/sentry.ts`. `pnpm exec tsc --noEmit`
+  exited 0. `next build` then failed `module-not-found` across the client AND edge
+  passes, because `sentry.client.config.ts` imports that module, so the BROWSER graph
+  now reached `@opentelemetry/sdk-node`. Fixed by moving both constants to a
+  dependency-free `lib/observability/span-names.ts`.
+- **Distinct from the applied #1243 rule**, which is about `tsc` excluding `tests/`.
+  This one is bundle-TARGET resolution: the same file type-checks fine and still cannot
+  be bundled for the runtime that imports it. A green tsc says nothing about which
+  graph a module lands in.
+- **Cost:** a rejected push (the pre-push gate caught it), one extra commit, one canary.
+- **Proposed edit:** add to Traps — "A shared constant is not free. Before importing
+  between `lib/observability/*` (or anything reachable from `*.client.config.ts` /
+  `instrumentation-client.ts`), ask which bundle the IMPORTER lands in. Node-only deps
+  in the browser graph fail `next build`, never `tsc`. Run the real build when you
+  change an import edge, not just typecheck."
+- **Confidence:** high (structural, reproducible; the gate reproduced it twice)
+- **Status:** proposed
+
+### P2 · `verify-receipt` (global) — a vendor list endpoint is a PROJECTION, and vendors rename
+- **Trigger (witnessed):** after #2082 deployed, my verification script printed
+  `NO RECEIPT: the probe reported success but Langfuse has no matching observation` —
+  while Langfuse actually held the trace. Two independent causes, both mine: Langfuse
+  names an observation `<functionId>:<span>` (`observability-probe:ai.generateText`,
+  not `observability-probe`), and `GET /api/public/v2/observations` returns a thin
+  projection where `metadata`, `userId`, `tags`, `release`, `model` and `input` are all
+  absent — they exist only on `GET /api/public/traces/<traceId>`.
+- **Cost:** I was one step from recording a WORKING pipeline as dead, in a session whose
+  entire subject was a health badge that lied. Cost a second probe-and-read cycle to
+  disambiguate.
+- **Proposed edit:** add a rule — "When reading a receipt back from a third-party API,
+  a negative result is not evidence until you have checked (a) the vendor's own naming
+  convention for the record, and (b) the DETAIL endpoint, not the list. List endpoints
+  are routinely projections that omit the very fields you are verifying. Prove the
+  reader works by matching one record you know exists."
+- **Confidence:** high (two separate false-negative mechanisms in one run)
+- **Status:** proposed
+
+### P3 · `statenour-verify` — grep your own diff for credential fragments before committing
+- **Trigger (witnessed):** writing mask/scrub canaries I used the operator's REAL
+  Langfuse keys (from a screenshot they had sent) as the strings being masked, in
+  `tests/lib/observability/langfuse-telemetry.test.ts` and
+  `tests/lib/observability/sentry-config-canary.test.ts`. CI's gitleaks failed the
+  second — but ONLY because that file bound the value to a variable named `secret`
+  (rule `generic-api-key`, entropy 3.9). The first file used the same key as an inline
+  argument, did NOT trip the rule, and reached `main` in #2073.
+- **Cost:** PR #2079 became unmergeable (gitleaks scans a PR's whole commit range, so a
+  later removal cannot clear it), was closed, and the work was rebuilt on a clean branch
+  as #2080. Operator later declined rotation — private repo, personal project.
+- **Distinct from the existing nickstire-verify P2** (line ~365), which covers RUNNING a
+  script with real credentials. This is about COMMITTING them as fixtures.
+- **Proposed edit:** add to the pre-commit list — "Fixtures use synthetic values with the
+  same shape, never a real credential — not even in a test that proves it gets redacted.
+  Before committing anything touching credentials, grep the diff for fragments of every
+  value the operator has shown you this session, screenshots included. A green gitleaks
+  is shape-dependent, not value-dependent: the same key passes as an inline argument and
+  fails as `const secret = ...`."
+- **Confidence:** high (one incident, two files, one closed PR — and the gate's coverage
+  gap is verified, not assumed)
+- **Status:** proposed
+
+> **Deliberately NOT proposed:** the OpenTelemetry provider-conflict mechanism itself
+> (Sentry.init claims the global provider; `tracesSampler` is consulted for root spans
+> only). That is a durable technical fact, so per this skill's own "When NOT to use" it
+> belongs in the memory system and the repo docs — both updated — not in the skill queue.
