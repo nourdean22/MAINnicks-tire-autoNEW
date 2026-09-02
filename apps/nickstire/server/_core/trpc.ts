@@ -168,10 +168,15 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
    * the fallback below already handles and logs.
    */
   let security = inherited ?? null;
+  // Distinguishes "the read THREW" (DB unreachable — transient) from "the read
+  // returned nothing" (no admin_security row yet — an identity fact). Only the
+  // first is a reason to refuse a write; see the F-11 note below.
+  let securityReadFailed = false;
   if (!security) {
     try {
       security = await getAdminSecurityState(ctx.user.openId);
     } catch (err) {
+      securityReadFailed = true;
       log.error("could not read admin security state", {
         openId: ctx.user.openId,
         path,
@@ -217,10 +222,37 @@ const requireFreshMfaAndPermission = t.middleware(async opts => {
    */
   const effective = security ?? MFA_NOT_REQUIRED_STATE;
   if (!security) {
+    /**
+     * 2026-09-01 (audit F-11) — the fail-open above is kept for READS, and for
+     * the "no row yet" case; it is withdrawn for WRITES when the read THREW.
+     *
+     * The 2026-07-16 lockout was about the operator not being able to SEE the
+     * shop mid-shift; keeping queries open preserves exactly that. A missing
+     * admin_security row is an identity fact (the admin was never given a role)
+     * and keeps today's documented behaviour on every path — refusing it would
+     * lock a brand-new admin out of every write. But a WRITE executed as an
+     * unverified "owner" during a DB failure — refund, prune, campaign, role
+     * change — is a different risk class: the identity middleware that runs
+     * first only proves the caller is *an* admin, not which one. Mutations
+     * therefore refuse when the role could not be READ. The client retries a
+     * moment later; a DB blip costs one re-tap, never a wrong write.
+     */
+    if (securityReadFailed && type === "mutation") {
+      log.error(
+        "admin security state unreadable — MUTATION REFUSED (fail closed for writes).",
+        { openId: ctx.user.openId, path },
+      );
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Could not verify your admin role right now; this write was not performed. Retry in a moment.",
+      });
+    }
     log.error(
-      "admin security state unreadable — falling back to pre-RBAC behaviour (owner). " +
+      (securityReadFailed
+        ? "admin security state unreadable — falling back to pre-RBAC behaviour (owner) for this READ. "
+        : "admin security row missing — falling back to pre-RBAC behaviour (owner). ") +
       "Roles are NOT being enforced for this request.",
-      { openId: ctx.user.openId, path },
+      { openId: ctx.user.openId, path, securityReadFailed },
     );
   }
   const adminRole = effective.adminRole;

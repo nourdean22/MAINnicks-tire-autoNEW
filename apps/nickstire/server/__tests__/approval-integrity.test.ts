@@ -10,6 +10,17 @@ const h = vi.hoisted(() => ({
   publishedCalls: [] as any[],
 }));
 
+// 2026-09-01 (audit F-11): a mutation whose admin-security READ THROWS is now
+// refused. This harness mocks the db wholesale, so the real
+// getAdminSecurityState would throw a TypeError and every mutation under test
+// would be refused for a reason unrelated to what it tests. State the
+// assumption these tests always relied on explicitly: no security row → the
+// documented owner fallback.
+vi.mock("../services/adminSecurity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/adminSecurity")>()),
+  getAdminSecurityState: async () => null,
+}));
+
 // Mock the db module
 vi.mock("../db", () => {
   const getTableName = (table: any) => {
