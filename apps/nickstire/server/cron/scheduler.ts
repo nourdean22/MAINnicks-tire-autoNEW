@@ -514,13 +514,16 @@ export function unarmedFlagReason(key: string, raw: string | undefined): string 
   return `requiresFlag:${key} (${why})`;
 }
 
-export function startTieredScheduler(): void {
-  // v1.7 audit fix · set a global flag so the legacy startAllJobs()
-  // in cron/index.ts can detect we're active and refuse to
-  // double-schedule. Mutex against duplicate SMS sends.
-  (globalThis as { __nicksTieredSchedulerActive?: boolean })
-    .__nicksTieredSchedulerActive = true;
-
+/**
+ * Build the tier table WITHOUT starting any timer.
+ *
+ * 2026-09-01 (audit, artifact 2 §2.1): `tiers` was populated only inside
+ * startTieredScheduler(), so every read-only consumer — getJobCadences(),
+ * the cron-status surface, the CRON-INVENTORY generator, tests — saw an
+ * EMPTY table until the scheduler had actually started. Building is now a
+ * pure, idempotent step (ensureTiersBuilt) that any reader can call.
+ */
+function buildTiers(): void {
   // ═══ TIER 1: HEARTBEAT (every 5 min) ═══
   // Critical monitoring + SMS processing
   tiers.push({
@@ -1742,6 +1745,17 @@ export function startTieredScheduler(): void {
           return processCustomerSegmentation();
         },
       },
+      // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
+      // the schema; kpi.history returned [] to every caller. One row per
+      // completed shop week, idempotent, once per shop day.
+      {
+        name: "kpi-snapshot",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
+          return processKpiSnapshot();
+        },
+      },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
       // Wraps the orphaned segmentCustomer() classifier in a DB-batch
       // pass that writes customers.psycho_profile · powers profile-aware
@@ -2588,6 +2602,21 @@ export function startTieredScheduler(): void {
     running: false,
     lastRun: null,
   });
+}
+
+/** Idempotent: builds the tier table once; safe for read-only callers. */
+export function ensureTiersBuilt(): void {
+  if (tiers.length === 0) buildTiers();
+}
+
+export function startTieredScheduler(): void {
+  // v1.7 audit fix · set a global flag so the legacy startAllJobs()
+  // in cron/index.ts can detect we're active and refuse to
+  // double-schedule. Mutex against duplicate SMS sends.
+  (globalThis as { __nicksTieredSchedulerActive?: boolean })
+    .__nicksTieredSchedulerActive = true;
+
+  ensureTiersBuilt();
 
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
@@ -2715,6 +2744,7 @@ export function getJobCadences(): Map<
       scheduledAutomatically: boolean;
     }
   >();
+  ensureTiersBuilt();
   for (const t of tiers) {
     for (const j of t.jobs) {
       out.set(j.name, {

@@ -110,8 +110,9 @@ export async function runFollowupCadence(): Promise<RunResult> {
       lte(bookings.createdAt, minAge),
     )).orderBy(bookings.createdAt);
   } catch (err) {
-    log.warn("[followup-cadence] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Failed to load candidates" };
+    // 2026-09-01 (audit F-9): rethrow so the run is recorded as failed.
+    log.error("[followup-cadence] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
+    throw err;
   }
   if (candidates.length === 0) return { recordsProcessed: 0, details: "No completed bookings in window" };
 
@@ -132,8 +133,10 @@ export async function runFollowupCadence(): Promise<RunResult> {
       if (r.createdAt && r.createdAt >= todayStart) firedToday++;
     }
   } catch (err) {
-    log.warn("[followup-cadence] fired-touch query failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Failed to load fired touches" };
+    // 2026-09-01 (audit F-9): rethrow — an unreadable fired-touch set must not
+    // read as a clean run (it is the guard against re-texting).
+    log.error("[followup-cadence] fired-touch query failed", { error: err instanceof Error ? err.message : String(err) });
+    throw err;
   }
 
   // 3. Opt-out set (SMS opt-out = don't auto-contact · conservative).

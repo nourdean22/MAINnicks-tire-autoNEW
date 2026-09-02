@@ -102,8 +102,10 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       ))
       .limit(maxCalls + 10);
   } catch (err) {
-    log.warn("[confirmation-calls] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Failed to load candidates" };
+    // 2026-09-01 (audit F-9): a failed candidate read is a failed run, not a
+    // completed one — rethrow so the observer sees it.
+    log.error("[confirmation-calls] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
+    throw err;
   }
 
   if (candidates.length === 0) {

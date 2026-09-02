@@ -171,7 +171,10 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           `);
           const yesterday = (yesterdayRow as Record<string, unknown>[])?.[0] || {};
 
+          // COALESCE(SUM, 0) with no rows is a TRUE zero (no paid invoices), so
+          // these are honest numbers — the query succeeded.
           return {
+            available: true as const,
             todayEstimate: Math.round(Number(today.rev || 0) / 100),
             yesterdayRevenue: Math.round(Number(yesterday.rev || 0) / 100),
             yesterdayJobs: Number(yesterday.cnt || 0),
@@ -185,16 +188,23 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
         } catch (e) {
-          log.warn("[jobs/statenourSync] revenue DB rollup failed", { error: String(e) });
-          // Fallback to intelligence if DB query fails
+          /**
+           * 2026-09-01 (audit M-1) — UNKNOWN IS NOT $0.
+           *
+           * This used to fall back to a cached intelligence snapshot and then
+           * to `?? 0`, and to compute pacing from that: a failed read crossed
+           * the boundary as "$0, behind" and StateNour persisted it. Now the
+           * block says it could not read. No revenue numbers are emitted at
+           * all, so a consumer cannot mistake absence for zero, and pacing is
+           * literally "unknown".
+           */
+          log.warn("[jobs/statenourSync] revenue DB rollup failed — sending available:false, not zeros", { error: String(e) });
           return {
-            todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
-            weekRevenue: intelligence.pulse?.thisWeek?.revenue ?? 0,
-            monthRevenue: intelligence.revenue?.thisMonthProjection ?? 0,
-            avgTicket: intelligence.pulse?.today?.avgTicket ?? 0,
-            jobsToday: intelligence.pulse?.today?.jobsClosed ?? 0,
+            available: false as const,
+            reason: `revenue rollup failed: ${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}`,
             monthlyTarget: MONTHLY_TARGET,
-            walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
+            dailyTarget: Math.round(MONTHLY_TARGET / 26),
+            pacing: "unknown" as const,
           };
         }
       })(),

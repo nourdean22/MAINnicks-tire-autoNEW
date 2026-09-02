@@ -185,7 +185,10 @@ export async function runChatFaqPipeline(): Promise<{
     log.info(`Chat FAQ pipeline: ${details}`);
     return { recordsProcessed: allQuestions.length, details };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow so cron_log records `failed` and the
+    // observer's failure streak fires — a swallowed error was logged as
+    // `completed` with "Failed:" in details, which the observer never reads.
     log.error("Chat FAQ pipeline failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
