@@ -100,6 +100,40 @@ Also deleted: four AI brief routes with zero callers anywhere in the monorepo (`
 
 ---
 
+## 5.1 The self-audit of section 5 (same day)
+
+An adversarial re-read of the seven fixes above - the house rule, not a
+request - found **five defects in the fixes themselves**. Recorded here rather
+than quietly corrected, because a remediation wave that claims a clean diff is
+making an extraordinary claim against this repo's own 100% observed base rate.
+
+| # | Defect in my own fix | Correction |
+|---|---|---|
+| S-1 | **C-5 was half-wired.** A second registry, `lib/ai/tool-families.ts`, carried its own hand-maintained `mutates` field and still called `proposeCalendarEvent` non-mutating - on a line whose own description says it writes. It feeds `/system/tools`, so the operator-facing count stayed wrong after the safety fix landed. Comparing the two then measured **22 of ~181 tools disagreeing**, including two more genuine read-mode gaps (`buildArchitectureMemory`, `learnCodingPreference`, both calling `brainMemory.remember()`). | The duplicated field is **deleted**, not reconciled; `/system/tools` derives it from the same classifier read mode uses. |
+| S-2 | **C-1 fixed GET and left POST**, which returned the created row verbatim and echoed back the `config` just posted. | One `toIntegrationView()` both verbs call. |
+| S-3 | **C-1's comment claimed a mechanism the code did not implement** - "scoping the select removes an exposure" while the select still carried `config: true`. | Comment corrected; the weaker real guarantee stated plainly. |
+| S-4 | **C-1 silently dropped `metadata`** from the response shape. | Same key-names treatment as `config`. |
+| S-5 | **C-7 still read only the first `v1=`.** Stripe sends several during a rolling secret change, so a receiver checking one would reject live webhooks for the whole rotation window. | All candidates compared, constant time, no short-circuit. |
+
+A sixth, in a test: the new single-source gate first asserted
+`.not.toContain("meta?.mutates")` against a source file and failed - on the
+explanatory comment quoting the old code. Source-text assertions trip over
+prose, which is why the other gates in this program assert behaviour.
+
+**Delete-first, same pass.** `app/manifest.ts` removed: a static
+`public/manifest.webmanifest` shadows it at the same served path, so the
+generator's output never reached a browser while disagreeing on name, theme
+and every icon. Verified against production before deleting.
+
+The lesson generalises past this diff: **every one of these five came from
+duplication or partial coverage, not from getting a hard thing wrong.** One
+verb fixed of two, one registry of two, one signature of several, one comment
+describing a design that changed. That is the same shape as the findings in
+section 3, applied to the remediation - which is the strongest available
+evidence that the shape is systemic here rather than incidental.
+
+---
+
 ## 6. Two security claims this program REFUTED
 
 Recorded because acting on either would have caused an unnecessary production change, and because the prior audit measured its own mechanical detectors wrong about one time in three.

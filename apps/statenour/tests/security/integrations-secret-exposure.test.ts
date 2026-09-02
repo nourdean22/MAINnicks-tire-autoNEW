@@ -111,6 +111,10 @@ describe("GET /api/integrations · OAuth secrets never reach the response body",
     // Key NAMES answer "is a refresh token stored?" without shipping it.
     expect(row.configKeys).toContain("refreshToken");
     expect(row.configKeys).toContain("scopes");
+    // metadata gets the same treatment rather than being silently dropped
+    // (the first pass at this fix dropped it from the shape with no note).
+    expect(row).toHaveProperty("hasMetadata");
+    expect(row).toHaveProperty("metadataKeys");
   });
 
   it("an integration with no config reports hasConfig false and an empty key list", async () => {
