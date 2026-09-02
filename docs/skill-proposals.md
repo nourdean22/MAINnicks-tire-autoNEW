@@ -1270,3 +1270,54 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** "Before declaring any prompt-injection / fencing fix done, ENUMERATE every assembler that renders stored text into a prompt or a tool result — `brain-context.ts` block producers, `system-prompt.ts` sections, `augment-final-prompt.ts`, `context-hints.ts`, `lib/ai/tools/*` — and name each one as fenced, allowlisted-with-reason, or not applicable. One fixed renderer is not a fixed class. The gate shape that makes this durable is `tests/ai/prompt-block-fencing-gate.test.ts`."
 - **Confidence:** high (5 misses in one wave, two review passes needed)
 - **Status:** proposed
+
+## 2026-09-02 · nickstire admin audit wave (#2063 · #2068 · #2070 · #2072) + production apply
+
+### P1 · prod-db-guard (and nickstire-tidb-ddl)
+- **Trigger (witnessed):** applying `drizzle/0114_...sql` to production failed at statement 1 with `ER_NO_SUCH_TABLE estimates`. No migration ever created that table and `drizzle/schema.ts` never declared it; the audit (F-6, F-17) had diagnosed a missing COLUMN, and PR #2063 shipped receipt/claim fixes for `processEstimateFollowUp`, a job whose subject table did not exist. Fixed in #2070 (job retired, 0114 halved, canary `server/__tests__/rawSqlTablesExist.test.ts`).
+- **Cost:** one dead job got a day of "honest receipts" work; a wrong-in-kind audit finding shipped in three artifacts before the apply exposed it.
+- **Proposed edit:** "When a cron 'skips forever' or a column is 'missing', FIRST prove the subject TABLE exists in production (INFORMATION_SCHEMA.TABLES) before theorising about columns. Raw SQL can name any table; Drizzle-typed reads cannot, so scan raw sql`` FROM/JOIN/UPDATE/INTO targets against the declared table list (the rawSqlTablesExist canary shape) before writing a migration for them."
+- **Confidence:** high (the apply failed on the first statement; the audit had cited the wrong class)
+- **Status:** proposed
+
+### P2 · nickstire-verify (canary scan sets)
+- **Trigger (witnessed):** `cronNoSwallowedFailure.test.ts` derived its scan set from the modules `scheduler.ts` imports and never scanned `scheduler.ts` itself, which held 13 inline `catch { return { details: "X failed" } }` wrappers; one re-swallowed a rethrow the same wave had added one frame below (chatFaqPipeline). Found by an independent reviewer, not by the author's pass; second scan added in #2063's review commit.
+- **Cost:** the F-9 "every cron fails loudly" claim was false for 13 jobs while its canary was green.
+- **Proposed edit:** "A derived scan set must include the WIRING file it is derived from. When a gate scans 'every module X imports', also scan X, with its own positive control; the inline handler inside the registry is the shape a module scan cannot see."
+- **Confidence:** high (13 misses behind one green canary)
+- **Status:** proposed
+
+### P3 · nickstire-verify (SMS outcome contract)
+- **Trigger (witnessed):** the wave's rule "consume a send claim only on sent|queued" left `uncertain` (shop-gateway timeout; `server/sms.ts` documents it as "do not retry, the relay may well have delivered") unconsumed at reminders, estimate follow-up, campaign retry, bulk follow-up and cross-sell: a re-text every tick until a send completed cleanly. Caught by the second-pass reviewer; fixed with `smsClaimConsumed` in #2063's second review commit.
+- **Cost:** a P0 duplicate-text regression sat in the branch for a day; the author's own review missed it.
+- **Proposed edit:** "Any change to how a sendSms result is interpreted must be checked against the FOUR outcomes in `server/lib/smsOutcome.ts`: a claim is consumed for every outcome except a definite failure; only COUNTERS keep uncertain apart from sent; never collapse uncertain to failed on a receipt a human reads (it invites a re-send)."
+- **Confidence:** high (five sites, one shared cause)
+- **Status:** proposed
+
+### P4 · prod-db-guard (scoped migration apply)
+- **Trigger (witnessed):** `pnpm db:migrate` (`scripts/db-migrate.ts`) has no dry run and applies EVERY unrecorded file in one sweep; the wave needed 0114/0116 first, backups before 0115/0117, and a record-only for the hand-applied 0113. A throwaway scoped runner (dry-run by default, `--only <prefixes>`, house two-statement backup with a count check that aborts before the drop, hash recorded exactly like db-migrate.ts) did the job and was deleted after, per the runbook.
+- **Cost:** the pattern is undocumented, so the next apply either re-invents it or reaches for the unscoped sweep.
+- **Proposed edit:** add the scoped-runner shape to the skill's "Applying" section (or SCHEMA_DRIFT_RUNBOOK): dry-run exits BEFORE opening a connection; `--only`; backup, then count, then drop; record the sha256 of the whole file with the journal `when`; delete the script after.
+- **Confidence:** medium (one session, but every step was needed)
+- **Status:** proposed
+
+### P5 · prod-db-guard / harness-worktree-setup (auto-mode classifier)
+- **Trigger (witnessed):** the Claude Code auto-mode classifier, not repo policy, denied `railway whoami`, a read-only probe script, `gh pr checks`, a combined grep+dryrun+execute+rm command, the plain `node _drop_old_backups.cjs --execute` once, and the long-form `railway run --service ... -- ./node_modules/.bin/tsx ...`, while allowing the same actions as single plain commands (`node _probe.cjs`, `railway run -s ... -- pnpm exec tsx ...`) after the operator added a permission rule.
+- **Cost:** about ten blocked turns; one stop-and-ask that was correct; one apply chain split three ways.
+- **Proposed edit:** "Production-touching commands: one plain command per call (no pipes into rm/grep chains, no compound guards); expect the classifier to block a READ probe as a prod action; when blocked, stop and hand the operator the exact one-liner rather than reshaping the command more than once."
+- **Confidence:** high (six blocks in one session)
+- **Status:** proposed
+
+### P6 · statenour-verify (no toolchain anywhere)
+- **Trigger (witnessed):** for #2068 no worktree on the box had statenour's node_modules (primary gutted, every junction dangling, installs policy-blocked in worktrees), so typecheck, lint and the full vitest could not run; the pure helper's test ran under the SIBLING app's vitest with an ad-hoc config placed INSIDE apps/nickstire (a config in the scratchpad cannot resolve `vitest/config`), 9 of 11 static check scripts ran under nickstire's tsx, and the commit + push came from a hookless sparse scratch clone with CI as the gate.
+- **Cost:** about forty minutes finding the path; two blocked install attempts.
+- **Proposed edit:** a "no toolchain" section: (1) the sibling-vitest recipe with the config-location trap; (2) which `check:*` scripts run without deps and which need `glob` / `@prisma/client`; (3) the sparse hookless clone push (`git clone --no-checkout` + `sparse-checkout set apps/statenour`) with the disclosure line the PR must carry.
+- **Confidence:** medium (once, but every step failed before the recipe)
+- **Status:** proposed
+
+### P7 · nickstire-verify / statenour-verify (independent reviewers before "done")
+- **Trigger (witnessed):** the author's own hostile pass over a 10-commit wave found 5 defects; three PARALLEL independent reviewers (silent-failure hunter on server/, contract reviewer on schema + cross-app, client/docs reviewer) over the full diff found 24 more, including two P0 regressions the wave itself introduced and three corrections to the audit's own claims (#15 to #17). The operator had to ask "are you sure?" before the deeper pass happened.
+- **Cost:** a day-old P0 in the branch; three audit claims wrong until a reviewer traced them.
+- **Proposed edit:** "Before calling a multi-commit wave done, dispatch reviewers per subsystem with a file:line brief and a 'verified OK / not checked' answer shape, then verify their top findings yourself; a single author pass over more than 20 files has not once been sufficient (2026-08-12 onward)."
+- **Confidence:** high (24 findings the author's pass missed)
+- **Status:** proposed

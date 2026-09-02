@@ -32,8 +32,15 @@ export interface LlmCallRecord {
   lane?: string | null;
 }
 
-/** Frames that are plumbing, never a lane. */
-const PLUMBING = /^(callerLane|invokeLLM|invokeLLMUnrecorded|recordLlmCall|laneForParams|Promise|Array|Function|Generator|Object|Module|process|processTicksAndRejections|then|catch|finally|next|<anonymous>)$/;
+/**
+ * Frames that are plumbing, never a lane: our own wrapper, runtime internals,
+ * and generic inner helpers. The 2026-09-02 15:45 UTC read-back showed six
+ * rows named `attempt` (igAutopost's retry closure) and `call`
+ * (conceptTournament's inner closure) — a helper that names itself hides
+ * the feature that owns the call, so those names are skipped and the walk
+ * continues to the enclosing named function.
+ */
+const PLUMBING = /^(callerLane|invokeLLM|invokeLLMUnrecorded|recordLlmCall|laneForParams|Promise|Array|Function|Generator|Object|Module|process|processTicksAndRejections|then|catch|finally|next|<anonymous>|attempt|call|run|exec|execute|invoke|retry|withRetry|tryOnce|handler|fn|callback|wrapper|step)$/;
 
 /**
  * The name of the first named function above the LLM wrapper on the current

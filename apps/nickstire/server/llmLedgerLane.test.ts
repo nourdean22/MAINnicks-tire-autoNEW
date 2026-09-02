@@ -52,6 +52,22 @@ describe("llm_calls lane attribution", () => {
     expect(reviewDraftForTest()).toBe("reviewdraftfortest");
   });
 
+  it("a generic inner helper (attempt / call / run …) names the ENCLOSING function, not itself", async () => {
+    // Production read-back 2026-09-02: six rows were lanes "attempt" and "call" —
+    // igAutopost's retry closure and conceptTournament's inner closure.
+    const { callerLane } = await import("./services/llmLedger");
+    function generateCaptionForTest() {
+      const attempt = () => callerLane();
+      return attempt();
+    }
+    function runTournamentForTest() {
+      const call = async () => callerLane();
+      return call();
+    }
+    expect(generateCaptionForTest()).toBe("generatecaptionfortest");
+    expect(await runTournamentForTest()).toBe("runtournamentfortest");
+  });
+
   it("a [lane:x] label on the first system message wins over the captured caller", async () => {
     const { recordLlmCall } = await import("./services/llmLedger");
     recordLlmCall(baseRecord([{ role: "system", content: "[lane:review_reply] You are Nick." }], "somecaller"));

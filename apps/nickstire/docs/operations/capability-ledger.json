@@ -1651,16 +1651,12 @@
         "liveRuns": [],
         "deploymentId": "code deployed with #2063 main auto-deploy; 0116 applied and LLM_LEDGER_ENABLED=true set 2026-09-02; lane fallback lands with nickstire/llm-ledger-lane",
         "databaseAssertions": [
-          "2026-09-02 ~10:31 UTC read-only read-back from production (approximately 35 min after LLM_LEDGER_ENABLED=true; Railway redeployed): 2 llm_calls rows, both deepseek-v4-pro via ollama -- one 30 s timeout (ok=0, error recorded), one success at 6.6 s with 430 prompt / 348 completion tokens. The ledger records. Both rows carried lane=unlabeled: no caller passes the [lane:] label, which is the defect the caller-function fallback in this PR closes; named lanes are NOT yet observed in production (next read-back)."
+          "2026-09-02 ~10:31 UTC read-only read-back from production (approximately 35 min after LLM_LEDGER_ENABLED=true; Railway redeployed): 2 llm_calls rows, both deepseek-v4-pro via ollama -- one 30 s timeout (ok=0, error recorded), one success at 6.6 s with 430 prompt / 348 completion tokens. The ledger records. Both rows carried lane=unlabeled: no caller passes the [lane:] label, which is the defect the caller-function fallback in this PR closes; named lanes are NOT yet observed in production (next read-back).",
+          "2026-09-02 11:34 UTC (operator-instructed manual call under railway run; Ollama cloud deepseek-v4-pro, 1,388 ms, 25 tokens): the row landed with lane=manuallaneprobe, the calling function name, proving capture + insert against production from the SOURCE build. Read-back: scripts/diagnostics/llm-calls-readback.cjs (pnpm diag:llm-calls).",
+          "2026-09-02 15:45 UTC read-back (pnpm diag:llm-calls): 14 rows; the DEPLOYED container (booted 11:23:17 UTC) wrote named lanes generateweeklyinsight (2), generateinstagramstudiodraft (2), maybeproposecallactions (1) -- function names survive the esbuild bundle. Six rows carried the names of generic inner helpers (attempt x5, call x1); those names are now skipped so the feature function names the lane."
         ]
       },
-      "blockers": [
-        {
-          "severity": "P2",
-          "description": "Named lanes are not yet observed in production: the two rows read back on 2026-09-02 were written before the caller-function fallback. The next read-back after this PR deploys must show lanes other than unlabeled, or the fallback is not reaching the bundle (function names are relied on surviving esbuild; the build does not minify).",
-          "source": "2026-09-02 read-back"
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "an admin surface that reads llm_calls (spend / latency / error rate per lane) -- writer exists, reader does not yet (do not let this become a writer-with-no-reader: the first reader is the next slice)"
       ],
