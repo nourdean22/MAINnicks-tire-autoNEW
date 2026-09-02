@@ -18,6 +18,17 @@ export function NeuralBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // SIZE FIRST, ALWAYS (2026-09-02). The backing store defaults to 300x150
+    // while `fixed inset-0` stretches the element to the viewport, so an
+    // unsized canvas is a full-screen box drawing at 300x150 - and the
+    // reduced-motion branch below returns BEFORE the sizing that used to live
+    // further down, leaving those users with exactly that forever. Found by a
+    // DOM audit of /brain that reported "an unsized 300x150 canvas at body
+    // level"; it is this decorative background, not dead code, so it is sized
+    // rather than deleted.
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
     // Respect reduced motion preference
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 

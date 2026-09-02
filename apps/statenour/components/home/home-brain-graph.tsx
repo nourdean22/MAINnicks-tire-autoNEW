@@ -128,6 +128,36 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   const [focusId, setFocusId] = useState<string | null>(initialFocusId || null);
   const [selectedNode, setSelectedNode] = useState<BrainGraphNode | null>(null);
 
+  // WP-2/WP-3 · the map defaults to standing knowledge; task + journal churn
+  // (55 of 148 nodes measured 2026-09-02) is one toggle away. Degree-0 nodes
+  // never enter the simulation - they are integration debt, listed below it.
+  const [includeActivity, setIncludeActivity] = useState(false);
+  const [unlinked, setUnlinked] = useState<BrainGraphNode[]>([]);
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
+
+  // WP-4 · an automatic fit must never steal a view the operator set by hand.
+  const userMovedViewRef = useRef(false);
+  const needsFitRef = useRef(true);
+
+  // Persisted so the operator's choice survives a reload. Read once, guarded:
+  // localStorage throws in private-mode Safari and is absent during SSR.
+  // Gate the FIRST fetch on this. Reading the preference in an effect means
+  // the first render has includeActivity=false, so without the gate a reload
+  // for someone who enabled Activity fired the semantic request, aborted it,
+  // and fired the full one — and an aborted browser request does not stop the
+  // server-side fan-out, which this builder's own header calls the widest in
+  // the app (review finding on #2087). A lazy initialiser is not the fix: it
+  // would desync server and client markup for the toggle.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("brain-map-include-activity") === "1") setIncludeActivity(true);
+    } catch {
+      /* storage unavailable - the default (semantic) stands */
+    }
+    setPrefsLoaded(true);
+  }, []);
+
   const simNodesRef = useRef<CanvasNode[]>([]);
   const simEdgesRef = useRef<BrainGraphEdge[]>([]);
   const animationFrameIdRef = useRef<number | null>(null);
@@ -273,7 +303,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       nodes.forEach((n) => {
-        if (n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q)) {
+        // Search the FULL text, never the truncated label - otherwise a node
+        // becomes unfindable by the very words that identify it.
+        const haystack = `${n.fullLabel ?? n.label} ${n.type}`.toLowerCase();
+        if (haystack.includes(q)) {
           searchFilteredIds.add(n.id);
         }
       });
@@ -398,13 +431,49 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
         ctx.fillStyle = fadeOut ? "rgba(255, 255, 255, 0.15)" : "#F0F0F0";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        const labelText = node.type === "system" ? node.label.toUpperCase() : node.label;
+        // WP-1 · draw the derived short label; `label`/`fullLabel` stay intact
+        // for search, tooltips and the detail panel. The 34-char clamp remains
+        // as a floor for any payload that predates displayLabel.
+        const labelBase = node.displayLabel || node.label;
+        const labelText = node.type === "system" ? labelBase.toUpperCase() : labelBase;
         ctx.fillText(labelText.length > 34 ? labelText.slice(0, 34) + "…" : labelText, node.x, node.y + node.radius + 4);
       }
     });
 
     ctx.restore();
   }, [selectedNode, searchQuery, isMobile]);
+
+  /**
+   * WP-4 · Fit the settled cluster to the canvas with 8% padding a side.
+   *
+   * Transform is `screen = world * zoom + pan` in logical pixels (the dpr
+   * scale is applied first), so the fit solves for both directly.
+   */
+  const fitToContent = useCallback(() => {
+    const canvas = canvasRef.current;
+    const nodes = simNodesRef.current;
+    if (!canvas || nodes.length === 0) return;
+    const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const viewW = canvas.width / dpr;
+    const viewH = canvas.height / dpr;
+    if (viewW <= 0 || viewH <= 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      const r = n.radius + 14; // label sits below the node - keep it on screen
+      if (n.x - r < minX) minX = n.x - r;
+      if (n.x + r > maxX) maxX = n.x + r;
+      if (n.y - r < minY) minY = n.y - r;
+      if (n.y + r > maxY) maxY = n.y + r;
+    }
+    const contentW = Math.max(1, maxX - minX);
+    const contentH = Math.max(1, maxY - minY);
+    const scale = Math.min(2.5, Math.max(0.35, Math.min((viewW * 0.84) / contentW, (viewH * 0.84) / contentH)));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    zoomRef.current = scale;
+    panRef.current = { x: viewW / 2 - cx * scale, y: viewH / 2 - cy * scale };
+  }, []);
 
   const triggerAnimationLoop = useCallback(() => {
     if (animationFrameIdRef.current) return;
@@ -418,11 +487,19 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       const isUserInteracting = isDraggingRef.current || draggedNodeRef.current;
       if (kineticEnergy < energyThreshold && !isUserInteracting) {
         isSimActiveRef.current = false;
+        // WP-4 · the simulation already declares its own settle point, so reuse
+        // it rather than inventing a tick count that would drift with node
+        // count. Fit once per payload, and never over a hand-set view.
+        if (needsFitRef.current && !userMovedViewRef.current) {
+          needsFitRef.current = false;
+          fitToContent();
+          drawGraph();
+        }
       }
       animationFrameIdRef.current = requestAnimationFrame(runLoop);
     };
     animationFrameIdRef.current = requestAnimationFrame(runLoop);
-  }, [physicsTick, drawGraph]);
+  }, [physicsTick, drawGraph, fitToContent]);
 
   // ── Sim node sync (payload or lens change → rebuild sim sets) ───────
   const syncSimSets = useCallback(
@@ -461,13 +538,20 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       if (prefersReducedMotion) {
         for (let i = 0; i < 120; i++) physicsTick();
         isSimActiveRef.current = false;
+        // This path never enters the animation loop, so the settle-block fit
+        // never ran — the users most likely to disable animation kept the old
+        // off-centre view (review finding on #2087). Fit here too.
+        if (needsFitRef.current && !userMovedViewRef.current) {
+          needsFitRef.current = false;
+          fitToContent();
+        }
         drawGraph();
       } else {
         isSimActiveRef.current = true;
         triggerAnimationLoop();
       }
     },
-    [physicsTick, drawGraph, triggerAnimationLoop],
+    [physicsTick, drawGraph, triggerAnimationLoop, fitToContent],
   );
 
   // Re-sync sim when lens changes (client-side, zero network)
@@ -494,9 +578,15 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     );
 
     try {
-      let url = `/api/brain/graph?scope=${variant === "full" ? "full" : "home"}`;
+      // `semantic` drops task/journal churn and separates unlinked nodes.
+      // The home card keeps its own clamp; only the full MAP tab opts in.
+      const mapScope = variant === "full" ? (includeActivity ? "full" : "semantic") : "home";
+      // The scope rides along on EVERY shape, including the local
+      // neighbourhood — dropping it here let task/journal nodes back in while
+      // the Activity toggle still read off (review finding on #2087).
+      let url = `/api/brain/graph?scope=${mapScope}`;
       if (localOnly && focusId) {
-        url = `/api/brain/graph?focus=${focusId}&depth=2`;
+        url = `/api/brain/graph?scope=${mapScope}&focus=${focusId}&depth=2`;
       } else if (focusId) {
         url += `&focus=${focusId}`;
       }
@@ -513,6 +603,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
       setRawNodes(nodesList);
       setRawEdges(edgesList);
+      setUnlinked(payload?.unlinked ?? []);
+      // New payload - the previous fit describes a graph that no longer exists.
+      needsFitRef.current = true;
+      userMovedViewRef.current = false;
       setDegraded(payload?.degraded ?? []);
       setSelectedNode((prev) => (prev && !nodesList.some((n) => n.id === prev.id) ? null : prev));
       setLoadState(nodesList.length === 0 ? { phase: "empty" } : { phase: "ready", refreshing: false });
@@ -533,14 +627,18 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     } finally {
       clearTimeout(timeoutId);
     }
-    // NOTE deps: variant/focusId/localOnly ONLY. selectedNode and
-    // searchQuery must never re-fire the network — that was the storm.
-  }, [variant, localOnly, focusId, syncSimSets]);
+    // NOTE deps: variant/focusId/localOnly/includeActivity ONLY. selectedNode
+    // and searchQuery must never re-fire the network — that was the storm.
+    // `includeActivity` DOES belong here: unlike the client-side filters it
+    // changes the query itself (scope=semantic vs full), so it must refetch —
+    // exactly once per toggle, since the effect below keys on this callback.
+  }, [variant, localOnly, focusId, includeActivity, syncSimSets]);
 
   useEffect(() => {
+    if (!prefsLoaded) return; // one request, with the right scope
     fetchGraphData();
     return () => abortRef.current?.abort();
-  }, [fetchGraphData]);
+  }, [fetchGraphData, prefsLoaded]);
 
   // ── Canvas sizing ───────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {
@@ -625,6 +723,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       isSimActiveRef.current = true;
       triggerAnimationLoop();
     } else if (isDraggingRef.current) {
+      userMovedViewRef.current = true;
       panRef.current = {
         x: panRef.current.x + (e.clientX - dragStartRef.current.x),
         y: panRef.current.y + (e.clientY - dragStartRef.current.y),
@@ -651,6 +750,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     if (interactionBlocked) return;
     e.preventDefault();
     const delta = e.deltaY < 0 ? 1 : -1;
+    userMovedViewRef.current = true;
     zoomRef.current = Math.min(3.0, Math.max(0.2, zoomRef.current + delta * 0.08));
     isSimActiveRef.current = true;
     triggerAnimationLoop();
@@ -680,6 +780,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       const dist = Math.sqrt(dx * dx + dy * dy);
       const ratio = dist / pinchDistRef.current;
       pinchDistRef.current = dist;
+      userMovedViewRef.current = true;
       zoomRef.current = Math.min(3.0, Math.max(0.2, zoomRef.current * ratio));
       touchMovedRef.current = true;
       isSimActiveRef.current = true;
@@ -712,15 +813,17 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   };
 
   const zoomBy = (delta: number) => {
+    userMovedViewRef.current = true;
     zoomRef.current = Math.min(3.0, Math.max(0.2, zoomRef.current + delta));
     isSimActiveRef.current = true;
     triggerAnimationLoop();
   };
 
+  /** WP-4 · the explicit way back to an automatic view after panning. */
   const zoomReset = () => {
-    const canvas = canvasRef.current;
-    if (canvas) panRef.current = { x: canvas.width / 2, y: canvas.height / 2 };
-    zoomRef.current = 1.0;
+    userMovedViewRef.current = false;
+    needsFitRef.current = false;
+    fitToContent();
     isSimActiveRef.current = true;
     triggerAnimationLoop();
   };
@@ -829,9 +932,11 @@ Format:
         )}
       </div>
 
-      {/* Lens chips — full variant only; a lens can only hide, never invent */}
+      {/* Lens chips — full variant only; a lens can only hide, never invent.
+          WP-5: one horizontally-scrollable row. Wrapping cost up to three rows
+          of vertical space and pushed the canvas below the fold. */}
       {variant === "full" && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {LENSES.map((l) => (
             <button
               key={l.key}
@@ -847,6 +952,30 @@ Format:
               {l.label}
             </button>
           ))}
+
+          {/* WP-2 · task + journal churn was 37% of the graph. Off by default,
+              one tap away, and the choice is remembered. */}
+          <button
+            type="button"
+            aria-pressed={includeActivity}
+            onClick={() => {
+              const next = !includeActivity;
+              setIncludeActivity(next);
+              try {
+                localStorage.setItem("brain-map-include-activity", next ? "1" : "0");
+              } catch {
+                /* storage unavailable - the toggle still works for this session */
+              }
+            }}
+            className={cn(
+              "shrink-0 px-3 py-2 rounded-full border text-[9px] font-mono uppercase tracking-[0.14em] transition-colors min-h-[40px]",
+              includeActivity
+                ? "bg-(--gold)/12 border-(--gold)/40 text-(--gold)"
+                : "bg-(--bg-elevated) border-(--border-default) text-(--text-tertiary) hover:text-(--text-secondary)",
+            )}
+          >
+            + ACTIVITY
+          </button>
         </div>
       )}
 
@@ -855,7 +984,9 @@ Format:
         ref={containerRef}
         className={cn(
           "relative glass-card border-(--border-default) flex-1 overflow-hidden bg-[#030303]",
-          isMobile && variant === "home" ? "h-[220px] cursor-pointer" : "min-h-[360px] h-[calc(100vh-24rem)] lg:h-[calc(100vh-16rem)]",
+          isMobile && variant === "home"
+            ? "h-[220px] cursor-pointer"
+            : "min-h-[min(55vh,560px)] lg:min-h-[min(70vh,640px)]",
         )}
         onClick={() => {
           if (isMobile && variant === "home") router.push("/brain");
@@ -938,6 +1069,53 @@ Format:
           </div>
         )}
       </div>
+
+      {/* WP-3 · Integration debt, not a rendering accident. This graph builder
+          deleted its "connect every orphan to an anchor" pass in the 2026-08-19
+          truth pass because inventing edges lies; isolation is signal. These
+          nodes are excluded from the force layout and listed instead. */}
+      {variant === "full" && unlinked.length > 0 && (
+        <div className="shrink-0">
+          <button
+            type="button"
+            aria-expanded={unlinkedOpen}
+            onClick={() => setUnlinkedOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded border bg-(--bg-elevated) border-(--border-default) text-[10px] font-mono uppercase tracking-wider text-(--text-tertiary) hover:text-(--text-secondary) min-h-[40px]"
+          >
+            <span>
+              UNLINKED ({unlinked.length})
+            </span>
+            <span className="text-[9px] normal-case tracking-normal text-(--text-tertiary)/70">
+              ingested, never connected
+            </span>
+          </button>
+
+          {unlinkedOpen && (
+            <ul className="mt-1.5 max-h-40 overflow-y-auto rounded border border-(--border-default) bg-(--bg-elevated) divide-y divide-(--border-default)">
+              {unlinked.map((n) => (
+                <li key={n.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (n.href) router.push(n.href);
+                      else setSelectedNode(n);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-(--bg-raised) min-h-[40px]"
+                    title={n.fullLabel ?? n.label}
+                  >
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider border border-(--border-default) text-(--text-tertiary)">
+                      {n.type}
+                    </span>
+                    <span className="truncate text-[11px] text-(--text-secondary)">
+                      {n.displayLabel || n.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {selectedNode && (
         <BrainNodeDetailPanel
