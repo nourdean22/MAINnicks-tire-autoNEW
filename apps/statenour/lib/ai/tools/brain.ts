@@ -19,6 +19,7 @@ import { classifyThought as classifyThoughtFn } from "@/lib/brain/journal-ingest
 import { runKnowledgeSync } from "@/lib/brain/knowledge-sync";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { buildBroadSearchFtsQuery, normalizeMemoryKeyQuery } from "@/lib/brain/search-query";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 export const brainTools = {
   surfaceAntiPatterns: tool({
@@ -74,7 +75,8 @@ export const brainTools = {
         count: top.length,
         patterns: top.map((r) => ({
           key: r.key,
-          description: r.content,
+          // anti-pattern descriptions are LLM-distilled stored text → curated_memory (2026-09-02, #2065 review)
+          description: fenceContent("surfaceAntiPatterns", "curated_memory", r.content),
           confidence: r.confidence,
           lastSeen: r.updatedAt.toISOString().slice(0, 10),
           metadata: r.metadata,
@@ -404,7 +406,13 @@ export const brainTools = {
           memories.push(row);
         }
       }
-      return { count: memories.length, memories };
+      // S-1 completion (2026-09-02) · whole rows were returned with raw
+      // `content` — BrainMemory rows of any category, gmail included. Fence
+      // the content field; every other field is metadata the model may use.
+      return {
+        count: memories.length,
+        memories: memories.map((m) => ({ ...m, content: fenceContent("searchMemories", "memory_recall", m.content) })),
+      };
     },
   }),
 
@@ -484,8 +492,12 @@ export const brainTools = {
           driveViewUrl: m.driveViewUrl,
           modifiedTime: m.modifiedTime,
           // Trim long content so the tool result stays compact in the
-          // model context — Nick can see enough to decide + cite the URL
-          excerpt: m.content.slice(0, 600),
+          // model context — Nick can see enough to decide + cite the URL.
+          // S-1 completion (2026-09-02) · these are BrainMemory rows of any
+          // category (gmail / drive / calendar ingests included) — fenced
+          // like every other memory-rendering path, so the fencing rule's
+          // memory_recall clause applies to tool results too.
+          excerpt: fenceContent("searchColdMemory", "memory_recall", m.content.slice(0, 600)),
         })),
       };
     },
@@ -517,7 +529,8 @@ export const brainTools = {
         messages: messages.map(m => ({
           conversationTitle: m.conversation?.title,
           role: m.role,
-          snippet: m.content.slice(0, 300),
+          // prior-conversation text → cross_session (2026-09-02)
+          snippet: fenceContent("searchConversations", "cross_session", m.content.slice(0, 300)),
           date: m.createdAt,
           conversationId: m.conversationId,
         })),
@@ -754,7 +767,7 @@ export const brainTools = {
             if (finalScore < 0.08) return null;
             return {
               key: r.key,
-              lesson: r.content,
+              lesson: fenceContent("checkAntiPattern", "curated_memory", r.content),
               severity: meta.severity ?? "warn",
               domain: meta.domain ?? "other",
               attempt: meta.attempt ?? "",
@@ -993,7 +1006,8 @@ export const brainTools = {
         orderBy: { confidence: "desc" },
         take: 5,
       });
-      return { correlations: correlations.map((c) => ({ content: c.content, confidence: c.confidence })) };
+      // correlation sentences are system-generated stored text → curated_memory (2026-09-02, #2065 review)
+      return { correlations: correlations.map((c) => ({ content: fenceContent("getHabitRevenueCorrelation", "curated_memory", c.content), confidence: c.confidence })) };
     },
   }),
 

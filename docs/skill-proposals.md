@@ -1261,3 +1261,12 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** "A new test is not done until it has been run against the code it is meant to catch and the failure recorded in the PR body. A test that cannot be made to fail is a silent instrument."
 - **Confidence:** high (4 tests, 2 harness bugs caught)
 - **Status:** proposed
+
+## 2026-09-02 · Audit wave follow-ups (#2062 · #2064 · tool-result fencing)
+
+### P1 · statenour-verify (or NEW: prompt-assembly-census)
+- **Trigger (witnessed):** S-1 as merged in #2059 fenced ONE of the five blocks `brain-context.ts` splices into the chat system prompt (contextual recall). The cross-session thread (#2062), hybrid recall, anticipatory recall and chat recall all reached the prompt bare — found only by a hostile review and a self-review after the fix was declared done. A sixth door, tool results (`searchColdMemory`, `searchConversations`, the customer-360 notes), was found the same way.
+- **Cost:** three follow-up PRs; a defence that was reported closed while four of five doors stayed open, live, for ~2 hours.
+- **Proposed edit:** "Before declaring any prompt-injection / fencing fix done, ENUMERATE every assembler that renders stored text into a prompt or a tool result — `brain-context.ts` block producers, `system-prompt.ts` sections, `augment-final-prompt.ts`, `context-hints.ts`, `lib/ai/tools/*` — and name each one as fenced, allowlisted-with-reason, or not applicable. One fixed renderer is not a fixed class. The gate shape that makes this durable is `tests/ai/prompt-block-fencing-gate.test.ts`."
+- **Confidence:** high (5 misses in one wave, two review passes needed)
+- **Status:** proposed

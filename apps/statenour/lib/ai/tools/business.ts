@@ -14,6 +14,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 export const businessTools = {
   getCameraIntelligence: tool({
@@ -404,9 +405,10 @@ export const businessTools = {
       // Brain memories
       if (brainMemories.length > 0) {
         timeline.push(`\n**Nick's Notes (${brainMemories.length}):**`);
-        for (const m of brainMemories.slice(0, 4)) {
-          timeline.push(`• [${m.category}] ${m.content.slice(0, 150)}`);
-        }
+        // S-1 completion (2026-09-02) · memory rows about a customer can carry
+        // third-party text (synced notes, SMS) — fenced as memory_recall.
+        const notes = brainMemories.slice(0, 4).map((m) => `• [${m.category}] ${m.content.slice(0, 150)}`);
+        timeline.push(fenceContent("customer360Notes", "memory_recall", notes.join("\n")));
       }
 
       // Person profile
@@ -594,7 +596,8 @@ export const businessTools = {
         hasAdvisory: true,
         date: latest.key.replace(/^weekly_/, ""),
         generatedAt: latest.createdAt.toISOString(),
-        headline: latest.content,
+        // the advisory headline is LLM-generated stored text → curated_memory (2026-09-02, #2065 review)
+        headline: fenceContent("pricingAdvisorySummary", "curated_memory", latest.content),
         confidence: latest.confidence,
         fleetMedianWinRate: snap?.fleetMedianWinRate ?? null,
         outliers: snap?.outliers ?? [],

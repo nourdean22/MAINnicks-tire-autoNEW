@@ -41,7 +41,23 @@ vi.mock("@/lib/prisma", () => {
     groupBy: vi.fn().mockResolvedValue([]),
     aggregate: vi.fn().mockResolvedValue({}),
   });
-  const prisma = new Proxy({}, { get: (_t, prop: string) => (prop === "$queryRaw" || prop === "$queryRawUnsafe" ? () => Promise.resolve([]) : prop === "$transaction" ? (fns: unknown) => Promise.resolve(fns) : generic()) });
+  // Review of #2064 · two producers deserialise BrainMemory.content and render
+  // ALIASES (b.statement, e.text), which no `.content` scan can see. Plant the
+  // payload in exactly those rows so the assembly proves they arrive fenced.
+  const brainMemory = {
+    ...generic(),
+    findMany: vi.fn(async (args: { where?: { category?: string } }) =>
+      malicious && args?.where?.category === "belief"
+        ? [{ id: "b1", key: "belief_1", content: JSON.stringify({ statement: `belief ${MAL}`, evidence_ids: [], category: "values", confidence: 0.9, promoted: true, overridden: null }) }]
+        : [],
+    ),
+    findUnique: vi.fn(async (args: { where?: { category_key?: { category?: string } } }) =>
+      malicious && args?.where?.category_key?.category === "qualitative_identity"
+        ? { content: JSON.stringify({ values: [{ text: `identity ${MAL}`, manual: false }], fears: [], operating_style: [], rhythms: [], red_lines: [] }) }
+        : null,
+    ),
+  };
+  const prisma = new Proxy({}, { get: (_t, prop: string) => (prop === "brainMemory" ? brainMemory : prop === "$queryRaw" || prop === "$queryRawUnsafe" ? () => Promise.resolve([]) : prop === "$transaction" ? (fns: unknown) => Promise.resolve(fns) : generic()) });
   return { prisma };
 });
 
@@ -120,6 +136,7 @@ vi.mock("@/lib/ai/predictive-prefetch", async (importOriginal) => {
 });
 
 import { buildBrainContext } from "@/lib/services/chat/brain-context";
+import { invalidate } from "@/lib/utils/cache";
 
 const silentLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never;
 
@@ -136,12 +153,15 @@ async function build() {
   });
 }
 
-const FENCES = ["crossSessionThread", "brainRecall", "hybridRecall", "anticipatoryRecall", "chatRecall"] as const;
-const openTag = (t: string) => new RegExp(`<tool_data tool="${t}" source="(memory_recall|cross_session)">`, "g");
+const FENCES = ["crossSessionThread", "brainRecall", "hybridRecall", "anticipatoryRecall", "chatRecall", "beliefs", "qualitativeIdentity"] as const;
+const openTag = (t: string) => new RegExp(`<tool_data tool="${t}" source="(memory_recall|cross_session|curated_memory)">`, "g");
 const closeTag = (t: string) => `</tool_data tool="${t}">`;
 
 beforeEach(() => {
   malicious = true;
+  // loadQualitativeIdentity() is memoised for 15 min behind lib/utils/cache;
+  // without this the benign control reuses the poisoned run's result.
+  invalidate("qualitative_identity_current");
 });
 
 describe("buildBrainContext · every memory-carrying block reaches the addendum fenced and closed", () => {

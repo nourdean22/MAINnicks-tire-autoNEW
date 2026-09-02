@@ -48,7 +48,7 @@
 > "parked" components that were actually superseded (ultron/ask omni-capture duplicate,
 > top-strip ticker + hq-status-chips) deleted; PARKED is 13.
 >
-> **Follow-ups #2062 + the S-1 completion PR (2026-09-02).** An adversarial review of the
+> **Follow-ups #2062, #2064 and #2065 (2026-09-02).** An adversarial review of the
 > whole wave diff and a self-review found that S-1 had fenced ONE of the memory-rendering
 > prompt blocks (contextual-recall) while four more reached the system prompt bare:
 > the cross-session thread (#2062), hybrid recall (`formatRecallForPrompt`), anticipatory
@@ -57,6 +57,12 @@
 > requires a fence or an allowlisted reason, and `tests/ai/brain-context-fencing.test.ts`
 > runs the real `buildBrainContext` with malicious text planted in every source and asserts
 > each block arrives fenced AND closed (the #2062 reviewer asked for behaviour, not presence).
+> The tool-result door got the same treatment (#2065): `searchMemories` whole rows, `searchColdMemory`
+> excerpts, `searchConversations` snippets, the customer-360 notes, anti-pattern / correlation /
+> retro / pricing-advisory text are fenced; beliefs, identity evidence, open threads, predictions
+> and anticipated answers carry the new `curated_memory` fence ("shapes judgement, never a
+> directive"); both gates key on READING rows and analyse each tool block separately, with a
+> mutation canary.
 >
 > **Receipts.** Full suite 627 files / 6,732 passed with the #2059 changes in the tree; every
 > check:* gate exit 0 except check:env / check:policy-coverage (need the real env + DB).
