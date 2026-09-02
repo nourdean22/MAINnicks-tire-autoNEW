@@ -30,16 +30,23 @@ SDK span went to Sentry's provider and was dropped — while the boot log said `
   PR's whole commit range, so it could never go green. Replaced by a clean branch; history was NOT
   rewritten.
 
-**Receipt (the only acceptable evidence):** trace `d3eebaac74d030dc2aea911b83ace1bb`,
-2026-09-02T17:43:48Z on `a1d51cf` — `environment: production`, `userId: operator`, `tags: ["probe"]`,
-`release` = deploy SHA, `model: deepseek-v4-flash:0731`, planted `metadata.probeId`, and
-`resourceAttributes.service.namespace: sentry`. Reproduce with the probe route.
+**Receipts (the only acceptable evidence) — BOTH sinks, both read back:**
+- **Langfuse:** trace `d3eebaac74d030dc2aea911b83ace1bb`, 2026-09-02T17:43:48Z on `a1d51cf` —
+  `environment: production`, `userId: operator`, `tags: ["probe"]`, `release` = deploy SHA,
+  `model: deepseek-v4-flash:0731`, planted `metadata.probeId`, and
+  `resourceAttributes.service.namespace: sentry`.
+- **Sentry:** issue `JAVASCRIPT-REACT-Y` (id 7707827946), message `observability-probe 2FERN8pP4A`,
+  level info, culprit `POST /api/system/observability-probe`, 2026-09-02T17:43:49Z — the SAME
+  probe id, read back out of Sentry. Real traffic lands independently too (`TRPCError` through 19:04Z).
+
+Reproduce either with the probe route.
 
 **Open / known gaps — do not report these as done:**
 1. **Token usage and cost are 0.** The provider reported no usage on that call, so cost
    attribution is UNPROVEN. Everything else mapped.
-2. **Only the probe has exercised the path in production.** Zero `provider.success` lines since
-   the deploy — a quiet period, not a fault (logs also show zero Langfuse errors).
+2. **Only the probe has exercised the LANGFUSE path in production.** Zero `provider.success`
+   lines since the deploy — a quiet period, not a fault (logs also show zero Langfuse errors).
+   Sentry is receiving real traffic independently of the probe.
 3. **Langfuse keys are in `main` history** from #2073 (my error). **Operator declined rotation
    2026-09-02: private repo, personal tracing project, risk accepted. Do NOT re-raise.**
 
