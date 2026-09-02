@@ -41,12 +41,17 @@ function GovernedKnowledgeReview() {
 export default function BrainPage() {
   return (
     <>
+      {/* StandardPage documents `description` as ONE LINE (standard-page.tsx:81).
+          The old 113-char string wrapped to three lines at 704px, and this header
+          block is what pushed the MAP canvas below the fold: chrome above the
+          canvas measured 326px against a 542px viewport, leaving the graph at
+          ~40% of the screen against a >=55% target. Kept short deliberately. */}
       <StandardPage
         eyebrow="Mastery"
         title="Brain"
-        description="Everything the system knows about you · the self-model, advisors, wisdom, governed knowledge, and live reasoning."
+        description="Everything the system knows about you."
         width="3xl"
-        rhythm="loose"
+        rhythm="compact"
       >
         {/* 2026-08-19 · Brain truth pass · ordered by the mental model
             instead of accretion order, so nine tabs read as ONE product:
