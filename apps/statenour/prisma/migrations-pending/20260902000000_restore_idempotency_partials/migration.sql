@@ -47,8 +47,25 @@
 --     could not create unique index "<name>"
 --     DETAIL: Key (idempotency_key)=(...) is duplicated.
 --
--- That failure is SAFE: no rows are read, written or deleted, and the apply
--- route stops at the failing statement and returns it. Nothing is half-done.
+-- That failure is SAFE in the sense that matters most -- no rows are read,
+-- written or deleted -- and the apply route now stops at the failing statement
+-- and returns it.
+--
+-- CORRECTION 2026-09-02, from review on PR #2086. This header originally said
+-- the route "stops at the failing statement and returns it. Nothing is
+-- half-done." That was WRITTEN WITHOUT READING THE EXECUTOR and it was false.
+-- The route skipped any error matching /already exists|duplicate/i, and the
+-- message above says "is duplicated" -- so the create was recorded as SKIPPED,
+-- the loop continued, and the response said applied: true with no index
+-- created. The next step in this very file (promote the SQL, run
+-- `prisma migrate resolve --applied`) would then have marked a migration done
+-- that had not happened.
+--
+-- Fixed in the same PR: lib/db/migration-apply-safety.ts classifies a
+-- data conflict as a failure, checked BEFORE the already-exists pattern, and
+-- the route now verifies every index it claimed to create against pg_indexes
+-- before answering applied: true. Both are canaried in
+-- tests/security/migration-apply-error-classification.test.ts.
 --
 -- If it happens, run this READ-ONLY preflight to see the damage before
 -- deciding anything (substitute the table):

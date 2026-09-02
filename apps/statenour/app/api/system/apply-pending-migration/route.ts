@@ -26,6 +26,10 @@
  * then POST { name }.
  */
 import { requireSession } from "@/lib/auth-guard";
+import {
+  classifyStatementError,
+  indexNamesCreatedBy,
+} from "@/lib/db/migration-apply-safety";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -47,10 +51,14 @@ const MIGRATIONS: Record<string, string[]> = {
   // these are known to it, and an index Prisma does not know about is one
   // `db push` will drop. That is failure mode #1 in the sentinel's own header.
   //
-  // A CREATE UNIQUE INDEX here CAN fail on pre-existing duplicate keys. That
-  // failure is safe — no rows touched, the route stops and returns it — and
-  // deduplicating is a DELETE against real operator data, deliberately not
-  // automated here.
+  // A CREATE UNIQUE INDEX here CAN fail on pre-existing duplicate keys. No
+  // rows are touched, the route stops and returns it, and the post-apply
+  // pg_indexes check refuses to answer applied:true while any of these six is
+  // still missing. That check exists because this comment used to claim the
+  // stop happened when it did not: the executor skipped anything matching
+  // /duplicate/i, which the Postgres message contains. See
+  // lib/db/migration-apply-safety.ts. Deduplicating is a DELETE against real
+  // operator data and is deliberately not automated here.
   "20260902000000_restore_idempotency_partials": [
     `CREATE UNIQUE INDEX IF NOT EXISTS "scheduled_actions_idempotency_key_uniq" ON "scheduled_actions"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "task_events_idempotency_key_uniq" ON "task_events"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
@@ -384,12 +392,61 @@ export async function POST(req: Request) {
       results.push({ stmt: label, status: "ok" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (/already exists|duplicate/i.test(msg)) {
-        results.push({ stmt: label, status: "skip" });
-      } else {
+      // classifyStatementError checks the data-conflict pattern FIRST; see
+      // lib/db/migration-apply-safety.ts for why that order is the fix.
+      if (classifyStatementError(msg) === "fail") {
         results.push({ stmt: label, status: "fail", error: msg.slice(0, 200) });
         return Response.json({ applied: false, name, results }, { status: 500 });
       }
+      results.push({ stmt: label, status: "skip" });
+    }
+  }
+
+  // Every index the statements claim to create must actually be in pg_indexes.
+  // Without this the response's `applied: true` rests on "no statement threw
+  // an error we decided to care about", which is not the same claim.
+  const expectedIndexes = indexNamesCreatedBy(statements);
+  const missingIndexes: string[] = [];
+  if (expectedIndexes.length > 0) {
+    // Positional placeholders rather than `= ANY($1::text[])`: array binding
+    // through $queryRawUnsafe is one more assumption than this needs, and it
+    // is not one that can be checked without a database.
+    const placeholders = expectedIndexes.map((_, i) => `$${i + 1}`).join(", ");
+    const present = await prisma
+      .$queryRawUnsafe<{ indexname: string }[]>(
+        `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN (${placeholders})`,
+        ...expectedIndexes,
+      )
+      .catch(() => null);
+    if (present === null) {
+      // A failed verification is not a passed one. Say so rather than
+      // returning applied:true on the strength of a query that never ran.
+      return Response.json(
+        {
+          applied: false,
+          name,
+          results,
+          error: "post-apply index verification could not run — state unconfirmed",
+        },
+        { status: 500 },
+      );
+    }
+    const found = new Set(present.map((r) => r.indexname));
+    missingIndexes.push(...expectedIndexes.filter((n) => !found.has(n)));
+    if (missingIndexes.length > 0) {
+      return Response.json(
+        {
+          applied: false,
+          name,
+          results,
+          missingIndexes,
+          error:
+            `${missingIndexes.length} of ${expectedIndexes.length} indexes are still absent after apply. ` +
+            `For a unique index this usually means the table holds duplicate non-null keys — run the ` +
+            `read-only preflight in the migration file before doing anything else.`,
+        },
+        { status: 500 },
+      );
     }
   }
 
