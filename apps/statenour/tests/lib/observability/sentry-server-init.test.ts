@@ -15,6 +15,9 @@
  * transactions must NOT be shipped to Sentry, which stays errors-only.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const init = vi.hoisted(() => vi.fn());
 vi.mock("@sentry/nextjs", () => ({ init }));
@@ -31,6 +34,8 @@ type InitOptions = {
   sendDefaultPii: boolean;
 };
 
+const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
 const processor = { forceFlush: async () => {}, onStart() {}, onEnd() {}, shutdown: async () => {} };
 const optionsOf = () => init.mock.calls[0][0] as InitOptions;
 
@@ -45,31 +50,42 @@ afterEach(() => {
 });
 
 describe("initSentryServer · sampling when a foreign processor rides along", () => {
-  it("REVIEW FINDING 1: with a processor attached, AI spans must RECORD", () => {
+  it("roots must RECORD, or their AI children never will", () => {
     initSentryServer([processor]);
     const opts = optionsOf();
     expect(opts.openTelemetrySpanProcessors).toEqual([processor]);
-    const sampler = opts.tracesSampler;
-    expect(typeof sampler, "rate 0 makes the sampler return NOT_RECORD and no processor ever runs").toBe("function");
-    expect(sampler?.({ name: "ai.generateText" })).toBe(1);
-    expect(sampler?.({ name: "ai.generateText.doGenerate" })).toBe(1);
-    expect(sampler?.({ name: "langfuse.selfcheck" }), "the boot self-check must record or it reports a false failure").toBe(1);
+    expect(
+      opts.tracesSampleRate,
+      "rate 0 makes the sampler return NOT_RECORD and no processor ever runs",
+    ).toBe(1);
   });
 
-  it("REVIEW FINDING 2: everything else stays NON-recording — Langfuse is not a request-telemetry sink", () => {
+  it("THE DEPLOYED REGRESSION: no name-based tracesSampler — Sentry consults it for ROOT SPANS ONLY", () => {
+    // @sentry/opentelemetry's sampler:
+    //   if (!isRootSpan) return { decision: parentSampled ? RECORD_AND_SAMPLED : NOT_RECORD }
+    // Children inherit the root's decision verbatim, so a sampler that
+    // rejected "POST /api/..." silently killed every `ai.generateText` nested
+    // inside a request — while the BOOT SELF-CHECK, which is a root, still
+    // recorded and reported the pipeline healthy. Shipped, probed, caught.
+    // Containment is the export filter's job, never the sampler's.
     initSentryServer([processor]);
-    const sampler = optionsOf().tracesSampler;
-    for (const name of ["GET /api/habits", "middleware", "prisma:query", "resolve page components", ""]) {
-      expect(sampler?.({ name }), `${name || "(empty)"} must not be recorded`).toBe(0);
-    }
-    expect(sampler?.({})).toBe(0);
+    expect(
+      optionsOf().tracesSampler,
+      "a name-based sampler only sees roots and starves the AI children under them",
+    ).toBeUndefined();
   });
 
-  it("...but none of those transactions are shipped to Sentry — errors only", () => {
+  it("...and none of those recorded transactions reach Sentry — errors only", () => {
     initSentryServer([processor]);
-    const opts = optionsOf();
-    expect(typeof opts.beforeSendTransaction).toBe("function");
-    expect(opts.beforeSendTransaction?.(), "every sampled transaction is dropped before export").toBeNull();
+    expect(typeof optionsOf().beforeSendTransaction).toBe("function");
+    expect(optionsOf().beforeSendTransaction?.()).toBeNull();
+  });
+
+  it("containment lives on the EXPORT side: the config points at the AI-only filter", () => {
+    const config = readFileSync(join(APP_ROOT, "sentry.server.config.ts"), "utf8");
+    expect(config, "the reason sampling can be broad must stay written down").toMatch(/aiOnlySpanProcessor/);
+    const langfuse = readFileSync(join(APP_ROOT, "lib", "observability", "langfuse.ts"), "utf8");
+    expect(langfuse).toMatch(/export function aiOnlySpanProcessor/);
   });
 
   it("with NO processor, tracing stays off entirely — we do not pay for spans nobody reads", () => {
