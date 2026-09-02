@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getDailyCommandBrief } from "@/lib/services/dashboard";
 import { getNourStatusSnapshot } from "@/lib/services/runner-state";
 import { fetchShopSnapshot } from "@/lib/services/bridge";
+import { deriveShopRevenue } from "@/lib/nickstire/shop-revenue";
 import { requireSession } from "@/lib/auth-guard";
 import { cached } from "@/lib/utils/cache";
 
@@ -169,16 +170,15 @@ async function computeCommandData() {
   > | null;
   const bridgeConnected = !!shopData || !!metricsPayload;
 
-  const todayRevenue =
-    shopData?.revenue?.todayEstimate ??
-    metricsPayload?.todayEstimate ??
-    metricsPayload?.revenue?.todayEstimate ??
-    0;
-  const weekRevenue =
-    shopData?.revenue?.weekEstimate ??
-    metricsPayload?.weekRevenue ??
-    metricsPayload?.revenue?.weekEstimate ??
-    0;
+  // 2026-09-02 · "unknown is not $0". nickstire's push now says
+  // `revenue: { available: false, reason, pacing: "unknown" }` on a failed
+  // read (PR #2063); this chain used to fall through every `??` to a literal
+  // 0 and render a failed read as a $0 day. deriveShopRevenue keeps a counted
+  // zero as 0 and turns the ABSENCE of a reading into null + a reason.
+  const { todayRevenue, weekRevenue, revenueAvailable, revenueReason } = deriveShopRevenue(
+    shopData?.revenue,
+    metricsPayload,
+  );
   const todayBookings =
     shopData?.bookings?.todayCount ??
     metricsPayload?.revenue?.jobsToday ??
@@ -217,8 +217,11 @@ async function computeCommandData() {
       unackedAlerts,
     },
     shop: {
+      /** Whole dollars, or null when no source carried a reading — never a fabricated 0. */
       todayRevenue,
       weekRevenue,
+      revenueAvailable,
+      revenueReason,
       todayBookings,
       avgTicket,
       walkRate,

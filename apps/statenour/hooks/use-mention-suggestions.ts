@@ -147,8 +147,11 @@ export function useMentionSuggestions() {
         case "mit":
           if (!mit) return "[MIT: not set yet today]";
           return `[MIT: ${mit.text}${mit.completed ? " (done)" : ""}]`;
-        case "revenue":
-          return `[revenue: today $${s.todayRevenue.toLocaleString()} · week $${s.weekRevenue.toLocaleString()} · pipeline $${Math.round(s.pipelineValue).toLocaleString()}${s.agingCritical > 0 ? ` (${s.agingCritical} aging critical)` : ""}]`;
+        case "revenue": {
+          // null = no reading (bridge + last sync failed) — say so, never "$0".
+          const money = (v: number | null) => (v === null ? "unknown (read failed)" : `$${v.toLocaleString()}`);
+          return `[revenue: today ${money(s.todayRevenue)} · week ${money(s.weekRevenue)} · pipeline $${Math.round(s.pipelineValue).toLocaleString()}${s.agingCritical > 0 ? ` (${s.agingCritical} aging critical)` : ""}]`;
+        }
         case "critical":
           return `[critical: ${s.staleLeads} stale leads · ${s.overdueCommitments} overdue commitments · ${s.urgentItems.length} urgent${s.urgentItems[0] ? ` (top: "${s.urgentItems[0].message}")` : ""}]`;
         case "commits":

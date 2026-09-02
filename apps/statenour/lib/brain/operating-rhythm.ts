@@ -207,7 +207,10 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   // of real shop state. Remapped to the live revenue_today query, read through
   // the canonical readNickRevenue() so the payload contract can't drift again.
   const revData = "data" in revRes ? (revRes as { data?: unknown }).data : undefined;
-  const { todayDollars: todayRevenue, jobs: todayJobCount } = readNickRevenue(revData);
+  const { todayDollars: todayRevenue, jobs: todayJobCount, hasToday: revenueKnown } = readNickRevenue(revData);
+  // 2026-09-02 · a failed/empty revenue read is UNKNOWN, not $0: the cliff
+  // banner and every "Revenue: $…" line below key on revenueKnown.
+  const revenueText = revenueKnown ? `$${todayRevenue.toLocaleString()}` : "unknown (read failed)";
   if ("error" in revRes) {
     log.warn("bridge_query_failed", { query: "revenue_today", error: revRes.error });
   }
@@ -283,15 +286,16 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         // happened to be true at this hour and false as a rule.
         const dayOfWeek = weekdayET();
         const isWeekday = dayOfWeek !== 0 && dayOfWeek !== 6;
-        const cliffBanner =
-          isWeekday && todayRevenue === 0 && todayJobCount === 0
+        const cliffBanner = !revenueKnown
+          ? `⚠️ <b>REVENUE UNKNOWN — bridge read failed</b>\nNot a zero: the reading is missing. Check bridge alive?\n\n`
+          : isWeekday && todayRevenue === 0 && todayJobCount === 0
             ? `🔴 <b>ZERO REVENUE — no jobs logged today</b>\nCheck payment terminal · shop open? · bridge alive?\n\n`
             : "";
 
         message =
           cliffBanner +
           `📊 <b>MID-MORNING CHECK — 11:00 AM</b>\n\n` +
-          `Revenue: <b>$${todayRevenue.toLocaleString()}</b> (${todayJobCount} jobs)\n` +
+          `Revenue: <b>${revenueText}</b> (${todayJobCount} jobs)\n` +
           `${staleLeads > 0 ? `🔴 ${staleLeads} stale leads STILL waiting\n` : "✅ No stale leads\n"}` +
           `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks\n` : ""}` +
           `Tasks: ${openLoops} | Commitments: ${commitments}\n` +
@@ -303,7 +307,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       // 2 PM — Operations shift
       message =
         `🔧 <b>OPERATIONS SHIFT — 2:00 PM</b>\n\n` +
-        `Revenue: <b>$${todayRevenue.toLocaleString()}</b>\n` +
+        `Revenue: <b>${revenueText}</b>\n` +
         `${staleLeads > 0 ? `🔴 ${staleLeads} leads going cold — CALL NOW\n` : ""}` +
         `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks — return before 4pm\n` : ""}` +
         `\nAdderall is fading. Operations mode:\n` +
@@ -338,7 +342,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
 
       message =
         `📋 <b>PRE-CLOSE — 5:00 PM</b>\n\n` +
-        `Revenue: <b>$${todayRevenue.toLocaleString()}</b> (${todayJobCount} jobs)\n` +
+        `Revenue: <b>${revenueText}</b> (${todayJobCount} jobs)\n` +
         `Habits: ${habitsDone}/${habitsTotal}\n` +
         `${todayScore == null ? "⚠️ Score NOT logged\n" : `Score: ${todayScore}/10\n`}` +
         `Tasks: ${openLoops} | Commitments: ${commitments}\n` +
@@ -378,7 +382,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         actor: "operating-rhythm",
         eventType: "rhythm_executed",
         detail: `${activeSlot}: ${todayStr}`,
-        payload: { slot: activeSlot, revenue: todayRevenue, tasks: openLoops, staleLeads, sent } as never,
+        payload: { slot: activeSlot, revenue: revenueKnown ? todayRevenue : null, revenueKnown, tasks: openLoops, staleLeads, sent } as never,
       },
     }).catch(() => {});
 
@@ -386,7 +390,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
     await brainMemory.remember(
       "operating_rhythm",
       `rhythm_${activeSlot}_${todayStr}`,
-      `RHYTHM [${activeSlot}] ${todayStr}: Revenue $${todayRevenue}, ${staleLeads} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
+      `RHYTHM [${activeSlot}] ${todayStr}: Revenue ${revenueKnown ? `$${todayRevenue}` : "unknown (read failed)"}, ${staleLeads} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
       "operating-rhythm-engine",
     ).catch((err) => {
       logError("brain.operating-rhythm", err, { fn: "executeRhythm.rememberRhythm" });
