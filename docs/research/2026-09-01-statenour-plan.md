@@ -7,8 +7,9 @@
 > `b7d0f62f3`; R5's auth half is in #2058. R6 shipped fail-CLOSED in #2060 on operator instruction.
 > **R3's S-1 half took four PRs, not one:** #2059 fenced one of five memory-rendering prompt
 > blocks; #2062 (thread), #2064 (hybrid / anticipatory / chat recall + the producer gate + a
-> behavioural test) and the tool-result PR (`searchMemories`, `searchColdMemory`,
-> `searchConversations`, customer-360 notes) closed the rest. Lesson recorded in the observer
+> behavioural test) and #2065 (`searchMemories`, `searchColdMemory`, `searchConversations`,
+> customer-360 notes, five more tool returns, the aliasing producers, per-tool gate + canary)
+> closed the rest. Lesson recorded in the observer
 > queue: enumerate every assembler before calling a fencing fix done.
 > Still open: R7 `/business`, R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
 > `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` unset), R9 the AI SDK major, the 13 parked components,
