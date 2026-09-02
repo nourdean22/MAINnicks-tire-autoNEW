@@ -59,8 +59,9 @@ export async function autoCloseStaleWorkOrders(): Promise<{ recordsProcessed: nu
 
     return { recordsProcessed: closed, details: `${closed} WOs auto-closed` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Auto-close failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -103,8 +104,9 @@ export async function detectOverdueWorkOrders(): Promise<{ recordsProcessed: num
 
     return { recordsProcessed: overdue.length, details: `${overdue.length} overdue WOs alerted` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Overdue detection failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -403,8 +405,9 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
 
     return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent · ${queued} queued for 8 AM` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Auto campaign retry failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -465,9 +468,19 @@ export async function enrollInDripCampaign(
     const { isEnabled: isEnabledDrip } = await import("./featureFlags");
     if (await isEnabledDrip("sms_retention_sequences")) {
       const finalMsg = trigger === "post-service" ? msg : withOptOut(msg);
-      await sendSms(customer.phone, finalMsg, { via: "shop" });
+      // 2026-09-01 (audit F-3): the result used to be discarded and the log
+      // said "step 1 sent" regardless. The enrollment stands either way (the
+      // processor continues from step 2); the log now says what happened.
+      const { smsOutcome } = await import("../lib/smsOutcome");
+      const outcome = smsOutcome(await sendSms(customer.phone, finalMsg, { via: "shop" }));
+      if (outcome === "failed" || outcome === "uncertain") {
+        log.warn(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome} — enrollment kept, step 2 will still fire)`);
+      } else {
+        log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome})`);
+      }
+    } else {
+      log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 skipped — sms_retention_sequences off)`);
     }
-    log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
   } catch (err: unknown) {
     log.warn(`Drip enrollment failed: ${(err as Error).message}`);
   }

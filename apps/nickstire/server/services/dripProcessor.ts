@@ -332,9 +332,12 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
 
     return { recordsProcessed: sent, details: `${sent}/${due.length} drip steps sent` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9/F-17): a missing table is a deploy-state defect,
+    // not a reason to report `completed` forever. Name it, then rethrow.
     if ((err as Error).message?.includes("drip_enrollments") && (err as Error).message?.includes("doesn't exist")) {
-      return { recordsProcessed: 0, details: "drip_enrollments table not ready" };
+      throw new Error(`drip_enrollments table is missing — apply its migration before this job can run (${(err as Error).message})`);
     }
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    log.error("[dripProcessor] run failed:", { error: (err as Error).message });
+    throw err;
   }
 }

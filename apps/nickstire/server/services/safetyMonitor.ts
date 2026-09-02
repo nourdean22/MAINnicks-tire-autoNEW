@@ -736,7 +736,8 @@ export async function runSafetyCheckJob(): Promise<{ recordsProcessed: number; d
       details: `Safety ${result.overallStatus} (${result.score}/100) — ${result.totalAlerts} alerts (${result.criticalAlerts} critical)`,
     };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — a safety check that cannot run must not read as completed.
     log.error("Safety check job failed", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Error: ${(err as Error).message}` };
+    throw err;
   }
 }

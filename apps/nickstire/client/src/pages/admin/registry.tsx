@@ -223,7 +223,12 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
   },
   {
     id: "campaigns",
-    label: "Winback",
+    // 2026-09-01 (audit, artifact 3 §3): the section holds Campaigns,
+    // Follow-Ups, the SMS inbox, review requests, the orchestrator AND
+    // win-back. "Winback" named one tab and hid the other five; the label now
+    // names the job. `id` and every alias are unchanged, so deep links and
+    // ?tab=campaigns keep working.
+    label: "Outreach",
     icon: <Send className="w-4 h-4" />,
     component: CampaignsSection,
     aliases: ["reengagement", "reengage", "autofollowup", "reviewrequests", "reviews", "winback", "sms", "followups"],

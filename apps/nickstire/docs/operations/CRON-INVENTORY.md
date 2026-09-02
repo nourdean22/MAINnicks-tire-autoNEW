@@ -127,7 +127,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `gsc-pipeline` | no | no | yes | — |
 | `inventory-demand-forecast` | no | no | yes | — |
 | `invoice-cross-reconciliation` | no | no | yes | — |
-| `kpi-snapshot` | no | yes | yes | — |
+| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `low-stock-alerts` | no | no | yes | — |
 | `monte-carlo-forecast` | no | no | yes | — |
 | `no-show-detection` | no | no | yes | — |

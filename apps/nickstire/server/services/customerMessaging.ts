@@ -115,6 +115,49 @@ export async function generateStatusMessage(params: {
   };
 }
 
+// ─── Send a status message for real, then log what happened ─────────
+/**
+ * 2026-09-01 (audit F-2): `dispatch.sendMessage` used to call logStatusMessage
+ * with `status: "sent"` and never send anything — a receipt with no event.
+ * This is the one door: send through the shop gateway as a transactional
+ * confirmation (bypasses quiet hours; a work-order status update is not
+ * marketing), then record the OUTCOME. The row can now say failed.
+ */
+export async function sendWorkOrderStatusMessage(params: {
+  workOrderId: string;
+  customerId?: number | null;
+  trigger: string;
+  channel?: string;
+  recipient: string;
+  message: string;
+  actor?: string;
+}): Promise<{ id: number; outcome: "sent" | "queued" | "failed"; error?: string }> {
+  const channel = params.channel ?? "sms";
+  if (channel !== "sms") {
+    // Only SMS has a delivery path today; anything else is a suggestion, not a send.
+    const id = await logStatusMessage({ ...params, channel, status: "suggested" });
+    return { id, outcome: "failed", error: `no delivery path for channel "${channel}"` };
+  }
+  const { sendSms } = await import("../sms");
+  const { smsOutcome } = await import("../lib/smsOutcome");
+  const result = await sendSms(params.recipient, params.message, {
+    via: "shop",
+    messageClass: "customer_confirmation",
+    humanInitiated: true,
+  }).catch((err: unknown) => ({ success: false, error: err instanceof Error ? err.message : String(err) }));
+  const raw = smsOutcome(result);
+  const outcome: "sent" | "queued" | "failed" = raw === "sent" ? "sent" : raw === "queued" ? "queued" : "failed";
+  const id = await logStatusMessage({ ...params, channel, status: outcome });
+  if (outcome === "failed") {
+    log.warn("[customerMessaging] status message not delivered", {
+      workOrderId: params.workOrderId,
+      trigger: params.trigger,
+      error: (result as { error?: string }).error ?? raw,
+    });
+  }
+  return { id, outcome, error: outcome === "failed" ? (result as { error?: string }).error ?? raw : undefined };
+}
+
 // ─── Log a sent/suggested message ───────────────────
 export async function logStatusMessage(params: {
   workOrderId: string;
@@ -123,7 +166,8 @@ export async function logStatusMessage(params: {
   channel: string;
   recipient: string;
   message: string;
-  status: "sent" | "failed" | "skipped" | "suggested";
+  /** customer_status_messages.status is varchar(20): queued is a legal value (2026-09-01). */
+  status: "sent" | "queued" | "failed" | "skipped" | "suggested";
 }): Promise<number> {
   const { db, customerStatusMessages } = await getDbAndSchema();
 

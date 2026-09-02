@@ -230,13 +230,18 @@ export async function runFollowUps(): Promise<FollowUpRunResult> {
     const skipReason = thankYou.skipReason ?? reviews.skipReason;
 
     if (sent + queued + failed > 0) {
-      await notifyOwner({
-        title: `Follow-Up Report: ${sent} sent · ${queued} queued · ${failed} failed`,
-        content:
-          `24h Thank-You: ${thankYou.sent} sent, ${thankYou.queued} queued, ${thankYou.failed} failed, ${thankYou.skipped} skipped\n` +
-          `7-Day Review Request: ${reviews.sent} sent, ${reviews.queued} queued, ${reviews.failed} failed, ${reviews.skipped} skipped\n\n` +
-          `Review in the admin under Winback → Follow-Ups.`,
-      }).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
+      const title = `Follow-Up Report: ${sent} sent · ${queued} queued · ${failed} failed`;
+      const content =
+        `24h Thank-You: ${thankYou.sent} sent, ${thankYou.queued} queued, ${thankYou.failed} failed, ${thankYou.skipped} skipped\n` +
+        `7-Day Review Request: ${reviews.sent} sent, ${reviews.queued} queued, ${reviews.failed} failed, ${reviews.skipped} skipped\n\n` +
+        `Review in the admin under Outreach → Follow-Ups.`;
+      // notifyOwner is email to CEO_EMAIL, which may be unset (it logs and
+      // skips). Telegram is the channel that demonstrably reaches the owner
+      // (weekly digest), so the report goes there too. Both fire-and-forget.
+      await notifyOwner({ title, content }).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
+      import("./services/telegram")
+        .then(({ sendTelegram }) => sendTelegram(`📨 ${title}\n${content}`))
+        .catch((e) => { log.warn("[follow-ups] telegram report failed:", e); });
     }
 
     return { thankYou, reviews, sent, queued, failed, skipped, total: sent, skipReason };

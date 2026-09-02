@@ -462,8 +462,10 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       details: `Synced: ${payload.bookings.total} bookings, ${payload.leads.total} leads, ${payload.chat.totalSessions} chats`,
     };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — a failed sync used to be recorded as `completed`,
+    // which is exactly the silence the M-1 "$0 crossed the boundary" finding grew from.
     const msg = err instanceof Error ? (err as Error).message : String(err);
     log.error("Statenour sync failed", { error: msg });
-    return { recordsProcessed: 0, details: `Error: ${msg}` };
+    throw err;
   }
 }

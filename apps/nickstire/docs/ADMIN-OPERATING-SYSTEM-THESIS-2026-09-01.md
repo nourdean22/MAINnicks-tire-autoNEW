@@ -8,6 +8,13 @@ Same ref (`origin/main` @ `5c1195e6f`), same limits (no runtime, no live UI, no 
 
 Findings continue the numbering (F-20…). The correction ledger closes at the end.
 
+> **Status after implementation (2026-09-02, PR #2063).** §7's P0 and P1 items shipped except
+> where noted in the PR: the operator-gated migrations (0114–0117) are written, not applied; the
+> Memberships → Customers merge is held (it removes `accountant`'s only door — operator call);
+> Ad Studio in the shell, DVI signature capture, the customer-deletion path (counsel) and
+> retention deletes remain open. New standing canaries: `tableWriterCoverage`,
+> `cronNoSwallowedFailure`, `cronInventoryParity`. Read the PR before re-planning any row here.
+
 ---
 
 ## 0. What the brief got wrong about this shop — and why it matters for every section below

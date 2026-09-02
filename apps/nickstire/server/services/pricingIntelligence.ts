@@ -216,8 +216,9 @@ export async function runPricingIntelligenceJob(): Promise<{
     if (alerts.length > 0) log.info(`Payment-status check: ${details}`);
     return { recordsProcessed: rates.length, details };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Payment-status job failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 

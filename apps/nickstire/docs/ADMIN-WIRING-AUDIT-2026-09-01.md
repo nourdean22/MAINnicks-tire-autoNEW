@@ -364,6 +364,32 @@ scanning. **Any future automated wiring audit of this repo must scan both spelli
 
 ---
 
+### 🟡 F-24 · Seven more writerless tables — found by the canary this audit shipped, not by this audit
+
+**Shape: correction #15 to this document, plus a finding.** §3 said the detector's closure
+property held and listed six candidates. It listed only tables that had *readers* (the
+`.from(x)` / `FROM x` scan was the first filter), so a table with **neither** readers nor
+writers never appeared. The permanent canary that replaced the scan
+(`server/__tests__/tableWriterCoverage.test.ts`, shipped in PR #2063) checks every table for a
+writer regardless of readers, and its first run (2026-09-02) surfaced:
+
+| Table | Class | Evidence |
+|---|---|---|
+| `estimates_log` | documented-writerless | `controlCenter.ts:119` and `estimates.ts:31` both *say in comments* it has no writer; my reader count of 2 was those comments |
+| `form_abandonment` | dead (twin of `abandoned_forms`) | only reference is a `sourceTable` string in `smsOrchestrator.ts:1313` |
+| `waitlist` | dead | router deleted; a rate-limiter line for `waitlist.join` and a registry alias survive |
+| `chat_analytics` | dead | `CREATE TABLE IF NOT EXISTS` in `nick/intelligence.ts:493`, never written or read |
+| `error_log` · `webhook_deliveries` · `user_roles` | dead | no references at all |
+
+Two more (`generation_reservations`, `content_reservations`) were flagged and are **not**
+defects: they are written through `insert(ctx.table)` with the table passed as a variable
+(`generationLedger.ts:106-172`), which no static identifier scan can see. That is the third
+detector blind spot this audit has recorded (raw SQL, qualified identifiers, indirection), and
+the canary allowlists them with that reason.
+
+Retirement of the six dead tables is a DDL decision for the operator; they are listed in
+`docs/operations/DATA-RETENTION-PLAN-2026-09-01.md` as candidates.
+
 ## 5. Things the brief asserted that the repository does not support
 
 Per the brief's own instruction that a wrong premise is itself a finding:
@@ -404,6 +430,11 @@ So: **cut from this artifact, with reasons.** Nothing below is claimed as invest
 ---
 
 ## 7. Immediate actions, ranked by (certainty × harm) ÷ effort
+
+> **Status 2026-09-02 (PR #2063):** items 3, 4, 5 and 6 are shipped (F-1 fix + canaries; the
+> stale audit row corrected; `dispatch.sendMessage` now sends and records the outcome; the
+> writer-coverage canary scans both spellings). Items 1 and 2 — the production flag read and
+> the pre-press rule — remain operator actions.
 
 1. **Read the production value of `sms_review_requests`** (F-1). One flag read decides whether
    "RUN FOLLOW-UPS" is currently consuming real customers. Do this before anything else.

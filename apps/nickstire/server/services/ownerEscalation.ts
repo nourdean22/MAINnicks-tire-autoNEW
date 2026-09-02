@@ -1,0 +1,84 @@
+/**
+ * Owner escalation — the one shape of thing Nick's Tire hands to StateNour.
+ *
+ * Contract (docs/ADMIN-LOOPS-ARCHAEOLOGY-BOUNDARY-2026-09-01.md §3.2): StateNour
+ * holds the OBLIGATION and links back; the operational record stays here. The
+ * receiver already exists — `POST /api/sync/nour-os` with `module: "open_loop"`
+ * turns the event into a Task in the Inbox mission (title, description,
+ * priority, source, domain). This module is the only nickstire code that
+ * should post that shape, so the fields the contract requires are enforced
+ * in one place.
+ *
+ * Never throws, never blocks: fire-and-forget with a 5s timeout, no-op when
+ * STATENOUR_SYNC_KEY is unset. Carries no customer PII — an escalation names
+ * the decision and where to make it, not the customer.
+ */
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("owner-escalation");
+
+export interface OwnerEscalation {
+  /** The rule that fired, snake_case, stable (e.g. "campaign_draft_awaiting_send"). */
+  trigger: string;
+  /** One sentence. No customer names or phones. */
+  summary: string;
+  /** The exact choice being asked for. */
+  decisionRequested: string;
+  /** What happens on each choice, and on no choice by the deadline. */
+  consequence: string;
+  /** ISO time, shop TZ already applied by the caller, or null when open-ended. */
+  deadline: string | null;
+  /** Deep links back into /admin — the registry's ids/aliases are stable. */
+  evidenceLinks: string[];
+  /** Tier from docs/eval-rubrics/autonomous-action-tiers.md and who may decide. */
+  authorization: { tier: 0 | 1 | 2 | 3; role: "owner" | "manager" };
+  /** The nickstire mutation that consumes the decision — an escalation without one is a notification. */
+  writeBack: string;
+  priority?: "low" | "medium" | "high";
+}
+
+export function statenourTarget(): { url: string; key: string } | null {
+  const key = process.env.STATENOUR_SYNC_KEY || "";
+  if (!key) return null;
+  const url = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
+  return { url, key };
+}
+
+/** Pure: the payload the receiver's `open_loop` case reads. Exported for the canary. */
+export function buildOpenLoopPayload(e: OwnerEscalation) {
+  const links = e.evidenceLinks.length ? `\nOpen: ${e.evidenceLinks.join(" · ")}` : "";
+  const deadline = e.deadline ? `\nDeadline: ${e.deadline}` : "";
+  return {
+    module: "open_loop" as const,
+    data: {
+      title: `[Nick's Tire] ${e.decisionRequested}`.slice(0, 150),
+      description:
+        `${e.summary}\n\nConsequence: ${e.consequence}${deadline}${links}` +
+        `\nAuthorization: Tier ${e.authorization.tier}, ${e.authorization.role}` +
+        `\nWrite-back: ${e.writeBack}` +
+        `\nTrigger: ${e.trigger}`,
+      priority: e.priority ?? (e.authorization.tier === 0 ? "high" : "medium"),
+      source: "nickstire",
+      domain: "shop",
+    },
+  };
+}
+
+export function escalateToOwner(e: OwnerEscalation, fetchImpl: typeof fetch = fetch): void {
+  const target = statenourTarget();
+  if (!target) {
+    log.info("escalation not sent — STATENOUR_SYNC_KEY unset", { trigger: e.trigger });
+    return;
+  }
+  const payload = buildOpenLoopPayload(e);
+  void fetchImpl(`${target.url}/api/sync/nour-os`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-sync-key": target.key },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(5000),
+  })
+    .then((res) => {
+      if (!res.ok) log.warn("escalation rejected by StateNour", { trigger: e.trigger, status: res.status });
+    })
+    .catch((err) => log.warn("escalation failed", { trigger: e.trigger, err: err instanceof Error ? err.message : String(err) }));
+}

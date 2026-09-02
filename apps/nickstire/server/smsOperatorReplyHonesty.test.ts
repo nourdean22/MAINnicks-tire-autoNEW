@@ -23,9 +23,10 @@ describe("smsConversations.send · honest receipt", () => {
   it("writes ONE row: sendSms persistence is skipped, the conversation row is the record", () => {
     expect(send).toMatch(/skipPersist: true/);
   });
-  it("derives the row status from the outcome — queued is queued, never 'sent'", () => {
+  it("derives the row status from the outcome, and writes NO router row for a queued reply (the durable queue row is the record)", () => {
     expect(send).toMatch(/const outcome = smsOutcome\(result\)/);
-    expect(send).toMatch(/outcome === "queued" \? "queued"/);
+    expect(send).toMatch(/if \(outcome !== "queued"\) \{\s*await addSmsMessage\(/);
+    expect(send).toMatch(/status: outcome === "sent" \? "sent" : "failed"/);
     expect(send).not.toMatch(/status: result\.success \? "sent" : "failed"/);
   });
   it("tells the client when the reply was queued so it can say so", () => {

@@ -513,6 +513,9 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
 
     const { sendSms } = await import("../../sms");
     let closed = 0;
+    let textsSent = 0;
+    let textsQueued = 0;
+    let textsFailed = 0;
 
     for (const ref of matched) {
       try {
@@ -522,14 +525,22 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
         const [claimRes] = await d.execute(sql`UPDATE referrals SET status = 'visited', updatedAt = NOW() WHERE id = ${ref.id} AND status = 'pending'`);
         if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
 
+        // 2026-09-01 (audit F-3): both results used to be discarded. The credit
+        // is activated by the status flip above, so `closed` still counts the
+        // loop; the texts get their own honest tally.
+        const { smsOutcome: referralOutcome } = await import("../../lib/smsOutcome");
+        const tally = (o: ReturnType<typeof referralOutcome>) => {
+          if (o === "sent") textsSent++; else if (o === "queued") textsQueued++; else textsFailed++;
+        };
+
         // SMS the referrer  (Wave-108: shop gateway, 1:1)
         if (ref.referrerPhone) {
-          await sendSms(String(ref.referrerPhone), `Good news from Nick's Tire & Auto — someone you referred just came in, so your $25 credit is active. Use it on your next visit. (216) 862-0005`, { via: "shop" });
+          tally(referralOutcome(await sendSms(String(ref.referrerPhone), `Good news from Nick's Tire & Auto — someone you referred just came in, so your $25 credit is active. Use it on your next visit. (216) 862-0005`, { via: "shop" })));
         }
 
         // SMS the referred customer  (Wave-108: shop gateway, 1:1)
         if (ref.refereePhone) {
-          await sendSms(String(ref.refereePhone), `Welcome to Nick's Tire & Auto — a friend sent you our way, so you've both got $25 off. Walk in any day. (216) 862-0005`, { via: "shop" });
+          tally(referralOutcome(await sendSms(String(ref.refereePhone), `Welcome to Nick's Tire & Auto — a friend sent you our way, so you've both got $25 off. Walk in any day. (216) 862-0005`, { via: "shop" })));
         }
 
         closed++;
@@ -541,11 +552,17 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
     if (closed > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(`🤝 REFERRAL LOOP: ${closed} referral${closed > 1 ? "s" : ""} matched! Both parties notified with $25 credit.`);
+        // Honest about the texts: the credit is active either way, but
+        // "both parties notified" was a claim the sends never backed.
+        const texts = `${textsSent} sent · ${textsQueued} queued for 8 AM · ${textsFailed} failed`;
+        await sendTelegram(`🤝 REFERRAL LOOP: ${closed} referral${closed > 1 ? "s" : ""} matched — $25 credits active. Texts: ${texts}.`);
       } catch (err) { log.warn("closeReferralLoop: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
-    return { recordsProcessed: closed, details: `${closed} referrals matched and notified` };
+    return {
+      recordsProcessed: closed,
+      details: `${closed} referrals matched · texts ${textsSent} sent, ${textsQueued} queued, ${textsFailed} failed`,
+    };
   } catch (e: unknown) {
     const msg = (e as Error).message;
     if (msg?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No referrals table" };

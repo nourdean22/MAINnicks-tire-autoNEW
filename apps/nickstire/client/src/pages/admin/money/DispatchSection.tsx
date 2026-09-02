@@ -76,7 +76,7 @@ export default function DispatchSection() {
         ))}
       </div>
 
-      {tab === "queue" && <ReadyQueue load={load} />}
+      {tab === "queue" && <ReadyQueue />}
       {tab === "qc" && <QcReview />}
       {tab === "techs" && (
         <>
@@ -160,11 +160,8 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
 }
 
 // ─── Ready Queue ────────────────────────────────────
-function ReadyQueue({ load: loadQuery }: { load: DispatchLoadQuery }) {
+function ReadyQueue() {
   const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000, refetchIntervalInBackground: false });
-  // wave-admin-audit P3 — bays come from the lifted dispatch.load (was a
-  // duplicate 10s subscription on the same key).
-  const { data: load } = loadQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;

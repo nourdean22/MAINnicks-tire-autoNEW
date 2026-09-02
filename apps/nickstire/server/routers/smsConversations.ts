@@ -118,16 +118,21 @@ export const smsConversationsRouter = router({
         const outcome = smsOutcome(result);
         // Status is what happened, not what was attempted: a reply parked for
         // the 8 AM window is "queued", never "sent".
-        const rowStatus = outcome === "sent" ? "sent" : outcome === "queued" ? "queued" : "failed";
-
-        // Record the outbound message
-        await addSmsMessage({
-          conversationId: conversation.id,
-          direction: "outbound",
-          body: input.message,
-          twilioSid: result.sid || undefined,
-          status: rowStatus,
-        });
+        //
+        // A QUEUED reply already has its own durable, conversation-linked row —
+        // queueForLater (sms.ts) persists it with status "queued" and the drain
+        // flips it to "sent". Writing a second row here would show the reply
+        // twice in the thread, one of them stuck at "queued" forever. So the
+        // router records only immediate outcomes (sent / failed).
+        if (outcome !== "queued") {
+          await addSmsMessage({
+            conversationId: conversation.id,
+            direction: "outbound",
+            body: input.message,
+            twilioSid: result.sid || undefined,
+            status: outcome === "sent" ? "sent" : "failed",
+          });
+        }
 
         // Audit the manual operator SMS send — highest daily-use, TCPA-relevant
         // outbound action; was silent before. Records who texted which customer.

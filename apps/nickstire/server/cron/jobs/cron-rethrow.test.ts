@@ -9,8 +9,10 @@
  * This is a CONTRACT CHANGE that the cron runner depends on (status='failed'
  * vs status='completed' in cron_log). A future engineer "cleaning up error
  * handling" — or an AI-assisted refactor — could re-introduce
- * `return { recordsProcessed: 0 }` because that pattern still exists in
- * ~30 other cron jobs in this repo.
+ * `return { recordsProcessed: 0 }`. As of the 2026-09-01 admin audit wave the
+ * swallowing pattern is gone from every scheduled handler (see
+ * cronRethrow2026.test.ts and __tests__/cronNoSwallowedFailure.test.ts, which
+ * fails on any new `details: "Failed: …"` return in a cron handler).
  *
  * This test asserts these specific crons REJECT (don't resolve) when
  * their core dependency throws. If the test fails, someone reverted the

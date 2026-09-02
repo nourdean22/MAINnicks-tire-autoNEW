@@ -72,7 +72,8 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     log.info("Daily report sent", { bookingCount, leadCount, revenue });
     return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: $${revenue}` };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — "Error generating report" was recorded as `completed`.
     log.error("Daily report failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Error generating report" };
+    throw err;
   }
 }

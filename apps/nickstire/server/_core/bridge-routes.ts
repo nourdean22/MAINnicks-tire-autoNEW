@@ -986,9 +986,25 @@ export function registerBridgeRoutes(app: Express): void {
         const { sendTelegram } = await import("../services/telegram");
         await sendTelegram(
           `📝 Win-back campaign DRAFTED by the bridge (not sent)\n\n` +
-          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Winback → Campaigns.`,
+          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Outreach → Campaigns.`,
         );
       } catch (e) { log.warn("[bridge] operation failed:", e); }
+
+      // Owner escalation contract (artifact 4 §3.2): the decision lives in
+      // StateNour's inbox as an obligation with links back — never the rows.
+      try {
+        const { escalateToOwner } = await import("../services/ownerEscalation");
+        escalateToOwner({
+          trigger: "campaign_draft_awaiting_send",
+          summary: `The GPT bridge drafted a win-back campaign (${messages.length} matched in the last ${daysSince} days; segment "${segment}").`,
+          decisionRequested: `Send, edit, or discard win-back draft #${draft.id}`,
+          consequence: "Nothing is sent until you act; the draft simply sits in Outreach → Campaigns.",
+          deadline: null,
+          evidenceLinks: ["/admin?tab=campaigns&outreachTab=campaigns"],
+          authorization: { tier: 0, role: "owner" },
+          writeBack: `campaigns.send({ campaignId: ${draft.id} })`,
+        });
+      } catch (e) { log.warn("[bridge] escalation failed:", e); }
 
       res.json({
         status: "draft_created",
