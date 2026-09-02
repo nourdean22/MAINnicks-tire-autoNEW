@@ -48,6 +48,16 @@
 > "parked" components that were actually superseded (ultron/ask omni-capture duplicate,
 > top-strip ticker + hq-status-chips) deleted; PARKED is 13.
 >
+> **Follow-ups #2062 + the S-1 completion PR (2026-09-02).** An adversarial review of the
+> whole wave diff and a self-review found that S-1 had fenced ONE of the memory-rendering
+> prompt blocks (contextual-recall) while four more reached the system prompt bare:
+> the cross-session thread (#2062), hybrid recall (`formatRecallForPrompt`), anticipatory
+> recall and chat recall. All are fenced at source now; `tests/ai/prompt-block-fencing-gate
+> .test.ts` enumerates every module brain-context imports that interpolates `.content` and
+> requires a fence or an allowlisted reason, and `tests/ai/brain-context-fencing.test.ts`
+> runs the real `buildBrainContext` with malicious text planted in every source and asserts
+> each block arrives fenced AND closed (the #2062 reviewer asked for behaviour, not presence).
+>
 > **Receipts.** Full suite 627 files / 6,732 passed with the #2059 changes in the tree; every
 > check:* gate exit 0 except check:env / check:policy-coverage (need the real env + DB).
 > Positive controls recorded for every new test: middleware 6f/8p, ingest-gmail 5f/1p, recall
