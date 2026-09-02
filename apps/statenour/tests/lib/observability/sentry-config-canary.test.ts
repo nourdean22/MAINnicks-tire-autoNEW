@@ -131,3 +131,39 @@ describe("every runtime config actually uses the shared block", () => {
     expect(usesSharedBlock(mutated)).toBe(false);
   });
 });
+
+describe("browser-bundle safety · sentry.ts must stay Node-free", () => {
+  // lib/observability/sentry.ts is loaded by sentry.client.config.ts, so it
+  // lands in the BROWSER bundle. Importing the Langfuse module from it (for a
+  // shared constant) dragged that file's Node-only @opentelemetry/sdk-node
+  // reference into the client graph and broke `next build` with
+  // module-not-found. The pre-push build gate caught it; this catches it in
+  // milliseconds instead of 80 seconds.
+  const SENTRY_LIB = join(APP_ROOT, "lib", "observability", "sentry.ts");
+  const source = readFileSync(SENTRY_LIB, "utf8");
+
+  function nodeOnlyImports(text: string): string[] {
+    return [...text.matchAll(/^import[^;]*from\s+"([^"]+)";/gm)]
+      .map((m) => m[1])
+      .filter((spec) => /langfuse|sdk-node|@opentelemetry|@sentry/.test(spec));
+  }
+
+  it("imports nothing that reaches a Node-only module", () => {
+    expect(nodeOnlyImports(source), "these would enter the browser bundle via sentry.client.config.ts").toEqual([]);
+  });
+
+  it("the shared span-name constants live in a dependency-free module", () => {
+    const spanNames = readFileSync(join(APP_ROOT, "lib", "observability", "span-names.ts"), "utf8");
+    expect(spanNames).toMatch(/AI_SDK_TRACER_NAME/);
+    expect(spanNames).toMatch(/LANGFUSE_SELFCHECK_SPAN_NAME/);
+    expect(nodeOnlyImports(spanNames)).toEqual([]);
+    expect(spanNames.match(/^import /gm), "span-names.ts must import nothing at all").toBeNull();
+  });
+
+  it("MUTATION CANARY: re-adding the langfuse import in memory makes the gate fail", () => {
+    const mutated = `import { LANGFUSE_SELFCHECK_SPAN_NAME } from "./langfuse";
+${source}`;
+    expect(nodeOnlyImports(source)).toEqual([]);
+    expect(nodeOnlyImports(mutated)).toEqual(["./langfuse"]);
+  });
+});

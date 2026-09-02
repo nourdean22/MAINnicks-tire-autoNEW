@@ -32,6 +32,7 @@
  */
 
 import { logger as rootLogger } from "@/lib/logger";
+import { AI_SDK_TRACER_NAME, LANGFUSE_SELFCHECK_SPAN_NAME } from "./span-names";
 
 const log = rootLogger.withSurface("observability/langfuse");
 
@@ -209,10 +210,10 @@ export interface LangfuseSpanProcessorLike {
   shutdown(): Promise<void>;
 }
 
-/** The tracer name the Vercel AI SDK uses (`trace.getTracer("ai")`, ai@6 dist:2362). */
-export const AI_SDK_TRACER_NAME = "ai";
-/** Our own probe span, emitted on that same tracer — never forwarded to Langfuse. */
-export const LANGFUSE_SELFCHECK_SPAN_NAME = "langfuse.selfcheck";
+// Re-exported from the dependency-free module so the Sentry sampler can share
+// them without pulling this file (and its Node-only OTel imports) into the
+// browser bundle. See span-names.ts.
+export { AI_SDK_TRACER_NAME, LANGFUSE_SELFCHECK_SPAN_NAME };
 const INVALID_TRACE_ID = "00000000000000000000000000000000";
 
 /** Minimal shape of the ended span an OTel processor receives. */

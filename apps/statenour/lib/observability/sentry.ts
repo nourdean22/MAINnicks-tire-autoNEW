@@ -12,7 +12,7 @@
  * and the presence-check badge said "configured").
  */
 import { maskSecretString } from "./secret-mask";
-import { LANGFUSE_SELFCHECK_SPAN_NAME } from "./langfuse";
+import { LANGFUSE_SELFCHECK_SPAN_NAME } from "./span-names";
 
 type Env = Record<string, string | undefined>;
 
