@@ -55,7 +55,13 @@ const FLOORS = { similarity: 0.4, poolConfidence: 0.5 };
 
 const row = {
   id: "w1",
-  key: "nick_advice_cm123",
+  // 2026-09-02 · the suffix here used to be a cuid-shaped fragment, whose
+  // entropy tripped gitleaks' generic-api-key rule and hard-failed CI. Only
+  // the `nick_advice_` PREFIX carries meaning — it is what wisdom-origins
+  // resolves to `chat-scrape`. A plain-word suffix keeps the test identical
+  // and stops a fixture from reading as a credential. Do not quote the old
+  // value in a comment either; that re-trips the same scanner.
+  key: "nick_advice_example",
   content: "Charge for the diagnosis, not the guess.",
   origin: "chat-scrape",
   similarity: 0.87,
@@ -142,7 +148,7 @@ describe("RelatedWisdomRow · rendered markup", () => {
     // An <a href> is keyboard-focusable and Enter-activatable by
     // construction — asserted on output, not on an onClick prop name.
     expect(html).toContain("<a");
-    expect(html).toContain('href="/brain?tab=wisdom&amp;focus=nick_advice_cm123"');
+    expect(html).toContain('href="/brain?tab=wisdom&amp;focus=nick_advice_example"');
   });
 
   it("declares a visible focus state", () => {

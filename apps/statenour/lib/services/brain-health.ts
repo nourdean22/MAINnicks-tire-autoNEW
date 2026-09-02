@@ -29,6 +29,11 @@ export interface CategoryHealth {
   decayed: number;
   /** joined vector_embeddings count */
   vectorized: number;
+  /** Rows this category has that the embed-backfill is ELIGIBLE to embed:
+   *  non-telemetry is decided per category, `confidence >= 0.2` per row. */
+  embeddable: number;
+  /** Of `embeddable`, how many already carry an embedding. */
+  embeddableVectorized: number;
   vectorizedPct: number;
   avgConfidence: number;
   /** Mean seen_count — the REAL sighting counter. avgConfidence cannot be
@@ -59,6 +64,8 @@ export interface MemoryHealthReport {
     vectorizedPct: number;
     /** Embedded rows in categories that are ALLOWED to be embedded. */
     knowledgeVectorized: number;
+    /** Denominator for knowledgeVectorizedPct — rows the embedder may take. */
+    knowledgeEmbeddable: number;
     /** knowledgeVectorized / knowledge — the only coverage figure that can
      *  reach 100%, and the one the UI shows. */
     knowledgeVectorizedPct: number;
@@ -139,6 +146,8 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
     permanent: number;
     decayed: number;
     vectorized: number;
+    embeddable: number;
+    embeddable_vectorized: number;
     avg_conf: number;
     avg_seen: number;
     newest: Date | null;
@@ -155,6 +164,15 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
             ELSE 0
           END)::int AS decayed,
       COUNT(ve.id)::int AS vectorized,
+      -- Rows the embed-backfill would actually pick up. Its predicate is
+      -- deleted_at IS NULL AND confidence >= 0.2 AND NOT telemetry
+      -- (app/api/cron/embed-backfill/route.ts). The confidence floor matters:
+      -- api_token rows are written at confidence 0, so they are knowledge by
+      -- category and ineligible by row — counting them in the denominator
+      -- would permanently depress coverage, which is the same false-backlog
+      -- defect one grain finer than the telemetry one.
+      SUM(CASE WHEN bm.confidence >= 0.2 THEN 1 ELSE 0 END)::int AS embeddable,
+      COUNT(ve.id) FILTER (WHERE bm.confidence >= 0.2)::int AS embeddable_vectorized,
       ROUND(AVG(bm.confidence)::numeric, 3)::float AS avg_conf,
       ROUND(AVG(bm.seen_count)::numeric, 1)::float AS avg_seen,
       MAX(bm.last_seen) AS newest,
@@ -181,6 +199,8 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
       permanent: r.permanent,
       decayed: r.decayed,
       vectorized: r.vectorized,
+      embeddable: r.embeddable,
+      embeddableVectorized: r.embeddable_vectorized,
       vectorizedPct:
         r.count === 0 ? 0 : Math.round((r.vectorized / r.count) * 1000) / 10,
       avgConfidence: r.avg_conf ?? 0,
@@ -213,8 +233,17 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
   // Measured the same day: 93.40% shown, 99.967% of knowledge actually
   // covered, 24 knowledge rows genuinely missing — not 5,187.
   const totalKnowledge = totalLive - totalTelemetry;
+  // Coverage is measured over rows the embedder is ELIGIBLE to take, which is
+  // narrower than "not telemetry": the backfill also requires confidence >=
+  // 0.2, so an api_token row written at confidence 0 is knowledge by category
+  // and ineligible by row. Counting those in the denominator recreates the
+  // false backlog at a finer grain than the telemetry one this replaced.
+  const totalEmbeddable = categories.reduce(
+    (s, c) => s + (c.telemetry ? 0 : c.embeddable),
+    0,
+  );
   const knowledgeVec = categories.reduce(
-    (s, c) => s + (c.telemetry ? 0 : c.vectorized),
+    (s, c) => s + (c.telemetry ? 0 : c.embeddableVectorized),
     0,
   );
 
@@ -230,10 +259,11 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
       vectorizedPct:
         totalLive === 0 ? 0 : Math.round((totalVec / totalLive) * 1000) / 10,
       knowledgeVectorized: knowledgeVec,
+      knowledgeEmbeddable: totalEmbeddable,
       knowledgeVectorizedPct:
-        totalKnowledge === 0
+        totalEmbeddable === 0
           ? 0
-          : Math.round((knowledgeVec / totalKnowledge) * 1000) / 10,
+          : Math.round((knowledgeVec / totalEmbeddable) * 1000) / 10,
       categoryCount: categories.length,
       telemetry: totalTelemetry,
       knowledge: totalKnowledge,
