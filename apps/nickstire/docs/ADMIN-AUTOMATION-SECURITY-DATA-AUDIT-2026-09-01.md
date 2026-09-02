@@ -116,6 +116,8 @@ only, no persistent claim, lowest severity); `workOrderAutomation.ts:278-290` (F
 
 ### 🔴 F-6 · `estimate-followup` cron: F-1's unattended twin
 
+> **Correction #18 (2026-09-02):** this twin never sent a text and never could -- its table does not exist in production (see F-17, correction #18). The counter/claim fixes shipped for it in PR #2063 were theater on a dead job; the job is retired in the follow-up PR and `alg_estimates` recovery is the one estimate follow-up path.
+
 `services/workOrderAutomation.ts:246-296` (`processEstimateFollowUp`), registered in the
 **daily** tier at `cron/scheduler.ts:2188-2192`.
 
@@ -404,6 +406,8 @@ work orders; and the operational truth lives in strings. Any "vehicle history" f
 currently impossible to build honestly.
 
 ### 🟠 F-17 · Schema drift — columns the ORM does not know, relied on by crons
+
+> **Correction #18 (2026-09-02, found while applying 0114 to production):** the `estimates` half of this finding was wrong in kind, not degree. Production has NO `estimates` table -- it never existed in any migration or in `drizzle/schema.ts` (only `alg_estimates` and `estimates_log` do). `processEstimateFollowUp` queried a phantom; the job had failed on every run since it was written, and its subject was already covered by `declinedWorkRecovery` on `alg_estimates`. Retired in the follow-up PR; 0114 now adds only `customers.lastEmailCampaignAt`. A raw-SQL table-existence canary (`server/__tests__/rawSqlTablesExist.test.ts`) now catches this class.
 
 Detector: every raw-SQL `UPDATE <table> SET <column>` in `server/**` (6 found across
 `estimates|bookings|customers|invoices|leads|work_orders|tire_orders`) checked against the
