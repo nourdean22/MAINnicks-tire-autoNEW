@@ -1,33 +1,53 @@
 # Session ledger — statenour
 
-**Updated:** 2026-08-28 (escalation + follow-ups wave)
+Updated: 2026-09-01
 
-**Objective:** chat-stack completion — WP1 (routing) and WP3 (job substrate), per the
-2026-08-28 build order.
+**Updated:** 2026-09-01 (audit wave · #2057 docs · #2058 P0 · #2059 wiring · #2060 N-1 follow-up)
 
-**Shipped:** #1977 (Phase 0 + WP2 durable resume) · #1983 (escalate-on-ask + agent
-follow-ups + rule-7 verification pass).
+**Objective:** land the 2026-09-01 research brief + forensic audit, synthesize them into one
+decision document, then fix every defect the audit VERIFIED — each with a test that failed
+first — and prove the P0 closed on production. Read
+`docs/research/2026-09-01-statenour-plan.md` before re-deriving any of it.
 
-**Last decision (operator, reversed twice — final answer stands):**
-"all frontier" -> "no dont switch from ollama" -> "keep ollama but escalate".
-Ollama Cloud is the base chat lane. A turn reaches a metered Anthropic model ONLY on an
-explicit depth marker (/deep, /thorough, /mega, "comprehensive", "deep dive",
-"spare no expense"). The complexity-classifier alternative was BUILT, MEASURED AND
-REJECTED — do not retry it (p50 operator message is 64 chars; classifyCore returns
-"quick" for most real asks).
+**Shipped:** #2057 `ca056cbc2` (5 docs) · #2058 `1bc3d43b0` (P0: dotted-path session-gate
+bypass, BOTH halves — `isStaticFile()` + root-level matcher; verified 307 on prod `1bc3d43`
+at 2026-09-02 00:13Z for /decisions/1.2, 9.9, abc.def, 1.png, 1.js) · #2059 `b7d0f62f3`
+(P-1 memory quarantine wired to inbound gmail via `lib/brain/external-memory-intake.ts`;
+S-1 recall fenced as `memory_recall`; W-1 dead top ticker deleted + layout comment
+corrected; W-3 BottomPulseTicker rendered in the a11y test; R5 `tests/repo/ui-mount-graph
+.test.ts` reachability gate with PARKED + inverse check) · #2060 (N-1 `NICK_MUTATION_LOCK`
+fails CLOSED at both enforcement points; three superseded Ultron components deleted, PARKED
+= 13) — see RECONCILIATION top.
 
-**Blocker:** none code-side. Operator-side switches, all off by design:
-  · ANTHROPIC_API_KEY — until set, escalation is inert AND says so (X-Escalation-Blocked)
-  · NICK_AGENT_FOLLOWUPS=1 + the per-cron kill switch + wiring agent-followups into
-    lib/inngest/jobs.ts — all three required before a single unprompted message can fire
-  · optional: NICK_ESCALATION_DAILY_CAP (default 20), NICK_FOLLOWUP_* caps
+**Behaviour change to know about:** inbound gmail memories now wait for review at
+/system/inbox instead of landing in BrainMemory automatically (sent mail + Apple Notes
+still write directly). Telegram nudges unaffected.
 
-**Next action:** mission promotion + Inngest Realtime progress streaming is the one WP3
-piece NOT built. Substrate verified (inngest@4.4.0 exports ./realtime in-SDK) — and use
-`throttle`, NOT `rateLimit`: rateLimit silently SKIPS excess runs, which for a
-user-initiated mission means the turn vanishes.
+**Last decision (operator):** "every upgrade, don't stop until merged" — so N-1's failure
+direction (fail closed, matching middleware.ts) shipped instead of waiting; reverting is one
+line per file. The 2026-08-28 decision still stands: Ollama Cloud is the base chat lane,
+metered Anthropic only on an explicit depth marker; the complexity classifier was built,
+measured and REJECTED — do not retry it.
 
-**Open operator decision:** the AI SDK's DOCUMENTED resume pattern is resumable-stream +
-Redis; ours is a Postgres poll. REDIS_URL IS set on Railway, so adopting the documented
-pattern is available and would delete our tail loop — needs an UPSTREAMS row and a go.
-See docs/audits/CHAT-COMPLETION-PHASE0-2026-08-28.md §5.
+**Blocker:** none code-side. Operator-side switches carried from 2026-08-28, all off by
+design: ANTHROPIC_API_KEY (escalation inert + says so until set) · NICK_AGENT_FOLLOWUPS=1 +
+the per-cron kill switch + wiring agent-followups into lib/inngest/jobs.ts (all three before
+a single unprompted message can fire) · optional NICK_ESCALATION_DAILY_CAP / NICK_FOLLOWUP_*.
+
+**Open operator decisions (do NOT decide on agent initiative):**
+  · /business — de-linked but routable + AI-routable; its Clients tab is the coaching CRM,
+    not the tire shop. Delete vs move vs re-link.
+  · langfuse:false + sentry:false in production (/api/version) — Railway env, not code.
+  · AI SDK v6 → v7 (providers a full major behind).
+  · The 13 remaining PARKED components (3D scene, actions/loops island, compound-chain,
+    four Ultron cards) — re-mount or delete.
+  · Routing drive / calendar / reviews ingestion through the intake — inbox-volume call.
+  · Carried from 2026-08-28: WP3 mission promotion + Inngest Realtime progress streaming is
+    NOT built (use `throttle`, not `rateLimit` — rateLimit silently SKIPS excess runs);
+    resumable-stream + Redis vs the Postgres poll needs an UPSTREAMS row and a go
+    (docs/audits/CHAT-COMPLETION-PHASE0-2026-08-28.md §5).
+
+**Next action:** exercise ONE authenticated control end to end (the audit's largest gap —
+read-only mode never ran a handler → API → authz → DB → UI round trip), starting with
+/system/inbox review → BrainMemory commit for a quarantined gmail item, since #2059 made that
+path live.
