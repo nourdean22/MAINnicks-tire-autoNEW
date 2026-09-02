@@ -331,8 +331,26 @@ export const journalRouter = router({
    *
    * Renders "12 entries this week · 3 new domains · 2 beliefs revised"
    * as a one-liner above the feed. Delegates to measureLearningVelocity
-   * which already produces this shape for /brain. Single read, no
-   * mutations · cached for the page session.
+   * which already produces this shape for /brain.
+   *
+   * 2026-09-02 · "Single read, no mutations" is now TRUE. It was not: the
+   * helper ended in a `brainMemory.upsert(...).catch(() => {})`, so this
+   * QUERY wrote a row on every Memory-tab render, and the write's failure
+   * was invisible. The snapshot moved to `snapshotLearningVelocity()`, which
+   * the nightly /api/cron/intelligence fan-out owns.
+   *
+   * Every field below carries its window in its NAME. The previous mapping
+   * put a 7d count, two 30d counts, and one LIFETIME running total into a
+   * single row the UI labelled "velocity" under a "vs 30d ago" header —
+   * `contradictionsResolved` had no date filter at all, so it could only go
+   * up and would never show a bad week.
+   *
+   * Failure propagates rather than returning null. `null` was the only
+   * signal a caller had, and the scoreboard hides on null — so a broken
+   * brain-helper read rendered as a clean, empty dashboard. There is no
+   * genuine "empty" state for this digest (it always returns numbers), so
+   * null could ONLY ever have meant failure; the client renders `isError`
+   * explicitly instead. Still logged before it leaves.
    */
   learningVelocity: operatorProcedure.query(async () => {
     try {
@@ -340,15 +358,18 @@ export const journalRouter = router({
       return {
         memoriesThisWeek: v.memoriesCreated.thisWeek,
         memoriesDelta: v.memoriesCreated.delta,
-        newConnections: v.connections.new,
-        contradictionsResolved: v.contradictions.resolved,
-        wisdomPromotions: v.wisdomPromotions.recent,
+        memoryPctChange30d: v.memoryGrowth30d.pctChange,
+        memoriesLast30d: v.memoryGrowth30d.last30d,
+        memoriesPrior30d: v.memoryGrowth30d.prior30d,
+        newConnections30d: v.connections.last30d,
+        contradictionsResolved30d: v.contradictions.resolvedLast30d,
+        wisdomCreated30d: v.wisdomCreated.last30d,
         healthScore: v.healthScore,
-        overallGrowth: v.overallGrowth,
+        healthScoreMax: v.healthScoreMax,
       };
     } catch (err) {
       log.warn("learning_velocity_failed", { error: sanitizeError(err) });
-      return null;
+      throw err;
     }
   }),
 

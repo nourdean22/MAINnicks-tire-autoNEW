@@ -239,10 +239,20 @@ export function clusterKey(content: string): string {
 export interface ListDiscoveriesResult {
   items: Discovery[];
   /**
-   * Unrated count among the rows actually scanned — drives the tab badge and
-   * the "nothing new" empty state. When `truncated` is true this is a FLOOR,
-   * not a total: the scan stopped at MAX_SCAN or once `limit` unrated rows
-   * were in hand. Reported rather than silently capped.
+   * Unrated rows in the window — drives the tab badge and the "nothing new"
+   * empty state. An EXACT count, straight from the scoped SQL below (see the
+   * `countRows` query and its comment), and therefore never a floor: it is
+   * unaffected by where the card scan stopped.
+   *
+   * It used to be derived from the bounded scan, and this docstring described
+   * it as a lower bound whenever `truncated` was set. That stopped being true
+   * on 2026-08-22 when the count moved to SQL — and the `truncated` docstring
+   * twelve lines down has said so ever since, so the two contradicted each
+   * other inside the same interface. A consumer who believed this half
+   * appended "+" to an exact number, which is verbatim the defect (56 rendered
+   * against a true 242) this surface was rebuilt to remove.
+   * `unratedClusters` and `suppressedSimilar` are the bounded ones; these two
+   * are not.
    */
   unrated: number;
   /**
@@ -279,6 +289,10 @@ export interface ListDiscoveriesResult {
    * judgement), so a verdict binds forever. Counted, never silent — an
    * invisible effect is indistinguishable from no effect. Bounded by the card
    * scan: a floor whenever `truncated` is true.
+   *
+   * EXCLUDES rows the recurrence policy deliberately resurfaced (non-empty
+   * `verdictHistory`). Those are not regenerated twins, and counting them here
+   * described an escalation as a duplicate — see the exemption in the filter.
    */
   suppressedSimilar: number;
 }
@@ -461,6 +475,48 @@ export async function listDiscoveries(
     }
     if (suppressedIdentity.size > 0) {
       keptUnrated = unrated.filter((d) => {
+        // A DELIBERATELY RESURFACED ROW IS EXEMPT — and this exemption is the
+        // whole point of the clause.
+        //
+        // blind-spot-identity.ts:525-530 records the resurface-is-a-no-op
+        // defect being caught once already: the escalation write cleared
+        // `metadata` but not the column, every reader preferred the column,
+        // and the cron reported `resurfaced: 1` over a spot nobody could see.
+        // The fix there was to clear BOTH. This clause reintroduced the same
+        // outcome from one layer up, and it could never be seen from inside
+        // that module:
+        //
+        //   · rateDiscoveryCluster writes the verdict onto the head AND every
+        //     sibling row (see its member loop below);
+        //   · the legacy-key inheritance bridge copies a verdict onto the new
+        //     stable-key row and NEVER clears the legacy row it read — and
+        //     that legacy population is the real one (255 rows already written
+        //     as `blindspot_<domain>_<epoch>`, per the note at its first-
+        //     sighting branch);
+        //   · but persistBlindSpot's escalation clears the verdict on exactly
+        //     ONE row, the stable-key `findUnique({ category_key })` row.
+        //
+        // So the escalated row comes back unrated while a sibling or its own
+        // legacy ancestor still carries `known`/`noise` under the SAME
+        // `provenance|clusterKey` — clusterKey() strips the `[TIER]` prefix,
+        // so the escalation is invisible to the identity — and this filter
+        // then re-suppressed it. Consequence: the amber "you called this noise
+        // … it is back because severity rose from X to Y" banner in
+        // discover-tab could NEVER render for a spot whose verdict arrived via
+        // the bridge or a multi-row cluster, and the spot was instead counted
+        // under "N suppressed — regenerated copies of findings you already
+        // judged", which is a false description of a revival the recurrence
+        // policy deliberately performed.
+        //
+        // `verdictHistory` is exactly the banner's own condition (it renders
+        // on `history.length > 0 && !d.verdict`), and it is written together
+        // with `discoveryResurfacedAt` on BOTH resurface paths in
+        // blind-spot-identity.ts. Binding the exemption to the same field the
+        // UI branches on is deliberate: they cannot drift apart into a card
+        // that is shown without its explanation, or an explanation with no
+        // card. A row the operator has since re-judged is `rated`, so it never
+        // reaches this filter at all.
+        if (d.verdictHistory.length > 0) return true;
         const hit = suppressedIdentity.has(`${d.provenance}|${clusterKey(d.content)}`);
         if (hit) suppressedSimilar++;
         return !hit;
@@ -718,7 +774,9 @@ export async function rateDiscovery(
  *     sibling loop and returned `{ ok: true, rated: 11, failed: 1 }` having
  *     written NO ledger row and spawned NO task. The operator saw "saved 11 of
  *     12" and reasonably expected the Inbox task that never appeared. A live
- *     head is now elected from the candidates instead of assumed.
+ *     head is now elected from the candidates instead of assumed — and elected
+ *     in the CALLER'S order, because the candidate query has no `orderBy`; see
+ *     the election itself for why a sibling's text is not interchangeable.
  *
  *  2. THE CLIENT ONLY KNOWS THE ROWS THE SCAN REACHED. `clusterIds` is built
  *     from rows inside the paging window, which stops early. A cluster
@@ -738,6 +796,9 @@ export async function rateDiscoveryCluster(
   const unique = [...new Set(ids)];
   if (unique.length === 0) return { ok: false, rated: 0, failed: 0 };
 
+  // NOTE the absence of an `orderBy`: `IN (...)` has no defined row order in
+  // Postgres, so this list must NOT be treated as ranked. The head is elected
+  // from `unique` below instead.
   const candidates = await prisma.brainMemory.findMany({
     where: { id: { in: unique } },
     select: {
@@ -755,10 +816,32 @@ export async function rateDiscoveryCluster(
   // "saved 60 of 3".
   const liveIds = new Set(live.map((r) => r.id));
   const failedUpFront = unique.filter((id) => !liveIds.has(id)).length;
-  if (live.length === 0) return { ok: false, rated: 0, failed: unique.length };
 
-  // Elect a live head rather than trusting ids[0].
-  const head = live[0];
+  // Elect a live head IN THE CALLER'S ORDER, not the query's.
+  //
+  // `live[0]` was `candidates[0]` filtered — and `candidates` comes from a
+  // `findMany({ where: { id: { in: unique } } })` with NO `orderBy`, so its
+  // order is whatever the plan produced (index scan order, not the IN-list).
+  // The client sends `d.clusterIds`, whose [0] IS the row the operator read
+  // (clusterDiscoveries seeds `clusterIds: [d.id]` with the head first), and
+  // that ordering was being thrown away.
+  //
+  // It matters because cluster members share a NORMALISED key, not identical
+  // text: clusterKey() collapses a LEADING digit run to `#`, which this file
+  // documents as live for `${pendingDecisions} decisions awaiting review`. So
+  // the head's `content` — used VERBATIM as the ledger `summary` and as the
+  // spawned task `title` in rateDiscovery — could be a sibling's wording. The
+  // operator taps "9 decisions awaiting review" and gets an Inbox task titled
+  // "14 decisions awaiting review"; the ledger records a claim he never saw,
+  // and the title-hash bridge in checkTask joins on the wrong string.
+  //
+  // Scanning `unique` and taking the first LIVE match keeps review fix #1
+  // intact — a soft-deleted ids[0] still falls through to the next candidate
+  // instead of stranding the side effects — while making the ordinary case
+  // deterministic and equal to what was on screen.
+  const liveById = new Map(live.map((r) => [r.id, r]));
+  const head = unique.flatMap((id) => liveById.get(id) ?? []).at(0);
+  if (!head) return { ok: false, rated: 0, failed: unique.length };
   const identity = `${readProvenance(head.metadata, head.discoveryProvenance)}|${clusterKey(head.content)}`;
 
   // Re-derive full membership. Bounded by MAX_SCAN for the same reason the feed

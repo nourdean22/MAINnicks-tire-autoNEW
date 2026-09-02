@@ -13,8 +13,8 @@
  *   REDUNDANT  · two wisdoms with cosine ≥ 0.92 and overlapping topic
  *                tags · candidate for merge (keep higher confidence)
  *
- *   LOW_TRUST  · operator-promoted but confidence < 0.5 after multiple
- *                last-seen events · pattern of doubt-then-deprecate
+ *   LOW_TRUST  · recalled in the last 14 days but confidence has drifted
+ *                into [0.2, 0.5) · losing trust while still firing
  *
  * Why operator-confirm not auto-edit · the wisdom corpus is the brain's
  * memory · auto-demoting based on heuristics could erase the operator's
@@ -238,10 +238,21 @@ export async function findRedundantPairs(
 }
 
 /**
- * Find low-trust wisdoms · operator promoted them at some point
- * but confidence drifted below 0.5 with multiple last-seen events
- * (pattern of doubt). These are NOT stale (they're being recalled)
- * but are losing trust.
+ * Find low-trust wisdoms · recalled inside the last 14 days but with
+ * confidence in [0.2, 0.5). These are NOT stale (they're being
+ * recalled) but are losing trust.
+ *
+ * 2026-09-02 self-audit, defect #4: the docstring here (and the module
+ * header) used to promise two predicates the query has never contained
+ * — "operator promoted them at some point" (a `createdBy` filter) and
+ * "with multiple last-seen events" (a `seenCount` filter). The DOC was
+ * the outlier, not the query: `components/brain/wisdom-evolution-panel.tsx:20`
+ * and `app/api/brain/wisdom/evolution/route.ts:9` both already describe
+ * the real behaviour ("active recently but conf < 0.5"), so the promise
+ * moved to match the code rather than the reverse. Adding the two
+ * predicates would have silently shrunk the operator's review list —
+ * `createdBy` alone would drop every cron-distilled row — on the
+ * strength of a docstring nobody had verified.
  */
 export async function findLowTrustCandidates(): Promise<LowTrustCandidate[]> {
   const recentCutoff = new Date(Date.now() - 14 * 86_400_000);
@@ -273,25 +284,70 @@ export async function findLowTrustCandidates(): Promise<LowTrustCandidate[]> {
   }));
 }
 
-/**
- * One-shot · runs all three candidate finders and returns a merged
- * report. Counts kept separate so the UI can tab between them.
- */
-export async function runWisdomEvolution(): Promise<{
+/** Which finder failed, and why · one entry per rejected finder. */
+export interface EvolutionFinderFailure {
+  finder: "stale" | "redundant" | "lowTrust";
+  message: string;
+}
+
+export interface EvolutionReport {
   stale: StaleCandidate[];
   redundant: RedundantPair[];
   lowTrust: LowTrustCandidate[];
   totalCandidates: number;
-}> {
-  const [stale, redundant, lowTrust] = await Promise.all([
+  /**
+   * Empty on a clean run. NON-EMPTY MEANS THE REPORT IS PARTIAL — a
+   * zero in the corresponding list is "unknown", not "none". The panel
+   * must say so rather than rendering the healthy-corpus empty state.
+   */
+  failures: EvolutionFinderFailure[];
+}
+
+/**
+ * One-shot · runs all three candidate finders and returns a merged
+ * report. Counts kept separate so the UI can tab between them.
+ *
+ * 2026-09-02 self-audit, defect #1. This was a bare `Promise.all`, so
+ * one finder throwing rejected the whole query — and the panel, which
+ * read only `data` and `isLoading`, then rendered "No candidates · the
+ * wisdom corpus is healthy" over a query that had FAILED. Two halves to
+ * the fix and both are needed: `allSettled` here so a single failing
+ * finder no longer costs the other two, and `failures` so a partial
+ * result is never passed off as a complete one. Silently returning two
+ * of three lists would just move the same lie one layer down.
+ *
+ * `findRedundantPairs` is the realistic failure: it is O(n^2) over
+ * every wisdom embedding and JSON-parses each vector.
+ */
+export async function runWisdomEvolution(): Promise<EvolutionReport> {
+  const [staleR, redundantR, lowTrustR] = await Promise.allSettled([
     findStaleCandidates(),
     findRedundantPairs(),
     findLowTrustCandidates(),
   ]);
+
+  const failures: EvolutionFinderFailure[] = [];
+  function take<T>(
+    finder: EvolutionFinderFailure["finder"],
+    result: PromiseSettledResult<T[]>,
+  ): T[] {
+    if (result.status === "fulfilled") return result.value;
+    const message =
+      result.reason instanceof Error ? result.reason.message : String(result.reason);
+    logError("brain.wisdom-evolution", result.reason, { fn: `runWisdomEvolution.${finder}` });
+    failures.push({ finder, message: message.slice(0, 200) });
+    return [];
+  }
+
+  const stale = take("stale", staleR);
+  const redundant = take("redundant", redundantR);
+  const lowTrust = take("lowTrust", lowTrustR);
+
   return {
     stale,
     redundant,
     lowTrust,
     totalCandidates: stale.length + redundant.length + lowTrust.length,
+    failures,
   };
 }

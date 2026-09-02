@@ -29,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { cached, invalidate } from "@/lib/utils/cache";
+import { logError } from "@/lib/utils/error-log";
 
 // 2026-08-06 · buildQualitativeContextBlock fires on every /chat turn
 // (1417 of 1417 sampled turns over 30d) and reads one slowly-changing
@@ -309,8 +310,22 @@ export async function loadQualitativeIdentity(): Promise<QualitativeIdentity> {
     if (row) {
       try {
         return JSON.parse(row.content) as QualitativeIdentity;
-      } catch {
-        // fall through
+      } catch (err) {
+        // 2026-09-02 · this was a bare `// fall through` with NO log, and
+        // the fall-through is not cheap: computeQualitativeIdentity()
+        // scans 60 days of reflections + chat_importance and WRITES two
+        // BrainMemory rows. A single malformed `current` blob therefore
+        // turned every cache miss into a silent full recompute — the row
+        // is only rewritten at the end of that recompute, so the state is
+        // self-healing but the symptom (latency on a hot /chat path) had
+        // no trace anywhere. Every OTHER JSON.parse in this subsystem
+        // that matters logs; this one did not.
+        logError(
+          "brain.qualitative-identity",
+          err,
+          { fn: "loadQualitativeIdentity", key: "current", action: "recompute" },
+          "warn",
+        );
       }
     }
     return computeQualitativeIdentity();

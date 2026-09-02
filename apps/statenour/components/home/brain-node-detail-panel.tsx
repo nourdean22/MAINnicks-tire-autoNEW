@@ -310,12 +310,28 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
           ask nick about this
         </button>
         <div className="grid grid-cols-2 gap-1.5">
+          {/* A node with no in-view edges cannot HAVE a neighbourhood: the
+              focus BFS walks the same edge list rendered here, finds
+              nothing, and finalizeGraph then strips the focus node itself
+              as degree-0 — so the request deterministically returns
+              `nodes: []`. The UNLINKED tray exists to show exactly these
+              nodes and, since a memory node has no href, opens this panel;
+              pressing focus from there used to land on "the brain returned
+              no nodes · capture memories, missions or goals". Say what is
+              true instead of offering a button whose only outcome is a
+              misleading empty state. */}
           <button
             onClick={() => onFocusNode(node.id)}
-            className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1"
+            disabled={inViewConnections.length === 0}
+            title={
+              inViewConnections.length === 0
+                ? "this node has no connections in the loaded graph — there is no neighbourhood to focus"
+                : undefined
+            }
+            className="text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-(--border-default)"
           >
             <Compass size={11} />
-            focus graph
+            {inViewConnections.length === 0 ? "no connections" : "focus graph"}
           </button>
           {node.href && (
             <button

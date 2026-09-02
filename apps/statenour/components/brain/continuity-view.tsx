@@ -68,11 +68,13 @@ interface ContinuityPayload {
     reinforced: Memory[];
     decayed: Memory[];
     promoted: Memory[];
-    prunedEstimate: number;
+    /** Rows TOMBSTONED in the last 24h — see brain-continuity.ts. */
+    prunedLast24h: number;
   };
   topReinforced: Memory[];
   topConfidence: Memory[];
-  categoryMovers: Array<{ category: string; delta24h: number; delta7d: number; total: number }>;
+  /** `created*` — new rows only. A touched row is not growth. */
+  categoryMovers: Array<{ category: string; created24h: number; created7d: number; total: number }>;
   computedAt: string;
 }
 
@@ -154,11 +156,19 @@ export function BrainContinuityView() {
           <TotalCell label="active" value={data.totals.active} color="emerald" />
           <TotalCell label="expired" value={data.totals.expired} color="tertiary" />
         </div>
-        {data.recent.prunedEstimate > 0 && (
-          <p className="mt-2 text-[10px] text-[var(--text-tertiary)] text-center">
-            ~{data.recent.prunedEstimate} decayed/pruned in the last cycle
-          </p>
-        )}
+        {/* These two were THE SAME NUMBER until 2026-09-02 — `expired`
+            (past TTL, still live) was also rendered here as "~N
+            decayed/pruned in the last cycle". A row cannot be both, and
+            the pruned line was the false one, so it read near-zero right
+            after a healthy sweep. The labels now say which population
+            each describes, and the second reads a real count. */}
+        <p className="mt-2 text-[10px] text-[var(--text-tertiary)] text-center leading-relaxed">
+          expired = past TTL, awaiting the nightly sweep ·{" "}
+          <span className="text-[var(--text-secondary)] tabular-nums">
+            {data.recent.prunedLast24h}
+          </span>{" "}
+          tombstoned in the last 24h
+        </p>
       </GlassCard>
 
       {/* ── Category movers ── */}
@@ -166,11 +176,14 @@ export function BrainContinuityView() {
         <GlassCard>
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp size={13} className="text-[var(--gold)]" />
-            <span className="section-label">Category movers · last 24h</span>
+            <span className="section-label">Category movers · new rows, last 24h</span>
           </div>
           <div className="space-y-1">
+            {/* `created24h`, not the old touched-row count: recall bumps
+                updatedAt on every wisdom row it returns, so the flame used
+                to light for categories that had been READ, not grown. */}
             {data.categoryMovers.slice(0, 8).map((m) => {
-              const ratio = m.total > 0 ? m.delta24h / m.total : 0;
+              const ratio = m.total > 0 ? m.created24h / m.total : 0;
               const hot = ratio > 0.3;
               return (
                 <div
@@ -187,8 +200,8 @@ export function BrainContinuityView() {
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-3 text-[9px] font-mono tabular-nums">
-                    <span className={hot ? "text-[var(--gold)]" : "text-[var(--text-secondary)]"}>+{m.delta24h}<span className="text-[var(--text-tertiary)]">/24h</span></span>
-                    <span className="text-[var(--text-tertiary)]">+{m.delta7d}/7d</span>
+                    <span className={hot ? "text-[var(--gold)]" : "text-[var(--text-secondary)]"}>+{m.created24h}<span className="text-[var(--text-tertiary)]">/24h</span></span>
+                    <span className="text-[var(--text-tertiary)]">+{m.created7d}/7d</span>
                     <span className="text-[var(--text-tertiary)]">total {m.total}</span>
                   </div>
                 </div>
@@ -241,6 +254,16 @@ export function BrainContinuityView() {
             <span className="section-label">Top confidence · all time</span>
           </div>
           <MemoryList memories={data.topConfidence} emptyMsg="no high-conf memories yet" highlight="confidence" />
+          {/* The ORDER here is by the confidence column, which is honest.
+              What is NOT honest is reading that column as certainty: the
+              list filters `confidence >= 0.85` (brain-continuity.ts:200)
+              and most rows at that level were STAMPED there by a writer
+              (output_critic 0.9, brain-bus 1.0), not re-sighted up to it —
+              see the measured limit in lib/brain/attention-label.ts. */}
+          <p className="mt-2 text-[9px] text-[var(--text-tertiary)] leading-relaxed">
+            ordered by the confidence column (a re-sighting counter, not a probability) — rows
+            at 0.9/1.0 are usually writer-stamped, so the labels above report sightings instead
+          </p>
         </GlassCard>
       </div>
     </div>
@@ -339,6 +362,11 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
   );
 }
 
+/** Sightings for a row — the real column when it has one, the inversion otherwise. */
+function rowSightings(m: Memory): number {
+  return m.seenCount > 0 ? m.seenCount : sightingsFromConfidence(m.confidence);
+}
+
 function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emptyMsg: string; highlight: "seenCount" | "confidence" }) {
   if (memories.length === 0) {
     return <p className="text-[10px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>;
@@ -352,16 +380,32 @@ function MemoryList({ memories, emptyMsg, highlight }: { memories: Memory[]; emp
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">{m.category}</span>
               {highlight === "seenCount" && <span className="text-[9px] font-mono tabular-nums text-[var(--gold)]">×{m.seenCount}</span>}
-              {highlight === "confidence" && <span className="text-[9px] font-mono tabular-nums text-violet-400">{Math.round(m.confidence * 100)}%</span>}
+              {/* 2026-09-02 · this rendered `{Math.round(m.confidence * 100)}%`
+                  — forty lines below MemoryRow's own comment saying the
+                  percentage "was the lie" and had been removed. Same column,
+                  same lie, one component over. `confidence` is a re-sighting
+                  counter (0.5 + 0.1×(sightings−1), capped at 1.0), not a
+                  probability, so "90%" never meant 90% likely to be true.
+                  lib/brain/attention-label.ts exists to make this
+                  unrepeatable — "One helper, so this cannot drift back". */}
+              {highlight === "confidence" && (
+                <span className="text-[9px] font-mono tabular-nums text-violet-400">
+                  {m.seenCount > 0
+                    ? describeSeenCount(m.seenCount)
+                    : describeConfidenceAsAttention(m.confidence)}
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">{m.content}</p>
           </div>
         </div>
       ))}
-      {/* Mini-sparkline: confidence ladder visualization */}
+      {/* Mini-sparkline: attention ladder. Plots the SAME quantity the
+          badges above show — plotting raw confidence here would have
+          re-stated the percentage claim in chart form. */}
       <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-[var(--text-tertiary)]">
         <span>ladder</span>
-        <Sparkline data={memories.map((m) => (highlight === "confidence" ? m.confidence : m.seenCount))} width={120} height={18} color={highlight === "confidence" ? "#a78bfa" : "var(--gold)"} />
+        <Sparkline data={memories.map((m) => (highlight === "confidence" ? rowSightings(m) : m.seenCount))} width={120} height={18} color={highlight === "confidence" ? "#a78bfa" : "var(--gold)"} />
       </div>
     </div>
   );

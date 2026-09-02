@@ -150,6 +150,24 @@ export interface ToolStat {
  * which required client-side parsing of metadata fields. Typed reads
  * are ~10x faster (no JSON parse, indexed sort key, BigInt converted
  * once here for the Number-API consumers).
+ *
+ * ── THROWS on a read failure (2026-09-02) ──
+ * This used to `logError(...)` and `return []`. Every consumer is a
+ * DASHBOARD, and every one of them then rebuilt its rows from
+ * TOOL_CATALOG, so a dead database rendered all 185 tools GREEN with
+ * `totalCalls: 0, successRate: 0` and an empty problem list — the exact
+ * "confident zero" shape as brain-maturity's phantom 7. The tRPC
+ * procedure at lib/trpc/routers/brain.ts:1060-1064 physically COULD NOT
+ * error, so ToolTelemetryPanel had nothing to branch on.
+ *
+ * Letting it throw is the fix: React Query surfaces `isError`, the panel
+ * says "unknown, not empty", and /api/brain/tools 500s instead of
+ * serving a fabricated all-clear. The one caller that genuinely wants
+ * degrade-to-empty (lib/services/system-pages-b.ts:303) already writes
+ * its own `.catch(() => [])` at the call site — which is the difference
+ * that matters: an opt-out you can read, not one hidden in the callee.
+ * The error is still logged here so the trail survives whatever the
+ * caller does with it.
  */
 export async function getToolStats(limit = 50): Promise<ToolStat[]> {
   const rows = await prisma.toolTelemetry
@@ -166,9 +184,9 @@ export async function getToolStats(limit = 50): Promise<ToolStat[]> {
         lastCallAt: true,
       },
     })
-    .catch((err): never[] => {
+    .catch((err: unknown): never => {
       logError("ai.tool-telemetry", err, { fn: "getToolStats.findMany" });
-      return [];
+      throw err;
     });
 
   return rows.map((row) => {
@@ -191,16 +209,52 @@ export async function getToolStats(limit = 50): Promise<ToolStat[]> {
   });
 }
 
+/** A tool with ≥ this many lifetime calls is eligible for the rate lane. */
+const LIFETIME_MIN_CALLS = 10;
+/** Lifetime success rate below this trips the lane. */
+const LIFETIME_RATE_FLOOR = 0.5;
+
 /**
- * Quick tools-flagged-for-pruning heuristic. Returns tool names whose
- * success rate is below 0.5 AND have at least 10 calls (so we don't
- * flag tools with one bad result).
+ * Tools currently worth an alarm. TWO lanes, because one of them cannot
+ * fire for the tools whose failure costs most.
+ *
+ * ── LANE 1 · lifetime rate (the old, structurally-dead one) ──
+ * `totalCalls >= 10 && successRate < 0.5` over the counters at :87-89,
+ * which ONLY ever increment — no window, no decay, and no reset path
+ * anywhere in this repo. Do the arithmetic: a tool with 1,000 lifetime
+ * calls at a 95% historical rate needs more than 500 CONSECUTIVE failures
+ * before its lifetime rate crosses 0.5. It is 100% broken today and this
+ * lane stays silent for days. The lane is kept because it is the right
+ * signal for a young tool that has never worked; it is not, and never
+ * was, a signal about now.
+ *
+ * ── LANE 2 · the circuit breaker (recent behaviour) ──
+ * The breaker below already measures exactly what lane 1 cannot: 5
+ * failures inside a 10-minute rolling window, with `recordToolSuccess`
+ * clearing the window on any success. Its state was tripped on every real
+ * outage and surfaced NOWHERE on /brain. Unioning it in makes the alarm
+ * fire on today's behaviour with zero new persistence and zero new
+ * thresholds to tune — the repo already chose these.
+ *
+ * KNOWN LIMIT of lane 2: `breakerState` is an in-process Map, so it is
+ * empty for the first 10 minutes after a deploy or restart, and a tool
+ * that broke before the restart shows clean until it fails 5 more times.
+ * Lane 1 is the (slow) durable backstop for that. A persisted recent-
+ * failure window would close it properly; that is a schema change, and
+ * deliberately not made here.
  */
 export async function getProblemTools(): Promise<string[]> {
   const stats = await getToolStats(100);
-  return stats
-    .filter((s) => s.totalCalls >= 10 && s.successRate < 0.5)
+  const lifetime = stats
+    .filter(
+      (s) =>
+        s.totalCalls >= LIFETIME_MIN_CALLS &&
+        s.successRate < LIFETIME_RATE_FLOOR,
+    )
     .map((s) => s.toolName);
+  const acute = getBlockedTools().map((b) => b.toolName);
+  // Acute first — a tool that is broken RIGHT NOW is the one to look at.
+  return [...new Set([...acute, ...lifetime])];
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -180,8 +180,22 @@ describe("summarizeCalibration", () => {
     expect(r.verdict).toBe("unknown");
   });
 
-  it("does not crash when prisma throws", async () => {
+  // 2026-09-02 · this test used to read "does not crash when prisma throws"
+  // and pinned `resolved: 0` / `verdict: "unknown"` — i.e. it asserted the
+  // DEFECT. `summarizeCalibration` swallowed read failures into an empty
+  // result, the /brain tile hides itself when resolved === 0, and so an
+  // unreachable database rendered exactly like a quiet month: nothing on
+  // screen, and an operator reading "calibration is fine". The helper now
+  // propagates; callers that may legitimately degrade (ultron-situation's
+  // weekly digest) keep their own .catch().
+  it("propagates a read failure instead of reporting an empty window", async () => {
     mockPrisma.prediction.findMany.mockRejectedValueOnce(new Error("DB down"));
+    await expect(summarizeCalibration({ days: 7 })).rejects.toThrow("DB down");
+  });
+
+  it("still reports a genuinely empty window as resolved 0 / unknown", async () => {
+    // The other half of the distinction: emptiness is not an error.
+    mockPrisma.prediction.findMany.mockResolvedValueOnce([]);
     const r = await summarizeCalibration({ days: 7 });
     expect(r.resolved).toBe(0);
     expect(r.verdict).toBe("unknown");
@@ -194,5 +208,84 @@ describe("summarizeCalibration", () => {
     ]);
     const r = await summarizeCalibration({ days: 7 });
     expect(r.meanBrier).toBeCloseTo((0.04 + 0.49) / 2, 5);
+  });
+});
+
+/**
+ * 2026-09-02 · window canaries.
+ *
+ * The window filtered `createdAt: { gte: since }` AND required the row to be
+ * resolved, so a row had to be MADE inside the window and already have landed
+ * — which caps the horizon below the window length by construction. At
+ * days=30 no prediction with a 30-day-or-longer horizon could ever appear in
+ * "Calibration · 30d".
+ *
+ * These tests run the real `where` clause against a fixture table instead of
+ * stubbing a fixed row list, so they prove which COLUMN is being filtered.
+ */
+describe("summarizeCalibration window", () => {
+  interface Row {
+    confidence: number;
+    status: string;
+    brierScore: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
+
+  /** A prediction made 90 days ago and resolved yesterday. */
+  const longHorizon: Row = {
+    confidence: 0.8,
+    status: "confirmed",
+    brierScore: 0.04,
+    createdAt: ago(90),
+    updatedAt: ago(1),
+  };
+  /** A prediction made and resolved long before the window. */
+  const stale: Row = {
+    confidence: 0.6,
+    status: "disproven",
+    brierScore: 0.36,
+    createdAt: ago(200),
+    updatedAt: ago(180),
+  };
+
+  function tableOf(rows: Row[]) {
+    return async (args: { where?: Record<string, unknown> }) => {
+      const where = args?.where ?? {};
+      const created = where.createdAt as { gte?: Date } | undefined;
+      const updated = where.updatedAt as { gte?: Date } | undefined;
+      return rows
+        .filter((r) => (created?.gte ? r.createdAt >= created.gte : true))
+        .filter((r) => (updated?.gte ? r.updatedAt >= updated.gte : true))
+        .map((r) => ({
+          confidence: r.confidence,
+          status: r.status,
+          brierScore: r.brierScore,
+        }));
+    };
+  }
+
+  it("includes a long-horizon prediction resolved inside the window", async () => {
+    mockPrisma.prediction.findMany.mockImplementationOnce(tableOf([longHorizon]));
+    const r = await summarizeCalibration({ days: 30 });
+    // Filtering createdAt would drop this row: it was made 90 days ago.
+    expect(r.resolved).toBe(1);
+    expect(r.confirmed).toBe(1);
+  });
+
+  it("excludes a prediction that was resolved before the window opened", async () => {
+    mockPrisma.prediction.findMany.mockImplementationOnce(tableOf([stale]));
+    const r = await summarizeCalibration({ days: 30 });
+    expect(r.resolved).toBe(0);
+  });
+
+  it("keys the window on resolution time, not creation time", async () => {
+    mockPrisma.prediction.findMany.mockImplementationOnce(tableOf([longHorizon, stale]));
+    await summarizeCalibration({ days: 30 });
+    const where = mockPrisma.prediction.findMany.mock.calls[0][0].where;
+    expect(where.updatedAt).toBeDefined();
+    expect(where.createdAt).toBeUndefined();
   });
 });

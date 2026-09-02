@@ -31,9 +31,83 @@ function formatReason(reason: string): string {
   return reason.replaceAll("_", " ");
 }
 
+export type QueueBodyKind = "loading" | "unknown" | "empty" | "items";
+
+/**
+ * What a governed-knowledge queue panel is entitled to say about itself.
+ *
+ * THE DEFECT THIS EXISTS TO KILL. Both panels initialised state to
+ * `{ total: 0, items: [] }`, their catch fired a toast and set nothing else,
+ * and the render fell straight through to "0 pending" plus "No knowledge is
+ * waiting for review." A read that FAILED and a queue that is genuinely empty
+ * produced byte-identical markup — under a page whose own header comment
+ * (app/(mastery)/brain/page.tsx) says an empty queue and a dead queue must
+ * never look the same, and beside two siblings that already get it right
+ * (discover-tab's "state unknown, not empty", research-pipeline-status's
+ * "unknown, not zero"). A toast is not a state: it is gone in four seconds and
+ * absent entirely on a reload.
+ *
+ * Both panels route through this ONE function rather than re-deriving the
+ * rule, because the two copies of the bug were themselves a copy-paste.
+ */
+export function queueView(s: {
+  loading: boolean;
+  /** The last read threw. Distinct from `total === 0`. */
+  failed: boolean;
+  total: number;
+  items: number;
+  /** "pending" · "awaiting outcome" — the panel's own noun. */
+  noun: string;
+}): { headline: string; body: QueueBodyKind } {
+  if (s.loading) return { headline: "Loading", body: "loading" };
+  // Never `${total} ${noun}`: `total` is the initial 0, not a measurement.
+  if (s.failed) return { headline: "unknown — read failed", body: "unknown" };
+  return { headline: `${s.total} ${s.noun}`, body: s.items === 0 ? "empty" : "items" };
+}
+
+/**
+ * The panel's own body card. Renders NOTHING for "loading"/"items" — the item
+ * list is rendered by the panel itself and survives a failed refresh as
+ * last-known-good.
+ *
+ * Exported and pure so the canary can render the failed and empty cases and
+ * assert they differ; the panels' `useEffect` never runs under
+ * renderToStaticMarkup, so driving the real component would only ever reach
+ * the loading branch.
+ */
+export function QueueBody({
+  body,
+  emptyLabel,
+  detail,
+}: {
+  body: QueueBodyKind;
+  emptyLabel: string;
+  detail: string | null;
+}) {
+  if (body === "unknown") {
+    return (
+      <GlassCard className="p-6">
+        <p className="text-sm text-amber-300">
+          This queue couldn&apos;t load — state unknown, not empty.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {detail ?? "The queue may hold pending items; this panel just can't read it right now."}
+        </p>
+      </GlassCard>
+    );
+  }
+  if (body === "empty") {
+    return (
+      <GlassCard className="p-8 text-center text-sm text-muted-foreground">{emptyLabel}</GlassCard>
+    );
+  }
+  return null;
+}
+
 export function KnowledgeReviewTab() {
   const [data, setData] = useState<CandidateList>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -42,8 +116,14 @@ export function KnowledgeReviewTab() {
       // See knowledge-action-outcomes: `error` is a string, so the old
       // `payload?.error?.message` was always undefined. apiFetch surfaces it.
       setData(await apiFetch<CandidateList>("/api/knowledge/candidates?limit=50", { cache: "no-store" }));
+      setLoadError(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to load knowledge candidates.");
+      const message =
+        error instanceof Error ? error.message : "Unable to load knowledge candidates.";
+      // The toast is the notification; THIS is the state. Without it the panel
+      // renders its initial `{ total: 0, items: [] }` as a measured all-clear.
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -70,6 +150,14 @@ export function KnowledgeReviewTab() {
     }
   };
 
+  const view = queueView({
+    loading,
+    failed: loadError !== null,
+    total: data.total,
+    items: data.items.length,
+    noun: "pending",
+  });
+
   return (
     <div className="space-y-4">
       <GlassCard className="p-5">
@@ -94,15 +182,15 @@ export function KnowledgeReviewTab() {
           </button>
         </div>
         <div className="mt-4 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          {loading ? "Loading" : `${data.total} pending`}
+          {view.headline}
         </div>
       </GlassCard>
 
-      {!loading && data.items.length === 0 ? (
-        <GlassCard className="p-8 text-center text-sm text-muted-foreground">
-          No knowledge is waiting for review.
-        </GlassCard>
-      ) : null}
+      <QueueBody
+        body={view.body}
+        emptyLabel="No knowledge is waiting for review."
+        detail={loadError}
+      />
 
       {data.items.map((item) => {
         const metadata = item.metadata ?? {};

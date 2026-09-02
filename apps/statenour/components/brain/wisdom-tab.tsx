@@ -33,6 +33,14 @@ import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Pencil, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { tagWisdomTopics, topicLabel, type WisdomTopic } from "@/lib/brain/wisdom-topic-tagger";
+// 2026-09-02 self-audit, defect #5 · the local `ORIGIN_META` (10 keys)
+// and `ORIGIN_ORDER` (the same 10 in a different order) moved into the
+// one registry, alongside the `ORIGIN_BADGE` copy that had drifted out
+// of sync with them in related-wisdom-links.tsx.
+import {
+  WISDOM_ORIGIN_ORDER,
+  wisdomOriginMeta,
+} from "@/lib/brain/wisdom-origins";
 import { RelatedWisdomLinks } from "@/components/brain/related-wisdom-links";
 import { WisdomEvolutionPanel } from "@/components/brain/wisdom-evolution-panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -54,7 +62,15 @@ interface WisdomEntry {
 }
 
 interface WisdomPayload {
+  /** Whole corpus. NOT the size of `entries` — that is `entries.length`. */
   total: number;
+  /**
+   * Shipped by `buildWisdomFeed` and used by the REST consumers of
+   * /api/brain/wisdom. This component deliberately re-derives both from
+   * `entries` instead of reading them — see the render body.
+   */
+  loaded: number;
+  truncated: boolean;
   totalRecalls: number;
   groupings: {
     origin: Record<string, number>;
@@ -65,76 +81,87 @@ interface WisdomPayload {
   entries: WisdomEntry[];
 }
 
-// ── Origin metadata · teaching intro per source ────────────────────
-//
-// Each origin gets a short editorial blurb. This is the "teach me
-// always" half of the brief · operator should learn what each tradition
-// brings to the brain just by reading the page.
-const ORIGIN_META: Record<
-  string,
-  { label: string; tradition: string; intro: string }
-> = {
-  "steve-jobs": {
-    label: "Steve Jobs",
-    tradition: "Design + Leadership",
-    intro:
-      "Apple cofounder · Pixar CEO · NeXT founder. Editorial discipline applied to product · simplicity as max sophistication, focus as competitive weapon, the keynote as part of the product. Wisdom shape: principles you can act on, not abstractions.",
-  },
-  satori: {
-    label: "Satori",
-    tradition: "Psychology + Philosophy",
-    intro:
-      "Clinically-informed wisdom companion. Internal Family Systems, DBT, Compassion-Focused Therapy, Schema Therapy + Stoicism, Buddhism, Taoism, Sufi heart-knowing, Jungian shadow. Wisdom shape: how to meet your own internal weather.",
-  },
-  "greene-laws": {
-    label: "Robert Greene",
-    tradition: "Power + Strategy + Human Nature",
-    intro:
-      "Promoted from the StrategicLaw library · 189 entries spanning the 48 Laws of Power, 33 Strategies of War, Laws of Human Nature, Mastery, Art of Seduction, and the 50th Law. Each carries the law's essence and an operator-specific application. Wisdom shape: read the room, understand power, anticipate the move that hasn't been made yet.",
-  },
-  "warren-buffett": {
-    label: "Warren Buffett",
-    tradition: "Capital allocation",
-    intro:
-      "Berkshire Hathaway · the patient compounder. Circle of competence, margin of safety, economic moats, no called strikes in life. Wisdom shape: think in decades, not quarters; demand asymmetric upside before you swing.",
-  },
-  "bill-gates": {
-    label: "Bill Gates",
-    tradition: "Strategy at scale",
-    intro:
-      "Microsoft cofounder, systemic philanthropist. Distribution beats innovation, software-defined eats industries, treat each year as a chapter, intuition scales until it doesn't. Wisdom shape: solve at the system level; reserve think-week time before reactive work.",
-  },
-  "elon-musk": {
-    label: "Elon Musk",
-    tradition: "First principles + deletion",
-    intro:
-      "SpaceX · Tesla · the deletion-first engineer. Reason from physics + cost not analogy, make requirements less dumb, the best part is no part, idiot index, ship the v0 ugly. Wisdom shape: question the requirement before optimizing the implementation.",
-  },
-  distiller: {
-    label: "The Distiller",
-    tradition: "Cron-distilled principles",
-    intro:
-      "Daily AI pass over patterns + insights + confirmed predictions + reflections. Synthesizes recurring observations into WHEN/THEN/BECAUSE principles. Highest signal when Nour's pattern stream is rich · weakest when input is thin.",
-  },
-  consolidation: {
-    label: "Consolidation",
-    tradition: "Promoted patterns",
-    intro:
-      "Patterns that hit a confidence + repetition threshold get promoted to wisdom with a [PROVEN PATTERN] tag. The inverse of the distiller — bottom-up evidence rather than top-down synthesis.",
-  },
-  "chat-scrape": {
-    label: "Chat scrape",
-    tradition: "Raw assistant output",
-    intro:
-      "Recent assistant chat replies that passed an isWisdomWorthy() filter. Lower trust · the raw output isn't always principle-shaped · weighted at 0.7x in contextual recall.",
-  },
-  uncategorized: {
-    label: "Uncategorized",
-    tradition: "Mixed",
-    intro:
-      "Older entries without metadata.origin · pre-v10.0.353 ingestions. Useful but heterogeneous · search by content if hunting for a specific principle.",
-  },
+export interface WisdomFilterState {
+  origin: string;
+  topic: WisdomTopic | "all";
+  search: string;
+}
+
+const EMPTY_TOPIC_COUNTS: Record<WisdomTopic | "all", number> = {
+  all: 0, money: 0, people: 0, strategy: 0, execution: 0, ops: 0,
+  brand: 0, self: 0, body: 0, time: 0, power: 0,
 };
+
+/** `source` this page stamps on its own data-change events. */
+const WISDOM_PAGE_SOURCE = "wisdom-page";
+
+/**
+ * Trailing window for `brain` bus events. Long enough to swallow a
+ * chat turn's burst of memory writes, short enough that the operator
+ * never notices it — the feed is not real-time.
+ */
+const BRAIN_EVENT_COALESCE_MS = 1_500;
+
+/**
+ * Should a `brain` bus event trigger a feed reload?
+ *
+ * No, when this page fired it: `saveEdit` and `deprecateWisdom` already
+ * call `reload()` inline before announcing on the bus, so honouring our
+ * own event downloads the whole corpus a second time for one edit.
+ * Exported so that is a unit test rather than a comment.
+ */
+export function isForeignBrainEvent(detail: { source: string }): boolean {
+  return detail.source !== WISDOM_PAGE_SOURCE;
+}
+
+/**
+ * The rendered list and the topic-chip counts, from ONE pass.
+ *
+ * 2026-09-02 self-audit, defect #6. These were two separate loops with
+ * two different predicates: the list applied origin + topic + search,
+ * the chip counts applied origin ONLY. With a search active, a chip
+ * reading `money (37)` yielded far fewer than 37 rows when tapped.
+ *
+ * Fixed structurally rather than by adding the missing `if`: both
+ * readings now come out of the same function over the same base pool,
+ * so they cannot disagree again. `topicCounts` is deliberately computed
+ * BEFORE the topic filter is applied — a chip has to keep showing what
+ * picking it would yield, which is why it was ever a separate loop.
+ *
+ * Exported for its unit test · the vitest env here is Node with no DOM,
+ * so a filter that only exists inside a render body is unassertable.
+ */
+export function buildWisdomView(
+  entries: WisdomEntry[],
+  filters: WisdomFilterState,
+): { filtered: WisdomEntry[]; topicCounts: Record<WisdomTopic | "all", number> } {
+  const q = filters.search.trim().toLowerCase();
+  const base = entries.filter((e) => {
+    if (filters.origin !== "all" && e.origin !== filters.origin) return false;
+    if (q && !e.content.toLowerCase().includes(q) && !e.key.toLowerCase().includes(q)) {
+      return false;
+    }
+    return true;
+  });
+
+  const topicCounts = { ...EMPTY_TOPIC_COUNTS };
+  const topicsByEntry = new Map<string, WisdomTopic[]>();
+  for (const e of base) {
+    topicCounts.all++;
+    // Topic is computed on the fly from content (matches the recall
+    // path) · cached per entry so the topic filter below doesn't re-tag.
+    const topics = tagWisdomTopics(e.content);
+    topicsByEntry.set(e.id, topics);
+    for (const t of topics) topicCounts[t]++;
+  }
+
+  const filtered =
+    filters.topic === "all"
+      ? base
+      : base.filter((e) => (topicsByEntry.get(e.id) ?? []).includes(filters.topic as WisdomTopic));
+
+  return { filtered, topicCounts };
+}
 
 function fmtAge(days: number): string {
   if (days < 1) return "today";
@@ -236,7 +263,7 @@ export function WisdomTab() {
         setEditDraft("");
         void reload();
         // v10.0.529.90 · Wave 34 · close the page-write → bus loop.
-        notifyDataChanged("brain", { source: "wisdom-page", detail: "wisdom-edit", id });
+        notifyDataChanged("brain", { source: WISDOM_PAGE_SOURCE, detail: "wisdom-edit", id });
       } catch (err) {
         toast.error("Save failed", { id: tid, description: (err as Error).message });
       }
@@ -259,7 +286,7 @@ export function WisdomTab() {
         await actionMutation.mutateAsync({ id, action: "deprecate" });
         toast.success("Deprecated", { id: tid });
         void reload();
-        notifyDataChanged("brain", { source: "wisdom-page", detail: "wisdom-deprecate", id });
+        notifyDataChanged("brain", { source: WISDOM_PAGE_SOURCE, detail: "wisdom-deprecate", id });
       } catch (err) {
         toast.error("Failed", { id: tid, description: (err as Error).message });
       }
@@ -276,8 +303,30 @@ export function WisdomTab() {
   // learnCodingPreference). Pre-Wave-33 the page only reloaded on
   // operator-triggered edit/deprecate · chat-generated wisdom was
   // invisible until manual reload.
+  //
+  // 2026-09-02 self-audit, defect #7. Pre-fix this pulled the ENTIRE
+  // feed on every `brain` event, and `reload` goes through
+  // `utils.brain.wisdom.fetch()` so React Query's cache never
+  // deduplicates it. Two concrete storms:
+  //   · saveEdit and deprecateWisdom each call `reload()` inline AND
+  //     then `notifyDataChanged("brain", …)`, so one operator edit cost
+  //     two full-corpus fetches. The source check kills the echo.
+  //   · a chat turn that writes several memories fires several events
+  //     back to back. The trailing debounce collapses them into one.
   useEffect(() => {
-    return onDataChanged(["brain"], () => void reload());
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const off = onDataChanged(["brain"], (detail) => {
+      if (!isForeignBrainEvent(detail)) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void reload();
+      }, BRAIN_EVENT_COALESCE_MS);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      off();
+    };
   }, [reload]);
 
   // v10.0.414 · scroll the focused wisdom into view once the data loads
@@ -299,35 +348,22 @@ export function WisdomTab() {
     );
   }
 
-  // Build filtered + searched entries · v10.0.395 · added topic filter
-  // dimension. Origin and topic filter additively (intersection).
-  // Topic is computed on-the-fly from content (matches the recall path).
-  const filtered = data.entries.filter((e) => {
-    if (filter !== "all" && e.origin !== filter) return false;
-    if (topicFilter !== "all") {
-      const topics = tagWisdomTopics(e.content);
-      if (!topics.includes(topicFilter)) return false;
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      if (!e.content.toLowerCase().includes(q) && !e.key.toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  // Derived, never read off the payload: `loaded` describes an array
+  // this component is already holding, so counting it here removes the
+  // possibility of the two disagreeing — the same failure class as the
+  // chip counts below. `total` is the one number only the DB knows.
+  const loaded = data.entries.length;
+  const truncated = data.total > loaded;
 
-  // Compute per-topic counts for the tab badges (using filtered-by-origin
-  // pool · so when operator picks 'Greene', the topic tabs reflect Greene-
-  // only counts).
-  const topicCounts: Record<WisdomTopic | "all", number> = {
-    all: 0, money: 0, people: 0, strategy: 0, execution: 0, ops: 0,
-    brand: 0, self: 0, body: 0, time: 0, power: 0,
-  };
-  for (const e of data.entries) {
-    if (filter !== "all" && e.origin !== filter) continue;
-    topicCounts.all++;
-    const topics = tagWisdomTopics(e.content);
-    for (const t of topics) topicCounts[t]++;
-  }
+  // Build the rendered list and the topic-chip counts from ONE pass ·
+  // v10.0.395 added the topic dimension; origin and topic filter
+  // additively (intersection). See `buildWisdomView` for why they are
+  // no longer two loops.
+  const { filtered, topicCounts } = buildWisdomView(data.entries, {
+    origin: filter,
+    topic: topicFilter,
+    search,
+  });
 
   // Wisdom of the moment · pick a hot, high-confidence one (deterministic rotation by day)
   const moment = (() => {
@@ -345,30 +381,42 @@ export function WisdomTab() {
     arr.push(e);
     byOrigin.set(e.origin, arr);
   }
-  // Order origins: curated first, then distiller/consolidation, then chat-scrape last
-  const ORIGIN_ORDER = [
-    "steve-jobs",
-    "satori",
-    "warren-buffett",
-    "bill-gates",
-    "elon-musk",
-    "greene-laws",
-    "distiller",
-    "consolidation",
-    "chat-scrape",
-    "uncategorized",
-  ];
-  const orderedOrigins = ORIGIN_ORDER.filter((o) => byOrigin.has(o)).concat(
-    Array.from(byOrigin.keys()).filter((o) => !ORIGIN_ORDER.includes(o)),
-  );
+  // Order origins: curated first, then distiller/consolidation, then
+  // chat-scrape last · declaration order in the shared registry.
+  const orderedOrigins = (WISDOM_ORIGIN_ORDER as string[])
+    .filter((o) => byOrigin.has(o))
+    .concat(
+      Array.from(byOrigin.keys()).filter(
+        (o) => !(WISDOM_ORIGIN_ORDER as string[]).includes(o),
+      ),
+    );
 
   return (
     <>
+      {/* 2026-09-02 self-audit, defect #7 (secondary). This read "The
+          layer Nick draws on every conversation" over `data.total` —
+          which overstates twice. Recall does NOT draw on the corpus: it
+          takes rows at confidence >= 0.3 that are not superseded and not
+          past `validUntil`, then the top 300 by confidence
+          (lib/brain/contextual-recall.ts:680-696). And `total` is the
+          corpus, while every count and filter on this page runs over the
+          `loaded` page. Both facts now ship in the sentence. */}
       <p className="text-sm text-[var(--text-secondary)] mb-5" style={{ maxWidth: "70ch" }}>
-        {data.total.toLocaleString()} principles loaded ·{" "}
-        {data.totalRecalls.toLocaleString()} cumulative recalls. The layer
-        Nick draws on every conversation. Curated traditions sit alongside
-        cron-distilled patterns; trust-weighted in recall.
+        {data.total.toLocaleString()} principles in the wisdom corpus ·{" "}
+        {data.totalRecalls.toLocaleString()} cumulative recalls. Curated
+        traditions sit alongside cron-distilled patterns; trust-weighted in
+        recall. Nick&apos;s live recall pool is narrower — confidence ≥ 0.3,
+        not superseded, not expired, top 300 per turn.
+        {truncated && (
+          <>
+            {" "}
+            <span className="text-amber-300">
+              This page shows the highest-confidence {loaded.toLocaleString()} of
+              them — every filter, search and count below covers those{" "}
+              {loaded.toLocaleString()} only.
+            </span>
+          </>
+        )}
       </p>
 
       <div className="space-y-5">
@@ -413,7 +461,7 @@ export function WisdomTab() {
             </p>
             <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-4 flex items-center gap-2 flex-wrap">
               <span className="text-[var(--gold)]/80 uppercase tracking-wider">
-                {ORIGIN_META[moment.origin]?.label ?? moment.origin}
+                {wisdomOriginMeta(moment.origin).label}
               </span>
               <span>·</span>
               <span>{(moment.confidence * 100).toFixed(0)}% confidence</span>
@@ -437,7 +485,11 @@ export function WisdomTab() {
                   : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
               }`}
             >
-              all ({data.total})
+              {/* `loaded`, not `total`: this chip clears the origin
+                  filter, and what that yields is the loaded page. The
+                  origin chips beside it sum to exactly this number
+                  (`groupings.origin` is counted over `entries`). */}
+              all ({loaded})
             </button>
             {Object.entries(data.groupings.origin)
               .sort((a, b) => b[1] - a[1])
@@ -451,7 +503,7 @@ export function WisdomTab() {
                       : "border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                   }`}
                 >
-                  {ORIGIN_META[origin]?.label ?? origin} ({count})
+                  {wisdomOriginMeta(origin).label} ({count})
                 </button>
               ))}
           </div>
@@ -526,21 +578,18 @@ export function WisdomTab() {
             ]}
             onClearAll={() => { setSearch(""); setFilter("all"); setTopicFilter("all"); setSortKey("hotness"); }}
           />
-          {filtered.length !== data.total && (
+          {filtered.length !== loaded && (
             <p className="text-[11px] text-[var(--text-tertiary)] mt-2 font-mono">
-              showing {filtered.length} of {data.total}
+              showing {filtered.length} of {loaded}
               {topicFilter !== "all" && ` · topic: ${topicLabel(topicFilter)}`}
+              {truncated && ` · ${data.total} in corpus`}
             </p>
           )}
         </section>
 
         {/* ── Origins · grouped editorial layout ──────────────── */}
         {orderedOrigins.map((origin) => {
-          const meta = ORIGIN_META[origin] ?? {
-            label: origin,
-            tradition: "Origin",
-            intro: "",
-          };
+          const meta = wisdomOriginMeta(origin);
           const list = byOrigin.get(origin) ?? [];
           if (list.length === 0) return null;
           return (

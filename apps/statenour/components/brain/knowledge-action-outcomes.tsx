@@ -5,6 +5,10 @@ import { CheckCircle2, CircleMinus, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { GlassCard } from "@/components/ui/glass-card";
 import { apiFetch } from "@/lib/utils/api-fetch";
+// ONE definition of "a failed read is not an empty queue", imported rather
+// than re-typed: this panel and the review panel carried byte-identical copies
+// of the defect, so a second copy of the fix would be a second thing to drift.
+import { QueueBody, queueView } from "@/components/brain/knowledge-review-tab";
 
 type Outcome = "confirmed" | "disproved" | "neutral";
 
@@ -29,6 +33,7 @@ interface ActionList {
 export function KnowledgeActionOutcomes() {
   const [data, setData] = useState<ActionList>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<Record<string, string>>({});
 
@@ -43,8 +48,16 @@ export function KnowledgeActionOutcomes() {
       setData(await apiFetch<ActionList>("/api/knowledge/candidates?view=actions&limit=50", {
         cache: "no-store",
       }));
+      setLoadError(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to load approved actions.");
+      const message =
+        error instanceof Error ? error.message : "Unable to load approved actions.";
+      // State, not just a toast — see queueView's header in
+      // knowledge-review-tab.tsx. Without this the panel renders its initial
+      // `{ total: 0, items: [] }` as "0 awaiting outcome · No approved actions
+      // are waiting for an outcome", which is an all-clear it never measured.
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -81,6 +94,14 @@ export function KnowledgeActionOutcomes() {
     }
   };
 
+  const view = queueView({
+    loading,
+    failed: loadError !== null,
+    total: data.total,
+    items: data.items.length,
+    noun: "awaiting outcome",
+  });
+
   return (
     <div className="space-y-4">
       <GlassCard className="p-5">
@@ -102,15 +123,15 @@ export function KnowledgeActionOutcomes() {
           </button>
         </div>
         <div className="mt-4 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          {loading ? "Loading" : `${data.total} awaiting outcome`}
+          {view.headline}
         </div>
       </GlassCard>
 
-      {!loading && data.items.length === 0 ? (
-        <GlassCard className="p-6 text-center text-sm text-muted-foreground">
-          No approved actions are waiting for an outcome.
-        </GlassCard>
-      ) : null}
+      <QueueBody
+        body={view.body}
+        emptyLabel="No approved actions are waiting for an outcome."
+        detail={loadError}
+      />
 
       {data.items.map((item) => (
         <GlassCard key={item.id} className="p-5">

@@ -42,6 +42,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/utils/error-log";
 import { sanitizeError, redactSensitive } from "@/lib/utils/sanitize-error";
 import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
@@ -290,6 +291,14 @@ export interface ToolStatsView {
   };
   tools: ToolRow[];
   families: FamilyRollup[];
+  /** True when the telemetry read FAILED. Distinct from "every tool has zero
+   *  calls", which is a real measurement. 2026-09-02: this call site kept a
+   *  `.catch(() => [])` after getToolStats was changed to throw, so a dead
+   *  telemetry table rendered as a registry where nothing had ever been
+   *  called. The rest of the page (registry drift, family rollups) does not
+   *  depend on telemetry, so failing the whole view would lose more than it
+   *  protects — the read is marked unavailable instead. */
+  telemetryUnavailable: boolean;
   generatedAt: string;
 }
 
@@ -300,7 +309,14 @@ export async function buildToolStats(): Promise<ToolStatsView> {
   const liveTools = new Set(Object.keys(nourTools));
   const regTools = new Set(Object.keys(TOOL_FAMILIES));
 
-  const telemetryRows = await getToolStats(200).catch(() => []);
+  let telemetryUnavailable = false;
+  const telemetryRows = await getToolStats(200).catch((err: unknown) => {
+    // Marked, not swallowed: callers can tell "no calls recorded" from
+    // "could not read the recorder".
+    telemetryUnavailable = true;
+    logError("services.system-pages-b", err, { fn: "buildToolStats.getToolStats" }, "warn");
+    return [] as Awaited<ReturnType<typeof getToolStats>>;
+  });
   const telemetryByName = new Map(
     telemetryRows.map((t) => [
       t.toolName,
@@ -380,6 +396,7 @@ export async function buildToolStats(): Promise<ToolStatsView> {
     },
     tools: rows,
     families: familyRollup,
+    telemetryUnavailable,
     generatedAt: new Date().toISOString(),
   };
 }

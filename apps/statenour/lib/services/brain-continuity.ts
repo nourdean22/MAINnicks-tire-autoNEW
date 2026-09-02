@@ -45,14 +45,48 @@ export interface ContinuityReport {
     reinforced: ContinuityMemoryRow[];
     decayed: ContinuityMemoryRow[];
     promoted: ContinuityMemoryRow[];
-    prunedEstimate: number;
+    /**
+     * Rows actually TOMBSTONED in the last 24h (`deletedAt >= day1`).
+     *
+     * Replaces `prunedEstimate`, which was `Math.max(0, expiredCount)` —
+     * literally the same number as `totals.expired`, i.e. the rows that
+     * are past their TTL and still waiting for the sweep. The UI rendered
+     * that value twice on one card: once as "expired" and once as
+     * "~N decayed/pruned in the last cycle". A row cannot be both, and
+     * the second label was the false one: `expiredCount` counts rows NOT
+     * pruned. It therefore read near-zero right after a HEALTHY
+     * consolidation run — indistinguishable from "nothing ever expires".
+     * (`Math.max(0, ...)` on a `count()` was dead code besides.)
+     *
+     * This counts the sweep's real output: lib/brain/memory-consolidation.ts
+     * `pruneNoise()` soft-deletes both the TTL-expired set (:261-264) and
+     * the low-confidence stale set, and `mergeMemories` soft-deletes
+     * losers — every one of them lands in this window, which is exactly
+     * what "decayed/pruned in the last cycle" claims.
+     *
+     * It is deliberately EVERY tombstone in the window, not only the
+     * sweep's: an operator deleting a memory from /brain/wisdom writes the
+     * same `deletedAt`, and that is a row removed in the last cycle too.
+     * The consumer therefore labels it "tombstoned in the last 24h" rather
+     * than attributing it to the cron.
+     */
+    prunedLast24h: number;
   };
   topReinforced: ContinuityMemoryRow[];
   topConfidence: ContinuityMemoryRow[];
+  /**
+   * Per-category NEW-row counts. `delta24h` / `delta7d` used to be
+   * `OR: [createdAt >= t, updatedAt >= t]` — a touched-row count rendered
+   * as an increase (`+{delta24h}/24h`) and used to light the "hot" flame.
+   * Recall bumps `lastSeen`/`seenCount`, and therefore `updatedAt`, on
+   * every wisdom row it returns (lib/brain/contextual-recall.ts:981-988),
+   * so merely READING a memory counted as "+1" growth. These count
+   * `createdAt` only, so a delta is a delta.
+   */
   categoryMovers: Array<{
     category: string;
-    delta24h: number;
-    delta7d: number;
+    created24h: number;
+    created7d: number;
     total: number;
   }>;
   computedAt: string;
@@ -102,7 +136,7 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
   // this card describes the LIVE population. `allTime` now means "all live
   // rows ever" (all rows ever written minus tombstones), NOT "all rows ever
   // written" — so allTime/active/expired stay mutually consistent.
-  const [allCount, activeCount, expiredCount, byCategoryRaw] =
+  const [allCount, activeCount, expiredCount, prunedLast24h, byCategoryRaw] =
     await Promise.all([
       prisma.brainMemory.count({ where: { deletedAt: null } }),
       prisma.brainMemory.count({
@@ -111,9 +145,14 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
       }),
+      // Past TTL and STILL LIVE — the sweep's backlog, not its output.
       prisma.brainMemory.count({
         where: { deletedAt: null, expiresAt: { lt: now } },
       }),
+      // The sweep's actual output. See the `prunedLast24h` doc comment:
+      // this used to be an alias for the line above, so a healthy nightly
+      // consolidation made the "decayed/pruned" line read near-zero.
+      prisma.brainMemory.count({ where: { deletedAt: { gte: day1 } } }),
       prisma.brainMemory.groupBy({
         by: ["category"],
         where: { deletedAt: null },
@@ -203,30 +242,32 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
     select: memorySelect,
   });
 
-  // ── Category movers — which categories had the most churn ──
+  // ── Category movers — which categories actually GREW ──
+  // A DELTA MUST BE A DELTA. Both counts were
+  // `OR: [{ createdAt: gte t }, { updatedAt: gte t }]` — every row TOUCHED
+  // in the window, rendered by continuity-view.tsx:190 as `+{N}/24h` and
+  // used at :173-174 to light the "hot" flame. Recall bumps lastSeen +
+  // seenCount on every wisdom row it returns
+  // (lib/brain/contextual-recall.ts:981-988), which moves `updatedAt`, so
+  // a memory that was merely READ counted as "+1" growth. On a busy chat
+  // day the wisdom category could show a large positive delta having
+  // gained nothing. `createdAt` only — and dropping the OR makes these
+  // queries cheaper, not dearer.
   const categoryMoversRaw = await Promise.all(
     Object.keys(byCategory).map(async (category) => {
-      const [delta24h, delta7d] = await Promise.all([
+      const [created24h, created7d] = await Promise.all([
         prisma.brainMemory.count({
-          where: {
-            category,
-            deletedAt: null,
-            OR: [{ createdAt: { gte: day1 } }, { updatedAt: { gte: day1 } }],
-          },
+          where: { category, deletedAt: null, createdAt: { gte: day1 } },
         }),
         prisma.brainMemory.count({
-          where: {
-            category,
-            deletedAt: null,
-            OR: [{ createdAt: { gte: day7 } }, { updatedAt: { gte: day7 } }],
-          },
+          where: { category, deletedAt: null, createdAt: { gte: day7 } },
         }),
       ]);
-      return { category, delta24h, delta7d, total: byCategory[category] };
+      return { category, created24h, created7d, total: byCategory[category] };
     }),
   );
   const categoryMovers = categoryMoversRaw
-    .sort((a, b) => b.delta24h - a.delta24h || b.delta7d - a.delta7d)
+    .sort((a, b) => b.created24h - a.created24h || b.created7d - a.created7d)
     .slice(0, 10);
 
   return {
@@ -241,7 +282,7 @@ export async function buildContinuityReport(): Promise<ContinuityReport> {
       reinforced: reinforced24h.map(toRow),
       decayed: decayedSoon.map(toRow),
       promoted: wisdomPromoted24h.map(toRow),
-      prunedEstimate: Math.max(0, expiredCount),
+      prunedLast24h,
     },
     topReinforced: topReinforced.map(toRow),
     topConfidence: topConfidence.map(toRow),

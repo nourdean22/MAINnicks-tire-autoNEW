@@ -516,9 +516,22 @@ export async function consultBoard(
     synthesis,
     durationMs,
     ranAt: new Date().toISOString(),
-    // Wave L · trace fields · operator can see WHICH state drove the
-    // routing + which advisors got gated out. Helps debug "why didn't
-    // elon-musk show up?" and feeds the M1 calibration loop.
+    // Wave L · trace fields · WHICH state drove the routing + which
+    // advisors got gated out.
+    //
+    // 2026-09-02 · this comment used to claim the operator could see both.
+    // They could not: `grep -rn droppedAdvisorIds components/ app/`
+    // returned zero matches, and neither field was persisted, so the only
+    // trace of a 40% smaller board was prose inside the synthesizer's raw
+    // prompt (`gateNote` above) — invisible to every operator surface and
+    // unrecoverable once the response was gone. The claim is now true, by
+    // two named consumers rather than by assertion:
+    //   · live · components/brain/board-tab.tsx renders "N of M advisors"
+    //     plus a "lenses withheld" strip naming the ids and the mood
+    //   · history · lib/services/board-consult-record.ts persists both
+    //     into the BrainMemory metadata and projects them onto
+    //     BoardConsultationView, so a past consultation can be re-read
+    // If either consumer is removed, remove this paragraph with it.
     operatorState: stateSnapshot
       ? {
           mood: stateSnapshot.mood,

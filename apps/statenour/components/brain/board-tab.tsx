@@ -22,44 +22,34 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { BOARDS, BOARD_IDS } from "@/lib/ai/board/boards";
+import type { BoardId } from "@/lib/ai/board/types";
 
-// Local mirror of BOARDS' display data · the boards module exports
-// BOARD_IDS as a const tuple for the tRPC enum but the human labels
-// + one-liners are easier to keep co-located with the page rendering.
-// If the operator adds a 6th board, update here AND lib/ai/board/boards.ts.
+// 2026-09-02 · this was a hand-maintained mirror of five of the six boards.
+// Its own comment said "If the operator adds a 6th board, update here AND
+// lib/ai/board/boards.ts" — the 6th board (`team`, Working Team, 5 AG-12
+// personas) shipped 2026-07-09 in AG-42, five weeks AFTER this file was last
+// touched, and the instruction was not followed. The board has been accepted
+// by the tRPC procedure and reachable from the chat tool ever since, and
+// invisible on the one surface built to select boards.
+//
+// The type system could not catch it: `BoardId` was derived FROM the mirror,
+// so a five-of-six subset compiled cleanly against the server's six-value
+// union. A comment was the only guard, and comments do not fail builds.
+//
+// The mirror was also unnecessary. BOARDS already carries `name` and
+// `oneLiner` for every board, so this deletes the duplicate rather than
+// repairing it — deriving the options means a seventh board appears here the
+// moment it is defined, with no second edit and nothing to forget.
 const BOARD_OPTIONS: ReadonlyArray<{
-  id: "strategic" | "invest" | "product" | "operator" | "full";
+  id: BoardId;
   name: string;
   oneLiner: string;
-}> = [
-  {
-    id: "strategic",
-    name: "strategic",
-    oneLiner: "major life/career decisions · 5 lenses",
-  },
-  {
-    id: "invest",
-    name: "invest",
-    oneLiner: "capital + pricing + financial",
-  },
-  {
-    id: "product",
-    name: "product",
-    oneLiner: "product / feature / market direction",
-  },
-  {
-    id: "operator",
-    name: "operator",
-    oneLiner: "personal decision quality + tempo",
-  },
-  {
-    id: "full",
-    name: "full",
-    oneLiner: "critical decisions · 8 advisors · slower + costlier",
-  },
-];
-
-type BoardId = (typeof BOARD_OPTIONS)[number]["id"];
+}> = BOARD_IDS.map((id) => ({
+  id,
+  name: BOARDS[id].name,
+  oneLiner: BOARDS[id].oneLiner,
+}));
 
 function formatRelative(iso: string): string {
   const now = Date.now();
@@ -75,7 +65,11 @@ function formatRelative(iso: string): string {
 }
 
 export function BoardTab() {
-  const [boardId, setBoardId] = useState<BoardId>("strategic");
+  // First board in display order, rather than a literal. Identical value
+  // today; the point is that no board id is spelled out in this file, so the
+  // canary can assert that flatly instead of carving out an exception a future
+  // mirror could hide behind.
+  const [boardId, setBoardId] = useState<BoardId>(BOARD_IDS[0]);
   const [question, setQuestion] = useState("");
   const [expandedTakes, setExpandedTakes] = useState<Set<string>>(new Set());
 
@@ -87,6 +81,25 @@ export function BoardTab() {
 
   const result = consultMutation.data?.consultation ?? null;
   const recents = recentQuery.data?.consultations ?? [];
+
+  // 2026-09-02 · the mood gate, made visible.
+  //
+  // lib/ai/board/consult.ts MOOD_DROP_RULES removes 3 of the strategic
+  // board's 5 advisors when mood=depleted and 4 when mood=scattered. The
+  // routing shipped 2026-05-23 with a comment claiming the "operator can
+  // see WHICH state drove the routing + which advisors got gated out";
+  // grepping the whole client tree for `droppedAdvisorIds` returned
+  // nothing. On a depleted day the board chip promised 5 lenses, the
+  // header said "3 advisors", and the difference was unexplained on a
+  // surface whose entire premise is that it preserves divergence.
+  //
+  // `takes` are the advisors that RAN, `droppedAdvisorIds` the ones the
+  // gate removed before the fan-out, so their sum is the board as the
+  // operator curated it. Rendering the denominator is what turns "3
+  // advisors" from a silent subtraction into a stated one.
+  const dropped = result?.droppedAdvisorIds ?? [];
+  const boardSize = result ? result.takes.length + dropped.length : 0;
+  const gatingMood = result?.operatorState?.mood ?? null;
 
   async function onConsult() {
     if (question.trim().length < 8) return;
@@ -204,9 +217,37 @@ export function BoardTab() {
               {Math.round(result.synthesis.confidence * 100)}% confidence
             </span>
             <span className="ml-auto text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
-              {result.durationMs}ms · {result.takes.length} advisors
+              {result.durationMs}ms ·{" "}
+              {dropped.length > 0
+                ? `${result.takes.length} of ${boardSize} advisors`
+                : `${result.takes.length} advisors`}
             </span>
           </div>
+
+          {/* Mood gate · WHICH lenses were withheld and WHY. Rendered
+              inside the synthesis card because it qualifies the
+              recommendation directly: this is the board minus N lenses,
+              and the operator is entitled to know which N before acting
+              on a decision described as having compound consequences. */}
+          {dropped.length > 0 && (
+            <div className="border-t border-amber-400/20 pt-2.5">
+              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-amber-400/80 mb-1">
+                lenses withheld ({dropped.length})
+              </p>
+              <p className="text-[12px] text-[var(--text-secondary)]">
+                {gatingMood
+                  ? `your state read as ${gatingMood} · these lenses were gated out before the board ran: `
+                  : "these lenses were gated out before the board ran: "}
+                <span className="font-mono text-[11px] text-amber-300/90">
+                  {dropped.join(" · ")}
+                </span>
+              </p>
+              <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+                they were never consulted · the synthesis above does not
+                speak for them
+              </p>
+            </div>
+          )}
 
           {/* Recommendation · the lean · biggest font size on the page */}
           <p className="text-sm leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
@@ -265,7 +306,8 @@ export function BoardTab() {
       {result && result.takes.length > 0 && (
         <div className="space-y-2 mt-5">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
-            advisor takes ({result.takes.length})
+            advisor takes ({result.takes.length}
+            {dropped.length > 0 ? ` of ${boardSize}` : ""})
           </p>
           {result.takes.map((take) => {
             const isExpanded = expandedTakes.has(take.advisorId);
@@ -358,7 +400,38 @@ export function BoardTab() {
         </div>
       )}
 
-      {/* ── Recent consultations · scroll-back history ────────── */}
+      {/* ── Recent consultations · scroll-back history ──────────
+          A failed query used to render as an ABSENT section: the guard
+          was `recents.length > 0` over `data?.consultations ?? []`, so a
+          503 and an empty history were pixel-identical and the operator
+          was shown "you have no history" for "we could not read it".
+          Same three honest states as components/brain/judgment-quality-
+          panel.tsx:35-43 — loading, unknown, empty — never a silent gap. */}
+      {recentQuery.isError && (
+        <div className="pt-4 border-t border-[var(--border-default)] mt-5">
+          <p className="rounded border border-red-500/25 bg-red-500/[0.04] px-3 py-2.5 text-[11px] text-red-300">
+            recent consultations couldn&apos;t load — state unknown, not
+            empty · {recentQuery.error?.message ?? "unknown"}
+          </p>
+          <button
+            type="button"
+            onClick={() => void recentQuery.refetch()}
+            className="mt-2 min-h-[44px] px-4 py-2 rounded-full text-[10px] font-mono uppercase tracking-[0.16em] border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)] transition-colors"
+          >
+            retry
+          </button>
+        </div>
+      )}
+
+      {!recentQuery.isError && !recentQuery.isLoading && recents.length === 0 && (
+        <div className="pt-4 border-t border-[var(--border-default)] mt-5">
+          <p className="text-[11px] text-[var(--text-tertiary)]">
+            no consultations recorded yet · the history builds as you use
+            the board.
+          </p>
+        </div>
+      )}
+
       {recents.length > 0 && (
         <div className="pt-4 border-t border-[var(--border-default)] space-y-2 mt-5">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
@@ -380,6 +453,28 @@ export function BoardTab() {
                   {r.divergenceCount > 0 && (
                     <span className="text-[10px] font-mono text-amber-400/80">
                       ⚡ {r.divergenceCount} div
+                    </span>
+                  )}
+                  {/* The persisted gate verdict · without it a 3-advisor
+                      row in history is indistinguishable from a 3-advisor
+                      board, and the operator cannot tell why two lenses
+                      are missing from a decision they already made. */}
+                  {r.droppedAdvisorIds.length > 0 && (
+                    <span
+                      className="text-[10px] font-mono text-amber-400/80"
+                      title={
+                        (r.moodAtConsult ? `mood ${r.moodAtConsult} · ` : "") +
+                        `gated out: ${r.droppedAdvisorIds.join(", ")}`
+                      }
+                    >
+                      {r.advisorCount} of{" "}
+                      {r.advisorCount + r.erroredCount + r.droppedAdvisorIds.length} lenses
+                      {r.moodAtConsult ? ` · ${r.moodAtConsult}` : ""}
+                    </span>
+                  )}
+                  {r.droppedAdvisorIds.length === 0 && r.erroredCount > 0 && (
+                    <span className="text-[10px] font-mono text-red-400/80">
+                      {r.erroredCount} errored
                     </span>
                   )}
                   <span className="ml-auto text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">

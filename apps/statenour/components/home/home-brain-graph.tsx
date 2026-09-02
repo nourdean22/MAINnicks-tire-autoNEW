@@ -101,16 +101,198 @@ const LENSES: Array<{ key: string; label: string; match: (n: BrainGraphNode) => 
   { key: "goals", label: "GOALS", match: (n) => n.type === "goal" || n.type === "mission" || n.type === "task" },
   { key: "decisions", label: "DECISIONS", match: (n) => n.type === "decision" },
   { key: "mind", label: "MIND", match: (n) => n.type === "memory" || n.type === "journal" || n.metadata?.source === "category_hub" },
+  // LAST 30D matches on `ageDays`, which only DATABASE-BACKED nodes carry.
+  // Person nodes used to be built without it, so a person added yesterday
+  // could never appear here — fixed at the source (lib/brain/brain-graph.ts
+  // person mapper) rather than by loosening the predicate. System anchors
+  // and category hubs still have no `ageDays` and correctly never match:
+  // "FITNESS" and "cat:wisdom" are synthetic structure with no birthday, and
+  // giving them a fake one to satisfy a filter would be the invented-data
+  // move this file's whole rebuild was against.
   { key: "recent", label: "LAST 30D", match: (n) => typeof n.ageDays === "number" && n.ageDays <= 30 },
 ];
 
-type LoadState =
+export type LoadState =
   | { phase: "initial" }
-  | { phase: "ready"; refreshing: boolean }
-  | { phase: "empty" }
+  /** `staleError` is set when a REFRESH failed while a good payload was
+   *  already on screen. The old code silently swallowed that case — after
+   *  the first success every later failure produced no message and no
+   *  retry, so a timed-out refetch left the previous graph rendering as if
+   *  it were current. */
+  | { phase: "ready"; refreshing: boolean; staleError: string | null }
+  /** `isolatedFocus` distinguishes the ONLY deterministic way this phase is
+   *  reached from the one the copy used to assume. See the empty-state
+   *  render block for the full account. */
+  | { phase: "empty"; isolatedFocus: boolean }
   | { phase: "error"; message: string };
 
+/** The request parameters the payload ON SCREEN was actually built from.
+ *  Null until the first success. The scope toggles used to style
+ *  themselves from the REQUESTED state, so a failed refetch left "+
+ *  ACTIVITY" reading ON over a semantic graph that omits task and journal
+ *  nodes — the operator read a filtered graph as the full one. */
+export interface AppliedView {
+  includeActivity: boolean;
+  focusId: string | null;
+  localOnly: boolean;
+}
+
 const FETCH_TIMEOUT_MS = 12_000;
+
+/** How many nodes "ask the brain" may paste into the chat seed. A budget,
+ *  not a claim of completeness — `buildAskPrompt` orders by weight before
+ *  clipping and tells the model when it clipped. */
+const ASK_NODE_BUDGET = 120;
+
+/**
+ * The chat seed "ask the brain" hands to the model.
+ *
+ * Pure and exported so the clip is testable — the defect this fixes lived
+ * entirely in a string built inside a click handler, where nothing could
+ * see it. Two properties matter and both are asserted in
+ * tests/components/home-brain-graph-honesty.test.ts:
+ *
+ *   ORDERED BEFORE CLIPPED · the old code sliced the builder's emission
+ *   order, so the dropped tail was whatever getBrainGraph appended LAST
+ *   rather than whatever mattered least. Weight is the graph's own
+ *   attention measure — the number that sizes a node on the canvas — so
+ *   it is the honest ranking to clip by. `id` breaks ties so the same
+ *   payload always yields the same prompt.
+ *
+ *   THE CLIP IS DISCLOSED · the prompt asks for "the single
+ *   highest-leverage move I am missing" while forbidding nodes outside
+ *   the snapshot. A silently truncated snapshot therefore does not merely
+ *   omit context, it licenses the model to reason about an absence it was
+ *   never shown. With + ACTIVITY on there is no degree filter and the
+ *   payload exceeds this budget (node budget in lib/brain/brain-graph.ts
+ *   sums to 170 rows + 8 anchors + one hub per memory category), so this
+ *   fired in practice, not in theory.
+ */
+export function buildAskPrompt(opts: {
+  nodes: BrainGraphNode[];
+  lens: string;
+  budget?: number;
+}): string {
+  const budget = opts.budget ?? ASK_NODE_BUDGET;
+  const selected = [...opts.nodes]
+    .sort((a, b) => b.weight - a.weight || a.id.localeCompare(b.id))
+    .slice(0, budget);
+  const omitted = opts.nodes.length - selected.length;
+  const summary = selected
+    .map((node) => {
+      const typeStr = `[${node.type.toUpperCase()}]`;
+      const statusStr = node.status ? ` (${node.status.toUpperCase()})` : "";
+      const ev = node.evidence ? ` <${node.evidence}>` : "";
+      return `${typeStr} ${node.label}${statusStr}${ev}`;
+    })
+    .join("\n");
+  const scopeLine =
+    omitted > 0
+      ? `Graph snapshot (lens: ${opts.lens}) — PARTIAL: the ${selected.length} heaviest of ${opts.nodes.length} nodes in view. ${omitted} lower-weight nodes are NOT shown.`
+      : `Graph snapshot (lens: ${opts.lens}) — complete: all ${selected.length} nodes in view.`;
+  const absenceRule =
+    omitted > 0
+      ? " This snapshot is a subset, so a node's absence is NOT evidence it does not exist — never conclude something is missing from my brain on the strength of this list alone."
+      : "";
+  return `Analyze this brain graph snapshot and extract extreme-leverage insights. Expose blind spots and identify the single highest-leverage move I am missing.
+
+${scopeLine}
+${summary}
+
+Rules: do not hallucinate nodes not in the snapshot.${absenceRule} Inference-class nodes (<supported_inference>, <weak_inference>) are hypotheses, not facts. Be direct.
+
+Format:
+1. Dominant Signal
+2. Asymmetric Risk
+3. Contrarian Arbitrage
+4. Ultimate Execution`;
+}
+
+/**
+ * What the load state becomes when a fetch FAILS.
+ *
+ * Exported because the defect was a single dropped value: the previous
+ * version returned `{ phase: "ready", refreshing: false }` and discarded
+ * `message`, and the error overlay renders only for phase === "error", so
+ * every failure after the first success was invisible. Keeping the old
+ * payload on screen is correct; keeping it on screen SILENTLY is not.
+ */
+export function loadStateAfterFailure(prev: LoadState, message: string): LoadState {
+  return prev.phase === "ready"
+    ? { phase: "ready", refreshing: false, staleError: message }
+    : { phase: "error", message };
+}
+
+/**
+ * What the load state becomes when a fetch SUCCEEDS.
+ *
+ * `isolatedFocus` is the whole point. A zero-node payload has exactly one
+ * deterministic cause — a focused neighbourhood whose centre has no edges
+ * — because lib/brain/brain-graph.ts adds 8 SYSTEM_ANCHORS and two anchor
+ * edges unconditionally, and those anchors are in SEMANTIC_NODE_TYPES.
+ */
+export function loadStateAfterSuccess(nodeCount: number, focusId: string | null): LoadState {
+  return nodeCount === 0
+    ? { phase: "empty", isolatedFocus: Boolean(focusId) }
+    : { phase: "ready", refreshing: false, staleError: null };
+}
+
+/**
+ * Copy for the empty phase, split by cause.
+ *
+ * The old single message — "the brain returned no nodes / genuinely empty
+ * — not an error. Capture memories, missions or goals and they appear
+ * here." — was unreachable for the reason it gave and reachable for one it
+ * denied. The reachable path is one tap: the UNLINKED tray lists degree-0
+ * nodes, a memory node has no href so the tray opens the detail panel, and
+ * "focus graph" requests scope=semantic&focus=<id>&depth=2 — BFS finds no
+ * edges and finalizeGraph strips the focus node itself as degree-0. The
+ * operator was told to go capture memories because they had inspected one.
+ */
+export function emptyStateCopy(isolatedFocus: boolean): { headline: string; body: string } {
+  return isolatedFocus
+    ? {
+        headline: "this node has no connections",
+        body:
+          "nothing links to it within 2 hops, so its neighbourhood is empty. " +
+          "That is a fact about the node, not about the brain.",
+      }
+    : {
+        headline: "the response carried no nodes",
+        body:
+          "not an empty brain — the map always ships its life-domain anchors, " +
+          "so zero nodes means the response was not a graph payload. Retry, and " +
+          "if it repeats the API is the thing to look at.",
+      };
+}
+
+/**
+ * What the scope controls should CLAIM, given what is on screen.
+ *
+ * The toggles used to style themselves and set `aria-pressed` from the
+ * REQUESTED state, which they set before the refetch. A failed or
+ * timed-out refetch therefore left "+ ACTIVITY" reading ON over a
+ * `semantic` payload that omits task and journal nodes — 55 of 148
+ * measured 2026-09-02 — so the operator read a filtered graph as the full
+ * one. `applied` is written only on a successful load; before the first
+ * one there is no payload to misdescribe, so the request stands in.
+ */
+export function resolveControlState(
+  applied: AppliedView | null,
+  requested: AppliedView,
+): {
+  activityApplied: boolean;
+  activityPending: boolean;
+  localOnlyApplied: boolean;
+  localOnlyPending: boolean;
+} {
+  return {
+    activityApplied: applied?.includeActivity ?? requested.includeActivity,
+    localOnlyApplied: applied?.localOnly ?? requested.localOnly,
+    activityPending: applied !== null && applied.includeActivity !== requested.includeActivity,
+    localOnlyPending: applied !== null && applied.localOnly !== requested.localOnly,
+  };
+}
 
 export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGraphProps) {
   const router = useRouter();
@@ -118,6 +300,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [loadState, setLoadState] = useState<LoadState>({ phase: "initial" });
+  const [applied, setApplied] = useState<AppliedView | null>(null);
   const [degraded, setDegraded] = useState<string[]>([]);
   const [rawNodes, setRawNodes] = useState<BrainGraphNode[]>([]);
   const [rawEdges, setRawEdges] = useState<BrainGraphEdge[]>([]);
@@ -574,7 +757,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     setLoadState((prev) =>
-      prev.phase === "ready" ? { phase: "ready", refreshing: true } : { phase: "initial" },
+      prev.phase === "ready"
+        ? { phase: "ready", refreshing: true, staleError: prev.staleError }
+        : { phase: "initial" },
     );
 
     try {
@@ -609,7 +794,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       userMovedViewRef.current = false;
       setDegraded(payload?.degraded ?? []);
       setSelectedNode((prev) => (prev && !nodesList.some((n) => n.id === prev.id) ? null : prev));
-      setLoadState(nodesList.length === 0 ? { phase: "empty" } : { phase: "ready", refreshing: false });
+      // Only a SUCCESSFUL load may change what the controls claim is
+      // applied — that is the whole point of tracking it separately.
+      setApplied({ includeActivity, focusId, localOnly });
+      setLoadState(loadStateAfterSuccess(nodesList.length, focusId));
       syncSimSets(nodesList, edgesList, null);
     } catch (err) {
       if (seq !== requestSeqRef.current) return; // superseded — not an error
@@ -620,10 +808,13 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           ? err.message
           : "graph request failed";
       // Keep showing existing data if we have it — a failed refresh must
-      // not destroy a working graph.
-      setLoadState((prev) =>
-        prev.phase === "ready" ? { phase: "ready", refreshing: false } : { phase: "error", message },
-      );
+      // not destroy a working graph. It must also not PRETEND to have
+      // succeeded: the previous version dropped `message` on the floor
+      // here, and the error overlay + retry render only for phase ===
+      // "error", so after the first success every failure was invisible.
+      // A 12s timeout against what lib/brain/brain-graph.ts:7-13 calls the
+      // widest DB fan-out in the app is not a rare path.
+      setLoadState((prev) => loadStateAfterFailure(prev, message));
     } finally {
       clearTimeout(timeoutId);
     }
@@ -830,28 +1021,8 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
   const handleAskTheBrain = () => {
     if (rawNodes.length === 0) return;
-    const summary = rawNodes
-      .filter((n) => visibleIds.has(n.id) || lens === "all")
-      .slice(0, 120)
-      .map((node) => {
-        const typeStr = `[${node.type.toUpperCase()}]`;
-        const statusStr = node.status ? ` (${node.status.toUpperCase()})` : "";
-        const ev = node.evidence ? ` <${node.evidence}>` : "";
-        return `${typeStr} ${node.label}${statusStr}${ev}`;
-      })
-      .join("\n");
-    const promptText = `Analyze this brain graph snapshot and extract extreme-leverage insights. Expose blind spots and identify the single highest-leverage move I am missing.
-
-Graph snapshot (lens: ${lens}):
-${summary}
-
-Rules: do not hallucinate nodes not in the snapshot. Inference-class nodes (<supported_inference>, <weak_inference>) are hypotheses, not facts. Be direct.
-
-Format:
-1. Dominant Signal
-2. Asymmetric Risk
-3. Contrarian Arbitrage
-4. Ultimate Execution`;
+    const candidates = rawNodes.filter((n) => visibleIds.has(n.id) || lens === "all");
+    const promptText = buildAskPrompt({ nodes: candidates, lens });
     try {
       sessionStorage.setItem("chat:seed", promptText);
     } catch {
@@ -860,8 +1031,14 @@ Format:
     router.push("/chat");
   };
 
+
   const showInitialSpinner = loadState.phase === "initial";
   const showRefreshChip = loadState.phase === "ready" && loadState.refreshing;
+  const staleError = loadState.phase === "ready" ? loadState.staleError : null;
+
+  // Controls describe the graph ON SCREEN, not the request that was fired.
+  const { activityApplied, activityPending, localOnlyApplied, localOnlyPending } =
+    resolveControlState(applied, { includeActivity, focusId, localOnly });
 
   return (
     <div className="flex flex-col h-full space-y-3">
@@ -886,16 +1063,24 @@ Format:
           <>
             <button
               type="button"
+              aria-pressed={localOnlyApplied}
               onClick={() => setLocalOnly(!localOnly)}
+              title={
+                localOnlyPending
+                  ? "requested — the graph on screen is still the previous scope"
+                  : undefined
+              }
               className={cn(
                 "px-3 py-2 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors inline-flex items-center gap-1.5 min-h-[44px]",
-                localOnly
+                localOnlyApplied
                   ? "bg-(--gold)/10 border-(--gold)/35 text-(--gold)"
                   : "bg-(--bg-elevated) border-(--border-default) text-(--text-secondary) hover:border-(--gold)/20",
+                localOnlyPending && "border-dashed opacity-70",
               )}
             >
               <Compass size={12} />
-              {localOnly ? "local neighborhood" : "all nodes"}
+              {localOnlyApplied ? "local neighborhood" : "all nodes"}
+              {localOnlyPending && <span className="opacity-70">· pending</span>}
             </button>
             <button
               type="button"
@@ -957,7 +1142,11 @@ Format:
               one tap away, and the choice is remembered. */}
           <button
             type="button"
-            aria-pressed={includeActivity}
+            // Reads the APPLIED scope. `semantic` omits task + journal —
+            // 55 of 148 nodes measured 2026-09-02 — so a toggle stuck ON
+            // over a stale semantic payload told the operator they were
+            // looking at the whole brain while a third of it was absent.
+            aria-pressed={activityApplied}
             onClick={() => {
               const next = !includeActivity;
               setIncludeActivity(next);
@@ -967,14 +1156,20 @@ Format:
                 /* storage unavailable - the toggle still works for this session */
               }
             }}
+            title={
+              activityPending
+                ? "requested — the graph on screen was built without it"
+                : undefined
+            }
             className={cn(
               "shrink-0 px-3 py-2 rounded-full border text-[9px] font-mono uppercase tracking-[0.14em] transition-colors min-h-[40px]",
-              includeActivity
+              activityApplied
                 ? "bg-(--gold)/12 border-(--gold)/40 text-(--gold)"
                 : "bg-(--bg-elevated) border-(--border-default) text-(--text-tertiary) hover:text-(--text-secondary)",
+              activityPending && "border-dashed opacity-70",
             )}
           >
-            + ACTIVITY
+            + ACTIVITY{activityPending ? " ·" : ""}
           </button>
         </div>
       )}
@@ -1017,18 +1212,92 @@ Format:
           </div>
         )}
 
+        {/* EMPTY · the copy used to say "genuinely empty — not an error.
+            Capture memories, missions or goals and they appear here." That
+            was unreachable for the reason it gave and reachable for one it
+            denied: lib/brain/brain-graph.ts adds 8 SYSTEM_ANCHORS and two
+            anchor edges UNCONDITIONALLY, and those anchors are in
+            SEMANTIC_NODE_TYPES, so a whole-brain payload is structurally
+            never zero no matter how little the operator has captured.
+            Zero comes from the focus branch — BFS finds no edges, then
+            finalizeGraph strips the focus node itself as degree-0 — which
+            is one tap away: the UNLINKED tray lists degree-0 nodes, a
+            memory node has no href so the tray opens the detail panel, and
+            "focus graph" requests exactly that. The operator was told to
+            go capture memories because they had inspected one. */}
         {loadState.phase === "empty" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center z-10">
-            <p className="text-xs text-(--text-secondary) font-mono">the brain returned no nodes</p>
-            <p className="text-[10px] text-(--text-tertiary) font-mono max-w-xs">
-              genuinely empty — not an error. Capture memories, missions or goals and they appear here.
-            </p>
+            {loadState.isolatedFocus ? (
+              <>
+                <p className="text-xs text-(--text-secondary) font-mono">
+                  {emptyStateCopy(true).headline}
+                </p>
+                <p className="text-[10px] text-(--text-tertiary) font-mono max-w-xs">
+                  {emptyStateCopy(true).body}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusId(null);
+                    setLocalOnly(false);
+                  }}
+                  className="mt-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded border border-(--gold)/30 text-(--gold) hover:bg-(--gold)/10 min-h-[48px]"
+                >
+                  back to the full map
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-(--text-secondary) font-mono">
+                  {emptyStateCopy(false).headline}
+                </p>
+                <p className="text-[10px] text-(--text-tertiary) font-mono max-w-xs">
+                  {emptyStateCopy(false).body}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fetchGraphData()}
+                  className="mt-1 px-4 py-2 text-[10px] font-mono uppercase tracking-wider rounded border border-(--gold)/30 text-(--gold) hover:bg-(--gold)/10 min-h-[48px] inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw size={12} />
+                  retry
+                </button>
+              </>
+            )}
           </div>
         )}
 
-        {degraded.length > 0 && loadState.phase === "ready" && (
+        {/* Named failed domains belong on the empty phase TOO — that is
+            precisely the phase where the operator is trying to work out
+            why there is nothing to look at. Gating this on "ready" hid the
+            one piece of evidence that answers the question. */}
+        {degraded.length > 0 && (loadState.phase === "ready" || loadState.phase === "empty") && (
           <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-[8px] font-mono uppercase tracking-wider text-amber-300">
             degraded · missing: {degraded.join(", ")}
+          </div>
+        )}
+
+        {/* A refresh that failed over a good graph. Without this the
+            operator reads a stale payload as current — and, worse, reads
+            it through toggles that had already moved. Says WHAT is on
+            screen, not just that something went wrong. */}
+        {staleError && !showRefreshChip && (
+          <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
+            <AlertTriangle size={11} className="text-amber-300 shrink-0" />
+            <span className="text-[9px] font-mono uppercase tracking-wider text-amber-300">
+              refresh failed · showing the last graph that loaded
+            </span>
+            <span className="text-[9px] font-mono text-amber-200/70 basis-full sm:basis-auto">
+              {staleError}
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchGraphData()}
+              className="ml-auto px-2.5 py-1 text-[9px] font-mono uppercase tracking-wider rounded border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 min-h-[32px] inline-flex items-center gap-1"
+            >
+              <RefreshCw size={10} />
+              retry
+            </button>
           </div>
         )}
 
@@ -1072,8 +1341,14 @@ Format:
 
       {/* WP-3 · Integration debt, not a rendering accident. This graph builder
           deleted its "connect every orphan to an anchor" pass in the 2026-08-19
-          truth pass because inventing edges lies; isolation is signal. These
-          nodes are excluded from the force layout and listed instead. */}
+          truth pass because inventing edges lies; isolation is signal.
+          These nodes are listed here in every scope. Whether they are ALSO
+          drawn depends on the scope: `finalizeGraph` removes degree-0 nodes
+          from `nodes` only for `semantic` (lib/brain/brain-graph.ts:190,
+          contract documented at :148-150), so under + ACTIVITY (`full`) they
+          are drawn AND listed. The earlier wording here claimed they were
+          "excluded from the force layout" outright, which was true of one
+          scope out of four. */}
       {variant === "full" && unlinked.length > 0 && (
         <div className="shrink-0">
           <button

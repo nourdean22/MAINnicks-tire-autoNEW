@@ -23,6 +23,7 @@
 import type { NickPrimeContext } from "@/lib/ai/context/nick-prime-context";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { ALERT_LABEL } from "@/lib/ai/prompt/policy/operator-rules";
+import { describeConfidenceAsAttention } from "@/lib/brain/attention-label";
 
 /** Shorter alias used per-leaf — every operator-supplied string runs
  *  through this before concatenation. v9.1.13 prompt-injection guard. */
@@ -98,6 +99,75 @@ export function renderPromptV2(ctx: NickPrimeContext): PromptV2Sections {
 }
 
 /**
+ * How many pins ride with EVERY request. 2026-09-02 · self-audit.
+ *
+ * Until this constant existed the same claim was written down four
+ * times, and three of the four were wrong:
+ *
+ *   · this renderer                  no cap at all — a bare
+ *                                    `for (const p of pinned)`
+ *   · command-center-state.ts        `take: 6`, which was the REAL cap,
+ *                                    because the renderer only ever sees
+ *                                    what that query returned
+ *   · pinned-context-panel.tsx       `INJECTION_CAP = 5`, so at exactly
+ *                                    six pins it labelled the sixth
+ *                                    "idle" and showed an over-cap
+ *                                    tooltip reading "Only the newest 5
+ *                                    pins ride with every request" —
+ *                                    both statements false
+ *   · lib/services/pins.ts           `Math.min(pins.length, 5)`, feeding
+ *                                    the /pins page header
+ *
+ * The cap lives HERE, in the injector, and not in the panel or the
+ * query, because this is the last code that touches a pin before it
+ * reaches the model. A cap declared anywhere else is a claim about some
+ * OTHER module's behaviour, which is precisely how the panel came to
+ * promise "the newest 5" about a loop that had no slice in it. The
+ * upstream query imports this constant for its `take` so it never
+ * fetches rows this function would drop, the panel imports it so the
+ * number it shows is the number that ships, and the slice below still
+ * holds if some future context source fills `pinnedContext` another way.
+ *
+ * No "…and N more" disclosure line here (unlike renderAgendaItems
+ * below): the query is capped by this same constant, so that branch
+ * could never fire. The operator-facing overflow warning belongs on the
+ * panel, which is the only surface that can see all 50 pins.
+ */
+export const PINNED_PROMPT_CAP = 6;
+
+/**
+ * Per-pin character budget inside the prompt.
+ *
+ * Pins STORE up to 1200 chars (lib/services/pins.ts:170,181,240) and
+ * both of the panel's character counters say `/1200`, but only this many
+ * characters have ever reached the model. Deliberately NOT raised:
+ * six pins x 1200 chars is ~1.8k tokens added to every single request,
+ * for content the operator writes as reference material rather than as a
+ * standing instruction. The cut is made VISIBLE instead — the panel
+ * badges any pin longer than this, and bills tokens against
+ * `renderPinnedLine` rather than against the stored length, which it had
+ * been over-reporting by up to 6x per long pin.
+ */
+export const PINNED_PROMPT_CHARS = 200;
+
+/**
+ * One pinned line, exactly as it lands in the system prompt.
+ *
+ * Exported so the operator panel measures a pin's real prompt cost by
+ * calling the same function instead of re-deriving the format. The old
+ * estimate summed STORED content length, so a 1200-char pin was billed
+ * at ~300 tokens when it actually contributed ~50.
+ */
+export function renderPinnedLine(p: {
+  key: string;
+  source: string | null;
+  content: string;
+}): string {
+  const src = p.source ? ` [${safe(p.source, 40)}]` : "";
+  return `- ${safe(p.key, 60)}${src}: ${safe(p.content, PINNED_PROMPT_CHARS)}`;
+}
+
+/**
  * v9.1.8 · "Anchors" — permanent context that overrides everything
  * else. Pinned by Nour himself + the highest-confidence hard-rule
  * brain memories. Renders at the very top of the prompt because if
@@ -124,9 +194,8 @@ function renderAnchors(ctx: NickPrimeContext): string {
     lines.push(
       `Nour pinned these himself. They override guesses and stay every turn until he unpins them. If one feels stale, ask — don't assume.`,
     );
-    for (const p of pinned) {
-      const src = p.source ? ` [${safe(p.source, 40)}]` : "";
-      lines.push(`- ${safe(p.key, 60)}${src}: ${safe(p.content, 200)}`);
+    for (const p of pinned.slice(0, PINNED_PROMPT_CAP)) {
+      lines.push(renderPinnedLine(p));
     }
   }
 
@@ -136,9 +205,23 @@ function renderAnchors(ctx: NickPrimeContext): string {
     lines.push(
       `Highest-confidence rules across identity, feedback, brand, and business context. For deeper recall use \`searchColdMemory()\`.`,
     );
+    // 2026-09-02 · was `${Math.round(r.confidence * 100)}%`, injected into
+    // the system prompt itself. `brain_memories.confidence` is a
+    // re-sighting counter, not a probability (born 0.5, +0.1 per
+    // reinforcement, capped at 1.0 — lib/brain/memory-manager.ts:540), so
+    // that string told the model "95% likely true" about a row that had
+    // simply been seen five times. lib/brain/attention-label.ts was written
+    // 2026-08-19 to kill exactly this and says "One helper, so this cannot
+    // drift back"; it drifted back here because the renderer is not a UI
+    // file and nobody swept it. `BrainRuleSummary` carries no seenCount
+    // column, which is the documented last-resort case for the inversion —
+    // see the helper's MEASURED LIMIT block. Plumbing seenCount through
+    // command-center-state would let this use `describeSeenCount`, which is
+    // always true; that is a wider change than this fix and is flagged, not
+    // taken.
     for (const r of rules) {
-      const conf = `${Math.round(r.confidence * 100)}%`;
-      lines.push(`- [${safe(r.category, 30)}] (${conf}) ${safe(r.content, 140)}`);
+      const attention = describeConfidenceAsAttention(r.confidence);
+      lines.push(`- [${safe(r.category, 30)}] (${attention}) ${safe(r.content, 140)}`);
     }
   }
 

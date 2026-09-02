@@ -33,6 +33,7 @@ import { useState } from "react";
 // (reused · the deprecate action) + `trpc.brain.recordTelemetry`.
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 
 interface StaleCandidate {
   type: "stale";
@@ -68,11 +69,45 @@ interface LowTrustCandidate {
   reason: string;
 }
 
+/** Mirrors `EvolutionFinderFailure` in lib/brain/wisdom-evolution.ts. */
+interface FinderFailure {
+  finder: "stale" | "redundant" | "lowTrust";
+  message: string;
+}
+
 interface EvolutionResp {
   stale: StaleCandidate[];
   redundant: RedundantPair[];
   lowTrust: LowTrustCandidate[];
   totalCandidates: number;
+  /** Optional so a response from a pre-2026-09-02 deploy still parses. */
+  failures?: FinderFailure[];
+}
+
+const FINDER_LABEL: Record<FinderFailure["finder"], string> = {
+  stale: "stale · cold",
+  redundant: "redundant · merge",
+  lowTrust: "low trust · review",
+};
+
+/**
+ * Renders WHICH finders failed. A zero in a failed finder's section is
+ * "unknown", not "none" — so this sits above the lists rather than
+ * replacing them, and the empty state never claims health while a
+ * finder is down.
+ */
+function FailureNote({ failures }: { failures: FinderFailure[] }) {
+  if (failures.length === 0) return null;
+  return (
+    <p className="mt-2 flex items-start gap-1.5 text-[11px] text-red-400">
+      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+      <span>
+        {failures.length === 1 ? "1 finder" : `${failures.length} finders`} failed —{" "}
+        {failures.map((f) => `${FINDER_LABEL[f.finder] ?? f.finder} (${f.message})`).join(" · ")}.
+        Those sections read zero because they could not run, not because they are empty.
+      </span>
+    </p>
+  );
 }
 
 export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
@@ -120,16 +155,54 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
       </div>
     );
   }
-  if (!data || data.totalCandidates === 0) {
+  // 2026-09-02 self-audit, defect #1. This branch used to be reached
+  // whenever `data` was falsy — INCLUDING a rejected query — and it
+  // announced "the wisdom corpus is healthy". `runWisdomEvolution` was a
+  // bare `Promise.all`, so any one of three finders throwing rejected
+  // the whole thing, and a DB error rendered as a clean bill of health.
+  // Same shape as components/brain/judgment-quality-panel.tsx:35 —
+  // state unknown, not empty.
+  if (evoQuery.isError || !data) {
     return (
-      <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--bg-raised)] p-4">
+      <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-4">
+        <p className="text-[11px] font-mono uppercase tracking-wider text-red-400">
+          evolution review
+        </p>
+        <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--text-secondary)]">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-400" />
+          <span>
+            Evolution candidates couldn&apos;t load — state unknown, not empty.
+            {evoQuery.error?.message ? ` (${evoQuery.error.message})` : ""}
+          </span>
+        </p>
+      </div>
+    );
+  }
+
+  const failures = data.failures ?? [];
+
+  if (data.totalCandidates === 0) {
+    return (
+      <div
+        className={`rounded-lg border p-4 ${
+          failures.length > 0
+            ? "border-red-500/25 bg-red-500/5"
+            : "border-[var(--gold)]/30 bg-[var(--bg-raised)]"
+        }`}
+      >
         <p className="text-[11px] font-mono uppercase tracking-wider text-[var(--gold)]">
           evolution review
         </p>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          No candidates · the wisdom corpus is healthy. The brain-feedback-loop cron
-          will refresh this list daily at 05:00 UTC.
-        </p>
+        {failures.length > 0 ? (
+          // Every finder that ran returned nothing AND at least one did
+          // not run. "Healthy" is not a claim this data supports.
+          <FailureNote failures={failures} />
+        ) : (
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            No candidates · the wisdom corpus is healthy. The brain-feedback-loop cron
+            will refresh this list daily at 05:00 UTC.
+          </p>
+        )}
       </div>
     );
   }
@@ -142,6 +215,8 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
           <h3 className="section-title text-base mt-1">
             {data.totalCandidates} wisdom candidate{data.totalCandidates === 1 ? "" : "s"}
           </h3>
+          {/* Partial results are still results — but they are labelled. */}
+          <FailureNote failures={failures} />
         </div>
         <span className="text-[9px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
           v10.0.406

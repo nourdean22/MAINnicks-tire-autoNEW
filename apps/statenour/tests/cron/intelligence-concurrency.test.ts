@@ -34,7 +34,14 @@ const engines = {
   analyzeDecisionPatterns: makeEngine(),
   analyzeTimePatterns: makeEngine(),
   analyzeEmotionalArc: makeEngine(),
-  measureLearningVelocity: makeEngine(),
+  // 2026-09-02 · the route calls snapshotLearningVelocity, not
+  // measureLearningVelocity. The snapshot upsert used to sit inside the
+  // measure function, which made the /brain Memory-tab tRPC query write on
+  // every render; the write moved to its own export and this cron owns it.
+  // The mock must track the rename or the dynamic import resolves to
+  // undefined and this engine silently never runs — which is exactly how
+  // this test failed when the call site moved.
+  snapshotLearningVelocity: makeEngine(),
   assessStrategicPlans: makeEngine(),
 };
 
@@ -51,7 +58,7 @@ vi.mock("@/lib/brain/emotional-arc", () => ({
   analyzeEmotionalArc: engines.analyzeEmotionalArc,
 }));
 vi.mock("@/lib/brain/learning-velocity", () => ({
-  measureLearningVelocity: engines.measureLearningVelocity,
+  snapshotLearningVelocity: engines.snapshotLearningVelocity,
 }));
 vi.mock("@/lib/brain/strategic-plans", () => ({
   assessStrategicPlans: engines.assessStrategicPlans,

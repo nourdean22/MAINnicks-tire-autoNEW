@@ -53,6 +53,8 @@ interface MemoryHealthPayload {
     decayed: number;
     vectorized: number;
     vectorizedPct: number;
+    knowledgeVectorized: number;
+    knowledgeVectorizedPct: number;
     categoryCount: number;
     telemetry: number;
     knowledge: number;
@@ -154,10 +156,15 @@ export function BrainHealthView() {
               <Counter label="categories" value={data.totals.categoryCount} tone="violet" />
             </div>
             <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50">
+              {/* 2026-09-02 · was pct/vectorized/live. `live` includes the
+                  telemetry rows embedding-policy forbids embedding, so the bar
+                  was capped at 93.4% on prod and could never reach 100% —
+                  permanent incompleteness rendered as a backlog. Knowledge
+                  coverage was 99.967% the same day. */}
               <VectorizationBar
-                pct={data.totals.vectorizedPct}
-                vectorized={data.totals.vectorized}
-                total={data.totals.live}
+                pct={data.totals.knowledgeVectorizedPct}
+                vectorized={data.totals.knowledgeVectorized}
+                total={data.totals.knowledge}
               />
             </div>
           </GlassCard>
@@ -326,7 +333,10 @@ function VectorizationBar({
   return (
     <div>
       <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider mb-1">
-        <span className="text-[var(--text-tertiary)]">vectorization</span>
+        {/* Named for the population it measures. "vectorization" beside a
+            telemetry counter of 5,169 invited the reader to check the denominator
+            against the wrong total and conclude rows were missing. */}
+        <span className="text-[var(--text-tertiary)]">knowledge vectorization</span>
         <span className="text-[var(--text-secondary)] tabular-nums">
           {vectorized}/{total} · {pct.toFixed(1)}%
         </span>
@@ -361,7 +371,10 @@ function CategoryRow({ c }: { c: CategoryHealth }) {
 
   const stale = c.ageNewestHours !== null && c.ageNewestHours > 24 * 7;
   const dormant = c.ageNewestHours !== null && c.ageNewestHours > 24 * 30;
-  const noVecs = c.vectorized === 0 && c.count > 5;
+  // Telemetry categories are excluded from the vector index on purpose
+  // (lib/brain/embedding-policy.ts). Badging them "no vec" faults a category
+  // for obeying policy — the same mistake computeHealthFlags used to make.
+  const noVecs = c.vectorized === 0 && c.count > 5 && !c.telemetry;
 
   const ageLabel =
     c.ageNewestHours === null
