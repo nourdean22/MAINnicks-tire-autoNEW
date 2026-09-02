@@ -22,44 +22,34 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { BOARDS, BOARD_IDS } from "@/lib/ai/board/boards";
+import type { BoardId } from "@/lib/ai/board/types";
 
-// Local mirror of BOARDS' display data · the boards module exports
-// BOARD_IDS as a const tuple for the tRPC enum but the human labels
-// + one-liners are easier to keep co-located with the page rendering.
-// If the operator adds a 6th board, update here AND lib/ai/board/boards.ts.
+// 2026-09-02 · this was a hand-maintained mirror of five of the six boards.
+// Its own comment said "If the operator adds a 6th board, update here AND
+// lib/ai/board/boards.ts" — the 6th board (`team`, Working Team, 5 AG-12
+// personas) shipped 2026-07-09 in AG-42, five weeks AFTER this file was last
+// touched, and the instruction was not followed. The board has been accepted
+// by the tRPC procedure and reachable from the chat tool ever since, and
+// invisible on the one surface built to select boards.
+//
+// The type system could not catch it: `BoardId` was derived FROM the mirror,
+// so a five-of-six subset compiled cleanly against the server's six-value
+// union. A comment was the only guard, and comments do not fail builds.
+//
+// The mirror was also unnecessary. BOARDS already carries `name` and
+// `oneLiner` for every board, so this deletes the duplicate rather than
+// repairing it — deriving the options means a seventh board appears here the
+// moment it is defined, with no second edit and nothing to forget.
 const BOARD_OPTIONS: ReadonlyArray<{
-  id: "strategic" | "invest" | "product" | "operator" | "full";
+  id: BoardId;
   name: string;
   oneLiner: string;
-}> = [
-  {
-    id: "strategic",
-    name: "strategic",
-    oneLiner: "major life/career decisions · 5 lenses",
-  },
-  {
-    id: "invest",
-    name: "invest",
-    oneLiner: "capital + pricing + financial",
-  },
-  {
-    id: "product",
-    name: "product",
-    oneLiner: "product / feature / market direction",
-  },
-  {
-    id: "operator",
-    name: "operator",
-    oneLiner: "personal decision quality + tempo",
-  },
-  {
-    id: "full",
-    name: "full",
-    oneLiner: "critical decisions · 8 advisors · slower + costlier",
-  },
-];
-
-type BoardId = (typeof BOARD_OPTIONS)[number]["id"];
+}> = BOARD_IDS.map((id) => ({
+  id,
+  name: BOARDS[id].name,
+  oneLiner: BOARDS[id].oneLiner,
+}));
 
 function formatRelative(iso: string): string {
   const now = Date.now();
@@ -75,7 +65,11 @@ function formatRelative(iso: string): string {
 }
 
 export function BoardTab() {
-  const [boardId, setBoardId] = useState<BoardId>("strategic");
+  // First board in display order, rather than a literal. Identical value
+  // today; the point is that no board id is spelled out in this file, so the
+  // canary can assert that flatly instead of carving out an exception a future
+  // mirror could hide behind.
+  const [boardId, setBoardId] = useState<BoardId>(BOARD_IDS[0]);
   const [question, setQuestion] = useState("");
   const [expandedTakes, setExpandedTakes] = useState<Set<string>>(new Set());
 
