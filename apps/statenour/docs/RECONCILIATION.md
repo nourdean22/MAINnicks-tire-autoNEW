@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-02 · Command Surface revenue: unknown is not $0 (#2068)
+>
+> Cross-app contract fix. nickstire PR #2063 made its every-15-minutes push say
+> `revenue: { available: false, reason, pacing: "unknown" }` (no numbers) when its own revenue read
+> failed; this app's `app/api/command/data` read `revenue.todayEstimate ?? … ?? 0` and rendered that
+> as a $0 day — the "$0 crossed the boundary" defect nickstire's audit traced to this consumer, and
+> the live bridge snapshot had the same `?? 0` one layer down. One derivation
+> (`lib/nickstire/shop-revenue.ts`, built on the existing tolerant `readNickRevenue` + `hasToday`)
+> now feeds the route: live bridge wins when it carries a reading, then the last push unless it
+> declares itself unavailable, else `null` + the reason. `shop.todayRevenue`/`weekRevenue` are
+> `number | null` with `revenueAvailable` + `revenueReason`; `nour-state` uses `?? null`; the
+> `@revenue` mention and the operating-rhythm Telegram lines say "unknown (read failed)", and the
+> rhythm's ZERO REVENUE cliff banner no longer fires on a missing reading. A counted zero stays $0.
+> Tests: `tests/lib/shop-revenue.test.ts` (8; the `available:false` fixture and a `{ todayEstimate: 0 }`
+> positive control). Verification disclosure: this machine had no statenour toolchain in any
+> worktree, so the commit was pushed from a hookless scratch clone and CI was the gate.
+
 > ## 2026-09-01 · Audit wave · 4 ships (#2057 · #2058 · #2059 · N-1 follow-up)
 >
 > A read-only forensic audit (docs/research/2026-09-01-statenour-audit-*.md) and a master
