@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubSentryEvent, sentryInitOptions, shouldRecordSpanForLangfuse } from "@/lib/observability/sentry";
+import { scrubSentryEvent, sentryInitOptions } from "@/lib/observability/sentry";
 import type { LangfuseSpanProcessorLike } from "@/lib/observability/langfuse";
 
 /**
@@ -13,22 +13,25 @@ import type { LangfuseSpanProcessorLike } from "@/lib/observability/langfuse";
  * from the same process — the Vercel AI SDK feeding Langfuse — has to ride on
  * Sentry's provider via the supported `openTelemetrySpanProcessors` option.
  *
- * AND THE SAMPLER HAS TO SAY YES. With `tracesSampleRate: 0` Sentry's sampler
- * returns `NOT_RECORD`, and OpenTelemetry's Tracer returns a non-recording
- * span BEFORE constructing the real one — so `onStart`/`onEnd` never fire and
- * the attached processor receives nothing.
+ * AND THE SAMPLER HAS TO SAY YES, FOR THE ROOT.
  *
- * BUT NOT YES TO EVERYTHING. A blanket `tracesSampleRate: 1` would make every
- * HTTP request, render and query Sentry auto-instruments a recording span, and
- * the attached Langfuse processor would export all of them — burning quota and
- * shipping unrelated request telemetry to a vendor that should only see model
- * calls. So the sampler records ONLY `ai.*` spans plus our boot self-check,
- * and `aiOnlySpanProcessor` filters again on the export side. Two gates,
- * because the sampler is cheap and the filter is exact. (Both review findings
- * on #2079 and #2080.)
+ * `tracesSampleRate: 0` makes the sampler return NOT_RECORD and OpenTelemetry
+ * returns a non-recording span before any processor runs — nothing reaches
+ * Langfuse. But a name-based `tracesSampler` does not work either, and that
+ * cost a deploy to learn: Sentry consults the sampler for ROOT SPANS ONLY
+ * (@sentry/opentelemetry sampler, `if (!isRootSpan) return { decision:
+ * parentSampled ? RECORD_AND_SAMPLED : NOT_RECORD }`). Children inherit the
+ * root's decision verbatim. An `ai.generateText` span is almost always a child
+ * of the HTTP request span, so a sampler that rejected "POST /api/…" silently
+ * killed every AI span nested inside a request — while the boot self-check,
+ * which IS a root, still recorded and reported the pipeline healthy.
  *
- * Transactions that do record are dropped before leaving:
- * `beforeSendTransaction: () => null`. Sentry stays errors-only.
+ * So the root is sampled, and keeping Langfuse to model calls is the EXPORT
+ * side's job: `aiOnlySpanProcessor` (lib/observability/langfuse.ts) forwards
+ * only spans whose instrumentation scope is the AI SDK's. Sampling decides
+ * what records; the filter decides what leaves. Recorded transactions are
+ * dropped before they reach Sentry via `beforeSendTransaction: () => null`, so
+ * Sentry stays errors-only.
  *
  * Fails closed with no valid DSN (`enabled: false`), and every event's free
  * text passes the shared secret mask before export.
@@ -41,7 +44,9 @@ export function initSentryServer(openTelemetrySpanProcessors: LangfuseSpanProces
     ...(carriesForeignProcessors
       ? {
           openTelemetrySpanProcessors,
-          tracesSampler: ({ name }: { name?: string }) => (shouldRecordSpanForLangfuse(name) ? 1 : 0),
+          // Roots must record or their AI children never will.
+          tracesSampleRate: 1,
+          // ...and none of it is shipped to Sentry.
           beforeSendTransaction: () => null,
         }
       : {}),
