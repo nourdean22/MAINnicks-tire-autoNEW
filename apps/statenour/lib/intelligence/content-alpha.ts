@@ -1,3 +1,4 @@
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
@@ -95,6 +96,7 @@ JSON Schema:
 
       const result = await generateText({
         model,
+        experimental_telemetry: langfuseTelemetry({ functionId: "content-alpha" }),
         system: systemPrompt,
         prompt: `${promptText}\n\nDraft the content assets now.`,
       });

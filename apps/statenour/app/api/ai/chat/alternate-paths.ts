@@ -24,6 +24,7 @@
  * to fall through. Flag-off = zero change (single getFlag read each).
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { stepCountIs } from "ai";
 import { getFlag } from "@/lib/feature-flags";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -67,6 +68,8 @@ export async function runAlternatePaths(args: {
   contextBlocksFired: Parameters<
     typeof import("@/lib/services/chat/response-shape").buildChatResponse
   >[0]["contextBlocksFired"];
+  /** Private Lab turns must not enter hidden multi-call alternate paths. */
+  privateMode: boolean;
   log: Logger;
 }): Promise<Response | null> {
   const {
@@ -92,8 +95,14 @@ export async function runAlternatePaths(args: {
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
+    privateMode,
     log,
   } = args;
+
+  // Alternate paths make additional hidden model calls. Private Lab promises
+  // that prompt and completion content stays in-process, so use the normal
+  // single-call path whose telemetry gate is already private-mode aware.
+  if (privateMode) return null;
 
   const __deepReasonFlag = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
   const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
@@ -274,6 +283,7 @@ export async function runAlternatePaths(args: {
         const genOnce = async (sys: string, temp: number): Promise<string> => {
           const r = await generateText({
             ...genBase,
+            experimental_telemetry: langfuseTelemetry({ functionId: "chat-alternate-path", privateMode }),
             system: sys,
             temperature: temp,
           } as Parameters<typeof generateText>[0]);
@@ -307,6 +317,7 @@ export async function runAlternatePaths(args: {
           generate: async () => {
             const r = await generateText({
               ...genBase,
+              experimental_telemetry: langfuseTelemetry({ functionId: "chat-regenerate", privateMode }),
               system: finalSystemPrompt,
               temperature: Math.min(0.9, turnSignal.temperature + 0.15),
             } as Parameters<typeof generateText>[0]);

@@ -19,6 +19,7 @@
  * about who Nour is while analyzing page-specific data.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { streamText } from "ai";
 import { getModel, GEMINI_SAFETY_OFF } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
@@ -210,6 +211,7 @@ Rules for this analysis:
     // prompt is the cache-stable portion · userPrompt stays fresh.
     const result = streamText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "page-insight" }),
       providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
       messages: [
         {

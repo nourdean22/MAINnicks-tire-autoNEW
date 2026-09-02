@@ -2,6 +2,7 @@
  * Structured Claims Extraction Engine
  * Takes raw source text and extracts structured intelligence claims.
  */
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
 import { extractStructured } from "@/lib/ai/extract-structured";
@@ -54,6 +55,7 @@ JSON Schema:
   try {
     const result = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "extract-claims" }),
       system: systemPrompt,
       prompt: `Raw Text Source:\n${rawContent}\n\nExtract all key intelligence claims now.`,
     });

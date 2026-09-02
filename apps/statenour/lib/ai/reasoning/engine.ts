@@ -34,6 +34,7 @@
  * standard aiChat() call.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
 import { getFlag } from "@/lib/feature-flags";
@@ -720,6 +721,7 @@ async function runToolGather(
 
     const result = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "reasoning-tool-gather" }),
       system: `You are a data-gathering assistant for Nick's reasoning engine. Your ONLY job is to call the available tools to fetch real business data that is relevant to the question and plan below. Call 1-3 tools max. Do NOT answer the question — just gather data. If no tools are relevant, output "NO_TOOLS_NEEDED".
 
 QUESTION: ${question}

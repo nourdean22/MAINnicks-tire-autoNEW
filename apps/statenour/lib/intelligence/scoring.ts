@@ -2,6 +2,7 @@
  * Opportunity & Threat Scoring Engine
  * Defines mathematical priority models and compiles raw claims into actionable opportunities.
  */
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { prisma } from "@/lib/prisma";
 import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
@@ -123,6 +124,7 @@ ${claims
 
     const result = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "score-claims" }),
       system: systemPrompt,
       prompt: `${promptText}\n\nSynthesize into opportunities/threats now.`,
     });

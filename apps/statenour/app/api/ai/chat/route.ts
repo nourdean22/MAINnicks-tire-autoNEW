@@ -952,6 +952,7 @@ async function chatPostInner(req: Request) {
       deeperContextCount,
       deeperContextTypes,
       contextBlocksFired,
+      privateMode,
       log,
     });
     if (altResponse) return altResponse;

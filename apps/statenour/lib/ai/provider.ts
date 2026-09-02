@@ -25,6 +25,7 @@
  * ──────────────────────────────────────────────────────────────
  */
 
+import { langfuseTelemetry, type LangfuseTelemetryInput } from "@/lib/observability/langfuse";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -1051,7 +1052,7 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
 export async function aiChat(
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean; allowMetered?: boolean } = {},
+  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean; allowMetered?: boolean; telemetry?: Partial<LangfuseTelemetryInput> } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
   // every per-provider attempt combines the external + per-attempt
@@ -1224,6 +1225,7 @@ export async function aiChat(
       const useAnthropicCache = entry.name === "anthropic" && systemPrompt && systemPrompt.length > 200;
       const result = await generateText({
         model,
+        experimental_telemetry: langfuseTelemetry({ ...opts.telemetry, functionId: opts.telemetry?.functionId ?? `ai-chat-${taskType}`, metadata: { taskType, ...opts.telemetry?.metadata } }),
         // 2026-07-06 · no Gemini content filtering on the internal LLM path
         // either (reasoning · judge · critic · kn-extract all route through
         // aiChat). Ignored by non-Google providers.
@@ -1604,7 +1606,11 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
 // Streaming (backward compat)
 // ---------------------------------------------------------------------------
 
-export function aiStream(messages: AiMessage[], taskType: TaskType = "reason"): ReadableStream<Uint8Array> {
+export function aiStream(
+  messages: AiMessage[],
+  taskType: TaskType = "reason",
+  opts: { telemetry?: Partial<LangfuseTelemetryInput> } = {},
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
   return new ReadableStream({
@@ -1618,6 +1624,7 @@ export function aiStream(messages: AiMessage[], taskType: TaskType = "reason"): 
 
         const result = streamText({
           model,
+          experimental_telemetry: langfuseTelemetry({ ...opts.telemetry, functionId: opts.telemetry?.functionId ?? `ai-stream-${taskType}`, metadata: { taskType, ...opts.telemetry?.metadata } }),
           providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
           system: systemMessages.map((m) => m.content).join("\n\n") || undefined,
           messages: nonSystemMessages.map((m) => ({

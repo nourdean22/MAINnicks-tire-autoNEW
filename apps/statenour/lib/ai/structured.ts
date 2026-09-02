@@ -17,6 +17,7 @@
  * of manually parsing text from aiChat().
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { generateText } from "ai";
 import { getModel, getActiveProviderInfo } from "./provider";
 
@@ -66,6 +67,7 @@ export async function createStructuredAiResponse<T>(prompt: StructuredPrompt): P
 
     const result = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "structured-response" }),
       system: prompt.systemPrompt,
       prompt: `${prompt.userPrompt}\n\nRespond with ONLY valid JSON matching this schema. No commentary, no markdown, no extra text:\n${JSON.stringify(prompt.schema, null, 2)}`,
     });

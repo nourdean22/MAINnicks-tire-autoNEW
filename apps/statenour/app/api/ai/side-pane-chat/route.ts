@@ -24,6 +24,7 @@
  * Auth: same as page-insight (requireSession + checkAiRateLimit).
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { streamText } from "ai";
 import { requireSession } from "@/lib/auth-guard";
 import { checkAiRateLimit } from "@/lib/rate-limit";
@@ -221,6 +222,7 @@ not a fabricated confirmation.`;
 
     const result = streamText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "side-pane-chat" }),
       messages: [
         {
           role: "system",
