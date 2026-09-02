@@ -125,7 +125,12 @@ describe("AI Provider Resolvers & Fallbacks", () => {
     // default vision model is now the live gemma4:31b.
     expect(resolveProviderModel("ollama", "vision")).toBe("gemma4:31b");
 
-    expect(resolveProviderModel("ollama", "reason")).toBe("deepseek-v4-pro");
+    // 2026-09-02 · deepseek-v4-pro was retired upstream (docs/CURRENT-TRUTH.md).
+    // Same maintenance as the gemma4 line above: when Ollama Cloud kills a
+    // model, the expectation moves to the live one. This assertion had gone on
+    // passing against a dead id, which is how the reason lane stayed pinned to
+    // it and weekly-review failed 291 of 318 runs.
+    expect(resolveProviderModel("ollama", "reason")).toBe("minimax-m3");
     process.env.OLLAMA_MODEL = originalOllamaModel;
   });
 });

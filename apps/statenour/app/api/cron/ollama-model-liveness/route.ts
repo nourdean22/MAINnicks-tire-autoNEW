@@ -58,13 +58,27 @@ export const GET = cronHandler(async () => {
         `that is exactly how the vision lane stayed dead for six weeks.`
       : `Check the key's quota and Ollama Cloud status before changing model ids.`;
 
-  await sendTelegram(
+  // 2026-09-02 · this reported `alerted: true` unconditionally while
+  // sendTelegram returns a boolean and swallows its own errors (it never
+  // throws — see lib/services/telegram.ts:30). So an unconfigured bot token,
+  // a missing chat id or a 5s timeout produced a cron row claiming the
+  // operator had been told about a dead model lane when nothing was sent.
+  // For the route that IS the alarm, a false "alerted" is the worst possible
+  // failure: it turns a loud problem into a silent one.
+  const alerted = await sendTelegram(
     formatTelegramNotification(`${title}`, `${summary}\n\n${runbook}`, "high"),
   );
   log.warn("ollama_lane_failing", {
     failing: report.failing,
     retiredCount: retired.length,
+    alerted,
   });
+  if (!alerted) {
+    log.error("ollama_lane_alert_undelivered", {
+      lanes: report.failing.map((probe) => probe.lane),
+      reason: "sendTelegram returned false — check TELEGRAM_BOT_TOKEN / chat id",
+    });
+  }
 
-  return { ok: false, probes: report.probes, alerted: true };
+  return { ok: false, probes: report.probes, alerted };
 });

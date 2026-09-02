@@ -931,12 +931,15 @@ export function getStructuredModel(): LanguageModel {
   return getModel();
 }
 
-/**
- * Async alias for getModel(). Kept for backward compat.
- */
-export async function getModelWithFallback(): Promise<LanguageModel> {
-  return getModel();
-}
+// `getModelWithFallback()` was DELETED 2026-09-02. It was a bare
+// `return getModel()` — its own comment said "async alias, kept for backward
+// compat" — while its NAME promised cross-provider fallback. It had exactly
+// one caller: app/api/cron/weekly-review, which called it with no try/catch
+// and failed 291 of 318 runs. A caller who reads `getModelWithFallback` has
+// every reason not to write a catch. The real fallback lives in aiChat /
+// aiStream, which return an "emergency" sentinel instead of throwing; a
+// caller that wants bare generateText must handle its own failures, and the
+// name should not suggest otherwise.
 
 // ---------------------------------------------------------------------------
 // aiChat — complete response with provider fallback

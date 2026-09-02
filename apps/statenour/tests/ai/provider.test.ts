@@ -200,8 +200,10 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // We want to test getModel's logic directly. We can verify getModel returns the correct model.
     const model = getModel("reason", { preferLargeContext: true });
     // Since Ollama is first in the LargeContext sort chain, it should return Ollama's model ID
-    // (2026-07-12 · default OLLAMA_MODEL is now the uncensored deepseek-v4-pro).
-    expect((model as any).modelId).toBe("deepseek-v4-pro");
+    // (2026-07-12 · default OLLAMA_MODEL was the uncensored deepseek-v4-pro;
+    // 2026-09-02 · that model was retired upstream and the default is now
+    // minimax-m3, the only model in the catalog that reframes.)
+    expect((model as any).modelId).toBe("minimax-m3");
   });
 
   it("aiChat falls back in the correct order when budget is nearing limit", async () => {
@@ -229,7 +231,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     // Check the order of models called:
     // Prio: ollama (0 cost) -> gemini (1) -> openai (2). anthropic (3) is skipped because hasCheaper is true.
     expect(attemptedModels).toEqual([
-      "deepseek-v4-pro",
+      "minimax-m3", // 2026-09-02 · deepseek-v4-pro retired upstream
       "gemini-3.5-flash",
       "gpt-4o",
     ]);

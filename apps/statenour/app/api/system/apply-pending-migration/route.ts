@@ -26,6 +26,10 @@
  * then POST { name }.
  */
 import { requireSession } from "@/lib/auth-guard";
+import {
+  classifyStatementError,
+  indexNamesCreatedBy,
+} from "@/lib/db/migration-apply-safety";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +37,36 @@ export const maxDuration = 60;
 
 /** Inlined, idempotent migration statements (operator-controlled · deploy-gated). */
 const MIGRATIONS: Record<string, string[]> = {
+  // Restore six indexes the live DB is missing · 2026-09-02 · reported by the
+  // schema sentinel on /system/health (5 HIGH + 1 MEDIUM). Additive and
+  // idempotent; nothing is dropped or deleted. Full reasoning, the built-in
+  // control that proves the sentinel is not false-positiving, and the
+  // read-only duplicate preflight to run if a unique create fails, are in
+  // prisma/migrations-pending/20260902000000_restore_idempotency_partials/migration.sql
+  //
+  // Short version: 20260429190000_universal_idempotency created all six
+  // partial uniques in one file; five are gone from pg_indexes while
+  // autonomous_actions and entity_audits — same expectation shape, same
+  // checker — still pass. Prisma cannot express a partial unique, so none of
+  // these are known to it, and an index Prisma does not know about is one
+  // `db push` will drop. That is failure mode #1 in the sentinel's own header.
+  //
+  // A CREATE UNIQUE INDEX here CAN fail on pre-existing duplicate keys. No
+  // rows are touched, the route stops and returns it, and the post-apply
+  // pg_indexes check refuses to answer applied:true while any of these six is
+  // still missing. That check exists because this comment used to claim the
+  // stop happened when it did not: the executor skipped anything matching
+  // /duplicate/i, which the Postgres message contains. See
+  // lib/db/migration-apply-safety.ts. Deduplicating is a DELETE against real
+  // operator data and is deliberately not automated here.
+  "20260902000000_restore_idempotency_partials": [
+    `CREATE UNIQUE INDEX IF NOT EXISTS "scheduled_actions_idempotency_key_uniq" ON "scheduled_actions"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "task_events_idempotency_key_uniq" ON "task_events"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "goal_events_idempotency_key_uniq" ON "goal_events"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "reflections_idempotency_key_uniq" ON "reflections"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "decision_replays_idempotency_key_uniq" ON "decision_replays"("idempotency_key") WHERE "idempotency_key" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS "chat_messages_searchable_tsv_idx" ON "chat_messages" USING GIN ("searchable_tsv")`,
+  ],
   // Drop 42 duplicate indexes across 24 tables (~18.7 MB) · 2026-08-06 ·
   // indexes only, zero data touched, fully reversible. Matches
   // prisma/migrations-pending/20260806120000_drop_duplicate_indexes/migration.sql
@@ -358,12 +392,61 @@ export async function POST(req: Request) {
       results.push({ stmt: label, status: "ok" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (/already exists|duplicate/i.test(msg)) {
-        results.push({ stmt: label, status: "skip" });
-      } else {
+      // classifyStatementError checks the data-conflict pattern FIRST; see
+      // lib/db/migration-apply-safety.ts for why that order is the fix.
+      if (classifyStatementError(msg) === "fail") {
         results.push({ stmt: label, status: "fail", error: msg.slice(0, 200) });
         return Response.json({ applied: false, name, results }, { status: 500 });
       }
+      results.push({ stmt: label, status: "skip" });
+    }
+  }
+
+  // Every index the statements claim to create must actually be in pg_indexes.
+  // Without this the response's `applied: true` rests on "no statement threw
+  // an error we decided to care about", which is not the same claim.
+  const expectedIndexes = indexNamesCreatedBy(statements);
+  const missingIndexes: string[] = [];
+  if (expectedIndexes.length > 0) {
+    // Positional placeholders rather than `= ANY($1::text[])`: array binding
+    // through $queryRawUnsafe is one more assumption than this needs, and it
+    // is not one that can be checked without a database.
+    const placeholders = expectedIndexes.map((_, i) => `$${i + 1}`).join(", ");
+    const present = await prisma
+      .$queryRawUnsafe<{ indexname: string }[]>(
+        `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN (${placeholders})`,
+        ...expectedIndexes,
+      )
+      .catch(() => null);
+    if (present === null) {
+      // A failed verification is not a passed one. Say so rather than
+      // returning applied:true on the strength of a query that never ran.
+      return Response.json(
+        {
+          applied: false,
+          name,
+          results,
+          error: "post-apply index verification could not run — state unconfirmed",
+        },
+        { status: 500 },
+      );
+    }
+    const found = new Set(present.map((r) => r.indexname));
+    missingIndexes.push(...expectedIndexes.filter((n) => !found.has(n)));
+    if (missingIndexes.length > 0) {
+      return Response.json(
+        {
+          applied: false,
+          name,
+          results,
+          missingIndexes,
+          error:
+            `${missingIndexes.length} of ${expectedIndexes.length} indexes are still absent after apply. ` +
+            `For a unique index this usually means the table holds duplicate non-null keys — run the ` +
+            `read-only preflight in the migration file before doing anything else.`,
+        },
+        { status: 500 },
+      );
     }
   }
 
