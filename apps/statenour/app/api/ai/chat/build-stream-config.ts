@@ -24,6 +24,7 @@
  * the route's onFinishPromise resolver) — behavior is byte-identical.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import type { streamText } from "ai";
 import { smoothStream } from "ai";
 import { stepCountIs } from "ai";
@@ -31,7 +32,6 @@ import { GEMINI_SAFETY_OFF, type ProviderName } from "@/lib/ai/provider";
 import { inferProviderName } from "@/lib/ai/stream-with-fallback";
 import { claude5EffortForAttempt } from "@/lib/ai/vnext/effort-policy";
 import { isClaude5ThinkingModel } from "@/lib/ai/claude5-compat";
-import { isLangfuseTelemetryEnabled } from "@/lib/observability/langfuse";
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -135,16 +135,13 @@ export function buildStreamConfigFactory(deps: {
       // private-mode (spans carry prompt + completion content; private turns
       // never leave the process). With no started processor the flag is
       // false and the AI SDK builds no spans at all — zero overhead.
-      experimental_telemetry: {
-        isEnabled: isLangfuseTelemetryEnabled(privateMode),
+      experimental_telemetry: langfuseTelemetry({
         functionId: "nick-chat",
-        metadata: {
-          mode,
-          modelId: fbModelId,
-          provider: fbProvider,
-          ...(conversationId ? { sessionId: conversationId } : {}),
-        },
-      },
+        privateMode,
+        sessionId: conversationId || undefined,
+        tags: ["nick-chat", mode],
+        metadata: { mode, modelId: fbModelId, provider: fbProvider },
+      }),
       // 2026-07-06 · disable Gemini's default safety filters (per-call, via
       // providerOptions.google — the @ai-sdk/google v3 API). Ignored by
       // non-Google providers. Gemini's defaults can truncate a reply

@@ -8,6 +8,7 @@
  * Compatible with the multi-source search orchestrator structure.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { withGuardian } from "@/lib/tools/guardian";
@@ -52,6 +53,7 @@ async function _askGoogleSearch(
 
   const result = await generateText({
     model,
+    experimental_telemetry: langfuseTelemetry({ functionId: "google-search-ask" }),
     prompt: question,
     providerOptions: { google: GEMINI_SAFETY_OFF }, // 2026-07-06 · no Gemini content filtering
     tools: {

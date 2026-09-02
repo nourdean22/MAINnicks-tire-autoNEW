@@ -12,12 +12,22 @@
  */
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/observability/langfuse", () => ({
+vi.mock("@/lib/observability/langfuse", async (importOriginal) => {
   // Real gating logic is pinned in tests/lib/observability/langfuse.test.ts;
-  // here the mock stands in for "processor started" so the private-mode
-  // parameter is the only variable.
-  isLangfuseTelemetryEnabled: (privateMode?: boolean) => !privateMode,
-}));
+  // here the gate stands in for "processor started" so the private-mode
+  // parameter is the only variable. The metadata shaping is the REAL helper
+  // (tests/lib/observability/langfuse-telemetry.test.ts pins its keys).
+  const real = await importOriginal<typeof import("@/lib/observability/langfuse")>();
+  const isLangfuseTelemetryEnabled = (privateMode?: boolean) => !privateMode;
+  return {
+    ...real,
+    isLangfuseTelemetryEnabled,
+    langfuseTelemetry: (input: Parameters<typeof real.langfuseTelemetry>[0]) => ({
+      ...real.langfuseTelemetry(input),
+      isEnabled: isLangfuseTelemetryEnabled(input.privateMode),
+    }),
+  };
+});
 
 vi.mock("@/lib/services/chat/stream-error-handler", () => ({
   buildStreamErrorHandler: vi.fn(() => vi.fn()),
@@ -76,6 +86,9 @@ describe("build-stream-config experimental_telemetry", () => {
     expect(cfg.experimental_telemetry.metadata.mode).toBe("standard");
     expect(cfg.experimental_telemetry.metadata.modelId).toBe("fallback-model");
     expect(cfg.experimental_telemetry.metadata.sessionId).toBe("conv-123");
+    // 2026-09-02 · the mapped user/tags keys ride along (single-operator app).
+    expect(cfg.experimental_telemetry.metadata.userId).toBe("operator");
+    expect(cfg.experimental_telemetry.metadata.tags).toEqual(["nick-chat", "standard"]);
   });
 
   it("PRIVACY: a private-mode turn builds with telemetry disabled", () => {

@@ -2,6 +2,7 @@
  * Inngest functions for Intelligence OS Briefings
  * Daily and Weekly Cron workflows for raw ingestion, scoring, synthesis, and dispatch.
  */
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { runIngestion } from "@/lib/intelligence/ingest";
@@ -487,6 +488,7 @@ ${weeklyOpps.map((o) => `- [${o.domain.toUpperCase()}] ${o.title}: ${o.descripti
 
       const result = await generateText({
         model,
+        experimental_telemetry: langfuseTelemetry({ functionId: "intelligence-brief" }),
         system: systemPrompt,
         prompt: `${promptText}\n\nCompose the weekly strategic brief now.`,
       });

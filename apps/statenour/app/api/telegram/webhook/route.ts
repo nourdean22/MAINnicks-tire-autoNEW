@@ -16,6 +16,7 @@
  *   /brain     — Brain health stats
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -1146,6 +1147,7 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
 
     const result = await generateText({
       model: getModel("reason"),
+      experimental_telemetry: langfuseTelemetry({ functionId: "telegram-ask" }),
       system:
         "You are Nick — Nour's Chief of Staff. Telegram mobile context, keep the answer under 200 words, no fluff, data-first. You have a few tools (calendar read/propose, memory search, task capture) — use them when the question needs live data, NEVER invent schedule or memory contents. If a tool fails, say so plainly. End with ONE specific action.",
       messages: [{ role: "user", content: question }],

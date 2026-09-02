@@ -17,6 +17,7 @@
  * Owner of the flag spec: lib/feature-flags.ts (NICK_CONTEXTUAL_RETRIEVAL).
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { generateText } from "ai";
 import { getModel } from "@/lib/ai/provider";
 import { getFlag } from "@/lib/feature-flags";
@@ -69,6 +70,7 @@ export async function contextualizeChunk(
 
     const { text } = await generateText({
       model: getModel("fast"),
+      experimental_telemetry: langfuseTelemetry({ functionId: "contextual-retrieval" }),
       system: CONTEXT_SYSTEM,
       prompt,
       maxOutputTokens: 160,

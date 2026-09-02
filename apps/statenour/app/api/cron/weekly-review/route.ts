@@ -1,3 +1,4 @@
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { generateText } from "ai";
 import { getModelWithFallback, getActiveProviderInfo } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
@@ -186,6 +187,7 @@ export const GET = cronHandler(async () => {
 
   const result = await generateText({
     model,
+    experimental_telemetry: langfuseTelemetry({ functionId: "weekly-review" }),
     system: systemPrompt,
     prompt: `Generate Nour's weekly review for the week of ${getWeekStartMonday()}.
 

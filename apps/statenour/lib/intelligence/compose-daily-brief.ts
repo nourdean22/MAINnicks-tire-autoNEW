@@ -14,6 +14,7 @@
  * executive brief" — keep the H1 stable.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import {
   deriveThreatLevel,
   renderOperatorQueue,
@@ -264,6 +265,7 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   try {
     const result = await generateText({
       model: getModel("reason"),
+      experimental_telemetry: langfuseTelemetry({ functionId: "daily-executive-brief" }),
       system: SYSTEM_PROMPT,
       prompt: `${promptText}\n\nCompose the brief now.`,
     });

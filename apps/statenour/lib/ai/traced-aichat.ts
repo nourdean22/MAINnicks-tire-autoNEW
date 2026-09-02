@@ -122,7 +122,13 @@ export async function tracedAiChat(
     // wave-AO follow-up · forward runtime opts (signal, force) so the
     // factory returned by makeTracedAiChat is a true drop-in for bare
     // aiChat (callers passing { signal } no longer fail typecheck).
-    const result = await aiChat(messages, taskType, { ...runtimeOpts, budgetNearingLimit });
+    const result = await aiChat(messages, taskType, {
+      ...runtimeOpts,
+      budgetNearingLimit,
+      // Langfuse: the AgentTrace label is the trace name, the source is a
+      // tag, and the AgentTrace id rides along so the two ledgers join.
+      telemetry: { functionId: opts.label, tags: [opts.source], metadata: { source: opts.source, agentTraceId: traceId, ...(opts.metadata ?? {}) } },
+    });
     // v10.0.26 — aiChat returns { provider: "none", content: "<sentinel>" }
     // when every provider in the chain failed (graceful-degradation
     // sentinel, not an exception). Pre-v10.0.26 this was recorded as

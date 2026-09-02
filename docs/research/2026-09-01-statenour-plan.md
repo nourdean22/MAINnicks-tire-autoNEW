@@ -12,8 +12,11 @@
 > closed the rest. Lesson recorded in the observer
 > queue: enumerate every assembler before calling a fencing fix done.
 > R7 decided 2026-09-02: `/business` deleted, redirect to `/stats` (the coaching CRM has no navigable
-> home now — the named cost of "delete"). Still open: R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
-> `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` unset), R9 the AI SDK major, the 13 parked components,
+> home now — the named cost of "delete"). R8 code side done 2026-09-02: every AI SDK call site
+> (22) now traces through one helper with a gate — before, only `nick-chat` did, so the keys alone
+> would have lit up a fraction of the app. Still open: the R8 env values themselves
+> (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`, `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` — Sentry has NO
+> SDK in the app, the badge only reports env presence), R9 the AI SDK major, the 13 parked components,
 > drive/calendar/reviews intake, and the S-1 end-to-end attack (still a hypothesis - never run).
 > Ship history: `apps/statenour/docs/RECONCILIATION.md` top entry.
 
@@ -115,6 +118,13 @@ nothing is multiplied. Each item: what - evidence - cost - unblocks - what chang
 Routable, auth-gated, maintained, de-linked from nav since `1b8a9453b`, and still referenced by three AI-facing modules (`context-hints.ts`, `tool-result-registry.tsx`, `page-visit/route.ts`) - the model can route the operator somewhere the operator cannot navigate (**A**, both sources). Its Clients tab is the coaching CRM, not the tire shop. Options: delete; move the shop tabs to Nick's Tire Admin and keep the CRM somewhere navigable; or re-link. Not an engineering default.
 
 ### R8 - `langfuse: false`, `sentry: false` in production
+
+> 2026-09-02: the Langfuse half had a code defect behind the env gap — 20 of 22 AI SDK call sites
+> carried no telemetry, so setting the keys would have traced `nick-chat` and nothing else. Fixed
+> (one helper, every site, gated); see `apps/statenour/docs/RECONCILIATION.md` and
+> `docs/integrations/langfuse-observability.md`. The Sentry half is not an env gap at all: no
+> `@sentry/*` package is installed, so `SENTRY_DSN` would only flip the badge. A real integration is
+> `@sentry/nextjs` + DSN, plus auth token / org / project for source maps — a separate decision.
 
 `/api/version` reports both off (**C**, re-confirmed 22:49Z). If tracing and error reporting are meant to be on, they are receiving nothing. What that disables is **I**. Cost: an env check. Changes the call: they are off on purpose.
 

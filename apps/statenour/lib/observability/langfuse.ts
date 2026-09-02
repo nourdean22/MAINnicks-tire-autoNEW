@@ -84,6 +84,108 @@ export function langfuseTracingStatus(): TracingStatus {
   return state().status;
 }
 
+// ---------------------------------------------------------------------------
+// Per-call telemetry (2026-09-02, Langfuse best-practice pass)
+//
+// The AI SDK forwards `experimental_telemetry.metadata.{sessionId,userId,tags}`
+// and `functionId` as the attributes the Langfuse span processor maps onto
+// trace session / user / tags / name (verified against @langfuse/otel 5.10's
+// attribute mapping, not from memory). Every generateText/streamText call in
+// this app builds its block through langfuseTelemetry() so those keys are
+// spelled once; tests/observability/ai-sdk-telemetry-gate.test.ts enumerates
+// the call sites and fails on a bare one.
+// ---------------------------------------------------------------------------
+
+/** OTel attribute values are flat: primitives or homogeneous primitive arrays. */
+export type TelemetryAttribute = string | number | boolean | string[] | number[] | boolean[];
+
+export interface LangfuseTelemetryInput {
+  /** Trace name (`ai.telemetry.functionId`). kebab-case verb-noun, stable across deploys. */
+  functionId: string;
+  /** Private-mode turns are never traced: prompt + completion content stays in-process. */
+  privateMode?: boolean;
+  /** Langfuse session — groups every span of one conversation / job run. */
+  sessionId?: string;
+  /** Langfuse tags — filterable in the UI. Keep them low-cardinality. */
+  tags?: string[];
+  /** Free-form metadata. Nested values are JSON-stringified (attributes are flat). */
+  metadata?: Record<string, unknown>;
+}
+
+/** Single-operator app: every trace belongs to the operator unless a caller says otherwise. */
+export const LANGFUSE_DEFAULT_USER_ID = "operator";
+
+export function toTelemetryAttributes(input: Record<string, unknown> | undefined): Record<string, TelemetryAttribute> {
+  const out: Record<string, TelemetryAttribute> = {};
+  for (const [key, value] of Object.entries(input ?? {})) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = value;
+    } else if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+      out[key] = value as string[];
+    } else {
+      try {
+        out[key] = JSON.stringify(value);
+      } catch {
+        out[key] = String(value);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Build the `experimental_telemetry` block for one AI SDK call. `isEnabled` is
+ * the started-processor gate, so with no Langfuse keys the SDK builds no spans
+ * at all (zero overhead) and a private-mode turn is never exported.
+ */
+export function langfuseTelemetry(input: LangfuseTelemetryInput): {
+  isEnabled: boolean;
+  functionId: string;
+  metadata: Record<string, TelemetryAttribute>;
+} {
+  const metadata: Record<string, TelemetryAttribute> = { userId: LANGFUSE_DEFAULT_USER_ID };
+  if (input.sessionId) metadata.sessionId = input.sessionId;
+  if (input.tags && input.tags.length > 0) metadata.tags = input.tags;
+  Object.assign(metadata, toTelemetryAttributes(input.metadata));
+  return { isEnabled: isLangfuseTelemetryEnabled(input.privateMode), functionId: input.functionId, metadata };
+}
+
+// ---------------------------------------------------------------------------
+// Processor options: environment / release / mask
+// ---------------------------------------------------------------------------
+
+/** Langfuse rejects an environment outside ^(?!langfuse)[a-z0-9-_]+$ (max 40 chars). */
+const ENVIRONMENT_RE = /^(?!langfuse)[a-z0-9-_]+$/;
+
+/**
+ * `LANGFUSE_TRACING_ENVIRONMENT` (Langfuse's own env var) wins; otherwise the
+ * Railway environment name, otherwise NODE_ENV. Anything that would be
+ * rejected at ingestion collapses to "default" rather than dropping spans.
+ */
+export function resolveLangfuseEnvironment(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = (env.LANGFUSE_TRACING_ENVIRONMENT || env.RAILWAY_ENVIRONMENT_NAME || env.NODE_ENV || "default").trim().toLowerCase();
+  const cleaned = raw.replace(/[^a-z0-9-_]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return ENVIRONMENT_RE.test(cleaned) ? cleaned : "default";
+}
+
+/** `LANGFUSE_RELEASE`, else the Railway commit SHA — so a regression can be pinned to a deploy. */
+export function resolveLangfuseRelease(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const raw = (env.LANGFUSE_RELEASE || env.RAILWAY_GIT_COMMIT_SHA || "").trim();
+  return raw ? raw.slice(0, 40) : undefined;
+}
+
+/**
+ * Belt-and-braces masking applied to every exported span payload: an API key
+ * or bearer token that leaks into a prompt, a tool result or a model reply
+ * never reaches Langfuse. The processor hands over the stringified data.
+ */
+const SECRET_RE = /\b(?:sk|pk)-[A-Za-z0-9_-]{8,}|\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/g;
+export function maskLangfuseData(data: unknown): unknown {
+  if (typeof data !== "string") return data;
+  return data.replace(SECRET_RE, (m) => (m.startsWith("Bearer") ? "Bearer [REDACTED]" : `${m.slice(0, 3)}[REDACTED]`));
+}
+
 /**
  * Boot-time init — called once from instrumentation.ts inside the
  * NEXT_RUNTIME === "nodejs" guard. Idempotent.
@@ -114,10 +216,21 @@ export async function initLangfuseTracing(): Promise<TracingStatus> {
       import(LANGFUSE_OTEL),
       import(OTEL_SDK_NODE),
     ])) as [
-      { LangfuseSpanProcessor: new () => { forceFlush(): Promise<void>; onStart(...a: unknown[]): void; onEnd(...a: unknown[]): void; shutdown(): Promise<void> } },
+      {
+        LangfuseSpanProcessor: new (opts?: { environment?: string; release?: string; mask?: (p: { data: unknown }) => unknown }) => {
+          forceFlush(): Promise<void>;
+          onStart(...a: unknown[]): void;
+          onEnd(...a: unknown[]): void;
+          shutdown(): Promise<void>;
+        };
+      },
       { NodeSDK: new (cfg: { spanProcessors: unknown[] }) => { start(): void } },
     ];
-    const spanProcessor = new LangfuseSpanProcessor();
+    const spanProcessor = new LangfuseSpanProcessor({
+      environment: resolveLangfuseEnvironment(),
+      release: resolveLangfuseRelease(),
+      mask: ({ data }) => maskLangfuseData(data),
+    });
     const sdk = new NodeSDK({ spanProcessors: [spanProcessor] });
     sdk.start();
     st.processor = spanProcessor;

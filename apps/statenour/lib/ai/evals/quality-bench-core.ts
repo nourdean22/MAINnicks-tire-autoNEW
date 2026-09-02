@@ -10,6 +10,7 @@
  * selection, env override, sanitizer all included, so a failure means the
  * model OR the system prompt OR the sanitizer pipeline regressed.
  */
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import type { QualityCheck, QualityPrompt } from "@/tests/fixtures/quality-prompts.gold";
 
 export interface CheckResult {
@@ -151,6 +152,7 @@ async function callModel(prompt: QualityPrompt): Promise<string> {
 
   const { text } = await generateText({
     model,
+    experimental_telemetry: langfuseTelemetry({ functionId: "quality-bench", tags: ["eval"] }),
     messages: messages as never,
     maxOutputTokens: 600,
     temperature: 0.5,

@@ -24,6 +24,7 @@
  * to fall through. Flag-off = zero change (single getFlag read each).
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { stepCountIs } from "ai";
 import { getFlag } from "@/lib/feature-flags";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
@@ -274,6 +275,7 @@ export async function runAlternatePaths(args: {
         const genOnce = async (sys: string, temp: number): Promise<string> => {
           const r = await generateText({
             ...genBase,
+            experimental_telemetry: langfuseTelemetry({ functionId: "chat-alternate-path" }),
             system: sys,
             temperature: temp,
           } as Parameters<typeof generateText>[0]);
@@ -307,6 +309,7 @@ export async function runAlternatePaths(args: {
           generate: async () => {
             const r = await generateText({
               ...genBase,
+              experimental_telemetry: langfuseTelemetry({ functionId: "chat-regenerate" }),
               system: finalSystemPrompt,
               temperature: Math.min(0.9, turnSignal.temperature + 0.15),
             } as Parameters<typeof generateText>[0]);

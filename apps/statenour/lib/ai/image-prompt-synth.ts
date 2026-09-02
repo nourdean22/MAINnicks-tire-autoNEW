@@ -26,6 +26,7 @@
  * when the user's prompt isn't referential.
  */
 
+import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { generateText } from "ai";
 import { getModel } from "./provider";
 
@@ -212,6 +213,7 @@ export async function synthesizeImagePrompt(
     const model = getModel("fast");
     const { text } = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "image-prompt-synth" }),
       system: SYNTH_SYSTEM,
       prompt: synthUser,
       maxOutputTokens: 200,
@@ -263,6 +265,7 @@ async function synthesizeRegenPrompt(args: {
     const model = getModel("fast");
     const { text } = await generateText({
       model,
+      experimental_telemetry: langfuseTelemetry({ functionId: "image-prompt-regen" }),
       system: REGEN_SYNTH_SYSTEM,
       prompt: synthUser,
       maxOutputTokens: 250,

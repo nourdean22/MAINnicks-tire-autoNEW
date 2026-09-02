@@ -1,5 +1,25 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-02 · Langfuse: every model call traced, through one helper (PR-LF)
+>
+> Plan R8 said tracing was "off" because two Railway keys are unset. Reading the code showed
+> a second reason: even with keys, ONE of 22 AI SDK call sites (`nick-chat`) carried
+> `experimental_telemetry`; the other twenty (`weekly-review`, `telegram-ask`, page-insight,
+> side-pane-chat, the whole intelligence pipeline, every `aiChat`/`aiStream`/`tracedAiChat`
+> caller) would have run untraced while `/api/version` said `langfuse: true` — the silent-
+> instrument shape again. Now `lib/observability/langfuse.ts` exports `langfuseTelemetry()`
+> and every call site builds its block through it (trace name = call site, `userId`
+> `operator`, `sessionId` = conversation id where one exists, tags, flat metadata);
+> `tracedAiChat` forwards its label / source / AgentTrace id so the two ledgers join; the
+> span processor gets `environment` (Railway env name, sanitised), `release` (deploy SHA)
+> and a `mask` that redacts keys and bearer tokens on the way out. Gate:
+> `tests/observability/ai-sdk-telemetry-gate.test.ts` enumerates the call sites with an
+> inverse check, a reason-carrying allowlist and a mutation canary (positive control: 20
+> bare before). Receipts: 59 test files / 754 passed on the affected set, typecheck exit 0,
+> eslint clean, offline pipeline probe 7/7 with the new options. Still the operator's:
+> the three env values on Railway (protected op) and, once traces land, the skill's
+> verification loop in `docs/integrations/langfuse-observability.md`.
+
 > ## 2026-09-02 · Command Surface revenue: unknown is not $0 (#2068)
 >
 > Cross-app contract fix. nickstire PR #2063 made its every-15-minutes push say
