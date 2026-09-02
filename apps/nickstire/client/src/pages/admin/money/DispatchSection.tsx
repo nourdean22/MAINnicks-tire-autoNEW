@@ -1,26 +1,31 @@
 /**
- * Shop Status — bay grid, ready queue, tech assignment, QC review.
+ * Shop Status — ready queue, tech assignment, QC review.
+ *
+ * 2026-09-01 (audit, artifact 4 §1.3): the BAY GRID is gone. The `bays` table
+ * has update-only writers and no insert or seed anywhere in the repo, and
+ * `work_orders.assignedBay` is never written — the grid rendered "0/0 bays"
+ * forever on the Money page of a shop that CURRENT-TRUTH says has no bay model
+ * on purpose. Techs, the ready queue and QC are real and stay.
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
+import { Loader2, User, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, ErrorState } from "../shared";
 
-type Tab = "bays" | "queue" | "qc" | "techs";
+type Tab = "queue" | "qc" | "techs";
 
 // Inferred from the tRPC AppRouter — replaces 14 `any` uses in this file
 // (admin audit §3 follow-up). When the dispatch router shape changes,
 // these types update automatically and the compiler flags every usage.
 type DispatchLoad = NonNullable<RouterOutputs["dispatch"]["load"]>;
-type Bay = DispatchLoad["bays"][number];
 type Tech = DispatchLoad["techs"][number];
 type WorkOrderListItem = RouterOutputs["workOrders"]["list"][number];
 type DispatchRecommendation = NonNullable<RouterOutputs["dispatch"]["recommend"]>[number];
 type QcChecklistItem = NonNullable<RouterOutputs["dispatch"]["getQcChecklist"]>["items"][number];
 
 export default function DispatchSection() {
-  const [tab, setTab] = useState<Tab>("bays");
+  const [tab, setTab] = useState<Tab>("queue");
 
   // wave-admin-audit P3 — single dispatch.load query lifted to the section
   // root. Previously MetricsStrip polled at 30s while BayGrid/ReadyQueue/
@@ -39,7 +44,6 @@ export default function DispatchSection() {
   });
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: "bays", label: "Bay Grid" },
     { id: "queue", label: "Ready Queue" },
     { id: "qc", label: "QC Review" },
     { id: "techs", label: "Technicians" },
@@ -49,7 +53,7 @@ export default function DispatchSection() {
     <div className="space-y-4">
       <PageHeader
         title="Shop Floor"
-        subtitle="Bay grid · ready queue · tech assignments · QC review. Dispatch is real-time."
+        subtitle="Ready queue · tech assignments · QC review. First-come, no bays or slots — by design."
         icon={<Wrench className="w-5 h-5" />}
       />
       {/* Metrics Strip */}
@@ -72,7 +76,6 @@ export default function DispatchSection() {
         ))}
       </div>
 
-      {tab === "bays" && <BayGrid load={load} />}
       {tab === "queue" && <ReadyQueue load={load} />}
       {tab === "qc" && <QcReview />}
       {tab === "techs" && (
@@ -109,12 +112,9 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
   const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 30_000, refetchIntervalInBackground: false });
 
   const clockedIn = load?.techs.filter((t: Tech) => t.clockedIn).length || 0;
-  const freeBays = load?.bays.filter((b: Bay) => !b.occupied).length || 0;
-  const totalBays = load?.bays.length || 0;
 
   const metrics = [
     { label: "Techs In", value: clockedIn, color: "text-emerald-400" },
-    { label: "Bays Free", value: `${freeBays}/${totalBays}`, color: freeBays === 0 ? "text-red-400" : "text-blue-400" },
     { label: "In Progress", value: stats?.inProgress || 0, color: "text-primary" },
     // wave-admin-audit P1/P2 — was `active - inProgress`, which had two bugs:
     // (1) the label "Ready Queue" implies the ready_for_bay count but the
@@ -147,73 +147,14 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
   return (
     // wave-155 — was grid-cols-7 fixed. On 375px viewport each cell
     // was ~50px wide × 2 lines of text (font-mono numbers + label).
-    // Now: 2 cols mobile, 4 cols sm, 7 cols lg.
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+    // Now: 2 cols mobile, 3 cols sm, 6 cols lg (the bay metric is gone).
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
       {metrics.map(m => (
         <div key={m.label} className="bg-card border border-border/40 p-3 text-center">
           <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{m.label}</div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ─── Bay Grid ───────────────────────────────────────
-function BayGrid({ load: loadQuery }: { load: DispatchLoadQuery }) {
-  // wave-admin-audit P3 — uses the lifted dispatch.load query (was its own
-  // 10s subscription). P4 — added the isError branch; pre-fix a load error
-  // rendered a blank grid with no signal (only ReadyQueue/QcReview handled it).
-  const { data: load, isLoading, isError } = loadQuery;
-
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-  if (isError) return <ErrorState message="Couldn't load the bay grid" onRetry={() => loadQuery.refetch()} />;
-
-  const bays = load?.bays || [];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-      {bays.map((bay: Bay) => (
-        <BayCard key={bay.id} bay={bay} techs={load?.techs || []} />
-      ))}
-    </div>
-  );
-}
-
-function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
-  const tech = bay.currentTechId ? techs.find(t => t.id === bay.currentTechId) : null;
-
-  return (
-    <div className={`border p-4 transition-colors ${
-      bay.occupied
-        ? "border-primary/40 bg-primary/5"
-        : "border-border/40 bg-card"
-    }`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-muted-foreground" />
-          <span className="font-semibold">{bay.name}</span>
-        </div>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-          bay.occupied ? "bg-primary/20 text-primary" : "bg-emerald-500/20 text-emerald-400"
-        }`}>
-          {bay.occupied ? "BUSY" : "FREE"}
-        </span>
-      </div>
-      <div className="text-xs text-muted-foreground">{bay.type.replace(/_/g, " ")}</div>
-      {bay.occupied && (
-        <div className="mt-2 pt-2 border-t border-border/30 space-y-1">
-          {tech && (
-            <div className="flex items-center gap-1 text-xs">
-              <User className="w-3 h-3" />
-              <span>{tech.name}</span>
-            </div>
-          )}
-          <div className="text-[10px] text-muted-foreground truncate">
-            WO: {bay.currentWorkOrderId?.slice(0, 8)}...
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -276,29 +217,29 @@ function ReadyQueue({ load: loadQuery }: { load: DispatchLoadQuery }) {
       </div>
 
       {/* Assignment panel */}
-      {selectedWo && <AssignmentPanel workOrderId={selectedWo} bays={load?.bays || []} />}
+      {selectedWo && <AssignmentPanel workOrderId={selectedWo} />}
     </div>
   );
 }
 
-function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay[] }) {
+function AssignmentPanel({ workOrderId }: { workOrderId: string }) {
   const { data: recs, isLoading, isError } = trpc.dispatch.recommend.useQuery({ workOrderId });
-  const freeBays = bays.filter(b => !b.occupied);
   const [selectedTech, setSelectedTech] = useState<number | null>(null);
-  const [selectedBay, setSelectedBay] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
   // v1.7 audit fix · pre-fix this mutation had no onError handler and
   // no onSuccess toast. A failed dispatch silently re-enabled the
   // button with zero feedback — blocking real-time shop ops if the
   // network blipped or the server rejected. Now both paths surface.
+  //
+  // 2026-09-01: bay selection removed — there are no bays (see the file
+  // header). Assignment is tech-only, which is what the shop actually does.
   const assignMut = trpc.dispatch.assign.useMutation({
     onSuccess: () => {
       toast.success("Dispatched");
       utils.dispatch.load.invalidate();
       utils.workOrders.list.invalidate();
       setSelectedTech(null);
-      setSelectedBay(null);
     },
     onError: (e) => toast.error(e.message || "Dispatch failed"),
   });
@@ -313,9 +254,9 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : isError ? (
-          <span className="text-xs text-red-400">Couldn't score techs — pick a bay manually.</span>
+          <span className="text-xs text-red-400">Couldn't score techs — assign from the Technicians tab.</span>
         ) : (recs || []).length === 0 ? (
-          <span className="text-xs text-muted-foreground">No tech recommendations — pick a bay manually.</span>
+          <span className="text-xs text-muted-foreground">No tech recommendations yet — clock a tech in first.</span>
         ) : (
           <div className="space-y-1">
             {(recs || []).map((rec: DispatchRecommendation) => (
@@ -337,36 +278,15 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay
         )}
       </div>
 
-      {/* Bay selection */}
-      <div>
-        <div className="text-xs text-muted-foreground mb-2">Select Bay</div>
-        <div className="flex flex-wrap gap-2">
-          {freeBays.map(bay => (
-            <button
-              key={bay.id}
-              onClick={() => setSelectedBay(bay.id)}
-              className={`px-3 py-1.5 text-sm border rounded ${
-                selectedBay === bay.id ? "border-primary bg-primary/10" : "border-border/30 hover:border-border"
-              }`}
-            >
-              {bay.name}
-            </button>
-          ))}
-          {freeBays.length === 0 && (
-            <span className="text-xs text-red-400">No bays available</span>
-          )}
-        </div>
-      </div>
-
       {/* Assign button */}
       <button
         onClick={() => {
-          if (selectedTech && selectedBay) {
-            assignMut.mutate({ workOrderId, techId: selectedTech, bayId: selectedBay });
+          if (selectedTech) {
+            assignMut.mutate({ workOrderId, techId: selectedTech });
           }
         }}
-        disabled={!selectedTech || !selectedBay || assignMut.isPending}
-        className="w-full py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+        disabled={!selectedTech || assignMut.isPending}
+        className="w-full min-h-[44px] py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {assignMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
         Assign & Dispatch

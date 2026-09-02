@@ -42,7 +42,10 @@ export const dispatchRouter = router({
     .input(z.object({
       workOrderId: z.string(),
       techId: z.number(),
-      bayId: z.number(),
+      // 2026-09-01: optional — there are no bays in this shop (see
+      // services/dispatch.ts assignWorkOrder). A required bayId made the
+      // Ready Queue's "Assign & Dispatch" permanently disabled.
+      bayId: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const { assignWorkOrder } = await import("../services/dispatch");

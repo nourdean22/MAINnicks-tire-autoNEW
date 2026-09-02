@@ -162,7 +162,13 @@ function extractServiceKeywords(desc: string, items: { description: string; type
 export async function assignWorkOrder(params: {
   workOrderId: string;
   techId: number;
-  bayId: number;
+  /**
+   * 2026-09-01 (audit, artifact 4 §1.3): OPTIONAL. The `bays` table has no
+   * insert or seed anywhere in the repo, so in production there are no bays
+   * and a required bayId made dispatch impossible ("No bays available"). A
+   * tech-only assignment is the shop's real model (first-come, no bays).
+   */
+  bayId?: number | null;
   changedBy: string;
 }): Promise<void> {
   const { db, workOrders, technicians, bays } = await getDbAndSchema();
@@ -171,40 +177,44 @@ export async function assignWorkOrder(params: {
   const [tech] = await db.select().from(technicians).where(eq(technicians.id, params.techId));
   if (!tech) throw new Error("Technician not found");
 
-  // Get bay (name for messages/labels — occupancy is NOT trusted here)
-  const [bay] = await db.select().from(bays).where(eq(bays.id, params.bayId));
-  if (!bay) throw new Error("Bay not found");
-
   // Get current status
   const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, params.workOrderId));
   if (!wo) throw new Error("Work order not found");
 
-  // 2026-07-11 · TOCTOU fix: the old flow CHECKED currentWorkOrderId
-  // above, then SET it unconditionally below — two concurrent assigns
-  // both passed the check and both "won" the bay (last write silently
-  // stole it while the loser's work order still pointed at the bay).
-  // Claim-before-use, same pattern as postInvoiceFollowUp's SMS claim:
-  // the conditional WHERE makes exactly ONE caller win; the loser gets
-  // the same "occupied" error the pre-check used to throw.
-  const claimRes = await db.update(bays).set({
-    currentWorkOrderId: params.workOrderId,
-    currentTechId: params.techId,
-  }).where(and(eq(bays.id, params.bayId), isNull(bays.currentWorkOrderId)));
-  if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
-    throw new Error(`Bay ${bay.name} is occupied`);
+  let bayName: string | null = null;
+  if (params.bayId != null) {
+    // Get bay (name for messages/labels — occupancy is NOT trusted here)
+    const [bay] = await db.select().from(bays).where(eq(bays.id, params.bayId));
+    if (!bay) throw new Error("Bay not found");
+
+    // 2026-07-11 · TOCTOU fix: the old flow CHECKED currentWorkOrderId
+    // above, then SET it unconditionally below — two concurrent assigns
+    // both passed the check and both "won" the bay (last write silently
+    // stole it while the loser's work order still pointed at the bay).
+    // Claim-before-use, same pattern as postInvoiceFollowUp's SMS claim:
+    // the conditional WHERE makes exactly ONE caller win; the loser gets
+    // the same "occupied" error the pre-check used to throw.
+    const claimRes = await db.update(bays).set({
+      currentWorkOrderId: params.workOrderId,
+      currentTechId: params.techId,
+    }).where(and(eq(bays.id, params.bayId), isNull(bays.currentWorkOrderId)));
+    if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+      throw new Error(`Bay ${bay.name} is occupied`);
+    }
+    bayName = bay.name;
   }
 
-  // Update work order (bay is now atomically ours)
+  // Update work order (bay, if any, is now atomically ours)
   await db.update(workOrders).set({
     assignedTechId: params.techId,
     assignedTech: tech.name,
-    assignedBay: bay.name,
+    assignedBay: bayName,
     status: "assigned",
     updatedAt: new Date(),
   }).where(eq(workOrders.id, params.workOrderId));
 
   await logTransition(params.workOrderId, wo.status, "assigned", params.changedBy,
-    `Assigned to ${tech.name} in Bay ${bay.name}`);
+    bayName ? `Assigned to ${tech.name} in Bay ${bayName}` : `Assigned to ${tech.name}`);
 
   // NOUR OS event
   try {

@@ -24,6 +24,7 @@ import {
   EmptyState,
   SearchInput,
 } from "./shared";
+import { AttributionReviewCard } from "./voice/AttributionReviewCard";
 import {
   PhoneCall,
   PhoneForwarded,
@@ -288,6 +289,11 @@ export default function VoiceReceptionistSection() {
           }
         }}
       />
+
+      {/* 2026-09-01 (audit, artifact 4 §2.6): the call ↔ invoice attribution
+       * review queue and its `resolve` ruling existed on the server with no
+       * door anywhere. This is the door. */}
+      <AttributionReviewCard />
 
       <VoiceAchievements />
 

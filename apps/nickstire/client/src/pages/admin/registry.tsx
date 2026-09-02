@@ -281,7 +281,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     showInSidebar: true,
     allowedRoles: FULL_ACCESS,
   },
-  // Non-sidebar targets
+  // 2026-09-01 (audit, artifact 1 §2): these two were reachable ONLY by alias,
+  // Cmd+K or a typed URL — and the operator drives this admin from an iPhone
+  // PWA where Cmd+K does not exist. Same nav-orphan class fixed for `revenue`
+  // and `content` on 2026-07-25; these were the residue. Given doors.
   {
     id: "callTrackingView",
     label: "Call Tracking",
@@ -291,7 +294,7 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["call", "phone", "tracking", "missed", "callback"],
     group: "Automation",
     priority: 30,
-    showInSidebar: false,
+    showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
   {
@@ -303,7 +306,7 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["funnel", "traffic", "seo", "conversion", "clicks"],
     group: "Truth",
     priority: 20,
-    showInSidebar: false,
+    showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "accountant"],
   },
 ];

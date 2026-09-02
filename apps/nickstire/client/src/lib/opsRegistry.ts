@@ -106,16 +106,17 @@ export const OPS_REGISTRY: OpsItem[] = [
     id: "customer-confirmations",
     title: "Customer confirmation SMS/email",
     category: "Customer Messaging",
-    status: "preview_only",
+    status: "partial",
     risk: "high",
     truth:
-      "Customers currently get NO automatic order-confirmation messages. Preview-only templates exist in " +
-      "server/services/customerMessageTemplates.ts — there is no send path, no cron, no provider call.",
-    forbidden: "Sending any SMS/email to customers until the owner approves provider, cost, and copy.",
-    nextAction: "Owner reviews templates + the notifications design doc, approves provider/env, then a dedicated send PR.",
+      "Tire-order confirmations DO send: server/services/customerMessageTemplates.ts sendCustomerMessage() " +
+      "goes through the shop SMS gateway with an idempotency key and an audit row (verified in code 2026-09-01; " +
+      "this entry said 'no send path' since 2026-06-10 — stale). Booking confirmations remain template-only.",
+    forbidden: "Adding a new customer-facing channel or template without owner approval of copy and cost.",
+    nextAction: "Owner decides whether booking confirmations join the tire-order send path; keep the receipt honest (queued ≠ sent).",
     ownerRequired: true,
     doc: "docs/customer-confirmation-notifications.md",
-    lastVerified: "2026-06-10",
+    lastVerified: "2026-09-01",
   },
   // ─── GBP / Local SEO ───────────────────────────────────────
   {
