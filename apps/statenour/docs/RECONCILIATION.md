@@ -1,6 +1,6 @@
 # Reconciliation · statenour-os
 
-> ## 2026-09-02 · Langfuse: every model call traced, through one helper (PR-LF)
+> ## 2026-09-02 · Langfuse: every model call traced, through one helper (#2073)
 >
 > Plan R8 said tracing was "off" because two Railway keys are unset. Reading the code showed
 > a second reason: even with keys, ONE of 22 AI SDK call sites (`nick-chat`) carried
