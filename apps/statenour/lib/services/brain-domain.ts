@@ -217,6 +217,8 @@ export interface BrainMaturityView {
    * header.
    */
   score: number | null;
+  /** Denominator for `score` — shrinks when a dimension cannot be measured. */
+  scoreMax: number;
   components: {
     skills: {
       active: number | null;
@@ -406,7 +408,10 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     qualitative:
       qualitativeEntries !== null ? Math.min(15, qualitativeEntries * 0.75) : 0,
     beliefs: beliefsActive ? Math.min(10, beliefsActive.length * 1) : 0,
-    contradictions: (() => {
+    // null = UNMEASURABLE, and it is excluded from the total AND from the
+    // maximum below rather than scored. Distinct from 0, which means measured
+    // and bad.
+    contradictions: ((): number | null => {
       // An empty list because the READ FAILED is not a clean ledger — this
       // branch is where the phantom 7 came from.
       if (
@@ -414,9 +419,21 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
         contradictionsOpen === null ||
         resolvedContradictions === null
       ) {
-        return 0;
+        return null;
       }
-      if (allContradictions.length === 0) return 7;
+      // 2026-09-02 (self-audit of the same day's fix) · this returned a
+      // hardcoded 7 for an EMPTY table. The earlier pass split "read failed"
+      // from "empty" and stopped there, so an empty ledger kept collecting 7
+      // of 100 points — and production has never recorded a single
+      // contradiction in any of the three categories, so that branch is the
+      // one it takes on every render. Seven fabricated points, permanently.
+      //
+      // It is the identical shape lib/brain/learning-velocity.ts removed in
+      // the same wave: `resolutionRate = 1` for an empty table, where "never
+      // contradicted myself" scored exactly like "found and resolved every
+      // contradiction". Fixed there, missed here. A resolve rate over zero
+      // contradictions is not a good score, it is no score.
+      if (allContradictions.length === 0) return null;
       const resolveRate =
         resolvedContradictions / Math.max(1, allContradictions.length);
       const openPenalty = Math.min(5, contradictionsOpen);
@@ -433,15 +450,24 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
       pts.history +
       pts.qualitative +
       pts.beliefs +
-      pts.contradictions +
+      (pts.contradictions ?? 0) +
       pts.ghost +
       pts.chat_memory,
   );
 
+  // The denominator shrinks with the numerator when a dimension cannot be
+  // measured, so an unmeasurable subsystem neither pays nor is paid. Scoring
+  // 93 of 100 because contradictions are unmeasurable is a worse lie than
+  // either 93/90 or "unknown" — it silently spends the operator's ceiling.
+  const CONTRADICTION_POINTS = 10;
+  const scoreMax = 100 - (pts.contradictions === null ? CONTRADICTION_POINTS : 0);
+
   return {
     // Any failed read makes the sum a statement about subsystems we did
     // not read. There is no honest number to print, so there is none.
-    score: failedReads.length > 0 ? null : Math.max(0, Math.min(100, rawScore)),
+    score: failedReads.length > 0 ? null : Math.max(0, Math.min(scoreMax, rawScore)),
+    /** What `score` is out of. Below 100 when a dimension is unmeasurable. */
+    scoreMax,
     components: {
       skills: {
         active: skillsActive ? skillsActive.length : null,
