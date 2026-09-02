@@ -54,7 +54,9 @@ export const TOOL_BIAS: Record<string, string> = {
   // from the retired "/knowledge" key so the three tools keep a bias route.
   "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory · syncKnowledge · searchColdMemory · searchSkills",
   "/system": "getCronStatus · toolHealth · getBrainHealth · getFleetTruth",
-  "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
+  // "/business" removed 2026-09-02 · the page was deleted on operator verdict
+  // (R7 in docs/research/2026-09-01-statenour-plan.md); the financial tools
+  // keep their own bias via "/stats" below.
   "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
   // ── 2026-08-12 · routes that existed in nav but never had a bias ──
   "/content": "writeCreative · generateImage · getInstagramAutopostStatus · triggerInstagramAutopost · composeEmail",

@@ -38,7 +38,7 @@ const GO_ROUTES: Record<string, string> = {
   j: "/journal",
   b: "/brain",
   m: "/stats",
-  f: "/business?tab=money",
+  // f (/business) removed 2026-09-02 · the page was deleted on operator verdict.
   y: "/stats#body",             // y = bodY (b is brain) · body is a /stats section
   s: "/system",
   // system ops deck (v11.0)

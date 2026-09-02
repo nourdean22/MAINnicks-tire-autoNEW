@@ -31,9 +31,9 @@ describe("computeNextPayload", () => {
   });
 
   it("stores route-only payload on a plain page instead of clearing", () => {
-    const p = computeNextPayload("/business", "");
+    const p = computeNextPayload("/stats", "");
     expect(p).not.toBeNull();
-    expect(p?.contextRoute).toBe("/business");
+    expect(p?.contextRoute).toBe("/stats");
     expect(p?.lastTaskId).toBeUndefined();
     expect(p?.lastDecisionId).toBeUndefined();
   });

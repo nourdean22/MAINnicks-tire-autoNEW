@@ -42,8 +42,8 @@ the per-cron kill switch + wiring agent-followups into lib/inngest/jobs.ts (all 
 a single unprompted message can fire) · optional NICK_ESCALATION_DAILY_CAP / NICK_FOLLOWUP_*.
 
 **Open operator decisions (do NOT decide on agent initiative):**
-  · /business — de-linked but routable + AI-routable; its Clients tab is the coaching CRM,
-    not the tire shop. Delete vs move vs re-link.
+  · /business — DECIDED 2026-09-02: deleted (redirect to /stats). The coaching CRM has no
+    navigable home now; that cost was named and accepted.
   · langfuse:false + sentry:false in production (/api/version) — Railway env, not code.
   · AI SDK v6 → v7 (providers a full major behind).
   · The 13 remaining PARKED components (3D scene, actions/loops island, compound-chain,

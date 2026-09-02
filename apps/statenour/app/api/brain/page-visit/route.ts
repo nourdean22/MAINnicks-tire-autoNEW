@@ -82,7 +82,8 @@ export async function GET(req: Request) {
   // Wave 2 (2026-06-03): /body folded into /stats#body (a section, not a page),
   // so it's dropped here — its visits now register as /stats.
   // Updated list reflects the current live page set.
-  const importantPages = ["/", "/missions", "/stats", "/business", "/chat", "/journal"];
+  // "/business" dropped 2026-09-02 · page deleted on operator verdict (plan R7).
+  const importantPages = ["/", "/missions", "/stats", "/chat", "/journal"];
   const blindSpots: string[] = [];
   const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
 

@@ -192,6 +192,11 @@ const nextConfig: NextConfig = {
     // Cockpit: Sam-led / IS the cockpit now (Wave AC).
     { source: "/cockpit", destination: "/", permanent: false },
     { source: "/system/cockpit", destination: "/", permanent: false },
+    // 2026-09-02 · /business deleted on operator verdict (audit B-1 / plan R7):
+    // de-linked-but-routable was the worst state. Non-permanent so a future
+    // decision to move the coaching CRM somewhere navigable is not cached
+    // away by browsers.
+    { source: "/business", destination: "/stats", permanent: false },
     // Brain consolidation: 4 sub-pages folded into /brain hub.
     { source: "/brain/health", destination: "/brain?tab=health", permanent: false },
     { source: "/brain/identity-trajectory", destination: "/brain", permanent: false },
