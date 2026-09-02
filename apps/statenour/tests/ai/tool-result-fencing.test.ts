@@ -22,6 +22,13 @@ describe("v10.0.529.5 · fenceContent", () => {
     expect(out).toContain("hello");
   });
 
+  it("supports the memory_recall FenceType (S-1) and lifts the cap on request", () => {
+    expect(fenceContent("brainRecall", "memory_recall", "x")).toContain('source="memory_recall"');
+    const long = "m".repeat(9000);
+    expect(fenceContent("brainRecall", "memory_recall", long)).toContain("TRUNCATED");
+    expect(fenceContent("brainRecall", "memory_recall", long, { maxChars: 200_000 })).not.toContain("TRUNCATED");
+  });
+
   it("supports all three FenceType values", () => {
     expect(
       fenceContent("searchWebVerified", "external_web", "x"),
@@ -83,10 +90,11 @@ describe("v10.0.529.5 · TOOL_DATA_FENCING_RULE", () => {
     expect(TOOL_DATA_FENCING_RULE.length).toBeGreaterThan(100);
   });
 
-  it("mentions all 3 fence sources by name", () => {
+  it("mentions all 4 fence sources by name (memory_recall added by S-1, 2026-09-01)", () => {
     expect(TOOL_DATA_FENCING_RULE).toContain("external_web");
     expect(TOOL_DATA_FENCING_RULE).toContain("external_doc");
     expect(TOOL_DATA_FENCING_RULE).toContain("cross_session");
+    expect(TOOL_DATA_FENCING_RULE).toContain("memory_recall");
   });
 
   it("instructs the model that fenced regions are DATA not instructions", () => {

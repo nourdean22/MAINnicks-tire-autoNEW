@@ -460,12 +460,21 @@ export function withGuardian<T, A extends unknown[]>(
           });
         }
 
+        // P-1 (2026-09-01) · ingestion goes through this branch too now
+        // (lib/brain/external-memory-intake.ts). It labels the row with its
+        // own sourceType and passes the memory it WOULD have written as
+        // `memoryTarget`, so the inbox commit path can land the reviewed
+        // memory in exactly that category/key/source instead of a generic
+        // "belief". AI tool calls carry neither and keep the old shape.
+        const memoryTarget = (payload as any)?.memoryTarget;
+        const sourceType =
+          typeof (payload as any)?.sourceType === "string" ? (payload as any).sourceType : "agent_tool";
         const newInboxItem = await prisma.memoryInboxItem.create({
           data: {
-            sourceType: "agent_tool",
+            sourceType,
             sourceUrl: (payload as any)?.sourceUrl || null,
             rawTextFenced: content,
-            extractedClaims: [{ text: content }],
+            extractedClaims: [{ text: content, ...(memoryTarget ? { memoryTarget } : {}) }],
             contradictionLogs: contradictionLogs as any,
             privacyClass: (payload as any)?.privacyClass || "internal",
             status,

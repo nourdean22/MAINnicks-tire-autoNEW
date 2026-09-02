@@ -22,9 +22,39 @@
  * has aria-controls pointing at the disclosed contents id).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
+
+// BottomPulseTicker's data hooks, mocked so the component renders under the
+// Node vitest env (no QueryClientProvider). The module-scope lets remain
+// reassignable so the null-branch control below can prove the mock is
+// load-bearing.
+const defaultPulse = () => ({
+  items: [{ id: "p1", kind: "reflection", glyph: "◉", label: "BRAIN", text: "reflection is 3 days old", tone: "info" as const }],
+});
+const defaultTicker = () => ({ items: [] as unknown[] });
+let pulseData: ReturnType<typeof defaultPulse> | null = defaultPulse();
+let tickerData: ReturnType<typeof defaultTicker> | null = defaultTicker();
+
+vi.mock("@/lib/trpc/client", () => ({
+  trpc: {
+    operator: {
+      personalPulse: { useQuery: () => ({ data: pulseData, refetch: vi.fn() }) },
+      ticker: { useQuery: () => ({ data: tickerData }) },
+      resolveCommitment: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+  },
+}));
+vi.mock("@/hooks/use-dismissed-ticker", () => ({
+  useDismissedTicker: () => ({ dismissed: new Set<string>(), dismiss: vi.fn() }),
+}));
+vi.mock("@/lib/state/nour-state", () => ({
+  useNourState: () => ({ currentState: "focus", setState: vi.fn() }),
+}));
+
+import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
 
 // Cross-domain residuals slice (2026-05-22) · the A7 ReasoningTrace
 // test dropped its `renderToStaticMarkup` SSR smoke-render — the
@@ -73,62 +103,40 @@ describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () =>
   });
 });
 
-// ─── 2 · A6 · top ticker landmark (source-level check) ───────────────
+// ─── 2-4 · A6 + A3 · the LIVE ticker, RENDERED (audit W-3, 2026-09-01) ──
+//
+// These used to be `readFileSync(...).toContain(...)` on three files. A
+// source-text assertion cannot tell a correctly-styled live component from a
+// correctly-styled dead one: GlobalTopTicker had been unmounted since #158
+// (2026-06-16) and its A6 test stayed green for eleven weeks. That file is
+// deleted; top-strip/ticker.tsx is parked (tests/repo/ui-mount-graph.test.ts
+// owns its status). The one ticker that ships, BottomPulseTicker, is now
+// rendered with its data hooks mocked and the landmark + min-height are
+// asserted on the MARKUP it produces.
 
-describe("A6 · GlobalTopTicker source declares role=region landmark", () => {
-  it("file contains role='region' + aria-label='Live alerts' + aria-live='off'", () => {
-    // Phase B.6a · the inner <Ticker /> migrated onto a tRPC
-    // `useQuery`, which needs a QueryClientProvider — so the sticky
-    // shell can no longer be SSR-rendered in isolation via
-    // renderToStaticMarkup. Source-level check instead · same pattern
-    // as the BottomPulseTicker landmark test below.
-    const src = readSource("components/hud/global-top-ticker.tsx");
-    // Screen reader users get a landmark to jump to / skip past.
-    expect(src).toContain('role="region"');
-    expect(src).toContain('aria-label="Live alerts"');
-    // Marquee items rotate every ~55s · we never want them announced.
-    expect(src).toContain('aria-live="off"');
-  });
-});
-
-// ─── 3 · A6 · bottom ticker landmark (source-level check) ────────────
-
-describe("A6 · BottomPulseTicker source declares role=region landmark", () => {
-  it("file contains role='region' + aria-label='System pulse' + aria-live='off'", () => {
-    // The bottom ticker returns null when data is null (SSR · no API
-    // call) so we read the source to lock the landmark contract.
-    const src = readSource("components/ultron/bottom-pulse-ticker.tsx");
-    expect(src).toContain('role="region"');
-    expect(src).toContain('aria-label="System pulse"');
-    expect(src).toContain('aria-live="off"');
-  });
-});
-
-// ─── 4 · A3 · ticker container ≥ 32px on mobile ──────────────────────
-
-describe("A3 · ticker container bumped to min-h 32px on mobile", () => {
-  it("top-strip/ticker.tsx uses min-h-[40px] sm:min-h-[28px] (40 mobile, 28 desktop)", () => {
-    const src = readSource("components/ultron/top-strip/ticker.tsx");
-    // 2026-05-31 · Edge Feed rebuild — the 55s marquee (10px, hover-gated
-    // pause/dismiss → dead on touch) became ONE readable/tappable item; the
-    // strip min-height grew to 40px mobile / 28px desktop (≥ the 32px HIG
-    // floor, and now a real tap target that opens the feed sheet).
-    expect(src).toContain("min-h-[40px] sm:min-h-[28px]");
-    // The marquee is gone — no `h-5 overflow-hidden` track and no CSS-scroll
-    // animation (continuous peripheral motion is the banner-blindness trap the
-    // rebuild removed; advance is now a fade on change).
-    const bareH5 = src.match(/className="h-5 overflow-hidden/g) ?? [];
-    expect(bareH5.length).toBe(0);
-    expect(src).not.toContain("ultron-ticker-track");
+describe("A6 + A3 · BottomPulseTicker renders the landmark and the 32px floor", () => {
+  it("renders role=region + aria-label='System pulse' + aria-live='off' with one item", () => {
+    const markup = renderToStaticMarkup(<BottomPulseTicker />);
+    expect(markup).toContain('role="region"');
+    expect(markup).toContain('aria-label="System pulse"');
+    expect(markup).toContain('aria-live="off"');
   });
 
-  it("bottom-pulse-ticker.tsx uses min-h-[32px] sm:h-5 (Edge Feed rebuild — no marquee)", () => {
-    const src = readSource("components/ultron/bottom-pulse-ticker.tsx");
-    expect(src).toContain("min-h-[32px] sm:h-5");
-    // 2026-05-31 · Edge Feed rebuild — the 60s marquee (hover-pause → dead on
-    // touch) became a one-item static strip + tap-to-open pulse feed, matching
-    // the top ticker. The CSS-scroll track + its keyframes are gone.
-    expect(src).not.toContain("ultron-bottom-ticker-track");
+  it("the rendered strip carries min-h-[32px] sm:h-5 (Edge Feed rebuild — no marquee)", () => {
+    const markup = renderToStaticMarkup(<BottomPulseTicker />);
+    expect(markup).toContain("min-h-[32px] sm:h-5");
+    expect(markup).not.toContain("ultron-bottom-ticker-track");
+  });
+
+  it("control · renders NOTHING when both feeds are empty (the null branch is real)", () => {
+    pulseData = null;
+    tickerData = null;
+    try {
+      expect(renderToStaticMarkup(<BottomPulseTicker />)).toBe("");
+    } finally {
+      pulseData = defaultPulse();
+      tickerData = defaultTicker();
+    }
   });
 });
 
@@ -316,21 +324,18 @@ describe("A11 · ultron diagnostics bind neutral colours to tokens", () => {
       "components/ultron/command-spine-pulse.tsx",
       "components/ultron/decision-replay-card.tsx",
       "components/ultron/preferences-card.tsx",
-      "components/ultron/signal/situation-card.tsx",
-      "components/ultron/top-strip/hq-status-chips.tsx",
+      // situation-card + hq-status-chips dropped 2026-09-01 (audit W-3):
+      // no entrypoint reaches them — tests/repo/ui-mount-graph.test.ts
+      // owns their status; asserting source text of dead files is a
+      // silent instrument.
     ]) {
       expect(readSource(f)).not.toMatch(NEUTRAL_RAW);
     }
   });
 
-  it("omni-capture park-intent foreground uses the neutral text token", () => {
-    // Only the neutral FOREGROUND maps to a token; the slate bg/border tint
-    // is the shared hued-chip pattern (emerald/blue/violet/amber) with no
-    // token equivalent, so it intentionally stays raw.
-    const src = readSource("components/ultron/ask/omni-capture.tsx");
-    expect(src).not.toContain('color: "text-slate-400"');
-    expect(src).toContain('color: "text-[var(--text-tertiary)]"');
-  });
+  // omni-capture test dropped 2026-09-01 (audit W-3): components/ultron/ask/
+  // omni-capture.tsx is an unreachable duplicate of the live
+  // components/actions/omni-capture-modal.tsx (see ui-mount-graph PARKED).
 });
 
 describe("A11 · ultron interactive controls reach 44px on mobile", () => {
@@ -338,13 +343,11 @@ describe("A11 · ultron interactive controls reach 44px on mobile", () => {
     // min-* floors win on mobile; sm: returns the control to its original
     // dense desktop dimensions, so desktop is pixel-identical.
     const collapseToMin = "min-w-[44px] min-h-[44px] sm:min-w-[28px] sm:min-h-[28px]";
-    expect(readSource("components/ultron/contradictions-card.tsx")).toContain(collapseToMin);
+    // contradictions-card / situation-card / next-action-whisperer /
+    // active-task-companion dropped 2026-09-01 (audit W-3): unreachable from
+    // every entrypoint (ui-mount-graph PARKED). Only live subjects remain.
     expect(readSource("components/ultron/decision-replay-card.tsx")).toContain(collapseToMin);
     expect(readSource("components/ultron/preferences-card.tsx")).toContain(collapseToMin);
-    const overlayOnWH = "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0";
-    expect(readSource("components/ultron/signal/situation-card.tsx")).toContain(overlayOnWH);
-    expect(readSource("components/ultron/today/next-action-whisperer.tsx")).toContain(overlayOnWH);
-    expect(readSource("components/ultron/today/active-task-companion.tsx")).toContain(overlayOnWH);
   });
 
   it("dense multi-button rows grow height-only on mobile (no horizontal crowding)", () => {
@@ -352,15 +355,7 @@ describe("A11 · ultron interactive controls reach 44px on mobile", () => {
     // their natural width (adding min-w-[44px] x3/x4 would crowd the
     // excerpt on a 375px screen) and only grow the vertical tap dimension.
     expect(readSource("components/ultron/persona-drift-card.tsx")).toContain("min-h-[44px] sm:min-h-[24px]");
-    expect(readSource("components/ultron/contradictions-card.tsx")).toContain("min-h-[44px] sm:min-h-[26px]");
-  });
-
-  it("primary action + disclosure buttons floor to 44px height on mobile", () => {
-    // Review follow-up: next-action 'start' (the primary action) matches its
-    // now-44px skip sibling, and situation-card's expand toggle was the last
-    // untreated interactive control in the card body. Height-only; sm:min-h-0
-    // restores the original dense desktop height.
-    expect(readSource("components/ultron/today/next-action-whisperer.tsx")).toContain("px-2 py-1 min-h-[44px] sm:min-h-0");
-    expect(readSource("components/ultron/signal/situation-card.tsx")).toContain("gap-1 min-h-[44px] sm:min-h-0 text-[9px]");
+    // contradictions-card assertion + the whole "primary action + disclosure"
+    // case dropped 2026-09-01 (audit W-3): both subjects are unreachable.
   });
 });

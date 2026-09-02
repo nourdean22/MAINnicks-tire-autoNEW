@@ -110,6 +110,9 @@ describe("finalizeSystemPrompt · tool-data fencing rule reaches the model", () 
     // reduction. Anything appended before the trim would be long gone.
     expect(systemPrompt.length).toBeLessThan(70_000);
     expect(systemPrompt).toContain("## Tool-result handling");
+    // S-1 (2026-09-01): the rule now also names memory_recall fences. It
+    // rides the same post-trim append, so it must survive the same cut.
+    expect(systemPrompt).toContain('source=\"memory_recall\"');
   });
 });
 

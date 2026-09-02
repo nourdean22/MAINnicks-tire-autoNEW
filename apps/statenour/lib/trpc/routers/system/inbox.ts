@@ -3,6 +3,7 @@ import { operatorProcedure } from "../../trpc";
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { saveToBrain } from "@/lib/services/brain/save";
+import { brainMemory } from "@/lib/brain/memory-manager";
 
 export const inboxProcedures = {
   getQuarantinedItems: operatorProcedure.query(async () => {
@@ -114,6 +115,20 @@ export const inboxProcedures = {
 
       // Commit claims to BrainMemory using saveToBrain
       for (const claim of claims) {
+        // P-1 (2026-09-01) · an ingestion-quarantined item (gmail today)
+        // carries the memory it would have written pre-quarantine. Commit it
+        // to EXACTLY that category/key/source/metadata — review changes WHEN
+        // the memory lands, never WHERE — and stamp the review on it.
+        const target = (claim as { memoryTarget?: { category?: string; key?: string; source?: string; metadata?: Record<string, unknown> } }).memoryTarget;
+        if (target?.category && target.key) {
+          await brainMemory.remember(target.category, target.key, claim.text, target.source ?? `inbox:${item.sourceType}`, {
+            ...(target.metadata ?? {}),
+            reviewedVia: item.id,
+            verdict: input.verdict,
+            reason: input.reason ?? "",
+          });
+          continue;
+        }
         await saveToBrain({
           content: claim.text,
           confidence: claim.confidence ?? 0.85,

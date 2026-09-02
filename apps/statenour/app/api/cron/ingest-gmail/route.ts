@@ -7,6 +7,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { sendTelegram } from "@/lib/services/telegram";
 import { classifyEmail, type EmailClassification } from "@/lib/ai/email-classifier";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { gmailSourceUrl, intakeExternalMemory } from "@/lib/brain/external-memory-intake";
 
 const log = rootLogger.withSurface("cron/ingest-gmail");
 
@@ -26,9 +27,17 @@ export const maxDuration = 300;
  *      bad token doesn't poison the other.
  *   2. AI CLASSIFICATION · each captured INBOUND email runs through
  *      classifyEmail() · {category, summary, urgency, needsReply,
- *      mentions[]} land in brainMemory metadata. Outbound mail
+ *      mentions[]} land in the memory metadata. Outbound mail
  *      skips classification (no triage value) but still gets
  *      captured raw.
+ *   2b. QUARANTINE (2026-09-01 audit P-1) · inbound mail is EXTERNAL
+ *      content. It no longer writes straight into BrainMemory: it goes
+ *      through the policy layer (memory.pin + containsExternalContent,
+ *      lib/brain/external-memory-intake.ts) and lands as a MemoryInboxItem
+ *      for review at /system/inbox; the reviewed commit writes the exact
+ *      memory this cron would have written. Sent mail and Apple Notes are
+ *      operator-authored and stay direct. A message already in the inbox
+ *      is skipped BEFORE classification so re-runs do not re-pay the LLM.
  *   3. TELEGRAM NUDGE · high-urgency + needsReply emails fire
  *      sendTelegram with sender + subject + AI summary · idempotent
  *      per messageId via BrainMemory(category=proactive_push_sent).
@@ -63,6 +72,8 @@ export const GET = cronHandler(async () => {
     email: string | null;
     outgoingStored: number;
     inboundStored: number;
+    quarantined: number;
+    awaitingReview: number;
     classified: number;
     nudgesFired: number;
     skipped: number;
@@ -75,6 +86,8 @@ export const GET = cronHandler(async () => {
       email: acct.email,
       outgoingStored: 0,
       inboundStored: 0,
+      quarantined: 0,
+      awaitingReview: 0,
       classified: 0,
       nudgesFired: 0,
       skipped: 0,
@@ -121,6 +134,19 @@ export const GET = cronHandler(async () => {
             continue;
           }
 
+          // P-1 · already in the review inbox? Skip before the classifier
+          // runs — this cron fires every 30 minutes over a 3-day window.
+          const sourceUrl = gmailSourceUrl(full.id);
+          const inInbox = await prisma.memoryInboxItem.findFirst({
+            where: { sourceUrl },
+            select: { status: true },
+          });
+          if (inInbox) {
+            if (inInbox.status === "quarantined" || inInbox.status === "conflicting") result.awaitingReview++;
+            else result.skipped++;
+            continue;
+          }
+
           // Classify · single tracedAiChat per inbound. Returns
           // neutral fallback on failure so the capture still lands.
           const classification = await classifyEmail({
@@ -133,12 +159,13 @@ export const GET = cronHandler(async () => {
           });
           result.classified++;
 
-          await storeMessage(full, BRAIN_CATEGORIES.GMAIL_THREAD, {
+          const intake = await intakeInboundMessage(full, BRAIN_CATEGORIES.GMAIL_THREAD, {
             accountKey: acct.accountKey,
             accountEmail: acct.email,
             classification,
           });
-          result.inboundStored++;
+          if (intake.outcome === "quarantined") result.quarantined++;
+          else result.inboundStored++;
 
           // Telegram nudge on high-urgency + needsReply only ·
           // idempotent per messageId so re-runs don't double-ping.
@@ -193,12 +220,14 @@ export const GET = cronHandler(async () => {
     (acc, r) => ({
       outgoingStored: acc.outgoingStored + r.outgoingStored,
       inboundStored: acc.inboundStored + r.inboundStored,
+      quarantined: acc.quarantined + r.quarantined,
+      awaitingReview: acc.awaitingReview + r.awaitingReview,
       classified: acc.classified + r.classified,
       nudgesFired: acc.nudgesFired + r.nudgesFired,
       skipped: acc.skipped + r.skipped,
       errorCount: acc.errorCount + r.errors.length,
     }),
-    { outgoingStored: 0, inboundStored: 0, classified: 0, nudgesFired: 0, skipped: 0, errorCount: 0 },
+    { outgoingStored: 0, inboundStored: 0, quarantined: 0, awaitingReview: 0, classified: 0, nudgesFired: 0, skipped: 0, errorCount: 0 },
   );
 
   // Surface audit event · failures inside the audit write itself
@@ -209,7 +238,7 @@ export const GET = cronHandler(async () => {
       data: {
         actor: "gmail_ingest_cron",
         eventType: "gmail_messages_ingested",
-        detail: `Ingested ${totals.outgoingStored} outgoing + ${totals.inboundStored} inbound · ${totals.classified} classified · ${totals.nudgesFired} nudges fired across ${accounts.length} account(s)`,
+        detail: `Ingested ${totals.outgoingStored} outgoing + ${totals.inboundStored} inbound · ${totals.quarantined} inbound quarantined for review (${totals.awaitingReview} already awaiting) · ${totals.classified} classified · ${totals.nudgesFired} nudges fired across ${accounts.length} account(s)`,
         payload: { perAccount, totals, durationMs } as never,
       },
     })
@@ -252,11 +281,10 @@ function shouldIngest(m: GmailMessage, kind: "sent" | "inbox"): boolean {
   return true;
 }
 
-async function storeMessage(
-  m: GmailMessage,
-  category: string,
-  extra: { accountKey: string; accountEmail: string | null; classification?: EmailClassification },
-): Promise<void> {
+type StoreExtra = { accountKey: string; accountEmail: string | null; classification?: EmailClassification };
+
+/** The memory text + metadata one Gmail message becomes. Shared by both paths below. */
+function renderMessage(m: GmailMessage, extra: StoreExtra): { content: string; metadata: Record<string, unknown> } {
   const parts: string[] = [];
   if (m.subject) parts.push(`Subject: ${m.subject}`);
   if (m.from) parts.push(`From: ${m.from.slice(0, 80)}`);
@@ -272,14 +300,42 @@ async function storeMessage(
   const body = (m.body || m.snippet || "").replace(/\n{3,}/g, "\n\n").trim();
   parts.push(body.length > 1600 ? body.slice(0, 1600) + "..." : body);
 
-  await brainMemory.remember(category, `gmail_${m.id}`, parts.join("\n"), "gmail_cron", {
-    messageId: m.id,
-    threadId: m.threadId,
-    from: m.from,
-    subject: m.subject,
-    accountKey: extra.accountKey,
-    accountEmail: extra.accountEmail,
-    classification: extra.classification,
+  return {
+    content: parts.join("\n"),
+    metadata: {
+      messageId: m.id,
+      threadId: m.threadId,
+      from: m.from,
+      subject: m.subject,
+      accountKey: extra.accountKey,
+      accountEmail: extra.accountEmail,
+      classification: extra.classification,
+    },
+  };
+}
+
+/** Operator-authored mail (sent, Apple Notes) · direct write, as before. */
+async function storeMessage(m: GmailMessage, category: string, extra: StoreExtra): Promise<void> {
+  const { content, metadata } = renderMessage(m, extra);
+  await brainMemory.remember(category, `gmail_${m.id}`, content, "gmail_cron", metadata);
+}
+
+/**
+ * P-1 · inbound mail is external content: through the policy layer, into the
+ * review inbox. Same category/key/source/metadata the direct write used, so a
+ * reviewed commit lands exactly where this cron would have put it.
+ */
+async function intakeInboundMessage(m: GmailMessage, category: string, extra: StoreExtra) {
+  const { content, metadata } = renderMessage(m, extra);
+  return intakeExternalMemory({
+    category,
+    key: `gmail_${m.id}`,
+    content,
+    source: "gmail_cron",
+    sourceType: "gmail_ingest",
+    sourceUrl: gmailSourceUrl(m.id),
+    metadata,
+    privacyClass: "internal",
   });
 }
 

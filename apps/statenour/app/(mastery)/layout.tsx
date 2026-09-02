@@ -71,10 +71,14 @@ export default function MasteryLayout({
       <KeyboardShortcuts />
       {/* v7.4 · Apr 29 · NotificationCenter (bell) RETIRED. Per Nour:
           "the whole free-floating bell thing is annoying — let's just
-          have two persistent tickers feed me everything." Priority
-          alerts now flow through the GlobalTopTicker; ambient brain
-          signals flow through the BottomPulseTicker. /system/health
-          remains the canonical surface for true incident triage. */}
+          have two persistent tickers feed me everything." Then 2026-06-16
+          (#158) FOLDED the top ticker into the bottom one: BottomPulseTicker
+          (mounted inside BottomTabBar below) merges trpc.operator.ticker —
+          market, macro, mode chips, priority alerts — with the personal
+          pulse. GlobalTopTicker was deleted 2026-09-01 (audit W-1): for
+          eleven weeks this comment said priority alerts flowed through a
+          component nothing mounted. /system/health remains the canonical
+          surface for true incident triage. */}
       {/* Session-expiry pre-warning — polls /api/auth/session and
           surfaces a fixed banner 10min before expiry so mid-capture
           401s + bounce-to-sign-in don't eat work in progress. Silent

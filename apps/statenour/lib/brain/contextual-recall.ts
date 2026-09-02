@@ -166,6 +166,27 @@ export function provenancePrefix(m: RelevantMemory): string {
 // base64 audio blobs that have no semantic value (Phase 5 morning
 // brief audio).
 import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
+
+/**
+ * S-1 (2026-09-01 audit) · recalled memory was the one path external content
+ * reached the system prompt WITHOUT a <tool_data> fence: ingest-gmail (and
+ * drive / calendar / reviews) write email and document text into BrainMemory,
+ * and this module injects it into the prompt. fenceContent wraps ~20 tool
+ * results at read time and never touched these blocks.
+ *
+ * The heading stays OUTSIDE the fence so the section-aware trimmer still sees
+ * a `## ` boundary; every memory line goes inside. The cap is lifted because
+ * this block is already trimmed to its own token budget above — the 4000-char
+ * tool-result default would amputate it.
+ */
+const RECALL_FENCE_MAX_CHARS = 200_000;
+export function fenceRecallBlock(lines: string[]): string {
+  if (lines.length === 0) return "";
+  const [heading, ...body] = lines;
+  if (body.length === 0) return heading;
+  return `${heading}\n${fenceContent("brainRecall", "memory_recall", body.join("\n"), { maxChars: RECALL_FENCE_MAX_CHARS })}`;
+}
 
 export interface RelevantMemory {
   category: string;
@@ -1139,7 +1160,7 @@ export async function getContextualMemories(
     timings,
     ms: Date.now() - t0,
   });
-  return lines.join("\n");
+  return fenceRecallBlock(lines);
 }
 
 // ---------------------------------------------------------------------------
@@ -1543,5 +1564,5 @@ async function getFallbackMemories(max: number): Promise<string> {
     );
   }
 
-  return lines.join("\n");
+  return fenceRecallBlock(lines);
 }
