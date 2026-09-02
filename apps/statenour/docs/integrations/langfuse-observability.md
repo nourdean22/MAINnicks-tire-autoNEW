@@ -59,6 +59,54 @@ with SDK v5. The Railway project is configured with the operator-provided projec
 keys and `https://us.cloud.langfuse.com`. Secret values are intentionally absent
 from this repository and from this document.
 
+## The provider conflict (2026-09-02) — read this before touching either SDK
+
+Langfuse and Sentry both want the global OpenTelemetry tracer provider, and
+only one can have it:
+
+- `Sentry.init()` calls `trace.setGlobalTracerProvider()` (`@sentry/node`
+  `sdk/initOtel.js`).
+- `@opentelemetry/api`'s `registerGlobal` is called with `allowOverride=false`.
+  A second registration logs a duplicate error through `diag` — a **no-op
+  logger by default** — and keeps the **first** provider.
+- `instrumentation.ts` imported `sentry.server.config` before
+  `initLangfuseTracing()`, so Langfuse's `NodeSDK` lost, every AI SDK span went
+  to Sentry's provider, and Langfuse received nothing. `langfuse_started` still
+  appeared in the boot log; `/api/version` still said `langfuse: true`.
+
+**Reordering is NOT the fix.** Sentry's `initOtel.js` force-replaces a
+pre-existing registry when its own registration is refused, so putting Langfuse
+first just moves the breakage onto Sentry. One provider, shared.
+
+**The rule now:** build the Langfuse span processor FIRST, hand it to
+`Sentry.init({ openTelemetrySpanProcessors: [processor] })` (Sentry's supported
+option — it appends them to its own provider), and only construct a `NodeSDK`
+when nothing else owns the provider. `instrumentation.ts` enforces the order and
+`tests/observability/tracer-provider-conflict.test.ts` pins it, including a
+mutation canary on the ordering.
+
+**And never trust the status again:** `initLangfuseTracing()` asks the AI SDK's
+own tracer name (`ai`) for a span and requires `isRecording()` plus a non-zero
+trace id before it reports `started`. A no-op tracer now yields `failed` with
+the likely cause named in the log, instead of a green badge over a dead pipe.
+
+## Proving it landed — `POST /api/system/observability-probe`
+
+CRON_SECRET-gated, mirroring `/api/system/perplexica-diag`. It plants a known
+positive in each sink from inside the deployed process and **flushes**:
+
+```
+curl -sS -X POST https://bdnick.info/api/system/observability-probe \
+  -H "Authorization: Bearer $CRON_SECRET" -H 'content-type: application/json' \
+  -d '{"targets":["langfuse","sentry"]}'
+```
+
+It returns a `probeId`. Read the Langfuse side back by trace name
+`observability-probe` (the id is in metadata) and the Sentry side by the
+returned `eventId`. Body `{"targets":["sentry"]}` runs one sink only.
+A zero, a green and a surviving mutation are all "no signal" — plant the
+positive first.
+
 ## Activation (operator)
 
 Set on Railway `statenour-web` (protected op — operator-only):

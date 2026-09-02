@@ -29,6 +29,12 @@ const ALLOWLIST: Array<{ file: string; match: RegExp; reason: string }> = [
     reason: "1-token readiness probe with no user content; tracing it would only add noise traces",
   },
   {
+    file: "app/api/system/observability-probe/route.ts",
+    match: /experimental_telemetry:\s*telemetry,/,
+    reason:
+      "builds its block through langfuseTelemetry() into a local FIRST so the probe can refuse to burn a model call when telemetry is disabled (review finding on #2079); the handover is asserted in tests/api/observability-probe.test.ts",
+  },
+  {
     file: "lib/ai/stream-with-fallback.ts",
     match: /\.\.\.config,/,
     reason: "spreads the nick-chat config built by app/api/ai/chat/build-stream-config.ts, whose langfuseTelemetry block is pinned by tests/ai/chat/build-stream-config-telemetry.test.ts",
