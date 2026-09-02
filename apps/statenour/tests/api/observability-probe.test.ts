@@ -14,17 +14,20 @@ const mocks = vi.hoisted(() => ({
   sentryFlush: vi.fn().mockResolvedValue(true),
   captureMessage: vi.fn().mockReturnValue("event-abc"),
   telemetry: vi.fn(() => ({ isEnabled: true, functionId: "observability-probe", metadata: {} })),
+  lfEnabled: true,
+  lfStatus: "started" as string,
+  sentryDsn: "https://p@o1.ingest.us.sentry.io/2" as string | undefined,
 }));
 
 vi.mock("ai", () => ({ generateText: mocks.generateText }));
 vi.mock("@/lib/ai/provider", () => ({ getModel: () => ({ modelId: "test-model" }) }));
 vi.mock("@/lib/observability/langfuse", () => ({
   flushLangfuseTraces: mocks.flushLangfuse,
-  isLangfuseTelemetryEnabled: () => true,
+  isLangfuseTelemetryEnabled: () => mocks.lfEnabled,
   langfuseTelemetry: mocks.telemetry,
-  langfuseTracingStatus: () => "started",
+  langfuseTracingStatus: () => mocks.lfStatus,
 }));
-vi.mock("@/lib/observability/sentry", () => ({ resolveSentryDsn: () => "https://p@o1.ingest.us.sentry.io/2" }));
+vi.mock("@/lib/observability/sentry", () => ({ resolveSentryDsn: () => mocks.sentryDsn }));
 vi.mock("@sentry/nextjs", () => ({ captureMessage: mocks.captureMessage, flush: mocks.sentryFlush }));
 vi.mock("@/lib/auth-guard", () => ({
   requireCronAuth: vi.fn(),
@@ -56,6 +59,10 @@ beforeEach(() => {
   mocks.flushLangfuse.mockResolvedValue(undefined);
   mocks.sentryFlush.mockResolvedValue(true);
   mocks.captureMessage.mockReturnValue("event-abc");
+  mocks.telemetry.mockReturnValue({ isEnabled: true, functionId: "observability-probe", metadata: {} });
+  mocks.lfEnabled = true;
+  mocks.lfStatus = "started";
+  mocks.sentryDsn = "https://p@o1.ingest.us.sentry.io/2";
 });
 
 describe("POST /api/system/observability-probe", () => {
@@ -96,6 +103,41 @@ describe("POST /api/system/observability-probe", () => {
     const lf = (d as { langfuse: { ok: boolean; error: string } }).langfuse;
     expect(lf.ok).toBe(false);
     expect(lf.error).toContain("model unreachable");
+  });
+
+  it("REVIEW FINDING: a disabled Langfuse reports ok:false with a reason, never a green", async () => {
+    mocks.lfEnabled = false;
+    mocks.lfStatus = "failed";
+    const d = await data(await post({ targets: ["langfuse"] }));
+    const lf = (d as { langfuse: { ok: boolean; flushed: boolean; reason: string } }).langfuse;
+    expect(lf.ok, "a known positive that cannot be exported is not a positive").toBe(false);
+    expect(lf.flushed).toBe(false);
+    expect(lf.reason).toContain("failed");
+    expect(mocks.generateText, "no point burning a model call into a dead pipeline").not.toHaveBeenCalled();
+  });
+
+  it("REVIEW FINDING: no Sentry DSN reports ok:false — captureMessage still returns an id", async () => {
+    mocks.sentryDsn = undefined;
+    const d = await data(await post({ targets: ["sentry"] }));
+    const sn = (d as { sentry: { ok: boolean; reason: string } }).sentry;
+    expect(sn.ok).toBe(false);
+    expect(sn.reason).toContain("SENTRY_DSN");
+    expect(mocks.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("a flush that times out is not a success either", async () => {
+    mocks.sentryFlush.mockResolvedValue(false);
+    const d = await data(await post({ targets: ["sentry"] }));
+    const sn = (d as { sentry: { ok: boolean; flushed: boolean } }).sentry;
+    expect(sn.ok).toBe(false);
+    expect(sn.flushed).toBe(false);
+  });
+
+  it("a telemetry block that comes back disabled mid-probe is caught too", async () => {
+    mocks.telemetry.mockReturnValue({ isEnabled: false, functionId: "observability-probe", metadata: {} });
+    const d = await data(await post({ targets: ["langfuse"] }));
+    expect((d as { langfuse: { ok: boolean } }).langfuse.ok).toBe(false);
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
   it("is CRON_SECRET-gated, like every other server-to-server system probe", async () => {

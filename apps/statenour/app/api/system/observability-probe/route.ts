@@ -16,6 +16,9 @@
  *   · sentry — one info-level message tagged probe=true, then a flush.
  *     Read back by event id.
  *
+ * `ok` is TRUE only when the sink was actually enabled AND the export was
+ * flushed. A disabled sink reports ok:false with a reason — never a green.
+ *
  * Observe-only: no database writes, no memory, no side effects beyond the two
  * vendor exports. Body: { targets?: ("langfuse" | "sentry")[] } — default both.
  */
@@ -40,17 +43,44 @@ const ALL_TARGETS: Target[] = ["langfuse", "sentry"];
 async function probeLangfuse(probeId: string) {
   const status = langfuseTracingStatus();
   const enabled = isLangfuseTelemetryEnabled(false);
+
+  // A known positive that cannot be exported is not a positive. If tracing is
+  // skipped or failed, `langfuseTelemetry()` returns isEnabled:false and
+  // `flushLangfuseTraces()` is a no-op — a model call would still succeed and
+  // this probe would have reported ok:true with no observation ever created.
+  // That is precisely the false green the probe exists to catch (found in
+  // review on #2079).
+  if (!enabled) {
+    return {
+      status,
+      enabled,
+      ok: false,
+      flushed: false,
+      reason:
+        status === "skipped"
+          ? "Langfuse is unconfigured (no keys) — nothing was exported"
+          : `Langfuse tracing status is "${status}" — spans are not reaching the processor, so nothing was exported`,
+    };
+  }
+
   const t0 = Date.now();
   try {
+    const telemetry = langfuseTelemetry({
+      functionId: "observability-probe",
+      tags: ["probe"],
+      metadata: { probeId },
+    });
+    // Belt and braces: the gate is re-read here, so a race that flips the
+    // status mid-probe cannot produce an untraced "success".
+    if (!telemetry.isEnabled) {
+      return { status, enabled, ok: false, flushed: false, reason: "telemetry block came back disabled at call time" };
+    }
+
     const result = await generateText({
       model: getModel("fast"),
       prompt: `Reply with exactly this and nothing else: pong ${probeId}`,
       maxOutputTokens: 16,
-      experimental_telemetry: langfuseTelemetry({
-        functionId: "observability-probe",
-        tags: ["probe"],
-        metadata: { probeId },
-      }),
+      experimental_telemetry: telemetry,
     });
     await flushLangfuseTraces();
     return {
@@ -63,12 +93,19 @@ async function probeLangfuse(probeId: string) {
       durationMs: Date.now() - t0,
     };
   } catch (error) {
-    return { status, enabled, ok: false, error: String(error).slice(0, 240), durationMs: Date.now() - t0 };
+    return { status, enabled, ok: false, flushed: false, error: String(error).slice(0, 240), durationMs: Date.now() - t0 };
   }
 }
 
 async function probeSentry(probeId: string) {
   const enabled = Boolean(resolveSentryDsn());
+
+  // Same rule as the Langfuse branch: with no DSN, captureMessage still
+  // returns an id and flush() still resolves, so ok:true would be a lie.
+  if (!enabled) {
+    return { enabled, ok: false, flushed: false, reason: "no valid SENTRY_DSN — the SDK is disabled and nothing was sent" };
+  }
+
   const t0 = Date.now();
   try {
     const Sentry = await import("@sentry/nextjs");
@@ -77,9 +114,16 @@ async function probeSentry(probeId: string) {
       tags: { probe: "true", probeId },
     });
     const flushed = await Sentry.flush(5000);
-    return { enabled, ok: true, eventId, flushed, durationMs: Date.now() - t0 };
+    return {
+      enabled,
+      ok: Boolean(eventId) && flushed,
+      eventId: eventId ?? null,
+      flushed,
+      ...(flushed ? {} : { reason: "Sentry.flush() timed out — the event may not have left the process" }),
+      durationMs: Date.now() - t0,
+    };
   } catch (error) {
-    return { enabled, ok: false, error: String(error).slice(0, 240), durationMs: Date.now() - t0 };
+    return { enabled, ok: false, flushed: false, error: String(error).slice(0, 240), durationMs: Date.now() - t0 };
   }
 }
 

@@ -80,8 +80,13 @@ export interface SentryInitBase {
   enabled: boolean;
   /** Never ship IPs, cookies or user identity by default — single-operator app, private data. */
   sendDefaultPii: false;
-  /** Errors only. Performance tracing is Langfuse's job for model calls and off elsewhere. */
-  tracesSampleRate: 0;
+  /**
+   * Errors only by default. NOT a literal 0 type: when a foreign span
+   * processor rides on Sentry's provider (Langfuse), this MUST be raised or
+   * the sampler returns NOT_RECORD and OpenTelemetry hands back a
+   * non-recording span BEFORE any processor runs — see initSentryServer.
+   */
+  tracesSampleRate: number;
   environment?: string;
   release?: string;
 }
