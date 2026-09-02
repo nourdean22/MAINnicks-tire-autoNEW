@@ -113,6 +113,55 @@ Rollback is `prisma/migrations/20260822230000_cron_job_log_result_count/rollback
 row). 0 = ran and produced nothing. A `DEFAULT 0` would backfill a manufactured
 "produced nothing" onto ~66,000 historical rows.
 
+### `20260902000000_restore_idempotency_partials` — ✅ APPLIED 2026-09-02 (directly, statement by statement)
+
+Restored six indexes the live DB was missing: five partial uniques on
+`idempotency_key` (`scheduled_actions`, `task_events`, `goal_events`,
+`reflections`, `decision_replays`) plus the `chat_messages` GIN over
+`searchable_tsv`. Reported as five HIGH + one MEDIUM by the schema sentinel on
+`/system/health`. Additive only, every statement `IF NOT EXISTS`.
+
+Cause: Prisma cannot express a partial unique in `@@unique` — the
+`AutonomousAction` model says so in a comment — so none of these were known to
+Prisma, and an index Prisma does not know about is one `prisma db push` drops.
+That is failure mode #1 in `lib/db/schema-sentinel.ts`'s own header.
+`20260429190000_universal_idempotency` created all six in one file; five went
+away while `autonomous_actions` and `entity_audits` — same expectation shape,
+same checker — survived. **That control was re-confirmed against prod before
+applying**: six absent, two present.
+
+Applied directly against the production branch (project `statenour`,
+`spring-art-47050555`), same as `20260806120000_drop_duplicate_indexes` above.
+
+**The read-only preflight found a real duplicate**, which is the whole reason
+the preflight exists. `task_events` held two byte-identical rows — same
+`idempotency_key`, `taskId`, `kind: completed`, same payload — written **17 ms
+apart** at 2026-09-02T14:45:12 by one `service:checkTask` double-fire. The key
+was minted correctly and correctly IDENTIFIED the duplicate; with no unique
+index the database had nothing to reject it with. Both rows were copied to
+**`_bak_task_events_dedup_20260902`** (still present — drop only on operator
+say-so) before deleting the later row `cmtk7k0pj00hrqh01sqi72gp0` by explicit
+`id`, never by predicate. The other four tables had zero blocking rows.
+
+**Verified after applying**, three ways:
+- all six present in `pg_indexes` with predicate `WHERE (idempotency_key IS NOT NULL)`
+- the sentinel's own three conditions (`unique` + `where` + predicate substring)
+  evaluated in SQL against prod: all seven expectations return SENTINEL PASSES
+- **enforcement proven, not inferred** — a deliberate duplicate INSERT was
+  rejected with `duplicate key value violates unique constraint
+  "task_events_idempotency_key_uniq"`, zero rows written. A green `pg_indexes`
+  read says an index exists, not that it enforces.
+
+**Left in this folder on purpose**, same as `20260806120000_drop_duplicate_indexes`
+and `0003_ambition_engine`: it is already applied, and moving it into
+`prisma/migrations/` could trip migrate-deploy ordering. `_prisma_migrations`
+was deliberately NOT hand-written — see the header note at the top of this file
+about that turning `prisma migrate status` red.
+
+**Rollback**: `DROP INDEX IF EXISTS` on the six names. An index holds no data,
+so this is lossless and fully reconstructible. The deleted `task_events` row is
+recoverable from the backup table.
+
 ### `20260806120000_drop_duplicate_indexes` — ✅ APPLIED 2026-08-06 (directly, one transaction)
 
 Dropped 42 duplicate indexes across 24 tables (~18.7 MB). Indexes only — no data touched.

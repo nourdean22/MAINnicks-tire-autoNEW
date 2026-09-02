@@ -96,15 +96,34 @@
 -- index behind on failure, which is a worse trade for a single-operator app
 -- than a short lock.
 --
--- APPLY: registered in app/api/system/apply-pending-migration/route.ts.
--- Deploy, then from an authenticated app tab:
+-- ════════════════════════════════════════════════════════════════════════
+-- STATUS: APPLIED 2026-09-02. DO NOT PROMOTE THIS FILE.
+-- ════════════════════════════════════════════════════════════════════════
+--
+-- Applied directly against the production branch (Neon project `statenour`,
+-- spring-art-47050555), statement by statement, and verified three ways --
+-- pg_indexes presence, the sentinel's own three conditions evaluated in SQL,
+-- and a deliberate duplicate INSERT that was REJECTED. See this directory's
+-- README entry for the full record, including the real duplicate the preflight
+-- caught in task_events and the backup table holding it.
+--
+-- CORRECTION 2026-09-02. This block used to end: "promote this SQL into
+-- prisma/migrations/<name>/ and run `prisma migrate resolve --applied <name>`
+-- so migrate status stays green." That is the README's generic advice and it is
+-- WRONG FOR THIS FILE. Every directly-applied index migration in this folder --
+-- 20260806120000_drop_duplicate_indexes, 20260823010000/010001, 0003_ambition_engine
+-- -- is deliberately left parked, because moving one into prisma/migrations/ can
+-- trip migrate-deploy ordering, and _prisma_migrations is deliberately NOT
+-- hand-written (hand-inserted rows are what turned `prisma migrate status` red
+-- on 2026-07-29). Following the old instruction would have re-created that.
+--
+-- Still registered in app/api/system/apply-pending-migration/route.ts, which is
+-- the right path for a FRESH database. Every statement is IF NOT EXISTS, so
+-- re-applying against prod is a no-op:
 --   fetch('/api/system/apply-pending-migration',{method:'POST',
 --     headers:{'Content-Type':'application/json'},
 --     body:JSON.stringify({name:'20260902000000_restore_idempotency_partials'}),
 --     credentials:'include'}).then(r=>r.json()).then(console.log)
--- Then confirm on /system/health that the six findings are gone, promote this
--- SQL into prisma/migrations/<name>/ and run
--- `prisma migrate resolve --applied <name>` so migrate status stays green.
 -- ════════════════════════════════════════════════════════════════════════
 
 -- 1. scheduled_actions
