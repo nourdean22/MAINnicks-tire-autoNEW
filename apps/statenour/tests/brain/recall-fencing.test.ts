@@ -64,8 +64,13 @@ beforeEach(() => {
   findMany.mockResolvedValue([...MEMORIES, ...PADDING]);
 });
 
-/** No topics in the recent messages → the builder takes the fallback path. */
-const build = () => getContextualMemories([], 20, {});
+/**
+ * No topics in the recent messages → the builder takes the fallback path.
+ * fastTopics: true keeps topic extraction deterministic (stopword strip), so
+ * this cannot drift onto the LLM extractTopics() path on a machine that
+ * happens to have a provider available (hostile review 2026-09-02).
+ */
+const build = () => getContextualMemories([], 20, { fastTopics: true });
 
 describe("recall block · recalled memories are fenced as memory_recall", () => {
   it("wraps the memory lines in a <tool_data source=\"memory_recall\"> fence", async () => {
