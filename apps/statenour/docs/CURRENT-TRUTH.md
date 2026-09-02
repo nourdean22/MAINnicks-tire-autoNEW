@@ -7,16 +7,23 @@
 
 ## Since 2026-09-02 — observability is deployed
 
-- **Langfuse tracing is configured in production and was DEAD; the fix is merged but
-  NOT YET CONFIRMED LIVE.**
-  Every AI SDK model-call site uses the shared `langfuseTelemetry()` helper;
-  private-mode turns are excluded and exported keys/bearer tokens are masked.
-  But `Sentry.init()` claimed the global OpenTelemetry tracer provider first and
-  `@opentelemetry/api` silently refused Langfuse's registration, so every span
-  was dropped while `/api/version` reported `langfuse: true` and the boot log
-  said `langfuse_started`. Corrected by handing the processor to Sentry's
-  provider; `initLangfuseTracing()` now proves a span records before reporting
-  `started`. **A `configured` badge is a presence check, never a receipt.**
+- **Langfuse tracing is LIVE in production — confirmed 2026-09-02 by reading a
+  planted trace back out.** Every AI SDK model-call site uses the shared
+  `langfuseTelemetry()` helper; private-mode turns are excluded, only AI SDK
+  spans are exported, and keys/bearer tokens are masked.
+  It was DEAD for hours first: `Sentry.init()` claimed the global OpenTelemetry
+  tracer provider, `@opentelemetry/api` silently refused Langfuse's second
+  registration, and every span went to Sentry's provider while `/api/version`
+  reported `langfuse: true` and the boot log said `langfuse_started`.
+  **Receipt** (`a1d51cf`, 2026-09-02T17:43:48Z): trace
+  `d3eebaac74d030dc2aea911b83ace1bb` — `environment: production`,
+  `userId: operator`, `tags: ["probe"]`, `release: a1d51cf09…`,
+  `model: deepseek-v4-flash:0731`, plus the planted `metadata.probeId`;
+  `resourceAttributes.service.namespace: sentry` confirms it rides Sentry's
+  provider. Reproduce with `POST /api/system/observability-probe`.
+  **KNOWN GAP: token usage and cost came back 0** — that provider reported no
+  usage on the call, so cost attribution is unproven.
+  **A `configured` badge is a presence check, never a receipt.**
 - **Sentry error monitoring is configured in production.** Client, server, edge,
   request-error, and router-transition hooks are deployed; `/api/version` reports
   `sentry: true`. Default PII capture is off and performance tracing is disabled.
