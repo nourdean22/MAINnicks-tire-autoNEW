@@ -188,7 +188,11 @@ describe("config.matcher · the middleware RUNS for extension-suffixed page path
 
 describe("auth-boundary drift guard · every page route is denied without a session", () => {
   const plain = pageRoutes("1");
-  const dotted = pageRoutes("1.2");
+  // Self-review 2026-09-02 · a root-level `[slug]` page (none exists today)
+  // whose id ends in an asset extension would satisfy isStaticFile's
+  // root-only rule; fill with those shapes too so the guard catches it the
+  // day such a route ships.
+  const dotted = [...pageRoutes("1.2"), ...pageRoutes("1.json"), ...pageRoutes("1.html")];
 
   it("discovers the page routes (sanity · 37 as of 5c1195e)", () => {
     expect(plain.length).toBeGreaterThanOrEqual(30);

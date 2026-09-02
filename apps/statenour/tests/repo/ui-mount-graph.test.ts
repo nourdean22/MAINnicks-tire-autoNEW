@@ -49,17 +49,17 @@ export const PARKED: Record<string, string> = {
   "components/actions/todays-compound.tsx": "actions/loops island (audit W-2) · child of loop-stream · dead with its parent",
   // A UI whose backend is fully alive.
   "components/operator/compound-chain.tsx": "audit W-2 · never mounted while lib/services/compound-chain.ts + /api/operator/compound are live · the consumer the service was built for",
-  // Ultron HQ island · the route is gone; omni-capture is a DUPLICATE of the
-  // live components/actions/omni-capture-modal.tsx.
-  "components/ultron/ask/omni-capture.tsx": "Ultron HQ island (audit W-2) · duplicate of the LIVE components/actions/omni-capture-modal.tsx · delete candidate",
+  // Ultron HQ island · the route is gone. (ask/omni-capture.tsx, a duplicate
+  // of the live components/actions/omni-capture-modal.tsx, was deleted
+  // 2026-09-01 rather than parked.)
   "components/ultron/contradictions-card.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   "components/ultron/signal/situation-card.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   "components/ultron/today/active-task-companion.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
   "components/ultron/today/next-action-whisperer.tsx": "Ultron HQ island (audit W-2) · route deleted · re-mount or delete is an operator call",
-  // Children of GlobalTopTicker, deleted 2026-09-01 (W-1): #158 folded the
-  // top ticker into BottomPulseTicker, which queries trpc.operator.ticker itself.
-  "components/ultron/top-strip/hq-status-chips.tsx": "child of the deleted GlobalTopTicker (audit W-1/W-2) · BottomPulseTicker superseded the top strip · delete candidate",
-  "components/ultron/top-strip/ticker.tsx": "child of the deleted GlobalTopTicker (audit W-1/W-2) · BottomPulseTicker superseded the top strip · delete candidate",
+  // top-strip/ticker.tsx + top-strip/hq-status-chips.tsx — the children of
+  // GlobalTopTicker (deleted, W-1) — were deleted 2026-09-01 as well: #158
+  // folded the top strip into BottomPulseTicker, which queries
+  // trpc.operator.ticker itself, so nothing was parked, only superseded.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

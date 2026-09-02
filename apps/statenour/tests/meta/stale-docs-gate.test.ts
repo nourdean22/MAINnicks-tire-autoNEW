@@ -115,8 +115,9 @@ describe("de-Venice drift guard", () => {
     const chatSuggestions = readFileSync(path.resolve(STATENOUR_ROOT, "lib/services/chat-suggestions.ts"), "utf-8");
     expect(chatSuggestions).not.toContain('ai ? "venice" :');
 
-    const hqStatus = readFileSync(path.resolve(STATENOUR_ROOT, "components/ultron/top-strip/hq-status-chips.tsx"), "utf-8");
-    expect(hqStatus).not.toContain("Venice slow?");
+    // components/ultron/top-strip/hq-status-chips.tsx deleted 2026-09-01
+    // (unreachable child of the deleted GlobalTopTicker · audit W-1/W-2) —
+    // its de-Venice assertion is moot, same as error-diagnostic-panel below.
 
     // error-diagnostic-panel.tsx deleted 2026-07-11 (wave 4 · dead-component
     // sweep, zero live importers) — its de-Venice assertion is moot.

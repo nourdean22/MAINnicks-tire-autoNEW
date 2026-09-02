@@ -10,7 +10,8 @@
  *
  * The decision logic (`shouldFireBrief`) is pure and unit-tested; the
  * localStorage read/write wrappers are SSR-guarded + try/catch per the
- * repo idiom (see components/ultron/ask/omni-capture.tsx).
+ * repo idiom (see components/actions/omni-capture-modal.tsx — the live
+ * omni-capture; the ultron/ask duplicate was deleted 2026-09-01).
  */
 
 export const BRIEF_STORAGE_KEY = "nour:cognitive-partner-brief";

@@ -112,6 +112,26 @@ export function fenceContent(
 }
 
 /**
+ * PR #2060 review (P1) · slice a string that may contain a <tool_data> fence
+ * WITHOUT losing the closing tag. brain-context.ts trims the recall block to
+ * 1,000 / 2,000 chars AFTER the builder fenced it; a bare `.slice` that landed
+ * inside the fence left every later addendum block — truth grounding,
+ * permission directives, the fencing rule itself — inside an unterminated
+ * memory_recall region, i.e. it taught the model that trusted instructions
+ * were untrusted data. If the cut lands inside an open fence, the fence is
+ * re-closed with the same tool attribute and a visible truncation note.
+ */
+export function truncateFenced(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars);
+  const opens = [...cut.matchAll(/<tool_data tool="([^"]+)"[^>]*>/g)];
+  const closes = cut.match(/<\/tool_data[^>]*>/g)?.length ?? 0;
+  if (opens.length <= closes) return cut;
+  const tool = opens[opens.length - 1][1];
+  return `${cut}\n... [TRUNCATED at ${maxChars} chars · fence closed by truncateFenced] ...\n</tool_data tool="${tool}">`;
+}
+
+/**
  * The system-prompt addendum that teaches the model how to treat
  * fenced regions. Inject this once via the prompt builder · it pairs
  * with every fenced tool result in the conversation.

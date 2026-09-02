@@ -180,6 +180,22 @@ describe("ingest-gmail · inbound mail reaches the quarantine through the policy
     expect(out.skipped).toBeGreaterThanOrEqual(1);
   });
 
+  // PR #2060 review (P2) · the guardian's quarantine dedupe used to key on
+  // rawTextFenced alone, so two inbound messages rendering identical content
+  // (the same broadcast reaching two configured accounts) collapsed onto one
+  // inbox row — the second lost its own sourceUrl/memoryTarget, and if the
+  // first row was pending, the source-URL precheck could never find a row
+  // for the second, so it was re-classified on every cron run.
+  it("the guardian dedupes an ingested item by its sourceUrl identity, never by content alone", async () => {
+    await runRoute();
+    const wheres = inboxFindFirst.mock.calls.map((c) => (c[0] as { where?: Record<string, unknown> })?.where ?? {});
+    expect(wheres.length).toBeGreaterThanOrEqual(2); // route precheck + guardian lookup
+    for (const w of wheres) {
+      expect(w.sourceUrl, `lookup keyed by identity: ${JSON.stringify(w)}`).toBe("gmail://in1");
+      expect(w.rawTextFenced, "no content-keyed lookup for an ingested item").toBeUndefined();
+    }
+  });
+
   it("the audit event reports the quarantine count", async () => {
     await runRoute();
     expect(auditCreate).toHaveBeenCalledTimes(1);
