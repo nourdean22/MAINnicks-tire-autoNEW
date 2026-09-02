@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { generateNonce, buildCsp } from "@/lib/security/csp";
-import { isPublic } from "@/lib/security/route-policy";
+import { isPublic, isStaticFile } from "@/lib/security/route-policy";
 
 /**
  * Global auth middleware (Karpathy-Mode Hardened)
@@ -51,8 +51,17 @@ export default auth((req) => {
   // Allow public routes
   if (isPublic(pathname)) return allow();
 
-  // Allow static files
-  if (pathname.includes(".") && !pathname.startsWith("/api/")) return allow();
+  // Allow static files · ROOT-LEVEL, END-ANCHORED asset extensions only.
+  // 2026-09-01 audit W-4 (P0): this used to be `pathname.includes(".")`,
+  // which passed ANY dotted page path through BEFORE the session check —
+  // /decisions/1.2, /decisions/9.9 and /decisions/abc.def returned 200
+  // unauthenticated on production across three deploys. The matcher below
+  // already strips the common asset extensions before this runs, so the
+  // classifier only decides the residue (json/txt/xml/html/webmanifest/map
+  // at the public/ root). tests/security/middleware-boundary.test.ts
+  // asserts THIS function's decision for every page route and every
+  // public/ file — the previous canary only tested isPublic().
+  if (isStaticFile(pathname)) return allow();
 
   // Absolute Security Bounds: Fail-Closed Architecture
   // Pre-v10.1, a missing AUTH_SECRET in production would gracefully fail OPEN
@@ -95,6 +104,18 @@ export const config = {
     // so ONLY paths that actually END in an asset extension are skipped.
     // Without the anchor, any path merely CONTAINING ".png"/".js"/etc.
     // mid-path (e.g. /api/relationships/x.png/laws) skipped auth + CSP.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
+    //
+    // 2026-09-01 audit W-4 follow-up (PR review) · the exclusion is now
+    // ROOT-LEVEL only (`[^/]+` instead of `.*` before the extension). The
+    // previous form skipped the middleware for ANY path ending in an asset
+    // extension, so `/decisions/1.png`, `/decisions/1.js`, `/decisions/1.css`
+    // and `/decisions/1.svg` never reached the session check at all — 200
+    // unauthenticated on production, live-probed. Every public/ asset lives
+    // at the root, so nothing served is affected; a nested page path ending
+    // in ".png" now runs the middleware, fails isStaticFile (root-level
+    // only) and redirects to sign-in. tests/security/middleware-boundary
+    // .test.ts compiles THIS pattern with Next's own path-to-regexp and
+    // asserts both halves.
+    "/((?!_next/static|_next/image|favicon.ico|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
   ],
 };

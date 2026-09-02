@@ -105,3 +105,41 @@ export function isPublic(pathname: string): boolean {
   if ((PUBLIC_EXACT as readonly string[]).includes(pathname)) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
+
+/**
+ * Root-level static files that bypass the session gate.
+ *
+ * 2026-09-01 audit W-4 (P0). middleware.ts used to pass ANY non-API path
+ * containing a dot straight through as a "static file", BEFORE the session
+ * check: /decisions/1.2, /decisions/9.9 and /decisions/abc.def all returned
+ * 200 unauthenticated on production (re-probed on three consecutive deploys).
+ * The containment was luck — the page's query disables itself for
+ * non-integer ids — and the next dynamic route with a dotted segment (a slug,
+ * an email, a semver) would have been an anonymous data path with no failing
+ * test.
+ *
+ * This classifier is deliberately narrow:
+ *   · ROOT-LEVEL only (`/name.ext`, no further slashes). Everything in
+ *     public/ lives at the root today, and app/manifest.ts + app/robots.ts
+ *     serve /manifest.webmanifest and /robots.txt there too. A nested asset
+ *     with one of the common extensions never reaches the middleware at all —
+ *     the END-ANCHORED matcher in middleware.ts strips those first — so the
+ *     only paths this decides are the residue: json / txt / xml / html /
+ *     webmanifest / map at the root.
+ *   · END-ANCHORED extension list. `.includes(".")` was the bug.
+ *   · Never for /api/* — API routes are gated or run their own auth.
+ *
+ * tests/security/middleware-boundary.test.ts enumerates public/** and asserts
+ * every file passes, and enumerates app/** page routes and asserts every page
+ * (dotted-id variants included) is DENIED through the middleware's real
+ * decision — so a nested public asset or a dotted page route fails a test
+ * instead of silently moving the boundary. Pure — no I/O, no env.
+ */
+export const STATIC_FILE_RE =
+  /^\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|json|webmanifest|txt|xml|html|woff|woff2|ttf|eot)$/i;
+
+/** True iff `pathname` is a root-level static file the session gate lets through. */
+export function isStaticFile(pathname: string): boolean {
+  if (pathname.startsWith("/api/")) return false;
+  return STATIC_FILE_RE.test(pathname);
+}
