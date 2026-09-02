@@ -81,6 +81,21 @@
 > directive"); both gates key on READING rows and analyse each tool block separately, with a
 > mutation canary.
 >
+> **`/business` deleted (2026-09-02, operator verdict on plan R7).** De-linked since #2048 but still
+> routable and still AI-routable (audit B-1): the page, its Money / Funnel / Clients tabs and the
+> orphaned location-ranking card are gone; `/business` redirects to `/stats`; context-hints,
+> the six tool-result links, the two brain-graph anchors, the page-visit list and the `f`
+> shortcut were repointed or dropped. The APIs it read (`/api/financial`, `/api/crm`,
+> `/api/customer-360`, `/api/business/location-ranking`, `/api/analytics/revenue`) stay,
+> auth-gated, for their other consumers. The coaching CRM has no navigable home now — that
+> was named as the cost of "delete" and accepted. The #2069 review then found four more
+> consumers of the route (a duplicate important-pages list in page-intelligence that would
+> have reported "Business" as a permanent blind spot, the chat lane-check map, the scoreboard
+> and ticker links, and `?tab=` riding the redirect into a blank /stats) — and the same lists
+> held two dead targets nobody had noticed since those pages went: `/strategy`, `/inventory`.
+> `tests/repo/retired-routes-gate.test.ts` now asserts every route-carrying registry points at
+> a page that exists.
+>
 > **Receipts.** Full suite 627 files / 6,732 passed with the #2059 changes in the tree; every
 > check:* gate exit 0 except check:env / check:policy-coverage (need the real env + DB).
 > Positive controls recorded for every new test: middleware 6f/8p, ingest-gmail 5f/1p, recall

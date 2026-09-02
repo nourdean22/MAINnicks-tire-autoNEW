@@ -133,7 +133,10 @@ function StatsContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  const activeTab = searchParams.get("tab") || "mastery";
+  // An unknown ?tab (a retired deep link, a typo) falls back to the first
+  // tab instead of rendering an empty body (#2069 review).
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TABS.some((t) => t.id === requestedTab) ? (requestedTab as string) : "mastery";
 
   const handleTabChange = (tabId: string) => {
     const params = new URLSearchParams(searchParams.toString());

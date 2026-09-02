@@ -80,8 +80,12 @@ export const NAV: NavEntry[] = [
   // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)
   // The money section (/business hub) + the external nickstire.org/admin
   // footer link were removed 2026-09-01 on operator verdict — both dead in
-  // practice. The /business PAGE stays routable; only nav links died. The
-  // personal /money page predeceased them (2026-07-29, WP-9 verdict).
+  // practice. The /business PAGE followed on 2026-09-02 (plan R7, operator
+  // verdict "delete"): page + its three tabs deleted, /business redirects to
+  // /stats, and the AI-facing routes to it (context-hints, tool-result links,
+  // brain-graph anchors, page-visit) were repointed so Nick cannot route the
+  // operator to a surface that no longer exists. The personal /money page
+  // predeceased them (2026-07-29, WP-9 verdict).
   { href: "/system", label: "System", icon: Activity, section: "operate" },
 
   // ── FOOTER ──

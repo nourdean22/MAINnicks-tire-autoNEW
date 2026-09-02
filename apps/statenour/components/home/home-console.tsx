@@ -22,8 +22,9 @@
  * the payload as a receipt.
  *
  * Absent by design: dashboard grid, stat gauges, glass-glow chrome, nested
- * mini-apps, Nick's Tire anything (shop surfaces live at nickstire.org/admin
- * and /business — never on the personal command surface).
+ * mini-apps, Nick's Tire anything (shop surfaces live at nickstire.org/admin;
+ * /business was deleted 2026-09-02 on operator verdict — never on the personal
+ * command surface).
  */
 
 import { trpc } from "@/lib/trpc/client";

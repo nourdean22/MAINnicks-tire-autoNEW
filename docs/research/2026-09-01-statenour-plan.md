@@ -11,7 +11,8 @@
 > customer-360 notes, five more tool returns, the aliasing producers, per-tool gate + canary)
 > closed the rest. Lesson recorded in the observer
 > queue: enumerate every assembler before calling a fencing fix done.
-> Still open: R7 `/business`, R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
+> R7 decided 2026-09-02: `/business` deleted, redirect to `/stats` (the coaching CRM has no navigable
+> home now — the named cost of "delete"). Still open: R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
 > `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` unset), R9 the AI SDK major, the 13 parked components,
 > drive/calendar/reviews intake, and the S-1 end-to-end attack (still a hypothesis - never run).
 > Ship history: `apps/statenour/docs/RECONCILIATION.md` top entry.

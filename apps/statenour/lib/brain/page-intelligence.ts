@@ -38,12 +38,14 @@ export interface PagePattern {
   insights: string[];
 }
 
-const IMPORTANT_PAGES = [
+/** Exported for tests/repo/retired-routes-gate.test.ts: every path here must be a page. */
+export const IMPORTANT_PAGES = [
   { path: "/missions", label: "Missions", critical: true },
   { path: "/stats", label: "Stats", critical: false },
-  { path: "/business", label: "Business", critical: false },
   { path: "/chat", label: "Nick AI", critical: false },
-  { path: "/strategy", label: "Strategy", critical: false },
+  // "/business" (deleted 2026-09-02) and "/strategy" (no page for months) removed:
+  // a listed page that cannot be visited becomes a PERMANENT false blind spot in
+  // the daily brief and in Nick's prompt (#2069 review).
 ];
 
 /**

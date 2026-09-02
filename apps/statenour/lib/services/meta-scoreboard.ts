@@ -151,7 +151,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
       "revenue_today",
       "Revenue today",
       "bridge unreachable and no mirrored payload — revenue is UNKNOWN, not $0",
-      "/business?tab=money",
+      null, // 2026-09-02 · /business deleted; no StateNour surface shows shop revenue
     );
   }
   // Round-2 review: "today" is an ET calendar-day claim, not a 24h-age
@@ -173,7 +173,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
         ? `bridge unreachable — this figure is a mirror from ${Math.floor((mirrorAgeHours ?? 0) / 24)}d ago, not today`
         : `bridge unreachable — this figure is a mirror from a prior ET day (${mirrorAgeHours}h old), not today`
       : null,
-    link: "/business?tab=money",
+    link: null, // 2026-09-02 · /business deleted; no StateNour surface shows shop revenue
     ...(mirrorIsStale ? { measured: false } : {}),
   };
 }

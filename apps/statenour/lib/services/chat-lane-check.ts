@@ -69,14 +69,18 @@ function inferDomain(text: string): string | null {
   return null;
 }
 
-const HREF_BY_DOMAIN: Record<string, string> = {
+/** Exported for tests/repo/retired-routes-gate.test.ts: every href here must exist or be external. */
+export const HREF_BY_DOMAIN: Record<string, string> = {
   body: "/stats#body",
-  money: "/business?tab=money",
+  // 2026-09-02 · /business deleted; shop money lives in Nick's Tire Admin.
+  money: "https://nickstire.org/admin",
   lead: "/missions",
-  inventory: "/inventory",
+  // 2026-09-02 · /inventory and /strategy had no page for months — the gate in
+  // tests/repo/retired-routes-gate.test.ts now fails on a dead target.
+  inventory: "https://nickstire.org/admin",
   marriage: "/journal",
   systems: "/system",
-  strategy: "/strategy",
+  strategy: "/brain",
   mind: "/brain",
 };
 
@@ -134,7 +138,7 @@ export async function checkLane(args: LaneCheckArgs): Promise<LaneCheckResult> {
         domain: adjacent.domain,
         text: `Also watching: ${adjacent.description.slice(0, 60)}`,
         action: adjacent.suggestedAction.slice(0, 30),
-        href: HREF_BY_DOMAIN[adjacent.domain.toLowerCase()] || "/strategy",
+        href: HREF_BY_DOMAIN[adjacent.domain.toLowerCase()] || "/",
         severity: adjacent.severity,
       };
     }

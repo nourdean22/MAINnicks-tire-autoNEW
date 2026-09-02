@@ -102,8 +102,10 @@ export type BrainGraphPayload = {
  *  fossil AI/UI nodes that used to live here are gone. */
 const SYSTEM_ANCHORS: BrainGraphNode[] = [
   { id: "nour-os", type: "system", label: "NOUR OS", weight: 9, status: "active", href: "/system", metadata: { source: "system_seed" } },
-  { id: "business", type: "business", label: "BUSINESS", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed" } },
-  { id: "nicks-tire", type: "business", label: "NICK'S TIRE", weight: 8, status: "active", href: "/business", metadata: { source: "system_seed" } },
+  // hrefs repointed 2026-09-02 · /business deleted on operator verdict (plan R7);
+  // /stats is where the remaining financial view lives in StateNour.
+  { id: "business", type: "business", label: "BUSINESS", weight: 8, status: "active", href: "/stats", metadata: { source: "system_seed" } },
+  { id: "nicks-tire", type: "business", label: "NICK'S TIRE", weight: 8, status: "active", href: "/stats", metadata: { source: "system_seed" } },
   { id: "discipline", type: "system", label: "DISCIPLINE", weight: 8, status: "active", href: "/brain", metadata: { source: "system_seed" } },
   { id: "fitness", type: "system", label: "FITNESS", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
   { id: "family-vision", type: "system", label: "FAMILY VISION", weight: 7, status: "active", href: "/goals", metadata: { source: "system_seed" } },
