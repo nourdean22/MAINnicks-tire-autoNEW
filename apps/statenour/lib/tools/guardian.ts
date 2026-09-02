@@ -415,9 +415,20 @@ export function withGuardian<T, A extends unknown[]>(
       if (decision.decision === "require_memory_review") {
         const content = (payload as any)?.content || "";
 
+        // PR #2060 review (P2) · an INGESTED item (it carries memoryTarget +
+        // sourceUrl) dedupes on its stable identity, not on content: two
+        // inbound messages that render identical text — the same broadcast
+        // reaching two configured accounts — must each get their own inbox
+        // row, or the second loses its sourceUrl/memoryTarget and, while the
+        // first is pending, is re-classified on every cron run. AI tool
+        // calls (no memoryTarget) keep the content-keyed dedupe.
+        const ingestedSourceUrl =
+          (payload as any)?.memoryTarget && typeof (payload as any)?.sourceUrl === "string"
+            ? ((payload as any).sourceUrl as string)
+            : null;
         const existing = await prisma.memoryInboxItem.findFirst({
           where: {
-            rawTextFenced: content,
+            ...(ingestedSourceUrl ? { sourceUrl: ingestedSourceUrl } : { rawTextFenced: content }),
             status: {
               in: ["quarantined", "conflicting", "committed", "discarded"]
             }

@@ -42,7 +42,7 @@
 > entrypoint over real import edges, PARKED allowlist with reasons + inverse check; its own
 > run reproduced the audit's 17 orphans exactly.
 >
-> **N-1 follow-up `d4abdc53d` (PR after #2059).** NICK_MUTATION_LOCK failed OPEN at both
+> **#2060 (N-1 follow-up, `d4abdc53d` + review fixes).** NICK_MUTATION_LOCK failed OPEN at both
 > enforcement points when the flag lookup threw; both now fail CLOSED like middleware.ts, with
 > the third canary case ("flag resolution throws") at each layer and read-only controls. Three
 > "parked" components that were actually superseded (ultron/ask omni-capture duplicate,

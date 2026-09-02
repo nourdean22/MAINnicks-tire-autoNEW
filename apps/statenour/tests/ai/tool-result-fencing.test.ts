@@ -8,6 +8,53 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { truncateFenced } from "@/lib/ai/tool-result-fencing";
+
+// PR #2060 review (P1) · the recall block is fenced by the builder and then
+// SLICED by its consumer (brain-context.ts, 1,000 chars normal / 2,000 deep).
+// A slice that lands inside the fence drops the closing tag and leaves the
+// rest of the system-prompt addendum — truth grounding, permission
+// directives, the fencing rule itself — inside an unterminated memory_recall
+// region, so the model may treat trusted instructions as untrusted data.
+describe("PR #2060 review · truncateFenced keeps a fence closed through a slice", () => {
+  const fenced = fenceContent("brainRecall", "memory_recall", "m".repeat(3000), { maxChars: 200_000 });
+
+  it("a slice that lands inside the fence re-closes it and says so", () => {
+    const out = truncateFenced(fenced, 500);
+    expect(out.length).toBeLessThan(fenced.length);
+    expect(out.endsWith('</tool_data tool="brainRecall">')).toBe(true);
+    expect(out).toContain("TRUNCATED");
+    // exactly one open, exactly one close
+    expect(out.match(/<tool_data tool=/g)?.length).toBe(1);
+    expect(out.match(/<\/tool_data/g)?.length).toBe(1);
+  });
+
+  it("a block within budget is returned untouched", () => {
+    expect(truncateFenced(fenced, fenced.length)).toBe(fenced);
+    expect(truncateFenced("plain text, no fence", 5)).toBe("plain");
+  });
+
+  it("a slice that already contains the closing tag is not double-closed", () => {
+    const short = fenceContent("brainRecall", "memory_recall", "hello");
+    const out = truncateFenced(`${short}\n${"tail ".repeat(100)}`, short.length + 3);
+    expect(out.match(/<\/tool_data/g)?.length).toBe(1);
+  });
+
+  it("the live consumer slices the fenced recall + thread blocks THROUGH truncateFenced, never bare .slice", () => {
+    // Static call-site scan, guardian-registry-drift style: the subject is the
+    // consumer that slices, not the helper. A bare `.slice(0, N)` on either
+    // block re-opens the defect with every test above still green.
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(resolve(here, "../../lib/services/chat/brain-context.ts"), "utf-8");
+    expect(src).not.toMatch(/contextMemories\.slice\(/);
+    expect(src).not.toMatch(/threadContext\.slice\(/);
+    expect(src).toMatch(/truncateFenced\(contextMemories/);
+    expect(src).toMatch(/truncateFenced\(threadContext/);
+  });
+});
 import {
   fenceContent,
   TOOL_DATA_FENCING_RULE,
