@@ -52,10 +52,46 @@ function getApiKey(): string {
   return key;
 }
 
+/**
+ * Thrown when the SSRF gate refuses a URL. Named so callers (and the
+ * guardian's failure classifier) can tell "we refused" from "the network
+ * or the vendor failed" — a refusal is deterministic and must not look
+ * like a transient fault.
+ */
+export class UnsafeScrapeUrlError extends Error {
+  readonly reason: string;
+  constructor(url: string, reason: string) {
+    super(`Refused to scrape ${url}: ${reason}`);
+    this.name = "UnsafeScrapeUrlError";
+    this.reason = reason;
+  }
+}
+
 async function _scrapeUrl(
   url: string,
   opts: FirecrawlOptions = {},
 ): Promise<FirecrawlResult> {
+  // ── SSRF gate, AT THE SINK (2026-09-02 deep-research audit, C-2) ──────
+  // assertPublicUrl() shipped 2026-xx as the defense for exactly this sink,
+  // and was called at only 2 of the 6 places that reach it: the scrapeWebPage
+  // tool (lib/ai/tools/system.ts) and the Telegram URL path. deep-research.ts,
+  // intelligence/ingest.ts, intelligence/change-detection.ts and
+  // intelligence/connectors/competitor-watch.ts all called scrapeUrl() with a
+  // URL that ultimately traces back to model output or a stored source row,
+  // with no check at all. That is this repo's own recurring defect shape — a
+  // control that exists, is correct, and is wired on some paths but not all
+  // (the fencing wave, #2062/#2064/#2065, was the same lesson) — so the check
+  // now lives where every caller must pass through it rather than at each
+  // call site where the next caller can forget it.
+  //
+  // Callers that already assert stay correct: the check is idempotent and
+  // costs one cached DNS lookup.
+  const { assertPublicUrl } = await import("@/lib/utils/url-safety");
+  const safety = await assertPublicUrl(url);
+  if (!safety.safe) {
+    throw new UnsafeScrapeUrlError(url, safety.reason ?? "failed_url_safety_check");
+  }
+
   // Dynamic import to avoid loading the SDK when FIRECRAWL_API_KEY is missing
   const FirecrawlApp = (await import("@mendable/firecrawl-js")).default;
 

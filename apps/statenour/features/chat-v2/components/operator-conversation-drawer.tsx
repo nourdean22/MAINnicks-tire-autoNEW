@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Archive, History, Pin, Plus, Search, Trash2, X } from "lucide-react";
-import { usePromptDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialog";
 import type { Convo } from "@/hooks/use-conversations";
 
 export function OperatorConversationDrawer({
@@ -42,6 +42,14 @@ export function OperatorConversationDrawer({
   // Rename tap would no-op on the phone. usePromptDialog is the app
   // standard (same pattern as todo-desk / brain-maturity-header).
   const { prompt: promptDialog, dialog: renameDialog } = usePromptDialog();
+  // 2026-09-02 deep-research audit (C-4) — delete had NO confirmation of any
+  // kind: one tap on the trash icon destroyed a conversation and its whole
+  // message history. Not a suppressed window.confirm — there was nothing to
+  // suppress. Rename, the strictly less destructive action two buttons to the
+  // left, already used a dialog. Archive stays one-tap on purpose: it is
+  // reversible. Same in-DOM primitive, because window.confirm is silently
+  // swallowed in the installed iOS PWA the operator actually uses.
+  const { confirm: confirmDialog, dialog: deleteDialog } = useConfirmDialog();
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return convos.filter((conversation) => {
@@ -103,13 +111,32 @@ export function OperatorConversationDrawer({
                 Rename
               </button>
               <button onClick={() => onArchive(conversation.id)} title="Archive" aria-label="Archive conversation" className="ml-auto flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-elevated hover:text-fg sm:h-8 sm:w-8"><Archive size={12} /></button>
-              <button onClick={(event) => onDelete(conversation.id, event)} title="Delete" aria-label="Delete conversation" className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-red-500/10 hover:text-red-400 sm:h-8 sm:w-8"><Trash2 size={12} /></button>
+              <button
+                onClick={async (event) => {
+                  event.stopPropagation();
+                  const messageCount = conversation._count.messages;
+                  const ok = await confirmDialog({
+                    title: "Delete this conversation?",
+                    body: `“${conversation.title || "Untitled conversation"}” and its ${messageCount} message${messageCount === 1 ? "" : "s"} are removed. This cannot be undone — archive instead if you only want it out of the way.`,
+                    confirmLabel: "Delete",
+                    cancelLabel: "Keep",
+                    tone: "danger",
+                  });
+                  if (ok) onDelete(conversation.id);
+                }}
+                title="Delete"
+                aria-label="Delete conversation"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-fg-tertiary hover:bg-red-500/10 hover:text-red-400 sm:h-8 sm:w-8"
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
           </div>
         ))}
         {hasMore && <button disabled={loadingMore} onClick={onLoadMore} className="mt-2 min-h-10 w-full rounded-lg border border-edge text-xs text-fg-secondary disabled:opacity-50">{loadingMore ? "Loading…" : "Load older"}</button>}
       </div>
       {renameDialog}
+      {deleteDialog}
     </aside>
   );
 }
