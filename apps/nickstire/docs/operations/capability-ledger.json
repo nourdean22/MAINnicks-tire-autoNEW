@@ -6,16 +6,17 @@
       "name": "SMS send receipts derive from outcomes (sent / queued / uncertain / failed)",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "2026-09-01 admin audit wave (nickstire/admin-audit-upgrades): server/lib/smsOutcome.ts is the single classification; follow-ups, estimate follow-up, operator replies, campaigns, winback, reminders, review requests, cross-sell, unpaid-invoice recovery, warranty alerts, crudAutomation x3, post-invoice follow-up, tire-order confirmations and the customer-profile manual send all derive counters and status rows from it. RUN FOLLOW-UPS and the estimate follow-up check their feature flag BEFORE claiming a customer.",
+        "codeCommit": "2026-09-01 admin audit wave (#2063, squash 9f903fff3): server/lib/smsOutcome.ts is the single classification; follow-ups, operator replies, campaigns, winback, reminders, review requests, cross-sell, unpaid-invoice recovery, warranty alerts, crudAutomation x3, post-invoice follow-up, tire-order confirmations and the customer-profile manual send all derive counters and status rows from it. RUN FOLLOW-UPS checks its feature flag BEFORE claiming a customer. CORRECTION #18 (2026-09-02, #2070): the estimate follow-up job this entry first listed as a receipt site queried an `estimates` table that never existed in production; it is retired and its tests deleted. smsClaimConsumed (2026-09-02 second pass): a claim is consumed for every outcome except a definite failure, so an uncertain (gateway-timeout) text is never re-sent.",
         "tests": [
           "server/lib/smsOutcome.test.ts (4): the four-way classification, queued is not delivered, uncertain is not guaranteed",
           "server/followUpReceipts.test.ts (7): flag off claims nothing; delivered / queued / failed / no-phone each produce the matching receipt; runFollowUps total == sent",
-          "server/estimateFollowUpReceipts.test.ts (6): no UPDATE without a send; queued consumes but counts as queued; missing column rejects and names 0114",
           "server/smsOperatorReplyHonesty.test.ts (4): operator reply is customer_followup, single row, status from outcome",
-          "server/bridgeSmsCampaignDraft.test.ts (3): the GPT bridge never calls sendSms; it drafts"
+          "server/bridgeSmsCampaignDraft.test.ts (3): the GPT bridge never calls sendSms; it drafts",
+          "server/lib/smsClaimConsumed.test.ts (4): claim consumed on sent/queued/uncertain, open only on a definite failure; the two helpers disagree exactly on uncertain",
+          "server/__tests__/rawSqlTablesExist.test.ts (3): every table named in raw SQL is declared or allowlisted -- the phantom-table class that hid the dead estimate follow-up (correction #18)"
         ],
         "liveRuns": [],
-        "deploymentId": "not yet deployed — lands with the merge of nickstire/admin-audit-upgrades"
+        "deploymentId": "deployed with #2063 (main auto-deploy, squash 9f903fff3, 2026-09-02); #2070 retires the phantom-table job"
       },
       "blockers": [
         {
@@ -28,7 +29,7 @@
         "a per-send delivery-receipt table (sms_messages already carries status; not duplicated)",
         "surfacing queued counts on the Winback → Campaigns tiles (server returns them; UI shows sent/failed)"
       ],
-      "lastVerifiedAt": "2026-09-01",
+      "lastVerifiedAt": "2026-09-02",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
@@ -1637,6 +1638,31 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "llm-call-ledger",
+      "name": "LLM call ledger: one llm_calls row per invokeLLM() (model, provider, lane, tokens, latency, ok/error)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "#2063 (squash 9f903fff3): server/_core/llm.ts wraps invokeLLM and calls services/llmLedger.recordLlmCall (fire-and-forget, gated by LLM_LEDGER_ENABLED, disables itself after the first insert failure). 2026-09-02: drizzle/0116_llm_calls.sql APPLIED to production (table read back present) and LLM_LEDGER_ENABLED=true set on Railway MAINnicks-tire-auto (read back).",
+        "tests": [],
+        "liveRuns": [],
+        "deploymentId": "code deployed with #2063 main auto-deploy; env var set 2026-09-02"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No unit test exercises recordLlmCall, and no llm_calls row has been read back from production since the env var was set -- the first read-back is the live confirmation. Until then this is unverified by evidence, not by belief.",
+          "source": "2026-09-02 apply session"
+        }
+      ],
+      "deferredScope": [
+        "an admin surface that reads llm_calls (spend / latency / error rate per lane) -- writer exists, reader does not yet (do not let this become a writer-with-no-reader: the first reader is the next slice)"
+      ],
+      "lastVerifiedAt": "2026-09-02",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "internal"
     }
   ],
   "axes": {
