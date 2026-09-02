@@ -55,8 +55,19 @@ will tell us that was a mistake.
 
 **Concrete revisit trigger, so this does not become "later":** if, over two weeks of
 normal use, the first action on `/brain` is switching away from MAP more than half the
-time, demote it to a drill-down and promote REASON. That is measurable from the existing
-page-visit tracking (`components/brain/page-tracker.tsx`) without new instrumentation.
+time, demote it to a drill-down and promote REASON.
+
+**That trigger is NOT measurable today, and an earlier draft of this document wrongly
+claimed it was** (caught in review on #2087). `components/brain/page-tracker.tsx` keys its
+effect on `usePathname()` alone, while `components/layout/page-tabs.tsx` switches tabs with
+`router.replace(pathname?tab=…)` — the pathname never changes, so the tracker never re-fires
+and every tab on `/brain` is recorded as the same visit. Measuring this needs a tab-selection
+event, or a query-aware tracker, added FIRST.
+
+That prerequisite is small, but it is real, and it must not be waved through: a revisit
+trigger that cannot be measured is the same "later" this section exists to avoid. Either
+add the tab event and run the two weeks, or take the operator's judgement below and skip
+the measurement entirely — but do not pretend the data will appear on its own.
 
 If the operator already knows from experience that they always switch tabs, then the
 measurement is unnecessary and the answer is demote — that judgement is theirs, and it

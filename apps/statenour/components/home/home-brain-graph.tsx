@@ -141,12 +141,21 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
   // Persisted so the operator's choice survives a reload. Read once, guarded:
   // localStorage throws in private-mode Safari and is absent during SSR.
+  // Gate the FIRST fetch on this. Reading the preference in an effect means
+  // the first render has includeActivity=false, so without the gate a reload
+  // for someone who enabled Activity fired the semantic request, aborted it,
+  // and fired the full one — and an aborted browser request does not stop the
+  // server-side fan-out, which this builder's own header calls the widest in
+  // the app (review finding on #2087). A lazy initialiser is not the fix: it
+  // would desync server and client markup for the toggle.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem("brain-map-include-activity") === "1") setIncludeActivity(true);
     } catch {
       /* storage unavailable - the default (semantic) stands */
     }
+    setPrefsLoaded(true);
   }, []);
 
   const simNodesRef = useRef<CanvasNode[]>([]);
@@ -529,13 +538,20 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       if (prefersReducedMotion) {
         for (let i = 0; i < 120; i++) physicsTick();
         isSimActiveRef.current = false;
+        // This path never enters the animation loop, so the settle-block fit
+        // never ran — the users most likely to disable animation kept the old
+        // off-centre view (review finding on #2087). Fit here too.
+        if (needsFitRef.current && !userMovedViewRef.current) {
+          needsFitRef.current = false;
+          fitToContent();
+        }
         drawGraph();
       } else {
         isSimActiveRef.current = true;
         triggerAnimationLoop();
       }
     },
-    [physicsTick, drawGraph, triggerAnimationLoop],
+    [physicsTick, drawGraph, triggerAnimationLoop, fitToContent],
   );
 
   // Re-sync sim when lens changes (client-side, zero network)
@@ -565,9 +581,12 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       // `semantic` drops task/journal churn and separates unlinked nodes.
       // The home card keeps its own clamp; only the full MAP tab opts in.
       const mapScope = variant === "full" ? (includeActivity ? "full" : "semantic") : "home";
+      // The scope rides along on EVERY shape, including the local
+      // neighbourhood — dropping it here let task/journal nodes back in while
+      // the Activity toggle still read off (review finding on #2087).
       let url = `/api/brain/graph?scope=${mapScope}`;
       if (localOnly && focusId) {
-        url = `/api/brain/graph?focus=${focusId}&depth=2`;
+        url = `/api/brain/graph?scope=${mapScope}&focus=${focusId}&depth=2`;
       } else if (focusId) {
         url += `&focus=${focusId}`;
       }
@@ -616,9 +635,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   }, [variant, localOnly, focusId, includeActivity, syncSimSets]);
 
   useEffect(() => {
+    if (!prefsLoaded) return; // one request, with the right scope
     fetchGraphData();
     return () => abortRef.current?.abort();
-  }, [fetchGraphData]);
+  }, [fetchGraphData, prefsLoaded]);
 
   // ── Canvas sizing ───────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {

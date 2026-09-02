@@ -154,11 +154,16 @@ function finalizeGraph(
     nodes: BrainGraphNode[];
     edges: BrainGraphEdge[];
     scope: BrainGraphPayload["scope"];
+    /** Apply the semantic type filter. Deliberately SEPARATE from `scope`:
+     *  a focused neighbourhood reports `scope: "focus"` but must still honour
+     *  the operator's Activity toggle, or task and journal nodes reappear
+     *  while the toggle reads off (review finding on #2087). */
+    semantic: boolean;
     degraded: string[];
     contradictionCount: number;
   },
 ): BrainGraphPayload {
-  const isSemantic = input.scope === "semantic";
+  const isSemantic = input.semantic;
 
   let nodes = input.nodes;
   let edges = input.edges;
@@ -774,6 +779,7 @@ export async function getBrainGraph(params: {
         nodes: Array.from(focusNodesMap.values()),
         edges: focusEdges,
         scope: "focus",
+        semantic: scope === "semantic",
         degraded,
         contradictionCount,
       });
@@ -797,6 +803,7 @@ export async function getBrainGraph(params: {
       nodes: filteredNodes,
       edges: filteredEdges,
       scope: "home",
+      semantic: false,
       degraded,
       contradictionCount,
     });
@@ -806,6 +813,7 @@ export async function getBrainGraph(params: {
     nodes,
     edges,
     scope: scope === "semantic" ? "semantic" : "full",
+    semantic: scope === "semantic",
     degraded,
     contradictionCount,
   });
