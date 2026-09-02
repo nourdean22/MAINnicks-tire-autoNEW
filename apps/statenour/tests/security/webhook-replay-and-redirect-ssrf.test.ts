@@ -24,7 +24,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
 
-import { verifyStripeSignature, STRIPE_TOLERANCE_SECONDS } from "@/app/api/webhooks/stripe/route";
+import { verifyStripeSignature, STRIPE_TOLERANCE_SECONDS } from "@/lib/security/stripe-signature";
 import { fetchPublicUrl } from "@/lib/utils/url-safety";
 
 const SECRET = "whsec_test_do_not_use";
@@ -64,6 +64,23 @@ describe("C-7 · Stripe webhook signatures expire", () => {
   it("rejects a non-numeric timestamp instead of coercing it", () => {
     const v1 = createHmac("sha256", SECRET).update(`abc.${PAYLOAD}`).digest("hex");
     expect(verifyStripeSignature(PAYLOAD, `t=abc,v1=${v1}`, SECRET, NOW)).toBe(false);
+  });
+
+  it("accepts when the matching v1 is NOT first — the secret-rotation case", () => {
+    // Stripe signs with BOTH secrets during a rolling change and sends
+    // several v1 entries. The original code (and my first fix) took
+    // parts.find(v1=), i.e. only the first, so a receiver would reject live
+    // webhooks for the whole rotation window and look like an outage.
+    const good = signedHeader(NOW);
+    const goodV1 = good.split("v1=")[1];
+    const decoy = "a".repeat(goodV1.length);
+    const rotating = `t=${NOW},v1=${decoy},v1=${goodV1}`;
+    expect(verifyStripeSignature(PAYLOAD, rotating, SECRET, NOW)).toBe(true);
+  });
+
+  it("rejects when NO v1 entry matches, however many are offered", () => {
+    const decoy = "b".repeat(64);
+    expect(verifyStripeSignature(PAYLOAD, `t=${NOW},v1=${decoy},v1=${decoy}`, SECRET, NOW)).toBe(false);
   });
 
   it("still rejects a tampered payload inside the window", () => {

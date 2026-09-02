@@ -1,5 +1,100 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-02 - Self-audit of the deep-research fixes + delete-first pass
+>
+> The #2081 wave fixed seven verified defects. An adversarial re-read of that
+> diff - the house rule, not a request - found five defects **in the fix
+> itself**, one of them the same half-wiring shape the wave existed to close.
+> All five are corrected here, plus the duplication that made one possible.
+>
+> **The half-wired fix.** C-5 reclassified `proposeCalendarEvent` in
+> `lib/ai/tools/catalog.ts` after confirming it writes to the operator's real
+> Google Calendar. It missed that a SECOND registry answers the same question:
+> `lib/ai/tool-families.ts` carried a hand-maintained `mutates` field, and that
+> file listed the same tool as `mutates: false` on a line whose own description
+> said it "writes the event direc[tly]". That field feeds `mutatingCount` on
+> `/system/tools` (`lib/services/system-pages-b.ts`), so the operator-facing
+> count stayed wrong after the safety fix landed.
+>
+> Comparing the two registries then measured the drift: **22 of ~181 tools
+> disagreed**, in both directions. Two were real safety gaps of the C-5 shape -
+> `buildArchitectureMemory` and `learnCodingPreference` both call
+> `brainMemory.remember()` (verified by reading their bodies) while sitting in
+> category `files` with no mutating name prefix, so all three read-mode
+> tripwires missed them and read mode did not strip them. Both are now
+> `sideEffecting: true`. Four more (`clearMit`, `endOfDay`, `weeklyReview`,
+> `classifyThought`) were the display registry over-reporting: their bodies
+> contain no write at all.
+>
+> **The fix is a deletion, not a third gate.** The first attempt was an
+> agreement test asserting the two copies match - which institutionalises the
+> duplication and asks CI to hold two hand-edited lists in sync forever. The
+> `mutates` field is deleted from `tool-families.ts` instead (183 occurrences,
+> interface included), and `/system/tools` derives the value from
+> `classifyTool()` - the same verdict read mode uses. "Mutating" on that page
+> now means exactly "read mode strips this": one definition, one source, drift
+> structurally impossible. `tests/ai/tool-mutation-single-source.test.ts` pins
+> the deletion; canaried by re-adding the field to one entry.
+>
+> **Four more defects in the same diff, all mine:**
+> - `GET /api/integrations` was fixed and `POST` was not - it returned
+>   `prisma.integration.create(...)` verbatim, echoing back the `config` just
+>   posted, secrets included. Both verbs now go through one
+>   `toIntegrationView()`; a second exit is what invited the miss.
+> - That fix's own comment claimed "scoping the select removes an exposure"
+>   while the select still carried `config: true`. What removed it was the
+>   `.map()`. A comment describing a mechanism the code does not implement is
+>   the exact defect class this audit exists to find. Corrected, and the weaker
+>   real guarantee - the column IS read into the process - is now stated
+>   plainly instead of overclaimed.
+> - `metadata` was silently dropped from the response shape. It now gets the
+>   same key-names treatment as `config` rather than vanishing.
+> - The Stripe signature check, which I had just rewritten for replay, still
+>   took `parts.find(v1=)` - the FIRST v1 only. Stripe sends several during a
+>   rolling secret change and the matching one need not be first, so a receiver
+>   checking one would reject live webhooks for the whole rotation window and
+>   look like an outage. All candidates are compared now, each in constant
+>   time, without short-circuiting.
+>
+> **Extracted out of route modules.** `verifyStripeSignature` ->
+> `lib/security/stripe-signature.ts`, the integration projection ->
+> `lib/services/integration-view.ts`. Both had been exported from Next route
+> files, so their tests imported a route and dragged Prisma in to exercise ten
+> lines of pure crypto.
+>
+> **Delete-first.** `app/manifest.ts` deleted: `public/manifest.webmanifest`
+> sits at the same served path and a static file wins, so the generator output
+> never reached a browser - while disagreeing on name, theme colour and every
+> icon. Verified against production before deleting (an unauthenticated GET
+> returned the public/ file). Deleted rather than fixed, because fixing it
+> would change what an already-installed PWA is served for no gain anyone asked
+> for. `tests/repo/manifest-single-source.test.ts` pins one source, checks
+> every declared icon exists on disk, and is canaried by recreating the
+> generator.
+>
+> **One test defect, recorded because it is instructive.** The first version of
+> the single-source gate asserted `.not.toContain("meta?.mutates")` on the
+> source of `system-pages-b.ts` and failed - against the explanatory comment
+> directly above the fix, which quotes the old code. A source-text assertion
+> tripping over prose is precisely the brittleness this repo warns about; the
+> gate now matches an assignment at line start with comment lines stripped.
+>
+> **Receipts.** Full suite 649 files / 6,914 tests: **648 files and 6,909 tests
+> passed**. The only red is `tests/repo/anti-slop-gate.test.ts`, and only when
+> vitest is launched from PowerShell, which resolves `bash` to an uninstalled
+> WSL - the same file and the gate itself both pass under Git Bash (exit 0),
+> re-confirmed on this tree. `tsc -p tsconfig.typecheck.json --noEmit` exit 0
+> after building the workspace packages; eslint exit 0 on every changed file.
+> Canaries: the manifest gate and the mutation single-source gate each observed
+> failing against a deliberately reintroduced regression, then restored.
+>
+> **Flagged - NOT fixed.** `clearMit` emits a `clientAction` that mutates state
+> client-side while the server tool only reads, so read mode does not strip it;
+> whether it should is a UI-flow question, not a catalog one. The catalog
+> classifier stays deliberately conservative on names (`generateSQL`,
+> `runPython`, `writeCreative` classify as writes), which is the safe direction
+> but means `/system/tools` now counts them as mutating.
+||||||| a1d51cf09
 > ## 2026-09-02 · Langfuse tracing PROVEN live (#2082 + receipt)
 >
 > #2080 shared the tracer provider but its review-round sampler negated the fix: Sentry consults

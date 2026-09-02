@@ -1870,16 +1870,16 @@ async function handleUrl(
   chatId: string
 ): Promise<void> {
   try {
-    // SSRF defense — even though this path is owner-gated (only the operator's
-    // Telegram reaches it), a pasted link could point at a private/metadata
-    // host. Block it before the server-side fetch, matching the scrapeWebPage
-    // and ingestDocumentFromUrl hardening.
-    // 2026-09-02 deep-research audit (C-6) · this checked the URL ONCE and
-    // then fetched with the default `redirect: "follow"`. A public URL that
-    // answers 302 → http://169.254.169.254/ therefore walked straight through
-    // the gate it had just passed. `ingestDocumentFromUrl` was hardened
-    // against exactly this and the fix was never propagated here.
-    // fetchPublicUrl re-asserts on every hop.
+    // SSRF defense — this path is owner-gated (only the operator's Telegram
+    // reaches it), but a pasted link can still point at a private or metadata
+    // host, and the operator is not the only author of the links he pastes.
+    //
+    // 2026-09-02 audit C-6: the earlier version asserted the URL was public
+    // ONCE and then fetched with the default `redirect: "follow"`, so a public
+    // URL answering 302 to a private address walked through the gate it had
+    // just passed. fetchPublicUrl re-asserts on every hop; the same walk that
+    // ingestDocumentFromUrl had already been hardened with, now shared instead
+    // of re-derived.
     const { fetchPublicUrl } = await import("@/lib/utils/url-safety");
 
     await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
@@ -1890,7 +1890,16 @@ async function handleUrl(
     });
 
     if (!fetched.ok) {
-      await sendTelegram(`Refused to fetch that URL: ${fetched.reason}`, chatId);
+      // Only `url_blocked` is a refusal. Saying "refused" for a redirect loop
+      // or a hop-cap would tell the operator his link was dangerous when the
+      // site was merely misbehaving — a small lie, but this app's whole
+      // premise is not telling him things that are not so.
+      await sendTelegram(
+        fetched.code === "url_blocked"
+          ? `Refused to fetch that URL: ${fetched.reason}`
+          : `Couldn't follow that URL: ${fetched.reason}`,
+        chatId,
+      );
       return;
     }
 

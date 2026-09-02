@@ -121,8 +121,11 @@ export function isPublic(pathname: string): boolean {
  *
  * This classifier is deliberately narrow:
  *   · ROOT-LEVEL only (`/name.ext`, no further slashes). Everything in
- *     public/ lives at the root today, and app/manifest.ts + app/robots.ts
- *     serve /manifest.webmanifest and /robots.txt there too. A nested asset
+ *     public/ lives at the root today — including public/manifest.webmanifest,
+ *     which is what production actually serves — and app/robots.ts serves
+ *     /robots.txt there too. (This used to cite app/manifest.ts as well; that
+ *     file was deleted 2026-09-02 once a live probe showed the static file
+ *     shadowed it and always had.) A nested asset
  *     with one of the common extensions never reaches the middleware at all —
  *     the END-ANCHORED matcher in middleware.ts strips those first — so the
  *     only paths this decides are the residue: json / txt / xml / html /

@@ -284,7 +284,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "recommendNextMove",             category: "brain",          battle: true,  cost: "free" }, // AG-31 · tactician composer
 
   // ── files (Drive + GitHub) ───────────────────────────────────────
-  { name: "buildArchitectureMemory",      category: "files",          cost: "spendy", riskClass: "low" },
+  // 2026-09-02 self-audit · WRITES. Calls brainMemory.remember() (see
+  // lib/ai/tools/brain.ts), so it commits to the operator's brain, yet
+  // category "files" is not a WRITE_CATEGORY and the name trips no mutating
+  // prefix — the same three-tripwire miss as proposeCalendarEvent, found by
+  // deriving /system/tools' mutation column from this classifier and seeing
+  // the two registries disagree.
+  { name: "buildArchitectureMemory",      category: "files",          sideEffecting: true, cost: "spendy", riskClass: "low" },
   { name: "getRepoMap",                   category: "files",          cost: "cheap", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubCreateIssue",            category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubCreatePR",               category: "files",          sideEffecting: true, cost: "free", riskClass: "high", requiredEnv: ["GITHUB_TOKEN"] },
@@ -294,7 +300,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "githubReadMultiple",           category: "files",          cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubRecentCommits",          category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
   { name: "githubSearchCode",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["GITHUB_TOKEN"] },
-  { name: "learnCodingPreference",        category: "files",          cost: "free", riskClass: "low" },
+  // 2026-09-02 self-audit · WRITES via brainMemory.remember(); same miss.
+  { name: "learnCodingPreference",        category: "files",          sideEffecting: true, cost: "free", riskClass: "low" },
   { name: "listRecentDriveFiles",         category: "files",          battle: true, cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
   { name: "readDriveFile",                category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
   { name: "searchDriveFiles",             category: "files",          cost: "free", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },

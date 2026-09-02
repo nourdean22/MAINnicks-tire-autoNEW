@@ -53,6 +53,7 @@ import {
   assertToolFamiliesInSync,
   type ToolFamily,
 } from "@/lib/ai/tool-families";
+import { classifyTool } from "@/lib/ai/capability-registry";
 import { getToolStats } from "@/lib/ai/tool-telemetry";
 import {
   listPolicies,
@@ -327,7 +328,13 @@ export async function buildToolStats(): Promise<ToolStatsView> {
       family: meta?.family ?? ("meta" as ToolFamily),
       familyLabel:
         FAMILY_DISPLAY[meta?.family ?? ("meta" as ToolFamily)].label,
-      mutates: meta?.mutates ?? false,
+      // 2026-09-02 self-audit · derived, not read from a second registry.
+      // This used to be `meta?.mutates ?? false`, a hand-maintained field in
+      // tool-families.ts that had drifted from the catalog on 22 of ~181
+      // tools. classifyTool() is the same verdict read mode uses to strip a
+      // tool, so this column now means precisely "read mode strips this" —
+      // and a tool cannot be safe in one place and unsafe in the other.
+      mutates: !classifyTool(name).readSafe,
       cost: meta?.cost ?? "medium",
       tags: meta?.tags ?? [],
       registered,
