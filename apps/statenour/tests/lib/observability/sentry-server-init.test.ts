@@ -24,6 +24,7 @@ import { initSentryServer } from "../../../sentry.server.config";
 type InitOptions = {
   enabled: boolean;
   tracesSampleRate: number;
+  tracesSampler?: (ctx: { name?: string }) => number;
   openTelemetrySpanProcessors?: unknown[];
   beforeSendTransaction?: () => unknown;
   beforeSend?: (e: unknown) => unknown;
@@ -44,14 +45,24 @@ afterEach(() => {
 });
 
 describe("initSentryServer · sampling when a foreign processor rides along", () => {
-  it("THE REVIEW FINDING: with a processor attached, spans must RECORD (rate > 0)", () => {
+  it("REVIEW FINDING 1: with a processor attached, AI spans must RECORD", () => {
     initSentryServer([processor]);
     const opts = optionsOf();
     expect(opts.openTelemetrySpanProcessors).toEqual([processor]);
-    expect(
-      opts.tracesSampleRate,
-      "rate 0 makes the sampler return NOT_RECORD and the attached processor never sees a span",
-    ).toBeGreaterThan(0);
+    const sampler = opts.tracesSampler;
+    expect(typeof sampler, "rate 0 makes the sampler return NOT_RECORD and no processor ever runs").toBe("function");
+    expect(sampler?.({ name: "ai.generateText" })).toBe(1);
+    expect(sampler?.({ name: "ai.generateText.doGenerate" })).toBe(1);
+    expect(sampler?.({ name: "langfuse.selfcheck" }), "the boot self-check must record or it reports a false failure").toBe(1);
+  });
+
+  it("REVIEW FINDING 2: everything else stays NON-recording — Langfuse is not a request-telemetry sink", () => {
+    initSentryServer([processor]);
+    const sampler = optionsOf().tracesSampler;
+    for (const name of ["GET /api/habits", "middleware", "prisma:query", "resolve page components", ""]) {
+      expect(sampler?.({ name }), `${name || "(empty)"} must not be recorded`).toBe(0);
+    }
+    expect(sampler?.({})).toBe(0);
   });
 
   it("...but none of those transactions are shipped to Sentry — errors only", () => {
@@ -65,6 +76,7 @@ describe("initSentryServer · sampling when a foreign processor rides along", ()
     initSentryServer();
     const opts = optionsOf();
     expect(opts.tracesSampleRate).toBe(0);
+    expect(opts.tracesSampler).toBeUndefined();
     expect("openTelemetrySpanProcessors" in opts).toBe(false);
     expect(opts.beforeSendTransaction).toBeUndefined();
   });

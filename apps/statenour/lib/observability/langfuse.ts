@@ -209,9 +209,54 @@ export interface LangfuseSpanProcessorLike {
   shutdown(): Promise<void>;
 }
 
-/** The tracer name the Vercel AI SDK uses; the self-check asks for the same one. */
+/** The tracer name the Vercel AI SDK uses (`trace.getTracer("ai")`, ai@6 dist:2362). */
 export const AI_SDK_TRACER_NAME = "ai";
+/** Our own probe span, emitted on that same tracer — never forwarded to Langfuse. */
+export const LANGFUSE_SELFCHECK_SPAN_NAME = "langfuse.selfcheck";
 const INVALID_TRACE_ID = "00000000000000000000000000000000";
+
+/** Minimal shape of the ended span an OTel processor receives. */
+interface ReadableSpanLike {
+  name?: string;
+  instrumentationScope?: { name?: string };
+  /** sdk-trace-base < 2 called it this; kept so the filter works on either. */
+  instrumentationLibrary?: { name?: string };
+}
+
+/**
+ * Is this a span the Vercel AI SDK emitted? Matched on instrumentation SCOPE,
+ * not on the span name, because the scope is what the SDK controls and cannot
+ * be spoofed by an unrelated span that happens to be called `ai.something`.
+ */
+export function isAiSdkSpan(span: unknown): boolean {
+  const s = span as ReadableSpanLike | null;
+  const scope = s?.instrumentationScope?.name ?? s?.instrumentationLibrary?.name;
+  return scope === AI_SDK_TRACER_NAME && s?.name !== LANGFUSE_SELFCHECK_SPAN_NAME;
+}
+
+/**
+ * Wrap a span processor so it only ever sees AI SDK spans.
+ *
+ * Load-bearing when Langfuse rides on SENTRY's tracer provider (the normal
+ * production path): that provider is fed by Sentry's auto-instrumentation, so
+ * without this filter every HTTP request, Next.js render and database span in
+ * the process would be exported to Langfuse — burning quota and shipping
+ * unrelated request telemetry to a vendor that should only ever see model
+ * calls. `beforeSendTransaction` cannot prevent that; it runs on Sentry's own
+ * export path, long after our processor's onEnd. (Review finding on #2080.)
+ */
+export function aiOnlySpanProcessor(inner: LangfuseSpanProcessorLike): LangfuseSpanProcessorLike {
+  return {
+    onStart(...args: unknown[]) {
+      if (isAiSdkSpan(args[0])) inner.onStart(...args);
+    },
+    onEnd(...args: unknown[]) {
+      if (isAiSdkSpan(args[0])) inner.onEnd(...args);
+    },
+    forceFlush: () => inner.forceFlush(),
+    shutdown: () => inner.shutdown(),
+  };
+}
 
 /**
  * Build the Langfuse span processor (idempotent) and register the SIGTERM
@@ -235,11 +280,13 @@ export async function buildLangfuseSpanProcessor(): Promise<LangfuseSpanProcesso
       mask?: (p: { data: unknown }) => unknown;
     }) => LangfuseSpanProcessorLike;
   };
-  const spanProcessor = new LangfuseSpanProcessor({
-    environment: resolveLangfuseEnvironment(),
-    release: resolveLangfuseRelease(),
-    mask: ({ data }) => maskLangfuseData(data),
-  });
+  const spanProcessor = aiOnlySpanProcessor(
+    new LangfuseSpanProcessor({
+      environment: resolveLangfuseEnvironment(),
+      release: resolveLangfuseRelease(),
+      mask: ({ data }) => maskLangfuseData(data),
+    }),
+  );
   st.processor = spanProcessor;
 
   // Railway redeploys SIGTERM the container; without a drain the batch
@@ -291,7 +338,7 @@ export async function langfuseSpanRecordingSelfCheck(): Promise<{
       };
     };
     const providerName = trace.getTracerProvider()?.constructor?.name ?? null;
-    const span = trace.getTracer(AI_SDK_TRACER_NAME).startSpan("langfuse.selfcheck");
+    const span = trace.getTracer(AI_SDK_TRACER_NAME).startSpan(LANGFUSE_SELFCHECK_SPAN_NAME);
     const traceId = span.spanContext().traceId;
     const recording = span.isRecording() && traceId !== INVALID_TRACE_ID;
     span.end();

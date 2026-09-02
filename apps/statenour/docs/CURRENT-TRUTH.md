@@ -7,7 +7,8 @@
 
 ## Since 2026-09-02 — observability is deployed
 
-- **Langfuse tracing is enabled in production — and was DEAD until 2026-09-02.**
+- **Langfuse tracing is configured in production and was DEAD; the fix is merged but
+  NOT YET CONFIRMED LIVE.**
   Every AI SDK model-call site uses the shared `langfuseTelemetry()` helper;
   private-mode turns are excluded and exported keys/bearer tokens are masked.
   But `Sentry.init()` claimed the global OpenTelemetry tracer provider first and

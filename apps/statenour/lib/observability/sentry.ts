@@ -12,6 +12,7 @@
  * and the presence-check badge said "configured").
  */
 import { maskSecretString } from "./secret-mask";
+import { LANGFUSE_SELFCHECK_SPAN_NAME } from "./langfuse";
 
 type Env = Record<string, string | undefined>;
 
@@ -109,4 +110,18 @@ export function sentryInitOptions(env: Env = process.env): SentryInitBase {
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
   };
+}
+
+/**
+ * Which spans are worth recording when Langfuse rides on Sentry's provider.
+ *
+ * Sentry's sampler decides BEFORE any processor runs, so this is the cheap
+ * gate: only AI SDK spans (`ai.*`) and our own boot self-check ever become
+ * recording spans. Everything else — every HTTP request, render and query
+ * Sentry auto-instruments — stays non-recording, so we neither pay for it nor
+ * risk exporting it. `aiOnlySpanProcessor` is the second, exact gate on the
+ * export side. (Review finding on #2080.)
+ */
+export function shouldRecordSpanForLangfuse(spanName: unknown): boolean {
+  return typeof spanName === "string" && (spanName.startsWith("ai.") || spanName === LANGFUSE_SELFCHECK_SPAN_NAME);
 }

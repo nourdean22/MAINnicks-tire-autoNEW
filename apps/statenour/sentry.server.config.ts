@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubSentryEvent, sentryInitOptions } from "@/lib/observability/sentry";
+import { scrubSentryEvent, sentryInitOptions, shouldRecordSpanForLangfuse } from "@/lib/observability/sentry";
 import type { LangfuseSpanProcessorLike } from "@/lib/observability/langfuse";
 
 /**
@@ -16,14 +16,19 @@ import type { LangfuseSpanProcessorLike } from "@/lib/observability/langfuse";
  * AND THE SAMPLER HAS TO SAY YES. With `tracesSampleRate: 0` Sentry's sampler
  * returns `NOT_RECORD`, and OpenTelemetry's Tracer returns a non-recording
  * span BEFORE constructing the real one — so `onStart`/`onEnd` never fire and
- * the attached processor receives nothing. Sharing the provider is necessary
- * but not sufficient; the spans must actually record. (Caught in review on
- * #2079 — the first fix would have left Langfuse just as dead.)
+ * the attached processor receives nothing.
  *
- * So when a processor is attached we sample every span and drop the resulting
- * transactions before they leave: `beforeSendTransaction: () => null`. Sentry
- * stays errors-only, Langfuse gets its spans. With no processor we keep
- * tracing off entirely.
+ * BUT NOT YES TO EVERYTHING. A blanket `tracesSampleRate: 1` would make every
+ * HTTP request, render and query Sentry auto-instruments a recording span, and
+ * the attached Langfuse processor would export all of them — burning quota and
+ * shipping unrelated request telemetry to a vendor that should only see model
+ * calls. So the sampler records ONLY `ai.*` spans plus our boot self-check,
+ * and `aiOnlySpanProcessor` filters again on the export side. Two gates,
+ * because the sampler is cheap and the filter is exact. (Both review findings
+ * on #2079 and #2080.)
+ *
+ * Transactions that do record are dropped before leaving:
+ * `beforeSendTransaction: () => null`. Sentry stays errors-only.
  *
  * Fails closed with no valid DSN (`enabled: false`), and every event's free
  * text passes the shared secret mask before export.
@@ -36,9 +41,7 @@ export function initSentryServer(openTelemetrySpanProcessors: LangfuseSpanProces
     ...(carriesForeignProcessors
       ? {
           openTelemetrySpanProcessors,
-          // Spans must RECORD for the attached processor to see them...
-          tracesSampleRate: 1,
-          // ...but none of them are sent to Sentry. Errors only, as before.
+          tracesSampler: ({ name }: { name?: string }) => (shouldRecordSpanForLangfuse(name) ? 1 : 0),
           beforeSendTransaction: () => null,
         }
       : {}),

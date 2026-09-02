@@ -85,6 +85,14 @@ when nothing else owns the provider. `instrumentation.ts` enforces the order and
 `tests/observability/tracer-provider-conflict.test.ts` pins it, including a
 mutation canary on the ordering.
 
+**Two gates keep Langfuse a model-call sink, not a request-telemetry sink.**
+Sentry's provider is fed by its own auto-instrumentation, so a blanket sample
+rate would push every HTTP request, render and query into the attached Langfuse
+processor. `beforeSendTransaction` cannot stop that - it runs on Sentry's export
+path, long after our `onEnd`. So: the sampler records only `ai.*` spans plus the
+boot self-check, and `aiOnlySpanProcessor` filters again on the export side,
+matching the instrumentation SCOPE (`ai`) rather than a spoofable span name.
+
 **And never trust the status again:** `initLangfuseTracing()` asks the AI SDK's
 own tracer name (`ai`) for a span and requires `isRecording()` plus a non-zero
 trace id before it reports `started`. A no-op tracer now yields `failed` with

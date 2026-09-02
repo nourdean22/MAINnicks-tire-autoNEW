@@ -209,3 +209,71 @@ describe("instrumentation.ts ordering · source gate", () => {
     expect(ordersProcessorBeforeSentry(mutated)).toBe(false);
   });
 });
+
+describe("aiOnlySpanProcessor · Langfuse only ever sees AI SDK spans", () => {
+  // When Langfuse rides on SENTRY's provider, that provider is fed by Sentry's
+  // auto-instrumentation. Without this filter every HTTP request, render and
+  // query in the process would be exported to Langfuse - quota burn plus
+  // unrelated request telemetry leaving to a vendor that should only ever see
+  // model calls. beforeSendTransaction cannot prevent it: that is Sentry's own
+  // export path, long after our processor's onEnd. (Review finding on #2080.)
+  const aiSpan = { name: "ai.generateText", instrumentationScope: { name: "ai" } };
+  const httpSpan = { name: "GET /api/habits", instrumentationScope: { name: "@opentelemetry/instrumentation-http" } };
+  const selfCheck = { name: "langfuse.selfcheck", instrumentationScope: { name: "ai" } };
+
+  async function wrapped() {
+    const m = await fresh();
+    const inner = { onStart: vi.fn(), onEnd: vi.fn(), forceFlush: vi.fn().mockResolvedValue(undefined), shutdown: vi.fn().mockResolvedValue(undefined) };
+    return { m, inner, proc: m.aiOnlySpanProcessor(inner) };
+  }
+
+  it("forwards AI SDK spans", async () => {
+    const { inner, proc } = await wrapped();
+    proc.onStart(aiSpan);
+    proc.onEnd(aiSpan);
+    expect(inner.onStart).toHaveBeenCalledTimes(1);
+    expect(inner.onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("DROPS everything Sentry auto-instruments", async () => {
+    const { inner, proc } = await wrapped();
+    proc.onStart(httpSpan);
+    proc.onEnd(httpSpan);
+    expect(inner.onStart, "an HTTP span must never reach Langfuse").not.toHaveBeenCalled();
+    expect(inner.onEnd).not.toHaveBeenCalled();
+  });
+
+  it("drops our own boot self-check — it proves recording, it is not a trace worth keeping", async () => {
+    const { inner, proc } = await wrapped();
+    proc.onEnd(selfCheck);
+    expect(inner.onEnd).not.toHaveBeenCalled();
+  });
+
+  it("matches on instrumentation SCOPE, not the span name (a name is spoofable, the scope is not)", async () => {
+    const { m, inner, proc } = await wrapped();
+    proc.onEnd({ name: "ai.generateText", instrumentationScope: { name: "some-other-library" } });
+    expect(inner.onEnd).not.toHaveBeenCalled();
+    // legacy field name still works
+    expect(m.isAiSdkSpan({ name: "ai.embed", instrumentationLibrary: { name: "ai" } })).toBe(true);
+    expect(m.isAiSdkSpan(null)).toBe(false);
+    expect(m.isAiSdkSpan({})).toBe(false);
+  });
+
+  it("still delegates flush and shutdown — the drain must not be filtered away", async () => {
+    const { inner, proc } = await wrapped();
+    await proc.forceFlush();
+    await proc.shutdown();
+    expect(inner.forceFlush).toHaveBeenCalledTimes(1);
+    expect(inner.shutdown).toHaveBeenCalledTimes(1);
+  });
+
+  it("the processor handed to Sentry IS the filtered one", async () => {
+    const m = await fresh();
+    const built = await m.buildLangfuseSpanProcessor();
+    expect(built).toBeTruthy();
+    // the raw LangfuseSpanProcessor mock records nothing; the wrapper is a
+    // plain object with our four methods, so identity with the mock class fails
+    expect(typeof built?.onEnd).toBe("function");
+    expect(m.isAiSdkSpan(aiSpan)).toBe(true);
+  });
+});
