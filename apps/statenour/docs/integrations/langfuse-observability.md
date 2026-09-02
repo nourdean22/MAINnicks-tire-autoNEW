@@ -115,9 +115,19 @@ curl -sS -X POST https://bdnick.info/api/system/observability-probe \
   -d '{"targets":["langfuse","sentry"]}'
 ```
 
-It returns a `probeId`. Read the Langfuse side back by trace name
-`observability-probe` (the id is in metadata) and the Sentry side by the
-returned `eventId`. Body `{"targets":["sentry"]}` runs one sink only.
+It returns a `probeId`. **Read it back carefully — the naive matcher gives a
+false negative.** Langfuse names the observation `<functionId>:<span name>`, so
+look for `observability-probe:ai.generateText`, not `observability-probe`. And
+`GET /api/public/v2/observations` returns a thin PROJECTION: `metadata`,
+`userId`, `tags`, `release`, `model` and `input` are absent there but present on
+`GET /api/public/traces/<traceId>`. Checking only the list endpoint is how a
+WORKING pipeline gets reported dead — that happened on 2026-09-02. The Sentry
+side reads back by the returned `eventId`.
+
+**Known gap:** on the 2026-09-02 receipt, `promptTokens` / `completionTokens` /
+`totalCost` were all 0 — the provider reported no usage for that call, so cost
+attribution is not yet proven. Model, environment, release, tags, userId and
+metadata all mapped correctly. Body `{"targets":["sentry"]}` runs one sink only.
 A zero, a green and a surviving mutation are all "no signal" — plant the
 positive first.
 
