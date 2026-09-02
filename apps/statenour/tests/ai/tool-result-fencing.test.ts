@@ -52,7 +52,12 @@ describe("PR #2060 review · truncateFenced keeps a fence closed through a slice
     expect(src).not.toMatch(/contextMemories\.slice\(/);
     expect(src).not.toMatch(/threadContext\.slice\(/);
     expect(src).toMatch(/truncateFenced\(contextMemories/);
-    expect(src).toMatch(/truncateFenced\(threadContext/);
+    // Hostile review 2026-09-02: the thread block was NOT fenced — the
+    // builder (detectCrossSessionThread) returns plain text, so
+    // truncateFenced on it was a no-op and the comment claiming it "carries
+    // cross_session fences" was false. It is fenced at the call site now;
+    // assert the fence precedes the slice.
+    expect(src).toMatch(/truncateFenced\(fenceContent\("crossSessionThread", "cross_session", threadContext/);
   });
 });
 import {

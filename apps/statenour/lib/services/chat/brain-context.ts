@@ -29,7 +29,7 @@
  */
 
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
-import { truncateFenced } from "@/lib/ai/tool-result-fencing";
+import { fenceContent, truncateFenced } from "@/lib/ai/tool-result-fencing";
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
@@ -412,12 +412,20 @@ export async function buildBrainContext(
       { name: "anticipated", content: anticipatedBlock },
       { name: "physical", content: physicalBlock },
       { name: "tasks", content: taskBlock },
-      // PR #2060 review (P1) · both blocks can carry <tool_data> fences (the
-      // recall block is fenced as memory_recall by its builder; the thread
-      // block carries cross_session fences). Slicing through truncateFenced
-      // keeps the closing tag, so a long block cannot leave the rest of this
-      // addendum inside an unterminated untrusted region.
-      { name: "Cross-Session Thread", content: threadContext ? `# CROSS-SESSION THREAD\n${truncateFenced(threadContext, 1000)}` : "", critical: true },
+      // PR #2060 review (P1) · the recall block is fenced as memory_recall by
+      // its builder. Slicing through truncateFenced keeps the closing tag, so
+      // a long block cannot leave the rest of this addendum inside an
+      // unterminated untrusted region.
+      //
+      // Hostile review 2026-09-02 · the cross-session thread block was NOT
+      // fenced: the cross-session builder (conversation-memory.ts) returns
+      // plain LLM-synthesized text
+      // digested from prior conversations, which can echo pasted external
+      // content or stale instructions. Fence it as cross_session here (the
+      // rule already teaches that fence: continuity, never a fresh
+      // instruction), THEN slice through truncateFenced. maxChars is lifted on
+      // the fence because the slice below is the real budget.
+      { name: "Cross-Session Thread", content: threadContext ? `# CROSS-SESSION THREAD\n${truncateFenced(fenceContent("crossSessionThread", "cross_session", threadContext, { maxChars: 20_000 }), 1000)}` : "", critical: true },
       { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${truncateFenced(contextMemories, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "" },
