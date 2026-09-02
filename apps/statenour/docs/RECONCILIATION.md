@@ -1,5 +1,31 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-02 · Sentry init was silently killing Langfuse tracing (PR-SC)
+>
+> #2074 added Sentry and #2075 recorded both integrations as live. They were configured, not
+> working. `Sentry.init()` registers the global OpenTelemetry tracer provider (`@sentry/node`
+> `initOtel.js`), `@opentelemetry/api`'s `registerGlobal` refuses a SECOND registration through a
+> no-op diag logger and keeps the FIRST, and `instrumentation.ts` imported `sentry.server.config`
+> at line 24 — before `initLangfuseTracing()` at line 133. So Langfuse's `NodeSDK` registration was
+> refused in silence, every AI SDK span went to Sentry's provider, and Langfuse held **zero rows**
+> while the boot log printed `langfuse_started` and `/api/version` reported `langfuse: true`.
+> Measured, not inferred: `/api/public/traces` returned `totalItems: 0` all-time against the live
+> project with valid keys, hours after `provider.success` lines for real model calls.
+>
+> Fix: the processor is built FIRST and handed to Sentry through its supported
+> `openTelemetrySpanProcessors` option, so both vendors share one provider; when Sentry is absent
+> we still own it via NodeSDK. And `initLangfuseTracing()` no longer reports `started` on faith —
+> it asks the AI SDK's own tracer name for a span and requires it to RECORD, reporting `failed`
+> with the likely cause otherwise. That check is what makes this class of defect visible.
+>
+> Also in: `app/global-error.tsx` (the App Router root boundary was missing entirely, so a root
+> render crash reached nobody), one shared secret mask across both exporters, Sentry `environment`
+> / `release` / `beforeSend` scrubbing, build-time source-map upload gated on the three env vars
+> actually being set, and `POST /api/system/observability-probe` (CRON_SECRET-gated) which plants a
+> known positive in each sink and flushes, so "nothing happened" and "the pipeline is dead" stop
+> looking identical. Receipts: 56 files / 716 passed on the affected set, plus 9 new provider-
+> conflict cases with a mutation canary; typecheck exit 0; eslint clean.
+
 > ## 2026-09-02 · Langfuse and Sentry production closeout (#2073, #2074)
 >
 > Langfuse per-call telemetry shipped in #2073 (merge commit
