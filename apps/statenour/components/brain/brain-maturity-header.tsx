@@ -25,7 +25,9 @@ import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialo
 // is `number | null`, and `null` means the read that would have produced it
 // FAILED — never zero. See UNKNOWN below.
 interface Maturity {
-  score: number | null;        // 0-100 aggregate · null when a read failed
+  score: number | null;        // aggregate · null when a read failed
+  /** What `score` is out of — below 100 when a dimension is unmeasurable. */
+  scoreMax: number;
   components: {
     skills: { active: number | null; graduated: number | null; pending: number | null };
     identity: { axes_filled: number | null; history_days: number | null };
@@ -214,6 +216,15 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         <div className="shrink-0">
           <p className={cn("text-[32px] font-mono tabular-nums leading-none", scoreColor)}>
             {score == null ? UNKNOWN : <AnimatedCounter value={score} duration={900} />}
+            {/* 2026-09-02 · the denominator is shown only when it is NOT 100,
+                so the common case stays uncluttered and the uncommon one
+                cannot be misread. Production currently has zero
+                contradictions ever recorded, so this renders /90 — a
+                dimension with no data is excluded from the score and from
+                its ceiling rather than paid a hardcoded 7. */}
+            {score != null && data.scoreMax !== 100 && (
+              <span className="text-[15px] text-[var(--text-tertiary)]">/{data.scoreMax}</span>
+            )}
           </p>
           <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mt-1">
             {score == null ? "maturity unknown" : "brain maturity"}

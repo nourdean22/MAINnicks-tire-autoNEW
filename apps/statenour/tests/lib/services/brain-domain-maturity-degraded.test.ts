@@ -222,9 +222,21 @@ describe("buildBrainMaturity · a failed read is not a zero", () => {
 
     expect(view.failedReads).toEqual([]);
     expect(typeof view.score).toBe("number");
-    // A measured empty ledger DOES still earn the 7 — and reports open 0,
-    // which is the emerald the header is allowed to paint.
-    expect(view.score).toBe(7);
+    // 2026-09-02 self-audit · this asserted `toBe(7)` under the comment "A
+    // measured empty ledger DOES still earn the 7". That was written by the
+    // same commit as the fix above, and it pinned the half the fix did not
+    // reach: an empty ledger is not a clean ledger either, and 7 of 100
+    // points for a subsystem that has produced no data is the same
+    // free-points-for-no-data shape learning-velocity.ts removed in this very
+    // wave. Production has never recorded a contradiction, so this branch is
+    // the one every render takes.
+    //
+    // The control still does its job — a `score: null` hardcoded for every
+    // call would fail `typeof === "number"` — it simply no longer certifies
+    // the defect. With every loader empty and contradictions unmeasurable,
+    // every dimension contributes 0 and the ceiling drops to 90.
+    expect(view.score).toBe(0);
+    expect(view.scoreMax).toBe(90);
     expect(view.components.contradictions.open).toBe(0);
     expect(mocks.logger.warn).not.toHaveBeenCalled();
   });
@@ -306,5 +318,67 @@ describe("buildBrainMaturity · contradictions · one population, one window", (
     expect((await buildBrainMaturity()).components.contradictions.truncated).toBe(
       false,
     );
+  });
+});
+
+/**
+ * 2026-09-02 · SELF-AUDIT of the same day's fix, after the merge.
+ *
+ * The pass above split "the read FAILED" from "the table is empty" and stopped
+ * there: a failed read scored 0, but an EMPTY contradiction ledger kept
+ * returning a hardcoded 7 of 100 points.
+ *
+ * That is not hypothetical. Production has never recorded a single row in
+ * `contradiction`, `wisdom_contradiction` or `research_contradiction` —
+ * checked against the live database — so the empty branch is the one every
+ * render takes. Seven fabricated points, permanently, for a capability that
+ * has produced no data.
+ *
+ * It is the identical shape lib/brain/learning-velocity.ts removed in the same
+ * wave: `resolutionRate = 1` on an empty table, where "never contradicted
+ * myself" scored exactly like "found and resolved every contradiction". Fixed
+ * there, missed here, by two different agents in one session — which is the
+ * argument for auditing a fix as hostilely as the code it replaced.
+ */
+describe("brain-maturity · an unmeasurable dimension is not a good score", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    allReadsSucceed();
+  });
+
+  it("an EMPTY contradiction ledger is unmeasurable, not a 7", async () => {
+    // allReadsSucceed() already resolves loadAllContradictions to [] — the
+    // exact state production is in.
+    const r = await buildBrainMaturity();
+    expect(r.score).not.toBeNull(); // the read succeeded; only the data is absent
+    // The ceiling drops with the dimension, so the percentage is neither
+    // inflated by a phantom 7 nor penalised for a subsystem with no data.
+    expect(r.scoreMax).toBe(90);
+  });
+
+  it("PLANTED POSITIVE · a POPULATED ledger still scores, out of 100", async () => {
+    // Without this, returning null unconditionally would satisfy the test
+    // above while deleting a real measurement.
+    mocks.loadAllContradictions.mockResolvedValue([
+      { status: "resolved" },
+      { status: "unresolved" },
+    ]);
+    const r = await buildBrainMaturity();
+    expect(r.scoreMax).toBe(100);
+  });
+
+  it("an empty ledger and a FAILED read remain different", async () => {
+    // The earlier fix's distinction must survive this one: a failed read
+    // suppresses the score entirely, an empty table only shrinks the max.
+    const empty = await buildBrainMaturity();
+    expect(empty.score).not.toBeNull();
+    expect(empty.scoreMax).toBe(90);
+
+    vi.clearAllMocks();
+    allReadsSucceed();
+    mocks.loadAllContradictions.mockRejectedValue(new Error("db down"));
+    const failed = await buildBrainMaturity();
+    expect(failed.score).toBeNull();
+    expect(failed.failedReads.length).toBeGreaterThan(0);
   });
 });
