@@ -13,6 +13,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Loader2, Plus, X, RefreshCw, Compass } from "lucide-react";
 import { DismissButton } from "@/components/ui/dismiss-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 // Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/identity/
 // qualitative")` (GET + POST + PATCH) onto `trpc.brain.qualitativeIdentity`
@@ -149,6 +150,41 @@ export function QualitativeIdentityPanel() {
           <Loader2 size={12} className="animate-spin" />
           loading…
         </div>
+      )}
+
+      {/* A FAILED READ RENDERED A BLANK BODY. `loading && !identity` gated
+          the spinner and `identity &&` gated ALL content — including the
+          per-bucket "(empty — add one…)" hint — so a DB failure
+          (lib/brain/qualitative-identity.ts:303-318 has no internal catch,
+          so it propagates) left this card as a header, a recompute button
+          and a paragraph of explanatory copy about content that was not
+          there. Indistinguishable from an identity with five empty
+          buckets, which is the state the copy invites you to fix.
+          Same three-state discipline as
+          components/brain/contradiction-resolution-panel.tsx:296-305. */}
+      {!loading && !identity && (
+        <EmptyState
+          icon={Compass}
+          title={
+            identityQuery.isError
+              ? "Qualitative identity unavailable"
+              : "Identity not read"
+          }
+          provenance={identityQuery.isError ? "ERROR" : "UNMEASURED"}
+          tone="warning"
+          why={
+            identityQuery.isError
+              ? "The read failed, so nothing is known about the values / fears / style / rhythms / red lines on file. That is NOT an empty self-model — do not add entries to fill it."
+              : "The read returned no identity envelope at all. Nothing has been measured here, so this is NOT an empty self-model — do not add entries to fill it."
+          }
+          unlock="Reload above. If it keeps failing, check the brain router and the qualitative_identity row."
+          cta={{ label: "reload", onClick: () => void load() }}
+        />
+      )}
+      {!loading && !identity && identityQuery.isError && (
+        <p className="mt-1 text-[9px] font-mono text-red-300/70 break-words text-center">
+          {identityQuery.error.message}
+        </p>
       )}
 
       {identity && (

@@ -21,22 +21,38 @@ import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialog";
 
+// Mirrors BrainMaturityView in lib/services/brain-domain.ts. Every counter
+// is `number | null`, and `null` means the read that would have produced it
+// FAILED — never zero. See UNKNOWN below.
 interface Maturity {
-  score: number;               // 0-100 aggregate
+  score: number | null;        // 0-100 aggregate · null when a read failed
   components: {
-    skills: { active: number; graduated: number; pending: number };
-    identity: { axes_filled: number; history_days: number };
-    qualitative: { entries: number };
-    beliefs: { active: number; candidates: number };
-    contradictions: { open: number; resolved: number };
-    ghost: { hits: number; surprises: number; accuracy: number | null };
-    chat_memory: { importance_rows: number; distilled_sessions: number };
+    skills: { active: number | null; graduated: number | null; pending: number | null };
+    identity: { axes_filled: number | null; history_days: number | null };
+    qualitative: { entries: number | null };
+    beliefs: { active: number | null; candidates: number | null };
+    contradictions: { open: number | null; resolved: number | null; truncated: boolean };
+    ghost: { hits: number | null; surprises: number | null; accuracy: number | null };
+    chat_memory: { importance_rows: number | null; distilled_sessions: number | null };
   };
+  failedReads: string[];
   computed_at: string;
 }
 
 function dot(color: string): string {
   return color;
+}
+
+/**
+ * What a counter renders when its read failed. Deliberately NOT "0" and
+ * deliberately NOT "—": "—" already means "measured, nothing to show"
+ * elsewhere on this card (ghost accuracy with no scored predictions).
+ */
+const UNKNOWN = "?";
+
+/** A counter value, or UNKNOWN when the read behind it failed. */
+function counterValue(n: number | null): number | string {
+  return n ?? UNKNOWN;
 }
 
 export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number }) {
@@ -142,14 +158,28 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
     );
   }
 
+  // A DEGRADED READ IS NOT A LOW SCORE. `buildBrainMaturity` used to
+  // swallow all ten subsystem reads and return a fully-formed payload, so
+  // this component's `if (!data)` guard above never fired on a total DB
+  // failure — it rendered "7" with every counter at 0 and "contradictions
+  // 0" in emerald. The service now suppresses the score and lists the
+  // reads that threw; this branch is what makes that visible.
+  const failedReads = data.failedReads ?? [];
+  const degraded = failedReads.length > 0;
   const score = data.score;
   const scoreColor =
+    score == null ? "text-amber-400" :
     score >= 75 ? "text-emerald-400" :
     score >= 50 ? "text-[var(--gold)]" :
     score >= 30 ? "text-amber-400" : "text-red-400";
 
   const c = data.components;
-  const ghostAcc = c.ghost.accuracy != null ? `${Math.round(c.ghost.accuracy * 100)}%` : "—";
+  const ghostAcc =
+    c.ghost.accuracy != null
+      ? `${Math.round(c.ghost.accuracy * 100)}%`
+      : failedReads.includes("ghost_accuracy")
+        ? UNKNOWN
+        : "—";
 
   return (
     <GlassCard>
@@ -183,28 +213,59 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
       <div className="flex items-center gap-4">
         <div className="shrink-0">
           <p className={cn("text-[32px] font-mono tabular-nums leading-none", scoreColor)}>
-            <AnimatedCounter value={score} duration={900} />
+            {score == null ? UNKNOWN : <AnimatedCounter value={score} duration={900} />}
           </p>
           <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mt-1">
-            brain maturity
+            {score == null ? "maturity unknown" : "brain maturity"}
           </p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 flex-1 text-[10px] font-mono">
-          <Counter label="skills active" value={c.skills.active} />
-          <Counter label="skills graduated" value={c.skills.graduated} color={dot("text-violet-400")} />
-          <Counter label="skill candidates" value={c.skills.pending} color={dot("text-blue-400")} />
-          <Counter label="identity axes" value={`${c.identity.axes_filled}/8`} />
-          <Counter label="qual entries" value={c.qualitative.entries} />
-          <Counter label="beliefs active" value={c.beliefs.active} />
+          <Counter label="skills active" value={counterValue(c.skills.active)} />
+          <Counter label="skills graduated" value={counterValue(c.skills.graduated)} color={dot("text-violet-400")} />
+          <Counter label="skill candidates" value={counterValue(c.skills.pending)} color={dot("text-blue-400")} />
+          <Counter
+            label="identity axes"
+            value={c.identity.axes_filled == null ? UNKNOWN : `${c.identity.axes_filled}/8`}
+          />
+          <Counter label="qual entries" value={counterValue(c.qualitative.entries)} />
+          <Counter label="beliefs active" value={counterValue(c.beliefs.active)} />
+          {/* EMERALD IS A CLAIM, and it must not be reachable from a failed
+              read. `open === null` means the contradiction ledger could not
+              be read at all — amber, never the green that used to say
+              "internally consistent" about a read that never happened. */}
           <Counter
             label="contradictions"
-            value={c.contradictions.open}
-            color={c.contradictions.open > 0 ? dot("text-red-400") : dot("text-emerald-400")}
+            value={counterValue(c.contradictions.open)}
+            color={
+              c.contradictions.open == null
+                ? dot("text-amber-400")
+                : c.contradictions.open > 0
+                  ? dot("text-red-400")
+                  : dot("text-emerald-400")
+            }
           />
           <Counter label="ghost acc" value={ghostAcc} />
         </div>
       </div>
+      {degraded && (
+        <p className="mt-3 text-[10px] text-amber-300/90 leading-relaxed border border-amber-500/25 bg-amber-500/[0.05] rounded px-2 py-1.5">
+          <span className="font-mono uppercase tracking-wider text-amber-400">
+            read failed — unknown, not zero
+          </span>
+          <br />
+          {failedReads.length} subsystem read{failedReads.length === 1 ? "" : "s"} threw
+          (<span className="font-mono">{failedReads.join(", ")}</span>). The score is
+          withheld and every <span className="font-mono">{UNKNOWN}</span> above was not
+          measured — none of them is a zero.
+        </p>
+      )}
+      {c.contradictions.truncated && (
+        <p className="mt-2 text-[10px] text-amber-300/80 leading-relaxed">
+          Contradiction sample hit its row cap, so open/resolved describe only the newest rows
+          — and the newest are the least likely to be resolved. Read the resolve rate as a floor.
+        </p>
+      )}
       <p className="text-[9px] text-[var(--text-tertiary)] mt-3">
         Rollup of all 7 brain subsystems. Refreshes when brain data changes. Higher score = the
         brain has more signal about who you are and how you operate.

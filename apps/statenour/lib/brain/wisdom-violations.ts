@@ -24,6 +24,11 @@
 import { prisma } from "@/lib/prisma";
 import { violationRate } from "@/lib/brain/wisdom-distiller";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+// 2026-09-02 self-audit, defect #5 · this file carried the third of four
+// copies of the origin registry (a byte-identical `inferOriginFromKey`,
+// missing the `nick_advice_` case the service copy had). Deleted; the
+// one registry lives in `lib/brain/wisdom-origins.ts`.
+import { resolveWisdomOrigin } from "@/lib/brain/wisdom-origins";
 
 export interface WisdomViolation {
   id: string;
@@ -121,7 +126,7 @@ export async function computeWisdomViolations(opts: { daysBack?: number; limit?:
       id: w.id,
       key: w.key,
       content: w.content,
-      origin: meta.origin ?? inferOriginFromKey(w.key),
+      origin: resolveWisdomOrigin(w.key, meta.origin ?? null),
       violationRate: result.rate,
       matches: result.matches,
       source: w.source,
@@ -132,16 +137,4 @@ export async function computeWisdomViolations(opts: { daysBack?: number; limit?:
 
   violations.sort((a, b) => b.violationRate - a.violationRate);
   return violations.slice(0, limit);
-}
-
-function inferOriginFromKey(key: string): string {
-  if (key.startsWith("wisdom_jobs_")) return "steve-jobs";
-  if (key.startsWith("wisdom_satori_")) return "satori";
-  if (key.startsWith("wisdom_buffett_")) return "warren-buffett";
-  if (key.startsWith("wisdom_gates_")) return "bill-gates";
-  if (key.startsWith("wisdom_musk_")) return "elon-musk";
-  if (key.startsWith("wisdom_greene_")) return "greene-laws";
-  if (key.startsWith("wisdom_distilled_")) return "distiller";
-  if (key.startsWith("wisdom_from_")) return "consolidation";
-  return "uncategorized";
 }

@@ -119,7 +119,7 @@ export function bucketCalibration(
  * candidate is diagnostic, not throughput-only.
  */
 export interface CalibrationSummary {
-  /** Resolved predictions in the window (binary only) */
+  /** Binary predictions RESOLVED inside the window (keyed on `updatedAt`) */
   resolved: number;
   /** Confirmed of those */
   confirmed: number;
@@ -134,23 +134,47 @@ export interface CalibrationSummary {
 }
 
 /**
- * Pull resolved binary predictions in the last `days` days and roll
- * them up into a calibration summary.
+ * Pull binary predictions RESOLVED in the last `days` days and roll them
+ * up into a calibration summary.
+ *
+ * 2026-09-02 - the window was `createdAt: { gte: since }` AND
+ * `status: { in: ["confirmed", "disproven"] }`, which required a row to
+ * have been MADE inside the window and to be resolved already. That makes
+ * the horizon shorter than the window BY CONSTRUCTION: at days=30 no
+ * prediction with a 30-day-or-longer horizon could ever appear, so
+ * "Calibration - 30d" was a statement about short-horizon forecasts wearing
+ * the label of the brain's calibration, and a long-horizon prediction
+ * resolved yesterday never moved it.
+ *
+ * The window now keys on `updatedAt`, so the population is "resolved in the
+ * window" regardless of when it was made -- which is what every consumer's
+ * label already claims. Prediction has no `resolvedAt` column; `updatedAt`
+ * is written when outcome-tracker flips `status`, so it is the closest
+ * available proxy, and it is indexed (`@@index([updatedAt])` in
+ * prisma/schema.prisma) so this stays an index range scan. The known
+ * imprecision: a resolved row edited again later re-enters the window.
+ * That is a documented approximation, not a structural exclusion.
+ *
+ * THROWS on read failure. It used to swallow the error into `[]`, which the
+ * empty branch below then reported as `resolved: 0, verdict: "unknown"` --
+ * identical to a genuinely quiet window. Callers could not tell "no
+ * predictions resolved" from "the database did not answer", and the /brain
+ * tile hid itself for both. Callers now choose: `lib/services/
+ * ultron-situation.ts` keeps its own `.catch()` (a digest may degrade), and
+ * the tRPC procedure lets it propagate so the UI can say state unknown.
  */
 export async function summarizeCalibration(opts: {
   days?: number;
 }): Promise<CalibrationSummary> {
   const since = new Date(Date.now() - (opts.days ?? 7) * 86400_000);
-  const rows = await prisma.prediction
-    .findMany({
-      where: {
-        kind: "binary",
-        status: { in: ["confirmed", "disproven"] },
-        createdAt: { gte: since },
-      },
-      select: { confidence: true, status: true, brierScore: true },
-    })
-    .catch((): Array<{ confidence: number; status: string; brierScore: number | null }> => []);
+  const rows = await prisma.prediction.findMany({
+    where: {
+      kind: "binary",
+      status: { in: ["confirmed", "disproven"] },
+      updatedAt: { gte: since },
+    },
+    select: { confidence: true, status: true, brierScore: true },
+  });
 
   if (rows.length === 0) {
     return {

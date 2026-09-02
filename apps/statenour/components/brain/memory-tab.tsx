@@ -248,10 +248,12 @@ export function MemoryTab() {
  * noise.
  */
 function IdentityDeltaLine() {
-  const { data } = trpc.brain.identityDelta.useQuery(undefined, {
+  const { data, isError } = trpc.brain.identityDelta.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+  // A failed read is NOT "nothing shifted today" — say which one it is.
+  if (isError) return <ReadingUnavailable label="Identity delta" />;
   if (!data?.delta) return null;
   return (
     <div className="flex items-start gap-2.5 rounded-md border border-violet-500/20 bg-violet-500/[0.04] px-3 py-2 text-[11px]">
@@ -266,26 +268,53 @@ function IdentityDeltaLine() {
 }
 
 /**
+ * A reading that could not be taken. Distinct from a reading of zero, and
+ * distinct from a panel that hides itself because there is genuinely
+ * nothing to show. Copy matches components/brain/judgment-quality-panel.tsx
+ * so the three states read the same everywhere on /brain.
+ */
+function ReadingUnavailable({ label }: { label: string }) {
+  return (
+    <div className="rounded-lg border border-red-500/15 bg-red-500/5 px-3 py-2">
+      <p className="text-[11px] text-red-400/90">
+        {label} couldn&apos;t load — state unknown, not empty.
+      </p>
+    </div>
+  );
+}
+
+/**
  * Wave V #5 · Learning-velocity scoreboard.
  *
- * `measureLearningVelocity()` returns an 8-metric digest already
- * exposed via `trpc.journal.learningVelocity` (added in Wave S for
- * the journal ticker). Here on /brain we render the same data as a
- * 6-tile scoreboard with a single headline number ("brain is 22%
- * smarter than 30 days ago"). Silent when the digest returns null
- * (helper failure).
+ * `measureLearningVelocity()` returns a digest exposed via
+ * `trpc.journal.learningVelocity` (added in Wave S for the journal ticker).
  *
- * Karpathy lens: this is the page's verifiable goal. Operator
- * answers "is the entire brain investment compounding?" in 2
- * seconds without leaving /brain.
+ * 2026-09-02 · metrics-honesty pass. Every number on this card used to
+ * misstate its own window:
+ *
+ *   · the headline read "brain +N% vs 30d ago" from a composite with no
+ *     30-day term in it — three of its five inputs were all-time levels.
+ *     A brain that learned nothing for a month scored about +28%. The
+ *     composite is deleted (see lib/brain/learning-velocity.ts); the
+ *     headline is now a real 30d-vs-prior-30d change in memories created,
+ *     and it says "memories", because that is what it measures.
+ *   · the four cells below it mixed a 7d count, two 30d counts, and one
+ *     LIFETIME running total under a single "velocity" label. Each cell
+ *     now carries its own window, and the contradictions cell is a real
+ *     30d slice instead of a number that could only ever go up.
+ *   · health was rendered "/100" even when a dimension was unmeasurable.
+ *     It now renders out of the max actually available this run.
  */
 function LearningVelocityScoreboard() {
-  const { data } = trpc.journal.learningVelocity.useQuery(undefined, {
+  const { data, isError } = trpc.journal.learningVelocity.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+  // This digest has no empty state — it always returns numbers — so the
+  // only reason data is missing is that the read failed. Say so.
+  if (isError) return <ReadingUnavailable label="Learning velocity" />;
   if (!data) return null;
-  const growthSign = data.overallGrowth > 0 ? "+" : "";
+  const pct = data.memoryPctChange30d;
   return (
     <div className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.02] p-3 space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -295,36 +324,48 @@ function LearningVelocityScoreboard() {
         <p
           className={cn(
             "text-[11px] font-mono tabular-nums",
-            data.overallGrowth > 0
-              ? "text-emerald-300"
-              : data.overallGrowth < 0
-                ? "text-rose-300"
-                : "text-[var(--text-tertiary)]",
+            pct === null
+              ? "text-[var(--text-tertiary)]"
+              : pct > 0
+                ? "text-emerald-300"
+                : pct < 0
+                  ? "text-rose-300"
+                  : "text-[var(--text-tertiary)]",
           )}
         >
-          brain {growthSign}{data.overallGrowth}% vs 30d ago · health{" "}
-          {data.healthScore}/100
+          {/* pct === null means the prior 30-day window held zero memories,
+              so a percent change is undefined. Say that, rather than
+              rendering a 0% that would read as "no change". */}
+          {pct === null
+            ? `memories ${data.memoriesLast30d} in 30d · no prior window to compare`
+            : `memories ${pct > 0 ? "+" : ""}${pct}% vs prior 30d`}
+          {" · health "}
+          {data.healthScore}/{data.healthScoreMax}
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[10px] font-mono">
         <ScoreboardCell
-          label="memories +"
+          label="memories · 7d"
           value={data.memoriesThisWeek}
           delta={data.memoriesDelta}
         />
+        {/* "wisdom rows", not "wisdom promotions" — this counts rows created
+            in the wisdom category, which a distiller run or a batch of chat
+            scrapes also lands in. The real promotion path stamps
+            metadata.promotedFromCandidate and is not measured here. */}
         <ScoreboardCell
-          label="wisdom +"
-          value={data.wisdomPromotions}
+          label="wisdom rows · 30d"
+          value={data.wisdomCreated30d}
           delta={null}
         />
         <ScoreboardCell
-          label="connections +"
-          value={data.newConnections}
+          label="connections · 30d"
+          value={data.newConnections30d}
           delta={null}
         />
         <ScoreboardCell
-          label="contradictions resolved"
-          value={data.contradictionsResolved}
+          label="contradictions resolved · 30d"
+          value={data.contradictionsResolved30d}
           delta={null}
         />
       </div>
@@ -368,13 +409,21 @@ function ScoreboardCell({
  * it · only PredictionStreaksCard's hit-rate displayed (which is
  * calibration-blind per the helper's own header comment).
  *
- * Silent when resolved === 0 (no predictions resolved in window).
+ * Silent when resolved === 0 — a genuinely quiet 30 days shows nothing, per
+ * the page's silent-when-empty rule. A FAILED read is not that: it renders
+ * explicitly (2026-09-02). The helper used to swallow Prisma errors into
+ * `resolved: 0`, so an unreachable database and a quiet month were the same
+ * pixel — this tile vanished, and the operator read that as "calibration is
+ * fine". The window itself was also wrong: it filtered on `createdAt`, which
+ * structurally excluded every prediction with a horizon of 30 days or more.
+ * It now keys on resolution time.
  */
 function CalibrationTile() {
-  const { data } = trpc.brain.calibrationSummary.useQuery(
+  const { data, isError } = trpc.brain.calibrationSummary.useQuery(
     { days: 30 },
     { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
   );
+  if (isError) return <ReadingUnavailable label="Calibration" />;
   if (!data || data.resolved === 0) return null;
   // Verdict map matches the helper's enum: "well-calibrated" |
   // "drift" | "unknown" · drift is the warning signal (>= 15% off).
@@ -387,8 +436,10 @@ function CalibrationTile() {
   return (
     <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3 space-y-2">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        {/* "resolved 30d", not "30d" — the population is predictions that
+            RESOLVED in the last 30 days, whenever they were made. */}
         <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
-          Calibration · 30d
+          Calibration · resolved 30d
         </p>
         <p className={cn("text-[11px] font-mono tabular-nums", verdictTint)}>
           {data.verdict.replace(/-/g, " ")}

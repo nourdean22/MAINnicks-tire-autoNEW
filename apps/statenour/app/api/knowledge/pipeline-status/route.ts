@@ -65,20 +65,37 @@ export const GET = apiHandler(
     const candidateCount = candidates.status === "fulfilled" ? candidates.value : null;
     const totalClaims = claimTotal.status === "fulfilled" ? claimTotal.value : null;
 
+    // AN UNREAD COUNT IS NOT ZERO. `statusCounts?.find(...)?.count ?? 0`
+    // collapsed two different facts into the same number: "the groupBy came
+    // back and nothing is source_supported" and "the groupBy REJECTED, so
+    // nobody knows". The second one then printed as a measured-looking
+    // "0 promotable now" on the healthy branch of research-pipeline-status,
+    // because the guard below correctly refuses to assert `gateUnreachable`
+    // from missing data — and the component reads "cannot assert unreachable"
+    // as "healthy". That is the same fail-open shape the comment below names,
+    // one field over: certainty manufactured out of a failed read.
+    //
+    // `null` is the honest value, and the consumer renders it as unread.
     const promotable =
-      statusCounts?.find((s) => s.status === "source_supported")?.count ?? 0;
+      statusCounts === null
+        ? null
+        : (statusCounts.find((s) => s.status === "source_supported")?.count ?? 0);
 
     // The gate is unreachable when the whole corpus tops out below it.
     //
     // `statusCounts !== null` is LOAD-BEARING, not defensive noise. Without
-    // it, a REJECTED status query leaves statusCounts null, `promotable`
-    // falls back to 0 via the `?? 0` above, and this flag would flip true —
-    // rendering "none has ever been promotable · this queue cannot fill"
-    // off a read that simply FAILED. That is the fail-open defect of the
-    // 2026-08-19 health sweep, inverted: asserting alarming certainty from
-    // missing data instead of health from missing data. Both are lies.
-    // Every input must be present before the claim is made; otherwise the
-    // surface reports "unknown".
+    // it, a REJECTED status query left statusCounts null, `promotable` fell
+    // back to 0 via the old `?? 0`, and this flag would flip true — rendering
+    // "none has ever been promotable · this queue cannot fill" off a read
+    // that simply FAILED. That is the fail-open defect of the 2026-08-19
+    // health sweep, inverted: asserting alarming certainty from missing data
+    // instead of health from missing data. Both are lies. Every input must be
+    // present before the claim is made; otherwise the surface reports
+    // "unknown".
+    //
+    // Since `promotable` is now `null` rather than `0` on that path, the
+    // `promotable === 0` term below independently rejects it too. Both are
+    // kept: the guard states the rule, the null carries it into the payload.
     const gateUnreachable =
       statusCounts !== null &&
       bestScore !== null &&

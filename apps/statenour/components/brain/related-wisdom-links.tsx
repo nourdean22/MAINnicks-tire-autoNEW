@@ -17,10 +17,26 @@
  * Auto-collapses on second click. Errors render as a small note
  * (not a toast) · failures here are non-blocking and the operator
  * may not even notice if their session is fine.
+ *
+ * 2026-09-02 self-audit closed three defects in this file:
+ *   #2 · the empty state hardcoded "no related wisdoms above 0.40
+ *        similarity" and threw away the API's `reason`, so a row with
+ *        NO EMBEDDING — similarity never computed — read exactly like a
+ *        genuinely isolated one. Both floors now come from the response.
+ *   #3 · the header above promised deep links; the render was three
+ *        <span>s with no <a>, no href and no onClick. The ?focus=<key>
+ *        param and its scroll handler already worked
+ *        (components/brain/wisdom-tab.tsx:165 + :284) — nothing emitted
+ *        a link that used them.
+ *   #5 · `ORIGIN_BADGE` here was one of two label registries and was
+ *        missing `chat-scrape`, so the same principle read "Chat scrape"
+ *        in the main list and "uncategorized" here, on one screen.
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { ApiError, rawFetch } from "@/lib/utils/api-fetch";
+import { wisdomOriginMeta } from "@/lib/brain/wisdom-origins";
 
 interface RelatedWisdom {
   id: string;
@@ -36,25 +52,84 @@ interface RelatedResp {
   related?: RelatedWisdom[];
   cached?: boolean;
   reason?: string;
+  /** Both floors ship from the route · see its SIMILARITY_FLOOR comment. */
+  similarityFloor?: number;
+  poolConfidenceFloor?: number;
 }
 
-const ORIGIN_BADGE: Record<string, string> = {
-  "steve-jobs": "Jobs",
-  "satori": "Satori",
-  "warren-buffett": "Buffett",
-  "bill-gates": "Gates",
-  "elon-musk": "Musk",
-  "greene-laws": "Greene",
-  "distiller": "Distilled",
-  "consolidation": "Synthesis",
-  "uncategorized": "Wisdom",
-};
+/** Defaults only for a response from a deploy older than the route change. */
+const FALLBACK_SIMILARITY_FLOOR = 0.4;
+const FALLBACK_POOL_CONFIDENCE_FLOOR = 0.5;
+
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+/**
+ * The operator-visible sentence for an empty see-also list.
+ *
+ * Pure and exported so the distinction this fixes is unit-testable: an
+ * unembedded anchor MUST NOT be describable as "nothing similar enough".
+ */
+export function relatedEmptyMessage(
+  reason: string | undefined,
+  floors: { similarity: number; poolConfidence: number },
+): string {
+  switch (reason) {
+    case "no_embedding_for_anchor":
+      return "This wisdom has no embedding yet · similarity was never computed. The embed-backfill cron picks these up.";
+    case "anchor_parse_failed":
+      return "This wisdom's stored embedding could not be parsed · similarity was never computed.";
+    case "empty_pool":
+      return `No other wisdom at ${pct(floors.poolConfidence)}+ confidence to compare against.`;
+    case "no_match_above_threshold":
+      return `No related wisdoms above ${pct(floors.similarity)} similarity, among wisdoms at ${pct(floors.poolConfidence)}+ confidence.`;
+    default:
+      return "No related wisdoms returned · the API did not say why (expected from a deploy older than 2026-09-02).";
+  }
+}
+
+/** The deep link this component's header has always promised. */
+export function wisdomFocusHref(key: string): string {
+  return `/brain?tab=wisdom&focus=${encodeURIComponent(key)}`;
+}
+
+/**
+ * One see-also row. Exported so the link contract can be asserted on
+ * rendered markup — the vitest env here is Node with no DOM, so a row
+ * that only appears after an async state change is otherwise untestable.
+ */
+export function RelatedWisdomRow({ r }: { r: RelatedWisdom }) {
+  return (
+    <li>
+      <Link
+        href={wisdomFocusHref(r.key)}
+        // The wisdom tab's own ?focus= effect scrolls the card into
+        // view, so suppress Next's scroll-to-top or the two fight.
+        scroll={false}
+        className="flex gap-2 text-[11px] leading-snug rounded px-1 -mx-1 py-1 hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]"
+      >
+        <span className="font-mono text-[var(--text-tertiary)] text-[9px] w-16 shrink-0 uppercase tracking-wider pt-0.5">
+          {wisdomOriginMeta(r.origin).badge}
+        </span>
+        <span className="text-[var(--text-secondary)] flex-1" style={{ maxWidth: "60ch" }}>
+          {r.content.slice(0, 140)}
+          {r.content.length > 140 ? "…" : ""}
+        </span>
+        <span className="font-mono text-[9px] text-[var(--text-tertiary)] tabular-nums shrink-0 pt-0.5" title={`cosine ${r.similarity}`}>
+          {(r.similarity * 100).toFixed(0)}%
+        </span>
+      </Link>
+    </li>
+  );
+}
 
 export function RelatedWisdomLinks({ wisdomId }: { wisdomId: string }) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [related, setRelated] = useState<RelatedWisdom[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Why the list came back empty, and the floors that shaped it. Held
+  // as one object so the empty state can never render half a reading.
+  const [emptyNote, setEmptyNote] = useState<string | null>(null);
 
   async function load() {
     if (related) {
@@ -76,7 +151,16 @@ export function RelatedWisdomLinks({ wisdomId }: { wisdomId: string }) {
         credentials: "same-origin",
         cache: "no-store",
       });
-      setRelated(data.related ?? []);
+      const rows = data.related ?? [];
+      setRelated(rows);
+      setEmptyNote(
+        rows.length === 0
+          ? relatedEmptyMessage(data.reason, {
+              similarity: data.similarityFloor ?? FALLBACK_SIMILARITY_FLOOR,
+              poolConfidence: data.poolConfidenceFloor ?? FALLBACK_POOL_CONFIDENCE_FLOOR,
+            })
+          : null,
+      );
       setExpanded(true);
     } catch (err) {
       // `ApiError.message` is already `HTTP <status>` for a failed response, so
@@ -123,28 +207,14 @@ export function RelatedWisdomLinks({ wisdomId }: { wisdomId: string }) {
 
       {expanded && related && related.length === 0 && (
         <p className="mt-2 text-[10px] text-[var(--text-tertiary)] italic">
-          no related wisdoms above 0.40 similarity
+          {emptyNote}
         </p>
       )}
 
       {expanded && related && related.length > 0 && (
-        <ul className="mt-2 space-y-1.5">
+        <ul className="mt-2 space-y-0.5">
           {related.map((r) => (
-            <li
-              key={r.id}
-              className="flex gap-2 text-[11px] leading-snug"
-            >
-              <span className="font-mono text-[var(--text-tertiary)] text-[9px] w-16 shrink-0 uppercase tracking-wider pt-0.5">
-                {ORIGIN_BADGE[r.origin] ?? r.origin}
-              </span>
-              <span className="text-[var(--text-secondary)] flex-1" style={{ maxWidth: "60ch" }}>
-                {r.content.slice(0, 140)}
-                {r.content.length > 140 ? "…" : ""}
-              </span>
-              <span className="font-mono text-[9px] text-[var(--text-tertiary)] tabular-nums shrink-0 pt-0.5" title={`cosine ${r.similarity}`}>
-                {(r.similarity * 100).toFixed(0)}%
-              </span>
-            </li>
+            <RelatedWisdomRow key={r.id} r={r} />
           ))}
         </ul>
       )}

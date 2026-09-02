@@ -523,16 +523,24 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
 }
 
 export async function loadGhostAccuracy(): Promise<GhostAccuracy | null> {
-  const row = await prisma.brainMemory
-    .findUnique({
-      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
-      select: { content: true },
-    })
-    .catch(() => null);
+  // 2026-09-02 · this used to end `.catch(() => null)`, which made a failed
+  // READ indistinguishable from "nothing has been scored yet" — both returned
+  // null, and every caller rendered the second meaning. brain-domain.ts now
+  // records which subsystem reads failed so the maturity header can say
+  // "unknown" instead of showing a fabricated score, and it could never see a
+  // ghost failure through this swallow. A missing ROW is still a real null;
+  // a database error is not, and now propagates.
+  const row = await prisma.brainMemory.findUnique({
+    where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
+    select: { content: true },
+  });
   if (!row) return null;
   try {
     return JSON.parse(row.content) as GhostAccuracy;
-  } catch {
+  } catch (err) {
+    // A stored blob that will not parse is corruption, not absence. Returning
+    // null keeps the caller working, but silence here is how it stays broken.
+    logError("brain.ghost-nick", err, { fn: "loadGhostAccuracy", reason: "unparseable_blob" }, "warn");
     return null;
   }
 }

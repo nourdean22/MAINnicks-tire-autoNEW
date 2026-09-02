@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logger as rootLogger } from "@/lib/logger";
 import { consultBoard as runConsultBoard } from "@/lib/ai/board/consult";
 import type {
   AdvisorTake,
@@ -28,6 +29,8 @@ import type {
   BoardId,
   BoardSynthesis,
 } from "@/lib/ai/board/types";
+
+const log = rootLogger.withSurface("services/board-consult-record");
 
 /**
  * AG-19 · live-business context for the advisors. consultBoard used to
@@ -104,6 +107,22 @@ export async function consultBoardAndPersist(
       question: consultation.question,
       ranAt: consultation.ranAt,
       durationMs: consultation.durationMs,
+      // 2026-09-02 · the mood gate's verdict, persisted.
+      //
+      // `lib/ai/board/consult.ts` MOOD_DROP_RULES silently removes up to
+      // 3 of 5 advisors when mood=depleted and 4 when mood=scattered, on
+      // the one surface whose stated premise is that it "preserves
+      // divergence rather than fusing lenses into one answer". Until now
+      // the only trace outside the live response was prose inside the
+      // synthesizer's raw prompt, so a consultation could never be
+      // re-inspected: an operator reading a three-advisor row in history
+      // had no way to learn that two lenses were withheld, or why.
+      //
+      // Both fields are written unconditionally (empty array / null when
+      // no gating ran) so a reader can tell "no advisors were dropped"
+      // apart from "this row predates the field".
+      droppedAdvisorIds: consultation.droppedAdvisorIds,
+      operatorState: consultation.operatorState,
       // Compact projection of takes · keeps Json column under a few KB
       // even for full boards. Full take detail can be re-derived from
       // the BoardConsultation that the caller still holds in memory
@@ -150,8 +169,36 @@ export interface BoardConsultationView {
   confidence: number;
   /** Optional tension axis · null when board agreed cleanly. */
   tension: string | null;
-  /** Number of advisors who actually produced takes (vs errored). */
+  /**
+   * Number of advisors who actually produced takes (vs errored).
+   *
+   * 2026-09-02 · this now MEANS that. It was `arrLen(meta.takes)`, which
+   * counts every take including the errored ones — the doc comment and
+   * the arithmetic had disagreed since the field shipped. Nothing rendered
+   * it, so nothing was visibly wrong; the first consumer would simply have
+   * inherited the wrong number with a comment vouching for it.
+   */
   advisorCount: number;
+  /**
+   * Advisors that answered with an `error` instead of a take. Split out
+   * rather than deleted: fixing `advisorCount` to match its own
+   * documentation would otherwise have made errored advisors vanish from
+   * the projection entirely, trading a wrong number for a missing one.
+   */
+  erroredCount: number;
+  /**
+   * Advisor ids the mood gate removed BEFORE the fan-out — they never ran,
+   * so they appear in neither count above. Empty when no gating happened.
+   * Empty is also what an old row (persisted before 2026-09-02) projects
+   * to; `moodAtConsult` is the field that distinguishes them.
+   */
+  droppedAdvisorIds: string[];
+  /**
+   * Operator mood recorded at consult time, or null when the state read
+   * failed or the row predates persistence of it. This is the WHY behind
+   * `droppedAdvisorIds` — a drop list without it is an unexplained absence.
+   */
+  moodAtConsult: string | null;
   /** Created timestamp (the row's createdAt). */
   createdAt: string;
 }
@@ -168,6 +215,8 @@ interface PersistedMetadata {
   ranAt?: unknown;
   takes?: unknown;
   synthesis?: unknown;
+  droppedAdvisorIds?: unknown;
+  operatorState?: unknown;
 }
 
 interface PersistedSynthesisShape {
@@ -180,6 +229,28 @@ interface PersistedSynthesisShape {
 
 function arrLen(raw: unknown): number {
   return Array.isArray(raw) ? raw.length : 0;
+}
+
+/** Persisted takes carry `error: string | null`. Anything else in the
+ *  array is a malformed row, counted as errored rather than as a take —
+ *  an unreadable entry is not evidence an advisor answered. */
+function countTakes(raw: unknown): { answered: number; errored: number } {
+  if (!Array.isArray(raw)) return { answered: 0, errored: 0 };
+  let answered = 0;
+  let errored = 0;
+  for (const t of raw) {
+    const err = (t as { error?: unknown } | null)?.error;
+    if (t && typeof t === "object" && (err === null || err === undefined)) answered += 1;
+    else errored += 1;
+  }
+  return { answered, errored };
+}
+
+/** String ids only — the metadata Json is untyped at rest, and a row
+ *  written by an older shape must degrade to "no drops recorded" rather
+ *  than render `[object Object]` in the operator's gating strip. */
+function stringList(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
 }
 
 function coerceBoardConsultationView(row: {
@@ -206,7 +277,13 @@ function coerceBoardConsultationView(row: {
   const tension = typeof synth.tension === "string" && synth.tension.length > 0
     ? synth.tension
     : null;
-  const advisorCount = arrLen(meta.takes);
+  const { answered: advisorCount, errored: erroredCount } = countTakes(meta.takes);
+  const droppedAdvisorIds = stringList(meta.droppedAdvisorIds);
+  const state = meta.operatorState as { mood?: unknown } | null | undefined;
+  const moodAtConsult =
+    state && typeof state === "object" && typeof state.mood === "string" && state.mood.length > 0
+      ? state.mood
+      : null;
   const ranAt =
     typeof meta.ranAt === "string" ? meta.ranAt : row.createdAt.toISOString();
 
@@ -222,6 +299,9 @@ function coerceBoardConsultationView(row: {
     confidence,
     tension,
     advisorCount,
+    erroredCount,
+    droppedAdvisorIds,
+    moodAtConsult,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -234,7 +314,7 @@ function coerceBoardConsultationView(row: {
  */
 export async function listRecentBoardConsultations(
   input: { limit?: number } = {},
-): Promise<{ consultations: BoardConsultationView[] }> {
+): Promise<{ consultations: BoardConsultationView[]; unreadable: number }> {
   const limit = Math.max(1, Math.min(50, input.limit ?? 20));
 
   const rows = await prisma.brainMemory.findMany({
@@ -256,7 +336,19 @@ export async function listRecentBoardConsultations(
     const view = coerceBoardConsultationView(row);
     if (view) projected.push(view);
   }
-  return { consultations: projected };
+  // A row that fails projection used to disappear with no count anywhere:
+  // the list simply came back shorter, which reads identically to "you
+  // have consulted the board fewer times". Malformed rows are the exact
+  // signal that a persistence shape drifted, so they get a number and a
+  // log line rather than silence.
+  const unreadable = rows.length - projected.length;
+  if (unreadable > 0) {
+    log.warn("board_consultations_unreadable", {
+      unreadable,
+      fetched: rows.length,
+    });
+  }
+  return { consultations: projected, unreadable };
 }
 
 // ── Re-export helpers the tRPC layer needs ─────────────────────

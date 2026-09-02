@@ -12,6 +12,27 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { resolveWisdomOrigin } from "@/lib/brain/wisdom-origins";
+
+/**
+ * Hard ceiling on rows shipped in one feed.
+ *
+ * 2026-09-02 self-audit, defect #7: this query had no `take` at all. It
+ * shipped every wisdom row (~991 today) with full `content` (up to 2000
+ * chars each, see `updateWisdom` below) on every call — and the wisdom
+ * tab refetched the whole thing on any `brain` bus event.
+ *
+ * The ceiling is deliberately ABOVE today's corpus rather than a page
+ * size. the `brain.wisdom` tRPC procedure calls `buildWisdomFeed()` with
+ * no input and the tab has no pager, so a limit that bit today would
+ * hide rows the operator has no way to reach — a worse defect than the
+ * one being fixed. What it does buy: the query's cost is bounded no
+ * matter how the corpus grows, and `truncated` makes the crossing
+ * VISIBLE (the tab renders a warning) instead of silently dropping the
+ * tail. Plumbing a real limit through the tRPC procedure is the
+ * follow-up; it needs `brain.ts`, which this change does not touch.
+ */
+export const WISDOM_FEED_LIMIT = 1500;
 
 export interface WisdomEntry {
   id: string;
@@ -29,7 +50,17 @@ export interface WisdomEntry {
 }
 
 export interface WisdomFeedView {
+  /** Whole corpus · counted in the DB, NOT `entries.length`. */
   total: number;
+  /**
+   * Rows actually shipped in `entries` — the pool every filter, search,
+   * chip count and "showing X of Y" on the wisdom tab operates over.
+   * Equals `total` until the corpus crosses `WISDOM_FEED_LIMIT`.
+   */
+  loaded: number;
+  /** `loaded < total` · the tab warns rather than silently dropping the tail. */
+  truncated: boolean;
+  /** Whole corpus · summed in the DB so a truncated page can't undercount it. */
   totalRecalls: number;
   groupings: {
     origin: Record<string, number>;
@@ -40,39 +71,43 @@ export interface WisdomFeedView {
   entries: WisdomEntry[];
 }
 
-function inferOrigin(key: string, metaOrigin: string | null): string {
-  if (metaOrigin) return metaOrigin;
-  if (key.startsWith("wisdom_jobs_")) return "steve-jobs";
-  if (key.startsWith("wisdom_satori_")) return "satori";
-  if (key.startsWith("wisdom_distilled_")) return "distiller";
-  if (key.startsWith("wisdom_from_")) return "consolidation";
-  if (key.startsWith("nick_advice_")) return "chat-scrape";
-  return "uncategorized";
-}
+export async function buildWisdomFeed(limit = WISDOM_FEED_LIMIT): Promise<WisdomFeedView> {
+  const where = { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null };
 
-export async function buildWisdomFeed(): Promise<WisdomFeedView> {
-  const rows = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
-    orderBy: [{ confidence: "desc" }, { seenCount: "desc" }],
-    select: {
-      id: true,
-      key: true,
-      content: true,
-      confidence: true,
-      seenCount: true,
-      source: true,
-      createdAt: true,
-      lastSeen: true,
-      metadata: true,
-    },
-  });
+  // `total` and `totalRecalls` are corpus-wide readings, so they come
+  // from the DB rather than from the (possibly bounded) page. Deriving
+  // them from `entries` is what would make a truncated feed lie about
+  // the size of the corpus it truncated.
+  const [agg, rows] = await Promise.all([
+    prisma.brainMemory.aggregate({
+      where,
+      _count: { _all: true },
+      _sum: { seenCount: true },
+    }),
+    prisma.brainMemory.findMany({
+      where,
+      orderBy: [{ confidence: "desc" }, { seenCount: "desc" }],
+      take: limit,
+      select: {
+        id: true,
+        key: true,
+        content: true,
+        confidence: true,
+        seenCount: true,
+        source: true,
+        createdAt: true,
+        lastSeen: true,
+        metadata: true,
+      },
+    }),
+  ]);
 
   const now = Date.now();
   const maxSeen = Math.max(1, ...rows.map((r) => r.seenCount));
 
   const entries: WisdomEntry[] = rows.map((r) => {
     const meta = r.metadata as { origin?: string } | null;
-    const origin = inferOrigin(r.key, meta?.origin ?? null);
+    const origin = resolveWisdomOrigin(r.key, meta?.origin ?? null);
     const ageDays = Math.round((now - r.createdAt.getTime()) / 86400_000);
     const recallScore = Math.log10(1 + r.seenCount) / Math.log10(1 + maxSeen);
     const hotness = Math.min(1, recallScore * 0.7 + r.confidence * 0.3);
@@ -91,13 +126,16 @@ export async function buildWisdomFeed(): Promise<WisdomFeedView> {
     };
   });
 
+  // Groupings are counted over `entries`, NOT over the corpus, and that
+  // is load-bearing: the origin chips filter `entries`, so a chip
+  // reading a corpus-wide count would promise rows the tab cannot show.
+  // `sum(groupings.origin) === loaded === entries.length` is the
+  // invariant the "all (N)" chip and "showing X of Y" both depend on.
   const groupingsOrigin: Record<string, number> = {};
   const groupingsSource: Record<string, number> = {};
-  let totalRecalls = 0;
   for (const e of entries) {
     groupingsOrigin[e.origin] = (groupingsOrigin[e.origin] ?? 0) + 1;
     groupingsSource[e.source] = (groupingsSource[e.source] ?? 0) + 1;
-    totalRecalls += e.seenCount;
   }
 
   const hottest = [...entries]
@@ -107,9 +145,12 @@ export async function buildWisdomFeed(): Promise<WisdomFeedView> {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
+  const total = agg._count._all;
   return {
-    total: entries.length,
-    totalRecalls,
+    total,
+    loaded: entries.length,
+    truncated: entries.length < total,
+    totalRecalls: agg._sum.seenCount ?? 0,
     groupings: { origin: groupingsOrigin, source: groupingsSource },
     hottest,
     freshest,

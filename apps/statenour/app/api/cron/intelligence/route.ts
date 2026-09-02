@@ -68,10 +68,15 @@ export const GET = cronHandler(async () => {
     {
       name: "learning_velocity",
       fn: async () => {
-        const { measureLearningVelocity } = await import(
+        // 2026-09-02 · snapshot*, not measure*. The daily snapshot upsert
+        // used to live inside measureLearningVelocity(), which made the
+        // /brain Memory-tab tRPC QUERY write a row on every render. The
+        // write moved to its own function and this cron is its owner —
+        // a once-a-day snapshot belongs on a once-a-day job.
+        const { snapshotLearningVelocity } = await import(
           "@/lib/brain/learning-velocity"
         );
-        return measureLearningVelocity();
+        return snapshotLearningVelocity();
       },
     },
     {

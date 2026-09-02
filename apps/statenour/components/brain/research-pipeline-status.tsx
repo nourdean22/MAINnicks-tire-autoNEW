@@ -22,12 +22,51 @@ interface PipelineStatus {
   totalClaims: number | null;
   statusCounts: Array<{ status: string; count: number }> | null;
   bestVerificationScore: number | null;
-  promotableNow: number;
+  /**
+   * `null` when the status groupBy REJECTED — nobody read the count, so there
+   * is no number to print. It was typed `number` and the route returned a
+   * `?? 0` fallback, which is how a failed read rendered as "0 promotable now".
+   */
+  promotableNow: number | null;
   candidateRows: number | null;
   thresholds: { strong: number; weak: number };
   gateUnreachable: boolean;
   gateMeaning: string;
   degraded: string[];
+}
+
+/**
+ * The NON-ALARM branch. Named "quiet", not "healthy", because that is all this
+ * branch actually knows.
+ *
+ * `gateUnreachable` is false in two very different worlds, and the route says
+ * so out loud (see its comment at the `gateUnreachable` guard): the gate is
+ * genuinely reachable, OR one of the four reads REJECTED and the route
+ * correctly refused to assert the alarm from missing data. The route's refusal
+ * was right; treating it as a clean bill of health was the defect. So this
+ * branch has to be able to say "unread" and has to carry the `degraded` list
+ * that used to render only inside the alarm card — the one path a rejected
+ * read can never reach.
+ *
+ * Exported so the canary renders all three shapes directly: the effect that
+ * populates `status` never runs under renderToStaticMarkup.
+ */
+export function PipelineQuietLine({ status }: { status: PipelineStatus }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-mono text-(--text-tertiary)">
+        {status.totalClaims ?? "?"} claims ingested ·{" "}
+        {status.promotableNow === null
+          ? "promotable now: unread"
+          : `${status.promotableNow} promotable now`}
+      </p>
+      {status.degraded.length > 0 && (
+        <p className="text-[9px] font-mono text-amber-400/80">
+          degraded reads: {status.degraded.join(", ")}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function ResearchPipelineStatus() {
@@ -72,13 +111,7 @@ export function ResearchPipelineStatus() {
   }
 
   if (!status.gateUnreachable) {
-    // Healthy (or genuinely empty) — one honest line, no alarm.
-    return (
-      <p className="text-[10px] font-mono text-(--text-tertiary)">
-        {status.totalClaims ?? "?"} claims ingested ·{" "}
-        {status.promotableNow} promotable now
-      </p>
-    );
+    return <PipelineQuietLine status={status} />;
   }
 
   return (

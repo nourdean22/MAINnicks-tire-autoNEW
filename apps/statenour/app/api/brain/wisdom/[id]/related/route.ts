@@ -22,8 +22,26 @@ import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { withTracing } from "@/lib/utils/with-tracing";
 import { tagWisdomTopics, topicLabel, type WisdomTopic } from "@/lib/brain/wisdom-topic-tagger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+// 2026-09-02 self-audit, defect #5 · this route carried the second of
+// four copies of the origin registry. Its copy ignored `metadata.origin`
+// and had no `nick_advice_` case, so a row the wisdom tab labelled
+// "Chat scrape" fell through to "uncategorized" in the see-also list on
+// the same page. Deleted; the one registry is `lib/brain/wisdom-origins.ts`.
+import { resolveWisdomOrigin } from "@/lib/brain/wisdom-origins";
 
 export const dynamic = "force-dynamic";
+
+/** Cosine floor · pairs below this are not "related", they're noise. */
+const SIMILARITY_FLOOR = 0.4;
+/**
+ * The candidate pool is ALSO narrowed to confidence >= 0.5 (see the
+ * `findMany` below). Both numbers ship in the response because the
+ * client used to hardcode "0.40" in its empty-state copy — and said
+ * nothing at all about the confidence floor, so a wisdom with no
+ * above-floor neighbours and a wisdom whose neighbours were all
+ * low-confidence read identically.
+ */
+const POOL_CONFIDENCE_FLOOR = 0.5;
 
 interface RelatedWisdom {
   id: string;
@@ -35,24 +53,39 @@ interface RelatedWisdom {
   topicLabels: string[];
 }
 
+/**
+ * Why an empty `related` list is empty. An unembedded row must not look
+ * like a semantically isolated one: the first is a pipeline gap the
+ * operator can fix, the second is a real fact about the corpus.
+ */
+export type RelatedEmptyReason =
+  | "no_embedding_for_anchor"
+  | "anchor_parse_failed"
+  | "empty_pool"
+  | "no_match_above_threshold";
+
 interface CacheEntry {
   computedAt: number;
   related: RelatedWisdom[];
+  /** Cached alongside the list · a cache hit on an empty result used to
+   *  drop the reason and re-open the ambiguity 10 minutes at a time. */
+  reason?: RelatedEmptyReason;
 }
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-function inferOriginFromKey(key: string): string {
-  if (key.startsWith("wisdom_jobs_")) return "steve-jobs";
-  if (key.startsWith("wisdom_satori_")) return "satori";
-  if (key.startsWith("wisdom_buffett_")) return "warren-buffett";
-  if (key.startsWith("wisdom_gates_")) return "bill-gates";
-  if (key.startsWith("wisdom_musk_")) return "elon-musk";
-  if (key.startsWith("wisdom_greene_")) return "greene-laws";
-  if (key.startsWith("wisdom_distilled_")) return "distiller";
-  if (key.startsWith("wisdom_from_")) return "consolidation";
-  return "uncategorized";
+/** Every response carries the two thresholds that shaped the pool. */
+function respond(body: {
+  related: RelatedWisdom[];
+  cached: boolean;
+  reason?: RelatedEmptyReason;
+}): Response {
+  return NextResponse.json({
+    ...body,
+    similarityFloor: SIMILARITY_FLOOR,
+    poolConfidenceFloor: POOL_CONFIDENCE_FLOOR,
+  });
 }
 
 async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
@@ -65,24 +98,35 @@ async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
 
   const cached = cache.get(anchorId);
   if (cached && Date.now() - cached.computedAt < CACHE_TTL_MS) {
-    return NextResponse.json({ related: cached.related, cached: true });
+    return respond({ related: cached.related, cached: true, reason: cached.reason });
   }
 
-  // Pull anchor's embedding
+  // Pull anchor's embedding. NOT cached when absent: an embedding can
+  // land at any time (embed-backfill cron), and a 10-minute cache of
+  // "not embedded" would keep telling the operator so after the fix.
   const anchorEmbedding = await prisma.vectorEmbedding.findFirst({
     where: { sourceType: "brain_memory", sourceId: anchorId },
     select: { embedding: true },
   });
   if (!anchorEmbedding) {
-    return NextResponse.json({ related: [], reason: "no_embedding_for_anchor" });
+    return respond({ related: [], cached: false, reason: "no_embedding_for_anchor" });
   }
 
   // Pull all wisdom IDs (excluding anchor) and their embeddings
   const allWisdomIds = await prisma.brainMemory.findMany({
-    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, id: { not: anchorId }, confidence: { gte: 0.5 } },
-    select: { id: true, key: true, content: true },
+    where: {
+      category: BRAIN_CATEGORIES.WISDOM,
+      deletedAt: null,
+      id: { not: anchorId },
+      confidence: { gte: POOL_CONFIDENCE_FLOOR },
+    },
+    // `metadata` joins the select so the shared resolver can prefer
+    // `metadata.origin` · the deleted local copy read the key only.
+    select: { id: true, key: true, content: true, metadata: true },
   });
-  if (allWisdomIds.length === 0) return NextResponse.json({ related: [] });
+  if (allWisdomIds.length === 0) {
+    return respond({ related: [], cached: false, reason: "empty_pool" });
+  }
 
   const embedRows = await prisma.vectorEmbedding.findMany({
     where: { sourceType: "brain_memory", sourceId: { in: allWisdomIds.map((w) => w.id) } },
@@ -93,7 +137,7 @@ async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
   try {
     anchorVec = JSON.parse(anchorEmbedding.embedding) as number[];
   } catch {
-    return NextResponse.json({ related: [], reason: "anchor_parse_failed" });
+    return respond({ related: [], cached: false, reason: "anchor_parse_failed" });
   }
 
   const wisdomById = new Map(allWisdomIds.map((w) => [w.id, w]));
@@ -104,7 +148,7 @@ async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
       const vec = JSON.parse(row.embedding) as number[];
       if (vec.length !== anchorVec.length) continue;
       const sim = cosineSimilarity(anchorVec, vec);
-      if (sim < 0.4) continue; // floor · don't surface unrelated
+      if (sim < SIMILARITY_FLOOR) continue; // floor · don't surface unrelated
       scored.push({ id: row.sourceId, sim });
     } catch { /* skip */ }
   }
@@ -114,25 +158,31 @@ async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
     const w = wisdomById.get(s.id);
     if (!w) return null;
     const topics = tagWisdomTopics(w.content);
+    const meta = w.metadata as { origin?: string } | null;
     return {
       id: w.id,
       key: w.key,
       content: w.content,
-      origin: inferOriginFromKey(w.key),
+      origin: resolveWisdomOrigin(w.key, meta?.origin ?? null),
       similarity: Math.round(s.sim * 1000) / 1000,
       topics,
       topicLabels: topics.map(topicLabel),
     };
   }).filter((r): r is RelatedWisdom => r !== null);
 
-  cache.set(anchorId, { computedAt: Date.now(), related });
+  // An empty list here IS the semantic answer — the anchor is embedded,
+  // the pool was non-empty, nothing cleared the floor. Say which.
+  const reason: RelatedEmptyReason | undefined =
+    related.length === 0 ? "no_match_above_threshold" : undefined;
+
+  cache.set(anchorId, { computedAt: Date.now(), related, reason });
   // Bound cache size
   if (cache.size > 100) {
     const oldest = [...cache.entries()].sort((a, b) => a[1].computedAt - b[1].computedAt)[0];
     if (oldest) cache.delete(oldest[0]);
   }
 
-  return NextResponse.json({ related, cached: false });
+  return respond({ related, cached: false, reason });
 }
 
 // Auth: handler above invokes requireSession on first line.

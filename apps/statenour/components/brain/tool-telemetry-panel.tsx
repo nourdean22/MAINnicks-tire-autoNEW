@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface ToolStat {
   toolName: string;
@@ -78,11 +79,14 @@ function formatAgo(ms?: number): string {
 
 export function ToolTelemetryPanel() {
   const toolsQuery = trpc.brain.toolTelemetry.useQuery(undefined);
-  const stats = (toolsQuery.data?.stats as ToolStat[] | undefined) ?? [];
+  // `?? []` here would be the same lying-surface idiom the EmptyState
+  // header catalogues: a failed read collapsing into an empty array that
+  // downstream cannot tell apart from a real zero. Keep the null.
+  const stats = (toolsQuery.data?.stats as ToolStat[] | undefined) ?? null;
   const problem = toolsQuery.data?.problem ?? [];
   const drift = toolsQuery.data?.drift;
   const missingEnvKeys = toolsQuery.data?.missingEnvKeys ?? [];
-  
+
   const loading = toolsQuery.isLoading;
   const loadedAt = toolsQuery.dataUpdatedAt || null;
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -97,7 +101,47 @@ export function ToolTelemetryPanel() {
     );
   }
 
-  if (stats.length === 0) {
+  // A TELEMETRY READ FAILURE IS NOT 185 HEALTHY TOOLS.
+  // `getToolStats` used to log and `return []`, and the procedure then
+  // rebuilt every row from TOOL_CATALOG — so a dead database rendered the
+  // whole catalog with `totalCalls: 0`, `successRate: 0`, an empty problem
+  // list, and a green check beside every tool name. The panel had no
+  // isError branch at all because the procedure could not error. It can
+  // now (lib/ai/tool-telemetry.ts `getToolStats` rethrows), and this is
+  // the branch that says so.
+  if (toolsQuery.isError) {
+    return (
+      <div className="rounded-lg border border-red-500/20 bg-red-500/[0.04] p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Wrench size={14} className="text-red-400" />
+          <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
+            Tool telemetry
+          </h2>
+        </div>
+        <EmptyState
+          icon={ShieldAlert}
+          title="Tool telemetry unavailable"
+          provenance="ERROR"
+          tone="warning"
+          why="The telemetry read failed, so nothing is known about which tools are working. That is NOT a clean registry — no tool on this page has been checked."
+          unlock="Retry below. If it keeps failing, the tool_telemetry read is down; check the brain router and the database."
+          cta={{ label: "retry", onClick: () => void toolsQuery.refetch() }}
+        />
+        <p className="text-[9px] font-mono text-red-300/70 break-words text-center">
+          {toolsQuery.error.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (!stats || stats.length === 0) {
+    // Reachable only when the query SUCCEEDED and still produced no rows.
+    // The old copy here said "no tool calls recorded yet — send a chat
+    // message that triggers a tool to populate", which was wrong twice
+    // over: these rows are derived from TOOL_CATALOG, not from calls, so
+    // an empty list means the CATALOG is empty, and calling a tool would
+    // not add one. The genuine "no calls yet" condition is the zero-call
+    // note further down, where the catalog IS populated.
     return (
       <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-4 space-y-2">
         <div className="flex items-center gap-2">
@@ -106,12 +150,22 @@ export function ToolTelemetryPanel() {
             Tool telemetry
           </h2>
         </div>
-        <p className="text-[11px] text-[var(--text-tertiary)]">
-          no tool calls recorded yet — send a chat message that triggers a tool to populate.
-        </p>
+        <EmptyState
+          icon={HelpCircle}
+          title="No tools in the registry"
+          provenance="UNMEASURED"
+          tone="warning"
+          why="The read succeeded but returned no tools at all. Rows here come from TOOL_CATALOG, not from invocations, so an empty list means the catalog itself came back empty — not that no tool has been called."
+          unlock="Check lib/ai/tools/catalog.ts is loaded on the server; calling a tool will not populate this."
+        />
       </div>
     );
   }
+
+  // The condition the old empty state was REACHING for: catalog present,
+  // nothing invoked yet. Now it can actually be told apart from a failed
+  // read (above) and from an empty catalog (also above).
+  const recordedCalls = stats.reduce((n, s) => n + s.totalCalls, 0);
 
   // Filter stats based on search query and category
   const filteredStats = stats.filter((s) => {
@@ -141,6 +195,18 @@ export function ToolTelemetryPanel() {
           </span>
         )}
       </div>
+
+      {recordedCalls === 0 && (
+        <p className="text-[10px] text-amber-300/85 border border-amber-500/20 bg-amber-500/[0.04] rounded px-2 py-1.5 leading-relaxed">
+          <span className="font-mono uppercase tracking-wider text-amber-400">
+            unmeasured, not zero
+          </span>
+          {" — "}
+          the registry loaded ({stats.length} tools) but not one invocation has been
+          recorded, so every ok% below is undefined rather than perfect. Send a chat
+          message that triggers a tool to populate it.
+        </p>
+      )}
 
       {/* Banners: Drift Warning */}
       {drift && (drift.inToolsetMissingFromRegistry.length > 0 || drift.inRegistryMissingFromToolset.length > 0) && (

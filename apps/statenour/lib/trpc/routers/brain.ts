@@ -1759,7 +1759,15 @@ export const brainRouter = router({
     .query(
       async ({
         input,
-      }): Promise<{ consultations: BoardConsultationView[] }> =>
+        // 2026-09-02 · this annotation used to read
+        // `Promise<{ consultations: BoardConsultationView[] }>`, which CAPPED
+        // the tRPC output type and silently stripped `unreadable` on its way
+        // to the client. The service counts rows that failed projection so the
+        // Board tab can say "3 rows unreadable" instead of quietly showing a
+        // short list — the same says-none-means-unknown defect this wave is
+        // clearing. An annotation narrower than the function it wraps deletes
+        // fields with no error anywhere, so keep the two in step.
+      }): Promise<{ consultations: BoardConsultationView[]; unreadable: number }> =>
         listRecentBoardConsultations({ limit: input.limit }),
     ),
 
@@ -1775,24 +1783,29 @@ export const brainRouter = router({
    * Returns null when no snapshot exists OR when deltaFromLast is empty
    * (e.g. first snapshot of a new install · the cron has nothing to
    * compare against).
+   *
+   * 2026-09-02 · the blanket `catch { return null }` is gone. `null` now
+   * means exactly one thing — there is genuinely no delta to show — and a
+   * read failure propagates so the client sees `isError` and can say so.
+   * Conflating the two let a broken Prisma read render as a quiet, healthy
+   * "nothing changed today", which is the worst possible lie for a panel
+   * whose whole job is reporting change. Same fix as `calibrationSummary`
+   * below; established pattern at components/brain/judgment-quality-panel.tsx
+   * ("state unknown, not empty").
    */
   identityDelta: operatorProcedure.query(async () => {
-    try {
-      const row = await prisma.identitySnapshot.findFirst({
-        orderBy: { createdAt: "desc" },
-        select: { deltaFromLast: true, createdAt: true, date: true },
-      });
-      if (!row || !row.deltaFromLast || row.deltaFromLast.trim().length === 0) {
-        return null;
-      }
-      return {
-        delta: row.deltaFromLast,
-        date: row.date,
-        computedAt: row.createdAt.toISOString(),
-      };
-    } catch {
+    const row = await prisma.identitySnapshot.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { deltaFromLast: true, createdAt: true, date: true },
+    });
+    if (!row || !row.deltaFromLast || row.deltaFromLast.trim().length === 0) {
       return null;
     }
+    return {
+      delta: row.deltaFromLast,
+      date: row.date,
+      computedAt: row.createdAt.toISOString(),
+    };
   }),
 
   /**
@@ -1806,25 +1819,21 @@ export const brainRouter = router({
    * time) · hit-rate is the credibility metric (do predictions land
    * at all). Both belong on the page.
    *
-   * Degrades to { resolved: 0, ... } on Prisma failure (silent) ·
-   * the consuming tile hides itself when resolved === 0.
+   * 2026-09-02 · this used to degrade to { resolved: 0, verdict: "unknown" }
+   * on Prisma failure — silently, by design, per the comment that stood here.
+   * The consuming tile hides itself when resolved === 0, so a failed read and
+   * a genuinely quiet 30 days produced the same thing on screen: nothing. A
+   * calibration panel that vanishes when the database is unreachable reports
+   * "your forecasting is fine" at exactly the moment it knows nothing.
+   *
+   * Read failure now propagates: `resolved === 0` means the window really was
+   * empty (still hidden — silent-when-empty is deliberate), and an error
+   * reaches the client as `isError` so the tile renders "state unknown, not
+   * empty" per components/brain/judgment-quality-panel.tsx.
    */
   calibrationSummary: operatorProcedure
     .input(z.object({ days: z.number().int().min(1).max(365).default(30) }).optional())
-    .query(async ({ input }) => {
-      try {
-        return await summarizeCalibration({ days: input?.days ?? 30 });
-      } catch {
-        return {
-          resolved: 0,
-          confirmed: 0,
-          hitRate: null,
-          meanBrier: null,
-          verdict: "unknown" as const,
-          avgClaimVsRealityGap: null,
-        };
-      }
-    }),
+    .query(async ({ input }) => summarizeCalibration({ days: input?.days ?? 30 })),
 
   /**
    * Wave W Phase 4 · 2026-05-24 · unified recall inbox.

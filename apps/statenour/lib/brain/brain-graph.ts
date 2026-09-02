@@ -197,6 +197,46 @@ function finalizeGraph(
   };
 }
 
+/**
+ * Node cap. One implementation for the home clamp and for the route's
+ * `?limit=` knob, because they want the same three things and getting any
+ * of them wrong produces a graph that lies:
+ *
+ *   1. PINNED FIRST — the focus node of a focused neighbourhood survives
+ *      its own payload no matter how light it is.
+ *   2. ANCHORS NEXT — system seeds are the map's skeleton; dropping one by
+ *      weight would strand the domain edges that point at it.
+ *   3. EDGES FOLLOW NODES — an edge whose endpoint did not survive is
+ *      dropped with it, so the result never carries a dangling reference.
+ *
+ * Copies before sorting: the home clamp used to sort `nodes` in place,
+ * mutating the array the rest of the builder still held.
+ */
+function clampToBudget(
+  nodes: BrainGraphNode[],
+  edges: BrainGraphEdge[],
+  budget: number,
+  pinnedId?: string,
+): { nodes: BrainGraphNode[]; edges: BrainGraphEdge[] } {
+  // Only an ABSENT budget skips the pass. A finite budget still sorts even
+  // when nothing needs dropping, so the home card's node order (anchors
+  // first, then heaviest) is identical whether or not the clamp bites —
+  // the previous home clamp always sorted, and an early return on
+  // `nodes.length <= budget` would have silently changed that ordering for
+  // every graph under 70 nodes.
+  if (!Number.isFinite(budget) || budget < 1) return { nodes, edges };
+  const rank = (n: BrainGraphNode) =>
+    n.id === pinnedId ? 2 : n.metadata?.source === "system_seed" ? 1 : 0;
+  const kept = [...nodes]
+    .sort((a, b) => rank(b) - rank(a) || b.weight - a.weight)
+    .slice(0, budget);
+  const keptIds = new Set(kept.map((n) => n.id));
+  return {
+    nodes: kept,
+    edges: edges.filter((e) => keptIds.has(e.source) && keptIds.has(e.target)),
+  };
+}
+
 /** Life-domain anchors. Real, operator-defined structure — kept. The six
  *  fossil AI/UI nodes that used to live here are gone. */
 const SYSTEM_ANCHORS: BrainGraphNode[] = [
@@ -270,6 +310,20 @@ export async function getBrainGraph(params: {
   const minConfidence = params.minConfidence ?? 0.5;
   const depth = params.depth ?? 2;
   const isHome = scope === "home";
+
+  // `limit` is a real cap as of 2026-09-02. It was declared in this
+  // signature, parsed by the route and forwarded to this call
+  // (app/api/brain/graph/route.ts:53,64) while the function never read it:
+  // `?scope=full&limit=10` returned the entire payload, and the route's
+  // own docstring advertised the knob. A parameter that is documented,
+  // parsed, forwarded and ignored is worse than an absent one — the caller
+  // gets a plausible-looking response with no way to tell it did nothing.
+  // Non-numeric / non-finite / <1 values mean "no cap" rather than an
+  // error, matching how `depth` and `minConfidence` treat junk input.
+  const nodeBudget =
+    typeof params.limit === "number" && Number.isFinite(params.limit) && params.limit >= 1
+      ? Math.floor(params.limit)
+      : null;
 
   const counts = isHome
     ? { missions: 10, tasks: 12, goals: 8, dumps: 5, reflections: 5, decisions: 5, people: 5, memories: 8 }
@@ -399,6 +453,24 @@ export async function getBrainGraph(params: {
 
   const now = Date.now();
   const ageDaysOf = (d: Date) => Math.floor((now - d.getTime()) / DAY_MS);
+  /**
+   * Age in days, or undefined when the row carries no usable timestamp.
+   *
+   * Domain rows arrive here as `Record<string, any>` (see `type Row`
+   * below), so there is no compile-time guarantee that a column is
+   * present — and an exception thrown inside a node mapper escapes
+   * getBrainGraph entirely, taking the WHOLE brain down. That is exactly
+   * the failure class contract #1 at the top of this file exists to
+   * prevent: a domain that cannot answer must arrive named in `degraded`,
+   * never as a crash. `PersonProfile.createdAt` is non-nullable today
+   * (`@default(now())`), so this guards a row-shape surprise — a narrower
+   * `select`, a raw query, a migration — not a known null.
+   *
+   * NOTE: the seven older mappers still call `ageDaysOf` unguarded. Left
+   * alone deliberately rather than swept up with this change.
+   */
+  const ageDaysOrUndefined = (d: unknown): number | undefined =>
+    d instanceof Date && !Number.isNaN(d.getTime()) ? ageDaysOf(d) : undefined;
 
   // ── 2. Map database rows → nodes ────────────────────────────────────
   dbMissions.forEach((m) => {
@@ -532,6 +604,7 @@ export async function getBrainGraph(params: {
     let status: BrainGraphNode["status"] = "active";
     if (p.trustScore < 0.4) status = "risk";
     else if (p.trustScore > 0.8) status = "opportunity";
+    const personAgeDays = ageDaysOrUndefined(p.createdAt);
     addNode({
       id: p.id,
       type: "person",
@@ -539,6 +612,16 @@ export async function getBrainGraph(params: {
       weight: Math.min(10, Math.max(3, Math.floor(p.trustScore * 10))),
       status,
       href: `/people`,
+      // Every other database-backed mapper in this file sets these; the
+      // person mapper was the one that did not, and the client's LAST 30D
+      // lens matches on `ageDays` (components/home/home-brain-graph.tsx).
+      // A person added yesterday could therefore never appear under
+      // "recent" — the lens silently excluded an entire node type rather
+      // than showing an empty result the operator could question.
+      // Undefined (not 0) when the row has no timestamp: an unknown age
+      // must not read as "created today".
+      ageDays: personAgeDays,
+      isNew: personAgeDays === undefined ? undefined : personAgeDays < 7,
       metadata: {
         source: "database",
         role: p.role,
@@ -710,8 +793,22 @@ export async function getBrainGraph(params: {
         }
         const unresolved = !parsed.status || parsed.status === "unresolved";
         if (!unresolved || !parsed.new_memory_id || !parsed.old_memory_id) return;
-        contradictionCount += 1;
+        // The counter belongs INSIDE the membership test, not above it.
+        // `contradictionCount` is documented on BrainGraphPayload as
+        // "unresolved contradiction pairs present in THIS payload"; above
+        // the test it counted the CORPUS. The two populations are not
+        // close: this query takes 200 rows while the memory domain takes
+        // 30 (`counts.memories`), so most counted pairs had no edge and no
+        // halo anywhere in the picture the operator was looking at. A
+        // number that describes a different population than the graph
+        // beside it is a wrong number, not a bonus one.
+        //
+        // The corpus-wide total is deliberately NOT reported here. A
+        // surface that wants "unresolved pairs you CANNOT see in this
+        // view" — a real and useful reading — needs its own field, so
+        // that neither number has to be interpreted through a comment.
         if (nodeIds.has(parsed.new_memory_id) && nodeIds.has(parsed.old_memory_id)) {
+          contradictionCount += 1;
           addEdge({
             source: parsed.new_memory_id,
             target: parsed.old_memory_id,
@@ -775,9 +872,17 @@ export async function getBrainGraph(params: {
         currentQueue = nextQueue;
         if (currentQueue.length === 0) break;
       }
+      // Pin the focus node: a caller who asked for THIS node's
+      // neighbourhood must not get a payload the node itself fell out of.
+      const focusClamped = clampToBudget(
+        Array.from(focusNodesMap.values()),
+        focusEdges,
+        nodeBudget ?? Infinity,
+        focusNode.id,
+      );
       return finalizeGraph({
-        nodes: Array.from(focusNodesMap.values()),
-        edges: focusEdges,
+        nodes: focusClamped.nodes,
+        edges: focusClamped.edges,
         scope: "focus",
         semantic: scope === "semantic",
         degraded,
@@ -788,20 +893,12 @@ export async function getBrainGraph(params: {
 
   // ── 6. Home clamp ───────────────────────────────────────────────────
   if (isHome) {
-    const filteredNodes = nodes
-      .sort((a, b) => {
-        if (a.metadata?.source === "system_seed" && b.metadata?.source !== "system_seed") return -1;
-        if (a.metadata?.source !== "system_seed" && b.metadata?.source === "system_seed") return 1;
-        return b.weight - a.weight;
-      })
-      .slice(0, 70);
-    const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
-    const filteredEdges = edges.filter(
-      (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target),
-    );
+    // An explicit `limit` can only TIGHTEN the home clamp — the card's own
+    // 70-node budget is a layout constraint, not a caller preference.
+    const homeClamped = clampToBudget(nodes, edges, Math.min(70, nodeBudget ?? 70));
     return finalizeGraph({
-      nodes: filteredNodes,
-      edges: filteredEdges,
+      nodes: homeClamped.nodes,
+      edges: homeClamped.edges,
       scope: "home",
       semantic: false,
       degraded,
@@ -809,9 +906,10 @@ export async function getBrainGraph(params: {
     });
   }
 
+  const clamped = clampToBudget(nodes, edges, nodeBudget ?? Infinity);
   return finalizeGraph({
-    nodes,
-    edges,
+    nodes: clamped.nodes,
+    edges: clamped.edges,
     scope: scope === "semantic" ? "semantic" : "full",
     semantic: scope === "semantic",
     degraded,

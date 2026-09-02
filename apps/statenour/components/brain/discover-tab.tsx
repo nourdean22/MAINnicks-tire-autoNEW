@@ -16,7 +16,10 @@
  * precisely BECAUSE it is labelled; the boundary is what makes the freedom
  * safe.
  *
- * 2026-08-22 · THIS SURFACE WAS TELLING THREE LIES. Measured against prod:
+ * THINGS THIS SURFACE HAS BEEN CAUGHT ASSERTING FALSELY. 1-3 were measured
+ * against prod on 2026-08-22; 4 was found in the 2026-09-02 self-audit. No
+ * count in the sentence: it was "THREE LIES" and went stale the first time a
+ * fourth was found.
  *
  *  1. The badge said 56 while 242 unrated rows sat in the window. The service
  *     returns `truncated` precisely so the cap is never silent, and this
@@ -40,6 +43,15 @@
  *     says so out loud — describeJudgeOutcome, rendered below — because the
  *     only thing worse than an effect that does not exist is one that does and
  *     is invisible.
+ *
+ *  4. 2026-09-02 · the empty state named TWO causes when there are FOUR. It
+ *     asserted "both are real zeros here" even while the two disclosure blocks
+ *     directly above it were reporting withheld rows. It is now derived by
+ *     discoverEmptyState() and reads SUPPRESSED — "hidden by design" — the
+ *     moment anything is being withheld. Same wave: an escalated blind spot
+ *     could never reach the amber "it is back because severity rose" banner
+ *     below, because the judged-identity filter re-suppressed it via a sibling
+ *     that still carried the old verdict (lib/brain/discoveries.ts).
  *
  * The `[CRITICAL]` / `[HIGH]` tier prefix is no longer rendered. 92.5% of all
  * blind spots ever written carry one of those two tiers, so as a display label
@@ -130,8 +142,16 @@ function cardText(content: string): string {
   return content.replace(/^\[[A-Z]+\]\s*/, "");
 }
 
-/** Indexed by SEVERITY_RANK (lib/brain/blind-spot-identity.ts). */
-const SEVERITY_WORD = ["low", "medium", "high", "critical"];
+/**
+ * Indexed by SEVERITY_RANK (lib/brain/blind-spot-identity.ts).
+ *
+ * Exported so the canary can bind this array to the ONLY producer of the index
+ * it is read with: `history[...].severityRank`, written by persistBlindSpot.
+ * A rank this array cannot index renders "severity rose from undefined to
+ * critical" in the banner below — which is why shouldResurface() refuses a
+ * null rank rather than defaulting one.
+ */
+export const SEVERITY_WORD = ["low", "medium", "high", "critical"];
 
 /**
  * The tier a resurfaced card is showing NOW, read from the stored prefix that
@@ -141,6 +161,55 @@ const SEVERITY_WORD = ["low", "medium", "high", "critical"];
 function currentSeverityWord(content: string): string {
   const tag = content.match(/^\[([A-Z]+)\]/)?.[1]?.toLowerCase();
   return tag && SEVERITY_WORD.includes(tag) ? tag : "a higher tier";
+}
+
+/**
+ * What an empty card list is allowed to claim.
+ *
+ * THE OLD COPY NAMED TWO CAUSES AND THERE ARE FOUR. It asserted "the queue is
+ * genuinely empty… every recent discovery already has a verdict, or the
+ * engines found nothing this cycle. Both are real zeros here." — unconditional.
+ * But `items` is also empty when every remaining unrated row was WITHHELD:
+ * restored rows (the 2026-08-16 rescue pile) or judged twins (the 2026-08-28
+ * suppression). Those two are counted, and disclosed by the toggle blocks
+ * above, yet the empty state underneath them still declared a measured zero —
+ * so the surface simultaneously said "237 hidden" and "both are real zeros".
+ *
+ * When anything is withheld this is not a ZERO at all; it is EmptyState's own
+ * SUPPRESSED — "hidden by design" — which is exactly what it is, and the
+ * counts and the un-hide toggles are already rendered directly above it.
+ *
+ * Exported pure so the canary can assert the claim rather than the markup: the
+ * component's tRPC query never resolves under renderToStaticMarkup.
+ */
+export function discoverEmptyState(s: {
+  restoredHidden: number;
+  suppressedSimilar: number;
+  truncated: boolean;
+}):
+  | { provenance: "ZERO"; title: string; why: string; unlock: string }
+  | { provenance: "SUPPRESSED"; title: string } {
+  const withheld = s.restoredHidden + s.suppressedSimilar;
+  if (withheld > 0) {
+    // A floor ONLY when the suppressed half is bounded by the card scan.
+    // restoredHidden is its own exact scoped SQL count (see the block above),
+    // so appending "+" to a pile made only of restored rows would repeat the
+    // exact "presented an exact 237 as a lower bound" defect.
+    const floor = s.truncated && s.suppressedSimilar > 0 ? "+" : "";
+    return {
+      provenance: "SUPPRESSED",
+      title: `No card left to judge — ${withheld}${floor} unrated row${
+        withheld === 1 ? "" : "s"
+      } withheld above`,
+    };
+  }
+  return {
+    provenance: "ZERO",
+    title: "Nothing new to judge",
+    why: "This surface read successfully, nothing is being withheld, and the queue is genuinely empty. What it CANNOT tell you is which of the two remaining causes produced that: every recent discovery already has a verdict, or the engines found nothing this cycle. Both are real zeros here.",
+    unlock:
+      "The brain-intelligence cron runs nightly — check back tomorrow, or include judged items above.",
+  };
 }
 
 export function DiscoverTab() {
@@ -212,6 +281,7 @@ export function DiscoverTab() {
   const truncated = query.data?.truncated ?? false;
   const restoredHidden = query.data?.restoredHidden ?? 0;
   const suppressedSimilar = query.data?.suppressedSimilar ?? 0;
+  const empty = discoverEmptyState({ restoredHidden, suppressedSimilar, truncated });
 
   return (
     <div className="space-y-4">
@@ -277,7 +347,12 @@ export function DiscoverTab() {
         <p className="rounded-lg border border-glass bg-white/[0.02] px-3 py-2 text-[11px] text-fg-secondary">
           {/* The visible effect of a judgment (learning-loops wave 2026-08-28):
               an invisible suppression is indistinguishable from no effect. A
-              floor when the card scan stopped early, same as the badge. */}
+              floor when the card scan stopped early, same as the badge.
+              "regenerated copies" is only true because listDiscoveries now
+              EXEMPTS deliberately resurfaced rows from this count — they were
+              landing here, so an escalation the recurrence policy performed on
+              purpose was described to the operator as a duplicate, and the
+              amber banner below could never render for it. */}
           <span className="font-mono uppercase tracking-wider">
             {suppressedSimilar}
             {truncated ? "+" : ""} suppressed
@@ -305,13 +380,20 @@ export function DiscoverTab() {
       )}
 
       {items.length === 0 ? (
-        <EmptyState
-          icon={Sparkles}
-          title="Nothing new to judge"
-          provenance="ZERO"
-          why="This surface read successfully and the queue is genuinely empty. What it CANNOT tell you is which upstream cause produced that: every recent discovery already has a verdict, or the engines found nothing this cycle. Both are real zeros here."
-          unlock="The brain-intelligence cron runs nightly — check back tomorrow, or include judged items above."
-        />
+        empty.provenance === "SUPPRESSED" ? (
+          // No icon: EmptyState's SUPPRESSED path renders one quiet line and
+          // ignores it. The counts and the un-hide toggles are already
+          // directly above, which is where the operator acts.
+          <EmptyState title={empty.title} provenance="SUPPRESSED" />
+        ) : (
+          <EmptyState
+            icon={Sparkles}
+            title={empty.title}
+            provenance="ZERO"
+            why={empty.why}
+            unlock={empty.unlock}
+          />
+        )
       ) : (
         <div className="space-y-3">
           {items.map((d) => {

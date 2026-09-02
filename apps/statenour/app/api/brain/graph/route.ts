@@ -8,9 +8,17 @@
  *     churn and separates degree-0 nodes into `unlinked[]` — 2026-09-02)
  *   · ?focus=<nodeId> (focus neighborhood center)
  *   · ?depth=1|2|3 (BFS neighborhood depth, default 2)
+ *   · ?limit=N (max nodes; heaviest kept, anchors and the focus node
+ *     survive first, edges that lose an endpoint are dropped with it)
+ *
+ * `limit` moved out of "Legacy" on 2026-09-02 because until then it was
+ * only HALF true: the legacy branch below honoured it, while the scope/
+ * focus branch parsed it, forwarded it to getBrainGraph, and got the full
+ * payload back — the function never read the parameter. Advertising a knob
+ * that is silently ignored on the branch every current caller uses is the
+ * defect; `getBrainGraph` now applies it on all three of its return paths.
  *
  * Legacy:
- *   · ?limit=200 (max nodes)
  *   · ?minConfidence=0.5 (filter weak memories)
  *   · ?categories=wisdom,insight,pattern (filter list)
  *   · ?minEdgeScore=0.6 (filter weak semantic edges)

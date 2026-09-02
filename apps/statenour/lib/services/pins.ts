@@ -2,9 +2,17 @@
  * Pinned-memory service · Phase YY (2026-05-19 AM).
  *
  * Nour's always-loaded context slots · pinned BrainMemory rows with
- * category="pinned_user" · confidence=1.0 · expiresAt=null. The
- * system prompt at `lib/ai/system-prompt.ts` reads pinned_user every
- * turn and injects the top-5 into a "Pinned by Nour" block.
+ * category="pinned_user" · confidence=1.0 · expiresAt=null.
+ *
+ * How many actually reach the model: `PINNED_PROMPT_CAP` pins, at
+ * `PINNED_PROMPT_CHARS` each, both declared in lib/ai/prompt/v2/
+ * renderer.ts. This header used to say "the system prompt at
+ * lib/ai/system-prompt.ts reads pinned_user every turn and injects the
+ * top-5" — wrong module and wrong number. The read is
+ * lib/ai/context/command-center-state.ts, and it is the v2 renderer that
+ * injects. `listPins` itself is the FULL roster (top 50), which is what
+ * an operator surface should render; only the `stats` envelope below
+ * speaks about injection, and it does so with the injector's numbers.
  *
  * Called by BOTH the legacy `/api/brain/pinned` endpoints AND the new
  * `trpc.brain.{pinned,createPin,updatePin,deletePin}` procedures ·
@@ -16,6 +24,10 @@ import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { softDelete } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  PINNED_PROMPT_CAP,
+  renderPinnedLine,
+} from "@/lib/ai/prompt/v2/renderer";
 
 interface PinMetadata {
   label?: string;
@@ -101,9 +113,19 @@ export async function listPins(args: { withStats?: boolean } = {}): Promise<Reco
       }
     }
 
-    const top5Chars = pins
-      .slice(0, 5)
-      .reduce((sum, p) => sum + Math.min(p.content.length, 260), 0);
+    // 2026-09-02 · this block used to invent its own injection numbers:
+    // `Math.min(pins.length, 5)` and a 260-char-per-pin preview, neither of
+    // which matched the renderer (no cap, 200 chars) or the query that fed
+    // it (`take: 6`). The /pins page header (app/(mastery)/pins/page.tsx:
+    // 291-292) prints both, so the operator read a fabricated cap and a
+    // fabricated token cost on a second surface. Both now come from the
+    // injector itself, and the cost is measured by rendering the actual
+    // prompt line rather than by guessing at a preview width.
+    const injected = pins.slice(0, PINNED_PROMPT_CAP);
+    const injectedChars = injected.reduce(
+      (sum, p) => sum + renderPinnedLine(p).length,
+      0,
+    );
 
     payload.stats = {
       freshPins,
@@ -112,8 +134,8 @@ export async function listPins(args: { withStats?: boolean } = {}): Promise<Reco
       totalChars,
       avgChars: pins.length > 0 ? Math.round(totalChars / pins.length) : 0,
       bySource,
-      injectedCount: Math.min(pins.length, 5),
-      estimatedPromptTokens: Math.round(top5Chars / 4),
+      injectedCount: injected.length,
+      estimatedPromptTokens: Math.round(injectedChars / 4),
       oldestUpdatedAt: oldest ? oldest.updatedAt.toISOString() : null,
     };
   }

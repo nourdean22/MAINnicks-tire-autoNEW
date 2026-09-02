@@ -23,6 +23,7 @@ import { AI_GENERATION_SUCCESS_STATUSES as GENERATION_SUCCESS } from "@/lib/ai/g
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { PINNED_PROMPT_CAP } from "@/lib/ai/prompt/v2/renderer";
 import { cached } from "@/lib/utils/cache";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
 
@@ -498,12 +499,26 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         },
       })
       .catch(() => [] as Array<ReflectionRow>),
-    // v9.1.8 · User-pinned permanent memory. Top 6 by recent activity.
+    // v9.1.8 · User-pinned permanent memory, most recently touched first.
+    //
+    // 2026-09-02 · `take` is PINNED_PROMPT_CAP, not a literal. This query
+    // WAS the real injection cap — the v2 renderer had no slice, so
+    // whatever this returned went into the prompt verbatim — while three
+    // other modules each wrote down their own idea of that number and the
+    // operator panel published the wrong one. The cap now lives with the
+    // injector (lib/ai/prompt/v2/renderer.ts) and this query follows it, so
+    // it never fetches a row the prompt would drop.
+    //
+    // NOTE for anyone adding a non-prompt consumer: this slice exists to
+    // feed the system prompt. The full pin roster (top 50, with stats) is
+    // `listPins()` in lib/services/pins.ts — reading THIS field to render
+    // a pin list is the defect the panel shipped for months, which showed
+    // "6 pinned" whether the operator had 6 pins or 60.
     prisma.brainMemory
       .findMany({
         where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null },
         orderBy: { updatedAt: "desc" },
-        take: 6,
+        take: PINNED_PROMPT_CAP,
         select: {
           id: true,
           key: true,
