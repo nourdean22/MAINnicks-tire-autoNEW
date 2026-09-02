@@ -32,12 +32,12 @@ export interface LlmCallRecord {
 
 let warnedOnce = false;
 
-export function ledgerEnabled(): boolean {
+function ledgerEnabled(): boolean {
   return process.env.LLM_LEDGER_ENABLED === "true";
 }
 
 /** Provider is derived from the model id — the only stable signal we have. */
-export function providerForModel(model: string): "ollama" | "gemini" | "openai" | "anthropic" | "unknown" {
+function providerForModel(model: string): "ollama" | "gemini" | "openai" | "anthropic" | "unknown" {
   const m = model.toLowerCase();
   if (m.startsWith("gemini") || m.startsWith("google/")) return "gemini";
   if (m.startsWith("gpt") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")) return "openai";
@@ -52,7 +52,7 @@ export function providerForModel(model: string): "ollama" | "gemini" | "openai" 
  * prefixed `[lane:<name>]`, or we fall back to "unlabeled". Kept deliberately
  * dumb: a lane label that is wrong is worse than "unlabeled".
  */
-export function laneForParams(params: InvokeParams): string {
+function laneForParams(params: InvokeParams): string {
   const first = params.messages?.[0];
   const content = first && typeof first.content === "string" ? first.content : "";
   const m = /^\[lane:([a-z0-9_-]{2,48})\]/i.exec(content.trim());

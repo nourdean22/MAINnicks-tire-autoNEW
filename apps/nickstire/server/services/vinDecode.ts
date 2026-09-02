@@ -27,7 +27,7 @@ export interface VinDecodeResult {
 
 const cache = new Map<string, VinDecodeResult | null>();
 
-export function normalizeVin(raw: string | null | undefined): string | null {
+function normalizeVin(raw: string | null | undefined): string | null {
   const v = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   // 17 chars, no I/O/Q per ISO 3779.
   return /^[A-HJ-NPR-Z0-9]{17}$/.test(v) ? v : null;
@@ -87,6 +87,3 @@ export function mergeDecoded<T extends { year?: string | null; make?: string | n
   if (!filled.model && decoded.model) { filled.model = decoded.model; touched = true; }
   return touched ? { ...filled, vinDecodedFrom: "vpic" as const } : filled;
 }
-
-/** Test seam. */
-export function __clearVinCache(): void { cache.clear(); }

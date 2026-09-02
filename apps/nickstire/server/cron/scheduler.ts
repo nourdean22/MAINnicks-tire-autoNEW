@@ -2604,8 +2604,8 @@ function buildTiers(): void {
   });
 }
 
-/** Idempotent: builds the tier table once; safe for read-only callers. */
-export function ensureTiersBuilt(): void {
+/** Idempotent: builds the tier table once; safe for read-only callers (getJobCadences calls it). */
+function ensureTiersBuilt(): void {
   if (tiers.length === 0) buildTiers();
 }
 

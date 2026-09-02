@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getJobCadences } from "../server/cron/scheduler";
 import { getRegisteredJobNames } from "../server/cron/index";
-import { buildCronInventoryMarkdown, parseExistingPurposes } from "../server/cron/cronInventory";
+import { buildCronInventoryMarkdown, parseExistingPurposes, parseInventoryJobNames } from "../server/cron/cronInventory";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const docPath = path.resolve(here, "..", "docs", "operations", "CRON-INVENTORY.md");
@@ -28,4 +28,8 @@ const md = buildCronInventoryMarkdown({
   generatedOn: new Date().toISOString().slice(0, 10),
 });
 fs.writeFileSync(docPath, md, "utf8");
-console.log(`wrote ${path.relative(process.cwd(), docPath)} (${md.length} bytes)`);
+// Read the doc back through the parser the parity test uses — a generator
+// whose output its own parser cannot read would pass here and fail in CI.
+const rows = parseInventoryJobNames(md).size;
+if (rows === 0) throw new Error("generated inventory has no parseable job rows");
+console.log(`wrote ${path.relative(process.cwd(), docPath)} (${md.length} bytes, ${rows} job rows)`);

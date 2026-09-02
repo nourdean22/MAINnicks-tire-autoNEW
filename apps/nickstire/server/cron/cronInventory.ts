@@ -19,8 +19,8 @@ export interface InventoryInput {
   generatedOn: string;
 }
 
-export const CRON_INVENTORY_BEGIN = "<!-- generated:begin — do not edit by hand; run pnpm exec tsx scripts/gen-cron-inventory.mts -->";
-export const CRON_INVENTORY_END = "<!-- generated:end -->";
+const CRON_INVENTORY_BEGIN = "<!-- generated:begin — do not edit by hand; run pnpm exec tsx scripts/gen-cron-inventory.mts -->";
+const CRON_INVENTORY_END = "<!-- generated:end -->";
 
 const TIER_ORDER = ["heartbeat", "pulse", "hourly", "daily", "briefings"];
 

@@ -20,12 +20,7 @@ export interface SmsOutcomeShape {
 
 export type SmsOutcome = "sent" | "queued" | "uncertain" | "failed";
 
-/** True only when the gateway accepted the message NOW — not queued, not uncertain. */
-export function smsDelivered(result: SmsOutcomeShape | null | undefined): boolean {
-  return !!result && result.success === true && !result.queued && !result.uncertain;
-}
-
-/** Four-way classification for receipts and counters. */
+/** Four-way classification for receipts and counters. "sent" means the gateway accepted the message NOW — not queued, not uncertain. */
 export function smsOutcome(result: SmsOutcomeShape | null | undefined): SmsOutcome {
   if (!result || result.success !== true) return "failed";
   if (result.queued) return "queued";
