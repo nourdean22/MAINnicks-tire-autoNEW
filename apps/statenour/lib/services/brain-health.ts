@@ -52,8 +52,16 @@ export interface MemoryHealthReport {
     live: number;
     permanent: number;
     decayed: number;
+    /** Every row carrying an embedding, telemetry included. */
     vectorized: number;
+    /** vectorized / live. STRUCTURALLY CAPPED below 100% — see
+     *  knowledgeVectorizedPct. Kept because it is the honest raw row count. */
     vectorizedPct: number;
+    /** Embedded rows in categories that are ALLOWED to be embedded. */
+    knowledgeVectorized: number;
+    /** knowledgeVectorized / knowledge — the only coverage figure that can
+     *  reach 100%, and the one the UI shows. */
+    knowledgeVectorizedPct: number;
     categoryCount: number;
     /** Rows in embedding-policy TELEMETRY_CATEGORIES — logs, scores, probes. */
     telemetry: number;
@@ -62,6 +70,59 @@ export interface MemoryHealthReport {
   };
   categories: CategoryHealth[];
   flags: Array<{ category: string; flag: string }>;
+}
+
+/** Dedup markers — written to be counted, never to be recalled. */
+const ALWAYS_SKIP_VEC = new Set(["alert_pushed"]);
+
+/**
+ * Which categories look unhealthy.
+ *
+ * Pure, and exported, so the canary can prove the alarm still FIRES without
+ * standing up a database. That matters more than usual here, because the
+ * 2026-09-02 fix below is a narrowing: the easiest way to "fix" a noisy alarm
+ * is to make it silent, and this alarm guards the defect that once left 83.5%
+ * of the brain unreachable by recall.
+ *
+ * ── 2026-09-02 · TELEMETRY IS NOT UNHEALTHY ──────────────────────────
+ * `lib/brain/embedding-policy.ts` TELEMETRY_CATEGORIES is a deliberate
+ * denylist: those rows are event logs, and embedding a log line puts it in the
+ * same space as reasoning where it competes for a finite number of recall
+ * slots. The backfill cron and the drain script both exclude them.
+ *
+ * This function used to flag them anyway, skipping only `alert_pushed` — so
+ * the live page showed NINE red `no_vectors` flags, every one of them a
+ * category being faulted for lacking exactly what policy forbids it to have.
+ * `all_decayed` was the same mistake in a different coat: all 1,056
+ * `memory_gateway_shadow` rows sit at confidence 0.1 because
+ * memory-commit-gateway.ts writes them at 0.1 — min = max = 0.1 on prod, so
+ * nothing decayed, they were born below the 0.2 threshold the flag calls decay.
+ *
+ * Ten of eleven flags were noise. That is worse than no panel: an operator who
+ * learns the flags are meaningless stops reading them, and a REAL one arrives
+ * as item twelve in a list already known to be junk.
+ *
+ * `dormant_30d` deliberately still applies to telemetry — a log category that
+ * stopped being written means a writer died, which is real signal whatever the
+ * category holds.
+ */
+export function computeHealthFlags(
+  categories: readonly CategoryHealth[],
+): Array<{ category: string; flag: string }> {
+  const flags: Array<{ category: string; flag: string }> = [];
+  for (const c of categories) {
+    if (c.count <= 5) continue;
+    if (c.vectorized === 0 && !c.telemetry && !ALWAYS_SKIP_VEC.has(c.category)) {
+      flags.push({ category: c.category, flag: "no_vectors" });
+    }
+    if (c.decayed === c.count && !c.telemetry) {
+      flags.push({ category: c.category, flag: "all_decayed" });
+    }
+    if (c.ageNewestHours !== null && c.ageNewestHours > 24 * 30) {
+      flags.push({ category: c.category, flag: "dormant_30d" });
+    }
+  }
+  return flags;
 }
 
 /**
@@ -144,23 +205,20 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
     0,
   );
 
-  // Find categories that look unhealthy:
-  //   · >0 rows but 0% vectorized AND not in the always-skip list
-  //   · all rows decayed (auto-resolved cleanup ran on everything)
-  //   · newest row >30 days old (category is dormant)
-  const ALWAYS_SKIP_VEC = new Set(["alert_pushed"]); // dedup markers — never embed
-  const flags: Array<{ category: string; flag: string }> = [];
-  categories.forEach((c) => {
-    if (c.count > 5 && c.vectorized === 0 && !ALWAYS_SKIP_VEC.has(c.category)) {
-      flags.push({ category: c.category, flag: "no_vectors" });
-    }
-    if (c.count > 5 && c.decayed === c.count) {
-      flags.push({ category: c.category, flag: "all_decayed" });
-    }
-    if (c.ageNewestHours !== null && c.ageNewestHours > 24 * 30 && c.count > 5) {
-      flags.push({ category: c.category, flag: "dormant_30d" });
-    }
-  });
+  // 2026-09-02 · the VECTORIZATION bar read `vectorized / live` and was
+  // therefore capped at 93.4% on prod and could never reach 100%, because
+  // `live` includes the 5,169 telemetry rows that embedding-policy FORBIDS
+  // embedding. A progress bar whose denominator contains rows the numerator
+  // structurally excludes reports permanent incompleteness as a backlog.
+  // Measured the same day: 93.40% shown, 99.967% of knowledge actually
+  // covered, 24 knowledge rows genuinely missing — not 5,187.
+  const totalKnowledge = totalLive - totalTelemetry;
+  const knowledgeVec = categories.reduce(
+    (s, c) => s + (c.telemetry ? 0 : c.vectorized),
+    0,
+  );
+
+  const flags = computeHealthFlags(categories);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -171,9 +229,14 @@ export async function buildMemoryHealth(): Promise<MemoryHealthReport> {
       vectorized: totalVec,
       vectorizedPct:
         totalLive === 0 ? 0 : Math.round((totalVec / totalLive) * 1000) / 10,
+      knowledgeVectorized: knowledgeVec,
+      knowledgeVectorizedPct:
+        totalKnowledge === 0
+          ? 0
+          : Math.round((knowledgeVec / totalKnowledge) * 1000) / 10,
       categoryCount: categories.length,
       telemetry: totalTelemetry,
-      knowledge: totalLive - totalTelemetry,
+      knowledge: totalKnowledge,
     },
     categories,
     flags,
