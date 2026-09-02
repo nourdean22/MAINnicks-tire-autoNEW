@@ -21,10 +21,24 @@ export async function register() {
   // Sentry uses the runtime-specific config files so Node and Edge keep their
   // own SDK boundaries. Both configs fail closed when no DSN is configured.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("./sentry.server.config");
+    // ORDER IS LOAD-BEARING (2026-09-02). Sentry.init registers the global
+    // OpenTelemetry tracer provider, and @opentelemetry/api refuses a second
+    // registration SILENTLY (keeping the first). So the Langfuse span
+    // processor must be built BEFORE Sentry and handed to it - riding on
+    // Sentry's provider - or every AI SDK span is dropped while
+    // `langfuse_started` still appears in the boot log. That is exactly what
+    // production did between #2074 and this change.
+    const { buildLangfuseSpanProcessor, markLangfuseAttachedToHostProvider } = await import(
+      "@/lib/observability/langfuse"
+    );
+    const langfuseProcessor = await buildLangfuseSpanProcessor().catch(() => null);
+    const { initSentryServer } = await import("./sentry.server.config");
+    initSentryServer(langfuseProcessor ? [langfuseProcessor] : []);
+    if (langfuseProcessor) markLangfuseAttachedToHostProvider();
   }
   if (process.env.NEXT_RUNTIME === "edge") {
-    await import("./sentry.edge.config");
+    const { initSentryEdge } = await import("./sentry.edge.config");
+    initSentryEdge();
   }
 
   // 2026-07-22 · EDGE-GRAPH GATE (fixed the Railway build break). Next compiles

@@ -28,6 +28,25 @@ vi.mock("@langfuse/otel", () => ({
     }
   },
 }));
+vi.mock("@opentelemetry/api", () => ({
+  // 2026-09-02 · initLangfuseTracing now PROVES a span records before it
+  // reports "started" (the production defect: Sentry owned the global tracer
+  // provider, our NodeSDK registration was silently refused, and Langfuse got
+  // nothing while the boot log said started). A recording tracer here is what
+  // the happy path looks like; tests/observability/tracer-provider-conflict.test.ts
+  // owns the non-recording case.
+  trace: {
+    getTracerProvider: () => ({ constructor: { name: "NodeTracerProvider" } }),
+    getTracer: () => ({
+      startSpan: () => ({
+        isRecording: () => true,
+        spanContext: () => ({ traceId: "abcdef01234567890abcdef012345678" }),
+        end: () => {},
+      }),
+    }),
+  },
+}));
+
 vi.mock("@opentelemetry/sdk-node", () => ({
   NodeSDK: class {
     start() {}

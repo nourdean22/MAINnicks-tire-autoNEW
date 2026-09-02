@@ -7,10 +7,15 @@
 
 ## Since 2026-09-02 — observability is deployed
 
-- **Langfuse tracing is enabled in production.** Every AI SDK model-call site
-  uses the shared `langfuseTelemetry()` helper; private-mode turns are excluded
-  and exported keys/bearer tokens are masked. Railway `/api/version` reports
-  `langfuse: true` on commit `3e387b5e1`.
+- **Langfuse tracing is enabled in production — and was DEAD until 2026-09-02.**
+  Every AI SDK model-call site uses the shared `langfuseTelemetry()` helper;
+  private-mode turns are excluded and exported keys/bearer tokens are masked.
+  But `Sentry.init()` claimed the global OpenTelemetry tracer provider first and
+  `@opentelemetry/api` silently refused Langfuse's registration, so every span
+  was dropped while `/api/version` reported `langfuse: true` and the boot log
+  said `langfuse_started`. Corrected by handing the processor to Sentry's
+  provider; `initLangfuseTracing()` now proves a span records before reporting
+  `started`. **A `configured` badge is a presence check, never a receipt.**
 - **Sentry error monitoring is configured in production.** Client, server, edge,
   request-error, and router-transition hooks are deployed; `/api/version` reports
   `sentry: true`. Default PII capture is off and performance tracing is disabled.

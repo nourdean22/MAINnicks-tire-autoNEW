@@ -327,6 +327,20 @@ const withBundleAnalyzer = bundleAnalyzer({
   openAnalyzer: false, // CI-friendly — write report, don't open browser
 });
 
+// Sentry build integration. Source-map upload needs SENTRY_AUTH_TOKEN + org +
+// project; none are set, so it is DISABLED rather than left to warn on every
+// build about maps it cannot upload. Setting the three turns it on with no
+// code change. `telemetry: false` keeps our build metadata out of Sentry's
+// own analytics.
+const sentryUploadEnabled = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
+);
+
 export default withSentryConfig(withBundleAnalyzer(nextConfig), {
   silent: true,
+  telemetry: false,
+  sourcemaps: { disable: !sentryUploadEnabled },
+  release: { create: sentryUploadEnabled },
+  ...(process.env.SENTRY_ORG ? { org: process.env.SENTRY_ORG } : {}),
+  ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
 });
