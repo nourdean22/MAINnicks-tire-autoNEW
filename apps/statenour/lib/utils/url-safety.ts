@@ -176,6 +176,61 @@ export async function assertPublicUrl(rawUrl: string): Promise<UrlSafetyResult> 
 }
 
 /**
+ * Fetch a URL with the SSRF gate applied AT EVERY HOP.
+ *
+ * 2026-09-02 deep-research audit (C-6). `assertPublicUrl()` only judges the
+ * URL it is handed, so a caller that checks once and then fetches with the
+ * default `redirect: "follow"` is not protected: a public URL that answers
+ * 302 → http://169.254.169.254/ walks straight through the gate it just
+ * passed. `ingestDocumentFromUrl` (lib/ai/tools/system.ts) already knew this
+ * and walks the chain by hand; the Telegram link handler did not, and got
+ * the single-check version. This helper is that walk, extracted, so the next
+ * caller inherits it instead of re-deriving it — the same reason the
+ * Firecrawl gate moved to its sink in the same audit.
+ *
+ * `ingestDocumentFromUrl` deliberately keeps its inline copy for now: it
+ * returns richer per-hop error codes that its tool contract exposes to the
+ * model. Migrating it is a separate, behaviour-visible change.
+ */
+export type PublicFetchResult =
+  | { ok: true; response: Response; finalUrl: string }
+  | { ok: false; code: "url_blocked" | "redirect_loop" | "redirect_no_location" | "too_many_hops"; reason: string };
+
+export async function fetchPublicUrl(
+  rawUrl: string,
+  init: RequestInit = {},
+  maxHops = 5,
+): Promise<PublicFetchResult> {
+  let currentUrl = rawUrl;
+  const seen = new Set<string>();
+
+  for (let hop = 0; hop < maxHops; hop++) {
+    const safety = await assertPublicUrl(currentUrl);
+    if (!safety.safe) {
+      return { ok: false, code: "url_blocked", reason: safety.reason ?? "failed_url_safety_check" };
+    }
+    if (seen.has(currentUrl)) {
+      return { ok: false, code: "redirect_loop", reason: `redirect loop at ${currentUrl}` };
+    }
+    seen.add(currentUrl);
+
+    const response = await fetch(currentUrl, { ...init, redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const next = response.headers.get("location");
+      if (!next) {
+        return { ok: false, code: "redirect_no_location", reason: `HTTP ${response.status} with no Location header` };
+      }
+      // Relative Location headers resolve against the URL that served them.
+      currentUrl = new URL(next, currentUrl).toString();
+      continue;
+    }
+    return { ok: true, response, finalUrl: currentUrl };
+  }
+
+  return { ok: false, code: "too_many_hops", reason: `more than ${maxHops} redirects` };
+}
+
+/**
  * Allowed content-types for document ingestion. Block HTML and
  * everything else by default · the operator can ingest those via
  * a different (more careful) tool later.
