@@ -10,10 +10,31 @@ const log = logger.withSurface("webhooks/stripe");
 export const dynamic = "force-dynamic";
 
 /**
- * Verify HMAC-SHA256 signature from Stripe without pulling in the full SDK.
- * Matches standard Stripe signature protocol.
+ * Stripe's documented default replay tolerance, in seconds. A signature is
+ * only valid inside this window around the `t=` timestamp it commits to.
  */
-function verifyStripeSignature(payload: string, signatureHeader: string, secret: string): boolean {
+export const STRIPE_TOLERANCE_SECONDS = 300;
+
+/**
+ * Verify HMAC-SHA256 signature from Stripe without pulling in the full SDK.
+ *
+ * 2026-09-02 deep-research audit (C-7) · the timestamp is HALF the protocol
+ * and this function used to ignore it. `t=` was parsed, concatenated into the
+ * signed payload, and never compared against the clock — so a captured
+ * request replayed a year later still carried a perfectly valid signature.
+ * Stripe signs the timestamp precisely so the receiver can bound replay; the
+ * old comment claimed to match the standard protocol while implementing one
+ * of its two halves. Duplicate *fulfilment* was already prevented by a unique
+ * constraint on stripeSessionId — that is a different guarantee from
+ * rejecting a replayed request, and it does not cover future event types.
+ */
+export function verifyStripeSignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+  toleranceSeconds: number = STRIPE_TOLERANCE_SECONDS,
+): boolean {
   if (!signatureHeader || !secret) return false;
 
   const parts = signatureHeader.split(",");
@@ -24,6 +45,12 @@ function verifyStripeSignature(payload: string, signatureHeader: string, secret:
 
   const timestamp = timestampPart.split("=")[1];
   const signature = signaturePart.split("=")[1];
+
+  // Replay window. Rejected symmetrically: a far-future timestamp is as
+  // suspect as an old one, and a non-numeric one is not a timestamp at all.
+  const issuedAt = Number(timestamp);
+  if (!Number.isFinite(issuedAt)) return false;
+  if (Math.abs(nowSeconds - issuedAt) > toleranceSeconds) return false;
 
   const signedPayload = `${timestamp}.${payload}`;
   const expectedSignature = createHmac("sha256", secret)

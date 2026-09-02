@@ -26,7 +26,17 @@ const SENSITIVE_KEYS = new Set([
   "fullname", "full_name", "address", "dob", "date_of_birth",
 ]);
 
-function redactSensitive(obj: unknown, depth = 0): unknown {
+/**
+ * Key-name-based redaction for anything about to be persisted or printed.
+ *
+ * EXPORTED 2026-09-02 (deep-research audit, C-3). This was private, so the
+ * OTHER logging path — lib/utils/error-log.ts `logError()`, ~107 call sites,
+ * which writes its `extra` verbatim into the persisted `ErrorLog.context`
+ * JSON column — had no redaction at all. Two log paths, one redacting and
+ * one not, is a coin flip about whether a token reaches the database; the
+ * fix is one implementation both paths call, not a second key list.
+ */
+export function redactSensitive(obj: unknown, depth = 0): unknown {
   if (obj === null || obj === undefined) return obj;
   if (depth > 3) {
     if (typeof obj === "object") {

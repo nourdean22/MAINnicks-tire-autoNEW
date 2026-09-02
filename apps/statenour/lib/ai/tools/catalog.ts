@@ -102,7 +102,22 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getTasks",                     category: "personal_read",  battle: true,  cost: "free" },
   // v10.0.515 · #12 Calendar bidirectional
   { name: "getTodaySchedule",             category: "personal_read",  battle: true,  cost: "free" },
-  { name: "proposeCalendarEvent",         category: "personal_read",  battle: true,  cost: "free" },
+  // 2026-09-02 deep-research audit (C-5) · RECLASSIFIED from
+  // `personal_read` + `battle: true`. Despite the "propose" name, this tool
+  // WRITES: when Google OAuth is configured it calls createEvent() and the
+  // event — with attendees — lands on the operator's real calendar
+  // (lib/ai/tools/calendar.ts, and the tool's own description says so). The
+  // URL-fallback branch only runs when OAuth is absent.
+  //
+  // Why the misclassification mattered: read-mode stripping
+  // (lib/ai/capability-registry.ts classifyTool) has three tripwires — the
+  // `sideEffecting` flag, WRITE_CATEGORIES, and MUTATING_PREFIX — and this
+  // entry evaded ALL THREE, because "propose" is not a mutating verb prefix
+  // and `personal_read` is not a write category. So a session the operator
+  // had set to read-only could still create real calendar events, and
+  // `battle: true` additionally offered it in the fast "read-only" mode.
+  // The name was the only thing claiming this was a proposal.
+  { name: "proposeCalendarEvent",         category: "personal_write", sideEffecting: true, cost: "free" },
   // v10.0.515 · #3 E2B code sandbox · cost is bounded by E2B free tier (100 runs/day)
   { name: "runPython",                    category: "ai_analysis",                   cost: "cheap", riskClass: "critical", requiredEnv: ["E2B_API_KEY"] },
   // v10.0.515 · #10 Document Q&A · cheap (one embedding call + DB knn)

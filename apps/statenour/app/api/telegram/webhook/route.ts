@@ -1874,21 +1874,27 @@ async function handleUrl(
     // Telegram reaches it), a pasted link could point at a private/metadata
     // host. Block it before the server-side fetch, matching the scrapeWebPage
     // and ingestDocumentFromUrl hardening.
-    const { assertPublicUrl } = await import("@/lib/utils/url-safety");
-    const safety = await assertPublicUrl(url);
-    if (!safety.safe) {
-      await sendTelegram(`Refused to fetch that URL: ${safety.reason}`, chatId);
-      return;
-    }
+    // 2026-09-02 deep-research audit (C-6) · this checked the URL ONCE and
+    // then fetched with the default `redirect: "follow"`. A public URL that
+    // answers 302 → http://169.254.169.254/ therefore walked straight through
+    // the gate it had just passed. `ingestDocumentFromUrl` was hardened
+    // against exactly this and the fix was never propagated here.
+    // fetchPublicUrl re-asserts on every hop.
+    const { fetchPublicUrl } = await import("@/lib/utils/url-safety");
 
     await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
 
-    // Fetch the page content
-    const res = await fetch(url, {
+    const fetched = await fetchPublicUrl(url, {
       headers: { "User-Agent": "NOUR-OS/1.0" },
       signal: AbortSignal.timeout(10000),
     });
 
+    if (!fetched.ok) {
+      await sendTelegram(`Refused to fetch that URL: ${fetched.reason}`, chatId);
+      return;
+    }
+
+    const res = fetched.response;
     if (!res.ok) {
       await sendTelegram(`Couldn't fetch URL (${res.status}). It may be behind auth.`, chatId);
       return;

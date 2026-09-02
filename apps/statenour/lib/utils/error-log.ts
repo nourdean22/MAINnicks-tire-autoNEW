@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { redactSensitive } from "@/lib/logger";
 
 export type ErrorLevel = "error" | "warn" | "fatal";
 
@@ -30,7 +31,17 @@ export function logError(
           level,
           message: `[${source}] ${message}`.slice(0, 500),
           stack: stack?.slice(0, 4000) ?? null,
-          context: extra ? ({ source, ...extra } as any) : ({ source } as any),
+          // 2026-09-02 deep-research audit (C-3): `extra` used to be written
+          // verbatim. It is caller-supplied and reaches a PERSISTED column,
+          // so a single careless `logError("x", err, { token })` at any of
+          // ~107 call sites would store a credential indefinitely. The
+          // structured logger already redacted by key name on its own path;
+          // both paths now share that one implementation. Discipline at the
+          // call sites is still the first line — this is the backstop that
+          // does not depend on it.
+          context: redactSensitive(
+            extra ? { source, ...extra } : { source },
+          ) as any,
         },
       })
       .catch(() => {
