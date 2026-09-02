@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import nextConfig from "../../next.config";
 import { IMPORTANT_PAGES } from "@/lib/brain/page-intelligence";
 import { HREF_BY_DOMAIN } from "@/lib/services/chat-lane-check";
+import { resolveStatsTab } from "@/lib/stats/resolve-tab";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -48,16 +49,25 @@ describe("retired routes gate · every route-carrying registry points at a page 
     expect(stale, "redirects still targeting the deleted page").toEqual([]);
   });
 
-  it("a retired ?tab= is dropped on the way into /stats (a blank page is not a redirect)", async () => {
+  it("no redirect destination itself carries a retired tab into /stats", async () => {
+    // Next appends the incoming query to a redirect destination no matter what
+    // (a `has` capture does NOT strip it — live-probed 2026-09-02:
+    // /business?tab=money → /stats?tab=money). So the page must tolerate any
+    // tab, which resolveStatsTab() guarantees below; this only pins that the
+    // config does not ADD a retired tab of its own.
     const redirects = await nextConfig.redirects!();
-    // The has-capture form consumes `tab`, so Next does not append it to the
-    // destination; without it, /business?tab=money became /stats?tab=money and
-    // StatsContent rendered nothing for an unknown tab.
-    const captures = redirects.find((r) => r.source === "/business" && Array.isArray(r.has) && r.has.some((h) => h.type === "query" && h.key === "tab"));
-    expect(captures, "a /business redirect that captures ?tab").toBeTruthy();
     for (const r of redirects.filter((r) => r.destination.startsWith("/stats"))) {
       expect(r.destination, `${r.source} must not carry a tab into /stats`).not.toMatch(/tab=/);
     }
+  });
+
+  it("an unknown or retired ?tab on /stats resolves to the first tab, never to a blank page", () => {
+    const tabs = [{ id: "mastery" }, { id: "goals" }, { id: "body" }];
+    expect(resolveStatsTab("money", tabs)).toBe("mastery");
+    expect(resolveStatsTab("clients", tabs)).toBe("mastery");
+    expect(resolveStatsTab(null, tabs)).toBe("mastery");
+    expect(resolveStatsTab("", tabs)).toBe("mastery");
+    expect(resolveStatsTab("goals", tabs)).toBe("goals");
   });
 
   it("every page-intelligence IMPORTANT_PAGES path has a page (a missing one is a permanent false blind spot)", () => {

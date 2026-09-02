@@ -35,6 +35,7 @@
  */
 
 import { Suspense } from "react";
+import { resolveStatsTab } from "@/lib/stats/resolve-tab";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -133,10 +134,11 @@ function StatsContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // An unknown ?tab (a retired deep link, a typo) falls back to the first
-  // tab instead of rendering an empty body (#2069 review).
-  const requestedTab = searchParams.get("tab");
-  const activeTab = TABS.some((t) => t.id === requestedTab) ? (requestedTab as string) : "mastery";
+  // An unknown ?tab (a retired deep link such as /business?tab=money, which
+  // Next forwards as /stats?tab=money, or a typo) falls back to the first tab
+  // instead of rendering an empty body (#2069 review). Pure helper so the
+  // retired-routes gate can pin it.
+  const activeTab = resolveStatsTab(searchParams.get("tab"), TABS);
 
   const handleTabChange = (tabId: string) => {
     const params = new URLSearchParams(searchParams.toString());

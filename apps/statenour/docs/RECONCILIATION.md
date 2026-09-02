@@ -91,7 +91,8 @@
 > was named as the cost of "delete" and accepted. The #2069 review then found four more
 > consumers of the route (a duplicate important-pages list in page-intelligence that would
 > have reported "Business" as a permanent blind spot, the chat lane-check map, the scoreboard
-> and ticker links, and `?tab=` riding the redirect into a blank /stats) — and the same lists
+> and ticker links, and `?tab=` riding the redirect into a blank /stats — the page now tolerates
+> any tab via `lib/stats/resolve-tab.ts`; a `has` capture does NOT strip the query, live-probed) — and the same lists
 > held two dead targets nobody had noticed since those pages went: `/strategy`, `/inventory`.
 > `tests/repo/retired-routes-gate.test.ts` now asserts every route-carrying registry points at
 > a page that exists.
