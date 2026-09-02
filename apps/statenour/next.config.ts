@@ -196,10 +196,11 @@ const nextConfig: NextConfig = {
     // de-linked-but-routable was the worst state. Non-permanent so a future
     // decision to move the coaching CRM somewhere navigable is not cached
     // away by browsers.
-    // A retired `?tab=money|funnel|clients` must NOT ride into /stats: Next appends
-    // unmatched query params, and StatsContent rendered nothing for an unknown tab
-    // (#2069 review). The has-capture consumes `tab`, so it is dropped.
-    { source: "/business", has: [{ type: "query", key: "tab", value: "(?<tab>.*)" }], destination: "/stats", permanent: false },
+    // A retired `?tab=money|funnel|clients` rides into /stats: Next appends the
+    // incoming query to every redirect destination and a `has` capture does NOT
+    // strip it (live-probed 2026-09-02: /business?tab=money → /stats?tab=money).
+    // The page tolerates it instead — lib/stats/resolve-tab.ts falls back to
+    // the first tab for any unknown value (#2069 review).
     { source: "/business", destination: "/stats", permanent: false },
     // Brain consolidation: 4 sub-pages folded into /brain hub.
     { source: "/brain/health", destination: "/brain?tab=health", permanent: false },
