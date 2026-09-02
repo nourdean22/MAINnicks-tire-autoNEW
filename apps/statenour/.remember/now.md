@@ -19,6 +19,13 @@ corrected; W-3 BottomPulseTicker rendered in the a11y test; R5 `tests/repo/ui-mo
 fails CLOSED at both enforcement points; three superseded Ultron components deleted, PARKED
 = 13) — see RECONCILIATION top.
 
+**S-1 was one-fifth done in #2059** — the cross-session thread (#2062), hybrid recall,
+anticipatory recall, chat recall (#2064) and the memory-returning TOOLS (`searchMemories`,
+`searchColdMemory`, `searchConversations`, customer-360 notes) all reached the model unfenced
+until 2026-09-02. Two gates now enumerate the producers (`tests/ai/prompt-block-fencing-gate
+.test.ts`) and a behavioural test runs the real `buildBrainContext` with malicious rows
+(`tests/ai/brain-context-fencing.test.ts`). When asked "is X fenced", enumerate EVERY assembler.
+
 **Behaviour change to know about:** inbound gmail memories now wait for review at
 /system/inbox instead of landing in BrainMemory automatically (sent mail + Apple Notes
 still write directly). Telegram nudges unaffected.

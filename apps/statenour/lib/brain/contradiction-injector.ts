@@ -39,6 +39,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "./embedding-utils";
 import type { Contradiction, ContradictionStatus } from "./contradiction-surfacer";
@@ -229,10 +230,14 @@ export async function findRelevantContradictions(
  * route.
  */
 export function buildContradictionAlertBlock(hit: RelevantContradiction): string {
+  // The two excerpts are raw memory content → memory_recall (2026-09-02).
   return [
     "# CONTRADICTION ALERT",
-    `${hit.daysApart} days ago you said: "${hit.oldExcerpt}"`,
-    `Today you said: "${hit.newExcerpt}"`,
+    fenceContent(
+      "contradictionAlert",
+      "memory_recall",
+      [`${hit.daysApart} days ago you said: "${hit.oldExcerpt}"`, `Today you said: "${hit.newExcerpt}"`].join("\n"),
+    ),
     "",
     "These conflict. Ask the operator gently: \"which is current?\"",
     "Do NOT block your response — answer the actual question first, then",

@@ -3,8 +3,13 @@
 > **Status as of 2026-09-02 (added after the wave shipped - the body below is the plan as written on 2026-09-01):**
 > R1 closed by #2058 `1bc3d43b0` (BOTH halves - the review found a second one: the matcher skipped
 > middleware for `/decisions/1.png`), re-probed live on production: every bypass shape 307.
-> R2 closed in the same PR. R3 (P-1 + S-1), R4 (W-1, W-3) and R5's UI half shipped in #2059
+> R2 closed in the same PR. R3's P-1 half, R4 (W-1, W-3) and R5's UI half shipped in #2059
 > `b7d0f62f3`; R5's auth half is in #2058. R6 shipped fail-CLOSED in #2060 on operator instruction.
+> **R3's S-1 half took four PRs, not one:** #2059 fenced one of five memory-rendering prompt
+> blocks; #2062 (thread), #2064 (hybrid / anticipatory / chat recall + the producer gate + a
+> behavioural test) and the tool-result PR (`searchMemories`, `searchColdMemory`,
+> `searchConversations`, customer-360 notes) closed the rest. Lesson recorded in the observer
+> queue: enumerate every assembler before calling a fencing fix done.
 > Still open: R7 `/business`, R8 tracing env (`LANGFUSE_PUBLIC_KEY`+`LANGFUSE_SECRET_KEY`,
 > `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` unset), R9 the AI SDK major, the 13 parked components,
 > drive/calendar/reviews intake, and the S-1 end-to-end attack (still a hypothesis - never run).

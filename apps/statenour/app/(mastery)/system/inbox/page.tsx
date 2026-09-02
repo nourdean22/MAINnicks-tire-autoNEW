@@ -165,7 +165,7 @@ export default function MemoryInboxPage() {
                     <div className="text-xs text-zinc-500 mt-1 flex flex-col gap-1">
                       <div>
                         Source: <span className="font-mono text-zinc-400">{selectedItem.sourceType}</span>
-                        {selectedItem.sourceUrl && (
+                        {selectedItem.sourceUrl && /^https?:\/\//.test(selectedItem.sourceUrl) ? (
                           <a
                             href={selectedItem.sourceUrl}
                             target="_blank"
@@ -174,7 +174,12 @@ export default function MemoryInboxPage() {
                           >
                             [link]
                           </a>
-                        )}
+                        ) : selectedItem.sourceUrl ? (
+                          // 2026-09-02 · ingestion rows carry an identity like
+                          // gmail://<messageId>, not a navigable URL — show it,
+                          // don't link it.
+                          <span className="font-mono text-zinc-500 ml-1">{selectedItem.sourceUrl}</span>
+                        ) : null}
                       </div>
                       <div>
                         Privacy: <span className="font-mono text-zinc-400">{selectedItem.privacyClass}</span>

@@ -28,6 +28,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { logError } from "@/lib/utils/error-log";
 
 const LOOKBACK_HOURS = 24;
@@ -122,9 +123,10 @@ export async function findRelevantObjections(ctx: {
  * wording without re-importing the route.
  */
 export function buildObjectionBlock(hit: RelevantObjection): string {
+  // The stored objection text is fenced as curated_memory (2026-09-02).
   return [
     "## OPEN COUNTER-VIEW (you raised this earlier · Nour has not addressed it)",
-    `"${hit.objection}"`,
+    fenceContent("openCounterView", "curated_memory", `"${hit.objection}"`),
     "",
     "If the current turn touches the same decision, raise it ONCE, briefly,",
     "woven into your answer — not as a lecture. If the turn is about",

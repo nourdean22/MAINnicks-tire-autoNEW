@@ -42,6 +42,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { getEmbedding } from "@/lib/ai/provider";
@@ -736,11 +737,17 @@ export async function buildAnticipatedContextBlock(
 ): Promise<string> {
   const match = await findAnticipated(userMessage, userEmbedding).catch(() => null);
   if (!match) return "";
+  // Fenced as curated_memory (2026-09-02): the question and the drafted
+  // answer are stored free text distilled from prior sessions.
   return [
     `### ANTICIPATED QUESTION (precomputed ${match.date} · match ${match.similarity.toFixed(2)})`,
-    `You predicted Nour would ask: "${match.question}"${match.topic ? ` [${match.topic}]` : ""}`,
     `Draft take from last night (drafted with NO tools — verify any live number with tools before asserting it; never claim you already checked something this turn):`,
-    match.answer,
+    fenceContent(
+      "anticipatedQuestion",
+      "curated_memory",
+      [`You predicted Nour would ask: "${match.question}"${match.topic ? ` [${match.topic}]` : ""}`, match.answer].join("\n"),
+      { maxChars: 20_000 },
+    ),
   ].join("\n");
 }
 

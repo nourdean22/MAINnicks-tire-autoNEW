@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { cached, invalidate } from "@/lib/utils/cache";
 
@@ -383,7 +384,7 @@ export function invalidateQualitativeIdentityCache(): void {
 export async function buildQualitativeContextBlock(): Promise<string> {
   const q = await loadQualitativeIdentity().catch(() => null);
   if (!q) return "";
-  const lines: string[] = ["## Nour's qualitative identity"];
+  const lines: string[] = [];
   const BUCKETS: Array<[IdentityBucket, string]> = [
     ["values", "values"],
     ["fears", "fears"],
@@ -399,5 +400,7 @@ export async function buildQualitativeContextBlock(): Promise<string> {
       lines.push(`- ${e.text}${e.manual ? " (pinned)" : ""}`);
     }
   }
-  return lines.join("\n");
+  if (lines.length === 0) return "";
+  // Fenced as curated_memory (2026-09-02): evidence lines are stored free text.
+  return ["## Nour's qualitative identity", fenceContent("qualitativeIdentity", "curated_memory", lines.join("\n"), { maxChars: 20_000 })].join("\n");
 }

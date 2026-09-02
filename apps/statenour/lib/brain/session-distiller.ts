@@ -37,6 +37,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("session-distiller");
@@ -383,16 +384,18 @@ export async function getNickCurrentConcerns(): Promise<{
 export async function buildConcernsContextBlock(): Promise<string> {
   const data = await getNickCurrentConcerns();
   if (!data || data.threads.length === 0) return "";
-  const lines: string[] = [
-    "## Nour's open threads (carry-over from past sessions)",
-  ];
+  const threads: string[] = [];
   for (const t of data.threads) {
     const ageH = Math.round((Date.now() - new Date(t.sourceLastAt).getTime()) / 3600_000);
     const ageStr = ageH < 24 ? `${ageH}h ago` : `${Math.round(ageH / 24)}d ago`;
     const mark = t.kind === "followup" ? "→" : "?";
-    lines.push(`${mark} ${t.text} (${ageStr})`);
+    threads.push(`${mark} ${t.text} (${ageStr})`);
   }
-  return lines.join("\n");
+  // Fenced as curated_memory (2026-09-02): distilled from prior sessions.
+  return [
+    "## Nour's open threads (carry-over from past sessions)",
+    fenceContent("openThreads", "curated_memory", threads.join("\n"), { maxChars: 20_000 }),
+  ].join("\n");
 }
 
 /**

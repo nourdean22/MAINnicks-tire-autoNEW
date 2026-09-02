@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { createHash } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logError } from "@/lib/utils/error-log";
@@ -413,10 +414,8 @@ export async function editBelief(
 export async function buildBeliefsContextBlock(): Promise<string> {
   const beliefs = await loadActiveBeliefs();
   if (beliefs.length === 0) return "";
-  const lines: string[] = ["## Nour's stated beliefs"];
-  for (const b of beliefs.slice(0, 10)) {
-    const text = b.overridden ?? b.statement;
-    lines.push(`- ${text}`);
-  }
-  return lines.join("\n");
+  // Fenced as curated_memory (2026-09-02): statements are stored free text
+  // harvested from Nour's sessions — they shape judgement, never execute.
+  const body = beliefs.slice(0, 10).map((b) => `- ${b.overridden ?? b.statement}`);
+  return ["## Nour's stated beliefs", fenceContent("beliefs", "curated_memory", body.join("\n"), { maxChars: 20_000 })].join("\n");
 }

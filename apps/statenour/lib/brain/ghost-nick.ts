@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { hourET, weekdayET } from "@/lib/utils/datetime";
 import { logError } from "@/lib/utils/error-log";
 import { loadActiveSkills } from "./skill-extractor";
@@ -556,10 +557,14 @@ export async function buildGhostContextBlock(): Promise<string> {
     const accPct = Math.round((acc.hits / total) * 100);
     lines.push(`_running accuracy ${acc.hits}/${total} (${accPct}%)_`);
   }
+  const predictions: string[] = [];
   for (const p of bundle.predictions) {
     if (p.dismissed) continue;
     const pct = Math.round(p.confidence * 100);
-    lines.push(`- (${pct}%) ${p.title}${p.matched_skills.length > 0 ? " · matches a skill" : ""}`);
+    predictions.push(`- (${pct}%) ${p.title}${p.matched_skills.length > 0 ? " · matches a skill" : ""}`);
   }
+  if (predictions.length === 0) return "";
+  // Fenced as curated_memory (2026-09-02): prediction titles are stored free text.
+  lines.push(fenceContent("ghostPredictions", "curated_memory", predictions.join("\n"), { maxChars: 20_000 }));
   return lines.join("\n");
 }

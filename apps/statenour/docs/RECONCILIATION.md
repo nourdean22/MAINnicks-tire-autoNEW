@@ -57,6 +57,8 @@
 > requires a fence or an allowlisted reason, and `tests/ai/brain-context-fencing.test.ts`
 > runs the real `buildBrainContext` with malicious text planted in every source and asserts
 > each block arrives fenced AND closed (the #2062 reviewer asked for behaviour, not presence).
+> The tool-result door got the same treatment: `searchColdMemory` excerpts, `searchConversations`
+> snippets and the customer-360 notes are fenced, and the gate now also scans `lib/ai/tools/*`.
 >
 > **Receipts.** Full suite 627 files / 6,732 passed with the #2059 changes in the tree; every
 > check:* gate exit 0 except check:env / check:policy-coverage (need the real env + DB).
