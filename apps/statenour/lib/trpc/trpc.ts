@@ -76,12 +76,27 @@ const mutationGateMiddleware = middleware(async ({ ctx, next, type }) => {
   if (type !== "mutation") return next();
 
   let locked = false;
+  let unresolved = false;
 
   try {
     const { getFlag } = await import("@/lib/feature-flags");
     locked = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
   } catch {
-    // Flag resolution failure preserves current behavior.
+    // N-1 (2026-09-01 audit) · this used to preserve current behaviour,
+    // i.e. PROCEED — a kill switch that fails open under exactly the
+    // conditions (flag store down, import failure) that correlate with
+    // wanting Nick frozen. middleware.ts fails CLOSED on missing auth
+    // config and records the incident that taught it to; the lock now
+    // agrees. Reads are unaffected (this gate returns above for queries),
+    // so an unreachable flag store cannot brick the UI, only mutations.
+    unresolved = true;
+  }
+
+  if (unresolved) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Mutations are locked: NICK_MUTATION_LOCK could not be resolved (fail-closed).",
+    });
   }
 
   if (locked) {

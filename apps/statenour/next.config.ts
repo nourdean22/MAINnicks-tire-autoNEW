@@ -90,6 +90,9 @@ const nextConfig: NextConfig = {
   // via next/dynamic({ ssr: false }) in components/3d/scene-canvas.tsx,
   // so three never enters the SSR bundle. No transpilePackages entry is
   // required for the 3D layer; the prior Spline entries are removed.
+  // 2026-09-01 audit W-2 · the whole 3D cluster is PARKED — no entrypoint
+  // reaches scene-canvas.tsx (tests/repo/ui-mount-graph.test.ts). This note
+  // describes a feature that is not mounted; re-mount or delete is open.
 
   // ── Security + performance headers ───────────────────────────────────
   headers: async () => [
