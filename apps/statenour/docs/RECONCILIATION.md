@@ -71,7 +71,13 @@
 > shortcut were repointed or dropped. The APIs it read (`/api/financial`, `/api/crm`,
 > `/api/customer-360`, `/api/business/location-ranking`, `/api/analytics/revenue`) stay,
 > auth-gated, for their other consumers. The coaching CRM has no navigable home now — that
-> was named as the cost of "delete" and accepted.
+> was named as the cost of "delete" and accepted. The #2069 review then found four more
+> consumers of the route (a duplicate important-pages list in page-intelligence that would
+> have reported "Business" as a permanent blind spot, the chat lane-check map, the scoreboard
+> and ticker links, and `?tab=` riding the redirect into a blank /stats) — and the same lists
+> held two dead targets nobody had noticed since those pages went: `/strategy`, `/inventory`.
+> `tests/repo/retired-routes-gate.test.ts` now asserts every route-carrying registry points at
+> a page that exists.
 >
 > **Receipts.** Full suite 627 files / 6,732 passed with the #2059 changes in the tree; every
 > check:* gate exit 0 except check:env / check:policy-coverage (need the real env + DB).

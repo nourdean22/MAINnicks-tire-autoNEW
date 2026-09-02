@@ -196,6 +196,10 @@ const nextConfig: NextConfig = {
     // de-linked-but-routable was the worst state. Non-permanent so a future
     // decision to move the coaching CRM somewhere navigable is not cached
     // away by browsers.
+    // A retired `?tab=money|funnel|clients` must NOT ride into /stats: Next appends
+    // unmatched query params, and StatsContent rendered nothing for an unknown tab
+    // (#2069 review). The has-capture consumes `tab`, so it is dropped.
+    { source: "/business", has: [{ type: "query", key: "tab", value: "(?<tab>.*)" }], destination: "/stats", permanent: false },
     { source: "/business", destination: "/stats", permanent: false },
     // Brain consolidation: 4 sub-pages folded into /brain hub.
     { source: "/brain/health", destination: "/brain?tab=health", permanent: false },
@@ -270,8 +274,9 @@ const nextConfig: NextConfig = {
     // Wave 2 surface merge · 2026-06-03 · /financial + /funnel consolidated
     // into the tabbed /business surface (Money + Funnel tabs). Deep links +
     // bookmarks land on the right tab.
-    { source: "/financial", destination: "/business?tab=money", permanent: false },
-    { source: "/funnel", destination: "/business?tab=funnel", permanent: false },
+    // 2026-09-02 · retargeted straight to /stats (no tab) — /business is gone.
+    { source: "/financial", destination: "/stats", permanent: false },
+    { source: "/funnel", destination: "/stats", permanent: false },
 
     // 2026-06-19 · IA reorg Phase 5 · /finance + /wealth consolidated into the
     // tabbed /money hub (Finance + Wealth tabs). Deep links land on the right tab.
@@ -279,7 +284,7 @@ const nextConfig: NextConfig = {
     { source: "/wealth", destination: "/money?tab=wealth", permanent: false },
     // 2026-06-19 · IA reorg Phase 5 · /crm folded into the /business Clients tab
     // (coaching pipeline next to the funnel it feeds).
-    { source: "/crm", destination: "/business?tab=clients", permanent: false },
+    { source: "/crm", destination: "/stats", permanent: false }, // 2026-09-02 · /business gone
 
     // Wave 2 surface merge · /seo + /radar folded into the tabbed /market
     // surface (Search + Radar tabs). Deep links + bookmarks land on the

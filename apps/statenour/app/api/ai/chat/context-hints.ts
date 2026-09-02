@@ -55,8 +55,9 @@ export const TOOL_BIAS: Record<string, string> = {
   "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory · syncKnowledge · searchColdMemory · searchSkills",
   "/system": "getCronStatus · toolHealth · getBrainHealth · getFleetTruth",
   // "/business" removed 2026-09-02 · the page was deleted on operator verdict
-  // (R7 in docs/research/2026-09-01-statenour-plan.md); the financial tools
-  // keep their own bias via "/stats" below.
+  // (R7 in docs/research/2026-09-01-statenour-plan.md). No route biases
+  // getFinancialSnapshot / getProjections / compareLiveRevenue now — they stay
+  // callable from any route; the bias was a hint, not a gate.
   "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
   // ── 2026-08-12 · routes that existed in nav but never had a bias ──
   "/content": "writeCreative · generateImage · getInstagramAutopostStatus · triggerInstagramAutopost · composeEmail",
