@@ -18,6 +18,15 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 
 export async function register() {
+  // Sentry uses the runtime-specific config files so Node and Edge keep their
+  // own SDK boundaries. Both configs fail closed when no DSN is configured.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
+
   // 2026-07-22 · EDGE-GRAPH GATE (fixed the Railway build break). Next compiles
   // instrumentation.ts for BOTH runtimes — `export const runtime = "nodejs"` is
   // NOT honored here — so without this guard the edge pass statically bundles
@@ -151,17 +160,25 @@ export async function register() {
  */
 export async function onRequestError(
   err: unknown,
-  request: { path: string; method: string },
+  request: NextRequest | { path: string; method: string },
+  context?: unknown,
 ): Promise<void> {
   // Same edge-graph gate as register() — wrapped if-block, not early return,
   // so webpack also drops the import() from the edge pass.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     try {
+      const { captureRequestError } = await import("@sentry/nextjs");
+      await captureRequestError(err, request as never, context as never);
+    } catch {
+      // never let Sentry reporting break the app
+    }
+
+    try {
       const { recordTrace } = await import("@/lib/observability/tracer");
       recordTrace({
         at: new Date().toISOString(),
         method: request.method ?? "GET",
-        path: request.path ?? "/",
+        path: "path" in request ? request.path ?? "/" : request.nextUrl.pathname ?? "/",
         status: 500,
         durationMs: 0, // can't measure here · sentinel
         errorClass: (err as Error)?.name ?? "UnknownError",
