@@ -100,6 +100,7 @@
     "@prisma/client": "catalog:",
     "@react-three/drei": "10.7.7",
     "@react-three/fiber": "9.6.1",
+    "@sentry/nextjs": "10.73.0",
     "@statenour/lenses": "workspace:*",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",

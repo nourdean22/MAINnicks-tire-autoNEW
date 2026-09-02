@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 // v10 Horizon 5 — opt-in bundle analysis. Set ANALYZE=true to render
 // HTML reports under .next/analyze (or .next-prod/analyze for build:local).
 // pnpm scripts: `pnpm analyze` runs the prod build with ANALYZE=true.
@@ -326,4 +327,6 @@ const withBundleAnalyzer = bundleAnalyzer({
   openAnalyzer: false, // CI-friendly — write report, don't open browser
 });
 
-export default withBundleAnalyzer(nextConfig);
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
+  silent: true,
+});
