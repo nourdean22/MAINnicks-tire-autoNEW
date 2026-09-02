@@ -58,4 +58,21 @@ regexes = [
 # fixture was worded in an earlier commit. Added 2026-08-27 with PR #1944.
 paths = [
   '''apps/statenour/tests/agent-bridge/bridge-hardening\.test\.ts''',
+  # Same shape, same reasoning, added 2026-09-02 with PR #2090. The fixture is
+  # a BrainMemory `key` for a wisdom row — the component test asserts that the
+  # `nick_advice_` PREFIX resolves to the `chat-scrape` origin, and that a row
+  # renders a deep link. It has never held a credential; there is no credential
+  # surface in a see-also list.
+  #
+  # The suffix was a cuid-shaped fragment, whose entropy matched
+  # generic-api-key. It is a plain word in the current tree — but the gate
+  # scans `base..head`, so the earlier commit in this PR's own range still
+  # carries the old wording and the gate still fires. Path-allowlisted for the
+  # reason the entry above gives: by value would leave the range red, and
+  # rewriting a pushed commit to launder a false positive is a worse trade
+  # than one narrowly-scoped test path.
+  #
+  # The cost, stated plainly: a real secret committed to THIS ONE component
+  # test file would not be caught. Every other file is scanned as before.
+  '''apps/statenour/tests/components/related-wisdom-links\.test\.tsx''',
 ]
