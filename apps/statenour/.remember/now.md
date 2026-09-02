@@ -1,60 +1,53 @@
 # Session ledger — statenour
 
-Updated: 2026-09-01
+Updated: 2026-09-02
 
-**Updated:** 2026-09-01 (audit wave · #2057 docs · #2058 P0 · #2059 wiring · #2060 N-1 follow-up)
+**Updated:** 2026-09-02 (observability arc · #2080 provider conflict · #2082 root sampling · #2083 receipt)
 
-**Objective:** land the 2026-09-01 research brief + forensic audit, synthesize them into one
-decision document, then fix every defect the audit VERIFIED — each with a test that failed
-first — and prove the P0 closed on production. Read
-`docs/research/2026-09-01-statenour-plan.md` before re-deriving any of it.
+**Objective:** wire Langfuse tracing properly, then wire Sentry — and prove both actually work
+rather than trusting a `configured: true` badge.
 
-**Shipped:** #2057 `ca056cbc2` (5 docs) · #2058 `1bc3d43b0` (P0: dotted-path session-gate
-bypass, BOTH halves — `isStaticFile()` + root-level matcher; verified 307 on prod `1bc3d43`
-at 2026-09-02 00:13Z for /decisions/1.2, 9.9, abc.def, 1.png, 1.js) · #2059 `b7d0f62f3`
-(P-1 memory quarantine wired to inbound gmail via `lib/brain/external-memory-intake.ts`;
-S-1 recall fenced as `memory_recall`; W-1 dead top ticker deleted + layout comment
-corrected; W-3 BottomPulseTicker rendered in the a11y test; R5 `tests/repo/ui-mount-graph
-.test.ts` reachability gate with PARKED + inverse check) · #2060 (N-1 `NICK_MUTATION_LOCK`
-fails CLOSED at both enforcement points; three superseded Ultron components deleted, PARKED
-= 13) — see RECONCILIATION top.
+**The finding that shaped the whole arc.** Adding Sentry (#2074) silently killed Langfuse.
+`Sentry.init()` registers the global OpenTelemetry tracer provider; `@opentelemetry/api`'s
+`registerGlobal` refuses a SECOND registration, logs it through a no-op diag logger, and keeps the
+FIRST. `instrumentation.ts` imported the Sentry config before `initLangfuseTracing()`, so every AI
+SDK span went to Sentry's provider and was dropped — while the boot log said `langfuse_started` and
+`/api/version` said `langfuse: true`. Measured, not inferred: `/api/public/traces` returned
+`totalItems: 0` all-time against the live project with valid keys.
 
-**S-1 was one-fifth done in #2059** — the cross-session thread (#2062), hybrid recall,
-anticipatory recall, chat recall (#2064) and the memory-returning TOOLS (`searchMemories`,
-`searchColdMemory`, `searchConversations`, customer-360 notes) all reached the model unfenced
-until 2026-09-02. Two gates now enumerate the producers (`tests/ai/prompt-block-fencing-gate
-.test.ts`) and a behavioural test runs the real `buildBrainContext` with malicious rows
-(`tests/ai/brain-context-fencing.test.ts`). When asked "is X fenced", enumerate EVERY assembler.
+**Shipped:**
+- **#2073 `863ce4c47`** — every AI SDK call site traces through one `langfuseTelemetry()` helper
+  (22 sites; 20 were bare), processor `environment`/`release`/`mask`, call-site gate with a
+  mutation canary.
+- **#2080 `5e9a510f0`** — the provider handover (`Sentry.init({ openTelemetrySpanProcessors })`),
+  a recording self-check before reporting `started`, `app/global-error.tsx` (the App Router root
+  boundary did not exist), one shared secret mask, and `POST /api/system/observability-probe`.
+- **#2082 `a1d51cf09`** — sample the ROOT. Sentry consults `tracesSampler` for root spans ONLY
+  (`if (!isRootSpan) return { decision: parentSampled ? … }`); children inherit verbatim, so the
+  name-based sampler from #2080's review round starved every `ai.generateText` nested in a request.
+- **#2083 `e4f1a6bb2`** — the receipt, and the readback trap that hid it.
+- **#2079 CLOSED, not merged** — its first commit held real key material and `gitleaks` scans a
+  PR's whole commit range, so it could never go green. Replaced by a clean branch; history was NOT
+  rewritten.
 
-**Behaviour change to know about:** inbound gmail memories now wait for review at
-/system/inbox instead of landing in BrainMemory automatically (sent mail + Apple Notes
-still write directly). Telegram nudges unaffected.
+**Receipt (the only acceptable evidence):** trace `d3eebaac74d030dc2aea911b83ace1bb`,
+2026-09-02T17:43:48Z on `a1d51cf` — `environment: production`, `userId: operator`, `tags: ["probe"]`,
+`release` = deploy SHA, `model: deepseek-v4-flash:0731`, planted `metadata.probeId`, and
+`resourceAttributes.service.namespace: sentry`. Reproduce with the probe route.
 
-**Last decision (operator):** "every upgrade, don't stop until merged" — so N-1's failure
-direction (fail closed, matching middleware.ts) shipped instead of waiting; reverting is one
-line per file. The 2026-08-28 decision still stands: Ollama Cloud is the base chat lane,
-metered Anthropic only on an explicit depth marker; the complexity classifier was built,
-measured and REJECTED — do not retry it.
+**Open / known gaps — do not report these as done:**
+1. **Token usage and cost are 0.** The provider reported no usage on that call, so cost
+   attribution is UNPROVEN. Everything else mapped.
+2. **Only the probe has exercised the path in production.** Zero `provider.success` lines since
+   the deploy — a quiet period, not a fault (logs also show zero Langfuse errors).
+3. **Langfuse keys are in `main` history** from #2073 (my error). **Operator declined rotation
+   2026-09-02: private repo, personal tracing project, risk accepted. Do NOT re-raise.**
 
-**Blocker:** none code-side. Operator-side switches carried from 2026-08-28, all off by
-design: ANTHROPIC_API_KEY (escalation inert + says so until set) · NICK_AGENT_FOLLOWUPS=1 +
-the per-cron kill switch + wiring agent-followups into lib/inngest/jobs.ts (all three before
-a single unprompted message can fire) · optional NICK_ESCALATION_DAILY_CAP / NICK_FOLLOWUP_*.
-
-**Open operator decisions (do NOT decide on agent initiative):**
-  · /business — DECIDED 2026-09-02: deleted (redirect to /stats). The coaching CRM has no
-    navigable home now; that cost was named and accepted.
-  · langfuse:false + sentry:false in production (/api/version) — Railway env, not code.
-  · AI SDK v6 → v7 (providers a full major behind).
-  · The 13 remaining PARKED components (3D scene, actions/loops island, compound-chain,
-    four Ultron cards) — re-mount or delete.
-  · Routing drive / calendar / reviews ingestion through the intake — inbox-volume call.
-  · Carried from 2026-08-28: WP3 mission promotion + Inngest Realtime progress streaming is
-    NOT built (use `throttle`, not `rateLimit` — rateLimit silently SKIPS excess runs);
-    resumable-stream + Redis vs the Postgres poll needs an UPSTREAMS row and a go
-    (docs/audits/CHAT-COMPLETION-PHASE0-2026-08-28.md §5).
-
-**Next action:** exercise ONE authenticated control end to end (the audit's largest gap —
-read-only mode never ran a handler → API → authz → DB → UI round trip), starting with
-/system/inbox review → BrainMemory commit for a quarantined gmail item, since #2059 made that
-path live.
+**Traps worth carrying (full detail in agent memory):**
+- Two SDKs cannot both own OpenTelemetry by accident; the second registration loses in silence.
+- Sentry's `tracesSampler` sees ROOT spans only.
+- `lib/observability/sentry.ts` reaches the BROWSER bundle via `sentry.client.config.ts` — never
+  import a Node-only module from it (shared constants live in `span-names.ts`).
+- Langfuse names observations `<functionId>:<span>`, and `/api/public/v2/observations` is a THIN
+  projection; `metadata`/`userId`/`tags`/`release`/`model`/`input` live on
+  `/api/public/traces/<traceId>`. A naive matcher reports a WORKING pipeline dead — it did once.
