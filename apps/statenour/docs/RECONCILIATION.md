@@ -94,6 +94,22 @@
 > classifier stays deliberately conservative on names (`generateSQL`,
 > `runPython`, `writeCreative` classify as writes), which is the safe direction
 > but means `/system/tools` now counts them as mutating.
+||||||| a1d51cf09
+> ## 2026-09-02 · Langfuse tracing PROVEN live (#2082 + receipt)
+>
+> #2080 shared the tracer provider but its review-round sampler negated the fix: Sentry consults
+> `tracesSampler` for **root spans only** (`if (!isRootSpan) return { decision: parentSampled ? … }`),
+> children inherit verbatim, so rejecting `POST /api/…` starved every `ai.generateText` nested in a
+> request — while the boot self-check, a root, still recorded and reported `started`. Deployed,
+> probed, caught by the probe rather than by review. #2082 samples the root and leaves containment
+> to `aiOnlySpanProcessor` on the export side.
+>
+> **First real receipt** (`a1d51cf`, 17:43:48Z): trace `d3eebaac74d030dc2aea911b83ace1bb`,
+> `environment: production`, `userId: operator`, `tags: ["probe"]`, `release: a1d51cf09…`,
+> `model: deepseek-v4-flash:0731`, planted `metadata.probeId`, and
+> `resourceAttributes.service.namespace: sentry`. **Known gap: usage and cost are 0** — the provider
+> reported none. Also learned: the v2 observations list is a thin projection and names observations
+> `<functionId>:<span>`, so a naive matcher reports a working pipeline dead (it did, once).
 
 > ## 2026-09-02 · Sentry init was silently killing Langfuse tracing (PR-SC)
 >
