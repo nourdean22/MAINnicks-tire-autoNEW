@@ -34,6 +34,35 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
 
 ## Traps
 
+- **A derived scan set must include the WIRING file it derives from.**
+  `server/__tests__/cronNoSwallowedFailure.test.ts` scanned every module
+  `scheduler.ts` imports and never `scheduler.ts` itself — which held 13
+  inline `catch { return { details: "X failed" } }` wrappers, one of them
+  re-swallowing a rethrow the same wave had added one frame below. The
+  "every cron fails loudly" claim was false for 13 jobs while its canary was
+  green (2026-09-02, found by an independent reviewer). When a gate scans
+  "every module X imports", scan X too, with its own positive control: the
+  inline handler inside the registry is the shape a module scan cannot see.
+- **The SMS `uncertain` outcome means do-not-retry, not not-delivered.**
+  `sendSms` returns `success:true, uncertain:true` on a shop-gateway timeout
+  and `server/sms.ts` documents it as "the relay may well have delivered".
+  Any change to how a send result is interpreted must be checked against
+  the FOUR outcomes in `server/lib/smsOutcome.ts`: a claim is consumed for
+  every outcome except a definite failure (`smsClaimConsumed`); only the
+  COUNTERS keep uncertain apart from sent; never collapse uncertain to
+  `failed` on a receipt a human reads — it invites a re-send. The 2026-09-01
+  wave's first rule ("consume only on sent|queued") re-texted customers every
+  tick at five sites until the second review caught it.
+- **A multi-commit wave is not done after the author's own pass.** Over a
+  10-commit wave the author's hostile re-read found 5 defects; three
+  parallel independent reviewers (silent-failure hunter on `server/`,
+  contract reviewer on schema + cross-app, client/docs reviewer) over the
+  full diff found 24 more, including two P0 regressions the wave itself
+  introduced and three corrections to its audit claims. Before calling a
+  wave done, dispatch reviewers per subsystem with a file:line brief and a
+  "verified OK / not checked" answer shape, then verify their top findings
+  yourself. A single author pass over more than ~20 files has not once been
+  sufficient (2026-08-12 onward).
 - **Brand-voice linter on CSS class names.** The pre-commit
   `brand-voice` linter regex-matches banned words (`premium`, `tier`,
   etc.) in the staged diff — including CSS class names. The
