@@ -1,6 +1,6 @@
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { generateText } from "ai";
-import { getModelWithFallback, getActiveProviderInfo } from "@/lib/ai/provider";
+import { getModel, getActiveProviderInfo } from "@/lib/ai/provider";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { trackGeneration } from "@/lib/ai/track";
 import { mintTraceId, recordTrace } from "@/lib/ai/agent-trace";
@@ -24,7 +24,10 @@ function getWeekStartMonday(): string {
 }
 
 export const GET = cronHandler(async () => {
-  const model = await getModelWithFallback();
+  // 2026-09-02 · was getModelWithFallback(), a bare alias for this whose
+  // name implied failures were handled. They were not: the generateText below
+  // had no catch, so any provider error killed the whole weekly review.
+  const model = getModel();
   const { provider, modelId } = getActiveProviderInfo();
   const startTime = Date.now();
   // v10 E.5 — every cron-driven AI call gets a trace so the
@@ -77,17 +80,22 @@ export const GET = cronHandler(async () => {
         select: { title: true, streakCount: true, lastCompletedAt: true },
       })
       .catch(() => null),
-    prisma.commitment.findMany({
-      where: {
-        OR: [
-          { status: { in: ["active", "in_progress"] } },
-          { status: "kept", updatedAt: { gte: new Date(weekAgo) } },
-          { status: "broken", updatedAt: { gte: new Date(weekAgo) } },
-        ],
-        deletedAt: null,
-      },
-      select: { description: true, status: true, deadline: true },
-    }),
+    // 2026-09-02 · the one read in this Promise.all with no .catch — its
+    // siblings all tolerate a failed read. A commitments outage should cost
+    // the commitments section, not the entire weekly review.
+    prisma.commitment
+      .findMany({
+        where: {
+          OR: [
+            { status: { in: ["active", "in_progress"] } },
+            { status: "kept", updatedAt: { gte: new Date(weekAgo) } },
+            { status: "broken", updatedAt: { gte: new Date(weekAgo) } },
+          ],
+          deletedAt: null,
+        },
+        select: { description: true, status: true, deadline: true },
+      })
+      .catch(() => null),
     prisma.brainMemory
       .count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(weekAgo) } } })
       // null = read failed — the prompt must say "unavailable", never
@@ -185,7 +193,13 @@ export const GET = cronHandler(async () => {
 
   const systemPrompt = await buildSystemPrompt();
 
-  const result = await generateText({
+  // 2026-09-02 · generateText was unguarded. This is a cron, not a request:
+  // throwing loses the entire week's review (wins, misses, patterns, the
+  // wizard nudge) and surfaces only as a "failed" row nobody reads. Returning
+  // a named failure keeps the run legible and lets the next week try again.
+  let result: Awaited<ReturnType<typeof generateText>>;
+  try {
+    result = await generateText({
     model,
     experimental_telemetry: langfuseTelemetry({ functionId: "weekly-review" }),
     system: systemPrompt,
@@ -203,14 +217,26 @@ ${alerts === null ? "Unavailable — do not narrate drift status this week." : a
 ${dailyTasks === null ? "Habit read FAILED — do not infer skipped habits." : [...habitSummary.entries()].map(([k, v]) => `${k}: ${v.days.size}/7 days (streak ${v.streak})`).join("\n") || "No data."}
 
 ## Commitments
-${commitments.map((c) => `${c.description} — ${c.status}`).join("\n") || "None."}
+${commitments === null ? "Commitment read FAILED — unknown, not zero; do not infer kept or broken promises." : commitments.map((c) => `${c.description} — ${c.status}`).join("\n") || "None."}
 
 ## Journal (${(weekDumps ?? []).length} entries · ${(weekReflections ?? []).length} reflections this week)
 ${weekDumps === null || weekReflections === null ? "Journal read FAILED — do not infer journaling stopped." : journalLines.join("\n") || "No journal entries this week."}
 ${takeLines.length ? `AI takes: ${takeLines.join(" | ")}` : ""}
 
 Cover: WINS, MISSES, PATTERNS DETECTED, RECOMMENDED FOCUS FOR NEXT WEEK. Under 400 words. Be direct and evidence-based.`,
-  });
+    });
+  } catch (err) {
+    log.warn("weekly_review_generation_failed", {
+      err: err instanceof Error ? err.message : String(err),
+      provider: getActiveProviderInfo().provider,
+    });
+    return {
+      ok: false,
+      weekStart: getWeekStartMonday(),
+      reason: "generation_failed",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 
   const durationMs = Date.now() - startTime;
   const weekStart = getWeekStartMonday();

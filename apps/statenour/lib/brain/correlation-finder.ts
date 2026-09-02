@@ -271,6 +271,25 @@ export function isStableAcrossStrata(
  *   r(A,B|C) = (r(A,B) - r(A,C)*r(B,C)) /
  *              sqrt((1 - r(A,C)^2) * (1 - r(B,C)^2))
  */
+/**
+ * Day bucket for a timestamp, or null when the value is not a real date.
+ *
+ * 2026-09-02 · `.toISOString()` used to be called directly on these values.
+ * Several arrive from the nickstire bridge (recent_invoices / recent_leads),
+ * i.e. another service's JSON; an unparseable one becomes an Invalid Date
+ * whose toISOString() throws RangeError. app/api/cron/correlation-alarm
+ * deliberately re-throws, so a single malformed row from a different app
+ * killed the entire nightly correlation run. A row that cannot be dated
+ * cannot be bucketed by day, so it is skipped — which is what these loops
+ * already do with rows they cannot use.
+ */
+export function dayKey(value: Date | string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().split("T")[0];
+}
+
 export function detectMediator(
   a: number[],
   b: number[],
@@ -358,7 +377,8 @@ export async function findCorrelations(): Promise<Correlation[]> {
   // Revenue by date
   const revenueByDate = new Map<string, number>();
   for (const j of jobs) {
-    const d = j.jobDate.toISOString().split("T")[0];
+    const d = dayKey(j.jobDate);
+    if (d === null) continue;
     revenueByDate.set(d, (revenueByDate.get(d) ?? 0) + Number(j.totalRevenue));
   }
 
@@ -374,7 +394,8 @@ export async function findCorrelations(): Promise<Correlation[]> {
   const leadsByDate = new Map<string, number>();
   const avgResponseByDate = new Map<string, number[]>();
   for (const l of leads) {
-    const d = l.createdAt.toISOString().split("T")[0];
+    const d = dayKey(l.createdAt);
+    if (d === null) continue;
     leadsByDate.set(d, (leadsByDate.get(d) ?? 0) + 1);
     if (l.timeToResponseMinutes != null && l.timeToResponseMinutes > 0) {
       const arr = avgResponseByDate.get(d) || [];
@@ -388,7 +409,8 @@ export async function findCorrelations(): Promise<Correlation[]> {
   const sortedLoops = [...loops].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   let cumLoops = 0;
   for (const l of sortedLoops) {
-    const d = l.createdAt.toISOString().split("T")[0];
+    const d = dayKey(l.createdAt);
+    if (d === null) continue;
     cumLoops++;
     loopsByDate.set(d, cumLoops);
   }
@@ -396,7 +418,8 @@ export async function findCorrelations(): Promise<Correlation[]> {
   // Chat message count by date (engagement proxy)
   const chatsByDate = new Map<string, number>();
   for (const m of chatMessages) {
-    const d = m.createdAt.toISOString().split("T")[0];
+    const d = dayKey(m.createdAt);
+    if (d === null) continue;
     chatsByDate.set(d, (chatsByDate.get(d) ?? 0) + 1);
   }
 

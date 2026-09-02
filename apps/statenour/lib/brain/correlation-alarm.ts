@@ -106,16 +106,29 @@ async function writeSnapshot(
     `Correlation snapshot · ${current.length} pairs · ` +
     `${current.filter((c) => Math.abs(c.coefficient) >= STRONG_THRESHOLD).length} strong (|r|>0.7)`;
 
-  await prisma.brainMemory.create({
-    data: {
-      category: SNAPSHOT_CATEGORY,
-      key: stamp,
-      content: summary,
-      confidence: 0.8,
-      source: "cron:correlation-alarm",
-      metadata: { pairs } as unknown as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
-    },
-  });
+  // 2026-09-02 · this create had no try/catch while the alert-write loop 30
+  // lines below already tolerates P2002. `key: stamp` is minute-resolution, so
+  // two triggers in the same minute — a re-run, or the cron-healer re-firing a
+  // job it thinks is stuck — collide on the unique and threw, killing the whole
+  // correlation run AFTER its alerts had already been written. Duplicate
+  // snapshot, same content: dedup is the correct outcome, not an exception.
+  try {
+    await prisma.brainMemory.create({
+      data: {
+        category: SNAPSHOT_CATEGORY,
+        key: stamp,
+        content: summary,
+        confidence: 0.8,
+        source: "cron:correlation-alarm",
+        metadata: { pairs } as unknown as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
+      },
+    });
+  } catch (err: unknown) {
+    // P2002 = idempotency hit — the snapshot for this minute already exists.
+    if (!(err && typeof err === "object" && (err as { code?: string }).code === "P2002")) {
+      throw err;
+    }
+  }
   return stamp;
 }
 

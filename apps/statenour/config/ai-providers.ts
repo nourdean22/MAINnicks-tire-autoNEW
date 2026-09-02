@@ -47,12 +47,24 @@ export const PROVIDERS_REGISTRY: Record<RuntimeProviderName, ProviderConfig> = {
     // kill a lane (vision: qwen3-vl 2026-06-16). It took down the whole
     // reason/chat lane for ~9h because every paid fallback (gemini cap,
     // openai quota, openrouter credits) was also dead. Successor
-    // deepseek-v4-pro verified live on the key: valid tool_calls via
-    // the OpenAI-compat endpoint, ~1.6-1.9s (4x faster than v3.1).
-    // Prod overrides via Railway env OLLAMA_MODEL (set same day); this
-    // default is the env-less fallback. Fast internal lanes use
-    // OLLAMA_FAST_MODEL (glm-5.2, ~1s).
-    defaultModel: "deepseek-v4-pro",
+    // 2026-09-02 · was "deepseek-v4-pro", which docs/CURRENT-TRUTH.md:137
+    // records as DEAD (retired upstream mid-session). The comment here still
+    // said "verified live on the key" from the day it was added — true then,
+    // false since, and nothing re-read it.
+    //
+    // A known-dead id is the worst possible fallback: it turns "the env var is
+    // missing" into "every Ollama call 404s", which is exactly the shape of
+    // ollama-model-liveness failing 2,312 times against 32 successes and
+    // weekly-review failing 291 of 318. Whether prod's OLLAMA_MODEL is
+    // actually set is UNKNOWN from here — Railway env is not readable from the
+    // repo — so this changes the floor, not the ceiling: if the env IS set the
+    // default never fires and this is merely no longer a landmine.
+    //
+    // minimax-m3 is the pin CURRENT-TRUTH records as correct. A hardcoded id
+    // rots by nature; the durable half is that the liveness probe now names
+    // the resolved id (see app/api/cron/ollama-model-liveness), so the next
+    // time one dies the report says which.
+    defaultModel: "minimax-m3",
     baseUrlEnv: "OLLAMA_BASE_URL",
     defaultBaseUrl: "https://ollama.com",
     visionModelEnv: "OLLAMA_VISION_MODEL",
