@@ -949,27 +949,57 @@ export function registerBridgeRoutes(app: Express): void {
         return;
       }
 
-      // Actually send via Twilio
-      let sent = 0, failed = 0;
-      const { sendSms } = await import("../sms");
-      for (const m of messages) {
-        try {
-          await sendSms(m.phone, m.message, { via: "shop" });
-          // Mark customer as campaign-sent
-          await db.execute(sql`UPDATE customers SET smsCampaignSent = 1, smsCampaignDate = NOW() WHERE phone = ${m.phone}`);
-          sent++;
-        } catch {
-          failed++;
-        }
-      }
+      /**
+       * 2026-09-01 (audit F-20) — THIS ROUTE NO LONGER SENDS.
+       *
+       * docs/eval-rubrics/autonomous-action-tiers.md, Tier 0: "Sending email
+       * or SMS campaigns to >50 recipients in one batch" never auto-executes.
+       * This route accepted `limit` up to 500 behind one flat key and texted
+       * every match in a fire-and-forget loop with no per-recipient ledger.
+       *
+       * The bridge now PREPARES: it creates a DRAFT campaign carrying this
+       * exact copy, and the operator reviews and sends it from
+       * Winback → Campaigns — the path with the claim-first per-recipient
+       * ledger, opt-out filtering and the campaign kill switch. Nothing here
+       * reaches a customer.
+       */
+      const { smsCampaigns } = await import("../../drizzle/schema");
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      // The winback template renders customMessage verbatim when present, so the
+      // draft keeps the bridge's copy (minus the per-vehicle line, which the
+      // segment renderer does not know).
+      const draftCopy =
+        `Hey {firstName}, Nick's Tire & Auto here. Thanks again for trusting us with the work. ` +
+        `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
+        `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
+      const segment = daysSince <= 90 ? "recent" : "all";
+      const [draft] = await db.insert(smsCampaigns).values({
+        name: `Win-back draft (bridge, ${stamp})`,
+        template: "winback",
+        segment,
+        customMessage: draftCopy,
+        targetCount: messages.length,
+        status: "draft",
+      }).$returningId();
 
-      // Log to Telegram
       try {
         const { sendTelegram } = await import("../services/telegram");
-        await sendTelegram(`📱 SMS Campaign Sent\n\n${sent} messages sent, ${failed} failed\nCampaign: Thank You + Referral + Review`);
+        await sendTelegram(
+          `📝 Win-back campaign DRAFTED by the bridge (not sent)\n\n` +
+          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Winback → Campaigns.`,
+        );
       } catch (e) { log.warn("[bridge] operation failed:", e); }
 
-      res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
+      res.json({
+        status: "draft_created",
+        sent: 0,
+        draftCampaignId: draft.id,
+        previewTargetCount: messages.length,
+        segment,
+        adminUrl: "/admin?tab=campaigns&outreachTab=campaigns",
+        note: "This route never sends. An operator must review and send the draft from the admin.",
+        timestamp: new Date().toISOString(),
+      });
     } catch (err: unknown) {
       log.error("[Bridge] SMS campaign error:", err);
       res.status(500).json({ error: (err as Error).message || "Campaign failed" });
