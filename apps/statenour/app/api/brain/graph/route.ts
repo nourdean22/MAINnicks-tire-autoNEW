@@ -4,7 +4,8 @@
  * Extended 2026-06-22 to support Nour Command Center layout and fullscreen brain.
  *
  * Tunable via query:
- *   · ?scope=home|full (new CC/Brain scope)
+ *   · ?scope=home|full|semantic (CC/Brain scope; `semantic` drops task+journal
+ *     churn and separates degree-0 nodes into `unlinked[]` — 2026-09-02)
  *   · ?focus=<nodeId> (focus neighborhood center)
  *   · ?depth=1|2|3 (BFS neighborhood depth, default 2)
  *
@@ -43,7 +44,7 @@ const DEFAULT_CATEGORIES = [
 export const GET = apiHandler(
   async (req) => {
     const url = new URL(req.url);
-    const scope = url.searchParams.get("scope") as "home" | "full" | null;
+    const scope = url.searchParams.get("scope") as "home" | "full" | "semantic" | null;
     const focus = url.searchParams.get("focus") || undefined;
     const depth = url.searchParams.get("depth") ? parseInt(url.searchParams.get("depth")!, 10) || 2 : undefined;
 

@@ -31,6 +31,7 @@
  * deleted — they contradicted CURRENT-TRUTH's "never assert a model name
  * in prose" and rendered a 2026-05 snapshot as if it were the present.
  */
+import { displayLabel } from "./display-label";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
@@ -52,6 +53,12 @@ export type BrainGraphNode = {
     | "project"
     | "system";
   label: string;
+  /** Short, drawable label. Derived deterministically from `label` by
+   *  lib/brain/display-label.ts — no model call. Added 2026-09-02 (WP-1). */
+  displayLabel?: string;
+  /** The untouched original. Tooltips, search and detail panels use THIS;
+   *  `displayLabel` is for the canvas only and is never the last copy. */
+  fullLabel?: string;
   weight: number;
   status?: "active" | "stale" | "done" | "risk" | "opportunity";
   href?: string;
@@ -90,13 +97,100 @@ export type BrainGraphPayload = {
   nodes: BrainGraphNode[];
   edges: BrainGraphEdge[];
   generatedAt: string;
-  scope: "home" | "full" | "focus";
+  scope: "home" | "full" | "semantic" | "focus";
+  /** Nodes with degree 0 IN THIS FILTERED GRAPH. Additive: for home/full/focus
+   *  they also remain in `nodes` (contract unchanged); for `semantic` they are
+   *  separated out so the force simulation only lays out connected structure.
+   *
+   *  This is integration debt made visible, not a rendering accident — the
+   *  2026-08-19 truth pass deleted a "connect every orphan to an anchor" pass
+   *  precisely because inventing edges lies. Isolation is signal. */
+  unlinked: BrainGraphNode[];
   /** Domains that failed or timed out during this build — the client
    *  must render these as DEGRADED, never as silently-absent data. */
   degraded: string[];
   /** Unresolved contradiction pairs present in this payload. */
   contradictionCount: number;
 };
+
+/**
+ * Node types that carry standing meaning. `task` and `journal` are excluded:
+ * measured on production 2026-09-02 they were 55 of 148 nodes (37%) and are
+ * churn — a Monday task and a gym entry are not knowledge the map should
+ * spend its scarce pixels on. They remain one toggle away via `scope=full`.
+ */
+export const SEMANTIC_NODE_TYPES: ReadonlySet<BrainGraphNode["type"]> = new Set([
+  "memory",
+  "decision",
+  "person",
+  "goal",
+  "business",
+  "mission",
+  "system",
+  "project",
+]);
+
+/**
+ * The single exit point for every graph payload.
+ *
+ * Does three things, in this order, because they interact:
+ *   1. TYPE FILTER (semantic only) — drop churn node types and any edge that
+ *      loses an endpoint.
+ *   2. LABELS — attach `displayLabel` + `fullLabel` to every surviving node.
+ *   3. DEGREE — compute degree-0 against the FILTERED graph.
+ *
+ * Order 1-before-3 is load-bearing and was measured, not assumed: filtering to
+ * semantic types on the 2026-09-02 payload RAISED the orphan count from 38 to
+ * 43, because some nodes' only edges pointed at a task or a journal. Computing
+ * orphans on the unfiltered graph would have under-reported by 5 and populated
+ * the tray with the wrong set.
+ *
+ * Contract: for `home` / `full` / `focus` the `nodes` array is unchanged
+ * (additive fields only) and `unlinked` is informational. Only `semantic` —
+ * which no existing consumer requests — removes them from `nodes`.
+ */
+function finalizeGraph(
+  input: {
+    nodes: BrainGraphNode[];
+    edges: BrainGraphEdge[];
+    scope: BrainGraphPayload["scope"];
+    degraded: string[];
+    contradictionCount: number;
+  },
+): BrainGraphPayload {
+  const isSemantic = input.scope === "semantic";
+
+  let nodes = input.nodes;
+  let edges = input.edges;
+  if (isSemantic) {
+    nodes = nodes.filter((n) => SEMANTIC_NODE_TYPES.has(n.type));
+    const keep = new Set(nodes.map((n) => n.id));
+    edges = edges.filter((e) => keep.has(e.source) && keep.has(e.target));
+  }
+
+  const labelled = nodes.map((n) => ({
+    ...n,
+    fullLabel: n.fullLabel ?? n.label,
+    displayLabel: displayLabel(n.label),
+  }));
+
+  const degree = new Map<string, number>();
+  for (const e of edges) {
+    degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+    degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+  }
+  const unlinked = labelled.filter((n) => (degree.get(n.id) ?? 0) === 0);
+
+  return {
+    nodes: isSemantic ? labelled.filter((n) => (degree.get(n.id) ?? 0) > 0) : labelled,
+    edges,
+    generatedAt: new Date().toISOString(),
+    scope: input.scope,
+    degraded: input.degraded,
+    contradictionCount: input.contradictionCount,
+    unlinked,
+  };
+}
 
 /** Life-domain anchors. Real, operator-defined structure — kept. The six
  *  fossil AI/UI nodes that used to live here are gone. */
@@ -160,7 +254,7 @@ interface StoredContradictionContent {
 }
 
 export async function getBrainGraph(params: {
-  scope?: "home" | "full";
+  scope?: "home" | "full" | "semantic";
   focus?: string;
   depth?: number;
   limit?: number;
@@ -676,14 +770,13 @@ export async function getBrainGraph(params: {
         currentQueue = nextQueue;
         if (currentQueue.length === 0) break;
       }
-      return {
+      return finalizeGraph({
         nodes: Array.from(focusNodesMap.values()),
         edges: focusEdges,
-        generatedAt: new Date().toISOString(),
         scope: "focus",
         degraded,
         contradictionCount,
-      };
+      });
     }
   }
 
@@ -700,22 +793,20 @@ export async function getBrainGraph(params: {
     const filteredEdges = edges.filter(
       (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target),
     );
-    return {
+    return finalizeGraph({
       nodes: filteredNodes,
       edges: filteredEdges,
-      generatedAt: new Date().toISOString(),
       scope: "home",
       degraded,
       contradictionCount,
-    };
+    });
   }
 
-  return {
+  return finalizeGraph({
     nodes,
     edges,
-    generatedAt: new Date().toISOString(),
-    scope: "full",
+    scope: scope === "semantic" ? "semantic" : "full",
     degraded,
     contradictionCount,
-  };
+  });
 }
