@@ -1645,15 +1645,20 @@
       "owner": "operator",
       "evidence": {
         "codeCommit": "#2063 (squash 9f903fff3): server/_core/llm.ts wraps invokeLLM and calls services/llmLedger.recordLlmCall (fire-and-forget, gated by LLM_LEDGER_ENABLED, disables itself after the first insert failure). 2026-09-02: drizzle/0116_llm_calls.sql APPLIED to production (table read back present) and LLM_LEDGER_ENABLED=true set on Railway MAINnicks-tire-auto (read back).",
-        "tests": [],
+        "tests": [
+          "server/llmLedgerLane.test.ts (4): a [lane:x] label wins; the wrapper-captured caller function name is the fallback; no label and no caller = unlabeled; the ledger is inert when LLM_LEDGER_ENABLED is unset"
+        ],
         "liveRuns": [],
-        "deploymentId": "code deployed with #2063 main auto-deploy; env var set 2026-09-02"
+        "deploymentId": "code deployed with #2063 main auto-deploy; 0116 applied and LLM_LEDGER_ENABLED=true set 2026-09-02; lane fallback lands with nickstire/llm-ledger-lane",
+        "databaseAssertions": [
+          "2026-09-02 ~10:31 UTC read-only read-back from production (approximately 35 min after LLM_LEDGER_ENABLED=true; Railway redeployed): 2 llm_calls rows, both deepseek-v4-pro via ollama -- one 30 s timeout (ok=0, error recorded), one success at 6.6 s with 430 prompt / 348 completion tokens. The ledger records. Both rows carried lane=unlabeled: no caller passes the [lane:] label, which is the defect the caller-function fallback in this PR closes; named lanes are NOT yet observed in production (next read-back)."
+        ]
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "No unit test exercises recordLlmCall, and no llm_calls row has been read back from production since the env var was set -- the first read-back is the live confirmation. Until then this is unverified by evidence, not by belief.",
-          "source": "2026-09-02 apply session"
+          "description": "Named lanes are not yet observed in production: the two rows read back on 2026-09-02 were written before the caller-function fallback. The next read-back after this PR deploys must show lanes other than unlabeled, or the fallback is not reaching the bundle (function names are relied on surviving esbuild; the build does not minify).",
+          "source": "2026-09-02 read-back"
         }
       ],
       "deferredScope": [
@@ -1661,8 +1666,9 @@
       ],
       "lastVerifiedAt": "2026-09-02",
       "codeState": "merged",
-      "operationalState": "unverified",
-      "exposure": "internal"
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-10-02"
     }
   ],
   "axes": {
