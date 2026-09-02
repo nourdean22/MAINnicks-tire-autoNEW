@@ -462,13 +462,19 @@ export const customersRouter = router({
 
   /** Trigger a full customer data enrichment now */
   enrich: adminProcedure.mutation(async () => {
-    const { enrichCustomerData } = await import("../services/dataPipelines");
-    const { syncVisitDatesFromInvoices } = await import("../services/dataPipelines");
-    const visitResult = await syncVisitDatesFromInvoices();
-    const enrichResult = await enrichCustomerData();
+    const { enrichCustomerData, syncVisitDatesFromInvoices } = await import("../services/dataPipelines");
+    // Both pipelines now THROW on failure (audit F-9) instead of returning
+    // "Failed: …". Run both regardless of the other and report per step, so
+    // a visit-sync failure neither hides enrichment nor surfaces as a bare 500.
+    const failedStep = (label: string, e: unknown) => ({
+      recordsProcessed: 0,
+      details: `${label} FAILED: ${e instanceof Error ? e.message : String(e)}`,
+      failed: true as const,
+    });
+    const [visits, enrichment] = await Promise.allSettled([syncVisitDatesFromInvoices(), enrichCustomerData()]);
     return {
-      visits: visitResult,
-      enrichment: enrichResult,
+      visits: visits.status === "fulfilled" ? { ...visits.value, failed: false as const } : failedStep("Visit sync", visits.reason),
+      enrichment: enrichment.status === "fulfilled" ? { ...enrichment.value, failed: false as const } : failedStep("Enrichment", enrichment.reason),
     };
   }),
 
@@ -752,6 +758,7 @@ export const customersRouter = router({
 
       let sent = 0;
       let queued = 0;
+      let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
       let failed = 0;
 
       for (const c of untexted) {
@@ -766,10 +773,12 @@ export const customersRouter = router({
         const result = await sendSms(c.phone, msg, { via: "shop" });
         // 2026-09-01 (audit F-3): a queued text still consumes the customer
         // (it will go out at 8 AM) but is counted as queued, not sent.
-        const { smsOutcome: batchOutcome } = await import("../lib/smsOutcome");
+        const { smsOutcome: batchOutcome, smsClaimConsumed: batchConsumed } = await import("../lib/smsOutcome");
         const outcome = batchOutcome(result);
-        if (outcome === "sent" || outcome === "queued") {
-          if (outcome === "sent") sent++; else queued++;
+        if (batchConsumed(result)) {
+          // uncertain (gateway timeout) consumes the customer too — it may
+          // have been delivered, and an open claim re-texted them next press.
+          if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
           await d.update(customers)
             .set({ smsCampaignSent: 1, smsCampaignDate: new Date() })
             .where(eq(customers.id, c.id));
@@ -791,7 +800,7 @@ export const customersRouter = router({
             SELECT 1 FROM sms_campaign_sends s WHERE s.customerId = ${customers.id} AND s.status = 'sent'
           )`);
 
-      return { sent, queued, failed, remaining: rem?.count ?? 0 };
+      return { sent, queued, uncertain, failed, remaining: rem?.count ?? 0 };
     }),
 
   /** Update customer segment */

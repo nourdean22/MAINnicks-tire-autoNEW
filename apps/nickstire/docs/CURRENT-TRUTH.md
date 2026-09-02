@@ -19,7 +19,7 @@ Four audit artifacts (`docs/ADMIN-*-2026-09-01.md`) and the code they justified.
 - **The GPT bridge never sends a campaign.** `POST /api/bridge/sms-campaign` creates a DRAFT for Outreach → Campaigns (Tier 0). The winback template renders `customMessage` verbatim when present.
 - **Authorization:** `gatewayTire.refundOrder` → `money.manage`; `smsConversations.*` → `customers.manage`; a mutation whose admin-security read THREW is refused (reads and the no-row case keep the 2026-07-16 fail-open).
 - **Dispatch has no bays.** The Bay Grid is gone; `dispatch.assign` no longer requires a `bayId`. `dispatch.sendMessage` actually sends (as a transactional confirmation) and records the outcome.
-- **The StateNour revenue push says `available:false`** on a failed read instead of `$0, behind`. Owner escalations go through `services/ownerEscalation.ts` → StateNour `open_loop` (obligation + links, never rows).
+- **The StateNour revenue push says `available:false`** on a failed read instead of `$0, behind`. The push lands at StateNour's `/api/sync/business` (stored as an `AuditEvent`); StateNour's Command Surface consumer (`app/api/command/data/route.ts`) still reads `revenue.todayEstimate ?? 0`, so until that consumer honours `available:false` it will show $0 on a failed read — a StateNour-side follow-up, not closed by this wave. Owner escalations go through `services/ownerEscalation.ts` → StateNour `open_loop` (obligation + links, never rows).
 - **Nexus SMS audit queue retired** (producer removed; `0115` drops the table, operator-gated). **LLM call ledger** exists but is inert until `0116` is applied and `LLM_LEDGER_ENABLED=true`.
 - Migrations `0114`–`0117` are NOT applied by this wave — see the PR's operator actions.
 

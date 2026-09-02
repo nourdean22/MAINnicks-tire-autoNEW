@@ -546,7 +546,8 @@ export function alertVendorRecovered(vendor: string) {
 export function sendDailySummary(data: {
   leads: number;
   bookings: number;
-  revenue: number;
+  /** null = the revenue read failed. Rendered as unknown, never as $0 (METRICS-CONTRACT · Unknown is not zero). */
+  revenue: number | null;
   reviews: number;
   avgRating?: number;
   vendorHealth?: string;
@@ -556,7 +557,7 @@ export function sendDailySummary(data: {
     divider(),
     `🔔 Leads: ${bold(String(data.leads))}`,
     `📅 Bookings: ${bold(String(data.bookings))}`,
-    `💰 Revenue: ${bold(`$${data.revenue.toLocaleString()}`)}`,
+    `💰 Revenue: ${data.revenue === null ? bold("unknown (read failed)") : bold(`$${data.revenue.toLocaleString()}`)}`,
     `⭐ Reviews: ${data.reviews}${data.avgRating ? ` (avg ${data.avgRating.toFixed(1)})` : ""}`,
     data.vendorHealth ? `\n🏥 Systems: ${data.vendorHealth}` : "",
     divider(),

@@ -4281,11 +4281,11 @@ export const llmCalls = mysqlTable("llm_calls", {
   completionTokens: int("completionTokens"),
   latencyMs: int("latencyMs").notNull(),
   /** 1 = returned, 0 = threw. */
-  ok: int("ok").notNull(),
+  ok: tinyint("ok").notNull(),
   /** First 200 chars of the error when ok = 0. */
   error: varchar("error", { length: 200 }),
   /** Whether the call carried image parts (routes to the vision lane). */
-  hadImages: int("hadImages").default(0).notNull(),
+  hadImages: tinyint("hadImages").default(0).notNull(),
 }, (table) => [
   index("idx_llm_calls_called").on(table.calledAt),
   index("idx_llm_calls_lane").on(table.lane, table.calledAt),

@@ -72,6 +72,7 @@ export async function processReminderQueue() {
   const due = await getDueReminders();
   let sent = 0;
   let queued = 0;
+  let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
   let failed = 0;
 
   for (const reminder of due) {
@@ -101,11 +102,14 @@ export async function processReminderQueue() {
       const result = await sendSms(reminder.phone, message, { via: "shop" });
       // 2026-09-01 (audit F-3): a reminder parked for the 8 AM window is
       // marked (it will go out — no re-send) but counted as queued, not sent.
-      const { smsOutcome } = await import("../lib/smsOutcome");
+      const { smsOutcome, smsClaimConsumed } = await import("../lib/smsOutcome");
       const outcome = smsOutcome(result);
-      if (outcome === "sent" || outcome === "queued") {
+      if (smsClaimConsumed(result)) {
+        // sent, queued AND uncertain all consume the reminder: an uncertain
+        // (gateway-timeout) text may have been delivered, and leaving the
+        // reminder "scheduled" re-texted the customer every tick.
         await markReminderSent(reminder.id, result.sid);
-        if (outcome === "sent") sent++; else queued++;
+        if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
       } else {
         failed++;
       }
@@ -115,5 +119,5 @@ export async function processReminderQueue() {
     }
   }
 
-  return { processed: due.length, sent, queued, failed };
+  return { processed: due.length, sent, queued, uncertain, failed };
 }

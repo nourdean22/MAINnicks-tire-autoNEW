@@ -369,9 +369,11 @@ Uncovered by any contract today, and the caveat that governs each: **ARO / car c
 basis; `paymentStatus` unreliable — memory 2026-08-28); **gross margin** (cost feed dead since
 2026-04 — memory; do not display); **show rate** (bookings are FCFS signals, not slots — define
 "showed" as a linked work order, per CURRENT-TRUTH's arrival rule); **technician productivity**
-(a `technicians` / `job_assignments` model exists in code, but `work_orders.assignedTech /
-assignedTechId / assignedBay` are never written — artifact 4 §1.3, correction #14; **do not
-define until a prod row count shows the model is populated**); **inventory turns** (no inventory
+(a `technicians` / `job_assignments` model exists in code; this section first said the
+`work_orders.assignedTech / assignedTechId / assignedBay` columns are never written — **withdrawn,
+correction #17**: `assignedTech`/`assignedBay` are written by the Work Orders quick-input and
+`assignedTechId` by `dispatch.assign`, and the Team Performance panel reads `assignedTechId`
+today; define technician productivity on `assignedTechId`, and confirm the prod row count first); **inventory turns** (no inventory
 ledger — tires are ordered per job; do not define); **review rate** (`review_requests` sent vs
 `review_pipeline` detected — definable, both tables have writers); **outbound SMS volume**
 (inflated by F-8 until fixed — re-baseline after).

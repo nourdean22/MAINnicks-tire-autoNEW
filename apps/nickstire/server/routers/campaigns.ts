@@ -251,6 +251,22 @@ export const campaignsRouter = router({
         return { success: false, error: "Campaign already started by another request" };
       }
 
+      // A draft may already carry its EXACT audience as pending send rows —
+      // the GPT bridge persists the customers it actually matched (Codex P1
+      // on PR #2063: rebuilding from `segment` would swap a 10-person list
+      // for up to 5,000). When rows exist, they ARE the audience; nothing is
+      // re-queried and nothing is added.
+      const [preloadedRow] = await d.select({ n: sql<number>`count(*)` })
+        .from(smsCampaignSends)
+        .where(and(eq(smsCampaignSends.campaignId, input.campaignId), eq(smsCampaignSends.status, "pending")));
+      const preloaded = Number(preloadedRow?.n ?? 0);
+      if (preloaded > 0) {
+        processCampaignSends(input.campaignId).catch(err => {
+          log.error(`[Campaigns] Error processing campaign ${input.campaignId}:`, err);
+        });
+        return { success: true, sentCount: 0, totalCount: preloaded, audience: "persisted" as const };
+      }
+
       // Get target customers — only the winning claim does this work.
       const targetCustomers = await getSegmentCustomers(campaign.segment as any);
 
@@ -288,7 +304,7 @@ export const campaignsRouter = router({
         log.error(`[Campaigns] Error processing campaign ${input.campaignId}:`, err);
       });
 
-      return { success: true, sentCount: 0, totalCount: targetCustomers.length };
+      return { success: true, sentCount: 0, totalCount: targetCustomers.length, audience: "segment" as const };
     }),
 
   /** Get recent send activity for a campaign */

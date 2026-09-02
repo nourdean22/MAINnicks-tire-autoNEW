@@ -169,15 +169,23 @@ export async function sendInProgressUpdate(workOrderId: string): Promise<void> {
  * Send when work order status changes to "ready_for_pickup" or "completed".
  * "Your vehicle is ready!"
  */
-export async function sendReadyForPickup(workOrderId: string): Promise<void> {
+export type ReadyForPickupOutcome = "sent" | "queued" | "uncertain" | "failed" | "skipped";
+
+/**
+ * Returns what actually happened (self-review on PR #2063): the caller in
+ * workOrderService advances the work order to `customer_notified` only on
+ * sent/queued. "skipped" = the flag is off (the caller's legacy text runs).
+ */
+export async function sendReadyForPickup(workOrderId: string): Promise<ReadyForPickupOutcome> {
   if (!(await isDropOffFlowEnabled())) {
     log.debug("drop_off_sms_flow disabled, skipping ready-for-pickup", { workOrderId });
-    return;
+    return "skipped";
   }
 
   try {
     const ctx = await getWorkOrderContext(workOrderId);
     const { sendSms } = await import("../sms");
+    const { smsOutcome } = await import("../lib/smsOutcome");
 
     const closingTime = getClosingTime();
 
@@ -187,12 +195,14 @@ export async function sendReadyForPickup(workOrderId: string): Promise<void> {
       STORE_PHONE_DISPLAY,
     ].filter(Boolean).join(" ");
 
-    await sendSms(ctx.phone, message, { via: "shop" });
-    log.info("Ready-for-pickup SMS sent", { workOrderId, phone: ctx.phone.slice(-4) });
+    const outcome = smsOutcome(await sendSms(ctx.phone, message, { via: "shop" }));
+    log.info(`Ready-for-pickup SMS ${outcome}`, { workOrderId, phone: ctx.phone.slice(-4) });
+    return outcome;
   } catch (err) {
     log.error("Failed to send ready-for-pickup SMS", {
       workOrderId,
       error: err instanceof Error ? err.message : String(err),
     });
+    return "failed";
   }
 }

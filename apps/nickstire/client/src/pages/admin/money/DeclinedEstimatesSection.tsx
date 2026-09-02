@@ -86,8 +86,10 @@ export default function DeclinedEstimatesSection() {
 
   const bulkFollowUpMutation = trpc.invoices.bulkFollowUp.useMutation({
     onSuccess: (result) => {
+      // Queued (8 AM window) texts are accepted and the estimate is marked
+      // followed-up — never a failure (Codex P2 on PR #2063).
       const failedReasons = result.results
-        .filter(r => !r.sent)
+        .filter(r => !r.sent && r.reason !== "queued_for_8am_window" && r.reason !== "delivery_uncertain")
         .reduce((acc: Record<string, number>, r) => {
           const k = r.reason || "unknown";
           acc[k] = (acc[k] || 0) + 1;
@@ -96,8 +98,11 @@ export default function DeclinedEstimatesSection() {
       const reasonStr = Object.entries(failedReasons).map(([k, v]) => `${v} ${k}`).join(", ");
       if (result.killSwitchOn) {
         toast.error(`SMS_KILL_SWITCH is on — 0 sent. Flip the env var on Railway when Twilio is back.`);
-      } else if (result.sentCount > 0) {
-        toast.success(`Sent ${result.sentCount} of ${result.sentCount + result.failedCount}${reasonStr ? ` (${reasonStr})` : ""}`);
+      } else if (result.sentCount + result.queuedCount + result.uncertainCount > 0) {
+        const queuedStr = result.queuedCount > 0 ? ` · ${result.queuedCount} queued for 8 AM` : "";
+        const uncertainStr = result.uncertainCount > 0 ? ` · ${result.uncertainCount} unconfirmed (gateway timeout — do not re-send)` : "";
+        const failedStr = result.failedCount > 0 ? ` · ${result.failedCount} failed${reasonStr ? ` (${reasonStr})` : ""}` : "";
+        toast.success(`Sent ${result.sentCount}${queuedStr}${uncertainStr}${failedStr}`);
       } else {
         toast.error(`0 sent · failures: ${reasonStr}`);
       }

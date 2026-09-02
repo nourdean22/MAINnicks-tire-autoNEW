@@ -74,6 +74,12 @@ export function decryptMfaSecret(payload: string): string {
 
 export async function getAdminSecurityState(openId: string): Promise<AdminSecurityState | null> {
   const db = await getDb();
+  // Considered and REVERTED on PR #2063: throwing here (so a missing handle
+  // reads as a failed read and mutations are refused) broke 61 tests across
+  // 10 harnesses that hand the middleware a null handle. A null handle only
+  // happens when DATABASE_URL is unset — an environment the app cannot run in
+  // at all — while the real failure shape (a dead database throwing at
+  // `execute`) IS caught by the middleware's `securityReadFailed` path.
   if (!db) return null;
   const result = await db.execute(sql`
     SELECT adminRole, mfaEnabled, mfaVerifiedAt, mfaSecretEncrypted,

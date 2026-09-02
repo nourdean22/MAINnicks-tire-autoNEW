@@ -286,10 +286,13 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
 
     let sent = 0;
     let queued = 0;
+    let uncertain = 0; // attempted, unconfirmed (gateway timeout) — action row written, never re-sent
     let skipped = 0;
 
     for (const p of predictions) {
-      if (sent >= MAX_SMS_PER_RUN) break;
+      // Codex P1 (PR #2063): queued texts WILL go out at 8 AM — they count against
+      // the cap; so does an unconfirmed attempt (capacity was used either way).
+      if (sent + queued + uncertain >= MAX_SMS_PER_RUN) break;
       if (!p.customerPhone) { skipped++; continue; }
       if (p.smsOptOut) { skipped++; continue; }
 
@@ -369,8 +372,12 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       // so both get the closed-loop action row; only delivered counts as sent.
       const { smsOutcome } = await import("../../lib/smsOutcome");
       const outcome = smsOutcome(result);
-      if (outcome === "sent" || outcome === "queued") {
-        if (outcome === "sent") sent++; else queued++;
+      // Every non-failed outcome gets the closed-loop action row — including
+      // uncertain (gateway timeout): the relay may have delivered, and a
+      // prediction with no "we acted" row would be re-texted (self-review on
+      // PR #2063). Only a confirmed send counts as sent.
+      if (outcome !== "failed") {
+        if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
         // confidence is a 0-1 FRACTION (see the MIN_CONFIDENCE_TO_ACT block
         // above — the %-vs-fraction confusion is this file's founding bug);
         // render as percent instead of logging "0.62%".

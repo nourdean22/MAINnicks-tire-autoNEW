@@ -45,8 +45,10 @@ export async function decodeVin(rawVin: string | null | undefined, fetchImpl: ty
   try {
     const res = await fetchImpl(`${VPIC_URL}${vin}?format=json`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) {
-      log.warn("vPIC non-OK response", { vin: vin.slice(-6), status: res.status });
-      cache.set(vin, null);
+      // Not cached: a 5xx/429 is transient and must not blank this VIN for the
+      // life of the process (self-review on PR #2063). Only a clean 2xx with
+      // no usable Results is a durable "nothing to decode".
+      log.warn("vPIC non-OK response", { vinLast4: vin.slice(-4), status: res.status });
       return null;
     }
     const data = (await res.json()) as { Results?: Array<Record<string, string>> };
@@ -67,7 +69,7 @@ export async function decodeVin(rawVin: string | null | undefined, fetchImpl: ty
     cache.set(vin, result);
     return result;
   } catch (err) {
-    log.warn("vPIC decode failed", { vin: vin.slice(-6), err: err instanceof Error ? err.message : String(err) });
+    log.warn("vPIC decode failed", { vinLast4: vin.slice(-4), err: err instanceof Error ? err.message : String(err) });
     return null; // not cached: a transient failure may succeed later
   }
 }

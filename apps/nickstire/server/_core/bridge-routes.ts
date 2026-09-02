@@ -925,7 +925,7 @@ export function registerBridgeRoutes(app: Express): void {
         vehicleYear: string | null;
       }
       const customers = targets as SmsCampaignCustomer[];
-      const messages: { phone: string; name: string; message: string }[] = [];
+      const messages: { customerId: number; phone: string; name: string; message: string }[] = [];
 
       for (const c of customers) {
         const firstName = c.firstName || "there";
@@ -936,7 +936,7 @@ export function registerBridgeRoutes(app: Express): void {
           `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
           `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
 
-        messages.push({ phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
+        messages.push({ customerId: c.id, phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
       }
 
       if (dryRun) {
@@ -963,7 +963,8 @@ export function registerBridgeRoutes(app: Express): void {
        * ledger, opt-out filtering and the campaign kill switch. Nothing here
        * reaches a customer.
        */
-      const { smsCampaigns } = await import("../../drizzle/schema");
+      const { smsCampaigns, smsCampaignSends } = await import("../../drizzle/schema");
+      const { withOptOut } = await import("../sms");
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
       // The winback template renders customMessage verbatim when present, so the
       // draft keeps the bridge's copy (minus the per-vehicle line, which the
@@ -981,6 +982,26 @@ export function registerBridgeRoutes(app: Express): void {
         targetCount: messages.length,
         status: "draft",
       }).$returningId();
+
+      /**
+       * Codex P1 on PR #2063: the draft must carry its EXACT audience.
+       * `segment` alone would let campaigns.send rebuild the list from the
+       * segment predicate — up to 5,000 customers, without this route's
+       * `smsCampaignSent = 0` filter — behind a draft that displays 10.
+       * So the matched customers are persisted as pending send rows, with
+       * the per-customer copy (vehicle line included) and the opt-out
+       * footer, and campaigns.send uses them verbatim when present.
+       */
+      const recipientRows = messages.map((m) => ({
+        campaignId: draft.id,
+        customerId: m.customerId,
+        phone: m.phone,
+        messageBody: withOptOut(m.message),
+        status: "pending" as const,
+      }));
+      for (let i = 0; i < recipientRows.length; i += 500) {
+        await db.insert(smsCampaignSends).values(recipientRows.slice(i, i + 500));
+      }
 
       try {
         const { sendTelegram } = await import("../services/telegram");
@@ -1009,6 +1030,7 @@ export function registerBridgeRoutes(app: Express): void {
       res.json({
         status: "draft_created",
         sent: 0,
+        recipientsPersisted: recipientRows.length,
         draftCampaignId: draft.id,
         previewTargetCount: messages.length,
         segment,

@@ -78,3 +78,35 @@ describe("cron handlers fail loudly", () => {
     }
   });
 });
+
+/**
+ * Second shape (self-review on PR #2063): the scheduler file ITSELF wraps some
+ * handlers in `try { … } catch (e) { log.warn(…); return { details: "X failed" }; }`
+ * — one frame above the module the first scan covers. A rethrow inside
+ * chatFaqPipeline.ts was caught by exactly such a wrapper and recorded
+ * `completed` again, and the module scan was green. Twelve more wrappers of
+ * that shape lived in scheduler.ts. This scan reads the wiring files directly.
+ */
+const INLINE_SWALLOW = /catch \((?:e|err|error)(?::\s*unknown)?\)\s*\{\s*(?:log\.\w+\([^;]*\);\s*)?return \{[^}]*details:\s*[`"'][^`"']*(?:failed|skipped)/i;
+
+describe("the scheduler's own inline handlers fail loudly", () => {
+  const wiring = ["scheduler.ts", "index.ts"].map((f) => join(CRON_DIR, f));
+
+  it("positive control — the regex catches the exact wrapper that was removed, and ignores a legitimate skip outside a catch", () => {
+    expect(INLINE_SWALLOW.test('} catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Accuracy check failed" }; }')).toBe(true);
+    expect(INLINE_SWALLOW.test('} catch (e: unknown) { return { details: `Digest failed: ${(e as Error).message}` }; }')).toBe(true);
+    expect(INLINE_SWALLOW.test('} catch (e) { log.warn("x", e); return { details: "Segmentation skipped" }; }')).toBe(true);
+    expect(INLINE_SWALLOW.test('if (dow !== "Sunday") return { details: "Not Sunday, skipped" };')).toBe(false);
+    expect(INLINE_SWALLOW.test('} catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; }')).toBe(false);
+  });
+
+  it("no inline catch in scheduler.ts / index.ts returns a failure as a completed run", () => {
+    const offenders: string[] = [];
+    for (const f of wiring) {
+      const text = readFileSync(f, "utf8");
+      const lines = text.split("\n");
+      lines.forEach((line, i) => { if (INLINE_SWALLOW.test(line)) offenders.push(`${f.slice(APP.length + 1).replace(/\\/g, "/")}:${i + 1}`); });
+    }
+    expect(offenders, `inline catch(es) still swallow a failure into \`completed\` — rethrow instead: ${offenders.join(", ")}`).toEqual([]);
+  });
+});

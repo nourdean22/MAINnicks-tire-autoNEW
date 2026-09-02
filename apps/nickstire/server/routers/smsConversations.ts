@@ -130,7 +130,10 @@ export const smsConversationsRouter = router({
             direction: "outbound",
             body: input.message,
             twilioSid: result.sid || undefined,
-            status: outcome === "sent" ? "sent" : "failed",
+            // `uncertain` (gateway timeout) is the in-flight `sending` state
+            // sms.ts itself uses for that row — attempted, unconfirmed, never
+            // "failed" (a failed row invites a re-send = duplicate text).
+            status: outcome === "sent" ? "sent" : outcome === "uncertain" ? "sending" : "failed",
           });
         }
 
@@ -157,7 +160,9 @@ export const smsConversationsRouter = router({
         }
 
         return {
-          success: result.success,
+          // `uncertain` is success:true from sendSms ("do not retry") but is
+          // NOT a confirmed send — the client must not toast "Sent" for it.
+          success: outcome === "sent" || outcome === "queued",
           // The client renders "queued for 8 AM" instead of "Sent" on this flag.
           queued: outcome === "queued",
           outcome,

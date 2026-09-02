@@ -128,7 +128,7 @@ export function AttributionReviewCard() {
                   <button
                     onClick={() => decide(row, "confirmed")}
                     disabled={busy}
-                    className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
                     aria-label={`Confirm match for call ${row.callId}`}
                   >
                     {busy && busyKey?.endsWith(":confirmed") ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Confirm
@@ -136,7 +136,7 @@ export function AttributionReviewCard() {
                   <button
                     onClick={() => decide(row, "ambiguous")}
                     disabled={busy}
-                    className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
+                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
                     aria-label={`Mark match ambiguous for call ${row.callId}`}
                   >
                     <HelpCircle className="w-4 h-4" /> Unsure
@@ -144,7 +144,7 @@ export function AttributionReviewCard() {
                   <button
                     onClick={() => decide(row, "rejected")}
                     disabled={busy}
-                    className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                    className="min-h-[48px] min-w-[48px] px-3 inline-flex items-center gap-1 text-xs font-medium rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                     aria-label={`Reject match for call ${row.callId}`}
                   >
                     <XCircle className="w-4 h-4" /> Reject

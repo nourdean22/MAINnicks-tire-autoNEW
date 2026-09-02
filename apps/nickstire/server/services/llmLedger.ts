@@ -31,6 +31,7 @@ export interface LlmCallRecord {
 }
 
 let warnedOnce = false;
+let disabled = false; // set on the first insert failure — no point retrying a missing table every call
 
 function ledgerEnabled(): boolean {
   return process.env.LLM_LEDGER_ENABLED === "true";
@@ -66,7 +67,7 @@ function hadImages(params: InvokeParams): boolean {
 }
 
 export function recordLlmCall(rec: LlmCallRecord): void {
-  if (!ledgerEnabled()) return;
+  if (!ledgerEnabled() || disabled) return;
   void (async () => {
     try {
       const { getDb } = await import("../db");
@@ -89,6 +90,7 @@ export function recordLlmCall(rec: LlmCallRecord): void {
         VALUES (${model}, ${provider}, ${lane}, ${promptTokens}, ${completionTokens}, ${latencyMs}, ${rec.ok ? 1 : 0}, ${errorText}, ${images})
       `);
     } catch (err) {
+      disabled = true;
       if (!warnedOnce) {
         warnedOnce = true;
         log.warn("llm_calls insert failed — ledger disabled for this process until restart (is 0116 applied?)", {

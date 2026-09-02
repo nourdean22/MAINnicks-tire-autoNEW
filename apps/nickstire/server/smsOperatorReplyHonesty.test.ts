@@ -26,7 +26,9 @@ describe("smsConversations.send · honest receipt", () => {
   it("derives the row status from the outcome, and writes NO router row for a queued reply (the durable queue row is the record)", () => {
     expect(send).toMatch(/const outcome = smsOutcome\(result\)/);
     expect(send).toMatch(/if \(outcome !== "queued"\) \{\s*await addSmsMessage\(/);
-    expect(send).toMatch(/status: outcome === "sent" \? "sent" : "failed"/);
+    // uncertain (gateway timeout) is the in-flight `sending` state, never "failed" — a failed row invites a re-send.
+    expect(send).toMatch(/status: outcome === "sent" \? "sent" : outcome === "uncertain" \? "sending" : "failed"/);
+    expect(send).toMatch(/success: outcome === "sent" \|\| outcome === "queued"/);
     expect(send).not.toMatch(/status: result\.success \? "sent" : "failed"/);
   });
   it("tells the client when the reply was queued so it can say so", () => {

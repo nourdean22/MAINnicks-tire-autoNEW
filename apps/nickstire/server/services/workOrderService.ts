@@ -322,11 +322,6 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
 
   // ready_for_pickup → auto-send SMS (drop-off flow supersedes when enabled)
   if (newStatus === "ready_for_pickup") {
-    // Fire the richer drop-off flow version (no-op when flag disabled)
-    import("./dropOffFlow").then(({ sendReadyForPickup }) =>
-      sendReadyForPickup(workOrderId)
-    ).catch((e) => { log.warn("[services/workOrderService] fire-and-forget failed:", e); });
-
     try {
       const { isEnabled } = await import("./featureFlags");
       const dropOffEnabled = await isEnabled("drop_off_sms_flow");
@@ -343,10 +338,15 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
       let notified = false;
       let note = "";
       if (dropOffEnabled) {
-        // The drop-off flow fired above (fire-and-forget); it owns the text
-        // and logs its own outcome. Advance, and say who owns it.
-        notified = true;
-        note = "Ready-for-pickup text handed to the drop-off flow (see its log for the outcome)";
+        // The richer drop-off flow owns the text. It used to be fired and
+        // forgotten here with `notified = true` regardless — the status now
+        // follows ITS outcome too (self-review on PR #2063).
+        const { sendReadyForPickup } = await import("./dropOffFlow");
+        const outcome = await sendReadyForPickup(workOrderId);
+        if (outcome === "sent") { notified = true; note = "Ready-for-pickup text sent (drop-off flow)"; }
+        else if (outcome === "queued") { notified = true; note = "Ready-for-pickup text queued for the 8 AM window (drop-off flow)"; }
+        else if (outcome === "uncertain") { note = "Ready-for-pickup text attempted, delivery unconfirmed (gateway timeout) — call to confirm, do NOT re-text"; }
+        else { note = `Ready-for-pickup text ${outcome} (drop-off flow) — customer NOT notified, call them`; }
       } else {
         const { db, workOrders } = await getDbAndSchema();
         const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);

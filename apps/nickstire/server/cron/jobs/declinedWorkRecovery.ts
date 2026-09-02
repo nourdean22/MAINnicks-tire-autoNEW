@@ -583,8 +583,14 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           await logOutboundSms(est.customerPhone, body, res, vKey);
         }
 
-        if (res.success) {
-          // Mark sent column (touch-specific, like the claim above)
+        const { smsOutcome: recoveryOutcome } = await import("../../lib/smsOutcome");
+        const dOutcome = recoveryOutcome(res);
+        if (dOutcome !== "failed") {
+          // Mark the sent column (touch-specific, like the claim above) only
+          // for a confirmed or durably queued text. An uncertain (gateway
+          // timeout) text keeps its AttemptedAt claim — so it is never
+          // re-sent — but earns no Sent stamp nobody observed (audit F-3).
+          if (dOutcome !== "uncertain") {
           if (touch === "3d") {
             await d.update(algEstimates).set({ followUp3dSent: 1, followUp3dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
           } else if (touch === "7d") {
@@ -596,6 +602,10 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           } else {
             await d.update(algEstimates).set({ followUp45dSent: 1, followUp45dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
           }
+          } else {
+            log.warn(`[declined-recovery] ${touch} send UNCONFIRMED (gateway timeout) for estimate ${est.id} — attempted claim kept, no Sent stamp, not retried`);
+          }
+          // Counts toward the per-run cap for every non-failed outcome (attempted = capacity used).
           sentByTouch[touch] = (sentByTouch[touch] ?? 0) + 1;
           if (touch === "3d") sent3d++;
           else if (touch === "7d") sent7d++;

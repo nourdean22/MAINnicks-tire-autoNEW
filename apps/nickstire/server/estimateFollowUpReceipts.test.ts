@@ -81,6 +81,17 @@ describe("processEstimateFollowUp · consume only what was texted", () => {
     expect(r.details).toMatch(/sent 0 · queued 2/);
   });
 
+  it("uncertain (gateway timeout): CONSUMED — the relay may have delivered, so it is never re-texted — and counted as uncertain, not sent", async () => {
+    isEnabled.mockResolvedValue(true);
+    sendSms.mockResolvedValue({ success: true, uncertain: true });
+    const { processEstimateFollowUp } = await import("./services/workOrderAutomation");
+    const r = await processEstimateFollowUp();
+    const updates = execute.mock.calls.filter((c) => /UPDATE estimates/i.test(sqlText(c)));
+    expect(updates).toHaveLength(2);
+    expect(r.recordsProcessed).toBe(0);
+    expect(r.details).toMatch(/sent 0 · queued 0 · failed 0 · uncertain 2/);
+  });
+
   it("the eligibility band is 2–7 days (a busy day catches up on later runs)", async () => {
     isEnabled.mockResolvedValue(false);
     const { processEstimateFollowUp } = await import("./services/workOrderAutomation");

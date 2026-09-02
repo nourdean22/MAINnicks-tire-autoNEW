@@ -185,6 +185,8 @@ export interface SendDraftResult {
   ok: boolean;
   error?: string;
   queued?: boolean;
+  /** What actually happened at the gateway — `uncertain` is attempted-unconfirmed (timeout): never re-send. */
+  outcome?: "sent" | "queued" | "uncertain" | "failed";
 }
 
 /**
@@ -255,20 +257,30 @@ export async function sendOpportunityDraft(params: SendDraftParams): Promise<Sen
     variantKey: `opp_bridge_${opp.sourceType}`,
   });
 
-  if (!result.success) {
+  const { smsOutcome } = await import("../lib/smsOutcome");
+  const outcome = smsOutcome(result);
+  if (outcome === "failed") {
     log.warn("opportunity draft send failed", { id: params.id, error: result.error });
-    return { ok: false, error: result.error ?? "send failed" };
+    return { ok: false, error: result.error ?? "send failed", outcome };
   }
 
+  // sent, queued AND uncertain all record the attempt: an uncertain (gateway
+  // timeout) text may have been delivered, so the opportunity must not be
+  // texted again — the note says exactly which of the three it was.
+  const how = outcome === "queued"
+    ? "queued for window"
+    : outcome === "uncertain"
+      ? "attempted — delivery unconfirmed (gateway timeout), do NOT re-send"
+      : "delivered to gateway";
   const transition = await transitionOpportunity({
     id: params.id,
     to: "attempted",
     by: params.by,
-    note: `SMS sent from Decision Inbox (${result.queued ? "queued for window" : "delivered to gateway"}): "${body.slice(0, 120)}${body.length > 120 ? "…" : ""}"`,
+    note: `SMS from Decision Inbox (${how}): "${body.slice(0, 120)}${body.length > 120 ? "…" : ""}"`,
   });
   if (!transition.ok) {
     // The text went out; the receipt failing must be loud but not lie about the send.
     log.error("draft sent but transition failed — receipt missing", { id: params.id, error: transition.error });
   }
-  return { ok: true, queued: result.queued === true };
+  return { ok: true, queued: outcome === "queued", outcome };
 }

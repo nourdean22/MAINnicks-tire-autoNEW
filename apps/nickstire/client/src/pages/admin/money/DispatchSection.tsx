@@ -2,10 +2,12 @@
  * Shop Status — ready queue, tech assignment, QC review.
  *
  * 2026-09-01 (audit, artifact 4 §1.3): the BAY GRID is gone. The `bays` table
- * has update-only writers and no insert or seed anywhere in the repo, and
- * `work_orders.assignedBay` is never written — the grid rendered "0/0 bays"
- * forever on the Money page of a shop that CURRENT-TRUTH says has no bay model
- * on purpose. Techs, the ready queue and QC are real and stay.
+ * has update-only writers and no insert or seed anywhere in the repo, so the
+ * grid rendered "0/0 bays" forever on the Money page of a shop that
+ * CURRENT-TRUTH says has no bay model on purpose. (`work_orders.assignedBay`
+ * IS written — by the Work Orders quick-input, as a free-text label with no
+ * bay row behind it; the audit's "never written" was wrong, correction #17.)
+ * Techs, the ready queue and QC are real and stay.
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";

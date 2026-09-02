@@ -221,6 +221,6 @@ export const REPORT_DOCS: ReportDoc[] = [
   { title: "Entity cleanup checklist", category: "Entity Cleanup", path: "apps/nickstire/docs/entity-cleanup-checklist.md", note: "Owner manual NAP fixes" },
   { title: "Refund / writeback design", category: "Checkout Safety", path: "apps/nickstire/docs/refund-writeback-design.md", note: "Approved and Live" },
   { title: "Gateway / D&K availability status", category: "D&K / Gateway", path: "apps/nickstire/docs/gateway-dk-availability-status.md", note: "Why live availability is down, what's needed" },
-  { title: "Customer confirmation notifications", category: "Customer Messaging", path: "apps/nickstire/docs/customer-confirmation-notifications.md", note: "Preview-only — no sends" },
+  { title: "Customer confirmation notifications", category: "Customer Messaging", path: "apps/nickstire/docs/customer-confirmation-notifications.md", note: "Sends when ENABLE_CUSTOMER_CONFIRMATIONS is set (code verified 2026-09-01; prod value not verified) — see the Customer Messaging entry above" },
   { title: "Website audit status", category: "Website SEO Audit", path: "apps/nickstire/docs/website-audit-status.md", note: "What's fixed vs still open" },
 ];

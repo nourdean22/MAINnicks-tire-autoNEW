@@ -302,9 +302,10 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
   }
 
   const { sendSms, withOptOut } = await import("../sms");
-  const { smsOutcome, smsWillReachCustomer } = await import("../lib/smsOutcome");
+  const { smsOutcome, smsClaimConsumed } = await import("../lib/smsOutcome");
   let sent = 0;
   let queued = 0;
+  let uncertain = 0; // attempted, unconfirmed (gateway timeout) — claim consumed, never re-sent
   let failed = 0;
 
   for (const est of estimates) {
@@ -319,14 +320,17 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
         { via: "shop" }
       );
 
-      if (smsWillReachCustomer(result)) {
-        // Consume the estimate only once the text is delivered or durably queued.
+      const outcome = smsOutcome(result);
+      if (smsClaimConsumed(result)) {
+        // Consume the estimate for every outcome but a definite failure. An
+        // uncertain (gateway-timeout) text may have been delivered; leaving
+        // the claim open re-texted the same estimate every day of the band.
         await db.execute(sql`UPDATE estimates SET followUpSent = 1 WHERE id = ${est.id}`);
-        if (smsOutcome(result) === "queued") queued++; else sent++;
+        if (outcome === "queued") queued++; else if (outcome === "uncertain") uncertain++; else sent++;
       } else {
         // Left unclaimed: it stays eligible inside the 2–7 day band.
         failed++;
-        log.warn(`Estimate follow-up SMS not delivered for estimate #${est.id} (${smsOutcome(result)})`);
+        log.warn(`Estimate follow-up SMS not delivered for estimate #${est.id} (${outcome})`);
       }
       if (ESTIMATE_FOLLOWUP_SPACING_MS > 0) await new Promise(r => setTimeout(r, ESTIMATE_FOLLOWUP_SPACING_MS));
     } catch (e) {
@@ -337,7 +341,7 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
 
   return {
     recordsProcessed: sent,
-    details: `sent ${sent} · queued ${queued} · failed ${failed} (band 2–7 days, cap 10/run)`,
+    details: `sent ${sent} · queued ${queued} · failed ${failed} · uncertain ${uncertain} (band 2–7 days, cap 10/run)`,
   };
 }
 
@@ -367,6 +371,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
     const { sendSms, withOptOut } = await import("../sms");
     let sent = 0;
     let queued = 0;
+    let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
 
     // Gate SMS behind feature flag
     const { isEnabled: isEnabledCampaign } = await import("./featureFlags");
@@ -383,11 +388,13 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
           via: "shop",
           variantKey: "campaign_retry",
         });
-        // 2026-09-01 (audit F-3): queued ≠ sent; both consume the customer.
-        const { smsOutcome: retryOutcome } = await import("../lib/smsOutcome");
+        // 2026-09-01 (audit F-3): queued ≠ sent. Every outcome but a definite
+        // failure consumes the customer — an uncertain (gateway-timeout) text
+        // may have been delivered, and an open claim re-sent it the next day.
+        const { smsOutcome: retryOutcome, smsClaimConsumed: retryConsumed } = await import("../lib/smsOutcome");
         const outcome = retryOutcome(result);
-        if (outcome === "sent" || outcome === "queued") {
-          if (outcome === "sent") sent++; else queued++;
+        if (retryConsumed(result)) {
+          if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
           await db.update(customers)
             .set({ smsCampaignSent: 1, smsCampaignDate: new Date() } as any)
             .where(eq(customers.id, c.id));
@@ -403,7 +410,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
       await sendTelegram(`📱 AUTO CAMPAIGN: ${sent}/${untexted.length} review+referral texts sent automatically.`);
     }
 
-    return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent · ${queued} queued for 8 AM` };
+    return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent · ${queued} queued for 8 AM · ${uncertain} unconfirmed (not retried)` };
   } catch (err: unknown) {
     // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Auto campaign retry failed:", { error: (err as Error).message });

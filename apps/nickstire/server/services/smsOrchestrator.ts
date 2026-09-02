@@ -1561,8 +1561,15 @@ export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOr
           });
 
       if (sendResult.success) {
-        status = sendResult.queued ? "queued" : "sent";
-        statusReason = sendResult.queued ? "outside_hours_queued" : (rolloutMode === "shadow" ? "shadow_mode_sent_successfully" : "sent_successfully");
+        // `uncertain` = attempted, deliberately NOT retried, never confirmed
+        // (shop-gateway timeout) — persisted as `sending`, never "sent"; same
+        // mapping as the legacy branch above.
+        status = sendResult.queued ? "queued" : sendResult.uncertain ? "sending" : "sent";
+        statusReason = sendResult.queued
+          ? "outside_hours_queued"
+          : sendResult.uncertain
+            ? "gateway_timeout_delivery_unconfirmed"
+            : (rolloutMode === "shadow" ? "shadow_mode_sent_successfully" : "sent_successfully");
         if (sendResult.queued) {
           const now = new Date();
           const tomorrow8am = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 8, 0, 0);

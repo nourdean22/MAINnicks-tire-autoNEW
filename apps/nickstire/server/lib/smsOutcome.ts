@@ -29,11 +29,25 @@ export function smsOutcome(result: SmsOutcomeShape | null | undefined): SmsOutco
 }
 
 /**
- * A claim (e.g. bookings.followUp24hSent = 1) may be kept when the text is
- * guaranteed to reach the customer: delivered, or durably queued for the
- * window. A failed or uncertain result must not consume the customer.
+ * "The customer will get this text": delivered now, or durably queued for the
+ * 8 AM window. Use it for NOTIFIED-style decisions (advance a work order,
+ * count a contact). NOT for whether to consume a send claim — see below.
  */
 export function smsWillReachCustomer(result: SmsOutcomeShape | null | undefined): boolean {
   const o = smsOutcome(result);
   return o === "sent" || o === "queued";
+}
+
+/**
+ * "Do not send this again": the claim (bookings.followUp24hSent,
+ * estimates.followUpSent, customers.smsCampaignSent, reminder status …) must
+ * be consumed for every outcome except a DEFINITE failure. `uncertain` is a
+ * gateway timeout where the relay may well have delivered — sms.ts documents
+ * it as "do not retry", and leaving the claim open re-texts the customer on
+ * the next tick until a send completes cleanly (Codex/self-review on
+ * PR #2063: reminders, estimate follow-ups and campaign retries all did).
+ * Count uncertain separately; never call it sent.
+ */
+export function smsClaimConsumed(result: SmsOutcomeShape | null | undefined): boolean {
+  return smsOutcome(result) !== "failed";
 }

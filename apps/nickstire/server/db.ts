@@ -325,7 +325,7 @@ async function fillVehicleFromVin<T extends Partial<InsertCustomerVehicle>>(vehi
   const decoded = await decodeVin(vehicle.vin);
   const merged = mergeDecoded(vehicle, decoded);
   const { vinDecodedFrom, ...row } = merged as T & { vinDecodedFrom?: "vpic" };
-  if (vinDecodedFrom) log.info("[vehicles] filled year/make/model from vPIC", { vinLast6: vehicle.vin.slice(-6) });
+  if (vinDecodedFrom) log.info("[vehicles] filled year/make/model from vPIC", { vinLast4: vehicle.vin.slice(-4) });
   return row as T;
 }
 
@@ -340,7 +340,28 @@ export async function addCustomerVehicle(vehicle: InsertCustomerVehicle) {
 export async function updateCustomerVehicle(id: number, userId: number, data: Partial<InsertCustomerVehicle>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const row = await fillVehicleFromVin(data);
+  let row: Partial<InsertCustomerVehicle> = data;
+  if (data.vin && !(data.year && data.make && data.model)) {
+    // Codex P2 on PR #2063: a partial patch that carries only a VIN must not
+    // let the decoder overwrite year/make/model a human already stored. Fill
+    // against the STORED row, and copy back only the fields that were blank
+    // in both the patch and the row.
+    const [existing] = await db.select({ year: customerVehicles.year, make: customerVehicles.make, model: customerVehicles.model })
+      .from(customerVehicles)
+      .where(and(eq(customerVehicles.id, id), eq(customerVehicles.userId, userId)))
+      .limit(1);
+    const base = {
+      vin: data.vin,
+      year: data.year ?? existing?.year ?? undefined,
+      make: data.make ?? existing?.make ?? undefined,
+      model: data.model ?? existing?.model ?? undefined,
+    };
+    const filled = await fillVehicleFromVin(base);
+    row = { ...data };
+    for (const k of ["year", "make", "model"] as const) {
+      if (!base[k] && filled[k]) (row as Record<string, unknown>)[k] = filled[k];
+    }
+  }
   await db.update(customerVehicles).set(row)
     .where(and(eq(customerVehicles.id, id), eq(customerVehicles.userId, userId)));
   return { success: true };

@@ -17,7 +17,7 @@
  * counters are sent / queued / failed / skipped, and a notification that
  * never went out is marked `failed` instead of sitting `pending` forever.
  */
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, isNotNull, ne } from "drizzle-orm";
 import { bookings } from "../drizzle/schema";
 import { createCustomerNotification, markNotificationSent, markNotificationFailed } from "./db";
 import { notifyOwner } from "./_core/notification";
@@ -115,6 +115,10 @@ export async function process24hFollowUps(): Promise<FollowUpLaneResult> {
       eq(bookings.status, "completed"),
       eq(bookings.followUp24hSent, 0),
       lte(bookings.updatedAt, cutoffEnd),
+      // A booking with no phone can never be texted — it must not be claimed
+      // (the flag flips before the send) and must not occupy the LIMIT.
+      isNotNull(bookings.phone),
+      ne(bookings.phone, ""),
     ))
     .limit(20);
 
@@ -167,6 +171,8 @@ export async function process7dReviewRequests(): Promise<FollowUpLaneResult> {
       eq(bookings.followUp24hSent, 1),
       eq(bookings.followUp7dSent, 0),
       lte(bookings.updatedAt, cutoff),
+      isNotNull(bookings.phone),
+      ne(bookings.phone, ""),
     ))
     .limit(20);
 

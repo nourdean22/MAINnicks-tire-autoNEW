@@ -31,8 +31,8 @@ export async function processKpiSnapshot(): Promise<{ recordsProcessed: number; 
   // Most recent COMPLETED Monday-start week in shop time.
   const weekRows = rows(await db.execute(sql`
     SELECT DATE_FORMAT(
-      DATE_SUB(DATE(CONVERT_TZ(NOW(), 'UTC', 'America/New_York')),
-               INTERVAL (WEEKDAY(CONVERT_TZ(NOW(), 'UTC', 'America/New_York')) + 7) DAY),
+      DATE_SUB(DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')),
+               INTERVAL (WEEKDAY(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')) + 7) DAY),
       '%Y-%m-%d') AS weekStart
   `));
   const weekStart = String(weekRows[0]?.weekStart ?? "");
@@ -48,29 +48,29 @@ export async function processKpiSnapshot(): Promise<{ recordsProcessed: number; 
     FROM invoices
     WHERE paymentStatus = 'paid'
       AND invoiceNumber NOT LIKE 'Estimate#%'
-      AND invoiceDate >= ${weekStart}
-      AND invoiceDate <  DATE_ADD(${weekStart}, INTERVAL 7 DAY)
+      AND invoiceDate >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+      AND invoiceDate <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')
   `))[0] ?? {};
   const newCust = rows(await db.execute(sql`
     SELECT COUNT(*) AS c FROM customers
-    WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', 'UTC')
-      AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', 'UTC')
+    WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+      AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')
   `))[0] ?? {};
   const leads = rows(await db.execute(sql`
     SELECT COUNT(*) AS total,
            SUM(CASE WHEN status IN ('booked', 'completed') THEN 1 ELSE 0 END) AS converted
     FROM leads
-    WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', 'UTC')
-      AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', 'UTC')
+    WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+      AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')
   `))[0] ?? {};
   const reviews = rows(await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM review_requests
-        WHERE sentAt >= CONVERT_TZ(${weekStart}, 'America/New_York', 'UTC')
-          AND sentAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', 'UTC')) AS sent,
+        WHERE sentAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+          AND sentAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')) AS sent,
       (SELECT COUNT(*) FROM review_replies
-        WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', 'UTC')
-          AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', 'UTC')) AS received
+        WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+          AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')) AS received
   `))[0] ?? {};
 
   const totalLeads = n(leads.total);

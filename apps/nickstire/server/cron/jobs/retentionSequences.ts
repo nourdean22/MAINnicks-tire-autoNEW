@@ -302,8 +302,13 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
         await logRetentionSms(c.phone, messageBody, result, variantKey);
       }
 
-      if (result.success) {
+      const { smsOutcome: retentionOutcome } = await import("../../lib/smsOutcome");
+      const ro = retentionOutcome(result);
+      if (ro !== "failed") {
+        // sent, queued and uncertain all count as processed (the customer is
+        // not re-texted); only a confirmed send is silent — the rest say so.
         processed++;
+        if (ro !== "sent") log.info(`Retention ${tier.days}d SMS ${ro} for customer #${c.id}`);
       } else {
         log.warn(`Retention ${tier.days}d SMS failed for customer #${c.id}`, {
           error: result.error,

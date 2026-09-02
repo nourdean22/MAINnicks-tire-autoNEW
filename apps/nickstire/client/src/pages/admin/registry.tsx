@@ -312,7 +312,12 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     group: "Truth",
     priority: 20,
     showInSidebar: true,
-    allowedRoles: [...FULL_ACCESS, "accountant"],
+    // accountant was listed here while the section was URL-only; its widgets
+    // call seoTools.* (marketing.manage) and customerEvents.* (customers.manage),
+    // neither of which accountant holds — 7 of 10 calls threw FORBIDDEN. Now
+    // that the section has a sidebar door, the role list matches the
+    // permissions the page actually needs (self-review on PR #2063).
+    allowedRoles: [...FULL_ACCESS],
   },
 ];
 

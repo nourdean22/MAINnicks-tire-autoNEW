@@ -417,6 +417,35 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
   // No per-row query: campaigns.list carries send stats in one grouped read.
   // The old per-row detail query here was an N+1 — every rendered row
   // fired its own request just for two counts.
+  //
+  // Per-row send mutation (own isPending, so one row's send never disables
+  // another). A draft with pending send rows carries its EXACT audience
+  // (the GPT bridge persists the customers it matched); a draft without
+  // them is re-queried from its segment at send time.
+  const utils = trpc.useUtils();
+  const sendDraft = trpc.campaigns.send.useMutation({
+    onSuccess: () => utils.campaigns.list.invalidate(),
+  });
+  const exactAudience = (campaign.stats?.pending ?? 0) > 0;
+  const audienceCount = exactAudience ? (campaign.stats?.pending ?? 0) : campaign.targetCount;
+  async function reviewAndSend() {
+    const ok = await confirmDialog({
+      title: `Send "${campaign.name}"?`,
+      message: exactAudience
+        ? `${audienceCount} customer${audienceCount === 1 ? "" : "s"} — the exact list this draft was prepared for. Texts go out now (or at 8 AM if we are outside the window). This cannot be undone.`
+        : `About ${audienceCount} customer${audienceCount === 1 ? "" : "s"} in the "${SEGMENT_CONFIG[campaign.segment as Segment].label}" segment, re-checked at send time. This cannot be undone.`,
+      confirmLabel: `Send to ${audienceCount}`,
+      tone: "danger",
+    });
+    if (!ok) return;
+    try {
+      const r = await sendDraft.mutateAsync({ campaignId: campaign.id });
+      if (r.success) toast.success(`Sending to ${r.totalCount} customers`);
+      else toast.error(r.error ?? "Send failed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Send failed");
+    }
+  }
   const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
     draft: { color: "text-foreground/50", icon: <Clock className="w-4 h-4" /> },
     active: { color: "text-amber-400", icon: <Loader2 className="w-4 h-4 animate-spin" /> },
@@ -466,6 +495,26 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
         <div>Pending: {campaign.stats?.pending ?? 0}</div>
         <div className="text-foreground/30">Created {formatDate(campaign.createdAt)}</div>
       </div>
+
+      {/* A draft is inert until someone sends it — this is the only door.
+          (Codex P2 on PR #2063: bridge-created drafts had no send action.) */}
+      {campaign.status === "draft" && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="text-xs text-foreground/50">
+            {exactAudience ? `Exact list: ${audienceCount} recipients prepared` : `Segment audience, re-checked at send`}
+          </span>
+          <button
+            type="button"
+            onClick={reviewAndSend}
+            disabled={sendDraft.isPending}
+            aria-label={`Review and send ${campaign.name}`}
+            className="min-h-[48px] min-w-[48px] px-4 rounded bg-primary/15 text-primary text-xs font-semibold flex items-center gap-2 disabled:opacity-50"
+          >
+            {sendDraft.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Review &amp; send
+          </button>
+        </div>
+      )}
     </div>
   );
 }

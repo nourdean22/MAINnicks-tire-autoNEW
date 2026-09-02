@@ -686,7 +686,7 @@ function buildTiers(): void {
             }
 
             return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Accuracy check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],
@@ -993,7 +993,7 @@ function buildTiers(): void {
               await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue pulse skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1258,7 +1258,7 @@ function buildTiers(): void {
             }
 
             return { recordsProcessed: imported, details: `${imported} items pulled (insights+patterns+predictions+loops+alerts), ${driftAlerts.length} urgent` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Pull failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1303,7 +1303,7 @@ function buildTiers(): void {
           try {
             const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
             return processCustomerSegmentation();
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Segmentation skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       // Wave-100 update (2026-05-08): customer-metrics-refresh moved OFF
@@ -1394,7 +1394,7 @@ function buildTiers(): void {
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Promise risk check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1423,7 +1423,7 @@ function buildTiers(): void {
               );
             }
             return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Stale estimate check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1434,7 +1434,7 @@ function buildTiers(): void {
             const { sendEscalationAlerts } = await import("../services/nickIntelligence");
             const result = await sendEscalationAlerts();
             return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Escalation check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2111,7 +2111,7 @@ function buildTiers(): void {
               if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
             return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Churn detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2188,7 +2188,7 @@ function buildTiers(): void {
               await remember({ type: "lesson", content: `QC comeback check: ${comebacks} potential comebacks this week (customers who returned within 30d of a completed job). Review quality.`, source: "qc_detection", confidence: 0.8 });
             }
             return { recordsProcessed: comebacks, details: `${comebacks} potential comebacks detected` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "QC comeback detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2458,7 +2458,7 @@ function buildTiers(): void {
             await sendTelegram(parts.join("\n\n"));
             await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
             return { recordsProcessed: 1, details: "Full digest sent" };
-          } catch (e: unknown) { return { details: `Digest failed: ${(e as Error).message}` }; }
+          } catch (e: unknown) { log.warn("[cron/scheduler] digest failed:", e); throw e; /* audit F-9 */ }
         },
       },
       {
@@ -2506,7 +2506,7 @@ function buildTiers(): void {
               confidence: 0.95,
             });
             return { recordsProcessed: 1, details: `${day}: $${truth.totalRevenue}, ${truth.completedJobs} jobs` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue reconciliation failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],
@@ -2584,7 +2584,7 @@ function buildTiers(): void {
               await sendTelegram(`🧠 WEEKLY STRATEGIC BRIEF\n\n${insight.slice(0, 3500)}`);
             }
             return { recordsProcessed: 1, details: "Weekly insight sent" };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Weekly insight failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2595,7 +2595,7 @@ function buildTiers(): void {
           try {
             const { runChatFaqPipeline } = await import("./jobs/chatFaqPipeline");
             return runChatFaqPipeline();
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Chat FAQ pipeline failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],

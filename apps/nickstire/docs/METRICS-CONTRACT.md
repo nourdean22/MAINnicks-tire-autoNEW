@@ -91,3 +91,10 @@ Every executive metric response should expose, where applicable:
 - known limitations.
 
 Mutable review counts and ratings are externally sourced marketing facts with timestamps and fallback behavior. They are not revenue-operating metrics.
+## Unknown is not zero (added 2026-09-02, admin audit artifact 4 section 7)
+
+A money value that could not be read is transmitted and rendered as unknown, never as 0. Any
+payload that crosses a system boundary (the StateNour financial push, owner SMS/Telegram reports,
+bridge responses) carries an `available: boolean` per slice, the shape `adminBundle.ts` already uses
+inside the admin, so a failed read can never be mistaken for a quiet day. A legitimate counted zero
+stays a zero; only an unreadable value becomes unknown.
