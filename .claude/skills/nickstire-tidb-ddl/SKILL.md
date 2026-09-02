@@ -104,5 +104,15 @@ railway run --service MAINnicks-tire-auto -- node <script.cjs>
 Read [prod-db-guard](../prod-db-guard/SKILL.md) before running anything that
 writes — `.env` binds the production database.
 
+**Before writing an `ALTER TABLE`, prove the table exists in production**
+(`INFORMATION_SCHEMA.TABLES`, read-only). Raw SQL in a cron can name a table
+no migration ever created and no Drizzle declaration knows: 2026-09-02, the
+first apply of `0114` failed on statement 1 with `ER_NO_SUCH_TABLE estimates`
+— the `estimate-followup` job had queried a phantom for its whole life and the
+audit had called it a missing column. The migration was rewritten to its valid
+half and the job retired. **Do not apply through `pnpm db:migrate`** for a
+scoped change: it has no dry run and applies every unrecorded file — use the
+scoped runner shape in prod-db-guard ("Applying migrations in scope").
+
 After applying, re-run `pnpm run check` from `apps/nickstire/` — `tsc` fails
 against the schema until the migration is actually applied.
