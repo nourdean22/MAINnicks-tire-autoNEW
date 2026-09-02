@@ -426,11 +426,16 @@ export function resolveEffectiveModel(requested: string | undefined): string | u
  */
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const startedAt = Date.now();
-  const { recordLlmCall } = await import("../services/llmLedger");
+  const { recordLlmCall, callerLane } = await import("../services/llmLedger");
+  // Captured here, before the first await into the provider: once the call
+  // resumes, the caller's frames are gone and the lane would be "unlabeled"
+  // (the first production read-back, 2026-09-02, was 100% unlabeled).
+  const lane = callerLane();
   try {
     const result = await invokeLLMUnrecorded(params);
     recordLlmCall({
       params,
+      lane,
       model: result.model || resolveEffectiveModel(params.model) || "unknown",
       latencyMs: Date.now() - startedAt,
       ok: true,
@@ -440,6 +445,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } catch (err) {
     recordLlmCall({
       params,
+      lane,
       model: resolveEffectiveModel(params.model) || "unknown",
       latencyMs: Date.now() - startedAt,
       ok: false,
