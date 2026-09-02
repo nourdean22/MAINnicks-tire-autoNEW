@@ -174,7 +174,7 @@ session notes, retired plans) lives at [`docs/archive/`](docs/archive/).
 
 ---
 
-## WAVE-200 substrate (Mastra · Braintrust · Inngest · LiveKit)
+## WAVE-200 substrate (Mastra · Langfuse · Inngest · LiveKit)
 
 The 6-phase Wave-200 rollout lives behind feature flags. Default state
 is "everything degrades gracefully · operator pastes credentials to
@@ -183,14 +183,15 @@ since the 2026-07-21 truth-substrate wave — an unauthenticated curl now
 gets 401; use an authenticated session):
 
 ```bash
-curl -H "Cookie: <operator session>" https://bdnick.info/api/health | jq '.data | {inngest, langfuse}'
+curl -H "Cookie: <operator session>" https://bdnick.info/api/health | jq '.data | {inngest, langfuse, sentry}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:
 
 | Substrate | Flip mechanism | Runbook |
 |---|---|---|
-| Langfuse tracing (replaced Braintrust 2026-08-25 — the wrap never had callers) | paste `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` + `LANGFUSE_BASE_URL` | `docs/integrations/langfuse-observability.md` |
+| Langfuse tracing (replaced Braintrust 2026-08-25 — the wrap never had callers) | Railway is configured with `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` + `LANGFUSE_BASE_URL` | `docs/integrations/langfuse-observability.md` |
+| Sentry error monitoring | Railway is configured with `NEXT_PUBLIC_SENTRY_DSN` + `SENTRY_DSN` | `docs/integrations/langfuse-observability.md` |
 | Inngest workflows | paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + connect URL | `docs/operator/inngest-setup.md` |
 | LiveKit voice | new Railway service `statenour-voice` + paste 7 env vars | `apps/voice/README.md` |
 
@@ -209,7 +210,7 @@ python agent.py dev
 ```
 
 Health snapshot (after deploys):
-- `/api/health` · top-level state + `{inngest, braintrust}` block
+- `/api/health` · top-level state + `{inngest, langfuse, sentry}` block
 - `/api/inngest` · 503+hint if not configured, friendly JSON otherwise
 - `/api/morning-brief/today.mp3` · audio for today (404 with hint if
   cron hasn't run yet · 200 + audio/mpeg otherwise)
@@ -269,4 +270,3 @@ pnpm inngest:dev                 # Inngest local dev runner (port 8288)
 **Quality gate live on every push**: `pre-push` hook + GitHub Actions
 CI + cron-manifest guard + schema-drift check. Zero broken deploys
 is the goal.
- 

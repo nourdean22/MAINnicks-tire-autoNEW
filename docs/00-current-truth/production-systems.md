@@ -46,14 +46,20 @@ Larger batch operations (e.g. daily/weekly dashboard rollups and Obsidian syncs)
 Observability in the monorepo is divided into three tiers:
 
 ### 1. Business & Strategy Tracing
-All LLM reasoning loops, prompts, tool calls, and agent outcomes are logged to **Braintrust**:
-*   Environment Variable: `BRAINTRUST_API_KEY`
-*   Wired via the central AI client wrapper `lib/ai/provider.ts` and `lib/ai/reasoning`.
+LLM model calls are instrumented for **Langfuse** through the shared Statenour
+telemetry helper. The deployed exporter has started on Railway, and the public
+`/api/version` surface reports `langfuse: true`.
+*   Environment Variables: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`
+*   Privacy: private-mode turns are excluded; exported attributes are masked for keys and bearer tokens.
+*   Product receipts remain first-party: `AgentTrace`, `/system/ai-cost`, and `tool_telemetry` are not replaced.
 
 ### 2. Error Logging
-System errors, database failures, and bridge authentication failures write to `ErrorLog` database tables:
+System errors, database failures, and bridge authentication failures write to
+`ErrorLog` database tables and are instrumented for **Sentry** error monitoring:
 *   Errors are surfaced dynamically inside the **Statenour Admin Cockpit** (`/system/logs`).
 *   Bridge auth failures are logged in `statenourAuth` using standard winston/console logs.
+*   Sentry is configured with `NEXT_PUBLIC_SENTRY_DSN` (client) and `SENTRY_DSN` (server/edge).
+*   Default PII capture is disabled and performance tracing is disabled by default.
 
 ### 3. AI Provider Health
 LLM provider health, latencies, and fallback transitions are monitored hourly:

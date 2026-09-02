@@ -1,5 +1,22 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-02 · Langfuse and Sentry production closeout (#2073, #2074)
+>
+> Langfuse per-call telemetry shipped in #2073 (merge commit
+> `863ce4c47308b7e918e322d66031aadf0bd47051`), then Sentry client/server/edge
+> hooks shipped in #2074 (merge commit
+> `3e387b5e1082d67a07e6afd7723c5230ea98cc4a`). Railway deployment
+> `bc0a81be-491d-4d88-99de-87a0ffa3d23a` succeeded. A fresh unauthenticated
+> `GET https://bdnick.info/api/version` read-back returned `status: ok`, commit
+> `3e387b5e1082d67a07e6afd7723c5230ea98cc4a`, environment `production`,
+> `langfuse: true`, and `sentry: true`.
+>
+> Operator-provided Langfuse keys and Sentry DSN are set on Railway; secret
+> values are not recorded here. The offline Langfuse pipeline probe passed 7/7,
+> and the authenticated Langfuse API check succeeded. That API check returned
+> zero traces at the time, so trace landing and a Sentry event remain explicitly
+> unmeasured until a real non-private model call and error read-back are run.
+
 > ## 2026-09-02 · Langfuse: every model call traced, through one helper (#2073)
 >
 > Plan R8 said tracing was "off" because two Railway keys are unset. Reading the code showed
