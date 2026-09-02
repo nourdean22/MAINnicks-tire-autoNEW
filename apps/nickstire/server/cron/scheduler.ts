@@ -2199,13 +2199,6 @@ function buildTiers(): void {
         },
       },
       {
-        name: "estimate-followup", // Auto-follow up on unconverted estimates after 2-3 days
-        handler: async () => {
-          const { processEstimateFollowUp } = await import("../services/workOrderAutomation");
-          return processEstimateFollowUp();
-        },
-      },
-      {
         name: "gateway-price-refresh", // Auto-fetch wholesale tire prices from Gateway B2B
         requiresEnv: "GATEWAY_TIRE_USERNAME",
         handler: async () => {

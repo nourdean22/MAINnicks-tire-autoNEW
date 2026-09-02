@@ -1,37 +1,28 @@
--- 0114: the two columns cron jobs already read but no migration ever created.
+-- 0114: the column a cron job already reads but no migration ever created.
 --
--- WHY (2026-09-01 admin audit, F-17): `workOrderAutomation.processEstimateFollowUp`
--- selects and updates `estimates.followUpSent`, and `emailCampaigns` reads
--- `customers.lastEmailCampaignAt`. Neither column appears in any migration or
--- in drizzle/schema.ts. If they are absent in production the jobs have been
--- failing (now loudly, since the receipts wave) since they were written.
+-- WHY (2026-09-01 admin audit, F-17): `emailCampaigns` reads and writes
+-- `customers.lastEmailCampaignAt`; the column appears in no migration and not
+-- in drizzle/schema.ts, so the job had been failing (now loudly, since the
+-- receipts wave) since it was written.
 --
--- ADDITIVE and IDEMPOTENT: each ALTER is guarded by INFORMATION_SCHEMA so a
--- re-run is a no-op. Neither column is added to drizzle/schema.ts on purpose —
--- a projection-less `select().from(estimates)` would otherwise name a column
--- prod may still lack (nickstire-tidb-ddl skill). The jobs use raw SQL.
+-- CORRECTION #18 (2026-09-02, found while applying this file to production):
+-- the first version of this file also added `estimates.followUpSent` for the
+-- `estimate-followup` cron. Production has NO `estimates` table -- it never
+-- existed in any migration or in drizzle/schema.ts; the only tables are
+-- `alg_estimates` (the declined-work recovery pipeline, which already runs
+-- 3d/7d/14d/30d/45d follow-ups with attempted/sent claims) and `estimates_log`.
+-- So that cron had failed on every run since it was written, and its subject
+-- was already covered. The job is retired in the same PR; the estimates half
+-- of this file is gone. The filename is kept because the journal tag names it.
+--
+-- ADDITIVE and IDEMPOTENT: guarded by INFORMATION_SCHEMA so a re-run is a
+-- no-op. The column is deliberately NOT added to drizzle/schema.ts -- a
+-- projection-less `select().from(customers)` would otherwise name a column a
+-- lagging environment may lack (nickstire-tidb-ddl skill). The job uses raw SQL.
 --
 -- Hand-applied (no auto-migrate). Verify first with:
 --   SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
---   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'estimates' AND COLUMN_NAME = 'followUpSent';
-
-SET @col_exists := (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'estimates' AND COLUMN_NAME = 'followUpSent'
-);
-SET @ddl := IF(@col_exists = 0,
-  'ALTER TABLE `estimates` ADD COLUMN `followUpSent` TINYINT NOT NULL DEFAULT 0',
-  'SELECT ''estimates.followUpSent already present'' AS note');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @idx_exists := (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'estimates' AND INDEX_NAME = 'idx_estimates_followup_created'
-);
-SET @ddl := IF(@idx_exists = 0,
-  'ALTER TABLE `estimates` ADD INDEX `idx_estimates_followup_created` (`followUpSent`, `createdAt`)',
-  'SELECT ''idx_estimates_followup_created already present'' AS note');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+--   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lastEmailCampaignAt';
 
 SET @col_exists := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

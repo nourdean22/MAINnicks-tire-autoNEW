@@ -18,10 +18,10 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | heartbeat | every 5m | 3 / 1 |
 | pulse | every 15m | 20 / 2 |
 | hourly | every 2h | 34 / 1 |
-| daily | every 1d | 51 / 0 |
+| daily | every 1d | 50 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 118 tiered jobs (114 scheduled automatically, 4 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 117 tiered jobs (113 scheduled automatically, 4 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -119,7 +119,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `declined-work-recovery` | no | no | yes | Recover declined estimates via SMS |
 | `email-campaign-auto` | no | no | yes | — |
 | `engine-health` | no | no | yes | — |
-| `estimate-followup` | no | no | yes | — |
 | `fleet-scoring` | no | no | yes | Score fleet customers by health + spend |
 | `full-intelligence-digest` | no | no | yes | — |
 | `gateway-price-refresh` | no | no | yes | — |
