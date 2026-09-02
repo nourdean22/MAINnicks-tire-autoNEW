@@ -1224,3 +1224,40 @@ statenour primitives documented (existence re-verified at
   long-running background poll loops (turn boundaries kill them).
 - **Confidence:** high (both legs witnessed this session; empty-var-as-bad-news recurs repo-wide)
 - **Status:** proposed
+
+## 2026-09-01 · Audit wave (#2057 · #2058 · #2059 · #2060)
+
+### P1 · statenour-verify
+- **Trigger (witnessed):** `git push` from a plain worktree ran lefthook's pre-push `build:affected`; a 120 s Bash timeout killed it with exit 143 and NOTHING was pushed (twice: the #2058 follow-up and PR C). The skill lists gates but not that the push itself is one of them.
+- **Cost:** ~15 min across two retries, plus one "push landed?" false alarm resolved only by `git ls-remote`.
+- **Proposed edit:** add under receipts: "`git push` runs `build:affected` in pre-push. Run it with a 600 s timeout in the background and prove the push with `git ls-remote origin refs/heads/<branch>`; the local SHA is not the receipt."
+- **Confidence:** high (recurred 2×)
+- **Status:** proposed
+
+### P2 · statenour-verify
+- **Trigger (witnessed):** #2057's `completion-authority` lane went red on three Codex review threads (`chatgpt-codex-connector`); #2058 got one more. Two were wrong (trailer WAS present; a count already carried its own staleness warning), one found a REAL second half of the P0 (`/decisions/1.png` bypassed the matcher — confirmed 200 on prod). The gate blocks merge until threads are RESOLVED (GraphQL `resolveReviewThread`), and only re-runs on push or `gh run rerun`.
+- **Cost:** one merge blocked; without reading the threads the P0 would have shipped half-fixed.
+- **Proposed edit:** "Before merging, list review threads (`gh api graphql … reviewThreads`). Reply with evidence and resolve each — but READ them first: one in four this wave was right about a bug the tests missed. Never resolve to clear a gate."
+- **Confidence:** high (4 threads, 2 PRs)
+- **Status:** proposed
+
+### P3 · guard-red-team
+- **Trigger (witnessed):** the `force-push` PreToolUse rule (`__GIT__push\b[^\n]*?(…|\s\+[^\s:+])`) blocked a command that was `git push origin <branch> && gh api … -f body="…[^/]+\.(ext)…"` — the `+` inside a review-reply body chained after a legitimate push matched the `+refspec` arm.
+- **Cost:** one blocked call, one split retry; a false positive that teaches sessions to route around the guard.
+- **Proposed edit:** anchor the `+refspec` arm to the push's own arguments — stop the `[^\n]*?` scan at the first `&&`/`;`/`|` — and add this command as a canary allow-example in `policy.test.mjs`.
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P4 · harness-worktree-setup
+- **Trigger (witnessed):** the primary checkout's `apps/**` + every `node_modules` were gone (6,686 tracked files deleted on disk), so the junction-based setup script had nothing to junction. A plain `git worktree add` OUTSIDE `.worktrees/` + `pnpm install --filter "@statenour/web..."` (3m35s) worked, but `typecheck:raw` then failed on three unbuilt workspace packages (`@nour/ai-capabilities`, `@nour/social-assets`, `@statenour/lenses`) until each was `tsc -p`-compiled; `verify:hard` stopped at `check:env` (no `.env`) and `check:policy-coverage` (no DB).
+- **Cost:** three failed typecheck/commit attempts; one blocked `pnpm --filter <pkg> build` (classifier).
+- **Proposed edit:** a "plain worktree" section: when the primary's node_modules are absent, create the worktree outside `.worktrees/`, install with the `...` filter, `pnpm exec tsc -p tsconfig.json` in each of the three packages before typecheck, and run the `check:*` gates individually, reporting `check:env`/`check:policy-coverage` as environment-skipped.
+- **Confidence:** high (each step failed once before the fix was found)
+- **Status:** proposed
+
+### P5 · NEW: positive-control-first (or a line in statenour-verify)
+- **Trigger (witnessed):** every new test this wave was run on the UNFIXED code first and the failure shape recorded (middleware 6f/8p; ingest-gmail 5f/1p; recall 5f/1p; N-1 2f/1p). Two of those runs caught test-harness bugs that would otherwise have shipped as green tests of nothing: `vi.restoreAllMocks()` stripping factory resolved values (ingest-gmail crashed on `.length`), and a `mockImplementationOnce(throw)` left unconsumed by a read-only control that fired in the NEXT test.
+- **Cost:** none — that is the point; without the control both harness bugs would have been invisible.
+- **Proposed edit:** "A new test is not done until it has been run against the code it is meant to catch and the failure recorded in the PR body. A test that cannot be made to fail is a silent instrument."
+- **Confidence:** high (4 tests, 2 harness bugs caught)
+- **Status:** proposed

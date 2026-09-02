@@ -108,9 +108,10 @@ describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () =>
 // These used to be `readFileSync(...).toContain(...)` on three files. A
 // source-text assertion cannot tell a correctly-styled live component from a
 // correctly-styled dead one: GlobalTopTicker had been unmounted since #158
-// (2026-06-16) and its A6 test stayed green for eleven weeks. That file is
-// deleted; top-strip/ticker.tsx is parked (tests/repo/ui-mount-graph.test.ts
-// owns its status). The one ticker that ships, BottomPulseTicker, is now
+// (2026-06-16) and its A6 test stayed green for eleven weeks. That file and
+// its top-strip children (ticker.tsx, hq-status-chips.tsx) are deleted;
+// tests/repo/ui-mount-graph.test.ts owns the status of what remains parked.
+// The one ticker that ships, BottomPulseTicker, is now
 // rendered with its data hooks mocked and the landmark + min-height are
 // asserted on the MARKUP it produces.
 

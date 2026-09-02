@@ -64,18 +64,34 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
     cap.memoryWriteAllowed;
 
   if (isMutation) {
+    let mutationLock = false;
+    let unresolved = false;
     try {
-      const mutationLock = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
-      if (mutationLock) {
-        return {
-          decision: "deny",
-          riskClass: cap.riskClass,
-          reason: `Action rejected: NICK_MUTATION_LOCK is active, preventing database/system mutations.`,
-          requiredApproval: "manual_only"
-        };
-      }
+      mutationLock = getFlag("NICK_MUTATION_LOCK")?.isOn ?? false;
     } catch {
-      // safe fallback if feature flags cannot be resolved
+      // N-1 (2026-09-01 audit) · "safe fallback" used to mean PROCEED. For
+      // a kill switch, permitting the mutation is the unsafe direction:
+      // the conditions under which the flag store is unreachable are the
+      // conditions under which you would want Nick frozen. Fail closed,
+      // like middleware.ts and the tRPC mutation gate. Non-mutating tools
+      // never enter this block, so reads keep working.
+      unresolved = true;
+    }
+    if (unresolved) {
+      return {
+        decision: "deny",
+        riskClass: cap.riskClass,
+        reason: `Action rejected: NICK_MUTATION_LOCK could not be resolved, so mutations are locked (fail-closed).`,
+        requiredApproval: "manual_only"
+      };
+    }
+    if (mutationLock) {
+      return {
+        decision: "deny",
+        riskClass: cap.riskClass,
+        reason: `Action rejected: NICK_MUTATION_LOCK is active, preventing database/system mutations.`,
+        requiredApproval: "manual_only"
+      };
     }
   }
 

@@ -10,12 +10,15 @@ import { evaluateToolAction } from "../../lib/tools/tool-policy";
 import * as featureFlags from "@/lib/feature-flags";
 
 let mockMutationLock = false;
+/** N-1 (2026-09-01 audit) · simulate the flag store being unreachable. */
+let mockFlagThrows = false;
 
 vi.mock("@/lib/feature-flags", async (importOriginal) => {
   const actual = await importOriginal<typeof featureFlags>();
   return {
     ...actual,
     getFlag: vi.fn((key: string) => {
+      if (mockFlagThrows) throw new Error("flag store unreachable");
       if (key === "NICK_MUTATION_LOCK") {
         return { key: "NICK_MUTATION_LOCK", isOn: mockMutationLock };
       }
@@ -192,6 +195,31 @@ describe("Permission Policy Engine Rules", () => {
       // restore
       cap.status = originalStatus;
     }
+  });
+
+  // N-1 (2026-09-01 audit) · flag resolution throws → DENY, not proceed.
+  it("fails CLOSED · denies a mutating tool when the NICK_MUTATION_LOCK lookup throws", () => {
+    mockFlagThrows = true;
+    try {
+      const decision = evaluateToolAction({ toolId: "memory.pin", actionType: "execute" });
+      expect(decision.decision).toBe("deny");
+      expect(decision.reason).toContain("could not be resolved");
+    } finally {
+      mockFlagThrows = false;
+    }
+  });
+
+  it("control · a non-mutating tool is unaffected when the lookup throws (the lock is mutation-only)", () => {
+    mockFlagThrows = true;
+    let decision;
+    try {
+      decision = evaluateToolAction({ toolId: "web.search.verified", actionType: "execute" });
+    } finally {
+      mockFlagThrows = false;
+    }
+    // Whatever env-based verdict the read-only tool gets, the LOCK never
+    // enters into it — it is only consulted for mutations.
+    expect(decision.reason).not.toContain("NICK_MUTATION_LOCK");
   });
 
   it("requires memory review for external memory writes", () => {
