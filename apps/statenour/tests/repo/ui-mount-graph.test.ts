@@ -131,7 +131,11 @@ while (queue.length > 0) {
   for (const next of edges.get(f) ?? []) if (!reachable.has(next)) queue.push(next);
 }
 
-const isSubject = (rel: string) => /^(components|features)\/.*\.tsx$/.test(rel) && !/\.(test|spec|stories)\.tsx$/.test(rel);
+// 2026-09-02 self-review · app/** carries co-located components too (5 at the
+// time); a non-entry .tsx under app/ that nothing reaches is the same defect.
+const isSubject = (rel: string) =>
+  (/^(components|features)\/.*\.tsx$/.test(rel) || (/^app\/.*\.tsx$/.test(rel) && !ENTRY_RE.test(rel))) &&
+  !/\.(test|spec|stories)\.tsx$/.test(rel);
 const subjects = [...byRel.keys()].filter(isSubject).sort();
 const unreachable = subjects.filter((rel) => !reachable.has(byRel.get(rel)!));
 

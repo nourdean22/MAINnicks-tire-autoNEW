@@ -17,6 +17,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { getEmbedding } from "@/lib/ai/provider";
 import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
@@ -522,6 +523,12 @@ export function renderFactStatus(hit: RecallHit): string {
  */
 export function formatRecallForPrompt(hits: RecallHit[]): string {
   if (hits.length === 0) return "";
+  // S-1 completion (2026-09-02 self-review) · this block renders BrainMemory
+  // content of ANY category — including gmail_thread rows ingested from
+  // external mail — and reached the system prompt bare while the recall
+  // block from contextual-recall was fenced. Every memory-rendering block
+  // is fenced at source now; tests/ai/prompt-block-fencing-gate.test.ts
+  // enumerates the producers so a new one cannot ship unfenced.
   let disabled = false;
   try {
     disabled = getFlag("RECALL_FACT_AGE_DISABLED")?.isOn ?? false;
@@ -535,5 +542,5 @@ export function formatRecallForPrompt(hits: RecallHit[]): string {
     }
     return `[${i + 1}] [${h.category}] ${h.content} (${renderFactStatus(h)})`;
   });
-  return `Recently relevant memories (top-${hits.length} via hybrid search):\n${lines.join("\n")}`;
+  return `Recently relevant memories (top-${hits.length} via hybrid search):\n${fenceContent("hybridRecall", "memory_recall", lines.join("\n"), { maxChars: 20_000 })}`;
 }

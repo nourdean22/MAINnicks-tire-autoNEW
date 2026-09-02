@@ -21,6 +21,7 @@
 
 import { getFlag } from "@/lib/feature-flags";
 import { semanticSearch } from "@/lib/brain/embedding-utils";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 const ANTICIPATE_TIMEOUT_MS = 2000;
 const MIN_SIMILARITY = 0.35; // only confident next-topic matches
@@ -92,14 +93,17 @@ export async function anticipateMemories(
       }
       if (picks.length === 0) return "";
 
-      const lines = [
-        "### Likely-next context (anticipated from where this conversation is heading)",
-      ];
+      // S-1 completion (2026-09-02) · these are BrainMemory rows of any
+      // category (gmail_thread included). Heading outside, memories fenced.
+      const body: string[] = [];
       for (const m of picks) {
         const cat = m.category ?? m.sourceType;
-        lines.push(`[${cat}] ${m.content.slice(0, 180)}`);
+        body.push(`[${cat}] ${m.content.slice(0, 180)}`);
       }
-      return lines.join("\n");
+      return [
+        "### Likely-next context (anticipated from where this conversation is heading)",
+        fenceContent("anticipatoryRecall", "memory_recall", body.join("\n"), { maxChars: 20_000 }),
+      ].join("\n");
     })();
 
     // Match the route's aux-promise timeout pattern: a slow embed or

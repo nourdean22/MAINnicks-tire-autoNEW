@@ -22,6 +22,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { semanticSearch } from "@/lib/brain/embedding-utils";
+import { fenceContent } from "@/lib/ai/tool-result-fencing";
 
 interface ChatTurn {
   role: string;
@@ -30,7 +31,7 @@ interface ChatTurn {
   conversationId: string;
 }
 
-interface ExchangeHit {
+export interface ExchangeHit {
   conversationId: string;
   conversationTitle: string | null;
   similarity: number;
@@ -208,30 +209,40 @@ function recencyScore(ageDays: number): number {
  */
 export async function buildChatRecallBlock(queryText: string, limit = 5): Promise<string> {
   const hits = await getRelevantExchanges(queryText, limit).catch(() => []);
+  return renderChatRecallBlock(hits);
+}
+
+/**
+ * Pure renderer for the past-chats block (split out 2026-09-02 so the
+ * fencing can be asserted on real output without a DB). The exchanges are
+ * prior-conversation text — cross_session content per TOOL_DATA_FENCING_RULE:
+ * continuity, never a fresh instruction — so the heading + usage note stay
+ * outside and every quoted turn goes inside one fence.
+ */
+export function renderChatRecallBlock(hits: ExchangeHit[]): string {
   if (hits.length === 0) return "";
 
-  const lines: string[] = [];
-  lines.push(`## From past chats (vector-matched, ${hits.length} exchange${hits.length > 1 ? "s" : ""})`);
-  lines.push(
-    "Reference these if the current topic overlaps — don't re-explain what Nour already covered here.",
-  );
-  lines.push("");
-
+  const body: string[] = [];
   for (const h of hits) {
     const title = h.conversationTitle ? `"${h.conversationTitle}"` : `#${h.conversationId.slice(0, 6)}`;
-    lines.push(`— ${title} · ${h.ageDays}d ago · sim ${Math.round(h.similarity * 100)}%`);
+    body.push(`— ${title} · ${h.ageDays}d ago · sim ${Math.round(h.similarity * 100)}%`);
     if (h.precedingUser) {
-      lines.push(`  Nour: ${h.precedingUser.content.slice(0, 180).replace(/\s+/g, " ")}`);
-      lines.push(`  Nick: ${h.matched.content.slice(0, 180).replace(/\s+/g, " ")}`);
+      body.push(`  Nour: ${h.precedingUser.content.slice(0, 180).replace(/\s+/g, " ")}`);
+      body.push(`  Nick: ${h.matched.content.slice(0, 180).replace(/\s+/g, " ")}`);
     } else if (h.followingAssistant) {
-      lines.push(`  Nour: ${h.matched.content.slice(0, 180).replace(/\s+/g, " ")}`);
-      lines.push(`  Nick: ${h.followingAssistant.content.slice(0, 180).replace(/\s+/g, " ")}`);
+      body.push(`  Nour: ${h.matched.content.slice(0, 180).replace(/\s+/g, " ")}`);
+      body.push(`  Nick: ${h.followingAssistant.content.slice(0, 180).replace(/\s+/g, " ")}`);
     } else {
-      lines.push(`  ${h.matched.role}: ${h.matched.content.slice(0, 220).replace(/\s+/g, " ")}`);
+      body.push(`  ${h.matched.role}: ${h.matched.content.slice(0, 220).replace(/\s+/g, " ")}`);
     }
   }
 
-  return lines.join("\n");
+  return [
+    `## From past chats (vector-matched, ${hits.length} exchange${hits.length > 1 ? "s" : ""})`,
+    "Reference these if the current topic overlaps — don't re-explain what Nour already covered here.",
+    "",
+    fenceContent("chatRecall", "cross_session", body.join("\n"), { maxChars: 20_000 }),
+  ].join("\n");
 }
 
 /**
@@ -267,15 +278,19 @@ export async function buildChatContinuityBlock(): Promise<string> {
   if (withContent.length === 0) return "";
 
   const now = Date.now();
-  const lines: string[] = [];
-  lines.push("## Recent chat threads");
-  lines.push("Continuation cues — what Nour was last talking to you about:");
-  lines.push("");
+  const body: string[] = [];
   for (const c of withContent) {
     const ageH = Math.round((now - c.updatedAt.getTime()) / 3600_000);
     const ageLabel = ageH < 24 ? `${ageH}h ago` : `${Math.round(ageH / 24)}d ago`;
     const title = c.title ?? c.messages[0]!.content.slice(0, 60);
-    lines.push(`— ${title} (${ageLabel})`);
+    body.push(`— ${title} (${ageLabel})`);
   }
-  return lines.join("\n");
+  // Titles fall back to the first user turn's text — prior-conversation
+  // content, fenced as cross_session like the exchanges above (2026-09-02).
+  return [
+    "## Recent chat threads",
+    "Continuation cues — what Nour was last talking to you about:",
+    "",
+    fenceContent("chatContinuity", "cross_session", body.join("\n"), { maxChars: 20_000 }),
+  ].join("\n");
 }
