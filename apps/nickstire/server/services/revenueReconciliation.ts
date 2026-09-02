@@ -1,3 +1,4 @@
+import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { bookings, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
@@ -14,6 +15,7 @@ import {
   deriveVapiFacts,
   VAPI_QUALITY_VERSION,
 } from "./vapiMeasurement";
+const log = createLogger("revenue-reconciliation");
 
 export const RECONCILIATION_DEFINITION_VERSION = "revenue-reconciliation-v1";
 export const LEGACY_BACKFILL_DEFINITION_VERSION = "vapi-legacy-backfill-v1";
@@ -150,6 +152,29 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         completed_at = NOW()
       WHERE id = ${runId}
     `);
+
+    // Owner escalation contract (artifact 4 §3.2): weak matches are a human
+    // ruling waiting to happen, and the ruling had no door until the
+    // Attribution review card. One obligation per run, never per row, and
+    // never a customer name — the links are the evidence.
+    if (ambiguous > 0) {
+      try {
+        const { escalateToOwner } = await import("./ownerEscalation");
+        escalateToOwner({
+          trigger: "attribution_weak_matches",
+          summary: `Revenue reconciliation run #${runId} left ${ambiguous} call↔invoice match${ambiguous === 1 ? "" : "es"} ambiguous (${verified} verified, ${inferred} inferred, ${unmatched} unmatched).`,
+          decisionRequested: `Rule on ${ambiguous} ambiguous call↔invoice match${ambiguous === 1 ? "" : "es"}`,
+          consequence: "Until ruled, these calls carry no revenue attribution and the voice scorecard under-counts.",
+          deadline: null,
+          evidenceLinks: ["/admin?tab=voiceReceptionist"],
+          authorization: { tier: 1, role: "manager" },
+          writeBack: "revenueAttribution.resolve (Attribution review card → Confirm / Unsure / Reject)",
+          priority: "medium",
+        });
+      } catch (e) {
+        log.warn("[revenueReconciliation] escalation failed (run result unaffected)", { error: e instanceof Error ? e.message : String(e) });
+      }
+    }
 
     return {
       runId,

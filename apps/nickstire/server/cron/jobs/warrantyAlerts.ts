@@ -9,7 +9,7 @@ import { and, eq, gte, lte, sql, inArray } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:warranty");
 
-export async function processWarrantyAlerts(): Promise<{ recordsProcessed: number }> {
+export async function processWarrantyAlerts(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     const { isEnabled } = await import("../../services/featureFlags");
     if (!(await isEnabled("predictive_maintenance_alerts"))) return { recordsProcessed: 0 };
@@ -79,6 +79,8 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
 
     const { sendSms } = await import("../../sms");
     let processed = 0;
+    let queued = 0; // parked for the 8 AM window (audit F-3)
+    let failed = 0;
 
     for (const w of expiring) {
       const customer = customerByAlsId.get(w.customerId);
@@ -105,11 +107,17 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
 
       // Wave-109: warranty reminder via shop gateway (1:1 transactional)
       const result = await sendSms(customer.phone, message, { via: "shop" });
-      if (result.success) processed++;
+      // 2026-09-01 (audit F-3): queued ≠ sent. Both reach the customer (the
+      // claim above stays), but the receipt splits them.
+      const { smsOutcome } = await import("../../lib/smsOutcome");
+      const outcome = smsOutcome(result);
+      if (outcome === "sent") processed++;
+      else if (outcome === "queued") queued++;
+      else failed++;
     }
 
-    log.info(`Warranty alerts sent: ${processed}`);
-    return { recordsProcessed: processed };
+    log.info(`Warranty alerts: ${processed} sent · ${queued} queued · ${failed} failed`);
+    return { recordsProcessed: processed, details: `${processed} sent · ${queued} queued for 8 AM · ${failed} failed` };
   } catch (err) {
     // wave-181.3 silent-failure audit finding #3 · the previous catch
     // returned { recordsProcessed: 0 } which caused the cron runner to

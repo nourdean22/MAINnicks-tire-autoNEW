@@ -43,7 +43,7 @@ describe("authorization is enforced regardless of MFA posture", () => {
     expect(trpc).toMatch(/if \(mfaRequired\) \{/);
   });
 
-  it("an UNREADABLE role falls back to today's behaviour, and says so loudly", () => {
+  it("an UNREADABLE role falls back to today's behaviour FOR READS, and says so loudly", () => {
     // Deliberately NOT viewer. getAdminSecurityState returns null when the
     // DATABASE is unreachable, not only when a row is missing — so viewer would
     // mean a transient DB hiccup locks the owner out mid-shift. That is the
@@ -58,6 +58,32 @@ describe("authorization is enforced regardless of MFA posture", () => {
     // as an incident rather than as silence.
     expect(trpc).toMatch(/Roles are NOT being enforced for this request/);
     expect(trpc).toMatch(/log\.error\(/);
+  });
+
+  it("2026-09-01 (F-11): a role read that THREW refuses MUTATIONS — writes never run as an unverified owner", () => {
+    // Reads stay open (the lockout rule above), and so does a MISSING row (an
+    // identity fact — refusing it would lock a brand-new admin out of every
+    // write). A refund, prune, campaign or role change executed while the DB
+    // read FAILED is the different risk class. The branch must key on BOTH
+    // the failure flag and the procedure type, and throw before the
+    // permission check runs.
+    expect(trpcCode).toMatch(/let securityReadFailed = false;/);
+    expect(trpcCode).toMatch(/catch \(err\) \{\s*securityReadFailed = true;/);
+    const unreadable = trpcCode.match(/if \(!security\) \{([\s\S]*?)\n  \}\n  const adminRole = effective\.adminRole;/);
+    expect(unreadable, "the `!security` block must precede the role resolution").toBeTruthy();
+    const block = unreadable![1];
+    expect(block).toMatch(/if \(securityReadFailed && type === "mutation"\) \{/);
+    expect(block).toMatch(/code: "UNAUTHORIZED"/);
+    expect(block).toMatch(/MUTATION REFUSED/);
+    // A null return without a throw (no row) must NOT be refused.
+    expect(block).not.toMatch(/if \(type === "mutation"\) \{/);
+  });
+
+  it("2026-09-01: identity is established BEFORE the role/MFA middleware — the fail-open is safe only in that order", () => {
+    // nickstire-verify records that the read fail-open is acceptable ONLY because
+    // requireAdminIdentity has already proven the caller is an authenticated
+    // admin. Nothing pinned that order until now.
+    expect(trpcCode).toMatch(/\.use\(requireAdminIdentity\)\s*\.use\(requireFreshMfaAndPermission\)/);
   });
 });
 

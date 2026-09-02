@@ -13,11 +13,33 @@ import { RawRow, extractRows, extractOne, db } from "./shared";
 // #29 CHANNEL ROI
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * 2026-09-01 (audit M-2): there is NO ad-spend feed in this system, so cost
+ * per lead and ROI are UNKNOWN — not 0, not a conversion percentage wearing
+ * an "x ROI" label. `costPerLead` and `roi` are null until a spend source
+ * exists; `conversionRate` is the number this engine can actually compute.
+ */
+export interface ChannelRoiRow {
+  channel: string;
+  leads: number;
+  conversions: number;
+  revenue: number;
+  /** null: no ad-spend data exists — never render as $0. */
+  costPerLead: number | null;
+  /** null: cannot be computed without spend. */
+  roi: number | null;
+  /** 0..1, or null when there are no leads to divide by. */
+  conversionRate: number | null;
+}
+
 export async function analyzeChannelROI(): Promise<{
-  channels: Array<{ channel: string; leads: number; conversions: number; revenue: number; costPerLead: number; roi: string }>;
+  channels: ChannelRoiRow[];
   bestChannel: string;
   worstChannel: string;
+  /** Why roi/costPerLead are null — rendered verbatim by the admin tile. */
+  roiUnavailableReason: string;
 }> {
+  const roiUnavailableReason = "no ad-spend data in the system — ROI and cost per lead cannot be computed";
   try {
     const rows = await (await db()).execute(sql`
       SELECT l.source as channel,
@@ -33,23 +55,29 @@ export async function analyzeChannelROI(): Promise<{
     `);
 
     const results = extractRows(rows);
-    const channels: Array<{ channel: string; leads: number; conversions: number; revenue: number; costPerLead: number; roi: string }> = [];
+    const channels: ChannelRoiRow[] = [];
 
     for (const r of results) {
       const leads = Number(r.leadCount || 0);
       const conversions = Number(r.conversions || 0);
       const revenue = Math.round(Number(r.totalRev || 0) / 100);
-      const costPerLead = 0; // No ad spend data in DB — placeholder
-      const roi = leads > 0 ? `${Math.round((conversions / leads) * 100)}% conversion` : "N/A";
-      channels.push({ channel: String(r.channel || "unknown"), leads, conversions, revenue, costPerLead, roi });
+      channels.push({
+        channel: String(r.channel || "unknown"),
+        leads,
+        conversions,
+        revenue,
+        costPerLead: null,
+        roi: null,
+        conversionRate: leads > 0 ? conversions / leads : null,
+      });
     }
 
     const best = channels.length > 0 ? channels[0].channel : "N/A";
     const worst = channels.length > 0 ? channels[channels.length - 1].channel : "N/A";
 
-    return { channels, bestChannel: best, worstChannel: worst };
+    return { channels, bestChannel: best, worstChannel: worst, roiUnavailableReason };
   } catch {
-    return { channels: [], bestChannel: "N/A", worstChannel: "N/A" };
+    return { channels: [], bestChannel: "N/A", worstChannel: "N/A", roiUnavailableReason };
   }
 }
 

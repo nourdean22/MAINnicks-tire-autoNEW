@@ -223,7 +223,12 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
   },
   {
     id: "campaigns",
-    label: "Winback",
+    // 2026-09-01 (audit, artifact 3 §3): the section holds Campaigns,
+    // Follow-Ups, the SMS inbox, review requests, the orchestrator AND
+    // win-back. "Winback" named one tab and hid the other five; the label now
+    // names the job. `id` and every alias are unchanged, so deep links and
+    // ?tab=campaigns keep working.
+    label: "Outreach",
     icon: <Send className="w-4 h-4" />,
     component: CampaignsSection,
     aliases: ["reengagement", "reengage", "autofollowup", "reviewrequests", "reviews", "winback", "sms", "followups"],
@@ -281,7 +286,10 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     showInSidebar: true,
     allowedRoles: FULL_ACCESS,
   },
-  // Non-sidebar targets
+  // 2026-09-01 (audit, artifact 1 §2): these two were reachable ONLY by alias,
+  // Cmd+K or a typed URL — and the operator drives this admin from an iPhone
+  // PWA where Cmd+K does not exist. Same nav-orphan class fixed for `revenue`
+  // and `content` on 2026-07-25; these were the residue. Given doors.
   {
     id: "callTrackingView",
     label: "Call Tracking",
@@ -291,7 +299,7 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["call", "phone", "tracking", "missed", "callback"],
     group: "Automation",
     priority: 30,
-    showInSidebar: false,
+    showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "front_desk"],
   },
   {
@@ -303,8 +311,13 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["funnel", "traffic", "seo", "conversion", "clicks"],
     group: "Truth",
     priority: 20,
-    showInSidebar: false,
-    allowedRoles: [...FULL_ACCESS, "accountant"],
+    showInSidebar: true,
+    // accountant was listed here while the section was URL-only; its widgets
+    // call seoTools.* (marketing.manage) and customerEvents.* (customers.manage),
+    // neither of which accountant holds — 7 of 10 calls threw FORBIDDEN. Now
+    // that the section has a sidebar door, the role list matches the
+    // permissions the page actually needs (self-review on PR #2063).
+    allowedRoles: [...FULL_ACCESS],
   },
 ];
 

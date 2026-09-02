@@ -250,7 +250,9 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       details: `${pendingOrders.length} pending, ${staleOrders.length} stale, ${possiblyDelivered.length} check delivery`,
     };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[dataPipelines] tire-order status check failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 
@@ -313,7 +315,9 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
 
     return { recordsProcessed: total, details: `${affected} from invoices, ${woAffected} from WOs` };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[dataPipelines] customer-stats refresh failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 
@@ -405,7 +409,9 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
       details: `${invoices.length} invoices checked, ${anomalies.length} anomalies, ${dailyTotals.size} days analyzed`,
     };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[dataPipelines] invoice anomaly scan failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 
@@ -655,7 +661,9 @@ export async function analyzeTireInventory(): Promise<{ recordsProcessed: number
       details: `${patterns.length} size/brand combos analyzed, ${lowStockSizes.length} low stock alerts`,
     };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[dataPipelines] tire demand analysis failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 
@@ -738,6 +746,8 @@ export async function processRevenueAnalytics(): Promise<{ recordsProcessed: num
       details: `Week: $${weekRevenue.toFixed(0)} (${weekDelta}%), Month: $${monthRevenue.toFixed(0)}, Avg: $${avgTicketVal.toFixed(0)}`,
     };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[dataPipelines] revenue snapshot failed:", { error: (err as Error).message });
+    throw err;
   }
 }

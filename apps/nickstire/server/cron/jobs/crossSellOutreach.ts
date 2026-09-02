@@ -285,10 +285,14 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
     }
 
     let sent = 0;
+    let queued = 0;
+    let uncertain = 0; // attempted, unconfirmed (gateway timeout) — action row written, never re-sent
     let skipped = 0;
 
     for (const p of predictions) {
-      if (sent >= MAX_SMS_PER_RUN) break;
+      // Codex P1 (PR #2063): queued texts WILL go out at 8 AM — they count against
+      // the cap; so does an unconfirmed attempt (capacity was used either way).
+      if (sent + queued + uncertain >= MAX_SMS_PER_RUN) break;
       if (!p.customerPhone) { skipped++; continue; }
       if (p.smsOptOut) { skipped++; continue; }
 
@@ -363,12 +367,21 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
         await logOutboundSms(p.customerPhone, message, result, "cross_sell");
       }
 
-      if (result.success) {
-        sent++;
+      // 2026-09-01 (audit F-3): success:true also covers a text parked for the
+      // 8 AM window. Both delivered and queued texts WILL reach the customer,
+      // so both get the closed-loop action row; only delivered counts as sent.
+      const { smsOutcome } = await import("../../lib/smsOutcome");
+      const outcome = smsOutcome(result);
+      // Every non-failed outcome gets the closed-loop action row — including
+      // uncertain (gateway timeout): the relay may have delivered, and a
+      // prediction with no "we acted" row would be re-texted (self-review on
+      // PR #2063). Only a confirmed send counts as sent.
+      if (outcome !== "failed") {
+        if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
         // confidence is a 0-1 FRACTION (see the MIN_CONFIDENCE_TO_ACT block
         // above — the %-vs-fraction confusion is this file's founding bug);
         // render as percent instead of logging "0.62%".
-        log.info(`v2 cross-sell SMS sent to ${fName} (${p.predictedService} · ${Math.round(p.confidence * 100)}%)`, {
+        log.info(`v2 cross-sell SMS ${outcome} to ${fName} (${p.predictedService} · ${Math.round(p.confidence * 100)}%)`, {
           reason: p.reason,
           predictionId: p.predictionId,
         });
@@ -412,11 +425,12 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       await new Promise(r => setTimeout(r, 1500));
     }
 
-    const details = `${sent} SMS sent, ${skipped} skipped (${predictions.length} v2 predictions in pool)`;
-    if (sent > 0) log.info(`v2 cross-sell outreach: ${details}`);
+    const details = `${sent} SMS sent, ${queued} queued for 8 AM, ${skipped} skipped (${predictions.length} v2 predictions in pool)`;
+    if (sent + queued > 0) log.info(`v2 cross-sell outreach: ${details}`);
     return { recordsProcessed: sent, details };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — see chatFaqPipeline for the rationale.
     log.error("Cross-sell outreach failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }

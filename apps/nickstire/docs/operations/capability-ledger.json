@@ -2,6 +2,38 @@
   "$comment": "Completion Authority capability ledger — THE canonical record of what is actually done. States only advance with evidence; scripts/check-capability-ledger.mjs enforces the gates and CI runs it. 'Merged' is not a state on purpose: code merge and capability promotion are independent events. Render docs/operations/REALITY-LEDGER.md from this file via scripts/render-reality-ledger.mjs — never edit the rendered file by hand.",
   "capabilities": [
     {
+      "capabilityId": "sms-send-receipts",
+      "name": "SMS send receipts derive from outcomes (sent / queued / uncertain / failed)",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-01 admin audit wave (nickstire/admin-audit-upgrades): server/lib/smsOutcome.ts is the single classification; follow-ups, estimate follow-up, operator replies, campaigns, winback, reminders, review requests, cross-sell, unpaid-invoice recovery, warranty alerts, crudAutomation x3, post-invoice follow-up, tire-order confirmations and the customer-profile manual send all derive counters and status rows from it. RUN FOLLOW-UPS and the estimate follow-up check their feature flag BEFORE claiming a customer.",
+        "tests": [
+          "server/lib/smsOutcome.test.ts (4): the four-way classification, queued is not delivered, uncertain is not guaranteed",
+          "server/followUpReceipts.test.ts (7): flag off claims nothing; delivered / queued / failed / no-phone each produce the matching receipt; runFollowUps total == sent",
+          "server/estimateFollowUpReceipts.test.ts (6): no UPDATE without a send; queued consumes but counts as queued; missing column rejects and names 0114",
+          "server/smsOperatorReplyHonesty.test.ts (4): operator reply is customer_followup, single row, status from outcome",
+          "server/bridgeSmsCampaignDraft.test.ts (3): the GPT bridge never calls sendSms; it drafts"
+        ],
+        "liveRuns": [],
+        "deploymentId": "not yet deployed — lands with the merge of nickstire/admin-audit-upgrades"
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No production run has exercised a queued-after-hours path under the new receipts yet; the first 8 AM drain after deploy is the live confirmation. Notification rows created while sms_review_requests was OFF before this change remain `pending` and are not retroactively marked failed (a prod write; operator decision).",
+          "source": "2026-09-01 audit wave"
+        }
+      ],
+      "deferredScope": [
+        "a per-send delivery-receipt table (sms_messages already carries status; not duplicated)",
+        "surfacing queued counts on the Winback → Campaigns tiles (server returns them; UI shows sent/failed)"
+      ],
+      "lastVerifiedAt": "2026-09-01",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
       "capabilityId": "reel-pipeline-assembly",
       "name": "Reel generation + assembly + render-integrity gate",
       "owner": "operator",

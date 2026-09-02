@@ -514,13 +514,16 @@ export function unarmedFlagReason(key: string, raw: string | undefined): string 
   return `requiresFlag:${key} (${why})`;
 }
 
-export function startTieredScheduler(): void {
-  // v1.7 audit fix · set a global flag so the legacy startAllJobs()
-  // in cron/index.ts can detect we're active and refuse to
-  // double-schedule. Mutex against duplicate SMS sends.
-  (globalThis as { __nicksTieredSchedulerActive?: boolean })
-    .__nicksTieredSchedulerActive = true;
-
+/**
+ * Build the tier table WITHOUT starting any timer.
+ *
+ * 2026-09-01 (audit, artifact 2 §2.1): `tiers` was populated only inside
+ * startTieredScheduler(), so every read-only consumer — getJobCadences(),
+ * the cron-status surface, the CRON-INVENTORY generator, tests — saw an
+ * EMPTY table until the scheduler had actually started. Building is now a
+ * pure, idempotent step (ensureTiersBuilt) that any reader can call.
+ */
+function buildTiers(): void {
   // ═══ TIER 1: HEARTBEAT (every 5 min) ═══
   // Critical monitoring + SMS processing
   tiers.push({
@@ -683,7 +686,7 @@ export function startTieredScheduler(): void {
             }
 
             return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Accuracy check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],
@@ -990,7 +993,7 @@ export function startTieredScheduler(): void {
               await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue pulse skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1255,7 +1258,7 @@ export function startTieredScheduler(): void {
             }
 
             return { recordsProcessed: imported, details: `${imported} items pulled (insights+patterns+predictions+loops+alerts), ${driftAlerts.length} urgent` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Pull failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1300,7 +1303,7 @@ export function startTieredScheduler(): void {
           try {
             const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
             return processCustomerSegmentation();
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Segmentation skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       // Wave-100 update (2026-05-08): customer-metrics-refresh moved OFF
@@ -1391,7 +1394,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Promise risk check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1420,7 +1423,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Stale estimate check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1431,7 +1434,7 @@ export function startTieredScheduler(): void {
             const { sendEscalationAlerts } = await import("../services/nickIntelligence");
             const result = await sendEscalationAlerts();
             return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Escalation check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -1740,6 +1743,17 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
           return processCustomerSegmentation();
+        },
+      },
+      // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
+      // the schema; kpi.history returned [] to every caller. One row per
+      // completed shop week, idempotent, once per shop day.
+      {
+        name: "kpi-snapshot",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
+          return processKpiSnapshot();
         },
       },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
@@ -2097,7 +2111,7 @@ export function startTieredScheduler(): void {
               if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
             return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Churn detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2174,7 +2188,7 @@ export function startTieredScheduler(): void {
               await remember({ type: "lesson", content: `QC comeback check: ${comebacks} potential comebacks this week (customers who returned within 30d of a completed job). Review quality.`, source: "qc_detection", confidence: 0.8 });
             }
             return { recordsProcessed: comebacks, details: `${comebacks} potential comebacks detected` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "QC comeback detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2444,7 +2458,7 @@ export function startTieredScheduler(): void {
             await sendTelegram(parts.join("\n\n"));
             await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
             return { recordsProcessed: 1, details: "Full digest sent" };
-          } catch (e: unknown) { return { details: `Digest failed: ${(e as Error).message}` }; }
+          } catch (e: unknown) { log.warn("[cron/scheduler] digest failed:", e); throw e; /* audit F-9 */ }
         },
       },
       {
@@ -2492,7 +2506,7 @@ export function startTieredScheduler(): void {
               confidence: 0.95,
             });
             return { recordsProcessed: 1, details: `${day}: $${truth.totalRevenue}, ${truth.completedJobs} jobs` };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue reconciliation failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],
@@ -2570,7 +2584,7 @@ export function startTieredScheduler(): void {
               await sendTelegram(`🧠 WEEKLY STRATEGIC BRIEF\n\n${insight.slice(0, 3500)}`);
             }
             return { recordsProcessed: 1, details: "Weekly insight sent" };
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Weekly insight failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
       {
@@ -2581,13 +2595,28 @@ export function startTieredScheduler(): void {
           try {
             const { runChatFaqPipeline } = await import("./jobs/chatFaqPipeline");
             return runChatFaqPipeline();
-          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Chat FAQ pipeline failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
     ],
     running: false,
     lastRun: null,
   });
+}
+
+/** Idempotent: builds the tier table once; safe for read-only callers (getJobCadences calls it). */
+function ensureTiersBuilt(): void {
+  if (tiers.length === 0) buildTiers();
+}
+
+export function startTieredScheduler(): void {
+  // v1.7 audit fix · set a global flag so the legacy startAllJobs()
+  // in cron/index.ts can detect we're active and refuse to
+  // double-schedule. Mutex against duplicate SMS sends.
+  (globalThis as { __nicksTieredSchedulerActive?: boolean })
+    .__nicksTieredSchedulerActive = true;
+
+  ensureTiersBuilt();
 
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
@@ -2715,6 +2744,7 @@ export function getJobCadences(): Map<
       scheduledAutomatically: boolean;
     }
   >();
+  ensureTiersBuilt();
   for (const t of tiers) {
     for (const j of t.jobs) {
       out.set(j.name, {

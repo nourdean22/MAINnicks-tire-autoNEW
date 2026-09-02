@@ -305,8 +305,9 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
     if (alerts.length > 0) log.info(`Autopilot: ${details}`);
     return { recordsProcessed: actionsPerformed, details };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — see chatFaqPipeline for the rationale.
     log.error("Intelligence autopilot failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -348,7 +349,8 @@ export async function runAlgAutoDiscovery(): Promise<{ recordsProcessed: number;
 
     return { recordsProcessed: total, details: `${live.length} live, ${withData.length} with data` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — see chatFaqPipeline for the rationale.
     log.error("ALG discovery failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }

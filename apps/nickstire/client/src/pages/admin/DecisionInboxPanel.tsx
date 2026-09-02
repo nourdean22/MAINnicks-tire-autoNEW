@@ -117,7 +117,13 @@ export default function DecisionInboxPanel() {
   const sendOutreach = trpc.opportunityQueue.sendOutreach.useMutation({
     onSuccess: (res) => {
       if (res && "ok" in res && !res.ok) { toast.error(res.error ?? "send failed"); return; }
-      toast.success(res.queued ? "Queued — sends at the next window" : "Sent");
+      if (res.outcome === "uncertain") {
+        toast.warning("Attempted — delivery unconfirmed (gateway timeout). Do not re-send; check the thread.");
+      } else if (res.outcome === "failed") {
+        toast.error("Send failed — not delivered");
+      } else {
+        toast.success(res.queued ? "Queued — sends at the next window" : "Sent");
+      }
       setDraftFor(null); setDraftText(""); setDraftMeta(null);
       refresh();
     },

@@ -98,7 +98,8 @@ export async function identifyFleetProspects(): Promise<{
       details: `Scanned ${prospects.length} customers, ${fleetCount} fleet prospects`,
     };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — a bare "Error" was recorded as `completed`.
     log.error("Fleet scoring failed", { err });
-    return { recordsProcessed: 0, details: "Error" };
+    throw err;
   }
 }

@@ -42,7 +42,10 @@ export const dispatchRouter = router({
     .input(z.object({
       workOrderId: z.string(),
       techId: z.number(),
-      bayId: z.number(),
+      // 2026-09-01: optional — there are no bays in this shop (see
+      // services/dispatch.ts assignWorkOrder). A required bayId made the
+      // Ready Queue's "Assign & Dispatch" permanently disabled.
+      bayId: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const { assignWorkOrder } = await import("../services/dispatch");
@@ -267,10 +270,11 @@ export const dispatchRouter = router({
       recipient: z.string(),
       message: z.string(),
     }))
-    .mutation(async ({ input }) => {
-      const { logStatusMessage } = await import("../services/customerMessaging");
-      const id = await logStatusMessage({ ...input, status: "sent" });
-      return { id };
+    .mutation(async ({ input, ctx }) => {
+      // 2026-09-01 (audit F-2): this wrote `status: "sent"` and sent nothing.
+      // It now sends, and records what actually happened.
+      const { sendWorkOrderStatusMessage } = await import("../services/customerMessaging");
+      return sendWorkOrderStatusMessage({ ...input, actor: ctx.user?.email ?? ctx.user?.name ?? "admin" });
     }),
 
   messageHistory: adminProcedure

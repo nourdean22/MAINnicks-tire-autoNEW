@@ -40,7 +40,19 @@ export default function FollowUpsSection() {
 
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => {
-      toast.success(`Processed ${data.total} follow-ups`);
+      // 2026-09-01 · the receipt names what actually happened. "Processed N"
+      // used to count bookings consumed, not texts sent (audit F-1).
+      if (data.error) {
+        toast.error(`Follow-ups failed: ${data.error.slice(0, 140)}`);
+      } else if (data.sent + data.queued + data.failed === 0) {
+        toast.warning(data.skipReason ? `Nothing sent — ${data.skipReason}` : "Nothing eligible to send");
+      } else {
+        const parts = [`${data.sent} sent`];
+        if (data.queued) parts.push(`${data.queued} queued for 8 AM`);
+        if (data.failed) parts.push(`${data.failed} failed`);
+        if (data.skipped) parts.push(`${data.skipped} skipped`);
+        (data.failed > 0 ? toast.warning : toast.success)(parts.join(" · "));
+      }
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },
@@ -59,8 +71,13 @@ export default function FollowUpsSection() {
   });
 
   const retryFollowUp = trpc.followUps.retry.useMutation({
-    onSuccess: () => {
-      toast.success("Follow-up requeued");
+    onSuccess: (r) => {
+      // The retry SENDS now (it used to flip the row to "pending", which
+      // nothing drained). Say what happened, not what was queued.
+      if (r.outcome === "sent") toast.success("Follow-up sent");
+      else if (r.outcome === "queued") toast.info("Follow-up queued — goes out at 8 AM (quiet hours)");
+      else if (r.outcome === "uncertain") toast.warning("Attempted — delivery unconfirmed (gateway timeout). Do not retry.");
+      else toast.error(`Send failed${r.error ? `: ${r.error}` : ""} — still marked failed`);
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },

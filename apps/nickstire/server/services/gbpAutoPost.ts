@@ -194,7 +194,9 @@ export async function generateAndNotifyGBPPost(opts?: { dryRun?: boolean; requir
       details: `GBP weekly post (${post.archetype})${extras} → Telegram`,
     };
   } catch (err: unknown) {
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
+    log.error("[gbpAutoPost] weekly post failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 

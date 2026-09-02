@@ -71,6 +71,21 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // named "bulk export" part of the dangerous operational surface — the
   // query/mutation split silently undermined that for reads.
   if (normalized.startsWith("export.")) return "settings.manage";
+
+  // 2026-09-01 (audit F-12): refunding a tire order moves money OUT. The
+  // gatewaytire.* family below resolves to workorders.manage — held by `tech` —
+  // so a technician could issue a Stripe refund. Pinned to money.manage
+  // (owner/manager) ahead of the prefix rule; the rest of gatewaytire.* stays
+  // shop-floor.
+  if (normalized === "gatewaytire.refundorder") return "money.manage";
+
+  // 2026-09-01 (audit F-13): the 1:1 customer thread is front-desk work. The
+  // generic `sms*` rule below is marketing.manage, which front_desk does not
+  // hold — so the role whose job is answering customers could not read or
+  // answer the inbox. Campaigns, orchestrator, blasts and performance stay
+  // marketing.manage; only the conversation router moves.
+  if (normalized.startsWith("smsconversations.")) return "customers.manage";
+
   if (normalized.startsWith("customers.") || normalized.startsWith("technicians.") || normalized.startsWith("jobassignments.")) return "customers.manage";
   if (normalized.startsWith("lead.") || normalized.startsWith("segments.")) return "leads.manage";
   if (normalized.startsWith("booking.") || normalized.startsWith("dispatch.")) return "bookings.manage";

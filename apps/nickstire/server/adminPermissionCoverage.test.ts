@@ -130,6 +130,35 @@ describe("the mappings that already existed still hold", () => {
   });
 });
 
+describe("2026-09-01 audit pins: money out is not shop-floor, the inbox is front-desk work", () => {
+  it("gatewayTire.refundOrder requires money.manage (F-12) — a tech can no longer issue a refund", () => {
+    expect(permissionForAdminProcedure("gatewayTire.refundOrder", "mutation")).toBe("money.manage");
+    expect(hasAdminPermission("tech", "money.manage")).toBe(false);
+    expect(hasAdminPermission("front_desk", "money.manage")).toBe(false);
+    expect(hasAdminPermission("manager", "money.manage")).toBe(true);
+  });
+
+  it("the rest of gatewayTire stays shop-floor", () => {
+    expect(permissionForAdminProcedure("gatewayTire.placeOrder", "mutation")).toBe("workorders.manage");
+    expect(permissionForAdminProcedure("gatewayTire.updateOrder", "mutation")).toBe("workorders.manage");
+  });
+
+  it("smsConversations.* resolves to customers.manage (F-13): front_desk can read and answer the thread", () => {
+    expect(permissionForAdminProcedure("smsConversations.list", "query")).toBe("customers.manage");
+    expect(permissionForAdminProcedure("smsConversations.send", "mutation")).toBe("customers.manage");
+    expect(hasAdminPermission("front_desk", "customers.manage")).toBe(true);
+    expect(hasAdminPermission("tech", "customers.manage")).toBe(false);
+    expect(hasAdminPermission("viewer", "customers.manage")).toBe(false);
+  });
+
+  it("...while campaigns, blasts and the orchestrator stay marketing.manage", () => {
+    expect(permissionForAdminProcedure("sms.sendBlast", "mutation")).toBe("marketing.manage");
+    expect(permissionForAdminProcedure("smsOrchestrator.run", "mutation")).toBe("marketing.manage");
+    expect(permissionForAdminProcedure("campaigns.send", "mutation")).toBe("marketing.manage");
+    expect(hasAdminPermission("front_desk", "marketing.manage")).toBe(false);
+  });
+});
+
 describe("approval queue (0111): drafting sits one tier below deciding", () => {
   it.each([
     // The two Phase-7 surfaces carrying the FLAG CALLBACK button (Sales

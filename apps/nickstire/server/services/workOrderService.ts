@@ -322,37 +322,64 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
 
   // ready_for_pickup → auto-send SMS (drop-off flow supersedes when enabled)
   if (newStatus === "ready_for_pickup") {
-    // Fire the richer drop-off flow version (no-op when flag disabled)
-    import("./dropOffFlow").then(({ sendReadyForPickup }) =>
-      sendReadyForPickup(workOrderId)
-    ).catch((e) => { log.warn("[services/workOrderService] fire-and-forget failed:", e); });
-
     try {
       const { isEnabled } = await import("./featureFlags");
       const dropOffEnabled = await isEnabled("drop_off_sms_flow");
 
-      // Only send the legacy simple SMS when drop-off flow is NOT enabled
-      if (!dropOffEnabled) {
+      /**
+       * 2026-09-01 (audit F-3, "success reported / outcome failed"): this used
+       * to flip the work order to `customer_notified` with the note
+       * "Pickup SMS sent" REGARDLESS of whether a text went out — including
+       * when the customer had opted out, had no phone, or the gateway
+       * refused. The status now follows the outcome: it advances only when a
+       * text will reach the customer (or the richer drop-off flow owns the
+       * notification), and the note says what actually happened.
+       */
+      let notified = false;
+      let note = "";
+      if (dropOffEnabled) {
+        // The richer drop-off flow owns the text. It used to be fired and
+        // forgotten here with `notified = true` regardless — the status now
+        // follows ITS outcome too (self-review on PR #2063).
+        const { sendReadyForPickup } = await import("./dropOffFlow");
+        const outcome = await sendReadyForPickup(workOrderId);
+        if (outcome === "sent") { notified = true; note = "Ready-for-pickup text sent (drop-off flow)"; }
+        else if (outcome === "queued") { notified = true; note = "Ready-for-pickup text queued for the 8 AM window (drop-off flow)"; }
+        else if (outcome === "uncertain") { note = "Ready-for-pickup text attempted, delivery unconfirmed (gateway timeout) — call to confirm, do NOT re-text"; }
+        else { note = `Ready-for-pickup text ${outcome} (drop-off flow) — customer NOT notified, call them`; }
+      } else {
         const { db, workOrders } = await getDbAndSchema();
         const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
-        if (wo?.customerId) {
+        if (!wo?.customerId) {
+          note = "Pickup SMS skipped — work order has no linked customer";
+        } else {
           // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id.
           const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
           const cust = await resolveWorkOrderCustomer(wo.customerId);
-          if (cust?.phone) {
-            // Check smsOptOut before sending legacy pickup SMS
-            if (cust.smsOptOut) {
-              console.info("[workorder:sms] Skipping pickup SMS — customer opted out");
-            } else {
-              const { sendSms } = await import("../sms");
-              const name = cust.firstName || "there";
-              await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`, { via: "shop" });
-            }
+          if (!cust?.phone) {
+            note = "Pickup SMS skipped — no customer phone on file";
+          } else if (cust.smsOptOut) {
+            console.info("[workorder:sms] Skipping pickup SMS — customer opted out");
+            note = "Pickup SMS skipped — customer opted out (call them)";
+          } else {
+            const { sendSms } = await import("../sms");
+            const { smsOutcome } = await import("../lib/smsOutcome");
+            const name = cust.firstName || "there";
+            const outcome = smsOutcome(await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`, { via: "shop" }));
+            if (outcome === "sent") { notified = true; note = "Pickup SMS sent"; }
+            else if (outcome === "queued") { notified = true; note = "Pickup SMS queued for the 8 AM window"; }
+            else { note = `Pickup SMS ${outcome} — customer NOT notified, call them`; }
           }
         }
       }
 
-      await updateStatus(workOrderId, "customer_notified", "system", { note: "Pickup SMS sent" });
+      if (notified) {
+        await updateStatus(workOrderId, "customer_notified", "system", { note });
+      } else {
+        // Leave the work order at ready_for_pickup so the queue keeps showing
+        // it as an open obligation; the note lands in the log, not on the row.
+        log.warn(`[WO] ${workOrderId} stays ready_for_pickup: ${note}`);
+      }
     } catch (e) {
       log.error("[WO] Auto-notify failed:", e);
     }

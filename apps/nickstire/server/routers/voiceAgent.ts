@@ -180,9 +180,15 @@ export const voiceAgentRouter = router({
     }),
 
   /**
-   * Books a slot. Reuses the booking infrastructure but tags
-   * source: "voice-agent" so admin can filter Vapi-driven bookings.
-   * Returns a reference code the AI reads back to the caller.
+   * "Books a slot" for the caller. This is a SLOT-LESS, first-come shop: the
+   * tool records a durable EXPECTED ARRIVAL (`expected_arrivals`, source
+   * "voice") — not a booking row — so the Today screen can plan around it and
+   * agenticAuditor can verify the promise was persisted. Returns a reference
+   * code the AI reads back to the caller.
+   *
+   * (2026-09-01: this docblock used to promise a bookings write tagged
+   * source: "voice-agent"; no code did that and the bookings.source enum has
+   * no such value — stale since the expected-arrivals migration, 0094.)
    */
   // wave-148 — write mutation gated on internal context (VAPI webhook
   // signed dispatch) or VOICE_AGENT_INTERNAL_SECRET header.

@@ -1,199 +1,189 @@
 # Cron Inventory — What Runs, When, Why
 
-Every background job that touches the production DB, external APIs,
-or SMS/email. Organized by the tier it runs in (`server/cron/scheduler.ts`).
+Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
+HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
+those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-If you add a new job, update this doc in the **same commit**.
+**Last regenerated: 2026-09-02 by `scripts/gen-cron-inventory.mts`.**
 
-**Last regenerated: 2026-05-07 (wave-80) from `server/cron/scheduler.ts` source-of-truth.**
+> The code is the source of truth. To add or change a job, edit the scheduler and
+> re-run the generator in the same commit; write the job's purpose in the last column.
 
-> **Source of truth.** When this doc disagrees with `server/cron/scheduler.ts`,
-> the code wins. Regenerate this file from the scheduler when adding/removing
-> jobs (the regen pattern: grep `name: "..."` lines under each tier block).
-
----
+<!-- generated:begin — do not edit by hand; run pnpm exec tsx scripts/gen-cron-inventory.mts -->
 
 ## Tier overview
 
-| Tier | Interval | Job count | Purpose |
-|---|---|---|---|
-| heartbeat | every 5 min | 3 | Critical health checks · DB liveness, ALG mirror health, data accuracy |
-| pulse | every 15 min | 11 | Operational pings · vendor health, dashboard sync, abandoned forms, SMS scheduler, SMS gateway health, work-order overdue, revenue pulse |
-| hourly | every 2 hours | 25 | Intelligence loop · brain sync, intelligence engines, customer enrichment, drip campaigns, escalations, missed-call recovery |
-| daily | every 24 hours | 40 | Long-running analytics + retention · DB backup, engine health, retention sequences, declined-work recovery, intelligence digests, GSC/GBP pipelines |
-| briefings | every 12 hours | 6 | Owner-facing summaries · morning brief, daily report, weather intel, weekly strategic |
+| Tier | Interval | Jobs (scheduled / staged) |
+|---|---|---|
+| heartbeat | every 5m | 3 / 1 |
+| pulse | every 15m | 20 / 2 |
+| hourly | every 2h | 34 / 1 |
+| daily | every 1d | 51 / 0 |
+| briefings | every 12h | 6 / 0 |
 
-**Total: 85 registered jobs across 5 tiers.**
+**Total: 118 tiered jobs (114 scheduled automatically, 4 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
----
+## heartbeat (every 5m)
 
-## heartbeat (5 min)
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `alg-mirror-health` | yes | no | yes | — |
+| `campaign-resume` | no | no | **STAGED — HTTP trigger only** | — |
+| `data-accuracy-check` | no | no | yes | — |
+| `self-healing` | no | no | yes | Detect + auto-recover from common failures (DB pool, restart spam) |
 
-Critical liveness probes. Failures here are alerted immediately.
+## pulse (every 15m)
 
-| Job | Purpose |
-|---|---|
-| `self-healing` | Detect + auto-recover from common failures (DB pool, restart spam) |
-| `alg-mirror-health` | Detect stale ALG (Auto Labor Guide) mirror data — every revenue number depends on it |
-| `data-accuracy-check` | Spot-check critical invariants (e.g. invoices missing customer phone) |
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `abandoned-forms` | yes | no | yes | Detect partially-filled booking forms and auto-recover |
+| `alg-evening-probe` | no | no | yes | — |
+| `alg-overnight-probe` | no | no | yes | — |
+| `cloud-camera-snapshots` | no | no | yes | — |
+| `cron-failure-observer` | no | no | yes | — |
+| `daily-reel-post` | no | no | yes | — |
+| `dashboard-sync` | no | no | yes | Sync admin dashboard tiles to fresh data |
+| `gateway-order-status-poll` | yes | no | yes | — |
+| `higgsfield-session-keepalive` | no | no | **STAGED — HTTP trigger only** | — |
+| `ig-autopost` | no | no | yes | — |
+| `overdue-reply-alert` | yes | no | yes | — |
+| `proposal-orphan-sweep` | no | no | yes | — |
+| `reel-comment-responder` | no | no | yes | — |
+| `reel-pipeline` | no | no | **STAGED — HTTP trigger only** | — |
+| `revenue-pulse` | yes | no | yes | — |
+| `scheduled-posts` | no | no | yes | — |
+| `sms-gateway-health` | no | no | yes | — |
+| `sms-scheduler` | yes | no | yes | Send queued SMS (review requests, reminders, etc.) |
+| `social-inventory-publisher` | no | no | yes | — |
+| `statenour-live-sync` | no | no | yes | — |
+| `vendor-health` | no | no | yes | Probe critical vendor APIs (Twilio, Stripe, Resend, etc.) before syncs run |
+| `wo-overdue-check` | yes | no | yes | — |
 
----
+## hourly (every 2h)
 
-## pulse (15 min)
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `callback-escalation` | yes | no | yes | — |
+| `campaign-auto-retry` | yes | no | yes | — |
+| `confirmation-calls` | no | no | yes | — |
+| `content-reserve-replenish` | no | no | yes | — |
+| `customer-segment-refresh` | yes | no | yes | — |
+| `data-analyzers-live` | yes | no | yes | — |
+| `drip-step-processor` | yes | no | yes | — |
+| `enrich-customer-data` | no | no | yes | — |
+| `feedback-cycle` | no | no | yes | — |
+| `followup-cadence` | yes | no | yes | — |
+| `intelligence-autopilot` | yes | no | yes | — |
+| `intelligence-engines-live` | yes | no | yes | — |
+| `memory-sync-to-statenour` | no | no | yes | — |
+| `missed-call-recovery` | yes | no | yes | — |
+| `nick-auto-actions` | yes | no | yes | — |
+| `nick-intelligence` | yes | no | yes | Analyze with fresh data |
+| `opportunity-queue-refresh` | yes | yes | yes | — |
+| `post-invoice-followup` | yes | no | yes | — |
+| `predictive-escalation` | yes | no | yes | — |
+| `promise-risk-check` | yes | no | yes | — |
+| `promise-sweep` | yes | yes | yes | — |
+| `pull-from-statenour-brain` | no | no | yes | — |
+| `referral-loop-closer` | yes | yes | yes | — |
+| `reminder-queue` | yes | no | yes | — |
+| `review-requests` | yes | no | yes | Send review request SMS to recently-completed bookings |
+| `safety-check` | no | no | yes | — |
+| `service-affinity-compute` | no | no | yes | — |
+| `sms-learning-digest` | no | yes | **STAGED — HTTP trigger only** | — |
+| `stale-estimate-alert` | yes | no | yes | — |
+| `stale-lead-followup` | yes | no | yes | Re-engage leads after intelligence is fresh |
+| `sync-visit-dates` | no | no | yes | — |
+| `vip-auto-recognition` | yes | yes | yes | — |
+| `voice-recovery` | no | no | yes | — |
+| `weekly-revenue-digest` | no | yes | yes | — |
+| `winback-auto-process` | yes | no | yes | — |
 
-Operational tier. SMS, dashboards, work orders, abandoned forms, vendor health.
+## daily (every 1d)
 
-| Job | Purpose |
-|---|---|
-| `vendor-health` | Probe critical vendor APIs (Twilio, Stripe, Resend, etc.) before syncs run |
-| `cron-failure-observer` | Detect failed cron runs and alert |
-| `sms-gateway-health` | Ping the F25e shop SMS gateway (216-862-0005) — Telegram alert if last-seen > 30min, recovery alert when back. Wave-109. |
-| `dashboard-sync` | Sync admin dashboard tiles to fresh data |
-| `cloud-camera-snapshots` | Periodic snapshot capture (V380/GeoVision) |
-| `abandoned-forms` | Detect partially-filled booking forms and auto-recover |
-| `sms-scheduler` | Send queued SMS (review requests, reminders, etc.) |
-| `wo-overdue-check` | Flag work orders past their promised completion time |
-| `gateway-order-status-poll` | Poll Gateway B2B tire orders for status changes |
-| `revenue-pulse` | Live revenue pacing — alert on big jobs or falling behind |
-| `statenour-live-sync` | Push fresh data to NOUR OS dashboard at autonicks.com |
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `agentic-auditor` | no | no | yes | — |
+| `alg-auto-discovery` | no | no | yes | — |
+| `alg-declined-work-recovery` | no | no | yes | — |
+| `booking-priority-escalation` | no | no | yes | — |
+| `churn-detection` | no | no | yes | — |
+| `cleanup` | no | no | yes | Stale data cleanup, log rotation |
+| `closed-loop-measure` | no | no | yes | — |
+| `competitor-monitor` | no | no | yes | Track competitor SERP positions |
+| `content-auto-gen` | no | no | yes | — |
+| `content-experiment-resolve` | no | no | yes | — |
+| `cron-skip-watchdog` | no | no | yes | — |
+| `customer-segmentation` | no | no | yes | Full segment recompute |
+| `db-backup` | no | no | yes | — |
+| `declined-work-recovery` | no | no | yes | Recover declined estimates via SMS |
+| `email-campaign-auto` | no | no | yes | — |
+| `engine-health` | no | no | yes | — |
+| `estimate-followup` | no | no | yes | — |
+| `fleet-scoring` | no | no | yes | Score fleet customers by health + spend |
+| `full-intelligence-digest` | no | no | yes | — |
+| `gateway-price-refresh` | no | no | yes | — |
+| `gbp-auto-post` | no | no | yes | — |
+| `gsc-pipeline` | no | no | yes | — |
+| `inventory-demand-forecast` | no | no | yes | — |
+| `invoice-cross-reconciliation` | no | no | yes | — |
+| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
+| `low-stock-alerts` | no | no | yes | — |
+| `monte-carlo-forecast` | no | no | yes | — |
+| `no-show-detection` | no | no | yes | — |
+| `pipelines-auto-run` | no | no | yes | — |
+| `prediction-outcomes-resolve` | no | no | yes | — |
+| `pricing-intelligence` | no | no | yes | — |
+| `prompt-evolution-weekly` | no | no | yes | — |
+| `psycho-profile-refresh` | no | no | yes | — |
+| `qc-comeback-detection` | no | no | yes | — |
+| `retention-all` | no | no | yes | — |
+| `revenue-analytics-pipeline` | no | no | yes | — |
+| `revenue-reconciliation` | no | no | yes | — |
+| `review-auto-draft` | no | no | yes | — |
+| `review-monitor` | no | no | yes | Monitor Google reviews, alert on negatives |
+| `review-pipeline` | no | no | yes | — |
+| `seo-forensic` | no | no | yes | — |
+| `staff-performance` | no | no | yes | Tech utilization + revenue-per-tech metrics |
+| `stale-booking-cleanup` | no | no | yes | — |
+| `tire-inventory-intelligence` | no | no | yes | — |
+| `unpaid-invoice-recovery` | no | no | yes | — |
+| `vapi-call-eval` | no | no | yes | — |
+| `vapi-harness` | no | no | yes | — |
+| `vapi-latency-sync` | no | no | yes | — |
+| `warranty-alerts` | no | no | yes | Alert customers approaching warranty expiration |
+| `wo-auto-advance` | no | no | yes | — |
+| `wo-auto-close` | no | no | yes | — |
 
----
+## briefings (every 12h)
 
-## hourly (2 hours)
+| Job | Business hours only | Once per shop day | Scheduled | Purpose |
+|---|---|---|---|---|
+| `chat-faq-pipeline` | no | no | yes | — |
+| `daily-report` | no | no | yes | End-of-day operational report |
+| `daily-wins-digest` | no | no | yes | — |
+| `nick-morning-brief` | no | no | yes | Owner morning brief (Telegram) |
+| `weather-intel` | no | no | yes | Weather impact on demand (snow → tire surge, etc.) |
+| `weekly-strategic-insight` | no | no | yes | — |
 
-Intelligence loop. The order matters — feedback decay first, then brain
-sync, then intelligence engines, then auto-actions, then engagement.
+## HTTP-only registry jobs (`server/cron/index.ts`)
 
-| Job | Purpose |
-|---|---|
-| `feedback-cycle` | Decay memories, check anomalies, pacing — feeds intelligence quality |
-| `pull-from-statenour-brain` | Get fresh brain data before intelligence runs |
-| `memory-sync-to-statenour` | Push our memories out to NOUR OS |
-| `nick-intelligence` | Analyze with fresh data |
-| `nick-auto-actions` | Act on intelligence (auto-route, auto-respond) |
-| `auto-labor-guide-sync` | ShopDriver/ALG data sync |
-| `customer-segment-refresh` | Recompute segment membership |
-| `intelligence-engines-live` | Cross-sell, LTV, lead scoring, attribution — runs BEFORE autopilot |
-| `intelligence-autopilot` | Autonomous intelligence — alerts, scoring, pacing |
-| `stale-lead-followup` | Re-engage leads after intelligence is fresh |
-| `missed-call-recovery` | Follow up unconverted VAPI missed callers via SMS (flag `missed_call_recovery` + env `MISSED_CALL_RECOVERY_SEND=1`; SHADOW otherwise). See `docs/missed-call-recovery.md` |
-| `review-requests` | Send review request SMS to recently-completed bookings |
-| `promise-risk-check` | Detect WOs about to miss promised time |
-| `stale-estimate-alert` | Alert on quoted estimates not converting |
-| `predictive-escalation` | Pre-escalate at-risk WOs before they fail |
-| `sync-visit-dates` | Update customer lastVisitDate from invoices + WOs |
-| `enrich-customer-data` | Merge totalSpent, visitCount, vehicle from all sources |
-| `drip-step-processor` | Process multi-step drip campaigns |
-| `winback-auto-process` | Auto-send pending winback messages |
-| `campaign-auto-retry` | Auto-send review+referral campaign |
-| `reminder-queue` | Process due maintenance reminder SMS |
-| `callback-escalation` | Re-alert on callbacks stuck >4h |
-| `data-analyzers-live` | Chat demand, call attribution, fleet, geography |
-| `safety-check` | Operational safety + compliance checks |
-| `post-invoice-followup` | 7-day thank-you + review + referral SMS |
+Runnable via `POST /api/admin/run-staged-cron` / `runJobByName`; not on a tier.
 
-### once per shop day (ROS-081)
+| Job | Enabled | Purpose |
+|---|---|---|
+| `retention-14day` | yes | — |
+| `retention-180day` | yes | — |
+| `retention-365day` | yes | — |
+| `retention-7day` | yes | — |
+| `retention-90day` | yes | — |
+| `statenour-sync` | yes | — |
 
-These four are logically daily but CANNOT live in the 24h daily tier. That
-tier's phase is set by process start, so a pod booted outside 07:00-20:59 ET
-fires it outside business hours every day and `runTier()` skips every
-`businessHoursOnly` job in it — 10 of the 24 possible boot hours starve it.
-Prod cron_log 2026-07-29: `opportunity-queue-refresh ran 1 times in 7 days,
-expected about 7`. Here the 2h tier gives each ~7 chances to land inside
-business hours, and the `oncePerShopDay` flag claims the first and declines
-the rest, so the real cadence is once a day — proven per JOB, not inferred
-from a tier-level stamp. **Do not move these back to `daily`.**
+<!-- generated:end -->
 
-| Job | Purpose |
-|---|---|
-| `referral-loop-closer` | Match referred customers to bookings/invoices, SMS both parties |
-| `vip-auto-recognition` | Notify new VIP customers (3+ visits, $2000+ spent) |
-| `opportunity-queue-refresh` | Consolidate missed-revenue opportunities into the Decision Inbox queue |
-| `promise-sweep` | Escalate overdue customer promises; rot to `missed` after 48h |
+## How skip logic works
 
----
-
-## daily (24 hours)
-
-Long-running analytics, retention, recovery, digests. Heavy work that
-shouldn't run more often than daily.
-
-| Job | Purpose |
-|---|---|
-| `db-backup` | Database backup snapshot |
-| `engine-health` | System-wide health audit |
-| `alg-overnight-probe` | Deep ALG diagnostic during low-traffic window |
-| `cleanup` | Stale data cleanup, log rotation |
-| `customer-segmentation` | Full segment recompute |
-| `retention-all` | Run all retention drip sequences |
-| `cross-sell-outreach` | Proactive SMS from cross-sell intelligence |
-| `warranty-alerts` | Alert customers approaching warranty expiration |
-| `alg-declined-work-recovery` | ALG-sourced walk-in estimates → SMS follow-ups |
-| `declined-work-recovery` | Recover declined estimates via SMS |
-| `staff-performance` | Tech utilization + revenue-per-tech metrics |
-| `fleet-scoring` | Score fleet customers by health + spend |
-| `review-monitor` | Monitor Google reviews, alert on negatives |
-| `competitor-monitor` | Track competitor SERP positions |
-| `churn-detection` | Detect at-risk customers, auto-enroll in drip |
-| `qc-comeback-detection` | Detect repeat visits = possible failed repair |
-| `wo-auto-close` | Auto-close stale WOs (picked_up/invoiced >7 days) |
-| `estimate-followup` | Auto-follow up on unconverted estimates after 2-3 days |
-| `gateway-price-refresh` | Auto-fetch wholesale tire prices from Gateway B2B |
-| `invoice-cross-reconciliation` | Match invoices, flag anomalies, daily totals |
-| `tire-inventory-intelligence` | Track popular sizes, low-stock alerts |
-| `revenue-analytics-pipeline` | Week-over-week, monthly metrics, top services |
-| `gbp-auto-post` | Generate + push GBP posts via Telegram |
-| `email-campaign-auto` | Auto-send email campaigns via Resend |
-| `no-show-detection` | Flag past-date bookings as no-show + follow-up SMS |
-| `stale-booking-cleanup` | Auto-cancel 30+ day untouched bookings + rebook SMS |
-| `wo-auto-advance` | completed → invoiced when invoice exists |
-| `booking-priority-escalation` | 48h+ untouched → high priority |
-| `review-auto-draft` | Fetch reviews + generate AI reply drafts |
-| `low-stock-alerts` | Telegram when inventory hits reorder threshold |
-| `content-auto-gen` | Blog article draft (Wed + Sat, 2×/week) |
-| `pricing-intelligence` | Approval rate analysis — raise/lower alerts |
-| `alg-auto-discovery` | Probe ShopDriver API for new endpoints |
-| `pipelines-auto-run` | GBP reviews + GSC + Instagram — all due pipelines |
-| `review-pipeline` | Fetch + analyze Google reviews, alert on negatives |
-| `gsc-pipeline` | Google Search Console sync + ranking alerts |
-| `full-intelligence-digest` | Compound intelligence report → Telegram |
-| `revenue-reconciliation` | End-of-day revenue truth |
-
----
-
-## briefings (12 hours)
-
-Owner-facing summaries. Morning + evening cadence for daily ops; weekly
-ones gate on day-of-week.
-
-| Job | Purpose |
-|---|---|
-| `nick-morning-brief` | Owner morning brief (Telegram) |
-| `daily-report` | End-of-day operational report |
-| `weather-intel` | Weather impact on demand (snow → tire surge, etc.) |
-| `daily-wins-digest` | Wins of the day |
-| `weekly-strategic-insight` | AI strategic brief — fires on Sundays only |
-| `chat-faq-pipeline` | Weekly chat question analysis — Sunday only |
-
----
-
-## How to add a job
-
-1. Create the handler in `server/cron/jobs/<jobName>.ts` (or inline).
-2. Register it under the right tier in `server/cron/scheduler.ts`.
-3. Add a row to the right table above with the same `name`.
-4. Commit all three changes together.
-
-If a job needs an env-flag gate (`CRON_X_ENABLED=true`), use `cronEnabled()`
-helper from the scheduler.
-
----
-
-## Tier skip logic (overrun protection)
-
-Each tier tracks how many consecutive runs hit the budget without finishing.
-If a tier overruns its interval for **2 firings in a row** AND its interval
-is ≥ 30 min (i.e. hourly/daily/briefings), the next run is skipped to give
-the system time to recover. heartbeat + pulse never skip — they're load-bearing.
-
-Source: `server/cron/scheduler.ts:78-83`.
+- `businessHoursOnly`: the tier runner skips the job outside shop hours (America/New_York).
+- `oncePerShopDay`: the job runs at most once per shop day; a completed `cron_log` row for today suppresses it.
+- Staged jobs keep their tier metadata for cadence display but are never fired by the scheduler.
+- A handler that THROWS is recorded `failed` in `cron_log` and counts toward the observer's failure streak; a handler that returns is `completed` — so a job must throw on failure, never return `Failed: …` in details (2026-09-01 audit, F-9).

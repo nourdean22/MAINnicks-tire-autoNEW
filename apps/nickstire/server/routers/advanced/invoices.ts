@@ -1018,9 +1018,21 @@ export const invoicesRouter = router({
 
         try {
           const smsResult = await sendSms(row.customerPhone, body, { via: "shop", messageClass: "customer_marketing" });
-          if (smsResult.success) {
+          // 2026-09-01 (audit F-3): a text parked for the 8 AM window will reach
+          // the customer, so the estimate is still marked followed-up — but the
+          // operator's result must say queued, not sent.
+          const { smsOutcome, smsClaimConsumed } = await import("../../lib/smsOutcome");
+          const outcome = smsOutcome(smsResult);
+          if (smsClaimConsumed(smsResult)) {
+            // sent, queued and uncertain all mark the estimate followed-up: an
+            // uncertain (gateway-timeout) text may have been delivered, and an
+            // open claim re-texted the customer on the next bulk press.
             succeededIds.push(row.id);
-            results.push({ id: row.id, sent: true });
+            results.push({
+              id: row.id,
+              sent: outcome === "sent",
+              reason: outcome === "queued" ? "queued_for_8am_window" : outcome === "uncertain" ? "delivery_uncertain" : undefined,
+            });
           } else {
             results.push({ id: row.id, sent: false, reason: smsResult.error || "send_failed" });
           }
@@ -1043,10 +1055,17 @@ export const invoicesRouter = router({
       }
 
       const sentCount = results.filter(r => r.sent).length;
-      const failedCount = results.length - sentCount;
+      // Queued (8 AM window) texts were durably accepted and the estimate was
+      // marked followed-up — they are not failures (Codex P2 on PR #2063).
+      const queuedCount = results.filter(r => !r.sent && r.reason === "queued_for_8am_window").length;
+      // Unconfirmed (gateway timeout): attempted, claim consumed, must not be re-sent.
+      const uncertainCount = results.filter(r => !r.sent && r.reason === "delivery_uncertain").length;
+      const failedCount = results.length - sentCount - queuedCount - uncertainCount;
 
       return {
         sentCount,
+        queuedCount,
+        uncertainCount,
         failedCount,
         killSwitchOn,
         results,

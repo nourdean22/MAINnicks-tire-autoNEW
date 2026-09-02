@@ -1235,7 +1235,7 @@ export const gatewayTireRouter = router({
       installationDate: z.string().optional(),
       paymentStatus: z.enum(["paid", "unpaid"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const d = await db();
       if (!d) return { success: false };
 
@@ -1261,6 +1261,23 @@ export const gatewayTireRouter = router({
       if (Object.keys(updates).length === 0) return { success: false };
 
       await d.update(tireOrders).set(updates).where(eq(tireOrders.id, input.id));
+
+      // 2026-09-01 (audit F-19): every status transition gets a receipt with
+      // actor, time, from → to. Written AFTER the update succeeds (Codex P2 on
+      // PR #2063): a receipt that lands before a rejected update would assert
+      // a transition that never happened.
+      if (input.status && input.status !== currentOrder.status) {
+        const { logAdminAction } = await import("../services/auditTrail");
+        logAdminAction({
+          action: "tireorder.status_changed",
+          entityType: "tire_order",
+          entityId: currentOrder.orderNumber ?? String(currentOrder.id),
+          details: `Tire order ${currentOrder.orderNumber ?? currentOrder.id}: ${currentOrder.status} → ${input.status}`,
+          previousValue: String(currentOrder.status),
+          newValue: input.status,
+          actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        }).catch(() => { /* audit must never block the update */ });
+      }
 
       // NOTE: Invoice is already created at order placement time (in placeOrder mutation).
       // Do NOT auto-create another invoice here — that would be a double invoice.

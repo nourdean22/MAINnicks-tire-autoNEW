@@ -51,7 +51,9 @@ const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
   manager: ["overview", "approvals", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
   front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
-  accountant: ["overview", "revenue", "memberships", "opsHub", "trafficFunnel"],
+  // trafficFunnel removed 2026-09-02: its procedures need marketing.manage /
+  // customers.manage, which accountant does not hold (PR #2063 self-review).
+  accountant: ["overview", "revenue", "memberships", "opsHub"],
   viewer: ["overview", "intelligence", "opsHub"],
 };
 

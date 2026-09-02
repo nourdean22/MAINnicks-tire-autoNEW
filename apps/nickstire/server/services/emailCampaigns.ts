@@ -222,11 +222,14 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
 
     return { recordsProcessed: sent, details: `${sent} emails sent (${templateKey})` };
   } catch (err: unknown) {
-    // Graceful fail for missing columns
+    // 2026-09-01 (audit F-9/F-17): the missing column used to be reported as a
+    // permanent silent "skip". It is a deploy-state defect — name the
+    // migration and fail loudly so the observer sees it.
     if ((err as Error).message?.includes("Unknown column") || (err as Error).message?.includes("lastEmailCampaignAt")) {
-      return { recordsProcessed: 0, details: "lastEmailCampaignAt column not yet added — skipping" };
+      throw new Error(`customers.lastEmailCampaignAt column is missing — apply drizzle/0114_estimates_followupsent_customers_lastemail.sql (${(err as Error).message})`);
     }
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    log.error("[emailCampaigns] run failed:", { error: (err as Error).message });
+    throw err;
   }
 }
 

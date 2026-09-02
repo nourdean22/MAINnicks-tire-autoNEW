@@ -59,8 +59,9 @@ export async function autoCloseStaleWorkOrders(): Promise<{ recordsProcessed: nu
 
     return { recordsProcessed: closed, details: `${closed} WOs auto-closed` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Auto-close failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -103,8 +104,9 @@ export async function detectOverdueWorkOrders(): Promise<{ recordsProcessed: num
 
     return { recordsProcessed: overdue.length, details: `${overdue.length} overdue WOs alerted` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Overdue detection failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -242,69 +244,105 @@ export async function autoCreateLeadFromBooking(data: {
 }
 
 // ─── ESTIMATE FOLLOW-UP ────────────────────────────────
-// Follow up on estimates not converted to work orders after 2 days
-export async function processEstimateFollowUp(): Promise<{ recordsProcessed: number; details: string }> {
-  try {
-    const { getDb } = await import("../db");
-    const { sql } = await import("drizzle-orm");
-    const db = await getDb();
-    if (!db) return { recordsProcessed: 0, details: "No DB" };
+// Follow up on estimates not converted to work orders after 2 days.
+//
+// 2026-09-01 (audit F-6 / F-17): the previous version stamped followUpSent = 1
+// on up to 10 estimates per run whether or not a text went out — with the
+// sms_retention_sequences flag OFF it consumed every eligible estimate for
+// nothing, and its 24-hour eligibility band meant anything past the 10/run cap
+// aged out permanently. Now the flag is checked before any row is touched, a
+// row is consumed only when the text is delivered or durably queued, the band
+// is 2–7 days so a busy day catches up on later runs, and a missing
+// followUpSent column fails LOUDLY instead of "skipping" forever.
+const ESTIMATE_FOLLOWUP_SPACING_MS = process.env.NODE_ENV === "test" ? 0 : 1500;
 
-    // Find estimates from 2-3 days ago that don't have a linked work order
-    const [rows] = await db.execute(sql`
+export async function processEstimateFollowUp(): Promise<{ recordsProcessed: number; details: string }> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { recordsProcessed: 0, details: "Skipped · no DB" };
+
+  let rows: unknown;
+  try {
+    // Estimates 2–7 days old with no linked work order and no follow-up yet.
+    [rows] = await db.execute(sql`
       SELECT e.id, e.customerName, e.customerPhone, e.vehicleInfo, e.serviceType, e.totalEstimate
       FROM estimates e
       LEFT JOIN work_orders wo ON wo.estimateId = e.id
       WHERE wo.id IS NULL
-        AND e.createdAt BETWEEN DATE_SUB(NOW(), INTERVAL 3 DAY) AND DATE_SUB(NOW(), INTERVAL 2 DAY)
+        AND e.createdAt BETWEEN DATE_SUB(NOW(), INTERVAL 7 DAY) AND DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND e.customerPhone IS NOT NULL
         AND e.followUpSent = 0
+      ORDER BY e.createdAt ASC
       LIMIT 10
     `);
-
-    const estimates = rows as unknown as any[];
-    if (!estimates || estimates.length === 0) return { recordsProcessed: 0, details: "No estimates to follow up" };
-
-    const { sendSms, withOptOut } = await import("../sms");
-    let sent = 0;
-
-    // Gate SMS behind feature flag
-    const { isEnabled: isEnabledEstimate } = await import("./featureFlags");
-    const estimateSmsEnabled = await isEnabledEstimate("sms_retention_sequences");
-
-    for (const est of estimates) {
-      try {
-        if (estimateSmsEnabled) {
-          await sendSms(
-            est.customerPhone,
-            withOptOut(
-              `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
-              `Remember: car problems rarely stay the same — early diagnosis costs less. ` +
-              `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
-            ),
-            { via: "shop" }
-          );
-        }
-
-        // Mark as followed up
-        await db.execute(sql`UPDATE estimates SET followUpSent = 1 WHERE id = ${est.id}`);
-        sent++;
-        // 1.5s delay between sends
-        await new Promise(r => setTimeout(r, 1500));
-      } catch (e) {
-        log.warn("[services/workOrderAutomation] operation failed:", e);
-        log.warn(`Estimate follow-up SMS failed for ${est.customerName}`);
-      }
-    }
-
-    return { recordsProcessed: sent, details: `${sent} estimate follow-ups sent` };
   } catch (err: unknown) {
-    // Table might not have followUpSent column yet — graceful fail
-    if ((err as Error).message?.includes("followUpSent") || (err as Error).message?.includes("Unknown column")) {
-      return { recordsProcessed: 0, details: "followUpSent column not yet added — skipping" };
+    const msg = (err as Error).message ?? String(err);
+    if (msg.includes("followUpSent") || msg.includes("Unknown column")) {
+      // A deploy-state defect, not a transient one: surface it through the cron
+      // observer instead of a permanent silent "skip".
+      throw new Error(`estimates.followUpSent column is missing — apply drizzle/0114_estimates_followupsent_customers_lastemail.sql (${msg})`);
     }
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
+
+  const estimates = rows as unknown as Array<{
+    id: number; customerName: string | null; customerPhone: string; serviceType: string | null; totalEstimate: number | null;
+  }>;
+  if (!estimates || estimates.length === 0) return { recordsProcessed: 0, details: "No estimates to follow up" };
+
+  // Gate SMS behind the feature flag — BEFORE any row is consumed.
+  const { isEnabled: isEnabledEstimate } = await import("./featureFlags");
+  const estimateSmsEnabled = await isEnabledEstimate("sms_retention_sequences");
+  if (!estimateSmsEnabled) {
+    return {
+      recordsProcessed: 0,
+      details: `Skipped · sms_retention_sequences is off — ${estimates.length} eligible estimate(s) left unclaimed, nothing sent`,
+    };
+  }
+
+  const { sendSms, withOptOut } = await import("../sms");
+  const { smsOutcome, smsClaimConsumed } = await import("../lib/smsOutcome");
+  let sent = 0;
+  let queued = 0;
+  let uncertain = 0; // attempted, unconfirmed (gateway timeout) — claim consumed, never re-sent
+  let failed = 0;
+
+  for (const est of estimates) {
+    try {
+      const result = await sendSms(
+        est.customerPhone,
+        withOptOut(
+          `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
+          `Remember: car problems rarely stay the same — early diagnosis costs less. ` +
+          `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
+        ),
+        { via: "shop" }
+      );
+
+      const outcome = smsOutcome(result);
+      if (smsClaimConsumed(result)) {
+        // Consume the estimate for every outcome but a definite failure. An
+        // uncertain (gateway-timeout) text may have been delivered; leaving
+        // the claim open re-texted the same estimate every day of the band.
+        await db.execute(sql`UPDATE estimates SET followUpSent = 1 WHERE id = ${est.id}`);
+        if (outcome === "queued") queued++; else if (outcome === "uncertain") uncertain++; else sent++;
+      } else {
+        // Left unclaimed: it stays eligible inside the 2–7 day band.
+        failed++;
+        log.warn(`Estimate follow-up SMS not delivered for estimate #${est.id} (${outcome})`);
+      }
+      if (ESTIMATE_FOLLOWUP_SPACING_MS > 0) await new Promise(r => setTimeout(r, ESTIMATE_FOLLOWUP_SPACING_MS));
+    } catch (e) {
+      failed++;
+      log.warn("[services/workOrderAutomation] estimate follow-up send threw:", e);
+    }
+  }
+
+  return {
+    recordsProcessed: sent,
+    details: `sent ${sent} · queued ${queued} · failed ${failed} · uncertain ${uncertain} (band 2–7 days, cap 10/run)`,
+  };
 }
 
 // ─── SMS CAMPAIGN AUTO-RETRY ───────────────────────────
@@ -332,6 +370,8 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
 
     const { sendSms, withOptOut } = await import("../sms");
     let sent = 0;
+    let queued = 0;
+    let uncertain = 0; // attempted, unconfirmed (gateway timeout) — consumed, never re-sent
 
     // Gate SMS behind feature flag
     const { isEnabled: isEnabledCampaign } = await import("./featureFlags");
@@ -348,8 +388,13 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
           via: "shop",
           variantKey: "campaign_retry",
         });
-        if (result.success) {
-          sent++;
+        // 2026-09-01 (audit F-3): queued ≠ sent. Every outcome but a definite
+        // failure consumes the customer — an uncertain (gateway-timeout) text
+        // may have been delivered, and an open claim re-sent it the next day.
+        const { smsOutcome: retryOutcome, smsClaimConsumed: retryConsumed } = await import("../lib/smsOutcome");
+        const outcome = retryOutcome(result);
+        if (retryConsumed(result)) {
+          if (outcome === "sent") sent++; else if (outcome === "queued") queued++; else uncertain++;
           await db.update(customers)
             .set({ smsCampaignSent: 1, smsCampaignDate: new Date() } as any)
             .where(eq(customers.id, c.id));
@@ -365,10 +410,11 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
       await sendTelegram(`📱 AUTO CAMPAIGN: ${sent}/${untexted.length} review+referral texts sent automatically.`);
     }
 
-    return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent` };
+    return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent · ${queued} queued for 8 AM · ${uncertain} unconfirmed (not retried)` };
   } catch (err: unknown) {
+    // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("Auto campaign retry failed:", { error: (err as Error).message });
-    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+    throw err;
   }
 }
 
@@ -429,9 +475,19 @@ export async function enrollInDripCampaign(
     const { isEnabled: isEnabledDrip } = await import("./featureFlags");
     if (await isEnabledDrip("sms_retention_sequences")) {
       const finalMsg = trigger === "post-service" ? msg : withOptOut(msg);
-      await sendSms(customer.phone, finalMsg, { via: "shop" });
+      // 2026-09-01 (audit F-3): the result used to be discarded and the log
+      // said "step 1 sent" regardless. The enrollment stands either way (the
+      // processor continues from step 2); the log now says what happened.
+      const { smsOutcome } = await import("../lib/smsOutcome");
+      const outcome = smsOutcome(await sendSms(customer.phone, finalMsg, { via: "shop" }));
+      if (outcome === "failed" || outcome === "uncertain") {
+        log.warn(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome} — enrollment kept, step 2 will still fire)`);
+      } else {
+        log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome})`);
+      }
+    } else {
+      log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 skipped — sms_retention_sequences off)`);
     }
-    log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
   } catch (err: unknown) {
     log.warn(`Drip enrollment failed: ${(err as Error).message}`);
   }

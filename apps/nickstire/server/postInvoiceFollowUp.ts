@@ -44,7 +44,10 @@ function lapsedMessage(firstName: string): string {
 
 export interface FollowUpResult {
   processed: number;
+  /** Delivered now. */
   sent: number;
+  /** Parked for the 8 AM window — will go out, not sent yet (audit F-3). */
+  queued: number;
   failed: number;
   skipped: number;
 }
@@ -58,7 +61,7 @@ export interface FollowUpResult {
  * Only sends to valid E.164 phone numbers to avoid wasted attempts.
  */
 export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
-  const result: FollowUpResult = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const result: FollowUpResult = { processed: 0, sent: 0, queued: 0, failed: 0, skipped: 0 };
 
   try {
     // Calculate the 7-day window: customers who visited 6-8 days ago
@@ -147,8 +150,15 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
         // customer recognizes the sender (same line they paid through).
         const smsResult = await sendSms(customer.phone, message, { via: "shop" });
 
-        if (smsResult.success) {
+        // 2026-09-01 (audit F-3): success:true covers a text parked for the
+        // 8 AM window; count it as queued, never as sent. The claim above is
+        // correct either way (queued texts do go out).
+        const { smsOutcome } = await import("./lib/smsOutcome");
+        const outcome = smsOutcome(smsResult);
+        if (outcome === "sent") {
           result.sent++;
+        } else if (outcome === "queued") {
+          result.queued++;
         } else {
           result.failed++;
         }

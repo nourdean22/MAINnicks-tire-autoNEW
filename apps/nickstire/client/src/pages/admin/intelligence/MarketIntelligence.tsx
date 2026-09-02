@@ -19,7 +19,15 @@ export function MarketIntelligence() {
 
   const topPage = content?.topPages?.[0];
   const velocity = reviewVel?.velocity || 0;
-  const topChannel = channelROI?.channels?.sort((a: any, b: any) => b.roi - a.roi)?.[0];
+  // 2026-09-01 (audit M-2): `roi` is null (no ad-spend feed exists). This used
+  // to sort on a STRING and render "43% conversionx ROI". Rank by the number
+  // the engine can compute — conversion rate — and say ROI is unknown.
+  const topChannel = [...(channelROI?.channels ?? [])]
+    .filter((c: any) => c.conversionRate != null)
+    .sort((a: any, b: any) => (b.conversionRate ?? 0) - (a.conversionRate ?? 0))[0];
+  const topChannelLine = topChannel
+    ? `${Math.round((topChannel.conversionRate ?? 0) * 100)}% lead→job · ROI unknown (no ad-spend data)`
+    : "No data";
   const missingServices = compGap?.missingServices || [];
 
   return (
@@ -47,8 +55,8 @@ export function MarketIntelligence() {
           <div className="text-xl font-black text-foreground capitalize">
             {topChannel?.channel || "N/A"}
           </div>
-          <div className="text-[10px] text-muted-foreground font-medium mt-1">
-            {topChannel ? `${topChannel.roi}x ROI` : "No data"}
+          <div className="text-[10px] text-muted-foreground font-medium mt-1" title={channelROI?.roiUnavailableReason ?? undefined}>
+            {topChannelLine}
           </div>
         </div>
       </div>

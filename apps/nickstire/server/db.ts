@@ -313,17 +313,56 @@ export async function getCustomerVehicles(userId: number) {
     .orderBy(desc(customerVehicles.updatedAt));
 }
 
+/**
+ * 2026-09-01 (audit, artifact 3 §7 P2-2): when a VIN is supplied and year /
+ * make / model are blank, fill them from NHTSA vPIC. Human-entered values are
+ * never overwritten; a decode failure changes nothing (the helper never throws).
+ */
+async function fillVehicleFromVin<T extends Partial<InsertCustomerVehicle>>(vehicle: T): Promise<T> {
+  if (!vehicle.vin) return vehicle;
+  if (vehicle.year && vehicle.make && vehicle.model) return vehicle;
+  const { decodeVin, mergeDecoded } = await import("./services/vinDecode");
+  const decoded = await decodeVin(vehicle.vin);
+  const merged = mergeDecoded(vehicle, decoded);
+  const { vinDecodedFrom, ...row } = merged as T & { vinDecodedFrom?: "vpic" };
+  if (vinDecodedFrom) log.info("[vehicles] filled year/make/model from vPIC", { vinLast4: vehicle.vin.slice(-4) });
+  return row as T;
+}
+
 export async function addCustomerVehicle(vehicle: InsertCustomerVehicle) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(customerVehicles).values(vehicle);
+  const row = await fillVehicleFromVin(vehicle);
+  const result = await db.insert(customerVehicles).values(row);
   return { success: true, id: Number(result[0].insertId) };
 }
 
 export async function updateCustomerVehicle(id: number, userId: number, data: Partial<InsertCustomerVehicle>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(customerVehicles).set(data)
+  let row: Partial<InsertCustomerVehicle> = data;
+  if (data.vin && !(data.year && data.make && data.model)) {
+    // Codex P2 on PR #2063: a partial patch that carries only a VIN must not
+    // let the decoder overwrite year/make/model a human already stored. Fill
+    // against the STORED row, and copy back only the fields that were blank
+    // in both the patch and the row.
+    const [existing] = await db.select({ year: customerVehicles.year, make: customerVehicles.make, model: customerVehicles.model })
+      .from(customerVehicles)
+      .where(and(eq(customerVehicles.id, id), eq(customerVehicles.userId, userId)))
+      .limit(1);
+    const base = {
+      vin: data.vin,
+      year: data.year ?? existing?.year ?? undefined,
+      make: data.make ?? existing?.make ?? undefined,
+      model: data.model ?? existing?.model ?? undefined,
+    };
+    const filled = await fillVehicleFromVin(base);
+    row = { ...data };
+    for (const k of ["year", "make", "model"] as const) {
+      if (!base[k] && filled[k]) (row as Record<string, unknown>)[k] = filled[k];
+    }
+  }
+  await db.update(customerVehicles).set(row)
     .where(and(eq(customerVehicles.id, id), eq(customerVehicles.userId, userId)));
   return { success: true };
 }
@@ -446,6 +485,19 @@ export async function markNotificationSent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(customerNotifications).set({ status: "sent", sentAt: new Date() })
+    .where(eq(customerNotifications.id, id));
+  return { success: true };
+}
+
+/**
+ * 2026-09-01 · a notification that never went out must not sit `pending`
+ * forever (audit F-1). `failed` is already in the status enum and is what the
+ * admin's retry button re-queues from.
+ */
+export async function markNotificationFailed(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(customerNotifications).set({ status: "failed" })
     .where(eq(customerNotifications.id, id));
   return { success: true };
 }
@@ -764,10 +816,62 @@ export async function decideInspectionItem(params: {
       ? result[0]
       : result) as { affectedRows?: number };
     if ((raw.affectedRows ?? 0) === 0) return { ok: false, error: "item not found for this report" };
+
+    // 2026-09-01 (audit F-23): the customer's answer was written and nobody
+    // was told — the advisor learned of an approval only by re-opening the
+    // report. Notify the admin shell (SSE) and the owner channel (Telegram).
+    // Fire-and-forget: a notification miss must never undo a recorded decision.
+    void notifyInspectionDecision(db, params.itemId, params.decision, params.note ?? null).catch((err) => {
+      log.warn("[inspection] decision notification failed (decision is saved)", {
+        itemId: params.itemId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "decision failed" };
   }
+}
+
+async function notifyInspectionDecision(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  itemId: number,
+  decision: "approved" | "declined" | "question",
+  note: string | null,
+): Promise<void> {
+  const [ctxRows] = await db.execute(sql`
+    SELECT v.id AS inspectionId, v.customerName, v.vehicleInfo, i.component, i.recommendedAction, i.estimatedCost
+    FROM inspection_items i
+    INNER JOIN vehicle_inspections v ON v.id = i.inspectionId
+    WHERE i.id = ${itemId}
+    LIMIT 1
+  `);
+  const row = (Array.isArray(ctxRows) ? ctxRows[0] : undefined) as
+    | { inspectionId: number; customerName: string | null; vehicleInfo: string | null; component: string | null; recommendedAction: string | null; estimatedCost: number | null }
+    | undefined;
+  if (!row) return;
+
+  const { emitToAdmin } = await import("./services/realtime");
+  emitToAdmin("inspection_decided", {
+    inspectionId: row.inspectionId,
+    itemId,
+    decision,
+    component: row.component,
+    customerName: row.customerName,
+    vehicleInfo: row.vehicleInfo,
+    estimatedCost: row.estimatedCost,
+    timestamp: Date.now(),
+  });
+
+  const label = decision === "approved" ? "APPROVED" : decision === "declined" ? "declined" : "has a QUESTION about";
+  const cost = row.estimatedCost != null ? ` (~$${Math.round(row.estimatedCost / 100)})` : "";
+  const { sendTelegram } = await import("./services/telegram");
+  await sendTelegram(
+    `🔧 DVI decision: ${row.customerName ?? "Customer"} ${label} "${row.component ?? "item"}"${cost}` +
+    (row.vehicleInfo ? ` · ${row.vehicleInfo}` : "") +
+    (note ? `\nNote: ${note.slice(0, 200)}` : "") +
+    `\nInspection #${row.inspectionId} · open the admin → Customers`,
+  );
 }
 
 export async function addInspectionItem(data: InsertInspectionItem) {

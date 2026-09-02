@@ -291,8 +291,9 @@ export async function sendDailyWinsDigest(): Promise<{ recordsProcessed: number;
     log.info("Daily wins digest sent", { revenue: daily.revenue, jobs: daily.jobCount });
     return { recordsProcessed: 1, details: `Revenue: $${daily.revenue}, Jobs: ${daily.jobCount}` };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — a digest that failed to send was recorded as `completed`.
     log.error("Daily wins digest failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Error sending digest" };
+    throw err;
   }
 }
 

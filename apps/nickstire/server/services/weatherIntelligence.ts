@@ -145,7 +145,11 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
         if (!result.queued) {
           await logOutboundSms(c.phone, msg, result, variantKey);
         }
-        if (result.success) sent++;
+        // Only a confirmed send counts as sent; queued/uncertain are logged (audit F-3).
+        const { smsOutcome: weatherOutcome } = await import("../lib/smsOutcome");
+        const wo = weatherOutcome(result);
+        if (wo === "sent") sent++;
+        else if (wo !== "failed") log.info(`Weather SMS ${wo} for customer #${c.id} (not counted as sent)`);
       } catch (err) {
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });
       }

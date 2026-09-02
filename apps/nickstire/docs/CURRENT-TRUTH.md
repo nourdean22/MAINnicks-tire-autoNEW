@@ -7,6 +7,22 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Admin audit wave (2026-09-01/02, PR #2063) — receipts, doors, loud crons
+
+Four audit artifacts (`docs/ADMIN-*-2026-09-01.md`) and the code they justified. Contracts that changed:
+
+- **A text is "sent" only when the gateway accepted it now.** `server/lib/smsOutcome.ts` is the single sent / queued / uncertain / failed classification; every counter, status row and audit line derives from it. A text parked for the 8 AM window is **queued**, never sent. Claims that block re-sends are kept for queued texts (they will go out).
+- **RUN FOLLOW-UPS never consumes a customer it did not text.** `follow-ups.ts` checks `sms_review_requests` BEFORE claiming a booking; with the flag off, nothing is touched and the toast says so. The estimate follow-up (`workOrderAutomation.processEstimateFollowUp`) does the same, consumes a row only on delivered/queued, and uses a 2–7 day band.
+- **Cron handlers fail loudly.** Every scheduled handler rethrows instead of returning `Failed: …` as a completed run (`__tests__/cronNoSwallowedFailure.test.ts` derives the scan set from the scheduler). A missing column/table named by a migration is a loud failure, not a permanent skip.
+- **The scheduler builds its tier table without starting** (`ensureTiersBuilt`), so `getJobCadences()` and the cron-status surface are correct before boot. `docs/operations/CRON-INVENTORY.md` is generated (`scripts/gen-cron-inventory.mts`) and pinned by `cronInventoryParity.test.ts`.
+- **`kpi_snapshots` has a writer** (`kpi-snapshot`, daily, idempotent, shop-TZ weeks). `kpi.history` was `[]` for the life of the table before.
+- **The GPT bridge never sends a campaign.** `POST /api/bridge/sms-campaign` creates a DRAFT for Outreach → Campaigns (Tier 0). The winback template renders `customMessage` verbatim when present.
+- **Authorization:** `gatewayTire.refundOrder` → `money.manage`; `smsConversations.*` → `customers.manage`; a mutation whose admin-security read THREW is refused (reads and the no-row case keep the 2026-07-16 fail-open).
+- **Dispatch has no bays.** The Bay Grid is gone; `dispatch.assign` no longer requires a `bayId`. `dispatch.sendMessage` actually sends (as a transactional confirmation) and records the outcome.
+- **The StateNour revenue push says `available:false`** on a failed read instead of `$0, behind`. The push lands at StateNour's `/api/sync/business` (stored as an `AuditEvent`); StateNour's Command Surface consumer (`app/api/command/data/route.ts`) still reads `revenue.todayEstimate ?? 0`, so until that consumer honours `available:false` it will show $0 on a failed read — a StateNour-side follow-up, not closed by this wave. Owner escalations go through `services/ownerEscalation.ts` → StateNour `open_loop` (obligation + links, never rows).
+- **Nexus SMS audit queue retired** (producer removed; `0115` drops the table, operator-gated). **LLM call ledger** exists but is inert until `0116` is applied and `LLM_LEDGER_ENABLED=true`.
+- Migrations `0114`–`0117` are NOT applied by this wave — see the PR's operator actions.
+
 ## Reel pipeline contract update (2026-08-31)
 
 The approved Reel rotation is now an exact production-pack queue. The daily

@@ -102,16 +102,40 @@ export const smsConversationsRouter = router({
         // humanInitiated (2026-07-29): operator manual sends are exempt from
         // the chokepoint takeover suppression — without this the operator's
         // second reply would be blocked by the takeover their first created.
-        const result = await sendSms(normalized, cleanMessage, { via: "shop", humanInitiated: true });
-
-        // Record the outbound message
-        await addSmsMessage({
-          conversationId: conversation.id,
-          direction: "outbound",
-          body: input.message,
-          twilioSid: result.sid || undefined,
-          status: result.success ? "sent" : "failed",
+        // 2026-09-01 (audit F-7/F-8): an operator answering a customer's own
+        // question is a 1:1 follow-up, not marketing — classify it so the
+        // pause/quiet-hours logic treats it as one. skipPersist: sendSms writes
+        // its own sms_messages row; this router writes the conversation-linked
+        // row below, and both existed before — every operator reply was stored
+        // twice, once with the real status and once as "sent".
+        const result = await sendSms(normalized, cleanMessage, {
+          via: "shop",
+          humanInitiated: true,
+          messageClass: "customer_followup",
+          skipPersist: true,
         });
+        const { smsOutcome } = await import("../lib/smsOutcome");
+        const outcome = smsOutcome(result);
+        // Status is what happened, not what was attempted: a reply parked for
+        // the 8 AM window is "queued", never "sent".
+        //
+        // A QUEUED reply already has its own durable, conversation-linked row —
+        // queueForLater (sms.ts) persists it with status "queued" and the drain
+        // flips it to "sent". Writing a second row here would show the reply
+        // twice in the thread, one of them stuck at "queued" forever. So the
+        // router records only immediate outcomes (sent / failed).
+        if (outcome !== "queued") {
+          await addSmsMessage({
+            conversationId: conversation.id,
+            direction: "outbound",
+            body: input.message,
+            twilioSid: result.sid || undefined,
+            // `uncertain` (gateway timeout) is the in-flight `sending` state
+            // sms.ts itself uses for that row — attempted, unconfirmed, never
+            // "failed" (a failed row invites a re-send = duplicate text).
+            status: outcome === "sent" ? "sent" : outcome === "uncertain" ? "sending" : "failed",
+          });
+        }
 
         // Audit the manual operator SMS send — highest daily-use, TCPA-relevant
         // outbound action; was silent before. Records who texted which customer.
@@ -121,7 +145,7 @@ export const smsConversationsRouter = router({
           entityType: "sms_conversation",
           entityId: conversation.id,
           details: `Manual SMS to ${normalized}: "${input.message.slice(0, 80)}${input.message.length > 80 ? "…" : ""}"`,
-          newValue: result.success ? "sent" : "failed",
+          newValue: outcome,
           actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         }).catch(() => { /* audit must never break the send */ });
 
@@ -135,7 +159,15 @@ export const smsConversationsRouter = router({
             .catch(() => { /* resolution miss must never break the send */ });
         }
 
-        return { success: result.success, conversationId: conversation.id };
+        return {
+          // `uncertain` is success:true from sendSms ("do not retry") but is
+          // NOT a confirmed send — the client must not toast "Sent" for it.
+          success: outcome === "sent" || outcome === "queued",
+          // The client renders "queued for 8 AM" instead of "Sent" on this flag.
+          queued: outcome === "queued",
+          outcome,
+          conversationId: conversation.id,
+        };
       } catch (err) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }

@@ -561,8 +561,15 @@ export const bookingRouter = router({
               if (await isEnabled("sms_appointment_reminders")) {
                 const { sendSms } = await import("../sms");
                 const firstName = (booking.name || "").split(" ")[0] || "there";
-                // Wave-108: appointment-confirmed reminder via shop gateway
-                await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. ${BUSINESS.phone.display}`, { via: "shop" });
+                // Wave-108: appointment-confirmed reminder via shop gateway.
+                // 2026-09-01 (audit F-3): the result used to be discarded — a
+                // failed confirmation text was invisible. The booking is
+                // confirmed either way; the outcome is at least logged.
+                const { smsOutcome } = await import("../lib/smsOutcome");
+                const confirmOutcome = smsOutcome(await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. ${BUSINESS.phone.display}`, { via: "shop" }));
+                if (confirmOutcome === "failed" || confirmOutcome === "uncertain") {
+                  log.warn(`[booking] confirmation text ${confirmOutcome} for booking #${booking.id}`);
+                }
               }
             }
           }

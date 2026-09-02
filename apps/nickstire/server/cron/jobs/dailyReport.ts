@@ -31,7 +31,9 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     const bookingRows = Array.isArray(rawBookings) && Array.isArray(rawBookings[0]) ? rawBookings[0] : rawBookings;
     const bookingCount = (bookingRows as any)?.[0]?.cnt || 0;
 
-    let revenue = 0;
+    // null = the pulse read failed. Artifact 4 §7 (M-5): the owner's daily
+    // text used to say "$0 revenue" on a failed read — unknown is not $0.
+    let revenue: number | null = null;
     let leadCount = 0;
     let reviewCount = 0;
     try {
@@ -60,7 +62,8 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
 
     // Still send SMS as backup
-    const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, $${revenue} revenue. — Nick's Tire & Auto`;
+    const revenueText = revenue === null ? "revenue unknown (read failed)" : `$${revenue} revenue`;
+    const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, ${revenueText}. — Nick's Tire & Auto`;
     // messageClass "internal" is REQUIRED, not decorative. sendSms refuses
     // automated sends aimed at a shop/operator line, and the escape hatch is
     // the caller's declared INTENT, never the destination. This report is a
@@ -70,9 +73,10 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     await sendSms(ownerPhone, message, { via: "shop", messageClass: "internal" });
 
     log.info("Daily report sent", { bookingCount, leadCount, revenue });
-    return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: $${revenue}` };
+    return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: ${revenue === null ? "unknown (read failed)" : `$${revenue}`}` };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — "Error generating report" was recorded as `completed`.
     log.error("Daily report failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Error generating report" };
+    throw err;
   }
 }

@@ -99,8 +99,9 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       ))
       .limit(maxCalls + 5);
   } catch (err) {
-    log.warn("[voice-recovery] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: "Failed to load candidates" };
+    // 2026-09-01 (audit F-9): rethrow so the run is recorded as failed.
+    log.error("[voice-recovery] candidate query failed", { error: err instanceof Error ? err.message : String(err) });
+    throw err;
   }
 
   if (candidates.length === 0) {

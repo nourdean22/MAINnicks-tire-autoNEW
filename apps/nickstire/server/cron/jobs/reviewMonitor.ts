@@ -143,8 +143,10 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
         : "No new reviews",
     };
   } catch (err) {
+    // 2026-09-01 (audit F-9): rethrow — a review feed that cannot be read is a
+    // failed run, and an unanswered negative review is the cost of hiding it.
     log.error("Review monitor failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0, details: `Error: ${err instanceof Error ? err.message : String(err)}` };
+    throw err;
   }
 }
 

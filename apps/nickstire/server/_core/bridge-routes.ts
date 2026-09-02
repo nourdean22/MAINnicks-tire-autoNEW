@@ -925,7 +925,7 @@ export function registerBridgeRoutes(app: Express): void {
         vehicleYear: string | null;
       }
       const customers = targets as SmsCampaignCustomer[];
-      const messages: { phone: string; name: string; message: string }[] = [];
+      const messages: { customerId: number; phone: string; name: string; message: string }[] = [];
 
       for (const c of customers) {
         const firstName = c.firstName || "there";
@@ -936,7 +936,7 @@ export function registerBridgeRoutes(app: Express): void {
           `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
           `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
 
-        messages.push({ phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
+        messages.push({ customerId: c.id, phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
       }
 
       if (dryRun) {
@@ -949,27 +949,95 @@ export function registerBridgeRoutes(app: Express): void {
         return;
       }
 
-      // Actually send via Twilio
-      let sent = 0, failed = 0;
-      const { sendSms } = await import("../sms");
-      for (const m of messages) {
-        try {
-          await sendSms(m.phone, m.message, { via: "shop" });
-          // Mark customer as campaign-sent
-          await db.execute(sql`UPDATE customers SET smsCampaignSent = 1, smsCampaignDate = NOW() WHERE phone = ${m.phone}`);
-          sent++;
-        } catch {
-          failed++;
-        }
+      /**
+       * 2026-09-01 (audit F-20) — THIS ROUTE NO LONGER SENDS.
+       *
+       * docs/eval-rubrics/autonomous-action-tiers.md, Tier 0: "Sending email
+       * or SMS campaigns to >50 recipients in one batch" never auto-executes.
+       * This route accepted `limit` up to 500 behind one flat key and texted
+       * every match in a fire-and-forget loop with no per-recipient ledger.
+       *
+       * The bridge now PREPARES: it creates a DRAFT campaign carrying this
+       * exact copy, and the operator reviews and sends it from
+       * Winback → Campaigns — the path with the claim-first per-recipient
+       * ledger, opt-out filtering and the campaign kill switch. Nothing here
+       * reaches a customer.
+       */
+      const { smsCampaigns, smsCampaignSends } = await import("../../drizzle/schema");
+      const { withOptOut } = await import("../sms");
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      // The winback template renders customMessage verbatim when present, so the
+      // draft keeps the bridge's copy (minus the per-vehicle line, which the
+      // segment renderer does not know).
+      const draftCopy =
+        `Hey {firstName}, Nick's Tire & Auto here. Thanks again for trusting us with the work. ` +
+        `If we earned it, a quick Google review helps other Cleveland drivers find us: https://g.page/r/nickstire/review. ` +
+        `If you send a friend our way, we'll take care of you both on your next visits. Call or text us anytime at (216) 862-0005.`;
+      const segment = daysSince <= 90 ? "recent" : "all";
+      const [draft] = await db.insert(smsCampaigns).values({
+        name: `Win-back draft (bridge, ${stamp})`,
+        template: "winback",
+        segment,
+        customMessage: draftCopy,
+        targetCount: messages.length,
+        status: "draft",
+      }).$returningId();
+
+      /**
+       * Codex P1 on PR #2063: the draft must carry its EXACT audience.
+       * `segment` alone would let campaigns.send rebuild the list from the
+       * segment predicate — up to 5,000 customers, without this route's
+       * `smsCampaignSent = 0` filter — behind a draft that displays 10.
+       * So the matched customers are persisted as pending send rows, with
+       * the per-customer copy (vehicle line included) and the opt-out
+       * footer, and campaigns.send uses them verbatim when present.
+       */
+      const recipientRows = messages.map((m) => ({
+        campaignId: draft.id,
+        customerId: m.customerId,
+        phone: m.phone,
+        messageBody: withOptOut(m.message),
+        status: "pending" as const,
+      }));
+      for (let i = 0; i < recipientRows.length; i += 500) {
+        await db.insert(smsCampaignSends).values(recipientRows.slice(i, i + 500));
       }
 
-      // Log to Telegram
       try {
         const { sendTelegram } = await import("../services/telegram");
-        await sendTelegram(`📱 SMS Campaign Sent\n\n${sent} messages sent, ${failed} failed\nCampaign: Thank You + Referral + Review`);
+        await sendTelegram(
+          `📝 Win-back campaign DRAFTED by the bridge (not sent)\n\n` +
+          `${messages.length} customer(s) matched (last ${daysSince} days). Review and send from the admin: Outreach → Campaigns.`,
+        );
       } catch (e) { log.warn("[bridge] operation failed:", e); }
 
-      res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
+      // Owner escalation contract (artifact 4 §3.2): the decision lives in
+      // StateNour's inbox as an obligation with links back — never the rows.
+      try {
+        const { escalateToOwner } = await import("../services/ownerEscalation");
+        escalateToOwner({
+          trigger: "campaign_draft_awaiting_send",
+          summary: `The GPT bridge drafted a win-back campaign (${messages.length} matched in the last ${daysSince} days; segment "${segment}").`,
+          decisionRequested: `Send, edit, or discard win-back draft #${draft.id}`,
+          consequence: "Nothing is sent until you act; the draft simply sits in Outreach → Campaigns.",
+          deadline: null,
+          evidenceLinks: ["/admin?tab=campaigns&outreachTab=campaigns"],
+          authorization: { tier: 0, role: "owner" },
+          writeBack: `campaigns.send({ campaignId: ${draft.id} })`,
+        });
+      } catch (e) { log.warn("[bridge] escalation failed:", e); }
+
+      res.json({
+        status: "draft_created",
+        sent: 0,
+        recipientsPersisted: recipientRows.length,
+        draftCampaignId: draft.id,
+        previewTargetCount: messages.length,
+        segment,
+        adminUrl: "/admin?tab=campaigns&outreachTab=campaigns",
+        note: "This route never sends. An operator must review and send the draft from the admin.",
+        timestamp: new Date().toISOString(),
+      });
     } catch (err: unknown) {
       log.error("[Bridge] SMS campaign error:", err);
       res.status(500).json({ error: (err as Error).message || "Campaign failed" });

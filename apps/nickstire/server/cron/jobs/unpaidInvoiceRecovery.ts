@@ -240,6 +240,7 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
   const MAX = Math.min(opts?.maxSends ?? 30, 500);
   let sent7d = 0;
   let sent30d = 0;
+  let queued = 0; // parked for the 8 AM window (audit F-3)
   let skippedNoTouch = 0;
   let perRowErrors = 0;
 
@@ -293,7 +294,13 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
       const body = buildMessage(touch, firstName(inv.customerName));
       const res = await sendSms(inv.customerPhone, body, { via: "shop" });
 
-      if (res.success) {
+      // 2026-09-01 (audit F-3): `success` is also true for a reminder parked
+      // for the 8 AM window. It WILL reach the customer (so the SentAt stamp
+      // that blocks a re-send is still correct), but the receipt must not call
+      // a queued text "sent".
+      const { smsOutcome } = await import("../../lib/smsOutcome");
+      const outcome = smsOutcome(res);
+      if (outcome === "sent" || outcome === "queued") {
         if (touch === "30d") {
           await d.update(invoices).set({ paymentReminder30dSentAt: new Date() }).where(eq(invoices.id, inv.id));
           sent30d++;
@@ -301,7 +308,8 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
           await d.update(invoices).set({ paymentReminder7dSentAt: new Date() }).where(eq(invoices.id, inv.id));
           sent7d++;
         }
-        log.info(`${touch} payment reminder sent for invoice ${inv.id}`);
+        if (outcome === "queued") queued++;
+        log.info(`${touch} payment reminder ${outcome} for invoice ${inv.id}`);
       } else {
         log.error(`[unpaid-invoice-recovery] ${touch} send failed after claim for invoice ${inv.id}`, {
           error: res.error ?? "unknown",
@@ -331,8 +339,9 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
     try {
       const { sendTelegram } = await import("../../services/telegram");
       await sendTelegram(
-        `📬 UNPAID INVOICE RECOVERY: ${total} reminders sent (${sent7d} 7d · ${sent30d} 30d) ` +
-          `from ${eligible.length} eligible.` +
+        `📬 UNPAID INVOICE RECOVERY: ${total} reminders (${sent7d} 7d · ${sent30d} 30d` +
+          (queued > 0 ? ` · ${queued} of them queued for 8 AM` : "") +
+          `) from ${eligible.length} eligible.` +
           (perRowErrors > 0 ? ` ⚠️ ${perRowErrors} row errors — see server logs.` : ""),
       );
     } catch (e) {
@@ -342,6 +351,6 @@ export async function runUnpaidInvoiceRecovery(opts?: RunOpts): Promise<Recovery
 
   return {
     recordsProcessed: total,
-    details: `Sent ${sent7d}/7d + ${sent30d}/30d | ${skippedNoTouch} no eligible touch | ${eligible.length} eligible`,
+    details: `Sent ${sent7d}/7d + ${sent30d}/30d (${queued} queued for 8 AM) | ${skippedNoTouch} no eligible touch | ${eligible.length} eligible`,
   };
 }

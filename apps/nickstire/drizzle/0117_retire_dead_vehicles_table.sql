@@ -1,0 +1,24 @@
+-- 0117: retire the dead `vehicles` table (2026-09-01 admin audit, F-16).
+--
+-- OPERATOR-GATED · DESTRUCTIVE. Do not run from an agent session.
+--
+-- FACTS (docs/ADMIN-AUTOMATION-SECURITY-DATA-AUDIT-2026-09-01.md §7 F-16):
+--   * `vehicles` (drizzle/schema.ts) has ZERO readers and ZERO writers anywhere
+--     in the repo — Drizzle or raw SQL — since the monorepo began (2026-05-17).
+--   * `work_orders.vehicle_id` is a varchar(36) that points at it; nothing
+--     writes that column either. The live vehicle record is `customer_vehicles`
+--     (int id, written by the garage/portal code).
+--
+-- ORDER OF OPERATIONS (rule 8 in PROTECTED-CORE: adapters before removal):
+--   1. Prove the table is empty or confirm nothing needs it:
+--        SELECT COUNT(*) FROM `vehicles`;
+--        SELECT COUNT(*) FROM `work_orders` WHERE `vehicle_id` IS NOT NULL;
+--   2. Backup (two statements; TiDB rejects CREATE TABLE ... AS SELECT):
+--        CREATE TABLE `_bak_vehicles_drop_20260901` LIKE `vehicles`;
+--        INSERT INTO `_bak_vehicles_drop_20260901` SELECT * FROM `vehicles`;
+--   3. Only then run the statements below. The `vehicle_id` column is left in
+--      place (nullable, unused) so no projection-less select breaks; retype or
+--      drop it in a later migration once `customer_vehicles` is the declared
+--      home of vehicle identity on work orders.
+
+DROP TABLE IF EXISTS `vehicles`;

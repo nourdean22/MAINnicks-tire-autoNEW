@@ -56,6 +56,14 @@ vi.mock("./db", () => ({
   getDb: async () => database,
   getDbTyped: async () => database,
 }));
+// 2026-09-01 (audit F-11): with the db mocked wholesale the real
+// getAdminSecurityState throws, and a mutation whose security read THROWS is
+// now refused. Declare the assumption this harness always relied on: no
+// security row → the documented owner fallback.
+vi.mock("./services/adminSecurity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./services/adminSecurity")>()),
+  getAdminSecurityState: async () => null,
+}));
 
 const publishToSocialMock = vi.fn();
 vi.mock("./services/socialPublish", () => ({

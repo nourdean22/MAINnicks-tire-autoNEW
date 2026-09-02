@@ -69,7 +69,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   leads: "Sales Pipeline",
   content: "Website & Local",
   customers: "Customers",
-  campaigns: "Winback",
+  campaigns: "Outreach",
   settings: "Settings / Safety",
   revenue: "Money",
   callTrackingView: "Call Tracking",

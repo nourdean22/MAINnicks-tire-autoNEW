@@ -418,7 +418,38 @@ export function resolveEffectiveModel(requested: string | undefined): string | u
   return process.env.GEMINI_MODEL || "gemini-2.5-flash";
 }
 
+/**
+ * 2026-09-01 (audit F-21): every call is recorded to the llm_calls ledger
+ * (services/llmLedger.ts) — model, lane, tokens, latency, outcome. The ledger
+ * is fire-and-forget and gated by LLM_LEDGER_ENABLED; it can never change the
+ * result or the error of the call it records.
+ */
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  const startedAt = Date.now();
+  const { recordLlmCall } = await import("../services/llmLedger");
+  try {
+    const result = await invokeLLMUnrecorded(params);
+    recordLlmCall({
+      params,
+      model: result.model || resolveEffectiveModel(params.model) || "unknown",
+      latencyMs: Date.now() - startedAt,
+      ok: true,
+      usage: result.usage,
+    });
+    return result;
+  } catch (err) {
+    recordLlmCall({
+      params,
+      model: resolveEffectiveModel(params.model) || "unknown",
+      latencyMs: Date.now() - startedAt,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+async function invokeLLMUnrecorded(params: InvokeParams): Promise<InvokeResult> {
   const requestedModel = resolveEffectiveModel(params.model);
   const model = requestedModel || (process.env.OPENAI_API_KEY && process.env.AI_FORCE_GEMINI !== "true"
     ? (process.env.LLM_MODEL || "gpt-4o")

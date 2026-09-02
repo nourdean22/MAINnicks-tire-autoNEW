@@ -196,11 +196,19 @@ export const smsOrchestratorRouter = router({
           humanInitiated: true,
         });
 
+        // `uncertain` (gateway timeout) is attempted-not-confirmed: persisted as
+        // `sending`, never "sent" — same mapping as the orchestrator's own path.
+        const operatorStatus = !sendResult.success
+          ? "failed"
+          : sendResult.queued ? "queued" : sendResult.uncertain ? "sending" : "sent";
+        const operatorReason = !sendResult.success
+          ? "transmission_failed"
+          : sendResult.uncertain ? "gateway_timeout_delivery_unconfirmed" : "sent_by_operator";
         await db.update(smsOrchestrations)
           .set({
             messageBody: messageToSend,
-            status: sendResult.success ? (sendResult.queued ? "queued" : "sent") : "failed",
-            statusReason: sendResult.success ? "sent_by_operator" : "transmission_failed",
+            status: operatorStatus,
+            statusReason: operatorReason,
             sendResultJson: sendResult ? JSON.stringify(sendResult) : null,
           })
           .where(eq(smsOrchestrations.id, input.id));
