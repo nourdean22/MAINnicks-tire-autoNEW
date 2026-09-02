@@ -37,15 +37,19 @@ export interface OwnerEscalation {
   priority?: "low" | "medium" | "high";
 }
 
-export function statenourTarget(): { url: string; key: string } | null {
+function statenourTarget(): { url: string; key: string } | null {
   const key = process.env.STATENOUR_SYNC_KEY || "";
   if (!key) return null;
   const url = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
   return { url, key };
 }
 
-/** Pure: the payload the receiver's `open_loop` case reads. Exported for the canary. */
-export function buildOpenLoopPayload(e: OwnerEscalation) {
+/**
+ * Pure: the payload the receiver's `open_loop` case reads. Not exported — the
+ * knip orphan gate treats a test-only export as unconsumed, and the test
+ * reads the payload through escalateToOwner's fetch instead.
+ */
+function buildOpenLoopPayload(e: OwnerEscalation) {
   const links = e.evidenceLinks.length ? `\nOpen: ${e.evidenceLinks.join(" · ")}` : "";
   const deadline = e.deadline ? `\nDeadline: ${e.deadline}` : "";
   return {
