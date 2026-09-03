@@ -241,13 +241,24 @@ export const socialTools = {
       const threads = await listInbox({ maxResults, query });
       return {
         threadCount: threads.length,
+        // `subject` and `from` are attacker-chosen: anyone who can email
+        // Nour picks those 200 characters. They used to be returned RAW
+        // beside an already-fenced snippet, which made this the cheapest
+        // injection surface in the app -- no page to host, no link to
+        // click, just send mail and land unlabelled text in model
+        // context. Fencing them TOGETHER with the snippet as one block
+        // keeps the fence count per thread at exactly one, so closing
+        // the hole costs no extra tokens (a per-field fence would have
+        // added ~90 chars x 60 fields on a 30-thread listing).
         threads: threads.slice(0, 30).map((t) => ({
           id: t.id,
-          subject: t.subject.slice(0, 200),
-          from: t.from.slice(0, 200),
-          snippet: fenceContent("arsenalGmailInbox", "external_doc", t.snippet.slice(0, 300)),
           messageCount: t.messageCount,
           unread: t.unread,
+          content: fenceContent(
+            "arsenalGmailInbox",
+            "external_doc",
+            `Subject: ${t.subject.slice(0, 200)}\nFrom: ${t.from.slice(0, 200)}\n\n${t.snippet.slice(0, 300)}`,
+          ),
         })),
         source: "arsenal/gmail",
       };
@@ -268,13 +279,23 @@ export const socialTools = {
       const thread = await getThread(threadId);
       return {
         id: thread.id,
-        subject: thread.subject.slice(0, 200),
         messageCount: thread.messages.length,
+        // Same reasoning as arsenalGmailInbox above: subject / from / to
+        // are sender-controlled and were returned unfenced next to a
+        // fenced body. Body is sliced to 3700 (not 4000) so the added
+        // From/To/Date lines cannot push the block past fenceContent's
+        // 4000-char cap and truncate the mail itself.
+        subject: fenceContent(
+          "arsenalGmailReadThread",
+          "external_doc",
+          thread.subject.slice(0, 200),
+        ),
         messages: thread.messages.map((m) => ({
-          from: m.from.slice(0, 200),
-          to: m.to.slice(0, 200),
-          date: m.date,
-          body: fenceContent("arsenalGmailReadThread", "external_doc", m.body.slice(0, 4000)),
+          content: fenceContent(
+            "arsenalGmailReadThread",
+            "external_doc",
+            `From: ${m.from.slice(0, 200)}\nTo: ${m.to.slice(0, 200)}\nDate: ${String(m.date).slice(0, 64)}\n\n${m.body.slice(0, 3700)}`,
+          ),
         })),
         source: "arsenal/gmail",
       };
