@@ -158,8 +158,17 @@ export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
     // Update circuit breaker state — block tools that misbehave
     // before they cost more turns. See block at bottom of file for
     // the breaker semantics.
+    // Classified HERE, not at the call site. The first version of this
+    // trusted every caller to set `configError`, and invokeTool
+    // (lib/ai/tools/meta.ts, the recovery lane) records proxied failures
+    // without it -- so five recovery attempts against a tool returning
+    // "FIRECRAWL_API_KEY not set" would still have opened the breaker and
+    // hidden that tool for 30 minutes, reintroducing the exact defect
+    // this gate removes, on the path newly advertised to the model.
+    // The explicit flag still wins when a caller sets it.
+    const isConfig = inv.configError ?? isConfigurationError(inv.errorMessage);
     if (inv.success) recordToolSuccess(inv.toolName);
-    else if (!inv.configError) recordToolFailure(inv.toolName);
+    else if (!isConfig) recordToolFailure(inv.toolName);
   } catch (err) {
     // Telemetry failures must never break chat. Swallow silently; the
     // next invocation will attempt again.

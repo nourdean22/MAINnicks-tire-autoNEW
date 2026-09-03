@@ -33,7 +33,7 @@ import { metaTools } from "@/lib/ai/tools/meta";
 
 type SearchResult = {
   count: number;
-  matchedBy: "keyword" | "semantic";
+  matchedBy: "keyword" | "semantic" | "hybrid";
   tools: Array<{ name: string }>;
 };
 
@@ -110,5 +110,33 @@ describe("searchTools semantic fallback", () => {
 
     expect(rankToolsBySimilarity).not.toHaveBeenCalled();
     expect(res.count).toBe(0);
+  });
+});
+
+// 2026-09-02 review P1 · The first version of this fallback fired only on
+// `scored.length === 0`. But the lexical scorer substring-matches every
+// token, and the filter kept 2-char tokens -- so "on" out of "best
+// thriller shows on streaming" matched inside dozens of unrelated names
+// and descriptions (~145 hits), `scored` was never empty, and the
+// fallback was UNREACHABLE for the exact query class it was written for.
+// Stop-words + a 3-char floor + a weak-evidence trigger fix that. This
+// test is the operator's real query.
+describe("searchTools . the query from the screenshot", () => {
+  it("consults semantic ranking instead of drowning in stop-word hits", async () => {
+    const res = await search("best thriller shows on streaming");
+
+    // Whatever the lexical pass turned up, it was not a NAME match, so
+    // semantic must have been consulted.
+    expect(embedUserMessage).toHaveBeenCalledOnce();
+    expect(res.matchedBy === "semantic" || res.matchedBy === "hybrid").toBe(true);
+    expect(res.tools.map((t) => t.name)).toContain("arsenalWebSearch");
+  });
+
+  it("keeps a weak lexical hit rather than trading one miss for another", async () => {
+    const res = await search("best thriller shows on streaming", 5);
+    // Merge, not replace: semantic first, lexical retained behind it.
+    expect(res.tools.length).toBeGreaterThan(0);
+    expect(res.tools.length).toBeLessThanOrEqual(5);
+    expect(new Set(res.tools.map((t) => t.name)).size).toBe(res.tools.length);
   });
 });

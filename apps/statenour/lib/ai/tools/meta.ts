@@ -480,10 +480,29 @@ export const metaTools = {
       const { TOOL_CATALOG, getToolRiskClass } = await import("@/lib/ai/tools/catalog");
       const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
       const schemas = await getSchemaIndex();
-      const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
-      if (tokens.length === 0) return { error: "query produced no usable tokens" };
-      type Hit = { meta: (typeof TOOL_CATALOG)[number]; name: string };
-      let matchedBy: "keyword" | "semantic" = "keyword";
+      // 2026-09-02 · review P1. The filter used to keep every 2-char token
+      // and the scorer substring-matches, so "on" out of a query like
+      // "best thriller shows on streaming" hit inside dozens of unrelated
+      // names and descriptions -- ~145 results, none of them the web-search
+      // tool. That made the semantic fallback below UNREACHABLE for exactly
+      // the query class it was written for, because `scored` was never
+      // empty. A 3-char floor plus stop-words restores meaning to a hit.
+      const STOP_WORDS = new Set([
+        "the", "and", "for", "with", "that", "this", "from", "are", "was",
+        "you", "your", "its", "out", "how", "what", "when", "who", "why", "can",
+        "get", "all", "any", "not", "but", "into", "about", "best", "top", "new",
+        "now", "right", "some", "more", "most", "please", "need", "want", "show",
+        "give", "tell", "find", "make", "does", "did", "has", "have", "had",
+      ]);
+      const tokens = query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
+      // `score` is present on lexical hits and absent on semantic ones -- the
+// merge below carries both shapes in one list, and the weak-evidence
+// trigger reads scored[0]?.score.
+      type Hit = { meta: (typeof TOOL_CATALOG)[number]; name: string; score?: number };
+      let matchedBy: "keyword" | "semantic" | "hybrid" = "keyword";
       let scored: Hit[] = TOOL_CATALOG.map((meta) => {
         const name = meta.name;
         const hay = `${name} ${meta.category} ${schemas.get(name)?.description ?? ""}`.toLowerCase();
@@ -515,7 +534,11 @@ export const metaTools = {
       // answered would tax every recovery. Degrades silently to the empty
       // keyword result if the cache is cold or the embedding call fails --
       // both already possible today, so this can only add hits.
-      if (scored.length === 0) {
+      // Trigger on WEAK evidence, not just zero. A score of 3+ means the
+      // query matched a tool NAME; anything less is description/category
+      // substring noise, which is how the pruner's own miss reaches here.
+      const strongestLexical = scored[0]?.score ?? 0;
+      if (scored.length === 0 || strongestLexical < 3) {
         try {
           const { isToolEmbeddingCacheWarm, embedUserMessage, rankToolsBySimilarity } =
             await import("@/lib/ai/tool-embeddings");
@@ -532,8 +555,21 @@ export const metaTools = {
                 .map(([name]) => ({ meta: byName.get(name), name }))
                 .filter((h): h is Hit => Boolean(h.meta));
               if (hits.length > 0) {
-                scored = hits;
-                matchedBy = "semantic";
+                // MERGE rather than replace: a weak lexical hit can still
+                // be the right tool, and dropping it to make room for a
+                // semantic guess would trade one miss for another.
+                // Semantic first (it fired because lexical was weak),
+                // deduped by name, then truncated to the caller's limit.
+                const seen = new Set(hits.map((h) => h.name));
+                const merged = [...hits];
+                for (const prior of scored) {
+                  if (!seen.has(prior.name)) {
+                    seen.add(prior.name);
+                    merged.push(prior);
+                  }
+                }
+                matchedBy = scored.length > 0 ? "hybrid" : "semantic";
+                scored = merged.slice(0, limit);
               }
             }
           }

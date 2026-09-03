@@ -137,3 +137,46 @@ describe("circuit breaker -- config errors are withheld", () => {
     expect(isToolBlocked(tool)).toBe(false);
   });
 });
+
+// 2026-09-02 review P2 · The gate first trusted every CALLER to set
+// `configError`. invokeTool -- the recovery lane this branch newly
+// advertises to the model -- records proxied failures without it, so five
+// recovery attempts against an unconfigured tool would still have opened
+// the breaker and hidden it for 30 minutes: the very defect this gate
+// removes, reintroduced on the newly-recommended path. Classification now
+// happens inside recordToolInvocation.
+describe("classification is central, not caller-supplied", () => {
+  it("spares a config failure even when the caller omits the flag", async () => {
+    const tool = "cfgToolD";
+    resetToolBreaker(tool);
+
+    for (let i = 0; i < FAIL_THRESHOLD + 2; i++) {
+      await recordToolInvocation({
+        toolName: tool,
+        success: false,
+        durationMs: 5,
+        errorMessage: "FIRECRAWL_API_KEY not set",
+        // configError deliberately NOT set -- this is invokeTool's shape.
+      });
+    }
+
+    expect(isToolBlocked(tool)).toBe(false);
+  });
+
+  it("CANARY: a genuine fault with no flag still trips", async () => {
+    const tool = "cfgToolE";
+    resetToolBreaker(tool);
+
+    for (let i = 0; i < FAIL_THRESHOLD; i++) {
+      await recordToolInvocation({
+        toolName: tool,
+        success: false,
+        durationMs: 5,
+        errorMessage: "upstream returned 500",
+      });
+    }
+
+    expect(isToolBlocked(tool)).toBe(true);
+    resetToolBreaker(tool);
+  });
+});

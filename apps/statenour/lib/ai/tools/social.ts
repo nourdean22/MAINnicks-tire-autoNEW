@@ -12,6 +12,15 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+/**
+ * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
+ * chars by default and may PREPEND an injection annotation before
+ * applying that cap. Anything built to fill a fence must budget for
+ * both, or the fence truncates the very content it exists to label.
+ */
+const FENCE_BODY_CAP = 4000;
+const ANNOTATION_SLACK = 200;
+
 export const socialTools = {
   sendTelegram: tool({
     description: "Send a Telegram message to Nour. Use for proactive alerts, reminders, or important notifications that need to reach his phone.",
@@ -282,21 +291,36 @@ export const socialTools = {
         messageCount: thread.messages.length,
         // Same reasoning as arsenalGmailInbox above: subject / from / to
         // are sender-controlled and were returned unfenced next to a
-        // fenced body. Body is sliced to 3700 (not 4000) so the added
-        // From/To/Date lines cannot push the block past fenceContent's
-        // 4000-char cap and truncate the mail itself.
+        // fenced body. The per-message body budget is derived below.
         subject: fenceContent(
           "arsenalGmailReadThread",
           "external_doc",
           thread.subject.slice(0, 200),
         ),
-        messages: thread.messages.map((m) => ({
-          content: fenceContent(
-            "arsenalGmailReadThread",
-            "external_doc",
-            `From: ${m.from.slice(0, 200)}\nTo: ${m.to.slice(0, 200)}\nDate: ${String(m.date).slice(0, 64)}\n\n${m.body.slice(0, 3700)}`,
-          ),
-        })),
+        messages: thread.messages.map((m) => {
+          // 2026-09-02 review P2 · the 3700 slice was arithmetic I got
+          // wrong. At maximum field lengths the header reaches ~484 chars
+          // (200 From + 200 To + 64 Date + labels + newlines), so
+          // 3700 + 484 = 4184 against fenceContent's 4000-char body cap:
+          // long mail silently lost its last ~184 characters while the
+          // comment beside it claimed the slice PREVENTED truncation.
+          // Derive the allowance from the header actually built, and keep
+          // slack for the injection annotation fenceContent may prepend
+          // BEFORE applying that cap.
+          const header = `From: ${m.from.slice(0, 200)}
+To: ${m.to.slice(0, 200)}
+Date: ${String(m.date).slice(0, 64)}
+
+`;
+          const bodyBudget = Math.max(500, FENCE_BODY_CAP - ANNOTATION_SLACK - header.length);
+          return {
+            content: fenceContent(
+              "arsenalGmailReadThread",
+              "external_doc",
+              `${header}${m.body.slice(0, bodyBudget)}`,
+            ),
+          };
+        }),
         source: "arsenal/gmail",
       };
     },
