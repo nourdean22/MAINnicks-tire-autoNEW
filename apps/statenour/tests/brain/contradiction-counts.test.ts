@@ -31,10 +31,11 @@ describe("countContradictionsByStatus · counts the whole window", () => {
 
   it("returns the row the database produced", async () => {
     mockQueryRaw.mockResolvedValue([
-      { total: 250, resolved: 200, unresolved: 50, malformed: 0 },
+      { total: 250, classified: 250, resolved: 200, unresolved: 50, malformed: 0 },
     ]);
     await expect(countContradictionsByStatus(90)).resolves.toEqual({
       total: 250,
+      classified: 250,
       resolved: 200,
       unresolved: 50,
       malformed: 0,
@@ -42,7 +43,9 @@ describe("countContradictionsByStatus · counts the whole window", () => {
   });
 
   it("sends NO row cap — that was the whole defect", async () => {
-    mockQueryRaw.mockResolvedValue([{ total: 0, resolved: 0, unresolved: 0, malformed: 0 }]);
+    mockQueryRaw.mockResolvedValue([
+      { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 },
+    ]);
     await countContradictionsByStatus(90);
     const sql = String(mockQueryRaw.mock.calls[0]?.[0] ?? "");
     expect(sql).not.toMatch(/\bLIMIT\b/i);
@@ -54,7 +57,9 @@ describe("countContradictionsByStatus · counts the whole window", () => {
     // `content::jsonb` would ERROR on a bad row rather than skip it. The CASE
     // is what makes the cast conditional — SQL does not promise to
     // short-circuit an AND.
-    mockQueryRaw.mockResolvedValue([{ total: 0, resolved: 0, unresolved: 0, malformed: 0 }]);
+    mockQueryRaw.mockResolvedValue([
+      { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 },
+    ]);
     await countContradictionsByStatus(90);
     const sql = String(mockQueryRaw.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("IS JSON OBJECT");
@@ -65,7 +70,9 @@ describe("countContradictionsByStatus · counts the whole window", () => {
     // The JS predicate was `!c.status || c.status === "unresolved"`. The SQL
     // is COALESCE(...,'unresolved'). Verified equal against the live database
     // on six inputs before shipping; this pins the SQL half.
-    mockQueryRaw.mockResolvedValue([{ total: 0, resolved: 0, unresolved: 0, malformed: 0 }]);
+    mockQueryRaw.mockResolvedValue([
+      { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 },
+    ]);
     await countContradictionsByStatus(90);
     const sql = String(mockQueryRaw.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("COALESCE(j->>'status', 'unresolved')");
@@ -75,6 +82,7 @@ describe("countContradictionsByStatus · counts the whole window", () => {
     mockQueryRaw.mockResolvedValue([]);
     await expect(countContradictionsByStatus(90)).resolves.toEqual({
       total: 0,
+      classified: 0,
       resolved: 0,
       unresolved: 0,
       malformed: 0,
@@ -102,26 +110,73 @@ describe("countContradictionsByStatus · counts the whole window", () => {
 });
 
 /**
- * The classification table, as executed against production PG17 before the
- * query shipped. Kept as data rather than prose so the six cases are readable
- * next to the expression they describe.
+ * WHAT THIS FILE CANNOT PROVE, stated plainly.
+ *
+ * From review (#2092): the block that used to sit here listed six inputs with
+ * their expected labels and then TALLIED THE EXPECTATIONS. It executed nothing.
+ * Reversing the SQL's resolved/unresolved comparison would have left it green.
+ * It was an oracle agreeing with itself — a test that cannot fail, which is the
+ * silent-instrument defect this whole wave was written to remove, committed
+ * inside the canary meant to guard against it. It is deleted rather than
+ * repaired, because a test that cannot fail is worse than no test: it buys
+ * confidence it has not earned.
+ *
+ * The SQL classifier runs in Postgres, so no unit test in this suite can
+ * execute it. The assertions above are therefore REGRESSION DETECTORS for the
+ * specific predicates (no LIMIT, the IS JSON guard, the COALESCE default) and
+ * nothing more — they would not catch a reversed comparison either, and they
+ * do not claim to.
+ *
+ * The equivalence between the SQL and the JS it replaced was verified BY HAND
+ * against the live PG17 database before the query shipped, on six inputs:
+ *
+ *   {"status":"resolved"}    -> resolved     {"a":1}            -> unresolved
+ *   {"status":"unresolved"}  -> unresolved   not json at all    -> malformed
+ *   {"status":"dismissed"}   -> resolved     [1,2,3]            -> malformed
+ *
+ *   total 6 = resolved 2 + unresolved 2 + malformed 2
+ *
+ * That is a receipt, not a gate. Making it a gate needs a database-backed
+ * harness this suite does not have; if one is ever added, this is the first
+ * expression that should move into it.
  */
-describe("countContradictionsByStatus · the classification it was built to match", () => {
-  it("documents the verified behaviour of each input shape", () => {
-    const verified = [
-      ['{"status":"resolved"}', "resolved"],
-      ['{"status":"unresolved"}', "unresolved"],
-      ['{"a":1}', "unresolved"], // no status -> COALESCE default
-      ["not json at all", "malformed"],
-      ['{"status":"dismissed"}', "resolved"], // anything not "unresolved"
-      ["[1,2,3]", "malformed"], // an array is not a Contradiction
-    ] as const;
-    // 6 inputs -> 2 resolved, 2 unresolved, 2 malformed, summing to the total.
-    const tally = verified.reduce<Record<string, number>>((acc, [, k]) => {
-      acc[k] = (acc[k] ?? 0) + 1;
-      return acc;
-    }, {});
-    expect(tally).toEqual({ resolved: 2, unresolved: 2, malformed: 2 });
-    expect(verified.length).toBe(6);
+
+/**
+ * The partition invariant, which CAN be tested here because the consumer does
+ * the arithmetic in TypeScript.
+ *
+ * Also from review: `total` counts malformed rows while `resolved` and
+ * `unresolved` do not, so `resolved / total` charged the maturity score for
+ * every unparseable row as though it were an open contradiction — and that row
+ * showed up in neither counter. `classified` is the denominator now.
+ */
+describe("countContradictionsByStatus · the partition holds", () => {
+  beforeEach(() => mockQueryRaw.mockReset());
+
+  it("classified excludes malformed, and the two buckets sum to it", async () => {
+    mockQueryRaw.mockResolvedValue([
+      { total: 10, classified: 8, resolved: 5, unresolved: 3, malformed: 2 },
+    ]);
+    const r = await countContradictionsByStatus(90);
+    expect(r.resolved + r.unresolved).toBe(r.classified);
+    expect(r.classified + r.malformed).toBe(r.total);
+  });
+
+  it("PLANTED POSITIVE · the invariant is checkable, i.e. it can be violated", () => {
+    // Guards against the assertion above being vacuous: prove the shape it
+    // rejects is expressible. A row where malformed is silently folded into
+    // classified breaks the sum.
+    const bad = { total: 10, classified: 10, resolved: 5, unresolved: 3, malformed: 2 };
+    expect(bad.resolved + bad.unresolved).not.toBe(bad.classified);
+  });
+
+  it("selects a classified count separate from the row count", async () => {
+    mockQueryRaw.mockResolvedValue([
+      { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 },
+    ]);
+    await countContradictionsByStatus(90);
+    const sql = String(mockQueryRaw.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FILTER (WHERE j IS NOT NULL)");
+    expect(sql).toContain("AS classified");
   });
 });

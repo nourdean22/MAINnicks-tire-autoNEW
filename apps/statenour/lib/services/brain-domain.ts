@@ -401,7 +401,11 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   // make the numbers right. A count never needed the list.
   const contradictionsOpen = allContradictions ? allContradictions.unresolved : null;
   const resolvedContradictions = allContradictions ? allContradictions.resolved : null;
-  const contradictionsTotal = allContradictions ? allContradictions.total : null;
+  // The CLASSIFIED count, not `total`. 2026-09-02 from review: `total`
+  // includes rows whose content would not parse, and those appear in neither
+  // `resolved` nor `unresolved` — so dividing by it charged the score for
+  // every malformed row as though it were an open contradiction.
+  const contradictionsTotal = allContradictions ? allContradictions.classified : null;
   // Nothing is truncated any more. The field stays so the UI contract and its
   // canary hold, and so a future re-truncation has somewhere honest to report.
   const contradictionsTruncated = false;

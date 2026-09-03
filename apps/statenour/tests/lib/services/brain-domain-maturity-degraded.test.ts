@@ -113,8 +113,9 @@ function allReadsSucceed(): void {
   // The 14-day counter is no longer consulted at all. It is left mocked so
   // a revert that re-introduces it reads a 0 here and fails test (4).
   mocks.countUnresolved.mockResolvedValue(0);
+  // Empty and well-formed — the state production is actually in.
   mocks.countContradictionsByStatus.mockResolvedValue({
-    total: 0, resolved: 0, unresolved: 0, malformed: 0,
+    total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0,
   });
   mocks.loadGhostAccuracy.mockResolvedValue(null);
 }
@@ -264,9 +265,18 @@ describe("buildBrainMaturity · a failed read is not a zero", () => {
   });
 });
 
-/** The count shape `countContradictionsByStatus` returns. */
+/**
+ * The count shape `countContradictionsByStatus` returns.
+ *
+ * `classified` is the DENOMINATOR and excludes malformed rows; `total` is the
+ * raw row count and includes them. Keeping both here is what lets the
+ * malformed test below distinguish the two — an earlier version of this helper
+ * omitted `classified` entirely, which silently made every fixture read
+ * `undefined` and let a mutation swapping the denominator survive.
+ */
 function counts(total: number, resolved: number, malformed = 0) {
-  return { total, resolved, unresolved: total - resolved - malformed, malformed };
+  const classified = total - malformed;
+  return { total, classified, resolved, unresolved: classified - resolved, malformed };
 }
 
 describe("buildBrainMaturity · contradictions · one population, one window", () => {
@@ -316,6 +326,27 @@ describe("buildBrainMaturity · contradictions · one population, one window", (
     expect(view.components.contradictions.open).toBe(50);
     expect(view.components.contradictions.resolved).toBe(200);
     expect(view.components.contradictions.truncated).toBe(false);
+  });
+
+  it("a MALFORMED row is not charged to the score as an open contradiction", async () => {
+    // From review (#2092). `total` counts unparseable rows; `resolved` and
+    // `unresolved` do not. Dividing by `total` therefore penalised the score
+    // for every malformed row exactly as if it were open, while that row
+    // appeared in neither counter — silently breaking the partition this
+    // function documents.
+    //
+    // 10 rows: 8 classified and ALL 8 resolved, 2 unparseable. The rate must
+    // be 8/8, not 8/10.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(10, 8, 2));
+    const clean = await buildBrainMaturity();
+
+    // The same ledger with no malformed rows must score identically.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(8, 8, 0));
+    const noMalformed = await buildBrainMaturity();
+
+    expect(clean.score).toBe(noMalformed.score);
+    // And the malformed rows are not silently reclassified as open.
+    expect(clean.components.contradictions.open).toBe(0);
   });
 
   it("PLANTED POSITIVE · the resolve rate reflects the FULL population", async () => {
@@ -374,7 +405,7 @@ describe("brain-maturity · an unmeasurable dimension is not a good score", () =
     // Without this, returning null unconditionally would satisfy the test
     // above while deleting a real measurement.
     mocks.countContradictionsByStatus.mockResolvedValue({
-      total: 2, resolved: 1, unresolved: 1, malformed: 0,
+      total: 2, classified: 2, resolved: 1, unresolved: 1, malformed: 0,
     });
     const r = await buildBrainMaturity();
     expect(r.scoreMax).toBe(100);

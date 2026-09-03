@@ -32,8 +32,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   summarizeCalibration: vi.fn(),
-  loadIdentitySnapshotRaw: vi.fn(),
   measureLearningVelocity: vi.fn(),
+  // identityDelta reads the module-level prisma client (brain.ts:1797), not
+  // ctx.db, so it is driven from here rather than through the caller.
+  identitySnapshotFindFirst: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: { identitySnapshot: { findFirst: mocks.identitySnapshotFindFirst } },
 }));
 
 vi.mock("@/lib/brain/calibration", () => ({
@@ -141,6 +147,60 @@ describe("journal.learningVelocity · a failed read is not a missing reading", (
       memoriesThisWeek: 3,
       memoryPctChange30d: 50,
       healthScoreMax: 85,
+    });
+  });
+});
+
+/**
+ * 2026-09-02, from review (#2092) · RESTORED.
+ *
+ * My rewrite of this file claimed to cover three degraded readings and covered
+ * two: `identityDelta` lost its only canary, so re-introducing the old
+ * `catch { return null }` swallow would have passed the suite. I deleted
+ * coverage while reporting that I had improved it — the review caught it.
+ *
+ * It reads prisma directly (brain.ts:1797), so unlike its two neighbours it is
+ * driven through the caller's db rather than a mocked helper.
+ */
+describe("brain.identityDelta · a failed read is not a missing delta", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("REJECTS when the snapshot read throws, instead of resolving null", async () => {
+    // The tile hides itself on null, so a swallowed read rendered as
+    // "identity has not moved" — indistinguishable from a healthy quiet week.
+    mocks.identitySnapshotFindFirst.mockRejectedValue(new Error("db down"));
+    await expect(
+      operatorCaller(DEAD_DB).brain.identityDelta(),
+    ).rejects.toThrow("db down");
+  });
+
+  it("PLANTED POSITIVE · a genuinely absent row still resolves to null", async () => {
+    mocks.identitySnapshotFindFirst.mockResolvedValue(null);
+    await expect(operatorCaller(DEAD_DB).brain.identityDelta()).resolves.toBeNull();
+  });
+
+  it("a BLANK delta is also a real null, not an error", async () => {
+    // brain.ts:1801 treats whitespace-only as absent. Pinned so the reject
+    // path above cannot be widened into "anything falsy throws".
+    mocks.identitySnapshotFindFirst.mockResolvedValue({
+      deltaFromLast: "   ",
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+      date: "2026-09-01",
+    });
+    await expect(operatorCaller(DEAD_DB).brain.identityDelta()).resolves.toBeNull();
+  });
+
+  it("PLANTED POSITIVE · a real delta comes back mapped", async () => {
+    // Without this, a procedure returning null unconditionally would satisfy
+    // both null tests above while deleting the reading entirely.
+    mocks.identitySnapshotFindFirst.mockResolvedValue({
+      deltaFromLast: "focus up, tempo down",
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+      date: "2026-09-01",
+    });
+    await expect(operatorCaller(DEAD_DB).brain.identityDelta()).resolves.toMatchObject({
+      delta: "focus up, tempo down",
+      date: "2026-09-01",
     });
   });
 });

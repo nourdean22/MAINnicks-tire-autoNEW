@@ -491,10 +491,19 @@ export async function resolveContradiction(
  */
 export async function countContradictionsByStatus(
   days = 90,
-): Promise<{ total: number; resolved: number; unresolved: number; malformed: number }> {
+): Promise<{
+  /** Every row in the window, malformed included. Observability only. */
+  total: number;
+  /** resolved + unresolved. THE DENOMINATOR — see the note below. */
+  classified: number;
+  resolved: number;
+  unresolved: number;
+  /** Rows whose `content` is not a JSON object. Neither resolved nor open. */
+  malformed: number;
+}> {
   const since = new Date(Date.now() - days * 86_400_000);
   const rows = await prisma.$queryRaw<
-    { total: number; resolved: number; unresolved: number; malformed: number }[]
+    { total: number; classified: number; resolved: number; unresolved: number; malformed: number }[]
   >`
     WITH parsed AS (
       SELECT CASE WHEN content IS JSON OBJECT THEN content::jsonb ELSE NULL END AS j
@@ -505,6 +514,13 @@ export async function countContradictionsByStatus(
     )
     SELECT
       COUNT(*)::int AS total,
+      -- 2026-09-02, from review · total counts malformed rows and the two
+      -- status buckets do not, so dividing resolved by it charged the score
+      -- for every unparseable row exactly as if it were unresolved -- while
+      -- that row appeared in neither counter, silently breaking the
+      -- open + resolved = population partition this function documents.
+      -- classified is the only honest denominator.
+      COUNT(*) FILTER (WHERE j IS NOT NULL)::int AS classified,
       COUNT(*) FILTER (
         WHERE j IS NOT NULL AND COALESCE(j->>'status', 'unresolved') <> 'unresolved'
       )::int AS resolved,
@@ -514,7 +530,7 @@ export async function countContradictionsByStatus(
       COUNT(*) FILTER (WHERE j IS NULL)::int AS malformed
     FROM parsed
   `;
-  return rows[0] ?? { total: 0, resolved: 0, unresolved: 0, malformed: 0 };
+  return rows[0] ?? { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 };
 }
 
 export async function countUnresolved(days = 14): Promise<number> {
