@@ -175,6 +175,57 @@ export async function markSearchToolsFired(
   }
 }
 
+/**
+ * Record whether a toolChoice force was actually honored.
+ *
+ * `build-stream-config.ts` runs a toolChoice ladder: a step-0 force for
+ * action intents, a `runPython` pin, an `arsenalWebSearch` pin, and a
+ * last-step clamp to `toolChoice: "none"`. Whether the provider honors
+ * any of that is a PROVIDER CAPABILITY, and nothing checked it.
+ *
+ * Ollama Cloud (prod primary) does not list `tool_choice` in its
+ * OpenAI-compat surface and omits it from the native `/api/chat` schema.
+ * The repo's own receipt — "deepseek-v4-pro honors strict tool_choice
+ * via Ollama's OpenAI-compat endpoint (probed live)",
+ * build-stream-config.ts:273 — was taken 2026-07-15 on a model since
+ * RETIRED upstream, and was never re-probed against the current pin.
+ *
+ * So this does not assume the force works OR that it is broken. It
+ * records the outcome: `forcedToolHonored=false` on a run of turns is
+ * the smoking gun; an empty run is the all-clear. That is the same
+ * discipline as the rest of this module - make the silent thing visible
+ * rather than argue about it.
+ */
+export async function markForcedTool(
+  turnId: string,
+  forcedToolName: string,
+  honored: boolean,
+  provider?: string,
+  modelId?: string
+): Promise<void> {
+  writesAttempted += 1;
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.toolSelectionTurn.update({
+      where: { turnId },
+      data: {
+        forcedToolName: forcedToolName.slice(0, 120),
+        forcedToolHonored: honored,
+        provider: provider ? provider.slice(0, 32) : undefined,
+        modelId: modelId ? modelId.slice(0, 120) : undefined,
+      },
+    });
+  } catch (err) {
+    writesFailed += 1;
+    lastWriteError = err instanceof Error ? err.message : String(err);
+    lastWriteErrorAt = Date.now();
+    void logError("ai.tool-selection-telemetry", err, {
+      fn: "markForcedTool",
+      turnId,
+    });
+  }
+}
+
 /** Mark that invokeTool actually ran a tool the pruner had dropped. */
 export async function markInvokeToolFired(
   turnId: string,

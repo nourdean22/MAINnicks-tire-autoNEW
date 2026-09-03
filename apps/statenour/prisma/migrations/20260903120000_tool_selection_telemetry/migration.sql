@@ -52,3 +52,16 @@ CREATE INDEX IF NOT EXISTS tool_gate_decisions_tool_verdict_idx
   ON tool_gate_decisions (tool_name, verdict);
 CREATE INDEX IF NOT EXISTS tool_gate_decisions_created_at_idx
   ON tool_gate_decisions (created_at);
+
+-- 2026-09-03 (same wave) · toolChoice honoring.
+-- build-stream-config.ts forces a tool at step 0 for action intents, pins
+-- runPython, and clamps the last step to toolChoice:"none". Ollama Cloud does
+-- not list tool_choice in its OpenAI-compat surface and omits it from the
+-- native /api/chat schema. The repo's own "probed live" receipt was taken on
+-- deepseek-v4-pro, since retired upstream, and never re-probed on the current
+-- pin. Record whether the forced tool actually fired instead of assuming.
+ALTER TABLE tool_selection_turns
+  ADD COLUMN IF NOT EXISTS forced_tool_name    VARCHAR(120),
+  ADD COLUMN IF NOT EXISTS forced_tool_honored BOOLEAN,
+  ADD COLUMN IF NOT EXISTS provider            VARCHAR(32),
+  ADD COLUMN IF NOT EXISTS model_id            VARCHAR(120);

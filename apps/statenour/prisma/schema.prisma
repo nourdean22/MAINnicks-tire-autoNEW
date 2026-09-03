@@ -1670,6 +1670,19 @@ model ToolSelectionTurn {
   searchToolsQuery   String?  @map("search_tools_query") @db.VarChar(500)
   invokeToolFired    Boolean  @default(false) @map("invoke_tool_fired")
   invokedToolName    String?  @map("invoked_tool_name") @db.VarChar(120)
+  /// 2026-09-03 · toolChoice honoring. build-stream-config.ts runs a
+  /// toolChoice ladder (step-0 force, runPython pin, last-step "none"),
+  /// but Ollama Cloud's OpenAI-compat surface does not list tool_choice
+  /// and the native /api/chat schema omits it. The repo's own receipt —
+  /// "deepseek-v4-pro honors strict tool_choice (probed live)" — was
+  /// verified on a model since RETIRED upstream, and never re-probed on
+  /// the current pin. Rather than assume either way, record whether the
+  /// forced tool actually fired. A run of forced-but-not-honored rows is
+  /// the smoking gun; an empty run is the all-clear.
+  forcedToolName     String?  @map("forced_tool_name") @db.VarChar(120)
+  forcedToolHonored  Boolean? @map("forced_tool_honored")
+  provider           String?  @db.VarChar(32)
+  modelId            String?  @map("model_id") @db.VarChar(120)
   createdAt          DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])

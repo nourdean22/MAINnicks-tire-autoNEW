@@ -44,6 +44,7 @@ import {
   recordToolSelection,
   markSearchToolsFired,
   markInvokeToolFired,
+  markForcedTool,
   getSelectionTelemetryHealth,
   __resetSelectionTelemetryHealth,
   SELECTION_TIER,
@@ -217,5 +218,50 @@ describe("CANARY: the recorder must report its own failure", () => {
     expect(health.writesFailed).toBe(1);
     // 1 of 2 failing is a blip, not a broken recorder.
     expect(health.looksBroken).toBe(false);
+  });
+});
+
+describe("markForcedTool — is the toolChoice ladder actually honored?", () => {
+  it("records a HONORED force with the provider and model that honored it", async () => {
+    await markForcedTool("turn-1", "arsenalWebSearch", true, "ollama", "minimax-m3");
+    expect(updateTurn).toHaveBeenCalledWith({
+      where: { turnId: "turn-1" },
+      data: {
+        forcedToolName: "arsenalWebSearch",
+        forcedToolHonored: true,
+        provider: "ollama",
+        modelId: "minimax-m3",
+      },
+    });
+  });
+
+  it("records a force that was IGNORED — the smoking gun", async () => {
+    // build-stream-config.ts pins a tool at step 0. If the provider drops
+    // tool_choice (Ollama Cloud does not list it in its OpenAI-compat
+    // surface), the pin silently does nothing and the turn looks normal.
+    // A run of these rows is what proves it.
+    await markForcedTool("turn-2", "runPython", false, "ollama", "minimax-m3");
+    const arg = updateTurn.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(arg.data.forcedToolHonored).toBe(false);
+    expect(arg.data.forcedToolName).toBe("runPython");
+  });
+
+  it("omits provider/model rather than writing nulls when unknown", async () => {
+    await markForcedTool("turn-3", "getTasks", true);
+    const arg = updateTurn.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(arg.data.provider).toBeUndefined();
+    expect(arg.data.modelId).toBeUndefined();
+  });
+
+  it("never throws into the request path", async () => {
+    updateTurn.mockRejectedValue(new Error("column does not exist"));
+    await expect(
+      markForcedTool("t", "x", false)
+    ).resolves.toBeUndefined();
+    expect(getSelectionTelemetryHealth().writesFailed).toBe(1);
   });
 });
