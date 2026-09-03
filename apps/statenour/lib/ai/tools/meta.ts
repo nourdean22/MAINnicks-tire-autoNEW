@@ -482,7 +482,9 @@ export const metaTools = {
       const schemas = await getSchemaIndex();
       const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
       if (tokens.length === 0) return { error: "query produced no usable tokens" };
-      const scored = TOOL_CATALOG.map((meta) => {
+      type Hit = { meta: (typeof TOOL_CATALOG)[number]; name: string };
+      let matchedBy: "keyword" | "semantic" = "keyword";
+      let scored: Hit[] = TOOL_CATALOG.map((meta) => {
         const name = meta.name;
         const hay = `${name} ${meta.category} ${schemas.get(name)?.description ?? ""}`.toLowerCase();
         let score = 0;
@@ -495,8 +497,55 @@ export const metaTools = {
         .filter((s) => s.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
+
+      // SEMANTIC FALLBACK.
+      // The pass above scores by TOKEN OVERLAP against name + category +
+      // description, then drops everything with score 0. So a query
+      // sharing no words with the catalog returns NOTHING -- which is
+      // precisely the miss that makes this recovery lane necessary. The
+      // pruner that dropped the tool already ranks semantically
+      // (chat-mode.ts tier 5); the recovery lane did not, so a semantic
+      // gap defeated BOTH the primary selector and its fallback, and the
+      // model correctly concluded the capability did not exist.
+      // ("best thriller shows on streaming" shares no token with
+      // arsenalWebSearch, its category, or its description.)
+      //
+      // Only fires when keyword matching found nothing: embedUserMessage
+      // is a provider call, and paying for it when the cheap path already
+      // answered would tax every recovery. Degrades silently to the empty
+      // keyword result if the cache is cold or the embedding call fails --
+      // both already possible today, so this can only add hits.
+      if (scored.length === 0) {
+        try {
+          const { isToolEmbeddingCacheWarm, embedUserMessage, rankToolsBySimilarity } =
+            await import("@/lib/ai/tool-embeddings");
+          if (isToolEmbeddingCacheWarm()) {
+            const queryEmbedding = await embedUserMessage(query);
+            if (queryEmbedding.length > 0) {
+              const byName = new Map(TOOL_CATALOG.map((m) => [m.name, m]));
+              // 0.25 mirrors the live floor the pruner passes at
+              // chat-mode.ts:582 (NOT rankToolsBySimilarity's 0.3
+              // default) so the recovery lane is never stricter than the
+              // selector it exists to backstop.
+              const ranked = rankToolsBySimilarity(queryEmbedding, limit, 0.25);
+              const hits = ranked
+                .map(([name]) => ({ meta: byName.get(name), name }))
+                .filter((h): h is Hit => Boolean(h.meta));
+              if (hits.length > 0) {
+                scored = hits;
+                matchedBy = "semantic";
+              }
+            }
+          }
+        } catch {
+          // Recovery must never throw: an empty result is a worse answer,
+          // a thrown error is a broken turn.
+        }
+      }
+
       return {
         count: scored.length,
+        matchedBy,
         tools: scored.map(({ meta, name }) => ({
           name,
           category: meta.category,
