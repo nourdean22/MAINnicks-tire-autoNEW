@@ -117,10 +117,17 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
 
 // ─── NEIGHBORHOOD SCHEMA ──────────────────────────────────
 function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
+  // References the ONE canonical LocalBusiness (@id) instead of minting a second
+  // rated AutoRepair entity per page. The prior version emitted a conflicting
+  // name ("... — Serving X") + an unconditional aggregateRating on a duplicate
+  // node — the exact fragmented-graph / self-serving-rating pattern the shared
+  // LocalBusinessSchema was hardened against. areaServed carries the locality;
+  // the rating lives once, on the canonical entity (Home + Reviews pages only).
   const schema = {
     "@context": "https://schema.org",
     "@type": "AutoRepair",
-    name: `${BUSINESS.name} — Serving ${neighborhood.name}`,
+    "@id": `${BUSINESS.urls.website}/#localbusiness`,
+    name: BUSINESS.name,
     description: neighborhood.description,
     url: `https://nickstire.org/${neighborhood.slug}`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
@@ -135,11 +142,6 @@ function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
     areaServed: {
       "@type": "City",
       name: neighborhood.name,
-    },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(BUSINESS.reviews.rating),
-      reviewCount: String(BUSINESS.reviews.count),
     },
   };
 
@@ -219,22 +221,23 @@ export default function NeighborhoodPage() {
 
   return (
     <PageLayout showChat={true}>
-      {/* wave-151 SEO quality-gate fix \u2014 see IntersectionPage.tsx for the
-          full rationale. Same noindex,follow pattern across 121 thin
-          neighborhood template pages.
-
-          wave-172c audit: ran word-count analysis on every entry in
-          shared/neighborhoods.ts. Max localContent = 35 words, average
-          \u224824, distribution 16-35. Zero entries exceed 40 words. The
-          improvement-audit agent's earlier claim that "neighborhoods
-          have substantive content" was incorrect by measurement.
-
-          Path to flipping these to indexable: enrich localContent +
-          directionsFrom to 120-180 words EACH for the highest-traffic
-          neighborhoods (East 185th, Five Points, Richmond Heights,
-          Cleveland Heights, Collinwood). Until that content investment
-          ships, noindex,follow is the correct call \u2014 122 thin pages
-          would dilute the entire site's quality score. Hold the line. */}
+      {/* Selective indexing gated by the per-neighborhood `indexed` flag
+          (shared/neighborhoods.ts). Twelve on-corridor pages were enriched to
+          120-180 words, but indexing is HELD (all flags false) until three
+          things ship together, or the pages keep advertising to bots what
+          crawlers can't see:
+            1. Prerender snapshots must regenerate \u2014 10 of these slugs are
+               prerender:true, and prerender-middleware serves bots the STALE
+               2026-09-01 snapshots (noindex + old ~35-word content). Regen is
+               broken on Windows; must run on CI/Linux.
+            2. A VISIBLE FAQ must render to match NeighborhoodSchema's FAQPage
+               JSON-LD (Google content-mismatch policy \u2014 see /tires for the
+               <details> pattern).
+            3. GSC shows these pages earn ~0 clicks; the local lever is the
+               Google Business Profile / Local Pack, not thin area pages. Only
+               re-index if the data justifies the content investment.
+          Until then: noindex,follow. The enriched content still serves users
+          who land here; it just isn't advertised for indexing. */}
       <SEOHead
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
         description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}
