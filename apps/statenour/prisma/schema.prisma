@@ -1731,6 +1731,28 @@ model BrainMemory {
   /// who-wrote-this proxy; createdBy formalizes it. Old rows keep
   /// "system" default; new writes specify "nick" / "user" / "cron:X".
   createdBy  String?   @default("system") @map("created_by") @db.VarChar(64)
+  /// 2026-09-03 · PROVENANCE TRUST TIER.
+  ///
+  /// OPERATOR | SYSTEM_DERIVED | AGENT_INFERRED | EXTERNAL_CONTENT.
+  ///
+  /// Measured on prod the day this shipped: ~2,179 rows carried `source`
+  /// values that are news sites (cleantechnica, electrek, cleveland-com,
+  /// fox8-cleveland, wkyc-3, inside-evs, car-driver) with
+  /// created_by="system" - and recall did not filter on source. A scraped
+  /// article was retrieved indistinguishably from something Nour said.
+  /// That is provenance laundering: text enters as "something I read" and
+  /// leaves storage as "something I know", outliving the context window
+  /// that would otherwise have contained an injection.
+  ///
+  /// DERIVED, not collected. `source` already encoded the answer at all
+  /// 176 write sites; nothing interpreted it. lib/brain/memory-trust.ts
+  /// classifies, this column materializes it so the filter can run in SQL
+  /// BEFORE vector ranking rather than after - ranking is exactly what a
+  /// poisoned row would exploit.
+  ///
+  /// Nullable so code deployed before the backfill keeps working; the
+  /// classifier is the source of truth and treats NULL as untrusted.
+  trustTier  String?   @map("trust_tier") @db.VarChar(20)
   /// v7.9 · Apr 29 · Universal soft-delete. Distinct from `expiresAt`
   /// (which is for memory-decay TTL): `deletedAt` is for explicit
   /// human/AI delete, recoverable from the lib/db/soft-delete helpers.
@@ -1825,6 +1847,7 @@ model BrainMemory {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([trustTier])
   @@map("brain_memories")
 }
 
