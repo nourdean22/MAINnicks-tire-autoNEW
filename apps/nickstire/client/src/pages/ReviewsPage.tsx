@@ -349,7 +349,7 @@ export default function ReviewsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
       />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema includeReviews />
 
       {/* PageLayout already renders the page's single <main id="main-content">
           landmark — a second nested one is invalid HTML and made the

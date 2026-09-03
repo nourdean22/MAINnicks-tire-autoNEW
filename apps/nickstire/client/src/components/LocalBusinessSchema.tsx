@@ -98,13 +98,21 @@ export default function LocalBusinessSchema({
     ],
     paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Acima, Snap Finance, Koalafi, American First Finance",
     currenciesAccepted: "USD",
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: BUSINESS.reviews.rating,
-      reviewCount: BUSINESS.reviews.count,
-      bestRating: 5,
-      worstRating: 1,
-    },
+    // Self-serving aggregateRating on your OWN LocalBusiness is ineligible for
+    // star rich results (Google policy), and emitting it on pages with NO
+    // visible reviews risks a manual action. Only emit where reviews are shown
+    // (includeReviews) — Home + the Reviews page — not site-wide on ~40 pages.
+    ...(includeReviews
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: BUSINESS.reviews.rating,
+            reviewCount: BUSINESS.reviews.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     priceRange: "$$",
     sameAs: [...BUSINESS.sameAs],
     hasMap: `https://www.google.com/maps?cid=${GBP_CID}`,

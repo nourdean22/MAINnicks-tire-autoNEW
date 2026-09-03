@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PhoneCall, X, Check, Loader2 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export default function CallbackModal() {
@@ -99,6 +100,7 @@ export default function CallbackModal() {
                 <p className="text-[11px] text-emerald-400/60 mt-2">
                   Lease-to-own payment programs on the spot — no credit check
                 </p>
+                <p className="text-[10px] text-foreground/30 mt-1 leading-tight">{ACIMA_COMPACT_DISCLOSURE}</p>
               </div>
             ) : (
               <>
