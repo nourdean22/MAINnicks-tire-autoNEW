@@ -33,7 +33,7 @@ interface Maturity {
     identity: { axes_filled: number | null; history_days: number | null };
     qualitative: { entries: number | null };
     beliefs: { active: number | null; candidates: number | null };
-    contradictions: { open: number | null; resolved: number | null; truncated: boolean };
+    contradictions: { open: number | null; resolved: number | null };
     ghost: { hits: number | null; surprises: number | null; accuracy: number | null };
     chat_memory: { importance_rows: number | null; distilled_sessions: number | null };
   };
@@ -269,12 +269,6 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
           (<span className="font-mono">{failedReads.join(", ")}</span>). The score is
           withheld and every <span className="font-mono">{UNKNOWN}</span> above was not
           measured — none of them is a zero.
-        </p>
-      )}
-      {c.contradictions.truncated && (
-        <p className="mt-2 text-[10px] text-amber-300/80 leading-relaxed">
-          Contradiction sample hit its row cap, so open/resolved describe only the newest rows
-          — and the newest are the least likely to be resolved. Read the resolve rate as a floor.
         </p>
       )}
       <p className="text-[9px] text-[var(--text-tertiary)] mt-3">

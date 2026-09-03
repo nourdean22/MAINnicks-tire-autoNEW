@@ -153,12 +153,19 @@ describe("BrainMaturityHeader · a degraded read never renders as health", () =>
     expect(html).toContain("brain maturity");
   });
 
-  it("declares a truncated contradiction sample", () => {
-    const payload = healthyPayload();
-    payload.components.contradictions.truncated = true;
-    const html = render(payload);
-
-    expect(html).toContain("hit its row cap");
-    expect(render(healthyPayload())).not.toContain("hit its row cap");
-  });
+  /**
+   * 2026-09-02 self-audit · "declares a truncated contradiction sample" was
+   * deleted with the branch it tested.
+   *
+   * The rollup no longer reads a capped list -- countContradictionsByStatus
+   * counts in SQL with no cap -- so `truncated` could never again be true, and
+   * a banner behind a permanently-false flag is a dead alarm: the exact defect
+   * class this wave spent its time removing. Its copy had also become false,
+   * telling the operator that open/resolved "describe only the newest rows"
+   * when they no longer are.
+   *
+   * The property that replaced it -- that the counts reach past 40 -- is
+   * asserted in tests/lib/services/brain-domain-maturity-degraded.test.ts and
+   * in tests/brain/contradiction-counts.test.ts.
+   */
 });

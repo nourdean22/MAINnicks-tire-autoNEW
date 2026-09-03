@@ -49,7 +49,13 @@ import {
 // ONE-POPULATION note inside `buildBrainMaturity`. It counted a 14-day
 // window while the resolve-rate denominator counted 90 days, so the two
 // numbers on the same card described different populations.
-import { loadAllContradictions } from "@/lib/brain/contradiction-surfacer";
+// `loadAllContradictions` is still imported for the EXPORT path below, which
+// genuinely wants the rows. The maturity path takes counts instead — see the
+// note at its derivation for why a capped list cannot produce an honest rate.
+import {
+  countContradictionsByStatus,
+  loadAllContradictions,
+} from "@/lib/brain/contradiction-surfacer";
 import {
   getGhostPredictions,
   loadGhostAccuracy,
@@ -165,22 +171,22 @@ export async function buildActiveAlerts(args: {
 
 // ──────────────── brain maturity ────────────────
 
-/**
- * `loadRecentContradictions` (lib/brain/contradiction-surfacer.ts:322)
- * applies `take: 40` to the row query BEFORE the status filter at :329.
- * Mirrored here — the same documentation-as-code convention
- * tests/brain/qualitative-identity-cache.test.ts uses for CACHE_KEY —
- * so this rollup can at least SAY the contradiction sample was capped
- * instead of presenting a truncated, newest-biased resolve rate as a
- * measurement.
+/*
+ * 2026-09-02 (self-audit) · a mirrored `CONTRADICTION_ROW_CAP = 40` and a
+ * `truncated` flag used to live here. They described a real defect: the
+ * surfacer applied `take: 40` BEFORE the status filter, so the resolve rate
+ * was computed over the 40 newest rows — and the newest are the least likely
+ * to be resolved.
  *
- * This is a MIRROR, so it drifts if the take changes: raise the take there
- * and a genuine 40-row list is falsely called truncated; lower it and the
- * flag never fires at all. Neither is silent — the flag is rendered — but
- * the two files have to move together. There is no way to ask the surfacer
- * how many rows it was willing to return without editing it.
+ * The rollup no longer reads that capped list. `countContradictionsByStatus`
+ * counts in SQL with no cap, so nothing here can be truncated and the flag
+ * could never again be true. Rather than ship a permanently-false flag with a
+ * UI branch behind it — a dead alarm, which is the exact defect class this
+ * wave spent its time removing — the flag, the mirrored constant and the
+ * banner it rendered are all deleted. The banner's copy had also become
+ * false: it told the operator that open/resolved "describe only the newest
+ * rows", which is no longer how they are computed.
  */
-const CONTRADICTION_ROW_CAP = 40;
 
 /**
  * The eleven subsystem reads `buildBrainMaturity` fans out. Named,
@@ -231,12 +237,6 @@ export interface BrainMaturityView {
     contradictions: {
       open: number | null;
       resolved: number | null;
-      /**
-       * The 90-day contradiction read hit `CONTRADICTION_ROW_CAP`, so
-       * `open` / `resolved` / the resolve rate describe only the newest
-       * N rows — and the newest are the least likely to be resolved.
-       */
-      truncated: boolean;
     };
     ghost: {
       hits: number | null;
@@ -339,7 +339,7 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     read("qualitative_identity", loadQualitativeIdentity()),
     read("beliefs_active", loadActiveBeliefs()),
     read("belief_candidates", loadBeliefCandidates()),
-    read("contradictions", loadAllContradictions(90)),
+    read("contradictions", countContradictionsByStatus(90)),
     read("ghost_accuracy", loadGhostAccuracy()),
     // These two already logged before this change — they are routed
     // through the same helper so a failed count also suppresses the
@@ -384,19 +384,22 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   const accuracy =
     !ghostFailed && ghostAcc && ghostTotal > 0 ? ghostAcc.hits / ghostTotal : null;
 
-  // ONE population — the two filters partition `allContradictions`
-  // exactly, matching the pre-change `resolved` predicate.
-  const contradictionsOpen = allContradictions
-    ? allContradictions.filter((c) => !c.status || c.status === "unresolved")
-        .length
-    : null;
-  const resolvedContradictions = allContradictions
-    ? allContradictions.filter((c) => c.status && c.status !== "unresolved")
-        .length
-    : null;
-  const contradictionsTruncated =
-    allContradictions !== null &&
-    allContradictions.length >= CONTRADICTION_ROW_CAP;
+  // ONE population, counted in SQL rather than filtered from a list.
+  //
+  // 2026-09-02 (second pass) · these came from `loadAllContradictions(90)`,
+  // which applies `take: 40` BEFORE the status is parsed out of the JSON body.
+  // Past 40 rows in the window you could only ever see the 40 newest, and the
+  // newest are the least likely to be resolved — so the resolve rate was
+  // systematically low and the open count systematically short. The first pass
+  // fixed the population MISMATCH and made the truncation visible; it did not
+  // make the numbers right. A count never needed the list.
+  const contradictionsOpen = allContradictions ? allContradictions.unresolved : null;
+  const resolvedContradictions = allContradictions ? allContradictions.resolved : null;
+  // The CLASSIFIED count, not `total`. 2026-09-02 from review: `total`
+  // includes rows whose content would not parse, and those appear in neither
+  // `resolved` nor `unresolved` — so dividing by it charged the score for
+  // every malformed row as though it were an open contradiction.
+  const contradictionsTotal = allContradictions ? allContradictions.classified : null;
 
   const pts = {
     skills:
@@ -433,9 +436,8 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
       // contradicted myself" scored exactly like "found and resolved every
       // contradiction". Fixed there, missed here. A resolve rate over zero
       // contradictions is not a good score, it is no score.
-      if (allContradictions.length === 0) return null;
-      const resolveRate =
-        resolvedContradictions / Math.max(1, allContradictions.length);
+      if (contradictionsTotal === null || contradictionsTotal === 0) return null;
+      const resolveRate = resolvedContradictions / Math.max(1, contradictionsTotal);
       const openPenalty = Math.min(5, contradictionsOpen);
       return Math.max(0, resolveRate * 10 - openPenalty);
     })(),
@@ -486,7 +488,6 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
       contradictions: {
         open: contradictionsOpen,
         resolved: resolvedContradictions,
-        truncated: contradictionsTruncated,
       },
       ghost: {
         hits: ghostFailed ? null : (ghostAcc?.hits ?? 0),

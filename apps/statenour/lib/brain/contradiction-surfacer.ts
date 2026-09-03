@@ -462,7 +462,89 @@ export async function resolveContradiction(
   return { ...resolved, key, createdAt: row.createdAt.toISOString() };
 }
 
+/**
+ * Contradiction counts over a window, UNCAPPED and status-aware.
+ *
+ * 2026-09-02 · every other reader here goes through `loadRecentContradictions`,
+ * which applies `take: 40` BEFORE parsing the status out of the JSON body. That
+ * ordering makes any count derived from it newest-biased in two directions:
+ * with more than 40 rows in the window you can only ever see the 40 newest, and
+ * the newest are the least likely to be resolved — so a resolve rate computed
+ * from that list is systematically low, and an unresolved count is systematically
+ * short. PR #2090 made the truncation VISIBLE (`contradictions.truncated`); this
+ * makes the counts correct.
+ *
+ * It is a count, so it never needed the list. No cap, no rows shipped.
+ *
+ * WHY RAW SQL: `status` lives inside the JSON `content` blob, so Prisma cannot
+ * filter on it. `IS JSON OBJECT` guards the cast — the parse loop in this file
+ * keeps a `malformed` counter, so unparseable rows demonstrably exist, and a
+ * bare `content::jsonb` would ERROR on one rather than skip it. The CASE is what
+ * guarantees the cast only runs on rows that passed the check; SQL does not
+ * promise to short-circuit an AND.
+ *
+ * Classification matches the JS exactly: a missing `status` is "unresolved"
+ * (the `?? "unresolved"` above), and anything else — resolved, dismissed,
+ * both_valid — is resolved. A JSON ARRAY counts as malformed rather than
+ * unresolved: it is not a Contradiction, and the JS only treated it as one
+ * because `[].status` is undefined.
+ */
+export async function countContradictionsByStatus(
+  days = 90,
+): Promise<{
+  /** Every row in the window, malformed included. Observability only. */
+  total: number;
+  /** resolved + unresolved. THE DENOMINATOR — see the note below. */
+  classified: number;
+  resolved: number;
+  unresolved: number;
+  /** Rows whose `content` is not a JSON object. Neither resolved nor open. */
+  malformed: number;
+}> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await prisma.$queryRaw<
+    { total: number; classified: number; resolved: number; unresolved: number; malformed: number }[]
+  >`
+    WITH parsed AS (
+      SELECT CASE WHEN content IS JSON OBJECT THEN content::jsonb ELSE NULL END AS j
+      FROM brain_memories
+      WHERE category = ${BRAIN_CATEGORIES.CONTRADICTION}
+        AND deleted_at IS NULL
+        AND created_at >= ${since}
+    )
+    SELECT
+      COUNT(*)::int AS total,
+      -- 2026-09-02, from review · total counts malformed rows and the two
+      -- status buckets do not, so dividing resolved by it charged the score
+      -- for every unparseable row exactly as if it were unresolved -- while
+      -- that row appeared in neither counter, silently breaking the
+      -- open + resolved = population partition this function documents.
+      -- classified is the only honest denominator.
+      COUNT(*) FILTER (WHERE j IS NOT NULL)::int AS classified,
+      COUNT(*) FILTER (
+        WHERE j IS NOT NULL AND COALESCE(j->>'status', 'unresolved') <> 'unresolved'
+      )::int AS resolved,
+      COUNT(*) FILTER (
+        WHERE j IS NOT NULL AND COALESCE(j->>'status', 'unresolved') = 'unresolved'
+      )::int AS unresolved,
+      COUNT(*) FILTER (WHERE j IS NULL)::int AS malformed
+    FROM parsed
+  `;
+  return rows[0] ?? { total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0 };
+}
+
 export async function countUnresolved(days = 14): Promise<number> {
-  const list = await loadRecentContradictions(days, false);
-  return list.length;
+  // 2026-09-02 (self-audit) · this went through loadRecentContradictions,
+  // which applies take: 40 BEFORE the status filter -- so past 40 rows in the
+  // window it under-counted, and it under-counted in the direction that
+  // matters: the newest rows are the least likely to be resolved, so the ones
+  // it could see were disproportionately open and the ones it dropped were
+  // silently uncounted.
+  //
+  // The commit that added countContradictionsByStatus described this bias in
+  // its own message and then fixed only brain-domain's consumer, leaving three
+  // others reading capped numbers: cross-system-nudge (nudge triggering),
+  // services/contradictions (unresolvedLast14), and ultron/narrator, whose
+  // escalation fires at >= 2 open. Same query, no cap, all four correct.
+  return (await countContradictionsByStatus(days)).unresolved;
 }

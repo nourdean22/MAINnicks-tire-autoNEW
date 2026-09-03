@@ -50,7 +50,7 @@ const mocks = vi.hoisted(() => ({
   loadActiveBeliefs: vi.fn(),
   loadBeliefCandidates: vi.fn(),
   countUnresolved: vi.fn(),
-  loadAllContradictions: vi.fn(),
+  countContradictionsByStatus: vi.fn(),
   loadGhostAccuracy: vi.fn(),
   getGhostPredictions: vi.fn(),
 }));
@@ -79,7 +79,10 @@ vi.mock("@/lib/brain/belief-harvester", () => ({
 }));
 vi.mock("@/lib/brain/contradiction-surfacer", () => ({
   countUnresolved: mocks.countUnresolved,
-  loadAllContradictions: mocks.loadAllContradictions,
+  countContradictionsByStatus: mocks.countContradictionsByStatus,
+  // Still exported for brain-domain's EXPORT path, which wants rows. The
+  // maturity path no longer touches it.
+  loadAllContradictions: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/lib/brain/ghost-nick", () => ({
   loadGhostAccuracy: mocks.loadGhostAccuracy,
@@ -110,7 +113,10 @@ function allReadsSucceed(): void {
   // The 14-day counter is no longer consulted at all. It is left mocked so
   // a revert that re-introduces it reads a 0 here and fails test (4).
   mocks.countUnresolved.mockResolvedValue(0);
-  mocks.loadAllContradictions.mockResolvedValue([]);
+  // Empty and well-formed — the state production is actually in.
+  mocks.countContradictionsByStatus.mockResolvedValue({
+    total: 0, classified: 0, resolved: 0, unresolved: 0, malformed: 0,
+  });
   mocks.loadGhostAccuracy.mockResolvedValue(null);
 }
 
@@ -126,7 +132,7 @@ function allReadsFail(): void {
   mocks.loadActiveBeliefs.mockImplementation(down);
   mocks.loadBeliefCandidates.mockImplementation(down);
   mocks.countUnresolved.mockImplementation(down);
-  mocks.loadAllContradictions.mockImplementation(down);
+  mocks.countContradictionsByStatus.mockImplementation(down);
   mocks.loadGhostAccuracy.mockImplementation(down);
 }
 
@@ -242,7 +248,7 @@ describe("buildBrainMaturity · a failed read is not a zero", () => {
   });
 
   it("one failed read is enough to withhold the score, and only its own counters", async () => {
-    mocks.loadAllContradictions.mockRejectedValue(new Error("contradictions down"));
+    mocks.countContradictionsByStatus.mockRejectedValue(new Error("contradictions down"));
     mocks.loadActiveSkills.mockResolvedValue([
       { graduated: true },
       { graduated: false },
@@ -259,15 +265,27 @@ describe("buildBrainMaturity · a failed read is not a zero", () => {
   });
 });
 
+/**
+ * The count shape `countContradictionsByStatus` returns.
+ *
+ * `classified` is the DENOMINATOR and excludes malformed rows; `total` is the
+ * raw row count and includes them. Keeping both here is what lets the
+ * malformed test below distinguish the two — an earlier version of this helper
+ * omitted `classified` entirely, which silently made every fixture read
+ * `undefined` and let a mutation swapping the denominator survive.
+ */
+function counts(total: number, resolved: number, malformed = 0) {
+  const classified = total - malformed;
+  return { total, classified, resolved, unresolved: classified - resolved, malformed };
+}
+
 describe("buildBrainMaturity · contradictions · one population, one window", () => {
   it("counts an unresolved contradiction older than the old 14-day window", async () => {
-    // THE DEFECT, in one row. `countUnresolved(14)` cannot see this and
-    // returned 0 — header "0", emerald — while the same row sat in the 90d
-    // list dragging the resolve rate down.
+    // THE ORIGINAL DEFECT, in one row. `countUnresolved(14)` cannot see this
+    // and returned 0 — header "0", emerald — while the same row sat in the 90d
+    // population dragging the resolve rate down.
     mocks.countUnresolved.mockResolvedValue(0);
-    mocks.loadAllContradictions.mockResolvedValue([
-      contradiction("old-open", "unresolved", 20),
-    ]);
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(1, 0));
 
     const view = await buildBrainMaturity();
 
@@ -275,17 +293,14 @@ describe("buildBrainMaturity · contradictions · one population, one window", (
     expect(view.components.contradictions.resolved).toBe(0);
   });
 
-  it("open + resolved partitions the list exactly", async () => {
+  it("open + resolved still partition the population exactly", async () => {
+    // Classification moved into SQL with this change, so the fixture-level
+    // nuance it used to encode — a row whose `status` never made it into the
+    // blob must count as OPEN, or the two numbers stop summing — now lives in
+    // `COALESCE(j->>'status','unresolved')` and is proven in
+    // contradiction-counts.test.ts against the real expression.
     mocks.countUnresolved.mockResolvedValue(99);
-    mocks.loadAllContradictions.mockResolvedValue([
-      contradiction("a", "unresolved", 20),
-      contradiction("b", "current_wins", 40),
-      contradiction("c", "dismissed", 60),
-      // A row whose status never made it into the blob — the pre-change
-      // `resolved` predicate treated this as not-resolved, so `open` must
-      // claim it or the two numbers stop summing.
-      contradiction("d", undefined, 80),
-    ]);
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(4, 2));
 
     const view = await buildBrainMaturity();
     const { open, resolved } = view.components.contradictions;
@@ -295,29 +310,61 @@ describe("buildBrainMaturity · contradictions · one population, one window", (
     expect((open ?? 0) + (resolved ?? 0)).toBe(4);
   });
 
-  it("declares the sample truncated once the 40-row cap is hit", async () => {
-    // lib/brain/contradiction-surfacer.ts:322 takes 40 rows BEFORE filtering
-    // by status, so at the cap the resolve rate describes only the newest —
-    // and the newest are the least likely to be resolved.
-    mocks.loadAllContradictions.mockResolvedValue(
-      Array.from({ length: 40 }, (_, i) =>
-        contradiction(`c${i}`, "unresolved", i),
-      ),
-    );
-    expect((await buildBrainMaturity()).components.contradictions.truncated).toBe(
-      true,
-    );
+  it("counts past the old 40-row cap instead of declaring truncation", async () => {
+    // 2026-09-02 second pass · this test used to assert the DEFECT was
+    // visible: at 40 rows `truncated` went true, because
+    // contradiction-surfacer took 40 rows BEFORE parsing status out of the
+    // JSON body, so the resolve rate described only the newest — and the
+    // newest are the least likely to be resolved.
+    //
+    // Visible was not the same as correct. The maturity path now counts in
+    // SQL with no cap, so 250 rows are 250 rows.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(250, 200));
+
+    const view = await buildBrainMaturity();
+
+    expect(view.components.contradictions.open).toBe(50);
+    expect(view.components.contradictions.resolved).toBe(200);
+    // The `truncated` flag is gone entirely, not merely false: nothing can
+    // truncate any more, and a permanently-false flag with a UI banner behind
+    // it is a dead alarm. Reaching 250 IS the assertion now.
   });
 
-  it("CONTROL · a sample under the cap is not declared truncated", async () => {
-    mocks.loadAllContradictions.mockResolvedValue(
-      Array.from({ length: 39 }, (_, i) =>
-        contradiction(`c${i}`, "unresolved", i),
-      ),
-    );
-    expect((await buildBrainMaturity()).components.contradictions.truncated).toBe(
-      false,
-    );
+  it("a MALFORMED row is not charged to the score as an open contradiction", async () => {
+    // From review (#2092). `total` counts unparseable rows; `resolved` and
+    // `unresolved` do not. Dividing by `total` therefore penalised the score
+    // for every malformed row exactly as if it were open, while that row
+    // appeared in neither counter — silently breaking the partition this
+    // function documents.
+    //
+    // 10 rows: 8 classified and ALL 8 resolved, 2 unparseable. The rate must
+    // be 8/8, not 8/10.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(10, 8, 2));
+    const clean = await buildBrainMaturity();
+
+    // The same ledger with no malformed rows must score identically.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(8, 8, 0));
+    const noMalformed = await buildBrainMaturity();
+
+    expect(clean.score).toBe(noMalformed.score);
+    // And the malformed rows are not silently reclassified as open.
+    expect(clean.components.contradictions.open).toBe(0);
+  });
+
+  it("PLANTED POSITIVE · the resolve rate reflects the FULL population", async () => {
+    // The point of uncapping. Under the old capped list a 250-row population
+    // that is 80% resolved could only ever be judged on its 40 newest rows.
+    // 200/250 resolved, 50 open: rate 0.8 -> 8 points, minus the open penalty
+    // capped at 5, so 3. A capped read would have scored this differently.
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(250, 200));
+    const good = await buildBrainMaturity();
+
+    mocks.countContradictionsByStatus.mockResolvedValue(counts(250, 10));
+    const bad = await buildBrainMaturity();
+
+    // A mostly-resolved ledger must outscore a mostly-open one. If the rate
+    // were computed over a fixed-size window this could invert.
+    expect((good.score ?? 0)).toBeGreaterThan(bad.score ?? 0);
   });
 });
 
@@ -359,10 +406,9 @@ describe("brain-maturity · an unmeasurable dimension is not a good score", () =
   it("PLANTED POSITIVE · a POPULATED ledger still scores, out of 100", async () => {
     // Without this, returning null unconditionally would satisfy the test
     // above while deleting a real measurement.
-    mocks.loadAllContradictions.mockResolvedValue([
-      { status: "resolved" },
-      { status: "unresolved" },
-    ]);
+    mocks.countContradictionsByStatus.mockResolvedValue({
+      total: 2, classified: 2, resolved: 1, unresolved: 1, malformed: 0,
+    });
     const r = await buildBrainMaturity();
     expect(r.scoreMax).toBe(100);
   });
@@ -376,7 +422,7 @@ describe("brain-maturity · an unmeasurable dimension is not a good score", () =
 
     vi.clearAllMocks();
     allReadsSucceed();
-    mocks.loadAllContradictions.mockRejectedValue(new Error("db down"));
+    mocks.countContradictionsByStatus.mockRejectedValue(new Error("db down"));
     const failed = await buildBrainMaturity();
     expect(failed.score).toBeNull();
     expect(failed.failedReads.length).toBeGreaterThan(0);

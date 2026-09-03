@@ -23,6 +23,7 @@ import {
   loadRecentContradictions,
   loadAllContradictions,
   countUnresolved,
+  countContradictionsByStatus,
   resolveContradiction,
   type ContradictionStatus,
   type StoredContradiction,
@@ -52,6 +53,10 @@ export interface ContradictionsView {
     window: { days: number; includeResolved: boolean };
     byStatus: Record<string, number>;
     unresolvedLast14: number;
+    /** True when `items` is a capped sample. The summary counts are NOT
+     *  capped — they come from an uncapped SQL count — so a consumer can say
+     *  "showing 40 of N" instead of presenting the sample size as the total. */
+    itemsTruncated: boolean;
   };
 }
 
@@ -84,6 +89,17 @@ export async function listContradictions(input: {
     ? await loadAllContradictions(days)
     : await loadRecentContradictions(days, false);
 
+  // 2026-09-02 self-audit · `counts`, `total` and `unresolved` were all
+  // derived from `items`, which loadRecentContradictions caps at 40 BEFORE
+  // filtering by status. So a window with 250 contradictions reported a total
+  // of 40 and a byStatus histogram of whichever 40 were newest — the sample
+  // size presented as the population, which is the same wrong-population
+  // defect the maturity rollup was fixed for one layer up. The list stays
+  // capped (40 rows is a reasonable page); the SUMMARY now comes from the
+  // uncapped SQL count, and `itemsTruncated` lets a consumer say "showing 40
+  // of N" rather than silently claiming N is 40.
+  const windowCounts = await countContradictionsByStatus(days);
+
   const counts = items.reduce(
     (acc, c) => {
       const status = c.status ?? "unresolved";
@@ -92,10 +108,10 @@ export async function listContradictions(input: {
     },
     {} as Record<string, number>,
   );
-
-  const unresolvedCount = includeResolved
-    ? (counts.unresolved ?? 0)
-    : items.length;
+  // byStatus keeps its per-status detail from the sample, but the two headline
+  // numbers do not come from it.
+  const totalCount = includeResolved ? windowCounts.classified : windowCounts.unresolved;
+  const unresolvedCount = windowCounts.unresolved;
 
   return {
     items: items.map((c) => ({
@@ -112,11 +128,12 @@ export async function listContradictions(input: {
       createdAt: c.createdAt,
     })),
     summary: {
-      total: items.length,
+      total: totalCount,
       unresolved: unresolvedCount,
       window: { days, includeResolved },
       byStatus: counts,
       unresolvedLast14: await countUnresolved(14),
+      itemsTruncated: items.length < totalCount,
     },
   };
 }
