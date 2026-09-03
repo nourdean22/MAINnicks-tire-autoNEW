@@ -140,7 +140,7 @@ export default function WomensSafetyPage() {
             uncomfortable, tell us. We'll make it right.
           </p>
           <p className="text-primary font-semibold text-sm mt-4">
-            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; 1,700+ Five-Star Reviews
+            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; 4.9★ · 1,700+ Google Reviews
           </p>
         </div>
       </section>

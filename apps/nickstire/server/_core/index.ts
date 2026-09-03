@@ -618,7 +618,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 - Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
 - Financing: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
-- Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Lyndhurst, Richmond Heights, Willoughby
+- Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
 
 ## Services
 - [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
