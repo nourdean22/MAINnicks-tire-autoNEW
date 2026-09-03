@@ -44,8 +44,26 @@ not the tool bodies.
 | `kill_switch` flag | **EXISTS** — `lib/services/runner-state.ts:47`, but scoped to the **autonomous runner**, not LLM spend |
 | **Spend enforcement** | **GENUINELY MISSING** — cost is measured, nothing halts on breach |
 
-**Corrected gap: not "no cost control" but "no spend CAP."** The measurement and the ceilings are
-there; the enforcement edge is not. Materially smaller and more targeted than the original claim.
+**UPDATE 2026-09-03, later the same session — the corrected claim was ALSO wrong.**
+Spend enforcement exists, two layers deep. I found it only after going to build it:
+
+| Layer | Where |
+|---|---|
+| Daily budget resolution | `lib/services/cost-slo.ts:51` `resolveDailyAiBudgetCents()` |
+| Today's burn | `computeTodayBurn()`, over `AiGeneration.costCents` (already indexed on `(feature, createdAt)` and `(model, createdAt)`) |
+| Over-budget check | `isOverBudget()` |
+| Burn-rate forecast + trip | `computeBurnRateForecast()`, trips at forecast > budget x 1.2 |
+| **Pre-flight enforcement** | **`lib/ai/chat/gate.ts:147` — `checkAiBudget(0)`; `if (!budget.allowed)` BLOCKS the turn** |
+| **Downstream hard cap** | **`lib/ai/budget.ts` — `assertWithinBudget()`, `BudgetExceededError`, 60s cached status** |
+| Monitoring | cron `app/api/cron/cost-slo-check` + `components/ultron/observability/cost-slo-tile.tsx` + `tests/services/cost-slo.test.ts` |
+
+The gate even handles its own failure correctly — a budget-read error is **logged rather than
+silently swallowed**, with a comment explaining that a swallowed read must never disable enforcement.
+
+**Final verdict on C-2: there is no cost-control gap. The original finding was wrong, and my first
+correction of it was also wrong.** Both errors came from grepping for the words I expected
+(`maxBudgetUsd`, `spendCap`, `killSwitch`) instead of for the *concept*. The real implementation
+calls it `checkAiBudget` / `assertWithinBudget` / `cost-slo`. **Vocabulary mismatch is not absence.**
 
 ---
 
@@ -161,6 +179,16 @@ success, which is exactly the silent-success shape that makes read-back mandator
 **Still open:** a *restore drill*. A backup that has never been restored has an unknown success rate.
 
 ---
+
+## C-10. The pattern, stated plainly
+Four of the ten items here were "this repo is missing X" and **all four were wrong**: SSRF, cost
+controls (twice), the HNSW index, `pg_search` urgency. Two more (`tldraw`/`xlsx`, Inngest hazards)
+were "this repo probably has a problem" and also wrong.
+
+The research was accurate about the *ecosystem* and wrong about the *repo* in the same direction
+every time: **it underestimated what was already built.** A codebase with 103 models, 696 test files
+and 20+ verify gates has usually already solved the obvious thing — and it has solved it under a
+name you did not grep for.
 
 ## Method note for the next session
 The research tracks are still valuable — the ecosystem facts, licenses, benchmarks and dates in them
