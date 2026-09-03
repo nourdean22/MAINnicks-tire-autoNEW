@@ -92,7 +92,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What if I'm declined by all 4 lenders?",
-      a: "It happens. When it does, we tell you straight, then walk through the options: a smaller used set ($160 cash gets you on the road today), a payment plan held on a debit card, or come back when your bank balance shows stronger activity (Acima looks at the last 90 days). We don't lecture and we don't ghost. The crew is here Monday-Saturday 9-6 and Sunday 9-4 — come in and let's figure it out.",
+      a: "It happens. When it does, we tell you straight, then walk through the options: a smaller used set ($160 cash gets you on the road today), a payment plan held on a debit card, or come back when your bank balance shows stronger activity (Acima looks at the last 90 days). We don't lecture and we don't ghost. The crew is here Monday-Saturday 8-6 and Sunday 9-4 — come in and let's figure it out.",
     },
     {
       q: "How long does the financing approval take?",

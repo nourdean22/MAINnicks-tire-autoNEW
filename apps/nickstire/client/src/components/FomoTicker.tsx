@@ -238,7 +238,10 @@ export default function FomoTicker() {
               background: "none",
               border: "none",
               cursor: "pointer",
-              padding: 2,
+              // WCAG 2.5.8 — 6px padding around the 14px glyph = 26px hit
+              // target; the matching -4px margin keeps the X visually placed.
+              padding: 6,
+              margin: -4,
               color: "#666",
               lineHeight: 1,
               flexShrink: 0,

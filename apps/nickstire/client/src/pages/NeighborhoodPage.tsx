@@ -239,7 +239,7 @@ export default function NeighborhoodPage() {
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
         description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}
         canonicalPath={`/${neighborhood.slug}`}
-        robots="noindex, follow"
+        robots={neighborhood.indexed ? "index, follow" : "noindex, follow"}
       />
       <NeighborhoodSchema neighborhood={neighborhood} />
 

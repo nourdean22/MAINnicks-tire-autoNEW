@@ -7,9 +7,15 @@
  * so crawlers and AI models can discover deep structured data.
  */
 import { BUSINESS } from "@shared/business";
+import { GBP_CID } from "@shared/const";
 
 interface Props {
-  /** Override the page name in schema */
+  /**
+   * @deprecated No longer overrides the schema entity name. The shared "@id"
+   * (/#localbusiness) must carry ONE canonical name (BUSINESS.name) or crawlers
+   * and AI engines see conflicting names for the same entity. Kept only so
+   * existing call sites still type-check.
+   */
   pageName?: string;
   /** Additional schema properties to merge */
   additionalSchema?: Record<string, unknown>;
@@ -22,16 +28,20 @@ interface Props {
 }
 
 export default function LocalBusinessSchema({
-  pageName,
   additionalSchema,
   includeHowTo = false,
   includeReviews = false,
   includeServices = false,
 }: Props) {
+  // Derive opening hours from the single source of truth so the schema can't
+  // drift from BUSINESS.hours (structured values are "HH:MM-HH:MM").
+  const [monSatOpen, monSatClose] = BUSINESS.hours.structured.monday.split("-");
+  const [sunOpen, sunClose] = BUSINESS.hours.structured.sunday.split("-");
   const schema = {
     "@context": "https://schema.org",
     "@type": ["AutoRepair", "TireShop"],
-    name: pageName || BUSINESS.name,
+    // One canonical name for the shared @id — see the pageName deprecation note.
+    name: BUSINESS.name,
     // 2026-05-06 cannibalization deep fix · explicit brand-name variants
     // for Google's knowledge graph. Without this, "nicks tires" / "nick
     // tire" / "nicks tire and auto" can match different pages because
@@ -58,7 +68,7 @@ export default function LocalBusinessSchema({
     telephone: `+1-${BUSINESS.phone.dashed}`,
     url: BUSINESS.urls.website,
     email: "info@nickstire.org",
-    foundingDate: "2018",
+    foundingDate: String(BUSINESS.founded.year),
     address: {
       "@type": "PostalAddress",
       streetAddress: BUSINESS.address.street,
@@ -76,28 +86,36 @@ export default function LocalBusinessSchema({
       {
         "@type": "OpeningHoursSpecification",
         dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-        opens: "08:00",
-        closes: "18:00",
+        opens: monSatOpen,
+        closes: monSatClose,
       },
       {
         "@type": "OpeningHoursSpecification",
         dayOfWeek: "Sunday",
-        opens: "09:00",
-        closes: "16:00",
+        opens: sunOpen,
+        closes: sunClose,
       },
     ],
     paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Acima, Snap Finance, Koalafi, American First Finance",
     currenciesAccepted: "USD",
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: BUSINESS.reviews.rating,
-      reviewCount: BUSINESS.reviews.count,
-      bestRating: 5,
-      worstRating: 1,
-    },
+    // Self-serving aggregateRating on your OWN LocalBusiness is ineligible for
+    // star rich results (Google policy), and emitting it on pages with NO
+    // visible reviews risks a manual action. Only emit where reviews are shown
+    // (includeReviews) — Home + the Reviews page — not site-wide on ~40 pages.
+    ...(includeReviews
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: BUSINESS.reviews.rating,
+            reviewCount: BUSINESS.reviews.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     priceRange: "$$",
     sameAs: [...BUSINESS.sameAs],
-    hasMap: BUSINESS.urls.googleBusiness,
+    hasMap: `https://www.google.com/maps?cid=${GBP_CID}`,
     areaServed: BUSINESS.serviceAreas.map((area) => ({
       "@type": "City",
       name: area,

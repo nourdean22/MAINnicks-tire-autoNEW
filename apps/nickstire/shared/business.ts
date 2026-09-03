@@ -111,6 +111,7 @@ export const BUSINESS = {
 
    // ─── SOCIAL / SAME-AS (GBP + GSC linking) ──────
   sameAs: [
+    "https://www.google.com/maps?cid=913066080091298245",
     "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
     "https://www.instagram.com/nicks_tire_euclid/",
     "https://www.facebook.com/nickstireeuclid/",

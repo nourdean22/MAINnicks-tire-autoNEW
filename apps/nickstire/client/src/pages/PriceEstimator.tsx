@@ -222,7 +222,7 @@ export default function PriceEstimator() {
                       href="/booking"
                       className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
-                      BOOK THIS SERVICE
+                      START A DROP-OFF
                     </a>
                     <a
                       href={BUSINESS.phone.href}

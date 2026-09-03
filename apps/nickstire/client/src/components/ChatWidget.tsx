@@ -225,7 +225,7 @@ export default function ChatWidget() {
             </div>
 
             {/* ─── MESSAGES ─── */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={scrollRef} role="log" aria-live="polite" aria-relevant="additions" aria-atomic="false" aria-label="Chat with Nick's assistant" className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
                 <div className="text-center py-6 space-y-4">
                   {/* Greeting */}

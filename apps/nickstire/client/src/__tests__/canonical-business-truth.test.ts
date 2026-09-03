@@ -194,3 +194,36 @@ describe("the site does not contradict its own ownership story", () => {
     expect(/run by moe/i.test("RUN BY MOE SINCE 2018")).toBe(true);
   });
 });
+
+/* -- weekday opening hours: one canonical value (8AM), no drift ----------- */
+
+/**
+ * The shop opens 8AM Mon-Sat (shared/business.ts hours.structured). A page
+ * claiming "Mon-Sat 9-6" tells an early walk-in the wrong open time and
+ * contradicts every other surface. That drift shipped once on
+ * NoCreditCheckTiresPage; this guard keeps it from returning. Sunday IS 9-4,
+ * so the matcher is scoped to the Mon-Sat span only and must not flag Sunday.
+ */
+const WEEKDAY_OPEN_AT_9 = /Mon(?:day)?[ ]?[-–][ ]?Sat(?:urday)?[ ]?9[ ]?[-–][ ]?6/i;
+
+describe("the shop's weekday hours open at 8, everywhere", () => {
+  it("no customer surface claims Mon-Sat 9-6 (canonical is 8-6)", () => {
+    const wrong = LINES.filter((l) => WEEKDAY_OPEN_AT_9.test(l.text));
+    expect(
+      wrong.map((w) => `${w.file}:${w.line}`),
+      `weekday-hours drift (canonical Mon-Sat is 8-6): ${JSON.stringify(wrong.slice(0, 5))}`,
+    ).toEqual([]);
+  });
+
+  it("the canonical constant opens Mon-Sat at 08:00", () => {
+    expect(BUSINESS.hours.structured.monday).toMatch(/^08:00/);
+  });
+
+  // MUTATION-STYLE PROOF: the matcher must SEE a 9-6 weekday claim and must
+  // NOT fire on the correct 8-6 or on Sunday's real 9-4.
+  it("the matcher detects a drifted 9-6 and ignores correct hours", () => {
+    expect(WEEKDAY_OPEN_AT_9.test("we're here Monday-Saturday 9-6 and Sunday 9-4")).toBe(true);
+    expect(WEEKDAY_OPEN_AT_9.test("Mon-Sat 8-6, Sun 9-4")).toBe(false);
+    expect(WEEKDAY_OPEN_AT_9.test("Sunday 9-4")).toBe(false);
+  });
+});
