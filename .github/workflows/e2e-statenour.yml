@@ -114,7 +114,7 @@ jobs:
         uses: pnpm/action-setup@v6
 
       - name: Setup Node 24 (matches Railway runtime)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
