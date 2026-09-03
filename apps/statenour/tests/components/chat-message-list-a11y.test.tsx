@@ -95,3 +95,36 @@ describe("ChatMessageList · streaming a11y semantics", () => {
     expect(markup).toContain('role="status"');
   });
 });
+
+// 2026-09-02 · Receipt-chip honesty. The chip mounts whenever the latest
+// assistant turn carries a traceId, which is the COMMON case for a plain
+// conversational reply that ran no tools. It computed `allEmpty` behind a
+// `counts.total > 0` guard, so zero tool parts fell through to the
+// emerald "verified" shield while the count text was hidden by its own
+// `total > 0` guard -- a bare green shield over a turn that proved
+// nothing. Asserted through rendered markup, not source-matched.
+describe("ChatMessageList . receipt chip does not over-claim", () => {
+  function renderWithTrace(): string {
+    return renderToStaticMarkup(
+      <ChatMessageList
+        messages={messages}
+        isLoading={false}
+        error={undefined}
+        lastTraceIdRef={{ current: "trace-abc" } as React.RefObject<string | null>}
+      />,
+    );
+  }
+
+  it("says so plainly when a turn ran no tools", () => {
+    expect(renderWithTrace()).toContain("no tools run");
+  });
+
+  it("does NOT paint the verification shield green for zero receipts", () => {
+    const markup = renderWithTrace();
+    // The canary: emerald is reserved for receipts that actually returned.
+    // If this ever passes again, the chip is claiming verification it does
+    // not have -- the exact defect the 2026-08-29 fix half-closed.
+    expect(markup).not.toContain("text-emerald-400");
+    expect(markup).toContain("text-fg-tertiary");
+  });
+});

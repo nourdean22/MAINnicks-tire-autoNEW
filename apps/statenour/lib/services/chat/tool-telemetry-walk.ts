@@ -7,7 +7,7 @@
  * explainability envelope + claim verifier consume downstream.
  */
 
-import { recordToolInvocation } from "@/lib/ai/tool-telemetry";
+import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
 
 export interface CapturedToolCall {
   name: string;
@@ -121,6 +121,10 @@ export function walkToolTelemetry(args: {
           durationMs,
           errorMessage,
           conversationId: convId,
+          // A missing-key refusal is misconfiguration, not flakiness --
+          // it stays a recorded failure but must not trip the breaker
+          // and strip the tool from the catalog for 30 minutes.
+          configError: errored && isConfigurationError(errorMessage),
         }).catch(() => {});
         // Mirror into the envelope buffer — same source, same data,
         // just persisted in two places (telemetry table + AgentTrace

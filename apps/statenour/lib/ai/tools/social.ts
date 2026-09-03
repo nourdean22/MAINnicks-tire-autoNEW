@@ -12,6 +12,15 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+/**
+ * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
+ * chars by default and may PREPEND an injection annotation before
+ * applying that cap. Anything built to fill a fence must budget for
+ * both, or the fence truncates the very content it exists to label.
+ */
+const FENCE_BODY_CAP = 4000;
+const ANNOTATION_SLACK = 200;
+
 export const socialTools = {
   sendTelegram: tool({
     description: "Send a Telegram message to Nour. Use for proactive alerts, reminders, or important notifications that need to reach his phone.",
@@ -241,13 +250,24 @@ export const socialTools = {
       const threads = await listInbox({ maxResults, query });
       return {
         threadCount: threads.length,
+        // `subject` and `from` are attacker-chosen: anyone who can email
+        // Nour picks those 200 characters. They used to be returned RAW
+        // beside an already-fenced snippet, which made this the cheapest
+        // injection surface in the app -- no page to host, no link to
+        // click, just send mail and land unlabelled text in model
+        // context. Fencing them TOGETHER with the snippet as one block
+        // keeps the fence count per thread at exactly one, so closing
+        // the hole costs no extra tokens (a per-field fence would have
+        // added ~90 chars x 60 fields on a 30-thread listing).
         threads: threads.slice(0, 30).map((t) => ({
           id: t.id,
-          subject: t.subject.slice(0, 200),
-          from: t.from.slice(0, 200),
-          snippet: fenceContent("arsenalGmailInbox", "external_doc", t.snippet.slice(0, 300)),
           messageCount: t.messageCount,
           unread: t.unread,
+          content: fenceContent(
+            "arsenalGmailInbox",
+            "external_doc",
+            `Subject: ${t.subject.slice(0, 200)}\nFrom: ${t.from.slice(0, 200)}\n\n${t.snippet.slice(0, 300)}`,
+          ),
         })),
         source: "arsenal/gmail",
       };
@@ -268,14 +288,39 @@ export const socialTools = {
       const thread = await getThread(threadId);
       return {
         id: thread.id,
-        subject: thread.subject.slice(0, 200),
         messageCount: thread.messages.length,
-        messages: thread.messages.map((m) => ({
-          from: m.from.slice(0, 200),
-          to: m.to.slice(0, 200),
-          date: m.date,
-          body: fenceContent("arsenalGmailReadThread", "external_doc", m.body.slice(0, 4000)),
-        })),
+        // Same reasoning as arsenalGmailInbox above: subject / from / to
+        // are sender-controlled and were returned unfenced next to a
+        // fenced body. The per-message body budget is derived below.
+        subject: fenceContent(
+          "arsenalGmailReadThread",
+          "external_doc",
+          thread.subject.slice(0, 200),
+        ),
+        messages: thread.messages.map((m) => {
+          // 2026-09-02 review P2 · the 3700 slice was arithmetic I got
+          // wrong. At maximum field lengths the header reaches ~484 chars
+          // (200 From + 200 To + 64 Date + labels + newlines), so
+          // 3700 + 484 = 4184 against fenceContent's 4000-char body cap:
+          // long mail silently lost its last ~184 characters while the
+          // comment beside it claimed the slice PREVENTED truncation.
+          // Derive the allowance from the header actually built, and keep
+          // slack for the injection annotation fenceContent may prepend
+          // BEFORE applying that cap.
+          const header = `From: ${m.from.slice(0, 200)}
+To: ${m.to.slice(0, 200)}
+Date: ${String(m.date).slice(0, 64)}
+
+`;
+          const bodyBudget = Math.max(500, FENCE_BODY_CAP - ANNOTATION_SLACK - header.length);
+          return {
+            content: fenceContent(
+              "arsenalGmailReadThread",
+              "external_doc",
+              `${header}${m.body.slice(0, bodyBudget)}`,
+            ),
+          };
+        }),
         source: "arsenal/gmail",
       };
     },

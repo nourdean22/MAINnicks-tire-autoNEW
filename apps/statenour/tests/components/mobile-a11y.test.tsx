@@ -360,3 +360,34 @@ describe("A11 · ultron interactive controls reach 44px on mobile", () => {
     // case dropped 2026-09-01 (audit W-3): both subjects are unreachable.
   });
 });
+
+// ─── 6 · chat-island header touch targets ────────────────────────────
+
+// 2026-09-02 · The Context / History / Voice controls shipped at
+// min-h-9 (36px) with `hidden sm:inline` labels, so on the phone this
+// operator actually uses they were roughly 33x36px -- below every floor
+// this file exists to defend. It survived because mobile-a11y pinned the
+// composer and the tickers and NOTHING pinned chat-island's header.
+// Source-asserted for the same reason the composer is (see the header of
+// this file): rendering chat-island needs a streaming-transport mock.
+describe("chat-island header controls clear the touch floor", () => {
+  const src = readSource("features/chat-v2/components/chat-island.tsx");
+
+  it("has no sub-44px button left in the header", () => {
+    // The literal that shipped the defect. If it comes back, so does the
+    // 36px control.
+    expect(src).not.toContain("flex min-h-9 items-center");
+  });
+
+  it("declares a 44px floor on all three header controls", () => {
+    const matches = src.match(/min-h-11 min-w-11 items-center justify-center gap-1\.5 rounded-lg border/g) ?? [];
+    expect(matches.length).toBe(3);
+  });
+
+  it("keeps the scroll-to-latest button clear of the right-aligned message actions", () => {
+    // It was `absolute bottom-3 right-3`, sitting on top of the last user
+    // message's Copy / Edit / More row (also justify-end).
+    expect(src).not.toContain("absolute bottom-3 right-3");
+    expect(src).toContain("absolute bottom-3 left-1/2 -translate-x-1/2");
+  });
+});

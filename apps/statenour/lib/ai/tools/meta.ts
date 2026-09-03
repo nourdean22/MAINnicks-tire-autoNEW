@@ -480,9 +480,30 @@ export const metaTools = {
       const { TOOL_CATALOG, getToolRiskClass } = await import("@/lib/ai/tools/catalog");
       const { isReadSafeTool } = await import("@/lib/ai/capability-registry");
       const schemas = await getSchemaIndex();
-      const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
-      if (tokens.length === 0) return { error: "query produced no usable tokens" };
-      const scored = TOOL_CATALOG.map((meta) => {
+      // 2026-09-02 · review P1. The filter used to keep every 2-char token
+      // and the scorer substring-matches, so "on" out of a query like
+      // "best thriller shows on streaming" hit inside dozens of unrelated
+      // names and descriptions -- ~145 results, none of them the web-search
+      // tool. That made the semantic fallback below UNREACHABLE for exactly
+      // the query class it was written for, because `scored` was never
+      // empty. A 3-char floor plus stop-words restores meaning to a hit.
+      const STOP_WORDS = new Set([
+        "the", "and", "for", "with", "that", "this", "from", "are", "was",
+        "you", "your", "its", "out", "how", "what", "when", "who", "why", "can",
+        "get", "all", "any", "not", "but", "into", "about", "best", "top", "new",
+        "now", "right", "some", "more", "most", "please", "need", "want", "show",
+        "give", "tell", "find", "make", "does", "did", "has", "have", "had",
+      ]);
+      const tokens = query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
+      // `score` is present on lexical hits and absent on semantic ones -- the
+// merge below carries both shapes in one list, and the weak-evidence
+// trigger reads scored[0]?.score.
+      type Hit = { meta: (typeof TOOL_CATALOG)[number]; name: string; score?: number };
+      let matchedBy: "keyword" | "semantic" | "hybrid" = "keyword";
+      let scored: Hit[] = TOOL_CATALOG.map((meta) => {
         const name = meta.name;
         const hay = `${name} ${meta.category} ${schemas.get(name)?.description ?? ""}`.toLowerCase();
         let score = 0;
@@ -495,8 +516,72 @@ export const metaTools = {
         .filter((s) => s.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
+
+      // SEMANTIC FALLBACK.
+      // The pass above scores by TOKEN OVERLAP against name + category +
+      // description, then drops everything with score 0. So a query
+      // sharing no words with the catalog returns NOTHING -- which is
+      // precisely the miss that makes this recovery lane necessary. The
+      // pruner that dropped the tool already ranks semantically
+      // (chat-mode.ts tier 5); the recovery lane did not, so a semantic
+      // gap defeated BOTH the primary selector and its fallback, and the
+      // model correctly concluded the capability did not exist.
+      // ("best thriller shows on streaming" shares no token with
+      // arsenalWebSearch, its category, or its description.)
+      //
+      // Only fires when keyword matching found nothing: embedUserMessage
+      // is a provider call, and paying for it when the cheap path already
+      // answered would tax every recovery. Degrades silently to the empty
+      // keyword result if the cache is cold or the embedding call fails --
+      // both already possible today, so this can only add hits.
+      // Trigger on WEAK evidence, not just zero. A score of 3+ means the
+      // query matched a tool NAME; anything less is description/category
+      // substring noise, which is how the pruner's own miss reaches here.
+      const strongestLexical = scored[0]?.score ?? 0;
+      if (scored.length === 0 || strongestLexical < 3) {
+        try {
+          const { isToolEmbeddingCacheWarm, embedUserMessage, rankToolsBySimilarity } =
+            await import("@/lib/ai/tool-embeddings");
+          if (isToolEmbeddingCacheWarm()) {
+            const queryEmbedding = await embedUserMessage(query);
+            if (queryEmbedding.length > 0) {
+              const byName = new Map(TOOL_CATALOG.map((m) => [m.name, m]));
+              // 0.25 mirrors the live floor the pruner passes at
+              // chat-mode.ts:582 (NOT rankToolsBySimilarity's 0.3
+              // default) so the recovery lane is never stricter than the
+              // selector it exists to backstop.
+              const ranked = rankToolsBySimilarity(queryEmbedding, limit, 0.25);
+              const hits = ranked
+                .map(([name]) => ({ meta: byName.get(name), name }))
+                .filter((h): h is Hit => Boolean(h.meta));
+              if (hits.length > 0) {
+                // MERGE rather than replace: a weak lexical hit can still
+                // be the right tool, and dropping it to make room for a
+                // semantic guess would trade one miss for another.
+                // Semantic first (it fired because lexical was weak),
+                // deduped by name, then truncated to the caller's limit.
+                const seen = new Set(hits.map((h) => h.name));
+                const merged = [...hits];
+                for (const prior of scored) {
+                  if (!seen.has(prior.name)) {
+                    seen.add(prior.name);
+                    merged.push(prior);
+                  }
+                }
+                matchedBy = scored.length > 0 ? "hybrid" : "semantic";
+                scored = merged.slice(0, limit);
+              }
+            }
+          }
+        } catch {
+          // Recovery must never throw: an empty result is a worse answer,
+          // a thrown error is a broken turn.
+        }
+      }
+
       return {
         count: scored.length,
+        matchedBy,
         tools: scored.map(({ meta, name }) => ({
           name,
           category: meta.category,
