@@ -1,0 +1,221 @@
+/**
+ * tests/ai/tool-selection-telemetry.test.ts
+ *
+ * THE GAP THIS CLOSES: lib/ai/tool-telemetry.ts records what happened
+ * when a tool RAN. Nothing recorded which of the 181 tools were ever
+ * OFFERED. pruneTools() picks <=NICK_TOOL_BUDGET (default 24) via a
+ * 6-tier cascade whose tier 4 is ~40 hand-written regexes, and a miss
+ * there makes a tool simply not exist for that turn -- with no trace.
+ *
+ * CANARY DISCIPLINE (root AGENTS.md, "Ship the canary, not just the
+ * control"): a recorder that swallows its own failures is worse than no
+ * recorder, because an empty table then reads as "no pruner misses"
+ * rather than "the recorder is broken" -- the exact "failed read
+ * rendering as a confident zero" shape the /brain audit found ten
+ * times. So this file does not merely assert the happy path writes
+ * rows. It BREAKS the writer and asserts the module reports itself
+ * broken, and it asserts a healthy writer does NOT report broken.
+ * Without that pair, a permanently-failing recorder scores green.
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const createTurn = vi.fn().mockResolvedValue({});
+const createManyDecisions = vi.fn().mockResolvedValue({ count: 0 });
+const updateTurn = vi.fn().mockResolvedValue({});
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    toolSelectionTurn: {
+      create: (...a: unknown[]) => createTurn(...a),
+      update: (...a: unknown[]) => updateTurn(...a),
+    },
+    toolGateDecision: {
+      createMany: (...a: unknown[]) => createManyDecisions(...a),
+    },
+  },
+}));
+
+vi.mock("@/lib/utils/error-log", () => ({
+  logError: vi.fn().mockResolvedValue(undefined),
+}));
+
+import {
+  recordToolSelection,
+  markSearchToolsFired,
+  markInvokeToolFired,
+  getSelectionTelemetryHealth,
+  __resetSelectionTelemetryHealth,
+  SELECTION_TIER,
+  type SelectionTurn,
+} from "@/lib/ai/tool-selection-telemetry";
+
+function turn(over: Partial<SelectionTurn> = {}): SelectionTurn {
+  return {
+    turnId: "turn-1",
+    mode: "standard",
+    candidateCount: 40,
+    selectedCount: 24,
+    budget: 24,
+    budgetTruncated: true,
+    embeddingCacheWarm: true,
+    decisions: [
+      { toolName: "getTasks", verdict: "ALLOWED", tier: SELECTION_TIER.CORE },
+      {
+        toolName: "analyzeFitness",
+        verdict: "BUDGETED_OUT",
+        tier: SELECTION_TIER.SEMANTIC,
+        rank: 31,
+        score: 0.41,
+      },
+    ],
+    ...over,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  __resetSelectionTelemetryHealth();
+  createTurn.mockResolvedValue({});
+  createManyDecisions.mockResolvedValue({ count: 0 });
+  updateTurn.mockResolvedValue({});
+});
+
+describe("recordToolSelection", () => {
+  it("writes the turn and one row per considered tool", async () => {
+    await recordToolSelection(turn());
+
+    expect(createTurn).toHaveBeenCalledTimes(1);
+    const turnArg = createTurn.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(turnArg.data.turnId).toBe("turn-1");
+    expect(turnArg.data.budgetTruncated).toBe(true);
+    expect(turnArg.data.candidateCount).toBe(40);
+
+    expect(createManyDecisions).toHaveBeenCalledTimes(1);
+    const decArg = createManyDecisions.mock.calls[0][0] as {
+      data: Array<Record<string, unknown>>;
+    };
+    expect(decArg.data).toHaveLength(2);
+    // The dropped tool must be recorded as a VALUE, not an absence.
+    expect(decArg.data[1]).toMatchObject({
+      toolName: "analyzeFitness",
+      verdict: "BUDGETED_OUT",
+      rank: 31,
+    });
+  });
+
+  it("records a cold embedding cache rather than silently selecting fewer tools", async () => {
+    // Tier 5 no-ops when the cache is cold. If that is not recorded, a
+    // cold lambda is indistinguishable from a genuine zero-match --
+    // which is how analyzeFitness became unreachable in Jul 2026.
+    await recordToolSelection(
+      turn({ embeddingCacheWarm: false, selectedCount: 8, budgetTruncated: false })
+    );
+
+    const turnArg = createTurn.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(turnArg.data.embeddingCacheWarm).toBe(false);
+    expect(turnArg.data.budgetTruncated).toBe(false);
+  });
+
+  it("skips the decisions write when nothing was considered", async () => {
+    await recordToolSelection(turn({ decisions: [] }));
+    expect(createTurn).toHaveBeenCalledTimes(1);
+    expect(createManyDecisions).not.toHaveBeenCalled();
+  });
+
+  it("truncates over-long fields instead of throwing", async () => {
+    await recordToolSelection(
+      turn({
+        mode: "x".repeat(60),
+        decisions: [
+          {
+            toolName: "y".repeat(300),
+            verdict: "NOT_FOUND",
+            reason: "z".repeat(400),
+          },
+        ],
+      })
+    );
+
+    const turnArg = createTurn.mock.calls[0][0] as {
+      data: Record<string, string>;
+    };
+    expect(turnArg.data.mode.length).toBe(24);
+    const decArg = createManyDecisions.mock.calls[0][0] as {
+      data: Array<Record<string, string>>;
+    };
+    expect(decArg.data[0].toolName.length).toBe(120);
+    expect(decArg.data[0].reason.length).toBe(200);
+  });
+});
+
+describe("markSearchToolsFired / markInvokeToolFired", () => {
+  it("records the pruner-miss signal with its query", async () => {
+    await markSearchToolsFired("turn-1", "sleep data");
+    expect(updateTurn).toHaveBeenCalledWith({
+      where: { turnId: "turn-1" },
+      data: { searchToolsFired: true, searchToolsQuery: "sleep data" },
+    });
+  });
+
+  it("records which dropped tool invokeTool actually ran", async () => {
+    await markInvokeToolFired("turn-1", "getHabitStreaks");
+    expect(updateTurn).toHaveBeenCalledWith({
+      where: { turnId: "turn-1" },
+      data: { invokeToolFired: true, invokedToolName: "getHabitStreaks" },
+    });
+  });
+});
+
+describe("CANARY: the recorder must report its own failure", () => {
+  it("does NOT report broken while writes succeed", async () => {
+    await recordToolSelection(turn());
+    const health = getSelectionTelemetryHealth();
+    expect(health.writesAttempted).toBe(1);
+    expect(health.writesFailed).toBe(0);
+    // The control half: without this, a gate that always reported
+    // "broken" would pass the break-test below and still be useless.
+    expect(health.looksBroken).toBe(false);
+  });
+
+  it("reports broken when every write fails — an empty table must not read as zero misses", async () => {
+    createTurn.mockRejectedValue(
+      new Error('relation "tool_selection_turns" does not exist')
+    );
+
+    await recordToolSelection(turn());
+
+    const health = getSelectionTelemetryHealth();
+    expect(health.writesFailed).toBe(1);
+    expect(health.looksBroken).toBe(true);
+    expect(health.lastWriteError).toContain("does not exist");
+    expect(health.lastWriteErrorAt).toBeTypeOf("number");
+  });
+
+  it("never throws into the request path when the table is missing", async () => {
+    createTurn.mockRejectedValue(new Error("boom"));
+    updateTurn.mockRejectedValue(new Error("boom"));
+
+    // The tables do not exist until the parked migration is applied, so
+    // a throw here would break live chat on deploy.
+    await expect(recordToolSelection(turn())).resolves.toBeUndefined();
+    await expect(markSearchToolsFired("t", "q")).resolves.toBeUndefined();
+    await expect(markInvokeToolFired("t", "n")).resolves.toBeUndefined();
+  });
+
+  it("does not report broken on a partial failure", async () => {
+    createTurn.mockRejectedValueOnce(new Error("transient"));
+    await recordToolSelection(turn());
+    await recordToolSelection(turn({ turnId: "turn-2" }));
+
+    const health = getSelectionTelemetryHealth();
+    expect(health.writesAttempted).toBe(2);
+    expect(health.writesFailed).toBe(1);
+    // 1 of 2 failing is a blip, not a broken recorder.
+    expect(health.looksBroken).toBe(false);
+  });
+});

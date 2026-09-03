@@ -66,7 +66,13 @@ export async function pruneTools(
   // unavailable tool 'arsenalWebSearch'" in tool telemetry) and told
   // the operator the capability was unavailable. The route passes the
   // recent user-message tail; triggers match against message + tail.
-  opts?: { conversationTail?: string }
+  opts?: {
+    conversationTail?: string;
+    /** 2026-09-03 - selection telemetry. Opt-in: when absent, no
+     *  rows are written and behaviour is byte-identical to before. */
+    turnId?: string;
+    conversationId?: string;
+  }
 ): Promise<Record<string, unknown>> {
   const isDeep = mode === "deep";
 
@@ -544,44 +550,65 @@ export async function pruneTools(
   // tight budget can never break a step-0 toolChoice force.
   const TOOL_BUDGET = Math.max(10, Number(process.env.NICK_TOOL_BUDGET) || 24);
 
-  const addIfSpace = (name: string) => {
-    if (selectedNames.size >= TOOL_BUDGET) return;
+  // 2026-09-03 · selection telemetry. Records WHICH tier supplied each
+  // tool and which candidates fell off the budget cliff. Previously a
+  // dropped tool left no trace at all, so the ~40 keyword regexes in
+  // tier 4 could only be maintained one anecdote at a time.
+  const tierOf = new Map<string, number>();
+  const budgetedOut = new Map<string, number>();
+  // False also when tier 5 never ran. Recorded either way so a cold
+  // lambda is distinguishable from a genuine zero-match.
+  let embeddingCacheWarm = false;
+
+  const addIfSpace = (name: string, tier?: number) => {
+    if (selectedNames.size >= TOOL_BUDGET) {
+      // Candidate considered but no room. Record it once, with the
+      // tier that WOULD have supplied it.
+      if (allTools[name] && !selectedNames.has(name) && !budgetedOut.has(name)) {
+        budgetedOut.set(name, tier ?? 0);
+      }
+      return;
+    }
     if (allTools[name]) {
+      if (!selectedNames.has(name) && tier !== undefined) {
+        tierOf.set(name, tier);
+      }
       selectedNames.add(name);
     }
   };
 
   // Tier 1: CORE_TOOLS
   for (const name of CORE_TOOLS) {
-    addIfSpace(name);
+    addIfSpace(name, 1);
   }
 
   // Tier 2: ACTION_CORE
   for (const name of ACTION_CORE) {
-    addIfSpace(name);
+    addIfSpace(name, 2);
   }
 
   // Tier 3: Exact tool-name mentions (explicit user intent)
   const sortedExact = Array.from(exactMentioned).sort();
   for (const name of sortedExact) {
-    addIfSpace(name);
+    addIfSpace(name, 3);
   }
 
   // Tier 4: Deterministic natural-language keyword-family matches
   const sortedKeyword = Array.from(keywordMatches).sort();
   for (const name of sortedKeyword) {
-    addIfSpace(name);
+    addIfSpace(name, 4);
   }
 
   // Tier 5: Semantic-ranked tools
   if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < TOOL_BUDGET) {
     try {
       const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
-      if (isToolEmbeddingCacheWarm()) {
+      embeddingCacheWarm = isToolEmbeddingCacheWarm();
+      if (embeddingCacheWarm) {
         const topN = isDeep ? 40 : 15;
         const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
         for (const [name] of ranked) {
-          addIfSpace(name);
+          addIfSpace(name, 5);
         }
       }
     } catch (err) {
@@ -597,7 +624,7 @@ export async function pruneTools(
     // inline agenda section on, so the retrieval path must be present.
     const defaults = ["getCommitments", "getAgendaItems", "getTasks", "dailyPulse", "findCustomer"];
     for (const name of defaults) {
-      addIfSpace(name);
+      addIfSpace(name, 6);
     }
   }
 
@@ -605,6 +632,45 @@ export async function pruneTools(
   for (const name of selectedNames) {
     kept[name] = allTools[name];
   }
+
+  // 2026-09-03 · Fire-and-forget selection telemetry. Opt-in on
+  // opts.turnId, so every existing caller is byte-identical. Never
+  // awaited and never throws (CIITTY: don't crash the API on a missing
+  // table) - the backing tables land with
+  // prisma/migrations-pending/20260903120000_tool_selection_telemetry.
+  if (opts?.turnId) {
+    const turnId = opts.turnId;
+    const conversationId = opts.conversationId;
+    void import("./tool-selection-telemetry")
+      .then(({ recordToolSelection }) =>
+        recordToolSelection({
+          turnId,
+          conversationId,
+          mode,
+          candidateCount: selectedNames.size + budgetedOut.size,
+          selectedCount: selectedNames.size,
+          budget: TOOL_BUDGET,
+          budgetTruncated: budgetedOut.size > 0,
+          embeddingCacheWarm,
+          decisions: [
+            ...Array.from(selectedNames).map((name) => ({
+              toolName: name,
+              verdict: "ALLOWED" as const,
+              tier: tierOf.get(name),
+            })),
+            ...Array.from(budgetedOut.entries()).map(([name, tier]) => ({
+              toolName: name,
+              verdict: "BUDGETED_OUT" as const,
+              tier: tier || undefined,
+            })),
+          ],
+        })
+      )
+      .catch(() => {
+        /* telemetry must never affect the turn */
+      });
+  }
+
   return kept;
 }
 
