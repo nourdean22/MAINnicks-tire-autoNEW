@@ -20,6 +20,9 @@ import { resolve } from "node:path";
 
 const APP = process.cwd();
 const SCRIPT = "scripts/lint-brand-voice.ts";
+// The audit enumerates the whole repository. Its output can exceed Node's
+// 1 MiB spawnSync default on CI, which truncated the final mode receipt.
+const CHILD_MAX_BUFFER = 8 * 1024 * 1024;
 
 function run(env: Record<string, string> = {}) {
   const r = spawnSync("pnpm", ["exec", "tsx", SCRIPT], {
@@ -28,6 +31,7 @@ function run(env: Record<string, string> = {}) {
     encoding: "utf8",
     shell: true,
     timeout: 180_000,
+    maxBuffer: CHILD_MAX_BUFFER,
   });
   return { out: `${r.stdout ?? ""}${r.stderr ?? ""}`, code: r.status };
 }
@@ -54,9 +58,15 @@ describe("lint-brand-voice does not fail open", () => {
 
   it("audit mode still works — it reads git ls-files through the same helper", () => {
     const r = spawnSync("pnpm", ["exec", "tsx", SCRIPT, "--audit"], {
-      cwd: APP, encoding: "utf8", shell: true, timeout: 180_000,
+      cwd: APP,
+      encoding: "utf8",
+      shell: true,
+      timeout: 180_000,
+      maxBuffer: CHILD_MAX_BUFFER,
     });
-    expect(`${r.stdout ?? ""}`).toMatch(/Mode: AUDIT/);
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    expect(r.status).toBe(0);
+    expect(out).toMatch(/Mode: AUDIT/);
   }, 200_000);
 });
 
