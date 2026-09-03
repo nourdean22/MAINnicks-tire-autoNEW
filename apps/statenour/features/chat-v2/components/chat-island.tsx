@@ -264,13 +264,13 @@ export function ChatIsland() {
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${memoryInspectorOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
+          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${memoryInspectorOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
             <Brain size={13} /><span className="hidden sm:inline">Context</span>
           </button>
-          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${historyDrawerOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
+          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${historyDrawerOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
             <History size={13} /><span className="hidden sm:inline">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${isVoiceDocked ? "border-red-500/35 bg-red-500/10 text-red-300" : "border-edge text-fg-secondary hover:text-fg"}`}>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${isVoiceDocked ? "border-red-500/35 bg-red-500/10 text-red-300" : "border-edge text-fg-secondary hover:text-fg"}`}>
             {isVoiceDocked ? <MicOff size={13} /> : <Mic size={13} />}<span className="hidden sm:inline">Voice</span>
           </button>
         </div>
@@ -299,12 +299,19 @@ export function ChatIsland() {
         {/* Jump to latest — shows only once the operator has scrolled
             away from the bottom (same isNearBottom predicate as the
             auto-follow, so the two can never disagree). 48px circle =
-            the iOS-PWA touch-target floor. */}
+            the iOS-PWA touch-target floor.
+            2026-09-02 · moved from bottom-RIGHT to bottom-centre. Anchored
+            right, the 48px circle sat on top of the right-aligned user
+            bubbles (justify-end, 16px container padding) and, worse, on the
+            Copy / Edit / More row of the most recent user message -- which
+            is also justify-end. The list's pb-12 protects the list's own
+            bottom, not a viewport-anchored button. Centre-bottom collides
+            with nothing and is the conventional position anyway. */}
         {!isAtBottom && (
           <button
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="absolute bottom-3 right-3 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge bg-void/90 text-fg-secondary shadow-lg backdrop-blur-xl transition-colors hover:text-fg active:scale-95"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge bg-void/90 text-fg-secondary shadow-lg backdrop-blur-xl transition-colors hover:text-fg active:scale-95"
           >
             <ArrowDown size={18} />
           </button>

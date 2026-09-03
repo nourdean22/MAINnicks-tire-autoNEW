@@ -185,7 +185,13 @@ function MessageActions({
           <MessageActionButton
             onClick={onToggleNarration}
             label={narrationOn ? "Auto-read replies is on (tap to turn off)" : "Auto-read replies is off (tap to turn on)"}
-            text={narrationOn ? "auto" : undefined}
+            // 2026-09-02 · was `narrationOn ? "auto" : undefined`, and the
+            // button passes no icon -- so in the DEFAULT (off) state
+            // `icon ?? text` resolved to undefined and every assistant
+            // message carried a BLANK 44x44 tap target, labelled only to
+            // screen readers. The on/off state is already carried by
+            // `active` styling and aria-pressed, so the label is constant.
+            text="auto"
             active={narrationOn && !isSpeaking}
           />
         </>
@@ -230,14 +236,28 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
   // actually proved. Empty results now get counted and named on their own.
   const counts = summarizeToolReceipts(toolParts);
   const allEmpty = counts.total > 0 && counts.returned === 0 && counts.failed === 0 && counts.running === 0;
+  // 2026-09-02 · The 2026-08-29 fix above caught "returned empty" and
+  // missed "never ran". `allEmpty` requires total > 0, so a turn with NO
+  // tool parts fell through to emerald and the count text was hidden by
+  // the `total > 0` guard below -- a bare green verification shield over
+  // a turn that proved nothing, which is the same over-claim in a new
+  // shape. The chip mounts on any turn carrying a traceId, so this is
+  // the common case for conversational replies, not an edge case.
+  const ranNothing = counts.total === 0;
+  const unproven = ranNothing || allEmpty;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-void/60 px-3 py-2 text-[11px] text-fg-secondary">
       <ShieldCheck
         size={13}
-        className={counts.failed > 0 ? "text-red-400" : allEmpty ? "text-fg-tertiary" : "text-emerald-400"}
+        aria-hidden="true"
+        className={counts.failed > 0 ? "text-red-400" : unproven ? "text-fg-tertiary" : "text-emerald-400"}
       />
-      {counts.total > 0 && <span>{formatToolReceipts(counts)}</span>}
+      {counts.total > 0 ? (
+        <span>{formatToolReceipts(counts)}</span>
+      ) : (
+        <span className="text-fg-tertiary">no tools run</span>
+      )}
       {traceId && (
         <Link
           href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
