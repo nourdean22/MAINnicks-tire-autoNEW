@@ -290,6 +290,19 @@ beforeEach(() => {
 });
 
 describe("v9.0-beta · prompt-v2 renderer", () => {
+  it("renders a health-read failure as unavailable, never an all-clear", () => {
+    const sections = renderPromptV2({
+      ...FIXTURE,
+      systemHealth: {
+        ...FIXTURE.systemHealth,
+        unavailableSources: ["cron-runs"],
+      },
+    });
+
+    expect(sections.health).toContain("⚠️ data unavailable (cron-runs)");
+    expect(sections.health).not.toContain("## SYSTEM HEALTH · ✓ health reads");
+  });
+
   it("renders all sections from a populated context", () => {
     const sections = renderPromptV2(FIXTURE);
 

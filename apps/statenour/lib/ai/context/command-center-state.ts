@@ -235,6 +235,8 @@ export interface SystemHealthSummary {
   crons: { active: number; silent: number; failures24h: number };
   ai: { recentCallCount: number; recentErrorRate: number };
   memory: { lastBrainCycleAt: string | null; embeddingCoveragePct: number };
+  /** Health sources that failed to read; their numeric fallbacks are unknown. */
+  unavailableSources?: string[];
 }
 
 /** Re-exported from the canonical vocabulary module (2026-08-08 — the
@@ -343,6 +345,15 @@ function startOfDayUTC(daysAgo = 0): Date {
 export async function buildCommandCenterState(): Promise<CommandCenterState> {
   return cached<CommandCenterState>("ultron_command_center_state_v1", 15, async () => {
     const now = new Date();
+  // The command center intentionally degrades when one read fails, but a
+  // numeric fallback is not a measured zero. Carry the failure into the
+  // rendered health contract so the prompt cannot report an all-clear from a
+  // database error.
+  const unavailableHealthSources = new Set<string>();
+  const healthFallback = <T,>(source: string, fallback: T) => (): T => {
+    unavailableHealthSources.add(source);
+    return fallback;
+  };
   const dayStart = startOfDayUTC(0);
   const sevenDaysAgo = startOfDayUTC(7);
   const oneDayAgo = new Date(Date.now() - 86_400_000);
@@ -626,7 +637,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         where: { createdAt: { gte: dayStart } },
         _count: { _all: true },
       })
-      .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
+      .catch(healthFallback("cron-runs", [] as Array<{ status: string; _count: { _all: number } }>)),
     prisma.cronJobLog
       .groupBy({
         by: ["status"],
@@ -718,7 +729,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         where: { createdAt: { gte: oneDayAgo } },
         _count: { _all: true },
       })
-      .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
+      .catch(healthFallback("cron-runs", [] as Array<{ status: string; _count: { _all: number } }>)),
     // v-fix 2026-06-02: was findMany(take:500, select status) + JS tally —
     // loaded up to 500 rows to produce two numbers. Now two count() queries
     // (one Promise.all slot → [total, errors] tuple).
@@ -739,19 +750,19 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           status: { notIn: [...GENERATION_SUCCESS] },
         },
       }),
-    ]).catch(() => [0, 0] as [number, number]),
+    ]).catch(healthFallback("ai-generations", [0, 0] as [number, number])),
     prisma.cronJobLog
       .findFirst({
         where: { jobName: { contains: "brain-cycle" }, status: "success" },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true },
       })
-      .catch(() => null),
+      .catch(healthFallback("brain-cycle", null)),
     prisma.$queryRaw<Array<{ total: bigint; withVec: bigint }>>`
       SELECT COUNT(*)::bigint AS total,
              COUNT(embedding_vec)::bigint AS "withVec"
       FROM vector_embeddings
-    `.catch(() => [] as Array<{ total: bigint; withVec: bigint }>),
+    `.catch(healthFallback("embeddings", [] as Array<{ total: bigint; withVec: bigint }>)),
     prisma.automationRule
       .count({ where: { enabled: true } })
       .catch(() => 0),
@@ -865,6 +876,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         embeddingCoveragePct:
           embedTotal === 0 ? 0 : Math.round((embedWithVec / embedTotal) * 1000) / 10,
       },
+      unavailableSources: [...unavailableHealthSources].sort(),
     },
     automation: {
       activeRules: automationRules,

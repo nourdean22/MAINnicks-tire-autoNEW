@@ -768,7 +768,11 @@ function renderHealth(ctx: NickPrimeContext): string {
   const cron = `${h.crons.failures24h > 0 ? "⚠️" : "✓"} crons (${h.crons.failures24h} failures/24h)`;
   const ai = `${h.ai.recentErrorRate > 5 ? "⚠️" : "✓"} ai (${h.ai.recentErrorRate}% err)`;
   const mem = `pgvector ${h.memory.embeddingCoveragePct}%`;
-  return `## SYSTEM HEALTH · ${cron} · ${ai} · ${mem}`;
+  const unavailable = h.unavailableSources ?? [];
+  const dataState = unavailable.length > 0
+    ? `⚠️ data unavailable (${unavailable.join(", ")})`
+    : "✓ health reads";
+  return `## SYSTEM HEALTH · ${dataState} · ${cron} · ${ai} · ${mem}`;
 }
 
 function relTime(iso: string | null): string {
