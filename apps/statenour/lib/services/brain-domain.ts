@@ -171,22 +171,22 @@ export async function buildActiveAlerts(args: {
 
 // ──────────────── brain maturity ────────────────
 
-/**
- * `loadRecentContradictions` (lib/brain/contradiction-surfacer.ts:322)
- * applies `take: 40` to the row query BEFORE the status filter at :329.
- * Mirrored here — the same documentation-as-code convention
- * tests/brain/qualitative-identity-cache.test.ts uses for CACHE_KEY —
- * so this rollup can at least SAY the contradiction sample was capped
- * instead of presenting a truncated, newest-biased resolve rate as a
- * measurement.
+/*
+ * 2026-09-02 (self-audit) · a mirrored `CONTRADICTION_ROW_CAP = 40` and a
+ * `truncated` flag used to live here. They described a real defect: the
+ * surfacer applied `take: 40` BEFORE the status filter, so the resolve rate
+ * was computed over the 40 newest rows — and the newest are the least likely
+ * to be resolved.
  *
- * This is a MIRROR, so it drifts if the take changes: raise the take there
- * and a genuine 40-row list is falsely called truncated; lower it and the
- * flag never fires at all. Neither is silent — the flag is rendered — but
- * the two files have to move together. There is no way to ask the surfacer
- * how many rows it was willing to return without editing it.
+ * The rollup no longer reads that capped list. `countContradictionsByStatus`
+ * counts in SQL with no cap, so nothing here can be truncated and the flag
+ * could never again be true. Rather than ship a permanently-false flag with a
+ * UI branch behind it — a dead alarm, which is the exact defect class this
+ * wave spent its time removing — the flag, the mirrored constant and the
+ * banner it rendered are all deleted. The banner's copy had also become
+ * false: it told the operator that open/resolved "describe only the newest
+ * rows", which is no longer how they are computed.
  */
-const CONTRADICTION_ROW_CAP = 40;
 
 /**
  * The eleven subsystem reads `buildBrainMaturity` fans out. Named,
@@ -237,12 +237,6 @@ export interface BrainMaturityView {
     contradictions: {
       open: number | null;
       resolved: number | null;
-      /**
-       * The 90-day contradiction read hit `CONTRADICTION_ROW_CAP`, so
-       * `open` / `resolved` / the resolve rate describe only the newest
-       * N rows — and the newest are the least likely to be resolved.
-       */
-      truncated: boolean;
     };
     ghost: {
       hits: number | null;
@@ -406,9 +400,6 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
   // `resolved` nor `unresolved` — so dividing by it charged the score for
   // every malformed row as though it were an open contradiction.
   const contradictionsTotal = allContradictions ? allContradictions.classified : null;
-  // Nothing is truncated any more. The field stays so the UI contract and its
-  // canary hold, and so a future re-truncation has somewhere honest to report.
-  const contradictionsTruncated = false;
 
   const pts = {
     skills:
@@ -497,7 +488,6 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
       contradictions: {
         open: contradictionsOpen,
         resolved: resolvedContradictions,
-        truncated: contradictionsTruncated,
       },
       ghost: {
         hits: ghostFailed ? null : (ghostAcc?.hits ?? 0),

@@ -325,7 +325,9 @@ describe("buildBrainMaturity · contradictions · one population, one window", (
 
     expect(view.components.contradictions.open).toBe(50);
     expect(view.components.contradictions.resolved).toBe(200);
-    expect(view.components.contradictions.truncated).toBe(false);
+    // The `truncated` flag is gone entirely, not merely false: nothing can
+    // truncate any more, and a permanently-false flag with a UI banner behind
+    // it is a dead alarm. Reaching 250 IS the assertion now.
   });
 
   it("a MALFORMED row is not charged to the score as an open contradiction", async () => {

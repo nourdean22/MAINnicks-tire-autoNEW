@@ -534,6 +534,17 @@ export async function countContradictionsByStatus(
 }
 
 export async function countUnresolved(days = 14): Promise<number> {
-  const list = await loadRecentContradictions(days, false);
-  return list.length;
+  // 2026-09-02 (self-audit) · this went through loadRecentContradictions,
+  // which applies take: 40 BEFORE the status filter -- so past 40 rows in the
+  // window it under-counted, and it under-counted in the direction that
+  // matters: the newest rows are the least likely to be resolved, so the ones
+  // it could see were disproportionately open and the ones it dropped were
+  // silently uncounted.
+  //
+  // The commit that added countContradictionsByStatus described this bias in
+  // its own message and then fixed only brain-domain's consumer, leaving three
+  // others reading capped numbers: cross-system-nudge (nudge triggering),
+  // services/contradictions (unresolvedLast14), and ultron/narrator, whose
+  // escalation fires at >= 2 open. Same query, no cap, all four correct.
+  return (await countContradictionsByStatus(days)).unresolved;
 }
