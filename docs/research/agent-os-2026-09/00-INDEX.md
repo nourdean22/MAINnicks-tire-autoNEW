@@ -10,12 +10,15 @@ Branch: `statenour/agent-os-2026-09-03` · Worktree: `C:/Users/nourd/NOURCITY-wt
 | 3 | MCP fabric + agent security | `03-mcp-security.md` | ✅ |
 | 4 | Browser/computer use + sandboxes | `04-browser-sandbox.md` | ✅ |
 | 5 | Research engine (search/crawl/extract) | `05-research-engine.md` | ✅ |
-| 6 | Memory + context + unified search | `06-memory-context.md` | pending write-up |
-| 7 | Durable workflows + observability | `07-durable-observability.md` | pending write-up |
-| 8 | Workspace/artifacts + docgen + UI/UX | `08-workspace-ui.md` | pending write-up |
-| 9 | Voice + auth + connectors + missed gaps | `09-voice-auth-gaps.md` | pending write-up |
+| 6 | Memory + context + unified search | `06-memory-context.md` | ✅ |
+| 7 | Durable workflows + observability | `07-durable-observability.md` | ✅ |
+| 8 | Workspace/artifacts + docgen + UI/UX | `08-workspace-ui.md` | ✅ |
+| 9 | Voice + auth + connectors + missed gaps | `09-voice-auth-gaps.md` | ✅ |
 | — | **Current-state diagnostic** | `10-current-state.md` | ✅ |
 | — | **HOST HARDWARE REALITY (measured)** | `11-host-hardware-reality.md` | ✅ **read this first** |
+| — | **CORRECTIONS — claims disproven by code** | `12-CORRECTIONS-verified-against-code.md` | ✅ **read this SECOND — it overrides tracks 01-11** |
+| — | Executive recommendation + roadmap | `20-EXECUTIVE-RECOMMENDATION.md` | ✅ |
+| — | Master build prompt | `21-MASTER-BUILD-PROMPT.md` | ✅ |
 
 ## Ground truth (verified 2026-09-03, not inferred)
 - Primary checkout on `nickstire/audit-fixes-2026-09-03` @ `09235243e`, **0 behind origin/main**.
@@ -72,3 +75,25 @@ recommended path, which uses the already-installed **Inngest 4.4.0** for durabil
    logging and SSE resumability all removed/deprecated. 12-month clock on any `2025-*` client code.
 7. **iOS PWA: no Background Sync, no silent push.** The phone can command and confirm the agent;
    it can never *run* it. All scheduling stays server-side.
+
+## ⚠️ READ `12-CORRECTIONS` BEFORE ACTING ON TRACKS 01-11
+Six research claims were disproven by reading the code and the live DB. Every error was the same
+shape: *"the ecosystem commonly lacks X, therefore this repo lacks X"* — an inference about the world
+stated as a fact about the repo. **The repo was consistently better than the research assumed.**
+
+Disproven: SSRF "you have none" (per-hop gate exists) · cost controls "none" (ceilings + measurement
+exist; only the spend CAP is missing) · HNSW index missing (both exist) · `pg_search` removal urgent
+(not used — core `ts_rank_cd`) · Inngest determinism hazards (0 found) · tldraw/npm-xlsx present (neither is).
+
+Held up: **DR was genuinely a 6-hour window with zero backups** (now fixed) · **Ollama Cloud has no
+`tool_choice` and no structured outputs** (structured outputs don't bite — zero call sites;
+tool_choice is now instrumented rather than assumed).
+
+## Shipped this session (branch `statenour/agent-os-2026-09-03`, PR #2096)
+| Change | Receipt |
+|---|---|
+| `ai` 6.0.162 → 6.0.275, local patch deleted (fixed better upstream) | typecheck 0, 695/695 tests |
+| `@ai-sdk/*` family aligned (react 3.0.278 pins ai 6.0.275) | resolved duplicate `ai` instances |
+| Tool SELECTION telemetry + mutation-verified canary | 14 tests; mutant → exit 1 |
+| toolChoice-honoring telemetry (`markForcedTool`) | applied to prod, read-back verified |
+| **Neon DR: daily(30d) + weekly(35d) snapshots + baseline** | `schedule: []` → live, verified |
