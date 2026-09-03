@@ -173,7 +173,7 @@ export default function About() {
                   Most shops hand you a bill and hope you don't ask questions. We walk you under the car, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
-                  The price we quote is the price you pay. That approach has earned us a 4.9-star rating across {totalReviews.toLocaleString()}+ Google reviews from Cleveland drivers who keep coming back.
+                  The price we quote is the price you pay. That approach has earned us a {BUSINESS.reviews.rating}-star rating across {totalReviews.toLocaleString()}+ Google reviews from Cleveland drivers who keep coming back.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
                   We even built a free Diagnose tool — describe your car's symptoms before you come in, no pressure, no obligation.

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PhoneCall, X, Check, Loader2 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export default function CallbackModal() {
   const [open, setOpen] = useState(false);
@@ -15,31 +16,17 @@ export default function CallbackModal() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
-  // wave-167 a11y: Escape closes the modal + autofocus first input on open
-  // + restore focus to the trigger on close. Without these, keyboard users
-  // were trapped — no Escape, no focus management, no role="dialog".
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    // Autofocus first field shortly after render so the modal is keyboardable
-    const t = setTimeout(() => firstFieldRef.current?.focus(), 50);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      clearTimeout(t);
-    };
-  }, [open]);
-
-  // Restore focus to the trigger button when modal closes
-  useEffect(() => {
-    if (!open && triggerRef.current && typeof document !== "undefined" && document.activeElement === document.body) {
-      triggerRef.current.focus();
-    }
-  }, [open]);
+  // a11y: full focus trap — Tab cycles inside the dialog, Escape closes, the
+  // name field is autofocused, and focus restores to the trigger on close —
+  // via the shared useFocusTrap hook (same as LeadPopup). The prior hand-rolled
+  // effect did Escape + autofocus + restore but NOT the Tab trap, so keyboard
+  // focus escaped to the page behind this aria-modal dialog (WCAG 2.4.3 / 2.1.2).
+  useFocusTrap(dialogRef, open, {
+    onEscape: () => setOpen(false),
+    initialFocusRef: firstFieldRef,
+  });
 
   const mutation = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -73,7 +60,6 @@ export default function CallbackModal() {
     <>
       {/* Floating button — bottom-right, above mobile CTA */}
       <button
-        ref={triggerRef}
         onClick={() => setOpen(true)}
         className="fixed bottom-20 lg:bottom-6 right-4 z-40 bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
         aria-label="Request a callback"
@@ -92,10 +78,10 @@ export default function CallbackModal() {
           aria-labelledby="callback-modal-title"
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="relative bg-nick-charcoal border border-border rounded-lg w-full max-w-sm p-6">
+          <div ref={dialogRef} className="relative bg-nick-charcoal border border-border rounded-lg w-full max-w-sm p-6">
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-3 right-3 text-foreground/70 hover:text-foreground transition-colors"
+              className="absolute top-2 right-2 p-1 text-foreground/70 hover:text-foreground transition-colors"
               aria-label="Close callback dialog"
             >
               <X className="w-5 h-5" aria-hidden="true" />

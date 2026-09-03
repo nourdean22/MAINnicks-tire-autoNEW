@@ -15,7 +15,7 @@
  * - Dismissable with 24hr cookie memory
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -291,6 +291,9 @@ export default function NotificationBar() {
   const [location] = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // WCAG 2.2.2 — pause auto-rotation while the card is hovered or focused.
+  // A ref (not state) so toggling it never re-creates the rotation interval.
+  const pausedRef = useRef(false);
 
   // Suppress the rotating band on buying-intent surfaces (see
   // SUPPRESS_ON_ROUTES). The hook order above is preserved — early
@@ -396,6 +399,7 @@ export default function NotificationBar() {
   useEffect(() => {
     if (activeNotifications.length <= 1) return;
     const interval = setInterval(() => {
+      if (pausedRef.current) return;
       setCurrentIndex((prev) => (prev + 1) % activeNotifications.length);
     }, 8000);
     return () => clearInterval(interval);
@@ -432,6 +436,10 @@ export default function NotificationBar() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.95 }}
           transition={{ duration: 0.3 }}
+          onMouseEnter={() => { pausedRef.current = true; }}
+          onMouseLeave={() => { pausedRef.current = false; }}
+          onFocus={() => { pausedRef.current = true; }}
+          onBlur={() => { pausedRef.current = false; }}
           className={`relative flex items-start gap-2.5 px-4 py-3 rounded-xl border shadow-lg ${barStyle} backdrop-blur-xl`}
         >
           <span className="text-white/80 shrink-0 mt-0.5"><current.icon className="w-4 h-4" /></span>
@@ -453,7 +461,7 @@ export default function NotificationBar() {
           </div>
           <button
             onClick={handleDismiss}
-            className="text-white/40 hover:text-white transition-colors p-0.5 shrink-0"
+            className="text-white/40 hover:text-white transition-colors p-1.5 -m-1 shrink-0"
             aria-label="Dismiss notification"
           >
             <X className="w-3.5 h-3.5" />
