@@ -37,6 +37,47 @@ export interface ToolInvocation {
   errorMessage?: string;
   /** Optional conversation id for cross-reference. */
   conversationId?: string;
+  /**
+   * True when the failure is a MISSING-CONFIG refusal rather than a
+   * malfunction. Recorded as a failure in the aggregate row (it must
+   * stay visible) but withheld from the circuit breaker -- see
+   * isConfigurationError below.
+   */
+  configError?: boolean;
+}
+
+/**
+ * A tool that returns `{ error: "FIRECRAWL_API_KEY not set" }` is
+ * MISCONFIGURED, not flaky. Before this gate those soft refusals fed
+ * the breaker like any other failure, so 5 calls to an unconfigured
+ * tool inside 10 minutes stripped it from the toolset for 30 minutes
+ * (see FAIL_THRESHOLD / COOLDOWN_MS below, and the pre-prune filter in
+ * lib/ai/chat-mode.ts). The operator experienced that as a capability
+ * that "sometimes works" -- the tool vanished and came back on its own.
+ *
+ * The breaker exists to shed tools that MISBEHAVE. An unset env var is
+ * not misbehaviour: retrying costs nothing, and hiding the tool only
+ * hides the reason it is unavailable. So config errors still increment
+ * fail_count and still land in lastErrors -- they just never trip.
+ *
+ * Deliberately narrow: a genuine fault ("request timed out", "database
+ * connection lost") must NOT match, or a truly broken tool would stay
+ * in the toolset forever. Asserted both ways in
+ * tests/ai/tool-telemetry-config-error.test.ts.
+ */
+const CONFIG_ERROR_RE =
+  /\b(?:not configured|not set|unconfigured|missing (?:the )?(?:api[ -]?)?(?:key|token|credential)s?)\b/i;
+
+// Case-SENSITIVE on purpose: the signal is a SCREAMING_SNAKE env-var
+// name ("requires E2B_API_KEY"), not the English word. Folding this
+// into CONFIG_ERROR_RE would inherit its /i flag, and "[A-Z]" under /i
+// also matches lowercase -- so "requires something" would have been
+// read as a config refusal and silently spared the breaker.
+const CONFIG_ENV_VAR_RE = /\brequires? [A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/;
+
+export function isConfigurationError(message?: string | null): boolean {
+  if (!message) return false;
+  return CONFIG_ERROR_RE.test(message) || CONFIG_ENV_VAR_RE.test(message);
 }
 
 /**
@@ -118,7 +159,7 @@ export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
     // before they cost more turns. See block at bottom of file for
     // the breaker semantics.
     if (inv.success) recordToolSuccess(inv.toolName);
-    else recordToolFailure(inv.toolName);
+    else if (!inv.configError) recordToolFailure(inv.toolName);
   } catch (err) {
     // Telemetry failures must never break chat. Swallow silently; the
     // next invocation will attempt again.
