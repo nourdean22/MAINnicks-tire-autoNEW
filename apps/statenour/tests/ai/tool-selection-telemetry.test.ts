@@ -20,7 +20,6 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const createTurn = vi.fn().mockResolvedValue({});
 const createManyDecisions = vi.fn().mockResolvedValue({ count: 0 });
 const updateTurn = vi.fn().mockResolvedValue({});
 const upsertTurn = vi.fn().mockResolvedValue({});
@@ -28,7 +27,6 @@ const upsertTurn = vi.fn().mockResolvedValue({});
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     toolSelectionTurn: {
-      create: (...a: unknown[]) => createTurn(...a),
       update: (...a: unknown[]) => updateTurn(...a),
       upsert: (...a: unknown[]) => upsertTurn(...a),
     },
@@ -64,6 +62,7 @@ function turn(over: Partial<SelectionTurn> = {}): SelectionTurn {
     selectedCount: 24,
     budget: 24,
     budgetTruncated: true,
+    semanticTierAttempted: true,
     embeddingCacheWarm: true,
     decisions: [
       { toolName: "getTasks", verdict: "ALLOWED", tier: SELECTION_TIER.CORE },
@@ -82,7 +81,6 @@ function turn(over: Partial<SelectionTurn> = {}): SelectionTurn {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetSelectionTelemetryHealth();
-  createTurn.mockResolvedValue({});
   createManyDecisions.mockResolvedValue({ count: 0 });
   updateTurn.mockResolvedValue({});
   upsertTurn.mockResolvedValue({});
@@ -92,13 +90,14 @@ describe("recordToolSelection", () => {
   it("writes the turn and one row per considered tool", async () => {
     await recordToolSelection(turn());
 
-    expect(createTurn).toHaveBeenCalledTimes(1);
-    const turnArg = createTurn.mock.calls[0][0] as {
-      data: Record<string, unknown>;
+    expect(upsertTurn).toHaveBeenCalledTimes(1);
+    const turnArg = upsertTurn.mock.calls[0][0] as {
+      create: Record<string, unknown>;
     };
-    expect(turnArg.data.turnId).toBe("turn-1");
-    expect(turnArg.data.budgetTruncated).toBe(true);
-    expect(turnArg.data.candidateCount).toBe(40);
+    expect(turnArg.create.turnId).toBe("turn-1");
+    expect(turnArg.create.budgetTruncated).toBe(true);
+    expect(turnArg.create.candidateCount).toBe(40);
+    expect(turnArg.create.semanticTierAttempted).toBe(true);
 
     expect(createManyDecisions).toHaveBeenCalledTimes(1);
     const decArg = createManyDecisions.mock.calls[0][0] as {
@@ -118,19 +117,20 @@ describe("recordToolSelection", () => {
     // cold lambda is indistinguishable from a genuine zero-match --
     // which is how analyzeFitness became unreachable in Jul 2026.
     await recordToolSelection(
-      turn({ embeddingCacheWarm: false, selectedCount: 8, budgetTruncated: false })
+      turn({ semanticTierAttempted: true, embeddingCacheWarm: false, selectedCount: 8, budgetTruncated: false })
     );
 
-    const turnArg = createTurn.mock.calls[0][0] as {
-      data: Record<string, unknown>;
+    const turnArg = upsertTurn.mock.calls[0][0] as {
+      create: Record<string, unknown>;
     };
-    expect(turnArg.data.embeddingCacheWarm).toBe(false);
-    expect(turnArg.data.budgetTruncated).toBe(false);
+    expect(turnArg.create.embeddingCacheWarm).toBe(false);
+    expect(turnArg.create.semanticTierAttempted).toBe(true);
+    expect(turnArg.create.budgetTruncated).toBe(false);
   });
 
   it("skips the decisions write when nothing was considered", async () => {
     await recordToolSelection(turn({ decisions: [] }));
-    expect(createTurn).toHaveBeenCalledTimes(1);
+    expect(upsertTurn).toHaveBeenCalledTimes(1);
     expect(createManyDecisions).not.toHaveBeenCalled();
   });
 
@@ -148,10 +148,10 @@ describe("recordToolSelection", () => {
       })
     );
 
-    const turnArg = createTurn.mock.calls[0][0] as {
-      data: Record<string, string>;
+    const turnArg = upsertTurn.mock.calls[0][0] as {
+      create: Record<string, string>;
     };
-    expect(turnArg.data.mode.length).toBe(24);
+    expect(turnArg.create.mode.length).toBe(24);
     const decArg = createManyDecisions.mock.calls[0][0] as {
       data: Array<Record<string, string>>;
     };
@@ -163,17 +163,27 @@ describe("recordToolSelection", () => {
 describe("markSearchToolsFired / markInvokeToolFired", () => {
   it("records the pruner-miss signal with its query", async () => {
     await markSearchToolsFired("turn-1", "sleep data");
-    expect(updateTurn).toHaveBeenCalledWith({
+    expect(upsertTurn).toHaveBeenCalledWith({
       where: { turnId: "turn-1" },
-      data: { searchToolsFired: true, searchToolsQuery: "sleep data" },
+      update: { searchToolsFired: true, searchToolsQuery: "sleep data" },
+      create: expect.objectContaining({
+        turnId: "turn-1",
+        searchToolsFired: true,
+        searchToolsQuery: "sleep data",
+      }),
     });
   });
 
   it("records which dropped tool invokeTool actually ran", async () => {
     await markInvokeToolFired("turn-1", "getHabitStreaks");
-    expect(updateTurn).toHaveBeenCalledWith({
+    expect(upsertTurn).toHaveBeenCalledWith({
       where: { turnId: "turn-1" },
-      data: { invokeToolFired: true, invokedToolName: "getHabitStreaks" },
+      update: { invokeToolFired: true, invokedToolName: "getHabitStreaks" },
+      create: expect.objectContaining({
+        turnId: "turn-1",
+        invokeToolFired: true,
+        invokedToolName: "getHabitStreaks",
+      }),
     });
   });
 });
@@ -190,7 +200,7 @@ describe("CANARY: the recorder must report its own failure", () => {
   });
 
   it("reports broken when every write fails — an empty table must not read as zero misses", async () => {
-    createTurn.mockRejectedValue(
+    upsertTurn.mockRejectedValue(
       new Error('relation "tool_selection_turns" does not exist')
     );
 
@@ -204,8 +214,7 @@ describe("CANARY: the recorder must report its own failure", () => {
   });
 
   it("never throws into the request path when the table is missing", async () => {
-    createTurn.mockRejectedValue(new Error("boom"));
-    updateTurn.mockRejectedValue(new Error("boom"));
+    upsertTurn.mockRejectedValue(new Error("boom"));
 
     // The tables do not exist until the parked migration is applied, so
     // a throw here would break live chat on deploy.
@@ -215,7 +224,7 @@ describe("CANARY: the recorder must report its own failure", () => {
   });
 
   it("does not report broken on a partial failure", async () => {
-    createTurn.mockRejectedValueOnce(new Error("transient"));
+    upsertTurn.mockRejectedValueOnce(new Error("transient"));
     await recordToolSelection(turn());
     await recordToolSelection(turn({ turnId: "turn-2" }));
 

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
+const recordToolSelection = vi.fn().mockResolvedValue(undefined);
+
 // Mock imports inside pruneTools to make it testable without dependencies
 vi.mock("@/lib/ai/tool-telemetry", () => ({
   isToolBlocked: vi.fn().mockReturnValue(false),
@@ -16,6 +18,8 @@ vi.mock("@/lib/ai/tool-embeddings", () => ({
   isToolEmbeddingCacheWarm: vi.fn().mockReturnValue(true),
 }));
 
+vi.mock("@/lib/ai/tool-selection-telemetry", () => ({ recordToolSelection }));
+
 import { pruneTools } from "@/lib/ai/chat-mode";
 import { afterEach } from "vitest";
 
@@ -27,6 +31,48 @@ const DEFAULT_BUDGET = 24;
 
 afterEach(() => {
   delete process.env.NICK_TOOL_BUDGET;
+  recordToolSelection.mockClear();
+});
+
+describe("pruneTools semantic-tier telemetry", () => {
+  it("records a skipped semantic tier distinctly from a cold embedding cache", async () => {
+    await pruneTools(
+      "standard",
+      { classifyThought: { name: "classifyThought" } },
+      "hello",
+      [],
+      { turnId: "trace-skipped" },
+    );
+
+    await vi.waitFor(() => expect(recordToolSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turnId: "trace-skipped",
+        semanticTierAttempted: false,
+        embeddingCacheWarm: false,
+      }),
+    ));
+  });
+
+  it("records a cold cache only when the eligible semantic tier was attempted", async () => {
+    const { isToolEmbeddingCacheWarm } = await import("@/lib/ai/tool-embeddings");
+    vi.mocked(isToolEmbeddingCacheWarm).mockReturnValueOnce(false);
+
+    await pruneTools(
+      "standard",
+      { classifyThought: { name: "classifyThought" } },
+      "hello",
+      [0.1, 0.2],
+      { turnId: "trace-cold" },
+    );
+
+    await vi.waitFor(() => expect(recordToolSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turnId: "trace-cold",
+        semanticTierAttempted: true,
+        embeddingCacheWarm: false,
+      }),
+    ));
+  });
 });
 
 describe("pruneTools priority-preserving cap", () => {

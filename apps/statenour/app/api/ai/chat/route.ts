@@ -852,6 +852,8 @@ async function chatPostInner(req: Request) {
     finalSystemPromptLength: finalSystemPrompt.length,
     // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
     actionPermission,
+    traceId: __traceId,
+    conversationId: convId,
     log,
   });
 

@@ -59,6 +59,8 @@ export interface SelectionTurn {
   selectedCount: number;
   budget: number;
   budgetTruncated: boolean;
+  /** Whether the semantic tier was eligible and actually evaluated. */
+  semanticTierAttempted: boolean;
   embeddingCacheWarm: boolean;
   decisions: GateDecision[];
 }
@@ -107,17 +109,23 @@ export async function recordToolSelection(turn: SelectionTurn): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
 
-    await prisma.toolSelectionTurn.create({
-      data: {
-        turnId: turn.turnId,
-        conversationId: turn.conversationId ?? null,
-        mode: turn.mode.slice(0, 24),
-        candidateCount: turn.candidateCount,
-        selectedCount: turn.selectedCount,
-        budget: turn.budget,
-        budgetTruncated: turn.budgetTruncated,
-        embeddingCacheWarm: turn.embeddingCacheWarm,
-      },
+    const selection = {
+      conversationId: turn.conversationId ?? null,
+      mode: turn.mode.slice(0, 24),
+      candidateCount: turn.candidateCount,
+      selectedCount: turn.selectedCount,
+      budget: turn.budget,
+      budgetTruncated: turn.budgetTruncated,
+      semanticTierAttempted: turn.semanticTierAttempted,
+      embeddingCacheWarm: turn.embeddingCacheWarm,
+    };
+    // A recovery tool can execute immediately after preparation while this
+    // fire-and-forget write is still in flight. Upsert preserves that early
+    // miss signal instead of letting either path lose a unique-row race.
+    await prisma.toolSelectionTurn.upsert({
+      where: { turnId: turn.turnId },
+      update: selection,
+      create: { turnId: turn.turnId, ...selection },
     });
 
     if (turn.decisions.length > 0) {
@@ -157,9 +165,21 @@ export async function markSearchToolsFired(
   writesAttempted += 1;
   try {
     const { prisma } = await import("@/lib/prisma");
-    await prisma.toolSelectionTurn.update({
+    await prisma.toolSelectionTurn.upsert({
       where: { turnId },
-      data: {
+      update: {
+        searchToolsFired: true,
+        searchToolsQuery: query.slice(0, 500),
+      },
+      create: {
+        turnId,
+        mode: "unknown",
+        candidateCount: 0,
+        selectedCount: 0,
+        budget: 0,
+        budgetTruncated: false,
+        semanticTierAttempted: null,
+        embeddingCacheWarm: false,
         searchToolsFired: true,
         searchToolsQuery: query.slice(0, 500),
       },
@@ -321,9 +341,21 @@ export async function markInvokeToolFired(
   writesAttempted += 1;
   try {
     const { prisma } = await import("@/lib/prisma");
-    await prisma.toolSelectionTurn.update({
+    await prisma.toolSelectionTurn.upsert({
       where: { turnId },
-      data: {
+      update: {
+        invokeToolFired: true,
+        invokedToolName: toolName.slice(0, 120),
+      },
+      create: {
+        turnId,
+        mode: "unknown",
+        candidateCount: 0,
+        selectedCount: 0,
+        budget: 0,
+        budgetTruncated: false,
+        semanticTierAttempted: null,
+        embeddingCacheWarm: false,
         invokeToolFired: true,
         invokedToolName: toolName.slice(0, 120),
       },

@@ -1661,10 +1661,11 @@ model ToolSelectionTurn {
   /// True when candidates exceeded budget — i.e. tools fell off the
   /// cliff. Distinguishes "nothing matched" from "too much matched".
   budgetTruncated    Boolean  @default(false) @map("budget_truncated")
-  /// False means tier 5 (semantic rank) silently no-opped. Without
-  /// this the cold-lambda case is indistinguishable from a genuine
-  /// zero-match — the "failed read rendering as a confident zero"
-  /// defect shape.
+  /// Whether tier 5 was eligible and evaluated. False means the tier was
+  /// skipped (no embedding or no budget); null predates this distinction.
+  semanticTierAttempted Boolean? @map("semantic_tier_attempted")
+  /// Valid only when semanticTierAttempted is true. False then means the
+  /// embedding cache was cold or unavailable, rather than a skipped tier.
   embeddingCacheWarm Boolean  @default(false) @map("embedding_cache_warm")
   searchToolsFired   Boolean  @default(false) @map("search_tools_fired")
   searchToolsQuery   String?  @map("search_tools_query") @db.VarChar(500)

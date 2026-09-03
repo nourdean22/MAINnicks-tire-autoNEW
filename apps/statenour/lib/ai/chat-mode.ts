@@ -556,8 +556,10 @@ export async function pruneTools(
   // tier 4 could only be maintained one anecdote at a time.
   const tierOf = new Map<string, number>();
   const budgetedOut = new Map<string, number>();
-  // False also when tier 5 never ran. Recorded either way so a cold
-  // lambda is distinguishable from a genuine zero-match.
+  // A skipped tier is not a cold cache. Keep those states separate so the
+  // telemetry cannot fabricate a cache failure when earlier tiers filled the
+  // budget or the turn had no embedding.
+  let semanticTierAttempted = false;
   let embeddingCacheWarm = false;
 
   const addIfSpace = (name: string, tier?: number) => {
@@ -601,6 +603,7 @@ export async function pruneTools(
 
   // Tier 5: Semantic-ranked tools
   if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < TOOL_BUDGET) {
+    semanticTierAttempted = true;
     try {
       const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
       embeddingCacheWarm = isToolEmbeddingCacheWarm();
@@ -651,6 +654,7 @@ export async function pruneTools(
           selectedCount: selectedNames.size,
           budget: TOOL_BUDGET,
           budgetTruncated: budgetedOut.size > 0,
+          semanticTierAttempted,
           embeddingCacheWarm,
           decisions: [
             ...Array.from(selectedNames).map((name) => ({
