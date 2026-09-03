@@ -79,13 +79,14 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       const isFailing = row.lastStatus === "failed";
 
       // "Nothing recorded in the 14d window" is the intended meaning, and the
-      // counters ARE that window — the bug was that `partial` fell into no
-      // bucket at all. mega-evening ran 1,248 times in 14 days, every one
-      // partial, so success14d and fail14d were both 0 and it classified as
-      // NEVER RUN — healed on every single pass, forever.
+      // counters are the authoritative window. `lastRunAt` comes from the
+      // command deck's capped recent-log sample; a low-frequency job can fall
+      // out of that display sample while its authoritative window counters
+      // still prove it ran. Treating that display omission as never-run would
+      // spuriously re-fire a weekly email cron midweek.
       const runsInWindow =
         row.success14d + (row.partial14d ?? 0) + row.fail14d;
-      const isNeverRun = row.lastRunAt === null || runsInWindow === 0;
+      const isNeverRun = runsInWindow === 0;
 
       if (isFailing || isNeverRun) {
         const reason = isFailing ? "failing" : "never_run";
