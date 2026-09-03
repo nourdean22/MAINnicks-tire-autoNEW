@@ -5,6 +5,29 @@
  */
 
 import { useEffect, useState } from "react";
+import { BUSINESS } from "@shared/business";
+
+// Open/close boundaries derived from the single source of truth
+// (BUSINESS.hours.structured, "HH:MM-HH:MM") so this hook can never drift from
+// the canonical hours the rest of the site shows. Previously hardcoded as raw
+// minute magic numbers (480/1080/540/960).
+const toMinutes = (hhmm: string): number => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+const toLabel = (hhmm: string): string => {
+  const [rawH, min] = hhmm.split(":");
+  let h = Number(rawH);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${min ?? "00"} ${ampm}`;
+};
+const parseRange = (range: string) => {
+  const [open, close] = range.split("-");
+  return { open: toMinutes(open), close: toMinutes(close), openLabel: toLabel(open) };
+};
+const MON_SAT = parseRange(BUSINESS.hours.structured.monday);
+const SUNDAY = parseRange(BUSINESS.hours.structured.sunday);
 
 interface BusinessHoursStatus {
   isOpen: boolean;
@@ -48,33 +71,26 @@ export function useBusinessHours(): BusinessHoursStatus {
     let nextOpenTime = "";
 
     if (dayOfWeek === 0) {
-      // Sunday: 9AM-4PM
-      isOpen = currentMinutes >= 540 && currentMinutes < 960;
+      // Sunday
+      isOpen = currentMinutes >= SUNDAY.open && currentMinutes < SUNDAY.close;
       if (!isOpen) {
-        if (currentMinutes < 540) {
-          // Before 9AM on Sunday
-          nextOpenTime = `Today at 9:00 AM ET`;
-        } else {
-          // After 4PM on Sunday
-          nextOpenTime = `Monday at 8:00 AM ET`;
-        }
+        nextOpenTime =
+          currentMinutes < SUNDAY.open
+            ? `Today at ${SUNDAY.openLabel} ET`
+            : `Monday at ${MON_SAT.openLabel} ET`;
       }
     } else if (dayOfWeek >= 1 && dayOfWeek <= 6) {
-      // Monday-Saturday: 8AM-6PM
-      isOpen = currentMinutes >= 480 && currentMinutes < 1080;
+      // Monday-Saturday
+      isOpen = currentMinutes >= MON_SAT.open && currentMinutes < MON_SAT.close;
       if (!isOpen) {
-        if (currentMinutes < 480) {
-          // Before 8AM
-          nextOpenTime = `Today at 8:00 AM ET`;
+        if (currentMinutes < MON_SAT.open) {
+          nextOpenTime = `Today at ${MON_SAT.openLabel} ET`;
+        } else if (dayOfWeek === 6) {
+          // Saturday night → next open is SUNDAY (was wrongly "Monday",
+          // burying the shop's open-Sunday differentiator).
+          nextOpenTime = `Sunday at ${SUNDAY.openLabel} ET`;
         } else {
-          // After 6PM
-          if (dayOfWeek === 6) {
-            // Saturday night
-            nextOpenTime = `Monday at 8:00 AM ET`;
-          } else {
-            // Weekday night
-            nextOpenTime = `Tomorrow at 8:00 AM ET`;
-          }
+          nextOpenTime = `Tomorrow at ${MON_SAT.openLabel} ET`;
         }
       }
     }
