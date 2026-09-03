@@ -1553,7 +1553,7 @@
         },
         "severity": {
           "default": "all",
-          "description": "Filter by severity",
+          "description": "Filter by severity. LOWERCASE only, exactly one of: critical, high, medium, low, all.",
           "enum": [
             "critical",
             "high",
@@ -1961,6 +1961,7 @@
       "properties": {
         "limit": {
           "default": 5,
+          "description": "How many to return. MAXIMUM 20 - a larger value is rejected.",
           "maximum": 20,
           "minimum": 1,
           "type": "number"
@@ -1971,6 +1972,7 @@
         },
         "scope": {
           "default": "all",
+          "description": "LOWERCASE only, exactly one of: daily, weekly, monthly, triggered, all. Note: \"personal\" is NOT valid.",
           "enum": [
             "daily",
             "weekly",
@@ -3441,6 +3443,7 @@
         },
         "limit": {
           "default": 10,
+          "description": "How many to return. MAXIMUM 50 - a larger value is rejected.",
           "maximum": 50,
           "minimum": 1,
           "type": "number"
@@ -3475,6 +3478,7 @@
         },
         "limit": {
           "default": 8,
+          "description": "How many to return. MAXIMUM 20 - a larger value is rejected.",
           "maximum": 20,
           "minimum": 1,
           "type": "number"
