@@ -57,6 +57,15 @@ export default function LocalBusinessSchema({
       "Nicks Tire & Auto",
       "Nicks Auto",
       "Nick's Auto",
+      // Former name — this shop WAS Moe's Tire & Auto on the same Euclid corner.
+      // Listing it as an alternateName helps Google/AI resolve "Moe's Tire"
+      // searches to this (now Nick's) entity, reinforcing the /moes-* bridge
+      // pages. Not an ownership claim (the truth guard forbids "run by Moe").
+      "Moe's Tire & Auto",
+      "Moe's Tire",
+      "Moes Tire",
+      "Moes Tire and Auto",
+      "Moe's Tire Euclid",
     ],
     // wave-145 — was favicon.ico (16×16). Google rich-result spec requires
     // an image at least 696px wide; favicon FAILS validation and suppresses
