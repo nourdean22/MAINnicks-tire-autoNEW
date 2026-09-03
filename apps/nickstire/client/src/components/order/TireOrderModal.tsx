@@ -14,6 +14,7 @@ import { getUtmData } from "@/lib/utm";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { trackAcimaClick } from "@/lib/acima";
 
 function priceBreakdown(subtotalCents: number) {
   const tax = Math.round(subtotalCents * 0.08);
@@ -293,6 +294,7 @@ export function OrderModal({ tire, quantity, packageValue, onClose, prefilledVeh
                               href="https://acima.us/1TjEOYtr6C"
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => trackAcimaClick("tire_order_modal")}
                               className="flex-1 text-center bg-blue-600 text-white py-2 rounded-md text-xs font-medium hover:bg-blue-600/90 transition-colors"
                             >
                               Acima

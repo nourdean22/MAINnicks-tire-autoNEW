@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { SHORT_DISCLAIMERS } from "@shared/disclaimers";
+import { trackAcimaClick } from "@/lib/acima";
 
 export default function PayInvoice() {
   const [invoiceNum, setInvoiceNum] = useState("");
@@ -209,6 +210,7 @@ export default function PayInvoice() {
                       <a
                         href="https://acima.us/1TjEOYtr6C"
                         target="_blank" rel="noopener noreferrer"
+                        onClick={() => trackAcimaClick("pay_invoice")}
                         className="inline-flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-blue-600/90 transition-colors"
                       >
                         <Shield className="w-3 h-3" /> Acima
