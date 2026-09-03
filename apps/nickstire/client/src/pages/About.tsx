@@ -83,7 +83,7 @@ export default function About() {
             <div>
               <h2 className="text-3xl font-bold text-foreground mb-6">Built from the ground up on Euclid Ave.</h2>
               <p className="text-foreground/70 mb-4">
-                Nick's Tire & Auto opened in 2018 with a straightforward mission: give East Side Cleveland drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
+                Nick's Tire & Auto has served East Side Cleveland from the same Euclid Ave corner since 2018 — many neighbors first knew the shop as Moe's Tire & Auto. Same owner, same corner: we simply changed the name to Nick's. The mission never changed — give East Side drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
               </p>
               <p className="text-foreground/70 mb-4">
                 What started as a small independent shop has grown into Cleveland's 4.9★, {totalReviews.toLocaleString()}-review East Side shop — real customers, real reviews, no marketing budget.
@@ -102,7 +102,7 @@ export default function About() {
                 </div>
                 <div className="text-center">
                   <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">{totalReviews.toLocaleString()}+</div>
-                  <div className="text-foreground/60 text-sm">5-Star Reviews</div>
+                  <div className="text-foreground/60 text-sm">Google Reviews</div>
                 </div>
                 <div className="text-center">
                   <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">{rating.toFixed(1)}</div>
