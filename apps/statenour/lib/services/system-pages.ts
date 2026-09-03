@@ -870,19 +870,38 @@ export async function buildChatHealth(): Promise<ChatHealthView> {
     ),
     safeQuery(
       async () => {
-        const rows = await prisma.$queryRaw<
-          Array<{ total: bigint; errors: bigint }>
-        >`
-          SELECT
-            COUNT(*)::bigint AS total,
-            COUNT(*) FILTER (WHERE status_code >= 500)::bigint AS errors
-          FROM api_request_logs
-          WHERE created_at >= ${since24h}
-            AND path = '/api/ai/chat'
-        `;
-        const r = rows[0];
-        const total = Number(r?.total ?? 0);
-        const errors = Number(r?.errors ?? 0);
+        // This panel used to read `api_request_logs WHERE path =
+        // '/api/ai/chat'`. That table is written ONLY by `apiHandler`
+        // (lib/utils/http.ts), and the chat route is a bare
+        // `export async function POST` (app/api/ai/chat/route.ts) that
+        // never passes through it -- so the query matched ZERO rows,
+        // always, and this panel rendered `total: 0, errors: 0,
+        // errorRate: 0` during a total outage. A failed read presenting
+        // as a confident all-clear. The sibling service already
+        // documented the same dead join (lib/services/diagnose-chat.ts)
+        // and was fixed 2026-07-29; this copy was missed.
+        //
+        // `ai_generations` is the live source: the chat turn writes one
+        // row per completed turn via trackGeneration(feature: "chat")
+        // in lib/services/chat/post-persist-verification.ts.
+        // KNOWN LIMIT, stated rather than hidden: it counts COMPLETED
+        // turns, so a turn that hung is in neither numerator nor
+        // denominator. Errors come from ErrorLog on the same window and
+        // the same chat predicate the adjacent errors panel uses.
+        const [total, errors] = await Promise.all([
+          prisma.aiGeneration.count({
+            where: { feature: "chat", createdAt: { gte: since24h } },
+          }),
+          prisma.errorLog.count({
+            where: {
+              createdAt: { gte: since24h },
+              OR: [
+                { context: { path: ["source"], equals: "chat" } },
+                { stack: { contains: "ai/chat" } },
+              ],
+            },
+          }),
+        ]);
         return {
           total,
           errors,
