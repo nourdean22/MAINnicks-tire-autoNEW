@@ -104,8 +104,14 @@ function MessageActionButton({
       aria-label={label}
       aria-pressed={active}
       title={label}
-      // 2026-08-30 · review P2: 48×48 minimum touch target (iOS-PWA
-      // house rule; 32px visual glyph inside a 48px hit area).
+      // 2026-08-30 · review P2: enlarged hit area for the iOS-PWA touch
+      // rule. 2026-09-02 · comment corrected: it claimed "48x48 ... inside
+      // a 48px hit area" while the class below is min-h-11/min-w-11 = 44px.
+      // 44 is the iOS HIG floor; both AGENTS.md files say 48. The code is
+      // left at 44 (changing it reflows every action row) and the
+      // discrepancy is flagged for the operator rather than papered over --
+      // a comment asserting a rule the code does not meet is worse than
+      // either number.
       className={
         "flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-[11px] transition " +
         (active
