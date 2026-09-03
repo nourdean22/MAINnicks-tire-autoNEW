@@ -7,7 +7,7 @@
  * The address at 17625 Euclid Ave was previously associated with Moe's Tire
  * in Google's knowledge graph. Drivers searching for the old shop land
  * confused on Nick's. This page bridges the gap: claims the legacy traffic,
- * reframes as ownership transition, sells the new shop's strengths.
+ * reframes as a name change under the same owner, sells the shop's strengths.
  *
  * Strategy: capture, convert, redirect intent toward today's services.
  */
@@ -26,7 +26,7 @@ const CONFIG: ServicePageConfig = {
   description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "MOE'S TIRE EUCLID — SAME CORNER, NEW CHAPTER",
   h1: "MOE'S TIRE EUCLID IS NOW NICK'S TIRE & AUTO",
-  sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. New ownership, sharper service, and a coffee maker that's still standing after all these years. If you trusted this spot for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",
+  sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. Same owner, sharper service, and a coffee maker that's still standing after all these years. If you came here for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",
   startingPrice: "Used tires from $25 · installed free",
   pricingTitle: "WHAT WE DO HERE NOW",
   pricingSub: "Same building, expanded services. Tires, brakes, oil, diagnostics, alignment — full-service auto repair on Euclid Ave.",
@@ -39,7 +39,7 @@ const CONFIG: ServicePageConfig = {
   includedSub: "Why customers from the Moe's days still send their kids and neighbors here.",
   included: [
     "Same address — 17625 Euclid Ave, Cleveland OH 44112. Same corner you remembered.",
-    "New ownership, but the shop floor still runs on neighborhood-trust, not corporate scripts.",
+    "Same owner — the shop floor still runs on neighborhood-trust, not corporate scripts.",
     "We expanded beyond tires — full-service auto repair: brakes, oil, diagnostics, alignment, A/C, exhaust, electrical.",
     "Used tires still on the rack — from $25 installed, every tire 4-point checked before it goes on a customer's car.",
     "$10-down payment programs added — Acima, Snap, Koalafi, American First. Soft pull only, no FICO ding.",

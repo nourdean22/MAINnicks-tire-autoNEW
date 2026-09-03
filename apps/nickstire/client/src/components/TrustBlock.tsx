@@ -53,11 +53,11 @@ export default function TrustBlock({ className = "" }: { className?: string }) {
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <span className="font-heading font-extrabold text-lg text-foreground">
-            {/* Was "RUN BY MOE SINCE 2018" — which told every visitor the shop
-                is run by the previous owner, while /moes-tire states it
-                "transitioned to new ownership and rebranded as Nick's Tire &
-                Auto". Both cannot be true. The year now comes from the single
-                canonical constant so it can never drift again. */}
+            {/* Was "RUN BY MOE SINCE 2018" — which implied "Moe" runs the shop
+                (the truth guard forbids that). It is the SAME owner who renamed
+                Moe's Tire & Auto -> Nick's Tire & Auto (see /moes-tire), so the
+                honest label is an independent shop since the founding year. The
+                year comes from the single canonical constant so it can't drift. */}
             INDEPENDENT SHOP {BUSINESS.founded.display.toUpperCase()}
           </span>
           <span className="text-xs text-foreground/60 mt-1">
