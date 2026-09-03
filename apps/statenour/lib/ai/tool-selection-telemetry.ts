@@ -226,6 +226,93 @@ export async function markForcedTool(
   }
 }
 
+
+// ── Forced-tool intent, held between decision time and persist time ──
+// build-stream-config.ts decides the force; the captured tool calls are
+// only known later, in persist-assistant-turn.ts. Rather than thread a
+// new field through both signatures, the intent parks here keyed by
+// traceId. Bounded FIFO so an abandoned turn cannot leak.
+const MAX_PENDING = 500;
+const pendingForce = new Map<
+  string,
+  { toolName: string; provider?: string; modelId?: string }
+>();
+
+/** Called at decision time, where the force is chosen. */
+export function noteForcedTool(
+  traceId: string,
+  toolName: string,
+  provider?: string,
+  modelId?: string
+): void {
+  if (!traceId || !toolName) return;
+  if (pendingForce.size >= MAX_PENDING) {
+    const oldest = pendingForce.keys().next().value;
+    if (oldest !== undefined) pendingForce.delete(oldest);
+  }
+  pendingForce.set(traceId, { toolName, provider, modelId });
+}
+
+/** Test seam. */
+export function __pendingForceSize(): number {
+  return pendingForce.size;
+}
+
+/**
+ * Called at persist time with the tools that ACTUALLY fired this turn.
+ * Resolves the parked intent into a row and clears it. No-ops when no
+ * force was requested, so it is safe to call on every turn.
+ *
+ * Uses upsert, not update: the forced-tool signal must be recordable
+ * even on turns where pruneTools did not emit a selection row, so the
+ * two paths stay independent.
+ */
+export async function resolveForcedTool(
+  traceId: string,
+  calledToolNames: string[],
+  ctx?: { mode?: string; budget?: number }
+): Promise<void> {
+  const intent = pendingForce.get(traceId);
+  if (!intent) return;
+  pendingForce.delete(traceId);
+
+  const honored = calledToolNames.includes(intent.toolName);
+  writesAttempted += 1;
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.toolSelectionTurn.upsert({
+      where: { turnId: traceId },
+      update: {
+        forcedToolName: intent.toolName.slice(0, 120),
+        forcedToolHonored: honored,
+        provider: intent.provider ? intent.provider.slice(0, 32) : undefined,
+        modelId: intent.modelId ? intent.modelId.slice(0, 120) : undefined,
+      },
+      create: {
+        turnId: traceId,
+        mode: (ctx?.mode ?? "unknown").slice(0, 24),
+        candidateCount: 0,
+        selectedCount: 0,
+        budget: ctx?.budget ?? 0,
+        budgetTruncated: false,
+        embeddingCacheWarm: false,
+        forcedToolName: intent.toolName.slice(0, 120),
+        forcedToolHonored: honored,
+        provider: intent.provider ? intent.provider.slice(0, 32) : null,
+        modelId: intent.modelId ? intent.modelId.slice(0, 120) : null,
+      },
+    });
+  } catch (err) {
+    writesFailed += 1;
+    lastWriteError = err instanceof Error ? err.message : String(err);
+    lastWriteErrorAt = Date.now();
+    void logError("ai.tool-selection-telemetry", err, {
+      fn: "resolveForcedTool",
+      turnId: traceId,
+    });
+  }
+}
+
 /** Mark that invokeTool actually ran a tool the pruner had dropped. */
 export async function markInvokeToolFired(
   turnId: string,

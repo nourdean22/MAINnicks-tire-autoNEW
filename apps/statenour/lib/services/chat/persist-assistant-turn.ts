@@ -431,6 +431,21 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // ./tool-telemetry-walk.ts.
       const { walkToolTelemetry } = await import("./tool-telemetry-walk");
       const capturedToolCalls = walkToolTelemetry({ ev, convId });
+
+      // 2026-09-03 · resolve any toolChoice force parked at decision time
+      // (build-stream-config.ts) against what ACTUALLY fired. No-ops when
+      // no force was requested, so it is safe on every turn. Fire-and-
+      // forget: telemetry must never affect the persist path.
+      void import("@/lib/ai/tool-selection-telemetry")
+        .then(({ resolveForcedTool }) =>
+          resolveForcedTool(
+            traceId,
+            capturedToolCalls.map((c) => c.name)
+          )
+        )
+        .catch(() => {
+          /* never affect the turn */
+        });
       // persist-turn decomposition slice 4 (2026-07-25) · the critical-
       // path persist block (dedup guard + P2002 backstop, honesty
       // banners, chatMessage.create w/ tokenUsage blob, conversation

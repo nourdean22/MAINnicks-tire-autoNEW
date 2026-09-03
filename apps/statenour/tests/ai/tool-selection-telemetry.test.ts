@@ -23,12 +23,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const createTurn = vi.fn().mockResolvedValue({});
 const createManyDecisions = vi.fn().mockResolvedValue({ count: 0 });
 const updateTurn = vi.fn().mockResolvedValue({});
+const upsertTurn = vi.fn().mockResolvedValue({});
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     toolSelectionTurn: {
       create: (...a: unknown[]) => createTurn(...a),
       update: (...a: unknown[]) => updateTurn(...a),
+      upsert: (...a: unknown[]) => upsertTurn(...a),
     },
     toolGateDecision: {
       createMany: (...a: unknown[]) => createManyDecisions(...a),
@@ -45,6 +47,9 @@ import {
   markSearchToolsFired,
   markInvokeToolFired,
   markForcedTool,
+  noteForcedTool,
+  resolveForcedTool,
+  __pendingForceSize,
   getSelectionTelemetryHealth,
   __resetSelectionTelemetryHealth,
   SELECTION_TIER,
@@ -80,6 +85,7 @@ beforeEach(() => {
   createTurn.mockResolvedValue({});
   createManyDecisions.mockResolvedValue({ count: 0 });
   updateTurn.mockResolvedValue({});
+  upsertTurn.mockResolvedValue({});
 });
 
 describe("recordToolSelection", () => {
@@ -262,6 +268,76 @@ describe("markForcedTool — is the toolChoice ladder actually honored?", () => 
     await expect(
       markForcedTool("t", "x", false)
     ).resolves.toBeUndefined();
+    expect(getSelectionTelemetryHealth().writesFailed).toBe(1);
+  });
+});
+
+describe("noteForcedTool -> resolveForcedTool (the wired path)", () => {
+  it("records HONORED when the forced tool actually fired", async () => {
+    noteForcedTool("trace-a", "arsenalWebSearch", "ollama", "minimax-m3");
+    await resolveForcedTool("trace-a", ["getTasks", "arsenalWebSearch"]);
+
+    expect(upsertTurn).toHaveBeenCalledTimes(1);
+    const arg = upsertTurn.mock.calls[0][0] as {
+      where: { turnId: string };
+      update: Record<string, unknown>;
+      create: Record<string, unknown>;
+    };
+    expect(arg.where.turnId).toBe("trace-a");
+    expect(arg.update.forcedToolHonored).toBe(true);
+    expect(arg.create.forcedToolHonored).toBe(true);
+  });
+
+  it("records NOT HONORED when the force was silently dropped — the smoking gun", async () => {
+    // build-stream-config pins a tool at step 0. If the provider drops
+    // tool_choice, the turn completes normally and looks fine. This row
+    // is the only evidence.
+    noteForcedTool("trace-b", "runPython", "ollama", "minimax-m3");
+    await resolveForcedTool("trace-b", ["getTasks", "dailyPulse"]);
+
+    const arg = upsertTurn.mock.calls[0][0] as {
+      update: Record<string, unknown>;
+    };
+    expect(arg.update.forcedToolHonored).toBe(false);
+    expect(arg.update.forcedToolName).toBe("runPython");
+  });
+
+  it("no-ops when no force was parked — safe to call every turn", async () => {
+    await resolveForcedTool("trace-never-forced", ["getTasks"]);
+    expect(upsertTurn).not.toHaveBeenCalled();
+  });
+
+  it("clears the parked intent so a replay cannot double-count", async () => {
+    noteForcedTool("trace-c", "runPython");
+    await resolveForcedTool("trace-c", ["runPython"]);
+    expect(upsertTurn).toHaveBeenCalledTimes(1);
+
+    await resolveForcedTool("trace-c", ["runPython"]);
+    expect(upsertTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("CANARY: the pending map is bounded — an abandoned turn cannot leak", () => {
+    const before = __pendingForceSize();
+    for (let i = 0; i < 700; i++) {
+      noteForcedTool(`leak-${i}`, "someTool");
+    }
+    const after = __pendingForceSize();
+    // 700 parked, none resolved. Without the FIFO cap this would be 700+.
+    expect(after).toBeLessThanOrEqual(500);
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("ignores a force with no traceId or no tool name", async () => {
+    noteForcedTool("", "runPython");
+    noteForcedTool("trace-d", "");
+    await resolveForcedTool("trace-d", []);
+    expect(upsertTurn).not.toHaveBeenCalled();
+  });
+
+  it("never throws into the persist path", async () => {
+    upsertTurn.mockRejectedValue(new Error("column does not exist"));
+    noteForcedTool("trace-e", "runPython");
+    await expect(resolveForcedTool("trace-e", [])).resolves.toBeUndefined();
     expect(getSelectionTelemetryHealth().writesFailed).toBe(1);
   });
 });
