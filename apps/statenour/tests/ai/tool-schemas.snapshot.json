@@ -882,7 +882,7 @@
   },
   {
     "name": "classifyThought",
-    "description": "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"thought\":\"maybe I should redo the whole homepage again\"}",
+    "description": "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"text\":\"maybe I should redo the whole homepage again\"}",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -1228,6 +1228,7 @@
       "properties": {
         "context": {
           "default": "ANYWHERE",
+          "description": "WHERE the task gets done, as a CODE - not a topic or description. Exactly one of: DESK · PHONE · SHOP · CAR · HOME · ANYWHERE.",
           "enum": [
             "DESK",
             "PHONE",
@@ -1244,6 +1245,7 @@
         },
         "effort": {
           "default": "M30",
+          "description": "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours).",
           "enum": [
             "M5",
             "M15",

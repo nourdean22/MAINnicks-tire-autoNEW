@@ -810,7 +810,7 @@ export const brainTools = {
   // human-readable form.
   // No parallel table; everything lives in BrainMemory.
   classifyThought: tool({
-    description: "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"thought\":\"maybe I should redo the whole homepage again\"}",
+    description: "Classify a thought into one of: raw, thinking, reasoning, insight, decision, reflection, planning, venting. Use when Nour asks 'what am I doing right now' or 'am I overthinking this'. Does NOT store anything — pure classification. Example: {\"text\":\"maybe I should redo the whole homepage again\"}",
     inputSchema: z.object({
       text: z.string().min(1).max(2000),
     }),

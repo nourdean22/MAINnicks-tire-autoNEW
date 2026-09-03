@@ -156,8 +156,24 @@ const tasksCoreTools = {
         .optional()
         .describe("Optional project/mission id (from getMissions). Omit to auto-file into the Inbox."),
       nextPhysicalAction: z.string().describe("The literal first physical step"),
-      effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
-      context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+      // 2026-09-03 · prod tool_telemetry shows 7 createTask failures, and
+      // these two opaque code enums are why. The model sent
+      // {"effort":"30 min"} and {"context":"Newsletter creation"} - free
+      // text, because "M30" and "DESK" are unguessable and neither field
+      // carried a .describe(). A code enum with no legend is a schema the
+      // model cannot satisfy.
+      effort: z
+        .enum(["M5", "M15", "M30", "H1", "H2PLUS"])
+        .default("M30")
+        .describe(
+          "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours)."
+        ),
+      context: z
+        .enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"])
+        .default("ANYWHERE")
+        .describe(
+          "WHERE the task gets done, as a CODE - not a topic or description. Exactly one of: DESK · PHONE · SHOP · CAR · HOME · ANYWHERE."
+        ),
       loopKind: z
         .enum(["ONCE", "DAILY", "PROMISE"])
         .default("ONCE")
