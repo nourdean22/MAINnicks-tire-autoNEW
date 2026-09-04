@@ -268,7 +268,7 @@ export default function ProblemPage() {
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Why Nick's</span>
               <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
-                TRUSTED BY CLEVELAND DRIVERS
+                CLEVELAND DRIVERS, EVERY DAY SINCE 2018
               </h2>
             </FadeIn>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-in">

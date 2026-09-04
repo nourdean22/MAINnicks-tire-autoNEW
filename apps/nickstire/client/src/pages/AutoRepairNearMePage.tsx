@@ -35,7 +35,7 @@ const CONFIG: ServicePageConfig = {
   pricingTitle: "COMMON REPAIR LEVELS",
   pricingSub: "Free written estimate before any work. Labor comparable to local shops, lower than dealers. Parts at fair markup — no games.",
   tiers: [
-    { name: "Basic Maintenance", price: "Free estimate", sub: "oil, tire rotation, fluid flush", use: "Regular service to keep your car healthy and reliable" },
+    { name: "Basic Maintenance", price: "Free estimate", sub: "oil, tire rotation, fluid flush", use: "Regular service to keep your car running right" },
     { name: "Common Repairs", price: "Free estimate", sub: "brakes, starter, alternator, sensors", use: "Typical fix-it-today repairs done same day, 12-month warranty", featured: true },
     { name: "Major Repair", price: "Free estimate", sub: "timing chains, suspension, exhaust", use: "Bigger jobs with full transparency — written estimate before any work" },
   ],

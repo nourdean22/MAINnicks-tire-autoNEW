@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
                 information only in the following limited circumstances:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li><strong className="text-foreground">Service providers:</strong> We use trusted third-party services (such as Twilio for SMS messaging, Google for analytics and maps) that process data on our behalf under strict confidentiality agreements</li>
+                <li><strong className="text-foreground">Service providers:</strong> We use vetted third-party services (such as Twilio for SMS messaging, Google for analytics and maps) that process data on our behalf under strict confidentiality agreements</li>
                 <li><strong className="text-foreground">Legal requirements:</strong> We may disclose information when required by law, court order, or government regulation</li>
                 <li><strong className="text-foreground">Business protection:</strong> We may share information to protect the rights, property, or safety of Nick's Tire & Auto, our customers, or others</li>
               </ul>

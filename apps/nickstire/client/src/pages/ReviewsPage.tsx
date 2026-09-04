@@ -342,7 +342,7 @@ export default function ReviewsPage() {
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
         title="Nick's Tire & Auto Reviews · 4.9★ Rated Cleveland Shop"
-        description="Read real customer reviews for Nick's Tire & Auto in Cleveland. See why local drivers trust us for honest prices, fast tire service, and reliable auto repair."
+        description="Read real customer reviews for Nick's Tire & Auto in Cleveland. See why local drivers trust us for honest prices, fast tire service, and same-day auto repair."
         canonicalPath="/reviews"
       />
       <script

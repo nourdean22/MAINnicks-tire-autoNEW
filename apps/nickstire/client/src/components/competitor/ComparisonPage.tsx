@@ -514,7 +514,7 @@ export default function ComparisonPage({
       case "alternative":
         return `${primary.shortName} is fine for what they do. Closed Sunday. Want an appointment. New tires only. Nick's Tire & Auto is the Cleveland alternative on Euclid Ave — open 7 days including Sundays, walk in any time, used tires from $25 installed, written estimate before any wrench moves. The yellow sign you've probably driven past.`;
       case "vs":
-        return `${primary.shortName} is ${primary.tier.replace(/-/g, " ")} — chain pricing, chain hours, chain upsell pressure. Nick's is mechanic-owned, single-location, first-come-first-served, open 7 days including Sunday. Pick ${primary.shortName} if you want a chain waiting room. Pick Nick's if you want a written estimate before any wrench moves.`;
+        return `${primary.shortName} is ${primary.tier.replace(/-/g, " ")} — chain pricing, chain hours, chain upsell pressure. Nick's is mechanic-owned, single-location, first-come-first-served, open 7 days including Sunday. Pick ${primary.shortName} if you want a chain lobby. Pick Nick's if you want a written estimate before any wrench moves.`;
       case "third-party":
         return `${primary.shortName} has ${primary.clevelandLocations} Cleveland locations. ${secondary?.shortName} has ${secondary?.clevelandLocations}. Both close Sunday. Both want an appointment. Both write the estimate after the work starts. The third option neither chain wants you to know about: Nick's Tire & Auto on Euclid Ave — walk in 7 days, used tires from $25, the estimate in writing before the wrench moves.`;
       case "roundup":

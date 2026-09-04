@@ -324,7 +324,7 @@ export default function FAQ() {
                   STILL HAVE QUESTIONS?
                 </h2>
                 <p className="text-foreground/60 mb-6">
-                  Our team is happy to help. Give us a call or stop by the shop.
+                  Give us a call or stop by the shop.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
                   <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
