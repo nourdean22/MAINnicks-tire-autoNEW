@@ -255,7 +255,7 @@ export default function TireSizePage() {
                     </ul>
                     <p>
                       This size is commonly found on {page.category.toLowerCase() === "truck" ? "trucks" : page.category.toLowerCase() === "sedan" ? "sedans" : page.category.toLowerCase() === "performance" ? "performance vehicles" : "SUVs and crossovers"} including {vehicleList}.
-                      At Nick's Tire & Auto, we keep {page.size} tires in stock — both new and quality used options.
+                      At Nick's Tire & Auto, we keep {page.size} tires in stock — both new and inspected used options.
                     </p>
                   </div>
                 );

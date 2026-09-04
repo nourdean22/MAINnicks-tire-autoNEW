@@ -16,7 +16,7 @@ const STAGES = [
   { key: "inspecting", label: "Inspecting", icon: <Eye className="w-5 h-5" />, desc: "Our technicians are diagnosing the issue" },
   { key: "waiting-parts", label: "Parts", icon: <Truck className="w-5 h-5" />, desc: "Waiting for parts to arrive" },
   { key: "in-progress", label: "Repairing", icon: <Wrench className="w-5 h-5" />, desc: "Actively being repaired" },
-  { key: "quality-check", label: "QC", icon: <CheckCircle className="w-5 h-5" />, desc: "Going through quality check" },
+  { key: "quality-check", label: "QC", icon: <CheckCircle className="w-5 h-5" />, desc: "Going through final inspection" },
   { key: "ready", label: "Ready", icon: <CheckCircle className="w-5 h-5" />, desc: "Ready for pickup!" },
 ];
 

@@ -39,7 +39,7 @@ const BENEFITS = [
   {
     icon: <BadgePercent className="w-7 h-7" />,
     title: "Employee Discounts",
-    desc: "Your team members receive exclusive personal-vehicle discounts as a perk of your fleet partnership.",
+    desc: "Your team members receive personal-vehicle discounts as a perk of your fleet partnership.",
   },
   {
     icon: <Siren className="w-7 h-7" />,

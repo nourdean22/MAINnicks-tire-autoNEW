@@ -84,7 +84,7 @@ const POSITIONS: Position[] = [
       "Handle phone inquiries and walk-ins with equal care",
     ],
     requirements: [
-      "Genuine communication skills — you explain things clearly to non-experts",
+      "Genuine communication skills — you explain things clearly to people who aren't mechanics",
       "Basic automotive knowledge sufficient to understand and relay repair findings",
       "Comfort with a fast-paced, customer-facing environment",
       "Ability to stay organized during busy periods",
@@ -104,7 +104,7 @@ const POSITIONS: Position[] = [
     description:
       "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, the pace is real, and the money is consistent.",
     responsibilities: [
-      "Mount, balance, and install tires on a wide range of vehicles",
+      "Mount, balance, and install tires on cars, trucks, SUVs, and fleet vans",
       "Perform TPMS sensor service and resets",
       "Repair flats using proper plug-and-patch method (no rope plugs)",
       "Inspect tires for wear patterns that indicate alignment or suspension issues",
@@ -131,7 +131,7 @@ const WHY_WORK = [
   {
     icon: Shield,
     heading: "Consistent work, consistent money",
-    body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is reliable. This is the kind of place where you can raise a family.",
+    body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is on time. This is the kind of place where you can raise a family.",
   },
   {
     icon: Wrench,
@@ -544,7 +544,7 @@ export default function Careers() {
               <span className="text-nick-yellow">different</span>
             </h2>
             <p className="mt-4 text-foreground/55 max-w-xl leading-relaxed">
-              If you've worked at shops where speed trumps quality, where advisors upsell without
+              If you've worked at shops where speed trumps doing it right, where advisors upsell without
               shame, or where techs are blamed when customers are unhappy — this is a different
               operation.
             </p>

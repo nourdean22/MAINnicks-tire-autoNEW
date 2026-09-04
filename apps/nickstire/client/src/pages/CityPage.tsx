@@ -152,7 +152,7 @@ function CitySchema({ city }: { city: CityData }) {
       a: `Tires (used from $25, new from $89), brake repair (from $149/axle), oil changes (from $49), wheel alignment, check-engine light, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
     },
     {
-      q: `Is Nick's Tire & Auto reliable for ${city.name} drivers?`,
+      q: `Why do ${city.name} drivers come to Nick's Tire & Auto?`,
       a: `★${BUSINESS.reviews.rating} stars from ${BUSINESS.reviews.countDisplay} Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest answers, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
     },
     {

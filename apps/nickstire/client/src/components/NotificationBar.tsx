@@ -209,7 +209,7 @@ const getAllNotifications = (): Notification[] => [
   {
     id: "loc-1",
     strategy: "local_identity",
-    text: "Locally owned. Cleveland proud. Serving Euclid and Northeast Ohio drivers every day.",
+    text: "Same corner on Euclid Ave since 2018. Open 7 days for Northeast Ohio drivers.",
     icon: MapPin,
   },
 

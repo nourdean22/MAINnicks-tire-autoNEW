@@ -31,7 +31,7 @@ const CONFIG: ServicePageConfig = {
   pricingTitle: "NEW TIRE PACKAGES",
   pricingSub: "Concrete starting prices below — your exact quote depends on size and brand, but you know the floor before driving over. The install package ($266 elsewhere) is included on every set — mount, balance, valve stems, TPMS reset, alignment check.",
   tiers: [
-    { name: "Budget All-Season", price: "From $89/tire", sub: "Cooper, General, Firestone Champion, Hankook Kinergy · install free", use: "Daily commuter — safe tires without the premium-brand markup" },
+    { name: "Budget All-Season", price: "From $89/tire", sub: "Cooper, General, Firestone Champion, Hankook Kinergy · install free", use: "Daily commuter — safe tires without the name-brand markup" },
     { name: "Premium All-Season", price: "From $149/tire", sub: "Michelin Defender, Goodyear Assurance, Bridgestone Turanza · install free", use: "Longest tread life, quietest ride — the brand-name peace-of-mind tier", featured: true },
     { name: "Performance / Truck / SUV", price: "From $179/tire", sub: "Michelin LTX, Bridgestone Dueler, Goodyear Wrangler, Pirelli · install free", use: "Truck, SUV, performance car, or the third-row family-hauler that's seen things" },
   ],
@@ -56,7 +56,7 @@ const CONFIG: ServicePageConfig = {
     { q: "Should I get all-season or all-weather tires?", a: "All-season works for 90% of Cleveland drivers — daily commute, occasional snow, decent grip year-round. All-weather (snowflake-rated) is better if you drive heavily in snow or have to make it to work no matter what. Dedicated winter tires are better still in deep snow but require swapping twice a year. We'll match the tire to how you actually drive." },
     { q: "How long does new-tire install take?", a: "Most full-set installs are 60-90 minutes, including the alignment check and inspection. We'll tell you the realistic wait time when you call or arrive. Walk-in friendly, but appointments get faster turnaround on busy days." },
     { q: "What's the warranty on new tires?", a: "Manufacturer warranty (varies by brand — 40,000-80,000 miles for tread depth, plus defect coverage). Our install workmanship is backed by our 12-month parts / 90-day labor warranty — if something we did fails, we fix it free. Road-hazard coverage is separate and offered as an upsell on premium tires." },
-    { q: "Can I finance new tires?", a: "Yes — we offer no-credit-check lease-to-own through Acima starting at $10 down. Approval in 60 seconds. Set of 4 quality tires can be on the road today, paid off over 90 days same-as-cash." },
+    { q: "Can I finance new tires?", a: "Yes — we offer no-credit-check lease-to-own through Acima starting at $10 down. Approval in 60 seconds. Set of 4 new tires can be on the road today, paid off over 90 days same-as-cash." },
   ],
   bookingService: "tires",
   serviceType: "New Tire Sales & Installation",
