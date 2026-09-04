@@ -1640,6 +1640,83 @@ model ToolTelemetry {
   @@map("tool_telemetry")
 }
 
+/// Per-turn record of the TOOL SELECTION decision, as distinct from
+/// tool EXECUTION (ToolTelemetry). Execution telemetry has existed
+/// since v10.0.194; selection telemetry did not, which meant the
+/// 6-tier pruner in lib/ai/chat-mode.ts could silently drop a tool the
+/// model needed and leave no trace. searchTools firing is the single
+/// highest-signal event here: it is the model itself reporting that
+/// the pruner missed.
+model ToolSelectionTurn {
+  id                 String   @id @default(cuid())
+  /// Correlates to the chat turn; joins to AgentTrace where present.
+  turnId             String   @unique @map("turn_id")
+  conversationId     String?  @map("conversation_id")
+  mode               String   @db.VarChar(24)
+  /// Size of the candidate set BEFORE the budget truncated it.
+  candidateCount     Int      @map("candidate_count")
+  selectedCount      Int      @map("selected_count")
+  /// Effective NICK_TOOL_BUDGET for this turn.
+  budget             Int
+  /// True when candidates exceeded budget — i.e. tools fell off the
+  /// cliff. Distinguishes "nothing matched" from "too much matched".
+  budgetTruncated    Boolean  @default(false) @map("budget_truncated")
+  /// Whether tier 5 was eligible and evaluated. False means the tier was
+  /// skipped (no embedding or no budget); null predates this distinction.
+  semanticTierAttempted Boolean? @map("semantic_tier_attempted")
+  /// Valid only when semanticTierAttempted is true. False then means the
+  /// embedding cache was cold or unavailable, rather than a skipped tier.
+  embeddingCacheWarm Boolean  @default(false) @map("embedding_cache_warm")
+  searchToolsFired   Boolean  @default(false) @map("search_tools_fired")
+  searchToolsQuery   String?  @map("search_tools_query") @db.VarChar(500)
+  invokeToolFired    Boolean  @default(false) @map("invoke_tool_fired")
+  invokedToolName    String?  @map("invoked_tool_name") @db.VarChar(120)
+  /// 2026-09-03 · toolChoice honoring. build-stream-config.ts runs a
+  /// toolChoice ladder (step-0 force, runPython pin, last-step "none"),
+  /// but Ollama Cloud's OpenAI-compat surface does not list tool_choice
+  /// and the native /api/chat schema omits it. The repo's own receipt —
+  /// "deepseek-v4-pro honors strict tool_choice (probed live)" — was
+  /// verified on a model since RETIRED upstream, and never re-probed on
+  /// the current pin. Rather than assume either way, record whether the
+  /// forced tool actually fired. A run of forced-but-not-honored rows is
+  /// the smoking gun; an empty run is the all-clear.
+  forcedToolName     String?  @map("forced_tool_name") @db.VarChar(120)
+  forcedToolHonored  Boolean? @map("forced_tool_honored")
+  provider           String?  @db.VarChar(32)
+  modelId            String?  @map("model_id") @db.VarChar(120)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  /// Drives the "pruner miss" panel — every turn where the model had
+  /// to reach past the attached set.
+  @@index([searchToolsFired, createdAt])
+  @@map("tool_selection_turns")
+}
+
+/// One row per tool considered in a turn. Makes a gate decision a
+/// VALUE rather than an absence: a gate that cannot emit a denial row
+/// is a gate that fails silently.
+model ToolGateDecision {
+  id        String   @id @default(cuid())
+  turnId    String   @map("turn_id")
+  toolName  String   @map("tool_name") @db.VarChar(120)
+  /// ALLOWED | BUDGETED_OUT | NOT_FOUND | BLOCKED_BREAKER
+  verdict   String   @db.VarChar(24)
+  /// Which of the 6 pruner tiers selected it (1..6), null when the
+  /// tool was never selected.
+  tier      Int?
+  /// Semantic rank + cosine score when tier 5 supplied the candidate.
+  rank      Int?
+  score     Float?
+  reason    String?  @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([turnId])
+  @@index([toolName, verdict])
+  @@index([createdAt])
+  @@map("tool_gate_decisions")
+}
+
 model BrainMemory {
   id         String    @id @default(cuid())
   category   String // pattern, insight, preference, routine, anomaly, device_behavior
@@ -1655,6 +1732,28 @@ model BrainMemory {
   /// who-wrote-this proxy; createdBy formalizes it. Old rows keep
   /// "system" default; new writes specify "nick" / "user" / "cron:X".
   createdBy  String?   @default("system") @map("created_by") @db.VarChar(64)
+  /// 2026-09-03 · PROVENANCE TRUST TIER.
+  ///
+  /// OPERATOR | SYSTEM_DERIVED | AGENT_INFERRED | EXTERNAL_CONTENT.
+  ///
+  /// Measured on prod the day this shipped: ~2,179 rows carried `source`
+  /// values that are news sites (cleantechnica, electrek, cleveland-com,
+  /// fox8-cleveland, wkyc-3, inside-evs, car-driver) with
+  /// created_by="system" - and recall did not filter on source. A scraped
+  /// article was retrieved indistinguishably from something Nour said.
+  /// That is provenance laundering: text enters as "something I read" and
+  /// leaves storage as "something I know", outliving the context window
+  /// that would otherwise have contained an injection.
+  ///
+  /// DERIVED, not collected. `source` already encoded the answer at all
+  /// 176 write sites; nothing interpreted it. lib/brain/memory-trust.ts
+  /// classifies, this column materializes it so the filter can run in SQL
+  /// BEFORE vector ranking rather than after - ranking is exactly what a
+  /// poisoned row would exploit.
+  ///
+  /// Nullable so code deployed before the backfill keeps working; the
+  /// classifier is the source of truth and treats NULL as untrusted.
+  trustTier  String?   @map("trust_tier") @db.VarChar(20)
   /// v7.9 · Apr 29 · Universal soft-delete. Distinct from `expiresAt`
   /// (which is for memory-decay TTL): `deletedAt` is for explicit
   /// human/AI delete, recoverable from the lib/db/soft-delete helpers.
@@ -1749,6 +1848,7 @@ model BrainMemory {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([trustTier])
   @@map("brain_memories")
 }
 

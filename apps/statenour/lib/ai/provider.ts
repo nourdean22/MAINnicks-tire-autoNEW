@@ -275,6 +275,92 @@ function createOpenRouterModel(taskType?: TaskType): LanguageModel {
   return openrouter.chat(modelId);
 }
 
+
+/**
+ * Retry an Ollama request against a sibling model when the configured id
+ * has been RETIRED.
+ *
+ * Ollama Cloud retires cloud models on a rolling schedule and the id simply
+ * stops resolving. That has already cost this repo two incidents:
+ * qwen3-vl (2026-06-16, vision lane) and deepseek-v3.1:671b (2026-07-15),
+ * the latter taking the whole reason/chat lane down for ~9h because every
+ * paid provider fallback was simultaneously exhausted.
+ *
+ * The existing provider chain (ollama -> gemini -> openai -> ...) only helps
+ * when a DIFFERENT provider is healthy. A retired model is not a provider
+ * outage: Ollama is up, this one id is gone. Trying a sibling Ollama model
+ * first is strictly cheaper and far likelier to succeed than burning a paid lane.
+ *
+ * SCOPE IS DELIBERATELY NARROW: 404/410 only. A 5xx, a 429 or a timeout is
+ * NOT a retirement and must fall through untouched so the real provider
+ * fallback still owns those. Widening this would silently swallow outages.
+ *
+ * Exported for test. `fetchImpl` is injected so the retirement path can be
+ * exercised without a network.
+ */
+export async function fetchWithModelRetirementFallback(
+  fetchImpl: typeof fetch,
+  url: Parameters<typeof fetch>[0],
+  options: Parameters<typeof fetch>[1],
+  modelId: string,
+  fallbackModelsEnv?: string
+): Promise<Response> {
+  const res = await fetchImpl(url, options);
+  if (res.status !== 404 && res.status !== 410) return res;
+
+  const candidates = (fallbackModelsEnv ?? process.env.OLLAMA_FALLBACK_MODELS ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0 && m !== modelId);
+
+  if (candidates.length === 0) {
+    // Say so loudly rather than letting a 404 look like a generic provider
+    // failure downstream - that misdiagnosis is what cost 9h last time.
+    logError(
+      "ai.provider",
+      new Error(
+        `Ollama model "${modelId}" returned ${res.status} (retired or unknown) and OLLAMA_FALLBACK_MODELS is unset`
+      ),
+      { fn: "fetchWithModelRetirementFallback", modelId, status: res.status },
+      "error"
+    );
+    return res;
+  }
+
+  for (const candidate of candidates) {
+    let retryBody = options?.body;
+    if (typeof retryBody === "string") {
+      try {
+        const parsed = JSON.parse(retryBody);
+        parsed.model = candidate;
+        retryBody = JSON.stringify(parsed);
+      } catch {
+        break; // unparseable body - cannot safely swap the model
+      }
+    }
+    const retry = await fetchImpl(url, { ...options, body: retryBody });
+    if (retry.status !== 404 && retry.status !== 410) {
+      logError(
+        "ai.provider",
+        new Error(
+          `Ollama model "${modelId}" is gone (${res.status}); served by fallback "${candidate}". Update OLLAMA_MODEL.`
+        ),
+        { fn: "fetchWithModelRetirementFallback", modelId, servedBy: candidate },
+        "warn"
+      );
+      return retry;
+    }
+  }
+
+  logError(
+    "ai.provider",
+    new Error(`Ollama model "${modelId}" and all ${candidates.length} fallbacks returned 404/410`),
+    { fn: "fetchWithModelRetirementFallback", modelId, candidates: candidates.join(",") },
+    "error"
+  );
+  return res;
+}
+
 function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
   const apiKey = getApiKey("ollama");
   const modelId = resolveProviderModel("ollama", taskType);
@@ -325,7 +411,7 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
           logError("ai.provider", err, { fn: "createOllamaModel", modelId }, "warn");
         }
       }
-      return fetch(url, options);
+      return fetchWithModelRetirementFallback(fetch, url, options, modelId);
     },
   });
   return ollama.chat(modelId);

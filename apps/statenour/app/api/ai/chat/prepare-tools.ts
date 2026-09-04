@@ -18,6 +18,7 @@
  */
 
 import { pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
+import { markInvokeToolFired, markSearchToolsFired } from "@/lib/ai/tool-selection-telemetry";
 import { nourTools } from "@/lib/ai/tools";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
@@ -25,6 +26,50 @@ import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { logger as rootLogger } from "@/lib/logger";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
+
+type ExecutableTool = {
+  execute?: (input: unknown, ...rest: unknown[]) => unknown;
+};
+
+/**
+ * Recovery tools are deliberately always available, but their execution is the
+ * proof that the pruner missed a capability. Clone only this turn's tool
+ * objects; never mutate the shared catalog used by concurrent requests.
+ */
+function instrumentRecoveryTools(
+  tools: typeof nourTools,
+  traceId?: string,
+): typeof nourTools {
+  if (!traceId) return tools;
+
+  const instrumented = { ...tools } as Record<string, unknown>;
+  const wrap = (
+    name: "searchTools" | "invokeTool",
+    record: (input: Record<string, unknown>) => void,
+  ) => {
+    const source = instrumented[name] as ExecutableTool | undefined;
+    if (!source?.execute) return;
+    const execute = source.execute;
+    instrumented[name] = {
+      ...source,
+      execute: async (input: unknown, ...rest: unknown[]) => {
+        record((input ?? {}) as Record<string, unknown>);
+        return execute(input, ...rest);
+      },
+    };
+  };
+
+  wrap("searchTools", (input) => {
+    const query = typeof input.query === "string" ? input.query : "";
+    if (query) void markSearchToolsFired(traceId, query);
+  });
+  wrap("invokeTool", (input) => {
+    const name = typeof input.name === "string" ? input.name : "";
+    if (name) void markInvokeToolFired(traceId, name);
+  });
+
+  return instrumented as typeof nourTools;
+}
 
 export async function prepareTools(args: {
   mode: ChatMode;
@@ -41,6 +86,9 @@ export async function prepareTools(args: {
   finalSystemPromptLength: number;
   /** WP-14 · read-mode hard enforcement strips mutating tools LAST. */
   actionPermission?: string;
+  /** Current turn identity for selection and recovery telemetry. */
+  traceId?: string;
+  conversationId?: string;
   log: Logger;
 }): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number }> {
   const {
@@ -54,6 +102,8 @@ export async function prepareTools(args: {
     queryShape,
     finalSystemPromptLength,
     actionPermission,
+    traceId,
+    conversationId,
     log,
   } = args;
 
@@ -91,7 +141,7 @@ export async function prepareTools(args: {
     nourTools as unknown as Record<string, unknown>,
     userContent,
     userEmbedding,
-    { conversationTail }
+    { conversationTail, turnId: traceId, conversationId }
   )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in
@@ -180,6 +230,10 @@ export async function prepareTools(args: {
       });
     }
   }
+
+  // The wrapper is installed after every strip/force, so it reports only a
+  // recovery capability actually handed to this model turn.
+  prunedTools = instrumentRecoveryTools(prunedTools, traceId);
 
   const toolCountAll = Object.keys(nourTools).length;
   const toolCountPruned = Object.keys(prunedTools).length;

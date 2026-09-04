@@ -40,6 +40,7 @@ import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { logger as rootLogger } from "@/lib/logger";
+import { noteForcedTool } from "@/lib/ai/tool-selection-telemetry";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 
@@ -259,6 +260,7 @@ export function buildStreamConfigFactory(deps: {
         // unforced default so the READ prompt directive governs the turn.
         if (__pythonExecuteIntent && actionPermission !== "read") {
           log.info("python_execute_intent_detected", { surface: "chat" });
+          noteForcedTool(__traceId, "runPython", provider, modelId);
           return {
             prepareStep: ({ stepNumber }: { stepNumber: number }) =>
               stepNumber === 0
@@ -275,6 +277,7 @@ export function buildStreamConfigFactory(deps: {
         // via Ollama's OpenAI-compat endpoint (probed live).
         if (__webSearchIntent) {
           log.info("web_search_intent_detected", { surface: "chat" });
+          noteForcedTool(__traceId, "arsenalWebSearch", provider, modelId);
           return {
             prepareStep: ({ stepNumber }: { stepNumber: number }) =>
               stepNumber === 0
@@ -295,6 +298,13 @@ export function buildStreamConfigFactory(deps: {
             intent: intent.intent,
             expectedTool: intent.expectedTool,
           });
+          // 2026-09-03 · record the force so persist-assistant-turn can
+          // report whether the provider honored it. Ollama Cloud does not
+          // list tool_choice in its OpenAI-compat surface, and the repo's
+          // only "probed live" receipt was taken on a since-retired model.
+          if (intent.expectedTool) {
+            noteForcedTool(__traceId, intent.expectedTool, provider, modelId);
+          }
           return {
             prepareStep: ({ stepNumber }: { stepNumber: number }) =>
               stepNumber === 0

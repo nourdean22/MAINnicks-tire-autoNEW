@@ -14,9 +14,17 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const recordMetric = vi.fn().mockResolvedValue(undefined);
+const { recordMetric, markSearchToolsFired, markInvokeToolFired } = vi.hoisted(() => ({
+  recordMetric: vi.fn().mockResolvedValue(undefined),
+  markSearchToolsFired: vi.fn().mockResolvedValue(undefined),
+  markInvokeToolFired: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("@/lib/services/metrics", () => ({ recordMetric }));
+vi.mock("@/lib/ai/tool-selection-telemetry", () => ({
+  markSearchToolsFired,
+  markInvokeToolFired,
+}));
 
 // The pruner returns a subset; the mock ignores inputs — stage behavior
 // downstream of it is what this file pins.
@@ -33,8 +41,14 @@ vi.mock("@/lib/ai/tools", () => ({
     toolA: { description: "a" },
     toolB: { description: "b" },
     toolC: { description: "c" },
-    searchTools: { description: "recovery search" },
-    invokeTool: { description: "recovery invoke" },
+    searchTools: {
+      description: "recovery search",
+      execute: vi.fn().mockResolvedValue({ tools: [] }),
+    },
+    invokeTool: {
+      description: "recovery invoke",
+      execute: vi.fn().mockResolvedValue({ result: "ok" }),
+    },
   },
 }));
 
@@ -71,6 +85,8 @@ function args(overrides: Partial<Parameters<typeof prepareTools>[0]> = {}) {
 describe("prepareTools surfacing telemetry", () => {
   beforeEach(() => {
     recordMetric.mockClear();
+    markSearchToolsFired.mockClear();
+    markInvokeToolFired.mockClear();
   });
 
   it("records the FINAL offered set — pruner output plus the recovery lane, sorted", async () => {
@@ -123,5 +139,18 @@ describe("prepareTools surfacing telemetry", () => {
     // Flush the fire-and-forget chain so an unhandled rejection would surface
     // in THIS test rather than poisoning a neighbor.
     await new Promise((r) => setTimeout(r, 0));
+  });
+
+  it("marks the recovery tools only when this traced turn actually executes them", async () => {
+    const result = await prepareTools(args({ traceId: "trace-1" }));
+    const recoveryTools = result.prunedTools as unknown as Record<string, {
+      execute: (input: Record<string, unknown>) => Promise<unknown>;
+    }>;
+
+    await recoveryTools.searchTools.execute({ query: "sleep data" });
+    await recoveryTools.invokeTool.execute({ name: "getHabitStreaks" });
+
+    expect(markSearchToolsFired).toHaveBeenCalledWith("trace-1", "sleep data");
+    expect(markInvokeToolFired).toHaveBeenCalledWith("trace-1", "getHabitStreaks");
   });
 });
