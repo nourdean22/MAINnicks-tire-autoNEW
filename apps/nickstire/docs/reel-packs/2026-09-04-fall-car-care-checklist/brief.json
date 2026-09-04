@@ -1,0 +1,93 @@
+{
+  "packId": "2026-09-04-fall-car-care-checklist",
+  "generatedAt": "2026-09-04",
+  "mode": "SCHEDULED (== INTELLIGENCE: pack only) — scheduled/unattended run, no reel-canary call made",
+  "campaignKeyword": "FALLPREP",
+  "landingDestination": "/winter-car-care-cleveland",
+  "productionType": "real-footage",
+  "productionTypeRationale": "TRIAGE.json shows all 3 currently-promotable concepts share productionType=real-footage and cost=0; the other 133 are blocked either on generated-video credit spend + Meta AI-disclosure requirements (93) or on having no motion route at all (40). This pack is deliberately authored real-footage-only to avoid joining the 93-deep bucket.",
+  "hookText": "Cleveland winter breaks cars that were fine all summer.",
+  "ctaText": "Bring it by before the freeze hits.",
+  "durationSeconds": 26,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame text",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Cleveland winter breaks cars that were fine all summer.",
+      "onScreenText": "",
+      "footageSource": "real/stock — no AI generation route needed",
+      "shotDescription": "Cleveland street in late fall, overcast sky, leaves down, a car driving away from camera; or a real shop-lot exterior shot on an overcast day",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 2,
+      "intent": "VALUE",
+      "startSecond": 3,
+      "endSecond": 9,
+      "narration": "Check your tread — summer rubber loses grip fast once it's under forty degrees.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Macro tire tread shot, gloved hand (no face) running a finger across the grooves, natural shop lighting",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 9,
+      "endSecond": 15,
+      "narration": "Get your battery tested. Cold is when a weak one finally quits.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Real shop-shot of a battery tester clamped to terminals, digital readout visible (legible readout is fine on real footage, unlike a generator)",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 15,
+      "endSecond": 21,
+      "narration": "Switch to a freeze-rated washer fluid before the first hard frost.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Washer fluid being poured into a reservoir, generic jug label visible, no brand endorsement implied",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 21,
+      "endSecond": 26,
+      "narration": "Bring it by before the freeze hits. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Wide shop-bay interior, bay door open to daylight, no readable branding required in frame",
+      "sceneStatus": "clean"
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §1)",
+    "musicBed": "none — deliberately omitted, unresolved music-rights gap (README §6); ambient room-tone only, royalty-free",
+    "sfxNotes": "no SFX assigned — no dramatic reveal beat in this checklist-format script"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 5, "detail": "preventive/checklist hook, not visceral or symptom-urgent" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2, "detail": "no deliberate loop seam authored this run" },
+      "sourcedFact": { "max": 10, "score": 5, "detail": "claims echo previously-shipped packs (COMPOUND45, battery-cold-weather-cranking-amps, washer-fluid-freezing) but remain UNKNOWN against evidenceResolver.ts — not queried live this run" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (57/70) is at the informal bar but not confirmed; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "57/75 (self-estimate) — below the 70/75 auto-pass floor; needs a real evidence citation for sourcedFact and a deliberate loop seam before this would likely clear the real gate"
+  }
+}
