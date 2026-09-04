@@ -298,6 +298,29 @@ describe("services/autonomic-orchestrator", () => {
     expect(mocks.runManifestCron).not.toHaveBeenCalled();
   });
 
+  it("Phase 1: heals a failed low-frequency cron missing from the capped display sample", async () => {
+    mocks.buildCronCommandDeck.mockResolvedValue({
+      rows: [
+        {
+          name: "weekly-maintenance",
+          enabled: true,
+          mode: "active",
+          lastStatus: null,
+          success14d: 0,
+          partial14d: 0,
+          fail14d: 1,
+          lastRunAt: null,
+        },
+      ],
+    });
+    mocks.runManifestCron.mockResolvedValue({ ok: true, status: 200, durationMs: 150 });
+
+    const res = await runAutonomicOrchestrator();
+
+    expect(res.healedCrons).toContain("weekly-maintenance");
+    expect(mocks.runManifestCron).toHaveBeenCalledWith("weekly-maintenance");
+  });
+
   it("Phase 1: a currently-green cron is not re-rescued for an old failure", async () => {
     // `fail14d > 0` meant one stumble marked a job broken for a fortnight.
     // The operator woke to a wall of "Rescued ingest-reviews ... Status: 200"
