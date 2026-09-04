@@ -765,10 +765,21 @@ function renderDecisions(ctx: NickPrimeContext): string {
 
 function renderHealth(ctx: NickPrimeContext): string {
   const h = ctx.systemHealth;
-  const cron = `${h.crons.failures24h > 0 ? "⚠️" : "✓"} crons (${h.crons.failures24h} failures/24h)`;
-  const ai = `${h.ai.recentErrorRate > 5 ? "⚠️" : "✓"} ai (${h.ai.recentErrorRate}% err)`;
-  const mem = `pgvector ${h.memory.embeddingCoveragePct}%`;
-  return `## SYSTEM HEALTH · ${cron} · ${ai} · ${mem}`;
+  const unavailable = h.unavailableSources ?? [];
+  const unavailableSet = new Set(unavailable);
+  const cron = unavailableSet.has("cron-runs")
+    ? "⚠️ crons (unavailable)"
+    : `${h.crons.failures24h > 0 ? "⚠️" : "✓"} crons (${h.crons.failures24h} failures/24h)`;
+  const ai = unavailableSet.has("ai-generations")
+    ? "⚠️ ai (unavailable)"
+    : `${h.ai.recentErrorRate > 5 ? "⚠️" : "✓"} ai (${h.ai.recentErrorRate}% err)`;
+  const mem = unavailableSet.has("embeddings")
+    ? "⚠️ pgvector unavailable"
+    : `pgvector ${h.memory.embeddingCoveragePct}%`;
+  const dataState = unavailable.length > 0
+    ? `⚠️ data unavailable (${unavailable.join(", ")})`
+    : "✓ health reads";
+  return `## SYSTEM HEALTH · ${dataState} · ${cron} · ${ai} · ${mem}`;
 }
 
 function relTime(iso: string | null): string {

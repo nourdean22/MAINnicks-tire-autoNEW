@@ -15,7 +15,7 @@
  * disclosure — it is the one place lending words may appear.
  */
 import { CheckCircle2, ExternalLink, Zap } from "lucide-react";
-import { trackEvent } from "@/components/SEO";
+import { trackAcimaClick } from "@/lib/acima";
 
 /** Estimated weekly lease payment as a fraction of the cash price. */
 const WEEKLY_RATE = 0.04;
@@ -69,7 +69,7 @@ export default function AcimaLeaseStrip() {
           href={ACIMA_APPLY_URL}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={() => trackEvent("acima_apply_click", { source: "tires_lease_strip" })}
+          onClick={() => trackAcimaClick("tires_lease_strip")}
           className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-md text-sm font-semibold hover:bg-blue-600/90 transition-colors shrink-0 min-h-[48px]"
         >
           Apply in 2 minutes

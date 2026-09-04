@@ -473,6 +473,17 @@ export async function chatWithAssistant(
 
       const toolCalls = choice.message?.tool_calls;
 
+      // Telemetry: makes the "chat tools never work" complaint falsifiable from
+      // prod logs. If the model (esp. the Ollama lane) never emits tool_calls,
+      // every tool silently no-ops — and until now nothing recorded that. Tool
+      // NAMES only, no customer data, so it is PII-safe at info level.
+      log.info(
+        `[NickAI] chat tool-loop iter=${iteration}: ` +
+          (toolCalls?.length
+            ? `${toolCalls.length} tool_call(s) -> ${toolCalls.map((t) => t.function?.name).join(", ")}`
+            : "0 tool_calls (final text)"),
+      );
+
       // If no tool calls, we have our final text response
       if (!toolCalls || toolCalls.length === 0) {
         const rawReply = choice.message?.content;
@@ -505,7 +516,30 @@ export async function chatWithAssistant(
       // Loop continues — LLM will now see the tool results and generate a text response
     }
 
+    // If the loop ended with tools executed on the final iteration but no text
+    // reply yet, the model never got a turn to synthesize the tool results — the
+    // old code dropped straight to the phone-deflection even though the tools
+    // WORKED (this is the real "glitching out" symptom). Give it one final
+    // tools-off turn to answer from the accumulated tool results.
     if (!reply) {
+      try {
+        const finalResponse = await invokeLLM({
+          messages: fullMessages as any,
+          tools: CHAT_TOOLS,
+          toolChoice: "none",
+        });
+        const finalContent = finalResponse.choices?.[0]?.message?.content;
+        reply = typeof finalContent === "string" ? finalContent : "";
+        if (reply) {
+          log.info("[NickAI] chat tool-loop: recovered final answer via forced text synthesis after tool use");
+        }
+      } catch (err) {
+        log.warn("[NickAI] chat tool-loop final synthesis failed:", err instanceof Error ? err.message : err);
+      }
+    }
+
+    if (!reply) {
+      log.warn("[NickAI] chat tool-loop exhausted with no text reply — served the phone-deflection fallback");
       reply = "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.";
     }
 

@@ -7,6 +7,9 @@
  * FTC Regulation M requires disclosure near every "$10" trigger term.
  */
 
+import { getSessionId } from "@/lib/session";
+import { getUtmData } from "@/lib/utm";
+
 /** Update annually — never hardcode the year in prose text */
 export const ACIMA_PROMO_YEAR = 2026;
 
@@ -48,13 +51,48 @@ export function buildAcimaUrl(source: string): string {
  * Follows existing trackPhoneClick pattern from ga4.ts
  */
 export function trackAcimaClick(source: string) {
-  if (typeof window === "undefined" || !window.gtag) return;
+  if (typeof window === "undefined") return;
 
-  window.gtag("event", "acima_cta_click", {
-    event_category: "engagement",
-    event_label: source,
-    source,
-    page: window.location.pathname,
-    timestamp: new Date().toISOString(),
-  });
+  // GA4 (best-effort — widely ad-blocked)
+  if (window.gtag) {
+    window.gtag("event", "acima_apply_click", {
+      event_category: "engagement",
+      event_label: source,
+      source,
+      page: window.location.pathname,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Durable server-side event. Financing intent is a high-value signal and GA4
+  // is widely blocked, so persist to customer_events (the same beacon
+  // useConversionTracking uses) with sessionId + UTM join keys so the click can
+  // join the lead->booking->invoice funnel. sendBeacon survives the navigation
+  // to Acima. Best-effort — never blocks UX.
+  try {
+    const utm = getUtmData();
+    const payload = JSON.stringify({
+      type: "acima_apply_click",
+      page: window.location.pathname,
+      element: source,
+      sessionId: getSessionId(),
+      utmSource: utm.utmSource || null,
+      utmMedium: utm.utmMedium || null,
+      utmCampaign: utm.utmCampaign || null,
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/analytics/conversion", new Blob([payload], { type: "application/json" }));
+    } else {
+      fetch("/api/analytics/conversion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {
+        /* never block UX on analytics */
+      });
+    }
+  } catch {
+    /* never block UX on analytics */
+  }
 }

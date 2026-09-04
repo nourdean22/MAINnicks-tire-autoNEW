@@ -296,6 +296,11 @@ export default function ChatWidget() {
                 </div>
               )}
 
+              {/* Live region scoped to the transcript only — the empty-state
+                  quick-actions and the lead-capture form are siblings OUTSIDE
+                  it, so a screen reader announces new replies, not the form
+                  labels/promo text when they render. */}
+              <div role="log" aria-live="polite" aria-relevant="additions" aria-atomic="false" aria-label="Chat with Nick's assistant" className="space-y-3">
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
@@ -313,7 +318,8 @@ export default function ChatWidget() {
               {sendMessage.isPending && (
                 <div className="flex justify-start">
                   <div className="bg-foreground/[0.05] border border-[oklch(0.17_0.004_260)] rounded-xl rounded-bl-sm px-3.5 py-2.5 text-[13px] text-foreground/70">
-                    <span className="inline-flex gap-1">
+                    <span className="sr-only">Nick's assistant is typing</span>
+                    <span className="inline-flex gap-1" aria-hidden="true">
                       <span className="animate-pulse">●</span>
                       <span className="animate-pulse" style={{ animationDelay: "0.2s" }}>●</span>
                       <span className="animate-pulse" style={{ animationDelay: "0.4s" }}>●</span>
@@ -321,6 +327,7 @@ export default function ChatWidget() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Lead capture */}
               {showLeadCapture && !leadSubmitted && (

@@ -76,16 +76,22 @@ export async function runAutonomicOrchestrator(): Promise<AutonomicOrchestratorR
       // alerts; a 200 is proof it was never broken. `partial` is excluded on
       // purpose: a degraded fan-out is not a dead cron, and re-running it is
       // exactly the recursion guarded against above.
-      const isFailing = row.lastStatus === "failed";
-
       // "Nothing recorded in the 14d window" is the intended meaning, and the
-      // counters ARE that window — the bug was that `partial` fell into no
-      // bucket at all. mega-evening ran 1,248 times in 14 days, every one
-      // partial, so success14d and fail14d were both 0 and it classified as
-      // NEVER RUN — healed on every single pass, forever.
+      // counters are the authoritative window. `lastRunAt` comes from the
+      // command deck's capped recent-log sample; a low-frequency job can fall
+      // out of that display sample while its authoritative window counters
+      // still prove it ran. Treating that display omission as never-run would
+      // spuriously re-fire a weekly email cron midweek.
       const runsInWindow =
         row.success14d + (row.partial14d ?? 0) + row.fail14d;
-      const isNeverRun = row.lastRunAt === null || runsInWindow === 0;
+      // The capped display sample can also omit a low-frequency failed run.
+      // When the authoritative window contains failures and no successful or
+      // partial outcome, the job is still failing even though lastStatus is
+      // unavailable. Do not use fail14d alone: a later success must win.
+      const onlyFailuresInWindow =
+        row.fail14d > 0 && row.success14d === 0 && (row.partial14d ?? 0) === 0;
+      const isFailing = row.lastStatus === "failed" || onlyFailuresInWindow;
+      const isNeverRun = runsInWindow === 0;
 
       if (isFailing || isNeverRun) {
         const reason = isFailing ? "failing" : "never_run";

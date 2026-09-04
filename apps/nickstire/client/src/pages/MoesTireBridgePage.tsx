@@ -7,7 +7,7 @@
  * The address at 17625 Euclid Ave was previously associated with Moe's Tire
  * in Google's knowledge graph. Drivers searching for the old shop land
  * confused on Nick's. This page bridges the gap: claims the legacy traffic,
- * reframes as ownership transition, sells the new shop's strengths.
+ * reframes as a name change under the same owner, sells the shop's strengths.
  *
  * Strategy: capture, convert, redirect intent toward today's services.
  */
@@ -26,7 +26,7 @@ const CONFIG: ServicePageConfig = {
   description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "MOE'S TIRE EUCLID — SAME CORNER, NEW CHAPTER",
   h1: "MOE'S TIRE EUCLID IS NOW NICK'S TIRE & AUTO",
-  sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. New ownership, sharper service, and a coffee maker that's still standing after all these years. If you trusted this spot for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",
+  sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. Same owner, sharper service, and a coffee maker that's still standing after all these years. If you came here for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",
   startingPrice: "Used tires from $25 · installed free",
   pricingTitle: "WHAT WE DO HERE NOW",
   pricingSub: "Same building, expanded services. Tires, brakes, oil, diagnostics, alignment — full-service auto repair on Euclid Ave.",
@@ -39,7 +39,7 @@ const CONFIG: ServicePageConfig = {
   includedSub: "Why customers from the Moe's days still send their kids and neighbors here.",
   included: [
     "Same address — 17625 Euclid Ave, Cleveland OH 44112. Same corner you remembered.",
-    "New ownership, but the shop floor still runs on neighborhood-trust, not corporate scripts.",
+    "Same owner — the shop floor still runs on neighborhood-trust, not corporate scripts.",
     "We expanded beyond tires — full-service auto repair: brakes, oil, diagnostics, alignment, A/C, exhaust, electrical.",
     "Used tires still on the rack — from $25 installed, every tire 4-point checked before it goes on a customer's car.",
     "$10-down payment programs added — Acima, Snap, Koalafi, American First. Soft pull only, no FICO ding.",
@@ -48,8 +48,8 @@ const CONFIG: ServicePageConfig = {
     "We show you the problem on a lift before any work starts. You see the cost before we touch the car.",
   ],
   faqs: [
-    { q: "Is Moe's Tire still open?", a: "The shop at 17625 Euclid Ave that customers knew as Moe's is now Nick's Tire & Auto. Same location, same building, new ownership. If you visited Moe's for tires or repair in the past, this is where you'd come now — we're the same corner, same neighborhood shop, with expanded services and $10-down financing added. (216) 862-0005." },
-    { q: "What happened to Moe's Tire on Euclid Avenue?", a: "The location transitioned to new ownership and rebranded as Nick's Tire & Auto. We kept the focus on honest, fair-priced tire and auto service for Cleveland's east side — and added new services (brakes, oil, diagnostics, alignment) and payment programs ($10 down, no credit check) that Moe's didn't offer. Same address: 17625 Euclid Ave." },
+    { q: "Is Moe's Tire still open?", a: "The shop at 17625 Euclid Ave that customers knew as Moe's is now Nick's Tire & Auto. Same location, same building, same owner — we simply changed the name from Moe's to Nick's. If you visited Moe's for tires or repair in the past, this is where you'd come now — same corner, same neighborhood shop, with expanded services and $10-down payment programs added. (216) 862-0005." },
+    { q: "What happened to Moe's Tire on Euclid Avenue?", a: "The shop simply changed its name to Nick's Tire & Auto — same owner, same corner of Euclid Ave. We kept the focus on honest, fair-priced tire and auto service for Cleveland's east side, and over time added more services (brakes, oil, diagnostics, alignment) and $10-down payment programs the shop didn't offer in the earlier tire-only days. Same address: 17625 Euclid Ave." },
     { q: "Do you still sell used tires like Moe's did?", a: "Yes — used tires are still core to what we do. Pricing starts at $25 installed (mount, balance, valve stems). The difference now: every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on a customer's car. We don't sell tires we wouldn't put on our own family's cars. Walk in or call your size to confirm stock: (216) 862-0005." },
     { q: "Is the address the same as Moe's Tire?", a: "Yes — 17625 Euclid Ave, Cleveland OH 44112. Same corner of Euclid Ave you remembered. Open 7 days: Mon–Sat 8 AM–6 PM, Sunday 9 AM–4 PM. Walk-ins welcome — no appointment needed." },
     { q: "Do you accept the same customers Moe's did?", a: "Absolutely. If you were a regular at Moe's, you'll be treated like one here. Many of our current regulars came over from the Moe's days. We respect that history — and we earned the 4.9★ / 1,700+ reviews by treating every customer the same way: honest diagnostics, written estimates before any work, no upsells. (216) 862-0005." },

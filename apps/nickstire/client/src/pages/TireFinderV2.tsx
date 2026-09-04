@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle } from "lucide-react";
+import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle, ChevronDown } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -9,6 +9,7 @@ import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
 import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { OrderModal } from "@/components/order/TireOrderModal";
 
 // Real inferred shape from the tRPC procedure — no `any` on the money path.
@@ -292,6 +293,35 @@ export default function TireFinderV2() {
             <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">No Credit Check Tires</Link>
           </div>
         </nav>
+
+        {/* Visible FAQ — MUST render the same Q&A as the FAQPageSchema JSON-LD
+            above. It was schema-only before, which is a Google "structured data
+            does not match visible content" policy violation and gave AI answer
+            engines nothing on-page to cite. Native <details> keeps every answer
+            in the DOM for crawlers even while collapsed. */}
+        <section aria-labelledby="tire-faq-heading" className="border-t border-border/30 bg-background py-14">
+          <div className="container max-w-3xl mx-auto">
+            <h2 id="tire-faq-heading" className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">
+              Tire questions, answered
+            </h2>
+            <div className="mt-6 space-y-2">
+              {TIRE_BUYING_FAQ.map((faq, i) => (
+                <details key={i} className="group border border-border/30 rounded-lg bg-card/40 [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none font-semibold text-[14px] text-foreground hover:bg-card/60 transition-colors">
+                    {faq.q}
+                    <ChevronDown className="w-4 h-4 text-foreground/40 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <p className="px-4 pb-4 text-[13px] text-foreground/75 leading-relaxed">{faq.a}</p>
+                </details>
+              ))}
+            </div>
+            {/* Financing fine print — the FAQ above quotes $10-down / no-credit-check
+                payment-program terms; this keeps the required disclosure on-page. */}
+            <p className="mt-6 text-[11px] leading-relaxed text-foreground/40">
+              {ACIMA_COMPACT_DISCLOSURE}
+            </p>
+          </div>
+        </section>
       </main>
       {selected && <OrderModal tire={selected} quantity={qty} packageValue={packageValue} onClose={() => setSelected(null)} />}
     </PageLayout>

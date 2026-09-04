@@ -73,7 +73,7 @@ export default function BookingPage() {
             <div className="text-center">
               <Clock className="mx-auto w-6 h-6 text-primary mb-2" />
               <p className="text-[11px] font-bold tracking-wider uppercase text-foreground/60 mb-1">Shop Hours</p>
-              <p className="text-[15px] text-foreground">Mon–Sat 8a–6p</p>
+              <p className="text-[15px] text-foreground">{BUSINESS.hours.display}</p>
             </div>
             <div className="text-center">
               <MapPin className="mx-auto w-6 h-6 text-primary mb-2" />

@@ -204,15 +204,31 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden hero-stage">
       <div className="absolute inset-0 hero-bg ken-burns-target">
-        <img
-          src={HERO_IMG}
-          alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-          className="w-full h-full object-cover [object-position:center_42%]"
-          loading="eager"
-          fetchPriority="high"
-          width="1920"
-          height="1080"
-        />
+        <picture>
+          {/* Sources MUST mirror the three media-gated preloads in index.html
+              exactly, or the browser double-downloads — mobile was fetching the
+              small vertical variant it never rendered while the wide LCP image
+              (HERO_IMG) went un-preloaded. Aligning them fixes mobile LCP. */}
+          <source
+            media="(max-width: 768px)"
+            srcSet="/photos/shopfront-clear-vertical-sign-bays-small.webp"
+            type="image/webp"
+          />
+          <source
+            media="(min-width: 769px) and (max-width: 1024px)"
+            srcSet="/photos/shopfront-clear-vertical-sign-bays-medium.webp"
+            type="image/webp"
+          />
+          <img
+            src={HERO_IMG}
+            alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
+            className="w-full h-full object-cover [object-position:center_42%]"
+            loading="eager"
+            fetchPriority="high"
+            width="1920"
+            height="1080"
+          />
+        </picture>
         <div
           className="absolute inset-0"
           style={{
