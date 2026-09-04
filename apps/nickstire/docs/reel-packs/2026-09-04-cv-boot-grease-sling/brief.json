@@ -1,0 +1,73 @@
+{
+  "topic": "That grease smear inside your wheel isn't dirt — it's a torn CV boot",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-09-04",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 50,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "See grease flung inside your wheel? That's not dirt.",
+      "visualPrompt": "Macro/cutaway shot: inside a vehicle wheel well with the wheel removed, fine dark-grease flecks visible flung across the inner wheel barrel and nearby suspension components, static camera, dim garage lighting."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "A torn CV boot slings grease everywhere it can reach — and doesn't make a sound yet.",
+      "visualPrompt": "Close-up on a torn accordion-fold rubber CV boot, a visible split along one fold with dark grease coating the surrounding area, static mounted camera, slow push-in."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: no clicking yet doesn't mean it's fine — the joint fails once the grease is gone and dirt gets in.",
+      "visualPrompt": "Macro/cutaway shot: a clean, intact CV boot on a comparable axle for contrast — taped/clamped seams visible, no tears, no grease residue nearby, static camera, dim garage lighting."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "By the time you hear a click on turns, the joint itself may already be damaged — the boot was the warning.",
+      "visualPrompt": "Close-up on an exposed CV joint with grease visibly missing/dry and fine grit caught in the joint grooves, static mounted camera."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Worth checking during a routine rotation, before it turns into a full axle replacement.",
+      "visualPrompt": "Wide shot: a vehicle raised on a shop lift with one wheel removed, a service cart with hand tools resting nearby, no hands or human figures in frame, static camera, workshop lighting."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#CVJoint", "#AxleCare", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto", "#CarProblems"],
+    "feedCaption": "That grease inside your wheel isn't dirt — it's a torn CV boot flinging grease before the joint ever makes a sound. Worth checking during a routine rotation. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the torn-boot/grease-sling/dry-joint claim",
+      "whether Nick's Tire & Auto specifically inspects CV boots during a routine tire rotation (not confirmed against a live business_facts row)",
+      "whether 0112_reel_publish_approvals.sql has been applied to production TiDB"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 1,
+    "openReelPackPRExamples": [2114],
+    "priorRunOpenCount": 9,
+    "mergedPackCountAtProduction": 145,
+    "priorRunMergedPackCount": 136
+  }
+}
