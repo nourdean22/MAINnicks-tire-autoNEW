@@ -1,0 +1,145 @@
+{
+  "topic": "blind spot monitor light stays on",
+  "runMode": "SCHEDULED",
+  "generatedAt": "2026-09-04T00:00:00Z",
+  "liveSessionAvailable": false,
+  "hook": "That blind spot light won't turn off. Every lane change, there it is.",
+  "winningConceptId": "concept_bsm_blocked_or_miscalibrated_sensor",
+  "concepts": [
+    {
+      "id": "concept_bsm_blocked_or_miscalibrated_sensor",
+      "hook": "That blind spot light won't turn off. Every lane change, there it is.",
+      "scores": {
+        "hook": 8,
+        "truth": 8,
+        "save": 8,
+        "local": 5,
+        "absurdity": 4,
+        "fit": 8
+      }
+    }
+  ],
+  "captionHooks": [
+    "Your blind spot light won't turn off. Every single lane change.",
+    "Your blind spot sensor isn't broken. It's blind."
+  ],
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 5,
+      "visual": "Side mirror housing, amber triangle warning icon glowing steady, passing car reflected",
+      "motion": "Close framing on mirror housing, vehicle passes and reflects briefly",
+      "onScreenText": "BLIND SPOT LIGHT WON'T TURN OFF"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 5,
+      "endSecond": 10,
+      "visual": "Rear bumper corner, low angle, small black radar sensor housing embedded in bumper skin",
+      "motion": "Low-angle close-up, shallow depth of field, static subject with slow camera drift",
+      "onScreenText": "MIGHT NOT BE BROKEN"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 10,
+      "endSecond": 15,
+      "visual": "Slow-motion road spray/mud splashing onto rear bumper corner from a passing wheel",
+      "motion": "Slow-motion spray and mud splash, wet asphalt",
+      "onScreenText": "SENSOR SITS WHERE GRIME COLLECTS"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 15,
+      "endSecond": 20,
+      "visual": "Technical overlay: radar detection cone from sensor, blocked by opaque mud layer, cone vanishes",
+      "motion": "Cone flickers then disappears as mud overlay appears",
+      "onScreenText": "COVERED = SAME FAULT AS BROKEN"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 20,
+      "endSecond": 25,
+      "visual": "Macro shot of sensor housing with a faint scuff mark, housing tilts a few degrees off-axis",
+      "motion": "Slow subtle rotation off original axis, dramatic rim lighting",
+      "onScreenText": "OR: BUMPER TAP SHIFTED THE AIM"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 25,
+      "endSecond": 30,
+      "visual": "Rig-mounted microfiber cloth wiping mud off sensor area (no hand visible), cut to dash icon fading off",
+      "motion": "One slow deliberate wipe motion, then cut to icon fade from lit to off",
+      "onScreenText": "WIPE IT CLEAN — THAT'S FREE"
+    }
+  ],
+  "saveFreeze": {
+    "startSecond": 30,
+    "endSecond": 33,
+    "source": "hold last frame of beat 6, no new generation",
+    "onScreenText": "STILL ON? WE'LL TAKE A LOOK"
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "prompt": "Close-up on a car's side mirror housing, an amber triangular blind-spot warning icon glowing steadily near the mirror glass edge, a passing vehicle briefly reflected in the mirror surface, daylight highway driving, photorealistic automotive footage, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 2,
+      "prompt": "Low-angle close-up on a vehicle's rear bumper corner, a small black radar sensor housing embedded flush in the bumper skin, shallow depth of field, overcast daylight, photorealistic automotive detail shot, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 3,
+      "prompt": "Slow-motion shot of road spray and mud splashing up from a vehicle's rear wheel well directly onto the bumper corner where a sensor housing sits, wet asphalt, overcast daylight, photorealistic automotive footage, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 4,
+      "prompt": "Technical schematic visualization of a radar detection cone emanating from a bumper-corner sensor, a semi-transparent brown mud layer overlays the sensor and the cone flickers then vanishes, cool schematic blue-and-amber glow, clean dark field, precise engineering aesthetic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 5,
+      "prompt": "Macro close-up of a bumper-mounted radar sensor housing with a faint scuff mark on its edge, the housing subtly rotating a few degrees off its original axis, dramatic rim lighting, shallow depth of field, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 6,
+      "prompt": "Close-up of a microfiber cloth (no hand visible, cloth appears to move via a mounted rig) wiping mud and grime off a rear bumper sensor housing in one slow deliberate motion, followed by a cut to a dashboard blind-spot warning icon fading from lit amber to off, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "voScript": [
+    { "start": 0, "end": 5, "text": "That blind spot light won't turn off. Every lane change, there it is." },
+    { "start": 5, "end": 10, "text": "It might not be broken. It might just be blind." },
+    { "start": 10, "end": 15, "text": "The sensor sits low in the bumper corner — right where mud and slush collect." },
+    { "start": 15, "end": 20, "text": "A covered sensor reports the same fault as a failed one. It can't tell the difference." },
+    { "start": 20, "end": 25, "text": "The other cause: a bumper tap that shifted the sensor's aim, even slightly." },
+    { "start": 25, "end": 30, "text": "A stuck warning light can point to either — wipe it clean first, that's free." },
+    { "start": 30, "end": 33, "text": "Still stuck on? Stop by and we'll take a look." }
+  ],
+  "claimSafety": {
+    "usesApprovedPhrases": ["can point to", "worth checking", "stop by and we'll take a look"],
+    "makesPricingClaim": false,
+    "makesWarrantyClaim": false,
+    "businessFactsUsed": [],
+    "evidenceRecordsRead": [],
+    "evidenceStatus": "UNKNOWN - not evaluated, no live DB session this run"
+  },
+  "repetitionCheck": {
+    "method": "static: ls apps/nickstire/docs/reel-packs/ + gh search open PRs repo-wide",
+    "liveLedgerRead": false,
+    "collisionsFound": false
+  },
+  "qualityScoreSelfEstimate": {
+    "value": "68-72 / 75 (not authoritative, not run through calculateReelQualityScore)",
+    "floor": 70
+  },
+  "reservationRisk": {
+    "note": "4 other reel packs already produced today (2026-09-04); RESERVATION_FEED_CAP is 2 posts/day per docs/operations/REEL-PIPELINE.md — treat this as a queued future-day candidate, not a same-day enqueue.",
+    "liveReservationCheck": false
+  },
+  "status": "READY FOR HUMAN APPROVAL"
+}
