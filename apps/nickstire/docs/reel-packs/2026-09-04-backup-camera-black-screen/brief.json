@@ -1,0 +1,141 @@
+{
+  "topic": "backup camera goes black mid-reverse",
+  "runMode": "SCHEDULED",
+  "generatedAt": "2026-09-04T00:00:00Z",
+  "liveSessionAvailable": false,
+  "hook": "Your backup camera goes black right when you need it most.",
+  "winningConceptId": "concept_backup_camera_hinge_wiring",
+  "concepts": [
+    {
+      "id": "concept_backup_camera_hinge_wiring",
+      "hook": "Your backup camera goes black right when you need it most.",
+      "scores": {
+        "hook": 8,
+        "truth": 8,
+        "save": 7,
+        "local": 5,
+        "absurdity": 4,
+        "fit": 8
+      }
+    }
+  ],
+  "captionHooks": [
+    "Your backup camera just went black. Mid-reverse.",
+    "3 parts can kill your backup camera. Only one of them is the camera."
+  ],
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 5,
+      "visual": "Dash infotainment screen, backup-camera feed flickers to black while reversing",
+      "motion": "Close framing on screen only, subtle handheld vehicle vibration, feed glitch cuts to black",
+      "onScreenText": "BACKUP CAM GOES BLACK MID-REVERSE"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 5,
+      "endSecond": 10,
+      "visual": "Rear bumper camera housing, lens fogged with condensation",
+      "motion": "Slow cinematic push-in, shallow depth of field",
+      "onScreenText": "IT'S NOT ALWAYS THE CAMERA"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 10,
+      "endSecond": 15,
+      "visual": "X-ray cutaway of wiring path: camera through hatch hinge to head unit",
+      "motion": "Slow orbiting camera, translucent layered materials, cool schematic glow",
+      "onScreenText": "LENS. WIRING. OR SCREEN."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 15,
+      "endSecond": 20,
+      "visual": "Trunk hatch opening and closing in a loop, wiring loom flexing at hinge pivot",
+      "motion": "Smooth continuous loop, close framing on hinge",
+      "onScreenText": "WIRE FLEXES EVERY OPEN"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 20,
+      "endSecond": 25,
+      "visual": "Macro shot of wiring pigtail connector, light corrosion on pins",
+      "motion": "Slow rotation on dark turntable, dramatic rim lighting",
+      "onScreenText": "COPPER FATIGUES OVER TIME"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 25,
+      "endSecond": 30,
+      "visual": "Dash screen flickers between picture and static, then cuts to black",
+      "motion": "Slow motion, close framing on screen only",
+      "onScreenText": "FLICKER FIRST = ONE CLUE"
+    }
+  ],
+  "saveFreeze": {
+    "startSecond": 30,
+    "endSecond": 33,
+    "source": "hold last frame of beat 6, no new generation",
+    "onScreenText": "STOP BY — WE'LL TAKE A LOOK"
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "prompt": "Interior car dashboard infotainment screen mounted in center console, displaying a rearview backup-camera feed of a dim garage; feed flickers with static interference then cuts to solid black; close framing on the screen only; subtle handheld vehicle vibration; night interior ambient light; photorealistic automotive footage; 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 2,
+      "prompt": "Extreme close-up on a rear bumper camera housing, lens ringed with light condensation/fog, slow cinematic push-in, shallow depth of field, overcast daylight, photorealistic automotive detail shot, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 3,
+      "prompt": "Technical x-ray cutaway visualization of a vehicle's rear end showing the wiring path from the bumper camera through the trunk hatch hinge to the dashboard head unit; translucent layered materials; cool schematic blue glow; clean dark field; precise engineering aesthetic; slow orbiting camera; 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 4,
+      "prompt": "Vehicle trunk hatch opening and closing in a smooth continuous loop, close framing on the hinge pivot area where a black wiring loom visibly flexes and loops with each cycle, studio-lit garage background, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 5,
+      "prompt": "Macro product shot of an automotive wiring pigtail connector with light green-white corrosion on the pins, slowly rotating on a dark turntable, dramatic rim lighting, shallow depth of field, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 6,
+      "prompt": "Interior car dashboard infotainment screen, backup-camera feed flickering rapidly between a clear picture and static noise before cutting to black, slow motion, close framing on the screen only, night interior ambient light, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "voScript": [
+    { "start": 0, "end": 5, "text": "Your backup camera goes black right when you need it most." },
+    { "start": 5, "end": 10, "text": "It's not always the camera. Three parts share the blame." },
+    { "start": 10, "end": 15, "text": "The lens, the wiring through the hatch hinge, or the screen itself." },
+    { "start": 15, "end": 20, "text": "That wire flexes every single time you open the trunk." },
+    { "start": 20, "end": 25, "text": "Thousands of open-close cycles later, the copper inside just fatigues." },
+    { "start": 25, "end": 30, "text": "A flickering picture before it dies is one clue where to start." },
+    { "start": 30, "end": 33, "text": "Do not guess which part — stop by and we'll take a look." }
+  ],
+  "claimSafety": {
+    "usesApprovedPhrases": ["one clue", "do not guess", "stop by and we'll take a look"],
+    "makesPricingClaim": false,
+    "makesWarrantyClaim": false,
+    "businessFactsUsed": [],
+    "evidenceRecordsRead": [],
+    "evidenceStatus": "UNKNOWN - not evaluated, no live DB session this run"
+  },
+  "repetitionCheck": {
+    "method": "static: ls apps/nickstire/docs/reel-packs/ + gh search open PRs 'reel pack' in:title",
+    "liveLedgerRead": false,
+    "collisionsFound": false
+  },
+  "qualityScoreSelfEstimate": {
+    "value": "68-72 / 75 (not authoritative, not run through calculateReelQualityScore)",
+    "floor": 70
+  },
+  "status": "READY FOR HUMAN APPROVAL"
+}
