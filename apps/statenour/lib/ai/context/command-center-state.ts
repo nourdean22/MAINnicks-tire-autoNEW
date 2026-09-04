@@ -345,19 +345,19 @@ function startOfDayUTC(daysAgo = 0): Date {
 export async function buildCommandCenterState(): Promise<CommandCenterState> {
   return cached<CommandCenterState>("ultron_command_center_state_v1", 15, async () => {
     const now = new Date();
-  // The command center intentionally degrades when one read fails, but a
-  // numeric fallback is not a measured zero. Carry the failure into the
-  // rendered health contract so the prompt cannot report an all-clear from a
-  // database error.
-  const unavailableHealthSources = new Set<string>();
-  const healthFallback = <T,>(source: string, fallback: T) => (): T => {
-    unavailableHealthSources.add(source);
-    return fallback;
-  };
-  const dayStart = startOfDayUTC(0);
-  const sevenDaysAgo = startOfDayUTC(7);
-  const oneDayAgo = new Date(Date.now() - 86_400_000);
-  const sevenDaysAgoStaleCutoff = new Date(Date.now() - 7 * 86_400_000);
+    // The command center intentionally degrades when one read fails, but a
+    // numeric fallback is not a measured zero. Carry the failure into the
+    // rendered health contract so the prompt cannot report an all-clear from a
+    // database error.
+    const unavailableHealthSources = new Set<string>();
+    const healthFallback = <T,>(source: string, fallback: T) => (): T => {
+      unavailableHealthSources.add(source);
+      return fallback;
+    };
+    const dayStart = startOfDayUTC(0);
+    const sevenDaysAgo = startOfDayUTC(7);
+    const oneDayAgo = new Date(Date.now() - 86_400_000);
+    const sevenDaysAgoStaleCutoff = new Date(Date.now() - 7 * 86_400_000);
 
   // v9.1.12 · Compute the current ISO week key here (single source of
   // truth) so the weekly_target query can filter by the EXACT key

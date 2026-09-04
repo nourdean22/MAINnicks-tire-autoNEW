@@ -300,6 +300,8 @@ describe("v9.0-beta · prompt-v2 renderer", () => {
     });
 
     expect(sections.health).toContain("⚠️ data unavailable (cron-runs)");
+    expect(sections.health).toContain("⚠️ crons (unavailable)");
+    expect(sections.health).not.toContain("✓ crons (0 failures/24h)");
     expect(sections.health).not.toContain("## SYSTEM HEALTH · ✓ health reads");
   });
 
