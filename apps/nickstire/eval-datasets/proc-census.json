@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-08-30T15:16:25.655Z",
-  "count": 703,
+  "generatedAt": "2026-09-04T16:38:01.790Z",
+  "count": 706,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -153,6 +153,7 @@
     "mutation.inspection.updateItem",
     "mutation.inspection.uploadPhoto",
     "mutation.instagramAdmin.approveDraft",
+    "mutation.instagramAdmin.approveReelPublish",
     "mutation.instagramAdmin.createQualityOverride",
     "mutation.instagramAdmin.deleteReelPattern",
     "mutation.instagramAdmin.finalizeReelDraft",
@@ -164,6 +165,7 @@
     "mutation.instagramAdmin.recordTrialResult",
     "mutation.instagramAdmin.regenerateImage",
     "mutation.instagramAdmin.rejectDraft",
+    "mutation.instagramAdmin.revokeReelPublish",
     "mutation.instagramAdmin.saveReelPattern",
     "mutation.instagramAdmin.stageDraft",
     "mutation.instagramAdmin.suggestReply",
@@ -524,6 +526,7 @@
     "query.instagramAdmin.getReelReliability",
     "query.instagramAdmin.getSwipeFileCorrelations",
     "query.instagramAdmin.listReelPatterns",
+    "query.instagramAdmin.reelPublishQueue",
     "query.instagramStudio.board",
     "query.instagramStudio.diagnostics",
     "query.instagramStudio.list",
