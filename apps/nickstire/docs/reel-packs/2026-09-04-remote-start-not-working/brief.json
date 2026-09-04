@@ -1,0 +1,74 @@
+{
+  "topic": "Hit remote start and nothing happens — fob battery, fuse, or hood pin?",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-09-04",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 49,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "Hit remote start and... nothing happens?",
+      "visualPrompt": "Exterior shot of a car in a driveway at dusk, engine off and dark, a key fob resting on a nearby ledge/railing in the foreground, no hand in frame, static camera, cool overcast light."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "No engine sound, no dash lights, no confirmation flash — nothing.",
+      "visualPrompt": "Interior-through-windshield shot of a dark, unlit dashboard and instrument cluster, static camera, no ambient glow, subtle exterior reflection only."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: it's usually a dead fob battery, a blown remote-start fuse, or the hood not latched all the way.",
+      "visualPrompt": "Macro/cutaway shot: a key fob with its rear cover removed, coin-cell battery compartment visible and empty/exposed, resting on a workbench, slow push-in, no hands or tools visible in frame."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "Most systems won't even try unless the hood's fully closed and the doors are locked first.",
+      "visualPrompt": "Close-up on a vehicle hood latch/safety-pin mechanism, hood shown slightly ajar, dim garage lighting, static mounted camera."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess which one it is. A quick check can point to the actual cause.",
+      "visualPrompt": "Close-up on a vehicle fuse box panel, one fuse slot illuminated, dim garage lighting, static mounted camera."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before the cold snap hits. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarMaintenance", "#RemoteStart", "#CarElectrical", "#CarTips", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto", "#CarProblems"],
+    "feedCaption": "Remote start doing nothing? One clue: it's usually a dead fob battery, a blown fuse, or the hood not fully latched. Don't guess which one. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the fob-battery/fuse/hood-pin fault-tree claim",
+      "whether Nick's Tire & Auto specifically services remote-start/aftermarket-alarm diagnosis (not confirmed against a live business_facts row)",
+      "whether 0112_reel_publish_approvals.sql has been applied to production TiDB"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 9,
+    "newestOpenPRExamples": [2107, 2106, 2104],
+    "priorFlaggedBacklog": 141,
+    "priorFlagSource": "PR #2076 (2026-09-02)",
+    "peakBacklogObserved": 132,
+    "peakBacklogDate": "2026-08-25"
+  }
+}
