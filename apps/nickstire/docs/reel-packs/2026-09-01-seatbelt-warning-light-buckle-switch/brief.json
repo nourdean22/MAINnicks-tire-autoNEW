@@ -1,0 +1,124 @@
+{
+  "packVersion": "1.0",
+  "producedBy": "nickstire-reel-operator (scheduled, non-live)",
+  "producedAt": "2026-09-01",
+  "note": "Hand-authored production-ready pack, NOT a live reelBriefGen() output. No /api/admin/reel-canary call was made this session (no ADMIN_API_KEY/DATABASE_URL/HIGGSFIELD credentials present, no ffmpeg/gh binary).",
+  "topic": "Your seatbelt light won't turn off — even after you buckle up",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "faceless": true,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "role": "hook",
+      "start": 0.0,
+      "end": 4.0,
+      "narration": "Your seatbelt light won't turn off — even after you buckle up.",
+      "visualPrompt": "Close-up on a car seat with a seatbelt buckled into its receptacle, static camera, warm interior daylight; quick cut to a dashboard instrument cluster with a seatbelt warning icon lit (generic icon, no readable brand text).",
+      "renderIntegrityNote": "Split into two ~2s sub-shots (buckled belt, lit dashboard icon) before real generation."
+    },
+    {
+      "index": 2,
+      "role": "symptom",
+      "start": 4.0,
+      "end": 9.0,
+      "narration": "The belt clicks in fine. The chime keeps going, or the icon stays lit anyway.",
+      "visualPrompt": "Macro shot of the seatbelt latch plate clicking into the buckle receptacle (rig-mounted, no hand/arm in frame); cut to the same dashboard icon still lit, static hold.",
+      "renderIntegrityNote": "Split into two sub-shots (latch click, persistent icon) before real generation."
+    },
+    {
+      "index": 3,
+      "role": "explanation",
+      "start": 9.0,
+      "end": 15.0,
+      "narration": "That's usually the buckle switch — a small sensor inside the receptacle — not the belt itself.",
+      "visualPrompt": "Macro cutaway of a seatbelt buckle receptacle removed from its mount, interior mechanism visible, resting on a clean workbench, slow push-in on the small switch component inside.",
+      "renderIntegrityNote": "Split into two sub-shots (removed buckle, switch push-in) before real generation."
+    },
+    {
+      "index": 4,
+      "role": "cause_cutaway",
+      "start": 15.0,
+      "end": 21.0,
+      "narration": "Wear, corrosion, or debris inside the buckle can stop it from registering a good latch.",
+      "visualPrompt": "Extreme macro on the buckle switch contact points showing light surface corrosion/dust, shallow depth of field; cut to a small precision tool resting beside the opened buckle housing on the workbench (tool at rest, not in use — no hand in frame).",
+      "renderIntegrityNote": "Split into two sub-shots (corroded contacts, tool beside housing) before real generation."
+    },
+    {
+      "index": 5,
+      "role": "safe_action",
+      "start": 21.0,
+      "end": 26.0,
+      "narration": "Always wear the belt regardless — but a switch like that can point to a bigger electrical gremlin.",
+      "visualPrompt": "Close-up on a buckled seatbelt across an empty seat, calm static hold, soft daylight — reinforcing 'always wear it' without showing a driver."
+    },
+    {
+      "index": 6,
+      "role": "branded_cta",
+      "start": 26.0,
+      "end": 30.0,
+      "narration": "Worth checking it out. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold.",
+      "postCompositing": "Real logo and CTA text overlay added in post via ffmpeg, never AI-generated."
+    }
+  ],
+  "adVariants": [
+    {
+      "label": "A_annoyance_first",
+      "hook": "That seatbelt chime that won't shut up? It's probably not the belt.",
+      "caption": "A worn or corroded buckle switch can keep the warning on even after you're buckled in tight. One clue: it's a sensor issue, not a safety failure — but it's worth a look.",
+      "cta": "Stop by and we'll take a look — Nick's Tire & Auto."
+    },
+    {
+      "label": "B_bigger_gremlin_first",
+      "hook": "One stuck seatbelt light can point to more than just the belt.",
+      "caption": "A buckle switch that won't register a latch is often the first sign of a small electrical gremlin — worth checking before it shows up somewhere else.",
+      "cta": "Worth checking it out. Stop by — Nick's Tire & Auto."
+    }
+  ],
+  "claimSafety": {
+    "pricesStated": false,
+    "guaranteesStated": false,
+    "approvedSoftLanguageUsed": ["can", "worth checking", "stop by and we'll take a look"],
+    "safetyFramingNote": "Script explicitly reinforces 'always wear the belt regardless' — does not tell viewers to ignore the warning or the belt itself."
+  },
+  "evidence": {
+    "liveEvidenceRecordChecked": false,
+    "liveBusinessFactsChecked": false,
+    "entailmentStatus": "not_evaluated",
+    "note": "General automotive-repair knowledge (the seatbelt warning light/chime is driven by a buckle switch inside the receptacle that detects whether the latch plate is seated; a worn, corroded, or debris-jammed switch can fail to register a properly buckled belt; this is a sensor/switch issue, not a webbing or pretensioner failure), not a shop-specific sourced fact. No business_facts row cleared for a 'reel' channel today (no such FactChannel exists yet)."
+  },
+  "costEstimate": {
+    "assumedProvider": "template_stock (per REEL-PIPELINE.md doc, unverified live this session)",
+    "estimatedUsd": 0.0,
+    "liveBalanceChecked": false,
+    "dailyPolicyCapChecked": false
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo (documented gap). Voiceover (TTS, not produced this session) + captions only."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "max": 75,
+    "passFloor": 70,
+    "dimensions": {
+      "scrollStopHook": 8,
+      "mutedFirst": 8,
+      "beatStructure": 5,
+      "length": 5,
+      "loop": 2,
+      "sourcedFact": 0,
+      "faceless": 10,
+      "claimSafety": 9,
+      "keyword": 3,
+      "winningConceptFloor": 0
+    }
+  },
+  "repetitionCheck": {
+    "liveLedgerChecked": false,
+    "offlineMitigation": "ls apps/nickstire/docs/reel-packs/ (136 merged directories) + GitHub open-PR search (3 open reel PRs) — no topic overlap found",
+    "nearestNeighbors": []
+  }
+}

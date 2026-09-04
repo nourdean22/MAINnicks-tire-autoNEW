@@ -1,0 +1,83 @@
+{
+  "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
+  "topic": "Clutch pedal sinking to the floor: leak in the line, or the clutch itself?",
+  "campaignKeyword": "CLUTCHLEAK",
+  "mode": "PRODUCTION",
+  "generatedBy": "scheduled faceless-video run, 2026-09-01, no live server/DB/credentials available",
+  "storyboardBeats": [
+    {
+      "beat": 1,
+      "label": "HOOK",
+      "startSecond": 0,
+      "endSecond": 4,
+      "narration": "Clutch pedal feels loose, or sinks to the floor? One clue, more than one cause.",
+      "onScreenText": "Clutch pedal feels loose or sinks?",
+      "visual": "Close-up of a manual-transmission car's clutch pedal in the driver footwell, static camera with slow creeping push-in, dim interior lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 2,
+      "label": "SETUP",
+      "startSecond": 4,
+      "endSecond": 10,
+      "narration": "Pedal feels spongy but the clutch still grabs? That can point to air or a small leak in the line.",
+      "onScreenText": "Spongy, but clutch still grabs?",
+      "visual": "Macro shot of a clutch master cylinder and hydraulic line in the engine bay near the firewall, shallow focus, subtle handheld drift, cool engine-bay light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 3,
+      "label": "VALUE",
+      "startSecond": 10,
+      "endSecond": 16,
+      "narration": "Pedal sinks all the way and stays down? That may indicate a bigger fluid leak, not the clutch itself.",
+      "onScreenText": "Pedal sinks and stays down?",
+      "visual": "Close-up of a clutch pedal slowly sinking toward the floor under light pressure, subtle slow-motion feel via gradual camera drift, dim garage lighting, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 4,
+      "label": "VALUE",
+      "startSecond": 16,
+      "endSecond": 22,
+      "narration": "Fluid spot near the firewall? Worth checking before you pay for a clutch you might not need.",
+      "onScreenText": "Fluid spot near the firewall?",
+      "visual": "Close-up of a small fluid drip or wet spot on the engine-bay firewall/floor near the clutch master cylinder, slow slide across the surface, moody blue-hour garage light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beat": 5,
+      "label": "CTA",
+      "startSecond": 22,
+      "endSecond": 28,
+      "narration": "Don't guess with a soft pedal. Nick's Tire and Auto checks it free — link in bio.",
+      "onScreenText": "Free check. Link in bio.",
+      "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "audioNotes": {
+    "voiceover": "Not generated this run — route through reelVoice.ts (Google Neural2 or ElevenLabs) at render time; narration above is exactly what gets fed to it.",
+    "musicBed": "None assigned — no music-rights ledger exists in this repo (repo-wide gap). Voiceover + captions + optional single ambient garage room-tone only.",
+    "sfx": "None required."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 53,
+    "max": 75,
+    "passFloor": 70,
+    "passes": false,
+    "breakdown": {
+      "firstFrameScrollStop": { "score": 8, "max": 10, "note": "Close-up clutch pedal in a footwell is a visually distinct scroll-stop frame for a manual-transmission audience, not verified by calculateReelQualityScore()" },
+      "mutedFirst": { "score": 10, "max": 10, "note": "Captions alone carry full meaning per beat" },
+      "beatStructure": { "score": 5, "max": 5, "note": "HOOK/SETUP/VALUE/VALUE/CTA, 5 beats" },
+      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target and account's ~28-30s convention" },
+      "loop": { "score": 0, "max": 5, "note": "CTA frame (shop garage bay) does not loop back to HOOK frame (pedal close-up) — no loop plan designed" },
+      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord in evidenceResolver.ts backs the hydraulic-clutch-leak claims; store not queried live this run (no DB access); grep of businessFacts.ts/evidenceRecords.ts for 'clutch' returned zero matches" },
+      "faceless": { "score": 10, "max": 10, "note": "No people/faces/hands in any beat's visual prompt" },
+      "claimSafety": { "score": 10, "max": 10, "note": "Approved soft-language only ('can point to', 'may indicate', 'worth checking', 'don't guess'); no price, warranty, or absolute claim; does not assert the clutch itself is fine, only that it's worth checking first" },
+      "keyword": { "score": 5, "max": 5, "note": "clutch, pedal, leak — relevant automotive keywords present in narration/captions" },
+      "winningConceptGate": { "score": 0, "max": 5, "note": "scoreReelConcept() (>=57/60 tournament gate) was not invoked — scored 0 rather than assumed passing" }
+    }
+  }
+}

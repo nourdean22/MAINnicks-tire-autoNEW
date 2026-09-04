@@ -1,0 +1,82 @@
+{
+  "topic": "Your gas pedal feels heavy or slow to bounce back? Here's what that means.",
+  "producedBy": "scheduled-task",
+  "date": "2026-09-01",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "durationSeconds": 30,
+  "saveFreezeSeconds": 3,
+  "containerDurationSeconds": 33,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "index": 1,
+      "start": 0,
+      "end": 4,
+      "label": "HOOK",
+      "narration": "Your gas pedal feels heavy, or slow to bounce back when you let off?",
+      "visualPrompt": "Close macro shot of a gas pedal at rest in a car's footwell, warm interior lighting, static-mounted camera, shallow depth of field, slightly slow push-in."
+    },
+    {
+      "index": 2,
+      "start": 4,
+      "end": 9,
+      "label": "SYMPTOM",
+      "narration": "Not dramatic — just... sluggish. Like it's fighting you a little.",
+      "visualPrompt": "Cutaway to an engine-bay shot: a throttle body assembly in soft focus, visible grime/residue on the intake-side edge, subtle steam/heat shimmer."
+    },
+    {
+      "index": 3,
+      "start": 9,
+      "end": 15,
+      "label": "EXPLANATION",
+      "narration": "One clue: buildup on the throttle body can make the pedal feel stiff — a cheap fix.",
+      "visualPrompt": "Macro/cutaway shot: an inspection light angled onto the throttle-body bore, revealing carbon buildup texture in contrast light; slow rack focus from clean edge to buildup."
+    },
+    {
+      "index": 4,
+      "start": 15,
+      "end": 21,
+      "label": "CONSEQUENCE",
+      "narration": "But a pedal that sticks — not just feels heavy — can point to a cable or sensor problem instead.",
+      "visualPrompt": "Wide shot from a driver's-eye POV (dash and windshield only, no driver) on an open road, subtle camera shake suggesting an unpredictable, uneven acceleration feel."
+    },
+    {
+      "index": 5,
+      "start": 21,
+      "end": 26,
+      "label": "SAFE_ACTION",
+      "narration": "Don't guess which one you've got. That's not something to wait on.",
+      "visualPrompt": "Diagnostic-scanner close-up: a handheld OBD-II scan tool mounted near the dash port, generic gauge graphics on screen, shop bay softly blurred behind."
+    },
+    {
+      "index": 6,
+      "start": 26,
+      "end": 30,
+      "label": "BRANDED_CTA",
+      "narration": "Worth checking either way. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo/CTA text composited in post, not generated."
+    }
+  ],
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "max": 75,
+    "realFloor": 70,
+    "note": "Self-estimated only — no live calculateReelQualityScore run this session."
+  },
+  "claimEvidence": {
+    "evidenceRecordsRead": 0,
+    "businessFactsRead": 0,
+    "entailmentStatus": "not_evaluated"
+  },
+  "repetitionCheck": {
+    "mergedPacksScanned": true,
+    "openPrTitlesSearched": true,
+    "overlapFound": false
+  },
+  "audioMusicRights": "UNKNOWN_NO_LEDGER",
+  "finalStatus": "READY FOR HUMAN APPROVAL"
+}
