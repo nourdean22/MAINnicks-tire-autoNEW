@@ -1,0 +1,101 @@
+{
+  "topic": "Heated seats stopped working and it's not always the switch",
+  "mode": "SCHEDULED",
+  "producedAt": "2026-09-04",
+  "producedBy": "scheduled-task, no live operator present",
+  "liveCallsMade": [],
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "beats": [
+    {
+      "start": 0,
+      "end": 4,
+      "role": "HOOK",
+      "narration": "Heated seats stopped working? It's not always the switch.",
+      "visualPrompt": "Interior shot, static-mounted camera low across a front seat cushion, cool overcast light through the windshield, subtle breath-fog suggesting cold cabin air.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 4,
+      "end": 9,
+      "role": "SYMPTOM",
+      "narration": "One side warms, the other stays cold — or neither side does anymore.",
+      "visualPrompt": "Split-style cut: close-up on a seat-heater toggle switch icon on a center console, glowing amber (unresponsive), then a wide interior shot of two front seats side by side under even cabin lighting.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 9,
+      "end": 16,
+      "role": "EXPLANATION",
+      "narration": "Three clues to check in order: the fuse, the switch, then the heating element itself.",
+      "visualPrompt": "Macro/cutaway shot: a fuse box panel with one visible blown fuse held near the panel (tool/part visible, no hand in frame), slow push-in; cut to a seat cushion partially removed on a workbench with a wiring harness and thermostat module visible.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 16,
+      "end": 22,
+      "role": "CONSEQUENCE",
+      "narration": "A blown fuse can point to a bigger short — one that can keep coming back if it's ignored.",
+      "visualPrompt": "Close-up on a scorched or discolored wire connector resting on a shop bench, dim shop-bay lighting, static hold, subtle grain to suggest an electrical fault.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 22,
+      "end": 26,
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess which one it is before you start pulling seats apart.",
+      "visualPrompt": "Underbody-style inspection shot repurposed for interior: a multimeter probe positioned near a seat wiring connector (tool visible, mounted/clipped, no hand in frame), shop bay softly blurred behind.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 26,
+      "end": 30,
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before winter gets here. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Real logo and CTA text composited in post, not AI-generated.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "renderIntegrityNote": "6 beats at ~5s each are coarser than the #800/#801 gate's ~1.5-2.5s visual-change floor and >=4 distinct source clips; recommend splitting beats 2, 3, and 5 into two sub-shots each before real generation.",
+  "claimEvidence": {
+    "entailmentStatus": "not_evaluated",
+    "businessFactsRead": [],
+    "factChannelGap": "FactChannel has no 'reel'/'social' scope yet; no shop-specific facts used in this script"
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo; voiceover + captions only"
+  },
+  "costEstimate": {
+    "basis": "generationLedger.ts COST_ESTIMATES_USD, code-read not live",
+    "seedanceClipUsd": 0.25,
+    "templateStockClipUsd": 0,
+    "veoSecond720pUsd": 0.10,
+    "providerPinPerDoc": "template_stock",
+    "estimatedRunCostUsd": 0,
+    "note": "doc-inherited estimate (REEL-PIPELINE.md:66, verified 2026-08-11), not a live balance read"
+  },
+  "hashtags": [
+    "#CarMaintenance",
+    "#HeatedSeats",
+    "#WinterCarCare",
+    "#CarElectrical",
+    "#CarTips",
+    "#AutoRepair",
+    "#ClevelandAuto",
+    "#NicksTireAndAuto"
+  ],
+  "repetitionCheck": {
+    "mergedPacksScanned": 145,
+    "openReelPackPRsScanned": 8,
+    "overlapFound": false,
+    "nearestNeighbor": "#2045 power-seat-wont-move (seat motion fault tree, not seat heating)"
+  },
+  "selfEstimatedQualityScore": {
+    "total": 50,
+    "floor": 70,
+    "note": "self-estimated, not the real calculateReelQualityScore() run"
+  }
+}
