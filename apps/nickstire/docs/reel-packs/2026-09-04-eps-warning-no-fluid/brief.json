@@ -1,0 +1,101 @@
+{
+  "topic": "Steering feels heavy and there's no fluid to check? That's normal — here's why.",
+  "mode": "SCHEDULED",
+  "producedAt": "2026-09-04",
+  "producedBy": "scheduled-task, no live operator present",
+  "liveCallsMade": [],
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "runtimeSeconds": 30,
+  "aspectRatio": "9:16",
+  "resolution": "1080x1920",
+  "beats": [
+    {
+      "start": 0,
+      "end": 4,
+      "role": "HOOK",
+      "narration": "Steering suddenly feels heavy, and there's no power steering fluid to check? That's not a mistake.",
+      "visualPrompt": "Interior shot, static-mounted camera behind the steering wheel at dash height, dim cabin lighting, a small amber steering-wheel warning icon glowing on the instrument cluster.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 4,
+      "end": 9,
+      "role": "SYMPTOM",
+      "narration": "A lot of newer cars don't use hydraulic fluid at all — an electric motor does the work instead.",
+      "visualPrompt": "Engine bay cutaway-style shot: a compact electric motor unit mounted on a steering column/rack assembly, clean shop lighting, slow push-in, no hydraulic hoses or belt visible in frame.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 9,
+      "end": 16,
+      "role": "EXPLANATION",
+      "narration": "When that system logs a fault, you get a warning light and heavy steering — no leak, no whine, nothing to top off.",
+      "visualPrompt": "Macro shot: the same instrument-cluster warning icon steady/lit, cut to a diagnostic scan-tool screen (blurred generic fault-code text, non-specific) plugged into an OBD port under the dash.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 16,
+      "end": 22,
+      "role": "CONSEQUENCE",
+      "narration": "Driving on it means driving with little or no power assist until it's actually scanned.",
+      "visualPrompt": "Wide interior shot, steering wheel held steady by a mounted rig (no hands), a subtle stiff/resistant motion cue on the wheel to suggest reduced assist.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 22,
+      "end": 26,
+      "role": "SAFE_ACTION",
+      "narration": "Don't go hunting for a power steering reservoir that isn't there.",
+      "visualPrompt": "Close-up under the hood where a power-steering fluid reservoir would normally sit — empty mounting bracket only, no reservoir present, shop-bay lighting.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "start": 26,
+      "end": 30,
+      "role": "BRANDED_CTA",
+      "narration": "It needs a scan tool, not a fluid top-off. Stop by and we'll pull the code. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Real logo and CTA text composited in post, not AI-generated.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "renderIntegrityNote": "6 beats at ~5s each are coarser than the #800/#801 gate's ~1.5-2.5s visual-change floor and >=4 distinct source clips; recommend splitting beats 2, 3, and 4 into two sub-shots each before real generation.",
+  "claimEvidence": {
+    "entailmentStatus": "not_evaluated",
+    "businessFactsRead": [],
+    "factChannelGap": "FactChannel has no 'reel'/'social' scope yet; no shop-specific facts used in this script"
+  },
+  "audioMusicRights": {
+    "musicBedAssigned": false,
+    "reason": "No music-rights ledger exists in this repo; voiceover + captions only"
+  },
+  "costEstimate": {
+    "basis": "generationLedger.ts COST_ESTIMATES_USD, code-read not live",
+    "seedanceClipUsd": 0.25,
+    "templateStockClipUsd": 0,
+    "veoSecond720pUsd": 0.10,
+    "providerPinPerDoc": "template_stock",
+    "estimatedRunCostUsd": 0,
+    "note": "doc-inherited estimate (REEL-PIPELINE.md:66), not a live balance read"
+  },
+  "hashtags": [
+    "#PowerSteering",
+    "#CarWarningLights",
+    "#CarMaintenance",
+    "#CarTips",
+    "#AutoRepair",
+    "#ElectricPowerSteering",
+    "#ClevelandAuto",
+    "#NicksTireAndAuto"
+  ],
+  "repetitionCheck": {
+    "mergedPacksScanned": 145,
+    "openReelPackPRsScanned": 3,
+    "overlapFound": false,
+    "nearestNeighbor": "power-steering-whine (08-18, hydraulic-pump whine with fluid present) and power-steering-fluid-leak-color (08-28, visible leak) — both assume a fluid system, this topic explicitly does not have one"
+  },
+  "selfEstimatedQualityScore": {
+    "total": 51,
+    "floor": 70,
+    "note": "self-estimated, not the real calculateReelQualityScore() run"
+  }
+}
