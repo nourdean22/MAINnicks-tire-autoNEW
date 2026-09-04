@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:01,600
+Push the trunk button...
+
+2
+00:00:01,600 --> 00:00:03,000
+and nothing happens.
+
+3
+00:00:03,000 --> 00:00:05,600
+Check the fuse first —
+
+4
+00:00:05,600 --> 00:00:09,000
+a blown trunk-release fuse is the most common cause.
+
+5
+00:00:09,000 --> 00:00:11,000
+Fuse fine?
+
+6
+00:00:11,000 --> 00:00:17,000
+Look for a manual release — a pull tab or cable loop inside the trunk itself.
+
+7
+00:00:17,000 --> 00:00:19,500
+Still stuck?
+
+8
+00:00:19,500 --> 00:00:23,000
+The release solenoid or its cable may just be worn out.
+
+9
+00:00:23,000 --> 00:00:25,000
+We can trace it down.
+
+10
+00:00:25,000 --> 00:00:27,000
+Nick's Tire and Auto — link in bio.
