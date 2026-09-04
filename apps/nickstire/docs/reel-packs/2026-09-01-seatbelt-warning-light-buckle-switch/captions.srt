@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:02,000
+Your seatbelt light won't turn off
+
+2
+00:00:02,000 --> 00:00:04,000
+— even after you buckle up.
+
+3
+00:00:04,000 --> 00:00:06,500
+The belt clicks in fine.
+
+4
+00:00:06,500 --> 00:00:09,000
+The chime keeps going, or the icon stays lit anyway.
+
+5
+00:00:09,000 --> 00:00:12,000
+That's usually the buckle switch —
+
+6
+00:00:12,000 --> 00:00:15,000
+a small sensor inside the receptacle, not the belt itself.
+
+7
+00:00:15,000 --> 00:00:18,000
+Wear, corrosion, or debris inside the buckle
+
+8
+00:00:18,000 --> 00:00:21,000
+can stop it from registering a good latch.
+
+9
+00:00:21,000 --> 00:00:23,500
+Always wear the belt regardless —
+
+10
+00:00:23,500 --> 00:00:26,000
+but a switch like that can point to a bigger electrical gremlin.
+
+11
+00:00:26,000 --> 00:00:28,000
+Worth checking it out.
+
+12
+00:00:28,000 --> 00:00:30,000
+Stop by and we'll take a look — Nick's Tire & Auto.
