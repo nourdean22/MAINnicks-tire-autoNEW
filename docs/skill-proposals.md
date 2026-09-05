@@ -1390,3 +1390,42 @@ statenour primitives documented (existence re-verified at
 > (Sentry.init claims the global provider; `tracesSampler` is consulted for root spans
 > only). That is a durable technical fact, so per this skill's own "When NOT to use" it
 > belongs in the memory system and the repo docs — both updated — not in the skill queue.
+
+## 2026-09-05 · reel-pack scheduled trigger — status-note escalation has fully failed (#2051-#2132)
+
+### P1 · nickstire-reel-operator
+- **Trigger (witnessed):** pulled the full PR history of "reel-pack backlog status"
+  notes, not just the latest one. Every status-note PR from `#2109` through `#2130`
+  (15+ PRs, 2026-09-04 06:31 UTC through 2026-09-05 07:31 UTC) was **closed unmerged**,
+  most in one bulk sweep within 90 seconds (`#2122`-`#2128` all closed
+  2026-09-05T06:31:51Z-06:31:57Z). `#2051`, the first PR in the chain to escalate with
+  a direct push notification (2026-09-01), was also closed unmerged a day later with
+  no visible response. Content-pack PRs kept landing the entire time regardless
+  (`#2131` opened *after* `#2130` explicitly asked future runs to hold) — merged
+  inventory sat at 145 dirs against a real need of ~60 distinct topics/30-day window
+  (`packCoveredTopics(30)`, `server/services/reelPackRegistry.ts`, 2/day cap), several
+  times oversupplied.
+- **Cost:** 50+ PRs opened over 4 days for zero throughput — no pack has published
+  (blocked separately on undecided `drizzle/0112_reel_publish_approvals.sql`), no
+  status note was ever read/acted on, and each firing spends a full session's tokens
+  producing a PR nobody triages. The skill's own escalation design (repeat the ask,
+  restate the ask, notify once) has no way to detect that its notes are being ignored
+  — it can only find that out by an agent manually diffing PR history, which this
+  session did but no prior one in the chain did.
+- **Proposed edit:** add a hard stopping condition to the "Where the pack goes" /
+  final-response section of `.claude/skills/nickstire-reel-operator/SKILL.md`: before
+  writing anything, check whether ≥3 of the most recent status-note PRs were closed
+  unmerged (not just "still open" — `#2129`/`#2130` looked open-but-stale and still
+  restated the same ask). If so, the run must NOT open a new PR of any kind — not a
+  content pack, not another status note — and instead either (a) send a notification
+  only if the last one is >48h stale or carries genuinely new evidence (a bulk-close,
+  an acceleration, not just "still true"), or (b) end as a silent no-op. Separately,
+  stop instructing runs to ask the operator to "pause the scheduled trigger" — this
+  session confirmed `CronList` shows no session-created jobs, meaning the trigger is
+  account/schedule-level and **no run of this skill can ever satisfy that ask**; every
+  PR asking for it is asking something no future session can act on either, which is
+  partly why the ask has been repeated 15+ times unchanged. Route that specific ask to
+  a notification once, not to a recurring PR line item.
+- **Confidence:** high (recurred 15+ times, directly measured via PR search/read, not
+  inferred from one sample)
+- **Status:** proposed
