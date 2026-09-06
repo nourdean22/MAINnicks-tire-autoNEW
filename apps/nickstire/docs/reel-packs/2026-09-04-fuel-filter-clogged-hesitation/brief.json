@@ -1,0 +1,88 @@
+{
+  "topic": "Hesitation or stalling under load? It's not always the fuel pump.",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "createdAt": "2026-09-04",
+  "faceless": true,
+  "durationSeconds": 30,
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "id": 1,
+      "start": 0,
+      "end": 4,
+      "role": "hook",
+      "narration": "Hesitating or stalling under load? It's not always the fuel pump.",
+      "visualPrompt": "Road POV shot, static-mounted dash camera angle, car climbing a gentle grade, engine bay implied through subtle vibration/shake in frame, overcast daylight."
+    },
+    {
+      "id": 2,
+      "start": 4,
+      "end": 9,
+      "role": "symptom",
+      "narration": "Sluggish on hills, bogging when you merge, or stalling that only shows up under real load.",
+      "visualPrompt": "Split-style cut: close-up on a tachometer needle dipping/surging under an implied throttle input, then a wide highway-merge-lane shot from a static roadside angle."
+    },
+    {
+      "id": 3,
+      "start": 9,
+      "end": 16,
+      "role": "explanation",
+      "narration": "A clogged fuel filter can point to fuel starving the engine exactly when it needs more — not at idle, only under demand.",
+      "visualPrompt": "Macro/cutaway shot: an inline fuel filter held near a workbench with visible sediment/discoloration inside a clear housing (part visible, no hand in frame), slow push-in; cut to a fuel line routed along an underbody, shop-bay lighting."
+    },
+    {
+      "id": 4,
+      "start": 16,
+      "end": 22,
+      "role": "consequence",
+      "narration": "Leave it long enough and the fuel pump straining against that clog can wear out early too.",
+      "visualPrompt": "Close-up on a fuel pump module resting on a shop bench, dim bay lighting, static hold, subtle heat-haze shimmer to suggest thermal strain."
+    },
+    {
+      "id": 5,
+      "start": 22,
+      "end": 26,
+      "role": "safe_action",
+      "narration": "Don't guess — a stall on the highway is the wrong place to find out.",
+      "visualPrompt": "Empty highway shoulder at dusk, hazard-light glow implied via ambient orange cast, static wide shot, no vehicle or person in frame — mood shot only."
+    },
+    {
+      "id": 6,
+      "start": 26,
+      "end": 30,
+      "role": "cta",
+      "narration": "Worth checking before it strands you. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, not AI-generated."
+    }
+  ],
+  "hashtags": ["#CarMaintenance", "#FuelFilter", "#CarTips", "#AutoRepair", "#CheckEngineLight", "#ClevelandAuto", "#NicksTireAndAuto", "#CarCare"],
+  "adVariants": [
+    {
+      "hook": "Your car hesitates only when you actually need power?",
+      "caption": "That's a load-demand clue, not a random glitch — could be a clogged fuel filter starving the engine right when it needs more.",
+      "cta": "Stop by Nick's Tire & Auto — we'll take a look."
+    },
+    {
+      "hook": "Stalling on the highway and assuming it's the fuel pump?",
+      "caption": "Check the filter first — a clogged one strains the pump and can take it down with it. Don't guess before you're stranded.",
+      "cta": "Nick's Tire & Auto — worth checking, no pressure."
+    }
+  ],
+  "evidence": {
+    "liveEntailmentChecked": false,
+    "businessFactsRowsRead": [],
+    "note": "General automotive-repair knowledge only; no live EvidenceRecord or businessFacts row read this session (no DB access)."
+  },
+  "selfEstimatedQualityScore": {
+    "total": 49,
+    "max": 75,
+    "passesPublishFloor": false
+  },
+  "repetitionCheck": {
+    "method": "offline directory scan + open-PR title search",
+    "mergedPacksScanned": 149,
+    "openPrsScanned": 2,
+    "overlapFound": false
+  }
+}
