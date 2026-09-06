@@ -1,0 +1,142 @@
+{
+  "topic": "clogged cowl drain floods floor mats",
+  "runMode": "SCHEDULED",
+  "generatedAt": "2026-09-05T00:00:00Z",
+  "liveSessionAvailable": false,
+  "hook": "It rained last night, and now your floor mat is soaked.",
+  "winningConceptId": "concept_cowl_drain_leaf_clog",
+  "concepts": [
+    {
+      "id": "concept_cowl_drain_leaf_clog",
+      "hook": "It rained last night, and now your floor mat is soaked.",
+      "scores": {
+        "hook": 8,
+        "truth": 8,
+        "save": 7,
+        "local": 6,
+        "absurdity": 4,
+        "fit": 8
+      }
+    }
+  ],
+  "captionHooks": [
+    "Your floor mat is soaked. It's not a window leak.",
+    "Leaves can flood your car's interior. Here's how."
+  ],
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 5,
+      "visual": "Front footwell carpet, water beaded and pooled on the surface",
+      "motion": "Slow cinematic push-in, dim overcast daylight through windshield",
+      "onScreenText": "RAINED LAST NIGHT — FLOOR MAT SOAKED"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 5,
+      "endSecond": 10,
+      "visual": "Driver window seal exterior, closed, rain beading and running off cleanly",
+      "motion": "Static close framing, rain droplets in motion on the glass",
+      "onScreenText": "PROBABLY NOT A WINDOW LEAK"
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 10,
+      "endSecond": 15,
+      "visual": "Top-down view into windshield cowl panel channel, packed with wet leaves and pine needles",
+      "motion": "Slow top-down push-in on the leaf-packed channel",
+      "onScreenText": "LEAVES CLOG THE COWL DRAIN"
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 15,
+      "endSecond": 20,
+      "visual": "Same cowl channel, water level rising against the leaf dam and overflowing the edge",
+      "motion": "Slow water-level rise and gentle overflow motion",
+      "onScreenText": "WATER BACKS UP, NOT OUT"
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 20,
+      "endSecond": 25,
+      "visual": "X-ray cutaway of cowl/HVAC intake plenum with water trickling into the dash cavity",
+      "motion": "Slow orbiting camera, translucent layered materials, cool schematic glow",
+      "onScreenText": "SPILLS INTO THE VENT INTAKE"
+    },
+    {
+      "beatNumber": 6,
+      "startSecond": 25,
+      "endSecond": 30,
+      "visual": "Interior shot toward windshield base, light condensation/fog slowly forming",
+      "motion": "Slow motion, close framing on the glass base",
+      "onScreenText": "MUSTY SMELL = ONE CLUE"
+    }
+  ],
+  "saveFreeze": {
+    "startSecond": 30,
+    "endSecond": 33,
+    "source": "hold last frame of beat 6, no new generation",
+    "onScreenText": "CLEAR THE LEAVES — WE'LL TAKE A LOOK"
+  },
+  "generation": [
+    {
+      "beatNumber": 1,
+      "prompt": "Interior car front footwell, dark carpet visibly soaked with a small pool of water beading on the surface, slow cinematic push-in, dim overcast daylight through the windshield, photorealistic automotive interior detail, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 2,
+      "prompt": "Exterior close-up of a car door window and rubber seal, closed, rain droplets beading and running off cleanly down the glass, overcast wet daylight, photorealistic automotive detail, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 3,
+      "prompt": "Top-down close-up of a car's windshield cowl panel channel, packed with wet fallen leaves and pine needles blocking a narrow drain slot, overcast daylight, photorealistic automotive detail shot, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 4,
+      "prompt": "Close-up of the same windshield cowl drain channel, water level slowly rising against a dam of wet leaves and gently overflowing over the channel's edge, overcast daylight, subtle water motion, photorealistic, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 5,
+      "prompt": "Technical x-ray cutaway visualization of a car's cowl and HVAC intake plenum behind the windshield, showing a thin stream of water trickling down through the intake housing into the dashboard cavity below; translucent layered materials; cool schematic blue glow; clean dark field; slow orbiting camera; 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    },
+    {
+      "beatNumber": 6,
+      "prompt": "Interior car shot from the passenger seat looking toward the windshield base, light condensation and fog slowly forming near the bottom edge of the glass, dim cabin lighting, photorealistic, slow motion, 9:16 vertical.",
+      "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
+    }
+  ],
+  "voScript": [
+    { "start": 0, "end": 5, "text": "It rained last night, and now your floor mat is soaked." },
+    { "start": 5, "end": 10, "text": "It's probably not a window leak." },
+    { "start": 10, "end": 15, "text": "Leaves clog the drain channel under your wiper cowl." },
+    { "start": 15, "end": 20, "text": "Water backs up instead of draining outside." },
+    { "start": 20, "end": 25, "text": "It spills into the vent intake, then drips down under your dash." },
+    { "start": 25, "end": 30, "text": "A musty smell can be one clue something's damming up there." },
+    { "start": 30, "end": 33, "text": "Clear the leaves, or stop by and we'll take a look." }
+  ],
+  "claimSafety": {
+    "usesApprovedPhrases": ["one clue", "stop by and we'll take a look"],
+    "makesPricingClaim": false,
+    "makesWarrantyClaim": false,
+    "businessFactsUsed": [],
+    "evidenceRecordsRead": [],
+    "evidenceStatus": "UNKNOWN - not evaluated, no live DB session this run"
+  },
+  "repetitionCheck": {
+    "method": "static: ls apps/nickstire/docs/reel-packs/ + github search open PRs 'reel pack' in:title",
+    "liveLedgerRead": false,
+    "collisionsFound": false,
+    "nearestNeighbor": "2026-08-20-musty-ac-smell-evaporator-vs-filter (distinct failure mode: AC condensate vs exterior cowl-drain water intrusion)"
+  },
+  "qualityScoreSelfEstimate": {
+    "value": "68-71 / 75 (not authoritative, not run through calculateReelQualityScore)",
+    "floor": 70
+  },
+  "status": "READY FOR HUMAN APPROVAL"
+}
