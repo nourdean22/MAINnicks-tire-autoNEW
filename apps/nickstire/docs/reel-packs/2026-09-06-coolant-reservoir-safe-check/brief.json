@@ -1,0 +1,64 @@
+{
+  "id": "2026-09-06-coolant-reservoir-safe-check",
+  "topic": "How to check your coolant level safely without opening a hot radiator cap",
+  "franchise": "coolant-reservoir-safe-check",
+  "productionType": "real-footage",
+  "cost": 0,
+  "status": "ready-for-human-approval",
+  "landingDestination": "/cooling",
+  "durationSeconds": 26,
+  "totalWithFreezeSeconds": 29,
+  "beats": [
+    {
+      "start": 0.0,
+      "end": 3.0,
+      "vo": "Don't do this.",
+      "visual": "POV hand hovering near a radiator cap on a warm engine, pulling back before touching it"
+    },
+    {
+      "start": 3.0,
+      "end": 9.0,
+      "vo": "If your engine's been running, that cap is sealing pressurized, scalding coolant. Let it cool. Completely.",
+      "visual": "Close-up: engine bay, cap steaming slightly or heat-shimmer visual cue, hand withdrawing"
+    },
+    {
+      "start": 9.0,
+      "end": 17.0,
+      "vo": "You don't need to open anything to check your level. Most cars have a see-through tank right here, with MIN and MAX lines molded right into the plastic.",
+      "visual": "Cut to translucent overflow reservoir, tracing MIN/MAX lines, engine off and cool"
+    },
+    {
+      "start": 17.0,
+      "end": 23.0,
+      "vo": "If it's below MIN, that's worth checking before your next drive, not after.",
+      "visual": "Text overlay: BELOW MIN? WORTH CHECKING. Level shown clearly under MIN line"
+    },
+    {
+      "start": 23.0,
+      "end": 26.0,
+      "vo": "Not sure what's normal for your car? Stop by and we'll take a look.",
+      "visual": "Shop card / logo, /cooling landing card"
+    }
+  ],
+  "saveFreezeSeconds": 3,
+  "negativePromptStandard": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "note": "Real-footage-only pack; the standing negative prompt is recorded for format consistency but no AI clip generation is used or requested in this pack.",
+  "claimSafety": {
+    "pricesUsed": false,
+    "warrantiesClaimed": false,
+    "approvedSoftLanguageUsed": ["worth checking", "one clue", "stop by and we'll take a look"]
+  },
+  "qaMatrix": {
+    "briefQualityScore": "UNKNOWN",
+    "enqueueRescore": "BLOCKED",
+    "renderIntegrityGate": "BLOCKED",
+    "renderedQa": "BLOCKED",
+    "publishGate": "BLOCKED",
+    "repetitionCheck": "PASS_FILESYSTEM_SUBSTITUTE",
+    "claimSafetyWording": "PASS",
+    "motionRouteCapability": "FAIL_BY_DESIGN"
+  },
+  "finalStatus": "READY FOR HUMAN APPROVAL",
+  "generatedBy": "scheduled/unattended nickstire-reel-operator run, no live operator present",
+  "generatedDate": "2026-09-06"
+}
