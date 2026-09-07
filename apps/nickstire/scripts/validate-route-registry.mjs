@@ -23,7 +23,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..");
+// ROUTE_REGISTRY_ROOT exists for the canary (server/routeRegistryValidator.test.ts),
+// which points the validator at fixture trees with planted defects. Production
+// runs never set it.
+const ROOT = process.env.ROUTE_REGISTRY_ROOT
+  ? path.resolve(process.env.ROUTE_REGISTRY_ROOT)
+  : path.resolve(__dirname, "..");
 
 // ─── Parse App.tsx for <Route path="..."> ─────────────
 const appTsx = fs.readFileSync(path.join(ROOT, "client", "src", "App.tsx"), "utf8");
@@ -49,6 +54,17 @@ for (const m of routesTs.matchAll(PATH_RE)) {
 // ─── Rules ─────────────────────────────────────────────
 const errors = [];
 const warnings = [];
+
+// Rule 0: the parsers must have found something. Every rule below compares two
+// sets; if a regex silently stops matching (a JSX rewrite, a registry refactor)
+// both sets go empty and every rule passes vacuously — a green that checks
+// nothing. Fail closed instead.
+if (appRoutes.size === 0) {
+  errors.push("Parser found ZERO <Route path=...> entries in client/src/App.tsx — the route regex no longer matches; the gate is blind.");
+}
+if (registeredPaths.size === 0) {
+  errors.push("Parser found ZERO `path:` entries in shared/routes.ts — the registry regex no longer matches; the gate is blind.");
+}
 
 // ─── The two server-side lists that live beside the registry ─────────
 // shared/routes.ts also declares DYNAMIC_ROUTE_PREFIXES (the wouter :param
