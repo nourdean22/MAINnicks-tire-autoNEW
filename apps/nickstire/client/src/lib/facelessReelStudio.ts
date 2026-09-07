@@ -822,8 +822,9 @@ export function validateSourceGrounding(brief: Pick<ReelBrief, "sourceNotes" | "
   return { ok: true };
 }
 
-/** Conversational narration rate the voiceover contract is written against. */
-export const SPOKEN_WORDS_PER_SECOND = 2.2;
+/** Conversational narration rate the voiceover contract is written against.
+ *  Module-internal: reached through `runReelPreflight`, never imported directly. */
+const SPOKEN_WORDS_PER_SECOND = 2.2;
 
 /**
  * Seconds of finished video a storyboard will actually produce.
@@ -833,7 +834,7 @@ export const SPOKEN_WORDS_PER_SECOND = 2.2;
  * rendered one diverge as soon as a beat is authored longer than a clip. The
  * SAVE freeze is excluded deliberately: narration must land BEFORE it.
  */
-export function renderableVideoSeconds(beats: StoryboardBeat[]): number {
+function renderableVideoSeconds(beats: StoryboardBeat[]): number {
   return Number(
     beats
       .reduce((total, b) => {
@@ -864,7 +865,7 @@ export function renderableVideoSeconds(beats: StoryboardBeat[]): number {
  * Fails closed: an unreadable/absent script is not a violation (a deliberately
  * silent reel is legal), but a script that cannot fit is.
  */
-export function validateVoiceoverFitsRender(
+function validateVoiceoverFitsRender(
   brief: Pick<ReelBrief, "voiceoverScript" | "storyboardBeats">,
 ): { ok: boolean; reason?: string } {
   const words = String(brief.voiceoverScript ?? "").trim().split(/\s+/).filter(Boolean).length;

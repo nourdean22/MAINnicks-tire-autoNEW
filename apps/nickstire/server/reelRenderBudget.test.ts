@@ -25,13 +25,8 @@
  * the rendered one.
  */
 import { describe, expect, it } from "vitest";
-import {
-  REEL_OUTPUT_RULES,
-  SPOKEN_WORDS_PER_SECOND,
-  renderableVideoSeconds,
-  validateReelLengthTarget,
-  validateVoiceoverFitsRender,
-} from "../client/src/lib/facelessReelStudio";
+import { REEL_OUTPUT_RULES, runReelPreflight, validateReelLengthTarget } from "../client/src/lib/facelessReelStudio";
+import { SAMPLE_REEL_BRIEFS } from "../client/src/lib/facelessReelStudioSamples";
 import { buildSeedanceArgs } from "./services/higgsfieldStudio";
 import { buildFacelessReelSystemPrompt } from "../client/src/lib/facelessReelStudioPrompt";
 import {
@@ -164,39 +159,58 @@ describe("the clip cap governs the REQUEST that makes the clip, not just the tri
 });
 
 describe("narration must fit the video that will actually render", () => {
-  const fiveBeats = beats(5, 5); // declares 25s; renders 5 x 4 = 20s
-
-  it("computes the renderable seconds from clamped beats, not from endSecond", () => {
-    expect(renderableVideoSeconds(fiveBeats as never)).toBe(20);
-    expect(Math.max(...fiveBeats.map((b) => b.endSecond))).toBe(25);
-  });
+  /**
+   * Driven through the REAL `runReelPreflight`, not through the helper.
+   *
+   * The helper is module-internal on purpose: the orphan gate flagged it as an
+   * export nothing outside the module consumed, and it was right — exporting a
+   * validator so a test can reach it makes the test prove something production
+   * never asks. Preflight IS the production caller, so that is what these
+   * assert. (It also keeps the check honest about ordering: the finding has to
+   * survive every other gate in the same pass.)
+   */
+  const voFindings = (script: string, beatSec: number, beatCount = 5) => {
+    const brief = structuredClone(SAMPLE_REEL_BRIEFS[0]);
+    brief.storyboardBeats = beats(beatCount, beatSec).map((b, i) => ({
+      ...brief.storyboardBeats[Math.min(i, brief.storyboardBeats.length - 1)],
+      ...b,
+    })) as never;
+    brief.voiceoverScript = script;
+    return runReelPreflight(brief).blocking.filter((f) => /Voiceover is \d+ words/.test(f.message));
+  };
 
   it("blocks a script longer than the render, and says how much to cut", () => {
-    // 90 words at 2.2 wps = ~40.9s of speech into 20s of video.
-    const brief = { voiceoverScript: Array(90).fill("word").join(" "), storyboardBeats: fiveBeats };
-    const v = validateVoiceoverFitsRender(brief as never);
-    expect(v.ok).toBe(false);
-    expect(v.reason).toMatch(/90 words/);
-    expect(v.reason).toMatch(/only renders 20\.0s/);
-    expect(v.reason).toMatch(/Trim to 44 words or fewer/);
+    // 90 words at 2.2 wps = ~40.9s of speech; 5 beats x 5s clamps to 20s of video.
+    const found = voFindings(Array(90).fill("word").join(" "), 5);
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toMatch(/90 words/);
+    expect(found[0].message).toMatch(/only renders 20\.0s of video/);
+    expect(found[0].message).toMatch(/Trim to 44 words or fewer/);
+  });
+
+  it("budgets against the CLAMPED render, not the declared duration", () => {
+    // The storyboard declares 25s; the clamp makes it 20s. A script sized for
+    // 25s (55 words = 25s) must still be refused — that gap is the whole bug.
+    const found = voFindings(Array(55).fill("word").join(" "), 5);
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toMatch(/only renders 20\.0s of video/);
   });
 
   it("passes a script that fits — the gate is not simply always-false", () => {
     // Positive control. 40 words = ~18.2s into 20s.
-    const brief = { voiceoverScript: Array(40).fill("word").join(" "), storyboardBeats: fiveBeats };
-    expect(validateVoiceoverFitsRender(brief as never).ok).toBe(true);
+    expect(voFindings(Array(40).fill("word").join(" "), 5)).toHaveLength(0);
   });
 
   it("a SILENT reel is legal — an absent script is not a violation", () => {
-    expect(validateVoiceoverFitsRender({ voiceoverScript: "", storyboardBeats: fiveBeats } as never).ok).toBe(true);
-    expect(validateVoiceoverFitsRender({ storyboardBeats: fiveBeats } as never).ok).toBe(true);
+    expect(voFindings("", 5)).toHaveLength(0);
   });
 
-  it("the budget is derived from the contract's own speaking rate", () => {
-    // If someone retunes SPOKEN_WORDS_PER_SECOND, the advice must move with it
-    // rather than staying pinned to a number that was true once.
-    const budget = Math.floor(renderableVideoSeconds(fiveBeats as never) * SPOKEN_WORDS_PER_SECOND);
-    const brief = { voiceoverScript: Array(200).fill("word").join(" "), storyboardBeats: fiveBeats };
-    expect(validateVoiceoverFitsRender(brief as never).reason).toContain(`Trim to ${budget} words`);
+  it("a longer render buys more words — the budget tracks the beats", () => {
+    // Same 90-word script, but 6 beats: 24s of video, budget 52. Still refused,
+    // and the ADVICE must move, proving the number is computed and not fixed.
+    const found = voFindings(Array(90).fill("word").join(" "), 5, 6);
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toMatch(/only renders 24\.0s of video/);
+    expect(found[0].message).toMatch(/Trim to 52 words or fewer/);
   });
 });
