@@ -245,3 +245,104 @@ export function parseApprovedPackRotationIndex(value: string | null): number | n
 export function resolveApprovedPackRotationIndex(value: string | null): number | null {
   return value === null ? 0 : parseApprovedPackRotationIndex(value);
 }
+
+/**
+ * Where the rotation should point after a reel from `jobPackSlug` was
+ * TERMINALLY refused — or null to hold.
+ *
+ * Pure and exported so the decision can be exercised directly. The first
+ * version of this lived inline in dailyReelPost and was covered only by tests
+ * that matched source text, which stay green if the write never persists or the
+ * helper returns early. AGENTS.md is explicit that a control must assert
+ * BEHAVIOUR, not presence.
+ */
+export function nextRotationIndexAfterRefusal(
+  jobPackSlug: string | null | undefined,
+  currentIndex: number | null,
+  packSlugAtCurrentIndex: string | null | undefined,
+): number | null {
+  // A miner- or manifest-sourced job has no rotation slot to advance.
+  if (!jobPackSlug) return null;
+  // An exhausted or malformed cursor is never guessed at — the miner is
+  // authority there, and parseApprovedPackRotationIndex already refused it.
+  if (currentIndex === null) return null;
+  // The cursor moved while this reel rendered. Advancing now would skip an
+  // untouched pack, so hold — same posture as the success path.
+  if (packSlugAtCurrentIndex !== jobPackSlug) return null;
+  return currentIndex + 1;
+}
+
+/**
+ * Advance the rotation past a pack whose reel was terminally refused.
+ *
+ * THE DEADLOCK THIS BREAKS. `setApprovedPackProgress` in dailyReelPost is the
+ * only other writer of this cursor and is called exclusively inside the
+ * successful-publish branch, so the rotation advanced only when a reel actually
+ * reached Instagram. When every candidate is refused the cursor freezes, the
+ * next day regenerates the SAME pack's topic, the new reel duplicates the last
+ * attempt, originality refuses it as a repost, and nothing publishes — which
+ * holds the cursor. Measured in production 2026-09-07: frozen at index 1
+ * (`2026-08-16-check-engine-light`) since the last successful post on
+ * 2026-08-29, with the held queue being that one topic attempted repeatedly.
+ *
+ * A ROTATION, NOT A DISCARD: the pack keeps its slot and comes back around
+ * after the others, by which time the published corpus has moved.
+ *
+ * It writes ONLY the index. `setApprovedPackProgress` also stamps
+ * `reel_autopost_last_date`, the one-post-per-day guard; stamping that here
+ * would spend the day's slot on a reel that never posted.
+ *
+ * Returns the new index, or null when it held (and why is logged).
+ */
+export async function advanceRotationPastRefusedPack(input: {
+  jobId: number;
+  jobPackSlug: string | null | undefined;
+  reason: string;
+}): Promise<number | null> {
+  const { createLogger } = await import("../lib/logger");
+  const log = createLogger("services:approved-pack-rotation");
+
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return null;
+
+  const { shopSettings } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const rows = await d
+    .select({ value: shopSettings.value })
+    .from(shopSettings)
+    .where(eq(shopSettings.key, "reel_approved_pack_rotation_index"))
+    .limit(1);
+  const currentIndex = resolveApprovedPackRotationIndex(rows.length ? String(rows[0].value) : null);
+  const next = nextRotationIndexAfterRefusal(
+    input.jobPackSlug,
+    currentIndex,
+    currentIndex === null ? null : approvedReelPackAt(currentIndex)?.slug,
+  );
+
+  if (next === null) {
+    if (input.jobPackSlug) {
+      log.warn("rotation NOT advanced past a refused reel", {
+        jobId: input.jobId, slug: input.jobPackSlug, currentIndex, reason: input.reason,
+      });
+    }
+    return null;
+  }
+
+  await d
+    .insert(shopSettings)
+    .values({
+      key: "reel_approved_pack_rotation_index",
+      value: String(next),
+      label: "Approved Reel-pack rotation — next pack index",
+      category: "general",
+      updatedBy: "system",
+    })
+    .onDuplicateKeyUpdate({ set: { value: String(next), updatedBy: "system" } });
+
+  log.warn("approved-pack rotation ADVANCED past a terminally refused reel", {
+    jobId: input.jobId, slug: input.jobPackSlug, from: currentIndex, to: next, reason: input.reason,
+  });
+  return next;
+}

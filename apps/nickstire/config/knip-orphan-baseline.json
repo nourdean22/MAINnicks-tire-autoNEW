@@ -5060,6 +5060,16 @@
       "file": "apps/nickstire/shared/reelClaimAudit.ts",
       "symbol": "CONDEMNED_CONTENT_THRESHOLD",
       "reason": "Exported so the test can assert it equals the originality gate threshold instead of a second hand-tuned number. Both are 0.5 because both were measured over the same corpus - the account own reel scripts, where genuinely different reels peaked at 0.35 and real duplicates score 1.00."
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "isScriptableTopic",
+      "reason": "CI on #2167 flagged this as a new orphan: it is consumed inside mineTopicCandidates in the same module, plus the test that proves it rejects bare enum labels. Exported for the same reason condemnedJobIds and ORIGINALITY_BLOCK_THRESHOLD already are - the rule it encodes (a lifted SERVICE_CATEGORIES value is never a reel topic) is the subject of its own assertions, and a floor nobody can test is a floor nobody can trust. Production evidence for it: reel job 1830003 stored topic is literally Engine."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "nextRotationIndexAfterRefusal",
+      "reason": "The pure half of the rotation advance, split out and exported specifically so the decision can be EXERCISED rather than matched in source text. Review on #2167 flagged the original inline version as untestable - a source-matching test stays green if the write never persists. Its only production caller is advanceRotationPastRefusedPack in the same module; the export exists for the behaviour tests that AGENTS.md requires."
     }
   ]
 }

@@ -30,6 +30,7 @@ import { auditPublishBlock, condemnedContentProblem } from "@shared/reelClaimAud
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import {
+  advanceRotationPastRefusedPack,
   approvedReelPackAt,
   buildBriefFromApprovedProductionPack,
   loadApprovedProductionPack,
@@ -210,6 +211,21 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
   });
 }
 
+/**
+ * Terminal-refusal rotation advance. The decision and the write live in
+ * services/approvedReelPackRotation so they can be exercised directly against a
+ * mocked database — an earlier version lived inline here and was covered only
+ * by tests that matched source text, which stay green if the write never
+ * persists. This is now just "pull the slug off the job and delegate".
+ */
+async function advancePastRefusedPack(job: { id: number; payload: string | null }, reason: string): Promise<void> {
+  await advanceRotationPastRefusedPack({
+    jobId: job.id,
+    jobPackSlug: parseReelJobPayload(job.payload).approvedPackSlug,
+    reason,
+  });
+}
+
 /** The approved-pack lane shares the one-post-per-day date, but not the legacy
  * manifest index. Advancing the latter while an approved pack posts would
  * silently skip an untouched manifest item. */
@@ -361,6 +377,29 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       : [];
 
     const skipped: Array<{ jobId: number; code: string }> = [];
+
+    // TERMINAL-GATE PRE-FILTER. The approval check alone is not enough to pick a
+    // candidate: an APPROVED job can still be refused downstream by a verdict
+    // that will never change, and because the gate chain below returns from the
+    // handler rather than trying the next job, one such candidate jams the drain
+    // for every reel behind it. Live example this was written against: job
+    // 1740003 was approved by the operator and is a 0.99 caption repost of a
+    // published post, so it was selected on every pulse and nothing else could
+    // ever be drained.
+    //
+    // Only the two PURE, PERMANENT verdicts are pre-checked — a repost and a
+    // condemned script. Both read the same tomorrow. Transient states
+    // (rendered-QA, auto-repair) are deliberately NOT pre-checked: they belong
+    // to the gate chain, which remains the authority. This filter only decides
+    // what is worth SELECTING; nothing here can let a reel through that the
+    // chain would refuse.
+    //
+    // The corpus is loaded once per drain, and only when there is something to
+    // drain, so a quiet day costs no extra read.
+    const { originalityProblem } = await import("@shared/reelOriginality");
+    const { loadPublishedCorpus } = await import("../../services/reelOriginality");
+    const drainCorpus = candidates.length ? await loadPublishedCorpus() : [];
+
     for (const candidate of candidates) {
       const caption = typeof candidate.caption === "string" ? candidate.caption : "";
       const videoUrl = typeof candidate.mp4Url === "string" ? candidate.mp4Url : "";
@@ -386,6 +425,23 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         skipped.push({ jobId: candidate.id, code: problem.code });
         continue;
       }
+
+      const cPayload = parseReelJobPayload(candidate.payload);
+      const cOnScreen = (cPayload.storyboardBeats ?? []).map((b) => b?.onScreenText ?? "").filter(Boolean).join(" ");
+      const cCondemned = condemnedContentProblem({ voiceover: cPayload.voiceoverScript, onScreenText: cOnScreen });
+      if (cCondemned) {
+        skipped.push({ jobId: candidate.id, code: "condemned_script" });
+        continue;
+      }
+      const cDupe = originalityProblem(
+        { onScreenText: cOnScreen, caption, videoUrl },
+        drainCorpus.filter((p) => p.label !== `reel job ${candidate.id}`),
+      );
+      if (cDupe) {
+        skipped.push({ jobId: candidate.id, code: `repost:${cDupe.surface}` });
+        continue;
+      }
+
       job = candidate;
       drainedFrom = candidate.briefId;
       break;
@@ -866,7 +922,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
         }
         log.error(`daily reel: job ${job.id} reproduces a condemned script — not publishing`, { reason: condemned });
-        return { recordsProcessed: 0, details: `held: job ${job.id} reproduces a condemned script; index not advanced` };
+        // TERMINAL: a condemned script reads the same tomorrow.
+        await advancePastRefusedPack(job, "condemned script (content)");
+        return { recordsProcessed: 0, details: `held: job ${job.id} reproduces a condemned script; rotation advanced` };
       }
     }
 
@@ -878,7 +936,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
         }
         log.error(`daily reel: claim audit VETOES job ${job.id} — not publishing`, { reason: vetoed });
-        return { recordsProcessed: 0, details: `held: claim audit vetoes job ${job.id}; index not advanced` };
+        // TERMINAL: an audited condemnation does not expire.
+        await advancePastRefusedPack(job, "claim audit veto");
+        return { recordsProcessed: 0, details: `held: claim audit vetoes job ${job.id}; rotation advanced` };
       }
     }
 
@@ -912,7 +972,12 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
         }
         log.error(`daily reel: disclosure gate VETOES job ${job.id} — not publishing`, { reason: violation });
-        return { recordsProcessed: 0, details: `held: disclosure gate vetoes job ${job.id}; index not advanced` };
+        // TERMINAL: the verdict is computed from the PERSISTED caption and
+        // on-screen text, so a retry re-derives the same violation. Flagged in
+        // review on #2167 — without this, a disclosure veto pins the rotation
+        // on its pack exactly the way a repost used to.
+        await advancePastRefusedPack(job, "disclosure veto");
+        return { recordsProcessed: 0, details: `held: disclosure gate vetoes job ${job.id}; rotation advanced` };
       }
     }
 
@@ -944,7 +1009,11 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         log.error(`daily reel: job ${job.id} duplicates already-published content — not publishing`, {
           match: dupe.label, score: dupe.score, surface: dupe.surface,
         });
-        return { recordsProcessed: 0, details: `held: job ${job.id} duplicates ${dupe.label}; index not advanced` };
+        // TERMINAL for this cycle: the same pack regenerated tomorrow produces
+        // the same script and the same repost verdict. Advancing is what turns
+        // an infinite retry back into a rotation.
+        await advancePastRefusedPack(job, `repost of ${dupe.label}`);
+        return { recordsProcessed: 0, details: `held: job ${job.id} duplicates ${dupe.label}; rotation advanced` };
       }
     }
 
