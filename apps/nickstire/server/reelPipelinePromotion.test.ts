@@ -9,7 +9,9 @@
  * moved for eleven days.
  *
  * So the gate moved to the CREDENTIAL: `requiresEnv: ["GEMINI_API_KEY",
- * "HIGGSFIELD_API_KEY_ID"]`. requiresEnv is a `.some()` check, so this reads
+ * "HIGGSFIELD_API_KEY_ID"]` — REMOVED again on review P2 of #2170, because an
+ * env-name list cannot express a service-account pair or a DB-backed
+ * credential and so false-negatives. requiresEnv was a `.some()` check reading
  * "run when at least one provider that cannot expire mid-week is credentialed".
  * Unset, the scheduler skips with a legible `requiresEnv:… (no env var set)`
  * line in cron_log; set, the job runs with no second deploy and no session.
@@ -45,19 +47,34 @@ function reelPipelineBlock(): string {
   return rest.slice(0, end);
 }
 
+/** The handler body — where the real credential check lives. */
+function handlerOf() {
+  const i = SCHEDULER.indexOf('name: "reel-pipeline"');
+  const rest = SCHEDULER.slice(i);
+  const start = rest.indexOf("handler:");
+  const end = rest.indexOf('name: "', start);
+  return end === -1 ? rest.slice(start) : rest.slice(start, end);
+}
+
 describe("the credential is the gate", () => {
   it("reel-pipeline is enabled", () => {
     expect(reelPipelineBlock()).toContain("enabled: true");
   });
 
-  it("and it cannot run without the NON-INTERACTIVE credential", () => {
+  it("and it cannot generate without the ACTIVE provider being credentialed", () => {
     // The whole point. Enabled without this is an unfunded cron firing every
     // 15 minutes at a provider it cannot authenticate to.
     // EITHER non-interactive lane. requiresEnv is a `.some()` check, so naming
     // both means "at least one provider that cannot expire mid-week". A first
     // draft named Higgsfield's key alone and would have held the cron dormant
     // forever while a live, authenticated Veo lane sat unused.
-    expect(reelPipelineBlock()).toContain('requiresEnv: ["GEMINI_API_KEY", "HIGGSFIELD_API_KEY_ID"]');
+    // requiresEnv was REMOVED (review P2): an env-name list cannot express a
+    // service-account pair or a DB-backed credential, so it false-negatives and
+    // holds the cron dormant while a provider is genuinely credentialed. The
+    // gate is the handler's reelProviderCredentialsPresent() call on the ACTIVE
+    // provider, which uses the real resolvers.
+    expect(reelPipelineBlock()).not.toContain("requiresEnv:");
+    expect(handlerOf()).toContain("reelProviderCredentialsPresent(activeProvider)");
   });
 
   it("does NOT gate on the session credential, which is set-but-dead in production", () => {
@@ -106,11 +123,20 @@ describe("canary — the assertions are not vacuous", () => {
     expect(block).not.toContain("daily-reel-post");
   });
 
-  it("the negative check would actually catch the thing it forbids", () => {
-    // Proves `not.toContain("HIGGSFIELD_CREDENTIALS_JSON")` is a real test: the
-    // string exists in the file, just not inside this block.
-    expect(SCHEDULER.includes("HIGGSFIELD_API_KEY_ID")).toBe(true);
-    expect(reelPipelineBlock().includes("HIGGSFIELD_API_KEY_ID")).toBe(true);
-    expect(reelPipelineBlock().includes("GEMINI_API_KEY")).toBe(true);
+  it("the negative checks would actually catch the things they forbid", () => {
+    // Each `not.toContain` above needs a positive control, or it passes for
+    // free on a slice that never could have contained the string.
+    //
+    // The controls used to be the two env NAMES, which sat in this block until
+    // review P2 removed requiresEnv. That made the canary fail for a reason
+    // unrelated to its subject — the same anchor-drift shape as the claim it
+    // guards. Control on the FORBIDDEN strings themselves instead: each must
+    // exist in the file, so its absence from this block is a real finding.
+    expect(SCHEDULER.includes("HIGGSFIELD_CREDENTIALS_JSON"), "session env absent from file").toBe(true);
+    expect(reelPipelineBlock().includes("HIGGSFIELD_CREDENTIALS_JSON")).toBe(false);
+    // requiresEnv is a real field OTHER jobs use — so `not.toContain` on this
+    // block is asserting a deliberate absence, not a typo that can never match.
+    expect(SCHEDULER.includes("requiresEnv:"), "requiresEnv absent from file").toBe(true);
+    expect(reelPipelineBlock().includes("requiresEnv:")).toBe(false);
   });
 });

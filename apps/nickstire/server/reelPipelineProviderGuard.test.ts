@@ -3,6 +3,7 @@
  *
  * SELF-AUDIT CATCH, 2026-09-07. Promoting reel-pipeline with
  * `requiresEnv: ["GEMINI_API_KEY", "HIGGSFIELD_API_KEY_ID"]` looked safe and was
+ * (that list is GONE as of review P2 — see the inverted assertion below)
  * not. requiresEnv asks only "is SOME non-interactive lane credentialed", and
  * GEMINI_API_KEY is set in production — so the gate opens. But
  * `selectReelVideoProvider` returns an explicit REEL_VIDEO_PROVIDER pin
@@ -84,19 +85,29 @@ describe("assembly is deliberately NOT guarded", () => {
   });
 });
 
-describe("the requiresEnv gate is still there, and is not the only gate", () => {
-  it("still names both non-interactive lanes", () => {
+describe("the credential gate is the handler's, and there is no second copy", () => {
+  it("does NOT re-declare credentials as a scheduler env list", () => {
     // Bounded on the registration itself, NOT a character count. The first
     // version sliced a fixed 900 chars and broke the moment a comment was added
     // above the line it was looking for — a test that fails for a reason
     // unrelated to its subject is worse than no test.
+    //
+    // This assertion INVERTED on review P2 of #2170. requiresEnv named a
+    // SUBSET of what the providers accept — Veo also takes GOOGLE_AI_API_KEY,
+    // GOOGLE_GENAI_API_KEY and a service-account pair, and Higgsfield's
+    // resolver also reads DB-backed app_secret_kv rows an env list cannot name.
+    // A subset gate false-negatives: dormant while a provider is credentialed.
+    // One definition of "credentialed" now, owned by the provider modules.
     const i = SRC.indexOf('name: "reel-pipeline"');
     const block = SRC.slice(i, i + SRC.slice(i).indexOf("handler:"));
-    expect(block).toContain('requiresEnv: ["GEMINI_API_KEY", "HIGGSFIELD_API_KEY_ID"]');
+    expect(block).not.toContain("requiresEnv:");
+    // ...and the positive control: the flag gate IS still there, so the
+    // negative above is proving an absence in a block that has content.
+    expect(block).toContain('requiresFlag: "REEL_GENERATION_ENABLED"');
   });
 
   it("but the handler no longer trusts it alone", () => {
-    // requiresEnv is presence-of-any; the handler check is the one that follows
+    // The handler check is the one that follows
     // REEL_VIDEO_PROVIDER. Both must exist — this asserts they do.
     expect(handler()).toContain("selectReelVideoProvider");
   });

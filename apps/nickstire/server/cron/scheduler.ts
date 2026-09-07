@@ -1081,35 +1081,34 @@ function buildTiers(): void {
         // notice the ledger fact had changed and ship a deploy to act on it —
         // and the previous promote note asked for exactly that vigilance.
         // Vigilance is what failed here for eleven days. So the flag is now the
-        // CREDENTIAL ITSELF: requiresEnv keeps this dormant, logging a legible
-        // `requiresEnv:HIGGSFIELD_API_KEY_ID (no env var set)` skip to cron_log,
-        // until the key-based lane is funded and configured. The moment those
-        // vars exist the job runs, with no second deploy and no session needed.
+        // CREDENTIAL ITSELF: the handler asks the provider modules whether the
+        // ACTIVE lane is credentialed and skips generation with a legible
+        // cron_log reason when it is not. The moment that lane is funded and
+        // configured the job generates, with no second deploy and no session.
         //
-        // EITHER NON-INTERACTIVE LANE, not Higgsfield's alone. requiresEnv is a
-        // `.some()` check, so this reads "run when at least one provider that
-        // cannot expire mid-week is credentialed":
-        //   GEMINI_API_KEY        -> the Veo lane, which selectReelVideoProvider
-        //                            already auto-prefers. Probed live
-        //                            2026-09-07: the key AUTHENTICATES (HTTP
-        //                            200, 50 models) and REEL_VEO_MODEL
-        //                            `veo-3.1-fast-generate-preview` is
-        //                            available. This lane is usable TODAY.
-        //   HIGGSFIELD_API_KEY_ID -> the Higgsfield Cloud API lane, key-based
-        //                            and already preferred by higgsfieldStudio
-        //                            when configured, but its ledger holds no
-        //                            credits.
+        // NO requiresEnv HERE, DELIBERATELY. Review P2 on #2170: an env-name
+        // list cannot express what these providers actually accept. Veo takes
+        // GEMINI_API_KEY *or* GOOGLE_AI_API_KEY *or* GOOGLE_GENAI_API_KEY *or* a
+        // GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY pair (veoStudio.ts:55-58), and
+        // Higgsfield's API resolver also reads DB-backed app_secret_kv rows that
+        // no env list can name at all. A subset list false-NEGATIVES: it would
+        // hold this cron dormant while a provider was genuinely credentialed,
+        // which is the same silent-stall this promotion exists to end, wearing
+        // the opposite sign.
         //
-        // A first draft of this gate named HIGGSFIELD_API_KEY_ID alone, which
-        // would have held the cron dormant forever while a funded, authenticated
-        // Veo lane sat unused three lines away in the same selector.
+        // The credential gate lives in the handler instead, where it calls the
+        // REAL resolvers via reelProviderCredentialsPresent() on the ACTIVE
+        // provider. One definition of "credentialed", owned by the module that
+        // knows — not a second copy in a scheduler flag that drifts from it.
         //
-        // HIGGSFIELD_CREDENTIALS_JSON is deliberately EXCLUDED. It is the
+        // HIGGSFIELD_CREDENTIALS_JSON must never become that gate. It is the
         // browser-session credential, it is SET in production right now, and it
-        // probes `credsValid:false — Session expired`. requiresEnv is
-        // presence-only, so naming it would gate OPEN on a dead credential —
-        // which is the failure this staging existed to prevent (296 failed runs
-        // in 72h, half of ~50 Telegram alerts in three days).
+        // probes `credsValid:false — Session expired`. A presence-only check on
+        // it would gate OPEN on a dead credential — the failure this staging
+        // existed to prevent (296 failed runs in 72h, half of ~50 Telegram
+        // alerts in three days). The handler's resolver check is about whether
+        // the lane WORKS, not whether a variable is set; that difference is the
+        // whole point.
         //
         // `higgsfield-session-keepalive` STAYS STAGED and is now decoupled: it
         // rotates the CLI session token, and this job no longer runs on the CLI
@@ -1117,10 +1116,10 @@ function buildTiers(): void {
         // "promote together with reel-pipeline, never before it" note referred
         // to the CLI pairing and no longer applies in that direction.
         name: "reel-pipeline",
+        // Explicit, not omitted. `enabled` only disables on === false, so this
+        // is a behavioural no-op — it is here as the receipt of the promotion
+        // from `enabled: false`, which is what the staging above described.
         enabled: true,
-        // The credential IS the gate. `.some(k => process.env[k])` means this
-        // one var must be present; see the requiresEnv skip in the tier loop.
-        requiresEnv: ["GEMINI_API_KEY", "HIGGSFIELD_API_KEY_ID"],
         // requiresFlag (not requiresEnv): the stages compare against the
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.
