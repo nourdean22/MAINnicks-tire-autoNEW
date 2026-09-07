@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Car won't start? The way it fails is one clue to why.",
+      "narration": "Won't start? How it fails is the clue.",
       "onScreenText": "Car won't start? Here's how to tell why.",
       "visual": "Close-up static shot of a car's dashboard instrument cluster at dusk in a driveway, engine off, warning lights subtly glowing, slow creeping camera push-in, moody blue-hour lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Lights dim, and nothing else happens? That may indicate the battery.",
+      "narration": "Lights dim, nothing happens? May indicate the battery.",
       "onScreenText": "Lights dim, nothing else happens?",
       "visual": "Extreme close-up of dashboard warning lights dimming and flickering, shallow focus, slight camera drift, battery icon visible glowing amber, cinematic garage ambience",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "One fast click, and nothing turns over? That can point to the starter.",
+      "narration": "One clack, then nothing? Can point to the starter.",
       "onScreenText": "One fast click, nothing turns over?",
       "visual": "Close-up of a car engine bay near the starter motor area, static camera with subtle vibration to imply a mechanical click, dim garage lighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Starts fine, then a battery light hits while you're driving? Worth checking the alternator.",
+      "narration": "Battery light while driving? Worth checking the alternator.",
       "onScreenText": "Battery light while driving?",
       "visual": "Dashboard shot with blurred road-light reflections moving across the windshield glass implying motion, battery warning icon illuminated on the instrument cluster, slow dolly-in, dusk exterior light bleeding through windshield",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess — three parts, three different bills. Nick's Tire and Auto tests all three free. Link in bio.",
+      "narration": "Three parts, three bills. Don't guess.",
       "onScreenText": "We test all three free. Link in bio.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

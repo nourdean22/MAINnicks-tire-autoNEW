@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Hear a clunk every time you hit a bump? The way it happens is one clue to why.",
+      "narration": "Hear a clunk over bumps?",
       "onScreenText": "SAME CLUNK. TWO DIFFERENT PARTS.",
       "visual": "Low-angle static shot of a car's front wheel well driving over a rough residential road, subtle camera shake synced to a bump impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Clunk on rough roads, but steering feels normal? That can point to a sway bar link.",
+      "narration": "Rough road, steering normal? Can point to a sway bar link.",
       "onScreenText": "Clunk on bumps, steering feels fine?",
       "visual": "Close-up of a sway bar link component under the front bumper area, static camera with a single subtle mechanical vibration pulse, garage underlighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Clunk when you turn AND hit a bump at the same time? That may indicate a ball joint.",
+      "narration": "Clunk in a turn over a bump? May indicate a ball joint.",
       "onScreenText": "Clunk while turning AND bumping?",
       "visual": "Close-up of a front lower control arm and ball joint area in shallow focus, slow creeping camera push-in, workshop underlighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Left alone, worn suspension parts are worth checking before a long trip.",
+      "narration": "Worth checking before a long trip.",
       "onScreenText": "Worth checking before a road trip.",
       "visual": "Wide shot of a car raised on a shop lift, focus on the front suspension assembly, warm garage light, slow dolly-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess. The way it clunks narrows down which part it is.",
+      "narration": "How it clunks narrows it down.",
       "onScreenText": "BUMPS ONLY, OR BUMPS WHILE TURNING?",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, lift and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

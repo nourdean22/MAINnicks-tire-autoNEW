@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "You press the gas, the engine revs up, but the car barely picks up speed.",
+      "narration": "The engine revs, but the car barely picks up speed.",
       "visualPrompt": "Extreme close-up of a car tachometer needle sweeping upward past 3000 RPM, dim dashboard glow, static camera, no speedometer needle movement",
       "stockSearchTerms": ["car tachometer closeup rpm gauge dashboard", "rev counter needle rising car interior"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That gap between engine speed and road speed is a classic sign of a slipping clutch.",
+      "narration": "That gap can point to a slipping clutch.",
       "visualPrompt": "Macro shot of a manual gear shifter in neutral position, soft interior light, slow push-in, no hand on the shifter",
       "stockSearchTerms": ["manual gear shifter closeup car interior", "stick shift macro no hands"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The clutch disc is supposed to lock the engine to the transmission solid. Once the friction material wears thin, or gets soaked in a small oil leak, it starts to slide instead of grip.",
+      "narration": "The clutch disc should lock engine to transmission.",
       "visualPrompt": "Macro shot of a worn clutch disc friction surface on a shop workbench, visible glazing and thinning, slow orbital camera move, workshop lighting",
       "stockSearchTerms": ["worn clutch disc closeup workbench", "clutch friction plate macro auto shop"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "A quick check: on a flat, empty road, hold a steady speed and press the gas firmly. If the RPM jumps but the car doesn't respond, that's slip, not a weak engine.",
+      "narration": "Worn or oil-soaked friction material lets it slide instead.",
       "visualPrompt": "Wide shot from inside a car looking through the windshield down an empty flat road, daylight, static mounted camera, no hands on wheel",
       "stockSearchTerms": ["empty road through windshield driving pov static", "flat straight road car interior view"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 27],
-      "narration": "Worth checking before it gets worse. Stop by and we'll take a look.",
+      "narration": "Worth checking before it gets worse.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

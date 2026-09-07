@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "This 10-second wheel wobble test tells you what's loose.",
+      "narration": "Rock the wheel. Direction tells you what's worn.",
       "onScreenText": "The 10-second wheel wobble test",
       "visual": "Static close-up shot of a car's front tire and wheel resting on a clean garage floor, dim daylight through a bay door, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Grab the tire at 3 and 9, rock it side to side. Play there can point to a worn tie rod end.",
+      "narration": "Hands at 3 and 9, rock it. Play can point to a tie rod end.",
       "onScreenText": "3 and 9 o'clock, side to side?",
       "visual": "Macro close-up of a tire sidewall at the 3-and-9 o'clock horizontal axis, subtle horizontal camera vibration implying side-to-side rocking motion, dim garage lighting, no people or hands visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Now grab it at 12 and 6, rock it up and down. Play there may indicate a worn wheel bearing.",
+      "narration": "Hands at 12 and 6. Play may indicate a wheel bearing.",
       "onScreenText": "12 and 6 o'clock, up and down?",
       "visual": "Macro close-up of a wheel hub and tire tread at the 12-and-6 o'clock vertical axis, subtle vertical camera vibration implying up-and-down rocking motion, dim garage lighting, no people or hands visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Steering wheel feels loose before the tires even move? Worth checking the whole linkage.",
+      "narration": "Neither fixes itself.",
       "onScreenText": "Steering feels loose before the tires move?",
       "visual": "Close-up static shot of a steering wheel and dashboard column inside a parked car, shallow focus, slight camera drift, neutral daylight cabin light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "This is a steering safety check, not a guess. Which way it rocks tells you which part is worn.",
+      "narration": "Do not guess.",
       "onScreenText": "Which way it rocks tells you which part.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a wheel/tire faintly visible on a lift in the background echoing beat 1's tire close-up, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

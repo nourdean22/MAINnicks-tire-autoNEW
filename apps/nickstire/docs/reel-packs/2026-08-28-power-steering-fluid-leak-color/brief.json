@@ -22,7 +22,7 @@
       "label": "hook",
       "startSeconds": 0,
       "endSeconds": 3,
-      "vo": "That puddle under your car? The color tells you everything.",
+      "vo": "That puddle? The color tells you a lot.",
       "prompt": "Extreme close-up of a small reddish-amber fluid puddle on dry gray asphalt in daylight, shallow depth of field, camera slowly pushes in, photorealistic, automotive documentary style, no people, no text."
     },
     {
@@ -30,7 +30,7 @@
       "label": "setup",
       "startSeconds": 3,
       "endSeconds": 8,
-      "vo": "Dark and oily — that's engine oil. Green or orange and slippery — coolant. But light amber, almost pinkish red, and thin? That one's easy to miss.",
+      "vo": "Dark and oily, engine oil. Green, coolant.",
       "prompt": "Three small distinct fluid puddles on concrete garage floor side by side — one dark brown/black, one bright green, one light amber-pink — overhead shot, soft natural light, macro detail on liquid sheen, photorealistic, no people, no text."
     },
     {
@@ -38,7 +38,7 @@
       "label": "reveal",
       "startSeconds": 8,
       "endSeconds": 16,
-      "vo": "That's power steering fluid. It's thinner than oil, lighter in color, and it usually shows up near the front wheels or under the engine — right where the steering rack lives.",
+      "vo": "Light amber, almost pink, and thin is power steering fluid.",
       "prompt": "Close-up under the hood of a car, steering rack and fluid reservoir area, a small drip of light amber fluid forming and falling, engine bay detail, photorealistic, documentary lighting, no people, no text."
     },
     {
@@ -46,7 +46,7 @@
       "label": "why-it-matters",
       "startSeconds": 16,
       "endSeconds": 24,
-      "vo": "Low fluid can mean heavier steering, a whine when you turn, or in some cars, losing power assist altogether. It's one clue — not a guess.",
+      "vo": "It shows near the front wheels, by the steering rack.",
       "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text.",
       "note": "Swapped from a steering-wheel/hands shot to a reservoir-cap insert to stay clear of the standing negative prompt's hands exclusion."
     },
@@ -55,7 +55,7 @@
       "label": "what-to-do",
       "startSeconds": 24,
       "endSeconds": 30,
-      "vo": "Don't top it off and hope. A leak means fluid's going somewhere — worth having it looked at before it gets worse.",
+      "vo": "Low fluid can point to heavy steering or a whine.",
       "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text."
     },
     {
@@ -63,7 +63,7 @@
       "label": "cta",
       "startSeconds": 30,
       "endSeconds": 33,
-      "vo": "Notice a puddle like that? Stop by and we'll take a look.",
+      "vo": "Do not just top it off. Worth checking.",
       "prompt": "Wide shot of a tidy automotive repair shop bay door, daylight, clean and professional, no signage text legible, no people, photorealistic."
     },
     {

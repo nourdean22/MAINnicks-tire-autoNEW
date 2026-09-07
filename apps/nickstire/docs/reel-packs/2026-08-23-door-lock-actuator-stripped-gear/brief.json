@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Press the lock button and you hear clicking, but the door won't actually lock.",
+      "narration": "Press the lock, hear clicking, nothing locks.",
       "visualPrompt": "Close-up shot of a car interior door lock knob and armrest panel, dim ambient cabin light, static locked-off camera, no hands or people visible",
       "stockSearchTerms": ["car door lock knob interior closeup", "car interior door panel dark ambient"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That clicking is the motor still spinning. It's the gear that moves the latch that's stripped.",
+      "narration": "That clicking is the motor. The gear it turns may be worn.",
       "visualPrompt": "Macro shot of a door panel removed to reveal the lock actuator motor housing, small plastic gear visible, workbench lighting, slow push-in",
       "stockSearchTerms": ["car door actuator motor closeup", "door lock mechanism gear macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "Door actuators use a small plastic gear inside the motor housing. Years of use wear the teeth down until the motor spins and nothing moves.",
+      "narration": "Inside is a small plastic gear that wears.",
       "visualPrompt": "Extreme macro of a worn plastic actuator gear with visibly rounded teeth, slow orbital camera move, workbench light, shallow depth of field",
       "stockSearchTerms": ["stripped plastic gear macro", "worn actuator gear teeth closeup"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
-      "narration": "A quick check: listen close. Steady, repeating clicks with zero latch movement almost always points to a stripped gear, not a dead motor.",
+      "narration": "Steady clicks and no latch movement is one clue.",
       "visualPrompt": "Static medium shot of a car door edge and latch mechanism from outside the open door, ambient daylight, no hands or people visible",
       "stockSearchTerms": ["car door latch edge closeup daylight", "car door jamb open exterior"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Worth checking before you're locked out for good. Stop by and we'll take a look.",
+      "narration": "Worth checking before it quits.",
       "visualPrompt": "Close-up shot of the same interior door lock knob and armrest panel from beat 1, now under slightly warmer, brighter light, same static framing, composed to match beat 1's opening frame for a seamless loop",
       "stockSearchTerms": ["car door lock knob interior closeup warm light"]
     }

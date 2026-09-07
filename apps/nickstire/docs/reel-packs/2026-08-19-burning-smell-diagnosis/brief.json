@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "That smell while you're driving? It's telling you something specific.",
+      "narration": "That smell while driving is one clue.",
       "onScreenText": "That sweet smell is coolant.",
       "visual": "First-person driving POV, dashboard and road ahead through windshield, daylight, slow steady forward motion, subtle camera handheld sway, no people visible in frame (hands/steering wheel excluded per negative prompt)",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Sweet, syrupy smell? That can point to a coolant leak.",
+      "narration": "Sweet and syrupy? Can point to a coolant leak.",
       "onScreenText": "Sweet, syrupy smell?",
       "visual": "Close-up of a car engine bay coolant reservoir with faint steam or vapor rising, shallow focus, slow camera push-in, warm engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Burning rubber smell? That may indicate a belt or hose rubbing somewhere it shouldn't.",
+      "narration": "Burning rubber? May indicate a belt or hose rubbing.",
       "onScreenText": "Burning rubber smell?",
       "visual": "Macro close-up of a serpentine belt running around a pulley in an engine bay, subtle motion blur implying rotation, dim garage lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Hot electrical or burning plastic smell? Worth checking right away — that's not one to guess on.",
+      "narration": "Hot plastic or electrical? Worth checking right away.",
       "onScreenText": "Hot electrical or burning plastic?",
       "visual": "Close-up of a car's engine-bay wiring harness or fuse box, static camera with subtle vibration, dim lighting with a single work-light glow, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Guessing costs you a tow. The smell tells you which system to look at.",
+      "narration": "The smell narrows it to one system.",
       "onScreenText": "EACH SMELL POINTS AT A DIFFERENT SYSTEM.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

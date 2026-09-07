@@ -11,7 +11,7 @@
       "role": "HOOK",
       "window": "0:00-0:05",
       "onScreenText": "THE RATTLE UNDER YOUR CAR IS USUALLY RUST",
-      "narration": "That metal rattle when you hit the gas? Here's the one clue that tells you why.",
+      "narration": "Metal rattle when you hit the gas?",
       "visualPrompt": "Low-angle static shot under a parked car at dusk, exhaust pipe and undercarriage visible, subtle heat haze shimmer, cinematic garage lighting, shallow depth of field, no people",
       "audioNote": "silence under narration, no SFX yet"
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "window": "0:05-0:11",
-      "narration": "Gets louder as you speed up, quiets down at idle? That can point to loose exhaust.",
+      "narration": "Louder with speed, quiet at idle? Can point to exhaust.",
       "visualPrompt": "Car driving away from camera on a residential street, rear undercarriage glimpsed low angle, motion blur on wheels, subtle camera vibration implying rattle, daytime overcast Cleveland-style street",
       "audioNote": "faint metallic rattle SFX under narration, low volume"
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "window": "0:11-0:18",
-      "narration": "Most of the time, it's the heat shield — a thin metal cover that rusts loose and rattles against the pipe.",
+      "narration": "Usually the heat shield, a thin cover that rusts loose.",
       "visualPrompt": "Macro close-up of a rusted metal heat shield clamped to an exhaust pipe, visible rust flaking and a thin gap where the shield has come loose, slow dolly-in, workshop lighting",
       "audioNote": "faint metallic rattle SFX continues, slightly louder on 'rattles against the pipe'"
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
-      "narration": "Leave it long enough and the shield wears through — worth checking before it does.",
+      "narration": "Left long enough it wears through. Worth checking.",
       "visualPrompt": "Close-up of a heat shield with visible rust spreading and a small flake lifting at the edge, dramatic side lighting, slow subtle vibration",
       "audioNote": "rattle SFX fades out into silence by end of beat"
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:30",
-      "narration": "Do not guess at a rattle. A look underneath tells you whether the shield is loose.",
+      "narration": "One look underneath settles it.",
       "visualPrompt": "Interior of an auto repair shop garage bay, empty lift with clean tools, open bay door, warm inviting light, shop signage blurred/out of focus (no legible text), no people",
       "audioNote": "no rattle SFX, warm ambient garage room-tone only",
       "endFreezeSeconds": 3,

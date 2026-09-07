@@ -13,49 +13,49 @@
       "index": 1,
       "startSec": 0,
       "endSec": 4,
-      "narration": "One wheel hotter than the others after a short drive?",
+      "narration": "One wheel hotter than the rest after a short drive?",
       "visualPrompt": "Close-up macro shot of a car's front wheel and brake rotor through the spokes, parked in bright daylight, shallow depth of field, subtle heat-shimmer distortion rising off the rotor surface, cinematic automotive photography, no people."
     },
     {
       "index": 2,
       "startSec": 4,
       "endSec": 9,
-      "narration": "That's not always the brakes working hard. It can point to a caliper that's sticking.",
+      "narration": "That can point to a sticking caliper.",
       "visualPrompt": "Slow push-in on a brake caliper and rotor assembly seen through alloy wheel spokes, brushed metal and glinting highlights, moody garage side-lighting, no people."
     },
     {
       "index": 3,
       "startSec": 9,
       "endSec": 14,
-      "narration": "A stuck caliper keeps squeezing the pad against the rotor, even after you let off the brake.",
+      "narration": "It keeps squeezing the pad into the rotor.",
       "visualPrompt": "Macro shot of a brake caliper piston and pad area, dust and brake material texture visible, dramatic raking light, mechanical detail, no people."
     },
     {
       "index": 4,
       "startSec": 14,
       "endSec": 19,
-      "narration": "That drag builds heat, and it's one clue behind a car that pulls to one side.",
+      "narration": "Even after you let off the brake.",
       "visualPrompt": "Wide tracking shot of a car driving away down a residential street, wheel and rotor in soft foreground blur, background motion blur, no readable plate, no people."
     },
     {
       "index": 5,
       "startSec": 19,
       "endSec": 24,
-      "narration": "Don't guess by touch alone. A hot wheel is a sign, not a diagnosis.",
+      "narration": "That drag builds heat and tugs the car one way.",
       "visualPrompt": "Close dolly shot across a worn rotor surface showing heat-discoloration and light scoring, blurred shop background, industrial lighting, no people."
     },
     {
       "index": 6,
       "startSec": 24,
       "endSec": 29,
-      "narration": "Worth checking before your next long drive.",
+      "narration": "A hot wheel is a clue, not a verdict.",
       "visualPrompt": "Wide establishing shot of a tire-shop service bay interior, warm inviting lighting, tools and lift visible, no readable signage, no people."
     },
     {
       "index": 7,
       "startSec": 29,
       "endSec": 33,
-      "narration": "Stop by and we'll take a look. Nick's Tire & Auto.",
+      "narration": "Worth checking before a long drive.",
       "visualPrompt": "Freeze frame held from beat 6's final frame; CTA text and logo composited in post, not generated into the clip."
     }
   ],

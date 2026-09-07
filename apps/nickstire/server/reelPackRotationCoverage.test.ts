@@ -153,10 +153,17 @@ describe("the rotation array's own invariants", () => {
  * `2026-08-20-slow-leak-soap-test` is the one that moved: 56 words (~25.5s)
  * against 19s of renderable video.
  *
- * This floor climbs again as voiceover scripts are trimmed to their budget —
- * the failure message prints the exact word target for each pack.
+ * 2026-09-07, after the voiceover trim: **31**. All 93 over-long scripts were
+ * rewritten to their per-pack budget, so the voiceover blocker is gone from the
+ * histogram entirely. It also took `no-free-claims` from 39 to 24 as a side
+ * effect — several scripts carried the word only in the sentences that were cut.
+ *
+ * This floor climbs further as the REMAINING blockers are cleared: 38 packs have
+ * no mechanic truth, 26 depend on rendered in-frame text, 24 still carry a
+ * "free" claim in their captions or beat text, 19 are outside the 4-6 beat band.
+ * The failure message prints the current histogram, which is the work list.
  */
-const PREFLIGHT_PASSING_FLOOR = 1;
+const PREFLIGHT_PASSING_FLOOR = 31;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {

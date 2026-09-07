@@ -9,7 +9,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
-      "narration": "Your trunk or hatch slowly sinks back down after you open it, or you're propping it up yourself.",
+      "narration": "Your hatch sinks back down after you open it.",
       "visualPrompt": "Macro shot, open trunk lid seen from the side, gas strut rod visible along the hinge, lid held near full-open angle, slow push-in, no hands or driver visible, shallow depth of field",
       "stockSearchTerms": ["car trunk open side view strut", "hatchback liftgate open closeup"]
     },
@@ -17,7 +17,7 @@
       "index": 2,
       "role": "SETUP",
       "window": "0:04-0:09",
-      "narration": "That's not the latch. It's the gas struts, the two rods that hold the lid open, losing pressure.",
+      "narration": "That's the struts, not the latch.",
       "visualPrompt": "Close macro shot of a single gas strut cylinder removed and resting on a workbench, chrome rod and black cylinder body visible, static locked shot with subtle rack-focus shift, no hands",
       "stockSearchTerms": ["gas strut cylinder closeup", "hatch lift support rod macro"]
     },
@@ -25,7 +25,7 @@
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:18",
-      "narration": "Each strut is a sealed gas cylinder. Years of heat and cold cycling wear the internal seal, so pressure leaks out and it can't hold the lid's weight anymore.",
+      "narration": "Heat and cold wear the seal, and pressure leaks out.",
       "visualPrompt": "Slow macro orbit around the strut's seal end, subtle oily residue visible near the cylinder base, soft workshop lighting, slow orbital camera move, no hands or text",
       "stockSearchTerms": ["gas strut seal leak macro", "lift support cylinder wear closeup"]
     },
@@ -33,7 +33,7 @@
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
-      "narration": "Quick check: push up on the lid. If it holds steady, the latch is fine. If it drifts back down, it's the struts.",
+      "narration": "Push the lid up. If it drifts, check the struts.",
       "visualPrompt": "Macro shot of the open trunk lid drifting slowly downward under its own weight, subtle motion blur on the lid edge, no hands, no on-screen text",
       "stockSearchTerms": ["trunk lid sagging closeup", "hatch drifting down macro"]
     },
@@ -41,7 +41,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:28",
-      "narration": "Don't let it drop on you while you're loading groceries. We can swap the struts before one lets go completely.",
+      "narration": "Struts wear out in pairs.",
       "visualPrompt": "Same framing and lens as beat 1 (open trunk lid, side view, strut visible), lid now held fully and steadily open, warm shop-bay light in the background, static locked shot, no faces or logos",
       "stockSearchTerms": ["car trunk open steady wide", "auto repair shop bay warm light"]
     }
