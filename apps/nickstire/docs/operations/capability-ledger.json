@@ -569,7 +569,7 @@
       "operationalState": "deployed",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "nickstire/durable-approvals branch (this PR); EXTENDS the existing #780 hash-approval machinery (approve writes briefHash+mediaHash, publish recomputes+refuses) rather than rebuilding it",
+        "codeCommit": "2026-09-07 (PR #2163): a gate applied to one door was a gate applied to nothing. Migration 0112 gated the autonomous cron; TWO other routes reach the SAME live Instagram account and never called reelApprovalProblem — POST /api/admin/reel-canary action=publish (where force=true additionally overrode the quality gate AND the stock guard nested inside it) and contentAdmin.generateAndPublishLiveTestReel. Both now check consent BEFORE the quality gate, and on the canary route that check is deliberately NOT force-overridable: force may override a QUALITY OPINION about the operator's own reel, never the record of WHO CONSENTED to these exact caption bytes and this exact asset. A job with no caption is refused rather than approved against an empty-string fingerprint. Tests: server/reelPublishDoors.test.ts (15), including the regression guard that the refusal is not re-guarded by !force — canary planted and confirmed red.",
         "tests": [
           "server/approvalExpiry.test.ts (expired refuses with distinct reason before hash work; live passes; legacy null-expiry allowed; hash mismatch independent) + server/__tests__/approval-integrity.test.ts (existing E2E, green)"
         ],
@@ -589,7 +589,7 @@
         "break-glass override records",
         "approval invalidation on policy-version change"
       ],
-      "lastVerifiedAt": "2026-07-17",
+      "lastVerifiedAt": "2026-09-07",
       "verificationExpiresAt": "2026-10-15"
     },
     {
@@ -1550,7 +1550,7 @@
       "name": "Structured AI self-disclosure on Instagram publish (is_ai_generated)",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "this diff — client/shared/reelDisclosure.ts + server/services/metaSocial.ts",
+        "codeCommit": "2026-09-07 (PR #2163): contentAdmin.generateAndPublishLiveTestReel passed NO isAiGenerated to publishToSocial, so metaSocial omitted the is_ai_generated field entirely and posted AI-generated video to a live audience UNDISCLOSED. 'Live test' describes intent, not audience — the followers are real. It now derives disclosure from the stored clip paths via shouldDiscloseAi(finalJob.clipUrlsJson, caption), the same provider-independent derivation the autonomous cron uses, so this door cannot post undisclosed by omission. Tests: server/reelPublishDoors.test.ts.",
         "tests": [
           "client/src/__tests__/reel-disclosure.test.ts (18): Rule 1 blocks generated footage framed as a real customer/repair/test/before-after and a disclosure LABEL does not rescue it; Rule 2 blocks generated video unless the publish call sets is_ai_generated=true; caption text alone is explicitly asserted INSUFFICIENT. Positive controls: real footage with identical copy PASSES, disclosed educational generated footage PASSES. Mutation-proven both directions in #1980 (gate disabled -> 7 RED; gate always-blocking -> 11 RED).",
           "client/src/__tests__/reel-concepts.test.ts (10): every non-publishable concept carries a blockReason; UNKNOWN is not a reachable state."
@@ -1568,7 +1568,7 @@
         "live-API confirmation that is_ai_generated is accepted on the container",
         "back-labelling reels already published without the flag (container params are not editable after creation)"
       ],
-      "lastVerifiedAt": "2026-08-28",
+      "lastVerifiedAt": "2026-09-07",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
@@ -1614,7 +1614,7 @@
       "name": "Human approval as a precondition for autonomous reel publish (the writer + its operator surface)",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "this diff — server/services/reelApproval.ts (recordReelApproval/revokeReelApproval/listReelPublishQueue), server/routers/instagramAdmin.ts (3 adminProcedures), client/src/pages/admin/instagram/ReelQueue.tsx (Autonomous publish section)",
+        "codeCommit": "2026-09-07 (PR #2163): the gate now separates CREATIVE APPROVAL from DELIVERY ELIGIBILITY. shared/reelApproval.ts gained publishWindowStart/End (a window GOVERNS when present and suppresses the rolling 72h TTL, so approving today for a slot in two weeks stops being structurally impossible) and assetSha256 (a stable URL is not proof of unchanged bytes — storagePut writes to a deterministic key, so a re-render or beat repair yields the same URL with different content; a candidate that cannot present a digest is REFUSED, because 'could not verify' is not 'unchanged'). Nothing else is weakened: revocation, caption change, URL change, anonymous approval and wrong-job all still block INSIDE an open window, each asserted individually. Tests: server/reelPublishWindow.test.ts (25). STATE: gate logic live; the four columns are drizzle/0118, WRITTEN AND NOT APPLIED, so every new field arrives undefined and behaviour is identical to before until an operator applies it and a follow-up wires schema.ts.",
         "tests": [
           "server/reelApprovalWrite.test.ts (17): the load-bearing case is feeds_the_real_gate, which runs the row this module WRITES through the same approvalProblem the publish door CALLS and requires null. Refusal-direction tests were never the risk — #2000 already blocked everything perfectly. Mutation-proven: binding to a normalised caption turns 3 of 17 red, while the caption canary still PASSES because a wrongly-bound row also blocks, which is exactly why the positive assertion is the load-bearing one.",
           "server/reelApprovalWrite.test.ts column-width contract: widths are read OUT OF drizzle/0112_reel_publish_approvals.sql rather than restated, so the assertions cannot drift from the DDL. This caught a real shipped defect — the id was built as a prefixed UUID (42 chars) against id varchar(36); under STRICT_TRANS_TABLES that insert is REJECTED and the row LOST, so every approval would have failed on the first tap. Mutation-proven: reintroducing the prefix turns exactly that test red.",
@@ -1634,7 +1634,7 @@
         "listReelPublishQueue does one findLiveApproval per row (N+1, bounded at 25) - acceptable for an admin screen, not for a hot path.",
         "expiresAt uses the same new Date(Date.now()+TTL) construction as contentApprovals.ts. If TiDB timestamp read-back skews, an approval outlives 72h - a mild fail-open, matched to prior art rather than forked into a second scheme."
       ],
-      "lastVerifiedAt": "2026-09-01",
+      "lastVerifiedAt": "2026-09-07",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled"
