@@ -1,0 +1,51 @@
+{
+  "id": "2026-09-07-curbed-rim-cosmetic-vs-bent",
+  "topic": "Scraped your rim on a curb? Here's how to tell cosmetic damage from a bent wheel.",
+  "franchise": "curbed-rim-cosmetic-vs-bent",
+  "productionType": "faceless-ai-or-stock",
+  "cost": 0,
+  "status": "ready-for-human-approval",
+  "landingDestination": "/tires",
+  "durationSeconds": 27,
+  "totalWithFreezeSeconds": 30,
+  "beats": [
+    {
+      "start": 0.0,
+      "end": 4.0,
+      "vo": "Scraped your rim on a curb? Here's how to tell if it's just cosmetic — or something worse.",
+      "visual": "Macro shot of an alloy wheel rim outer edge with a shallow curb scuff, static camera, soft studio-style side light"
+    },
+    {
+      "start": 4.0,
+      "end": 10.0,
+      "vo": "A shallow scuff on the outer edge is usually cosmetic — it doesn't affect how the wheel holds air or spins true.",
+      "visual": "Two macro rim-edge compositions in sequence: shallow cosmetic scuff next to a deeper gouge, subtle crossfade, no on-screen text"
+    },
+    {
+      "start": 10.0,
+      "end": 17.0,
+      "vo": "The real warning signs are a wobble in the steering wheel, a rhythmic vibration at speed, or the tire slowly losing air near the rim edge.",
+      "visual": "Extreme macro, slow push-in on the tire-to-rim bead seal area, ambient shop lighting"
+    },
+    {
+      "start": 17.0,
+      "end": 23.0,
+      "vo": "A bent wheel can still hold air for weeks before it fails — don't wait for a blowout to find out.",
+      "visual": "Close-up of a tire pressure gauge read at a valve stem near the rim, static mounted camera, no hands in frame"
+    },
+    {
+      "start": 23.0,
+      "end": 27.0,
+      "vo": "Worth a quick look if you felt or heard anything. Stop by and we'll take a look.",
+      "visual": "Shop card / logo, /tires landing card"
+    }
+  ],
+  "saveFreezeSeconds": 3,
+  "negativePromptStandard": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "note": "No AI clip generation attempted or requested this session — no motion route available (no ffmpeg, no CapCut, no Higgsfield/TTS credentials in this session's environment). Standing negative prompt recorded for format consistency only, for use by a session with real generation access.",
+  "claimSafety": {
+    "pricesUsed": false,
+    "warrantiesClaimed": false,
+    "approvedSoftLanguageUsed": ["worth a quick look", "stop by and we'll take a look"]
+  }
+}
