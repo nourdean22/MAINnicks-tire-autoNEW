@@ -499,6 +499,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Sort by timestamp descending
     recentActivity.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
+    // Declared here (not lower down) because the SHOP FLOOR catch below needs
+    // it: that block used to log-and-continue with an all-zero object while
+    // this list was defined a hundred lines later, which is how a failed
+    // revenue read reached Money -> Shop Pulse as "$0, 0% of pace".
+    const unavailableCounts: string[] = [];
+
     // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
     let shopFloorStats = defaultStats.shopFloor;
     try {
@@ -585,6 +591,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       };
     } catch (err) {
       log.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
+      // 2026-09-07 · this catch used to LOG ONLY, while `shopFloorStats` stayed
+      // as `defaultStats.shopFloor` — an all-zero object. Money → Shop Pulse
+      // reads it, so a failed read rendered as "$0 revenue, 0% of pace": a
+      // healthy-looking dead shop. The `unavailableCounts` mechanism it needed
+      // was already in this same function (memberships and tires push to it
+      // thirty lines below); shop floor simply never joined. Now it does, so the
+      // consumer can tell a zero from a silence.
+      unavailableCounts.push("shopFloor");
     }
 
     /**
@@ -601,7 +615,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
      * unaffected, and a consumer that cares can render "?" instead of a
      * fabricated 0. Empty array = every count below was read successfully.
      */
-    const unavailableCounts: string[] = [];
 
     // Memberships warning count: past_due or incomplete
     let membershipsWarning = 0;

@@ -62,6 +62,42 @@
 | Potential pipeline value | Sum of quoted or estimated work not yet paid | observed/modelled depending source | no |
 | Unmatched paid revenue | Paid invoices without a canonical source link | verified revenue, unknown attribution | total revenue yes; channel ROI no |
 | Estimated recovery opportunity | Open lost/declined work with an estimate or bounded value assumption | observed/modelled | no |
+| Billed sales | Paid invoices by **invoice date** in the window. `SUM(totalAmount)` in integer cents. | verified rows, unverified against the shop's own report | total billed yes; **not** net sales, **not** cash collected |
+
+### Billed sales — the full definition (`shop-sales-v1-invoice-date-gross`)
+
+Added 2026-09-07. Implemented ONCE in `server/services/shopSales.ts`
+(`paidInvoiceRevenue(period)`) and surfaced by `controlCenter.shopSales`. This is the
+helper the 2026-09-01 audit proposed as fix item 6 and which was never built; the audit
+had measured **19 revenue surfaces over at least 11 independent implementations** of
+"paid invoice revenue for a period". Any new sales figure calls this or explains why not.
+
+- **Basis** — **invoice date** (accrual, what was billed). There is **no payment-date column** on `invoices`, so cash collected is not derivable from this table and must not be implied.
+- **Unit** — integer **cents** (`totalAmount`), divided only at render.
+- **Gross/net** — **gross, tax-inclusive.** `taxAmount` exists and is never subtracted anywhere in the codebase, and has written 0 since 2026-05 because the ALG mirror consumes a summary endpoint with no parts/labor/tax split. This cannot be made into net sales from this table.
+- **Timezone** — window boundaries are **America/New_York calendar dates** computed in JS and passed to SQL as literals. Never a bare `CURDATE()`: a UTC session's is already tomorrow in Cleveland from 20:00 ET.
+- **Dedupe** — `invoices.invoiceNumber` unique index; the mirror upserts on it. Rows with a blank invoice number are **counted and reported**, not assumed absent.
+- **Freshness** — `throughDate` = newest `invoiceDate` in the mirror, returned on every read. The mirror runs a day behind, so "today" is structurally 0 each morning. This is why `controlCenter.todayPulse` refuses to report sales TODAY, and why the card defaults to a completed window.
+- **Unavailable** — discriminated union. The failure branch has **no numeric field**, so a failed read cannot render as `$0`.
+
+**Excluded from the figure, and counted so the gap is measurable:**
+
+- `pending` — not a sale yet; includes ALG tickets still "open". Reported as count + cents.
+- `partial` — excluded **entirely**, not partially counted: there is **no `amountPaid`/`amountDue` column** anywhere in the schema, so the collected portion is unknowable. Reported as count + **full** value, the maximum size of the blind spot.
+- `refunded` — excluded, **not netted**. A refund of a prior-period sale never reduces any period. There is no `void` status in the enum, so voids are structurally invisible. Reported as count + cents.
+
+**The trap this names rather than inherits.** `paymentStatus` is **not a payment fact**.
+`shopDriverMirror.normalizePaymentStatus` maps an ALG **ticket-lifecycle** string onto the
+payment enum — `"closed" -> paid`, `"open" -> pending`, and anything **unknown or empty ->
+`paid`** — and on re-import a row can be moved off `paid` but never back on. Every "paid
+revenue" figure in this repo rests on that mapping.
+
+**Reconciliation status: NOT RECONCILED.** `reconciledToShopReport` is `false` and the UI
+says so. The operator's authoritative total is an **ALG/ShopDriver report**; until a period
+has been compared against it line by line, this figure is *internally consistent*, not
+*reconciled*, and must not be labelled "Total Sales". ALG/ShopDriver is **read-only** — a
+reconciliation uses the existing mirror or an operator-supplied export, never a new probe
+(probes evict the shop's own ALG browser login; see SHOP-PROTECT).
 
 ## GSC metrics
 
