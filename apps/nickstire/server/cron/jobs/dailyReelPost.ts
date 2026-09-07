@@ -414,6 +414,29 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       : [];
 
     const skipped: Array<{ jobId: number; code: string }> = [];
+
+    // TERMINAL-GATE PRE-FILTER. The approval check alone is not enough to pick a
+    // candidate: an APPROVED job can still be refused downstream by a verdict
+    // that will never change, and because the gate chain below returns from the
+    // handler rather than trying the next job, one such candidate jams the drain
+    // for every reel behind it. Live example this was written against: job
+    // 1740003 was approved by the operator and is a 0.99 caption repost of a
+    // published post, so it was selected on every pulse and nothing else could
+    // ever be drained.
+    //
+    // Only the two PURE, PERMANENT verdicts are pre-checked — a repost and a
+    // condemned script. Both read the same tomorrow. Transient states
+    // (rendered-QA, auto-repair) are deliberately NOT pre-checked: they belong
+    // to the gate chain, which remains the authority. This filter only decides
+    // what is worth SELECTING; nothing here can let a reel through that the
+    // chain would refuse.
+    //
+    // The corpus is loaded once per drain, and only when there is something to
+    // drain, so a quiet day costs no extra read.
+    const { originalityProblem } = await import("@shared/reelOriginality");
+    const { loadPublishedCorpus } = await import("../../services/reelOriginality");
+    const drainCorpus = candidates.length ? await loadPublishedCorpus() : [];
+
     for (const candidate of candidates) {
       const caption = typeof candidate.caption === "string" ? candidate.caption : "";
       const videoUrl = typeof candidate.mp4Url === "string" ? candidate.mp4Url : "";
@@ -439,6 +462,23 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         skipped.push({ jobId: candidate.id, code: problem.code });
         continue;
       }
+
+      const cPayload = parseReelJobPayload(candidate.payload);
+      const cOnScreen = (cPayload.storyboardBeats ?? []).map((b) => b?.onScreenText ?? "").filter(Boolean).join(" ");
+      const cCondemned = condemnedContentProblem({ voiceover: cPayload.voiceoverScript, onScreenText: cOnScreen });
+      if (cCondemned) {
+        skipped.push({ jobId: candidate.id, code: "condemned_script" });
+        continue;
+      }
+      const cDupe = originalityProblem(
+        { onScreenText: cOnScreen, caption, videoUrl },
+        drainCorpus.filter((p) => p.label !== `reel job ${candidate.id}`),
+      );
+      if (cDupe) {
+        skipped.push({ jobId: candidate.id, code: `repost:${cDupe.surface}` });
+        continue;
+      }
+
       job = candidate;
       drainedFrom = candidate.briefId;
       break;
