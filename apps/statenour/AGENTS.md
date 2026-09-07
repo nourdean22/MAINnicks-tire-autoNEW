@@ -7,7 +7,9 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-02 · Observability arc #2080/#2082 — Langfuse tracing proven live.
+**Last refreshed:** 2026-09-07 · Backlog drain #2096/#2102/#2103/#2160 — tool-selection
+telemetry migration APPLIED to prod Neon (54 migrations, schema up to date). Before it
+landed, the selection-telemetry writer fail-softed and recorded nothing.
 Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
