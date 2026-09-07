@@ -58,11 +58,43 @@ export interface SaveToBrainInput {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * What the save actually did. 2026-09-07: before this field existed the
+ * near-duplicate branch returned `Saved as …` while KEEPING the old row's
+ * text and dropping the new statement on the floor — a changed amount, date
+ * or negation embeds within cosine 0.95 of the sentence it corrects, so the
+ * correction was silently discarded and the confirmation lied about it.
+ *   created                 — a new row, nothing similar existed
+ *   duplicate               — the same statement (whitespace/case-insensitive)
+ *                             already exists; its sighting count was bumped
+ *   created_near_duplicate  — similar text existed but the wording differs;
+ *                             BOTH rows are kept and linked (metadata
+ *                             .nearDuplicateOf), never merged automatically
+ */
+export type SaveOutcome = "created" | "duplicate" | "created_near_duplicate";
+
 export interface SaveToBrainOutput {
   id: string;
   category: SaveCategory;
   key: string;
   summary: string;
+  outcome: SaveOutcome;
+  /** The pre-existing row this save was measured against, when one was found. */
+  relatedId?: string;
+}
+
+/**
+ * The only thing that counts as "the same memory": equal after collapsing
+ * whitespace and case. Embedding similarity nominates a RELATIONSHIP, never
+ * a replacement — see SaveOutcome.
+ */
+export function isSameStatement(a: string, b: string): boolean {
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  return norm(a) === norm(b);
+}
+
+function previewOf(text: string, max = 120): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 /**
@@ -211,29 +243,39 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     }
   }
 
-  if (duplicateId && duplicateKey && duplicateContent) {
-    // Duplicate found: update seenCount and lastSeen
-    await prisma.brainMemory.update({
+  if (duplicateId && duplicateKey && duplicateContent && isSameStatement(duplicateContent, trimmed)) {
+    // The same statement again: bump the sighting, keep the row, and SAY so.
+    const updated = await prisma.brainMemory.update({
       where: { id: duplicateId },
       data: {
         seenCount: { increment: 1 },
         lastSeen: new Date(),
       },
+      select: { seenCount: true },
     });
-
-    const previewLength = 120;
-    const preview = duplicateContent.length > previewLength ? `${duplicateContent.slice(0, previewLength)}…` : duplicateContent;
-    const summary = `Saved as ${category} · ${preview}`;
+    const seen = typeof updated?.seenCount === "number" ? ` · seen ${updated.seenCount}×` : "";
+    const summary = `Already saved as ${category} · ${previewOf(duplicateContent)}${seen}`;
 
     return {
       id: duplicateId,
       category,
       key: duplicateKey,
       summary,
+      outcome: "duplicate",
+      relatedId: duplicateId,
     };
   }
 
-  // Not a duplicate: create new BrainMemory and write VectorEmbedding row
+  // Similar text with different wording is NOT a duplicate. Keep the new
+  // statement (it may be the correction), keep the old one (it may be a
+  // distinct fact that merely embeds nearby), and link them so the Brain
+  // review surface can merge or supersede deliberately.
+  const nearDuplicateId = duplicateId && duplicateContent ? duplicateId : null;
+  const metadata = nearDuplicateId
+    ? { ...(input.metadata ?? {}), nearDuplicateOf: nearDuplicateId }
+    : (input.metadata ?? null);
+
+  // Create new BrainMemory and write VectorEmbedding row
   const row = await prisma.brainMemory.create({
     data: {
       category,
@@ -241,7 +283,7 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
       content: trimmed,
       confidence,
       source,
-      metadata: (input.metadata ?? null) as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
+      metadata: metadata as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
     },
     select: { id: true },
   });
@@ -280,16 +322,19 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     }
   }
 
-  // Build a short summary line for the caller to display.
-  const previewLength = 120;
-  const preview =
-    trimmed.length > previewLength ? `${trimmed.slice(0, previewLength)}…` : trimmed;
-  const summary = `Saved as ${category} · ${preview}`;
+  // Build a short summary line for the caller to display. When a similar
+  // memory exists the confirmation names it, so the operator can see what
+  // the new statement sits next to instead of discovering both in recall.
+  const summary = nearDuplicateId && duplicateContent
+    ? `Saved as ${category} · ${previewOf(trimmed)} · similar memory kept: ${previewOf(duplicateContent, 60)}`
+    : `Saved as ${category} · ${previewOf(trimmed)}`;
 
   return {
     id: row.id,
     category,
     key,
     summary,
+    outcome: nearDuplicateId ? "created_near_duplicate" : "created",
+    ...(nearDuplicateId ? { relatedId: nearDuplicateId } : {}),
   };
 }

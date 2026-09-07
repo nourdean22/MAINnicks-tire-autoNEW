@@ -58,18 +58,28 @@ Nour will need to sign in again. Annual rotation recommended.
 
 ## Public endpoints (no auth)
 
-These bypass `middleware.ts` and must carry their own auth:
+These bypass the session gate and must carry their own auth. **The list
+below is a summary; the source of truth is `PUBLIC_PREFIXES` +
+`PUBLIC_EXACT` in [`lib/security/route-policy.ts`](../lib/security/route-policy.ts),**
+which carries a stated invariant per entry and is pinned by
+`tests/security/route-policy.test.ts` + `middleware-boundary.test.ts`.
 
-| Endpoint | Own auth |
+| Endpoint | Own auth (verified live 2026-09-07) |
 |---|---|
-| `/api/health` | none (public health probe) |
-| `/api/system/health` | none (uptime monitor target) |
+| `/api/health` | **owner session** — was public until 2026-07-21 (it leaked the whole health payload); anonymous → 401 |
+| `/api/system/health` | owner session (`{ auth: "owner" }`); anonymous → 401 |
+| `/api/system/heartbeat` | none — `{ status, db_latency_ms }` only; Railway healthcheck + uptime monitors |
+| `/api/version` | none — commit SHA / branch / configured-booleans only, no values |
 | `/api/auth/*` | NextAuth internal |
 | `/api/cron/*` | `CRON_SECRET` via `Authorization: Bearer` |
-| `/api/sync/*` | `STATENOUR_SYNC_KEY` via header |
+| `/api/sync/*`, `/api/devices/*`, `/api/nour-os/*` | `STATENOUR_SYNC_KEY` via `x-sync-key` (the nour-os `GET` is an unauthenticated query CATALOG, by design) |
+| `/api/brain/*` | each handler runs `requireSession` or an extension bearer token — anonymous → 401 |
 | `/api/telegram` | Telegram webhook secret header + chat_id check |
-| `/api/webhooks/*` | provider-specific (Stripe signature, etc.) |
-| `/api/images/*` | public, cached (no PII — generated images only) |
+| `/api/webhooks/*` | provider-specific: Stripe signature (all `v1=` candidates, replay window), `x-make-secret`, `x-sync-key` |
+| `/api/inngest` | Inngest signing key |
+| `/api/actions/*`, `/api/mcp` | bridge bearer token; `/api/actions/openapi` is public (it advertises tool names + schemas to the Custom GPT importer — an accepted disclosure, revisit if the GPT is retired) |
+| `/api/images/[id]` | **none** — serves a generated image by unguessable id with `Cache-Control: public`. Load-bearing for chat markdown, /content publish and social posting. The photo-improver stores the operator's own photos through the same path, so "no PII" is no longer strictly true; signed URLs are the planned fix (operator decision). |
+| `/api/short/<code>` | none — public redirector; logs a hashed-IP click |
 
 **Rule:** before moving a route into the public prefix list, confirm
 that route has its own auth check. Never rely on obscurity.
@@ -120,35 +130,52 @@ all three paths (v11.0).
 
 ## CSP + headers
 
-Configured in `next.config.ts`. Applied to every response.
+**The CSP lives in exactly one place: `lib/security/csp.ts`, emitted by
+`middleware.ts` with a per-request nonce.** Static headers live in
+`next.config.ts` `headers()`. Two CSP sources would make the browser
+enforce their intersection and break the nonce model, so never add one to
+`next.config.ts`. What production actually sends (read back 2026-09-07):
 
 ```
 default-src  'self'
-script-src   'self' 'unsafe-inline' 'unsafe-eval'
-             https://vercel.live https://va.vercel-scripts.com
+script-src   'self' 'nonce-<per-request>' 'strict-dynamic'
 style-src    'self' 'unsafe-inline'
 img-src      'self' data: blob: https:
 font-src     'self' data:
-connect-src  'self' https://vercel.live
-             https://vitals.vercel-insights.com
-             https://*.openai.com https://*.anthropic.com
-             https://api.venice.ai wss:
+connect-src  'self' https://*.openai.com https://*.anthropic.com
+             https://api.vapi.ai https://ollama.com https://*.ollama.com
+             http://localhost:11434 wss:
+object-src      'none'
 frame-ancestors 'none'
 base-uri        'self'
 form-action     'self'
 ```
 
-- `frame-ancestors 'none'` — clickjacking protection.
-- `X-Frame-Options: DENY` — belt & suspenders.
-- `X-Content-Type-Options: nosniff` — MIME confusion protection.
-- `Referrer-Policy: strict-origin-when-cross-origin`.
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()` — default off.
-- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — HSTS.
+- `script-src` is nonce + `'strict-dynamic'` in production — no
+  `unsafe-inline`, no `unsafe-eval` (dev keeps both for HMR). Every page is
+  `force-dynamic` so the nonce is fresh per render; a statically prerendered
+  page would ship without one and render blank.
+- `style-src 'unsafe-inline'` stays: Tailwind / styled-jsx inject `<style>`,
+  and style injection is not a script-execution vector.
+- `frame-ancestors 'none'` + `X-Frame-Options: DENY` — clickjacking.
+- `X-Content-Type-Options: nosniff` · `Referrer-Policy:
+  strict-origin-when-cross-origin` · `X-XSS-Protection: 0` (legacy filter
+  disabled on purpose).
+- `Permissions-Policy: camera=(), microphone=(self), geolocation=()` —
+  `microphone=(self)` is required by Talk-to-Nick voice mode.
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` (no
+  `preload` — adding it is a one-way door for the whole domain).
+- `X-Robots-Tag: noindex, nofollow, noarchive, noimageindex` on every
+  response (2026-09-07) plus `Disallow: /` in robots.txt — a private app is
+  never indexable; auth is the access control, these only keep the sign-in
+  URL out of indexes.
 - `Cache-Control: no-store, no-cache, must-revalidate` on every `/api/*`.
 
-**Why `unsafe-inline` + `unsafe-eval`?** Vercel Analytics + Next.js
-hydration scripts require inline blobs. Removing them breaks analytics
-+ client hydration. Tradeoff: personal OS, one user, acceptable.
+**Verify, don't read:** `curl -sI https://bdnick.info/ | grep -i -E
+'content-security|robots|strict-transport'`. The Vercel-era policy this
+section used to describe (`unsafe-inline`, `unsafe-eval`, vercel.live,
+Venice) has not been served since the 2026-06-21 hardening; this doc said
+otherwise until 2026-09-07.
 
 ---
 

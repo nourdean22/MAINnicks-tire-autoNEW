@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
 import { getAuthRuntimeMode, getOperatorSession } from "@/lib/auth";
@@ -5,6 +6,13 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
+
+// The only page on this domain that answers 200 to an anonymous visitor, so
+// the only page a crawler could ever index. Keep it out of every index; the
+// X-Robots-Tag header in next.config.ts says the same at the HTTP layer.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, noarchive: true },
+};
 
 type SignInPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

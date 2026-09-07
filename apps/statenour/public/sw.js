@@ -7,11 +7,17 @@
 //   2. The fetch handler cached EVERY non-API GET, including authed HTML shells,
 //      unbounded + with no build-stamped invalidation (stale-shell + private-data
 //      persistence risk). Now it caches ONLY immutable, content-hashed static
-//      assets (/_next/static/ + hashed asset files). Those are safe to cache
-//      forever (their filenames change per build), so there is no stale-shell risk
-//      and no private HTML is ever written to Cache Storage. Navigations are
+//      assets (same-origin /_next/static/). Those are safe to cache forever
+//      (their filenames change per build), so there is no stale-shell risk and
+//      no private HTML is ever written to Cache Storage. Navigations are
 //      network-first with an inline offline fallback; nothing HTML/API is cached.
-const CACHE_NAME = 'nour-os-v10';
+// v11 (2026-09-07): the predicate ALSO accepted any path ending in an asset
+// extension, on any origin, hashed or not — unversioned root icons and
+// same-origin images were pinned cache-first until the next CACHE_NAME bump,
+// and a future dotted page route would have been eligible. Bumping the name
+// purges those entries on activate. tests/repo/sw-cache-policy.test.ts drives
+// this file's fetch listener with fake events and asserts what gets stored.
+const CACHE_NAME = 'nour-os-v11';
 
 // ── INSTALL ── (no precache — offline fallback is generated inline below)
 self.addEventListener('install', () => {
@@ -34,12 +40,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.pathname.includes('/api/')) return;
 
-  // Cache-first for IMMUTABLE static assets only. Next.js content-hashes
-  // /_next/static/ filenames, so a cached entry can never be stale, and no
-  // authed HTML is ever stored.
+  // Cache-first for IMMUTABLE static assets only: SAME-ORIGIN /_next/static/,
+  // which Next.js content-hashes per build, so a cached entry can never be
+  // stale and no authed HTML is ever stored. Everything else (root icons,
+  // manifest, cross-origin images) falls through to the browser's own HTTP
+  // cache, which honours the server's Cache-Control instead of pinning
+  // forever.
   const isImmutableStatic =
-    url.pathname.startsWith('/_next/static/') ||
-    /\.(?:js|css|woff2?|ttf|otf|png|jpe?g|gif|svg|webp|ico)$/.test(url.pathname);
+    url.origin === self.location.origin && url.pathname.startsWith('/_next/static/');
 
   if (isImmutableStatic) {
     event.respondWith(
