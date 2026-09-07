@@ -1158,6 +1158,30 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     const clipUrls = JSON.parse(job.clipUrlsJson ?? "[]") as string[];
     if (!Array.isArray(clipUrls) || !clipUrls.length) throw new Error("no clipUrls on assets_ready job");
 
+    // ── Durable storage is a precondition for ASSEMBLY, not just generation ──
+    //
+    // 2026-09-07. The generation stage asserts this at :750, but Higgsfield jobs
+    // skip that assert entirely (:749 — it returns its own CDN URL, so there is
+    // nothing of ours to lose yet). Assembly is where OUR artifact is created,
+    // and it had no precondition at all: `assembleReel` calls `storagePut`, and
+    // with S3_BUCKET unset storage.ts falls through to a 24h PRESIGNED url over
+    // `data/generated/` on the container's ephemeral disk. A redeploy takes the
+    // master with it.
+    //
+    // That is not hypothetical. reelRecoverability.ts records it measured:
+    // "every one of those jobs' mp4Url returns 404 ... a restart takes the
+    // master with it." The publish door then refuses the presigned URL
+    // (socialPublish.assertPermanentPublicMediaUrl), so the reel is not
+    // published either — the work is spent, the approval is spent, and the
+    // artifact is gone.
+    //
+    // Verified against production 2026-09-07: S3_BUCKET and S3_ENDPOINT are
+    // both set, so this assert is a NO-OP in prod today and exists to stop the
+    // configuration regressing silently. Failing here — before ffmpeg, before
+    // the DB write — is the cheapest possible place to find out.
+    const { assertDurableStorageForGeneration } = await import("../storage");
+    assertDurableStorageForGeneration(`reel job ${job.id} assembly`);
+
     const { assembleReel } = await import("./reelAssembly");
     const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);
 

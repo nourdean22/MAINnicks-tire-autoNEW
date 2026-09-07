@@ -273,7 +273,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
   const briefId = `autopost-${date}`;
   const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
-  let job = jobs[0];
+  const todaysJob = jobs[0];
+  let job: typeof todaysJob | undefined = undefined;
   let drainedFrom: string | null = null;
 
   // DRAIN THE BACKLOG FIRST. The lookup above is scoped to TODAY's briefId, so a
@@ -296,7 +297,16 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   //
   // A missing approvals table (the DDL is hand-applied and may not have run)
   // yields an empty set, so nothing drains. That is the correct safe state.
-  if (!job) {
+  //
+  // ── 2026-09-07 · THE DRAIN NOW RUNS BEFORE TODAY'S JOB IS CONSIDERED ──
+  //
+  // It used to be `if (!job)` against a lookup for `autopost-<today>`, so the
+  // drain only ran until the enqueue branch created today's row. After that,
+  // every remaining pulse THAT DAY found today's job and skipped the drain
+  // entirely — a master approved at 10am waited until tomorrow. That is the
+  // same head-of-line pathology the drain was written to remove, reintroduced
+  // one branch upstream. An approved, finished reel outranks starting a new one.
+  {
     let approvedJobIds: number[] = [];
     try {
       // Annotated because the shared db handle is loosely typed here, so a
@@ -315,7 +325,26 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     // inArray([]) is not a safe "match nothing" in every dialect, so the empty
     // case skips the query outright rather than relying on generated SQL.
-    const stale = approvedJobIds.length
+    // SCAN, don't peek. This used to take `.limit(1)` — the oldest approved
+    // assembled job — and hand it to the per-job gate below, which returns
+    // WITHOUT advancing. But a row can carry a live-looking approval and still
+    // fail that gate: the approval binds to exact caption bytes and the exact
+    // asset URL, and it EXPIRES (REEL_APPROVAL_TTL_HOURS, default 72). So an
+    // approval that has aged out, or a job whose caption was edited after
+    // approval, sat at the head of the queue and blocked every valid reel
+    // behind it — the same failure the approval-scoped select was meant to fix,
+    // one layer down.
+    //
+    // So: take a bounded window of candidates, and pick the first that ACTUALLY
+    // passes the gate. Bounded because this runs on every pulse and each
+    // candidate costs one approval read; 25 is far above the observed backlog
+    // (10 stuck jobs, measured 2026-08-28) and far below a runaway scan.
+    //
+    // Critically, an ineligible candidate is SKIPPED, never published. This
+    // advances past a blocked item without weakening a single gate — the
+    // per-job gate below still runs on whatever is chosen.
+    const DRAIN_SCAN_LIMIT = 25;
+    const candidates = approvedJobIds.length
       ? await d
           .select()
           .from(reelJobs)
@@ -328,18 +357,62 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
             ),
           )
           .orderBy(asc(reelJobs.id))
-          .limit(1)
+          .limit(DRAIN_SCAN_LIMIT)
       : [];
-    if (stale[0]) {
-      job = stale[0];
-      drainedFrom = job.briefId;
+
+    const skipped: Array<{ jobId: number; code: string }> = [];
+    for (const candidate of candidates) {
+      const caption = typeof candidate.caption === "string" ? candidate.caption : "";
+      const videoUrl = typeof candidate.mp4Url === "string" ? candidate.mp4Url : "";
+      if (!caption.trim() || !videoUrl.trim()) {
+        skipped.push({ jobId: candidate.id, code: "missing_caption_or_asset" });
+        continue;
+      }
+      let problem: Awaited<ReturnType<typeof reelApprovalProblem>> = null;
+      try {
+        problem = await reelApprovalProblem({ jobId: candidate.id, caption, videoUrl });
+      } catch (err) {
+        // An unreadable approval is NOT an approval. Fail closed and keep
+        // scanning — reelApproval.ts already fails closed internally, this
+        // guards the loop itself.
+        skipped.push({ jobId: candidate.id, code: "approval_read_failed" });
+        log.warn("daily reel: approval read failed while draining", {
+          jobId: candidate.id,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        continue;
+      }
+      if (problem) {
+        skipped.push({ jobId: candidate.id, code: problem.code });
+        continue;
+      }
+      job = candidate;
+      drainedFrom = candidate.briefId;
+      break;
+    }
+
+    if (skipped.length) {
+      // Visible, because a queue that silently skips is how the last one hid.
+      log.info("daily reel: skipped ineligible approved jobs while draining", {
+        skipped: skipped.slice(0, 10),
+        totalSkipped: skipped.length,
+        scanned: candidates.length,
+        selected: job?.id ?? null,
+      });
+    }
+    if (job) {
       log.info("draining assembled reel job from a previous day", {
         jobId: job.id,
         briefId: job.briefId,
         today: briefId,
+        skippedAhead: skipped.length,
       });
     }
   }
+
+  // Today's job is the fallback, not the priority: finishing an approved reel
+  // beats starting a new one.
+  if (!job) job = todaysJob;
 
   if (!job) {
     // Only ENQUEUE during the best posting hour. Publishing an already-assembled
