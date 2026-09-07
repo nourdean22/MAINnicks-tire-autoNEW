@@ -22,12 +22,38 @@
  * not a 200 twin. wouter matches case-insensitively, so `/Tires` used to render
  * the tires page as a second URL with the same content.
  */
+import type { Request, Response } from "express";
+
 import {
   getRouteByPath,
   DYNAMIC_ROUTE_PREFIXES,
   NON_REGISTRY_PUBLIC_PATHS,
 } from "../../shared/routes";
 import { SITE_URL } from "../../shared/business";
+
+/**
+ * The pathname a catch-all must decide on.
+ *
+ * Inside `app.use("*", handler)` Express strips the matched mount from
+ * `req.url`, so `req.path` is "/" for EVERY request and `req.baseUrl` holds
+ * the real path (probed 2026-09-07: GET /this-does-not-exist?x=1 →
+ * path "/", baseUrl "/this-does-not-exist"). A resolver fed `req.path` would
+ * answer 200 for everything and never fire — the same silent-instrument shape
+ * the pure-function tests cannot see, which is why the wiring is tested over
+ * real HTTP below in spaFallback.test.ts. `originalUrl` is the only field that
+ * survives the mount.
+ */
+export function pathnameOf(req: Pick<Request, "originalUrl">): string {
+  const raw = req.originalUrl || "/";
+  const q = raw.indexOf("?");
+  return q === -1 ? raw : raw.slice(0, q);
+}
+
+export function queryStringOf(req: Pick<Request, "originalUrl">): string {
+  const raw = req.originalUrl || "";
+  const q = raw.indexOf("?");
+  return q === -1 ? "" : raw.slice(q);
+}
 
 export type SpaResolution =
   | { kind: "page"; status: 200 }
@@ -191,4 +217,46 @@ export function injectNotFoundMeta(html: string): string {
     `<meta name="twitter:title" content="${escapeAttr(NOT_FOUND_TITLE)}" />`
   );
   return html;
+}
+
+export const HTML_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
+
+/**
+ * The production SPA fallback, as one handler so the wildcard wiring can be
+ * exercised over real HTTP in a test. `readIndexHtml` is injected because the
+ * built index.html lives in dist/public, which a unit test does not have.
+ *
+ * Caller contract: asset-looking paths are answered BEFORE this runs (vite.ts
+ * keeps that guard); everything else — registry pages, dynamic pages, the
+ * admin shell, unknown URLs — comes here.
+ */
+export function createSpaFallbackHandler(opts: { readIndexHtml: () => string }) {
+  return function spaFallback(req: Request, res: Response): void {
+    const pathname = pathnameOf(req);
+    const resolution = resolvePublicPath(pathname);
+    if (resolution.kind === "redirect") {
+      res.redirect(resolution.status, `${resolution.location}${queryStringOf(req)}`);
+      return;
+    }
+
+    let html = opts.readIndexHtml();
+    html =
+      resolution.kind === "not_found"
+        ? injectNotFoundMeta(html)
+        : injectRouteMeta(html, req.originalUrl);
+
+    // 2026-05-06 cache fix · HTML is short-lived (it points at hashed asset
+    // filenames that ARE long-cached): 5-min browser + 5-min CDN with
+    // must-revalidate = a deploy lands for everyone within 5 minutes.
+    const headers: Record<string, string> = {
+      "Content-Type": "text/html",
+      "Cache-Control": resolution.kind === "not_found" ? "no-cache" : HTML_CACHE_CONTROL,
+    };
+    // The admin shell is auth-gated and robots.txt-disallowed; the header is
+    // the belt to that brace for any crawler that reaches it via a link.
+    if (resolution.kind === "not_found" || isNoindexPath(pathname)) {
+      headers["X-Robots-Tag"] = "noindex, nofollow";
+    }
+    res.status(resolution.status).set(headers).end(html);
+  };
 }

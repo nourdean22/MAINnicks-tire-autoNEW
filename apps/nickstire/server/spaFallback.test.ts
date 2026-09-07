@@ -18,12 +18,17 @@
  * unknown path must become 404. A gate that only ever says one thing is not a
  * gate.
  */
-import { describe, expect, it } from "vitest";
+import express from "express";
+import type { Server } from "node:http";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  HTML_CACHE_CONTROL,
+  createSpaFallbackHandler,
   injectNotFoundMeta,
   injectRouteMeta,
   isNoindexPath,
+  pathnameOf,
   resolvePublicPath,
 } from "./_core/spaFallback";
 import { SITE_URL } from "../shared/business";
@@ -152,5 +157,76 @@ describe("isNoindexPath", () => {
     expect(isNoindexPath("/admin/reel-studio")).toBe(true);
     expect(isNoindexPath("/brakes")).toBe(false);
     expect(isNoindexPath("/administration-guide")).toBe(false);
+  });
+});
+
+/**
+ * THE WIRING TEST. Everything above exercises pure functions; this mounts the
+ * real handler the way production does — `app.use("*", …)` — and speaks HTTP
+ * to it. Found on 2026-09-07 during self-audit, before merge: inside a
+ * wildcard mount Express rewrites `req.path` to "/" for every request, so a
+ * handler keyed on `req.path` answers 200 for everything and the 404 never
+ * fires. The pure tests were green the whole time.
+ */
+describe("createSpaFallbackHandler mounted on app.use('*') — real HTTP", () => {
+  let server: Server;
+  let base = "";
+
+  beforeAll(async () => {
+    const app = express();
+    app.use("*", createSpaFallbackHandler({ readIndexHtml: () => TEMPLATE }));
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, "127.0.0.1", () => resolve());
+    });
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("no ephemeral port");
+    base = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it("pathnameOf reads originalUrl, never the mount-stripped req.path", () => {
+    expect(pathnameOf({ originalUrl: "/this-does-not-exist?x=1" })).toBe("/this-does-not-exist");
+    expect(pathnameOf({ originalUrl: "/" })).toBe("/");
+  });
+
+  it("answers 404 + noindex for an unknown URL through the wildcard mount", async () => {
+    const res = await fetch(`${base}/this-page-does-not-exist-xyz?utm_source=x`, { redirect: "manual" });
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    const body = await res.text();
+    expect(body).toContain("<title>Page Not Found | Nick's Tire &amp; Auto Cleveland</title>");
+    expect(body).toContain('<meta name="robots" content="noindex, nofollow" />');
+  });
+
+  it("answers 200 with the registry title and the 5-minute cache header for a real page", async () => {
+    const res = await fetch(`${base}/brakes`, { redirect: "manual" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe(HTML_CACHE_CONTROL);
+    expect(res.headers.get("x-robots-tag")).toBeNull();
+    const body = await res.text();
+    const brakes = ALL_ROUTES.find((r) => r.path === "/brakes")!;
+    expect(body).toContain(`<title>${brakes.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}</title>`);
+    expect(body).toContain(`<link rel="canonical" href="${SITE_URL}/brakes" />`);
+  });
+
+  it("answers 200 for the home page and a dynamic page", async () => {
+    expect((await fetch(`${base}/`, { redirect: "manual" })).status).toBe(200);
+    expect((await fetch(`${base}/blog/some-slug`, { redirect: "manual" })).status).toBe(200);
+  });
+
+  it("301s a mis-cased twin and keeps the query string", async () => {
+    const res = await fetch(`${base}/Tires?size=205-55r16`, { redirect: "manual" });
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("/tires?size=205-55r16");
+  });
+
+  it("marks the admin shell noindex while still serving it", async () => {
+    const res = await fetch(`${base}/admin/reel-studio`, { redirect: "manual" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
   });
 });

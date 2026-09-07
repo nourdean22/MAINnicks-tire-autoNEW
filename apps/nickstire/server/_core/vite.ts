@@ -7,7 +7,14 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 import { createLogger } from "../lib/logger";
-import { injectNotFoundMeta, injectRouteMeta, isNoindexPath, resolvePublicPath } from "./spaFallback";
+import {
+  createSpaFallbackHandler,
+  injectNotFoundMeta,
+  injectRouteMeta,
+  pathnameOf,
+  queryStringOf,
+  resolvePublicPath,
+} from "./spaFallback";
 
 const log = createLogger("_core:vite");
 
@@ -60,10 +67,10 @@ export async function setupVite(app: Express, server: Server) {
       );
       const page = await vite.transformIndexHtml(url, template);
       // Same status decision as production so a soft 404 cannot hide in dev.
-      const resolution = resolvePublicPath(req.path);
+      // NOT req.path — inside app.use("*") it is always "/" (see pathnameOf).
+      const resolution = resolvePublicPath(pathnameOf(req));
       if (resolution.kind === "redirect") {
-        const qs = url.includes("?") ? url.slice(url.indexOf("?")) : "";
-        res.redirect(resolution.status, `${resolution.location}${qs}`);
+        res.redirect(resolution.status, `${resolution.location}${queryStringOf(req)}`);
         return;
       }
       const finalPage =
@@ -153,6 +160,10 @@ export function serveStatic(app: Express) {
   }));
 
   // fall through to index.html if the file doesn't exist — inject route-specific meta tags for SEO
+  const indexPath = path.resolve(distPath, "index.html");
+  const spaFallback = createSpaFallbackHandler({
+    readIndexHtml: () => fs.readFileSync(indexPath, "utf-8"),
+  });
   app.use("*", (req, res) => {
     // 2026-05-24 · defensive · never serve index.html for an asset
     // request that fell through · pre-fix any /assets/*.css or
@@ -177,39 +188,10 @@ export function serveStatic(app: Express) {
 
     // 2026-09-07 · honest status codes. An unknown path used to get the home
     // shell with a 200 (a soft 404 — see spaFallback.ts); a case-variant of a
-    // real path used to render as a second copy of it. Both are decided in one
-    // pure resolver so the dev server and this path cannot drift.
-    const resolution = resolvePublicPath(req.path);
-    if (resolution.kind === "redirect") {
-      const qs = p.includes("?") ? p.slice(p.indexOf("?")) : "";
-      res.redirect(resolution.status, `${resolution.location}${qs}`);
-      return;
-    }
-
-    const indexPath = path.resolve(distPath, "index.html");
-    let html = fs.readFileSync(indexPath, "utf-8");
-    html =
-      resolution.kind === "not_found"
-        ? injectNotFoundMeta(html)
-        : injectRouteMeta(html, req.originalUrl);
-    // 2026-05-06 cache fix · was implicitly inheriting express.static's
-    // 1-day default, meaning new HTML deploys took up to 24h to
-    // propagate to returning visitors. HTML should be short-lived;
-    // it points at hashed asset filenames that ARE long-cached.
-    // 5-min browser + 5-min CDN with must-revalidate = deploy lands
-    // for everyone within 5 minutes max.
-    const headers: Record<string, string> = {
-      "Content-Type": "text/html",
-      "Cache-Control":
-        resolution.kind === "not_found"
-          ? "no-cache"
-          : "public, max-age=300, s-maxage=300, must-revalidate",
-    };
-    // The admin shell is auth-gated and robots.txt-disallowed; the header is
-    // the belt to that brace for any crawler that reaches it via a link.
-    if (resolution.kind === "not_found" || isNoindexPath(req.path)) {
-      headers["X-Robots-Tag"] = "noindex, nofollow";
-    }
-    res.status(resolution.status).set(headers).end(html);
+    // real path used to render as a second copy of it. The decision, the meta
+    // injection and the cache header live in one handler that is exercised
+    // over real HTTP in spaFallback.test.ts — a wildcard mount rewrites
+    // req.path to "/", which a pure-function test cannot catch.
+    spaFallback(req, res);
   });
 }
