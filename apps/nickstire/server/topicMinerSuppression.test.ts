@@ -70,10 +70,14 @@ describe("a bare label is not a topic", () => {
     for (const cat of ["Engine", "Brakes", "Cooling", "Fluids", "Suspension"]) {
       expect(isScriptableTopic(cat), cat).toBe(false);
     }
-    // "Tires & Wheels" is also a label, but it is not a single word and the bar
-    // is deliberately not a cleverness contest. Ranking keeps it out of the
-    // daily pick — coverage_gap scores 16 against declined work's 34.
-    expect(isScriptableTopic("Tires & Wheels")).toBe(true);
+    // Raised in review on #2167: a bare word count ACCEPTED this one, and
+    // coverage_gap supplies it verbatim. On a day when declined/review/customer
+    // are empty and the seasonal candidates are suppressed as recent, it scores
+    // 16, outranks local_discovery at 15, and becomes the daily topic again.
+    // Matching the enum exactly is precise where counting was a guess.
+    expect(isScriptableTopic("Tires & Wheels")).toBe(false);
+    expect(isScriptableTopic("Drivetrain")).toBe(false);
+    expect(isScriptableTopic("Exhaust")).toBe(false);
   });
 
   it("accepts every real source's phrasing", () => {
@@ -118,10 +122,10 @@ describe("end to end through the miner", () => {
     const got = mineTopicCandidates({
       recentTopics: [],
       topThemes: ["seasonal", "community", "promo"],
-      underCoveredServices: ["Brakes", "Cooling", "Engine"],
+      underCoveredServices: ["Brakes", "Cooling", "Engine", "Tires & Wheels"],
       declinedWork: [FRONT_HUB],
     });
-    for (const junk of ["seasonal", "community", "promo", "Brakes", "Cooling", "Engine"]) {
+    for (const junk of ["seasonal", "community", "promo", "Brakes", "Cooling", "Engine", "Tires & Wheels"]) {
       expect(got.map((c) => c.topic)).not.toContain(junk);
     }
     // dailyReelPost takes renderable[0] — assert what it would actually get.

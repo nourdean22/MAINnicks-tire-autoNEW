@@ -27,6 +27,7 @@
  * is meant to prevent.
  */
 import { FRANCHISES, FRANCHISE_IDS, type FranchiseId, type EvidenceRequirement } from "./contentFranchises";
+import { SERVICE_CATEGORIES } from "./serviceTypes";
 
 export const TOPIC_MINER_VERSION = "content-topic-miner-v1" as const;
 
@@ -183,23 +184,35 @@ export function isNearDuplicate(candidate: string, priors: string[]): boolean {
  * daily pick. Production evidence: reel job 1830003's stored topic is the
  * single word "Engine", and 1830001's antecedent chain shows the same shape.
  *
- * ONE WORD is the bar, and it is deliberately that low. A first attempt
- * required four words and broke two existing tests whose fixtures — "brake
- * noise", "exhaust work" — are perfectly good two-word topics. Those tests
- * were right and the bar was wrong: the defect is not shortness, it is that a
- * value lifted verbatim out of a fixed enum is a LABEL, and every real offender
- * ("seasonal", "community", "promo", "Engine", "Brakes", "Cooling", "Fluids",
- * "Suspension") happens to be a single word.
+ * TWO RULES, because token count alone cannot tell a topic from a label.
  *
- * This is a floor, not the mechanism. The mechanism is the ranking: declined
- * work scores 34 and wins outright once it is no longer suppressed, so labels
- * return to the low-ranked fallback role they were designed for. The floor
- * only matters on a day when every higher source is genuinely empty — and on
- * that day the honest outcome is the manifest fallback, which announces
- * itself, rather than a reel titled "Engine".
+ * 1. An exact SERVICE_CATEGORIES value is never a topic. Raised in review on
+ *    #2167: a bare word count accepts "Tires & Wheels", and `coverage_gap`
+ *    supplies it verbatim. On a day when declined/review/customer signals are
+ *    empty and the seasonal candidates are suppressed as recent, that label
+ *    scores 16, outranks the local-discovery fallback at 15, and becomes the
+ *    daily reel topic again. Matching the enum is precise where counting is a
+ *    guess.
+ * 2. A single word is never a topic either. That catches the analytics theme
+ *    labels — "seasonal", "community", "promo" — which have no enum here to
+ *    match against, and which were the top-ranked candidate on 2026-09-07.
+ *
+ * Production evidence for both: reel job 1830003's stored topic is literally
+ * "Engine", and the miner's highest-scoring candidate that day was the literal
+ * string "seasonal".
+ *
+ * A first attempt required four words and broke two existing tests whose
+ * fixtures — "brake noise", "exhaust work" — are perfectly good two-word
+ * topics. Those tests were right and the bar was wrong; shortness was never the
+ * defect, being a lifted enum value was.
+ *
+ * This is a floor, not the mechanism. The mechanism is ranking: declined work
+ * scores 34 and wins outright once it is no longer suppressed.
  */
 export function isScriptableTopic(topic: string): boolean {
-  return norm(topic).split(" ").filter(Boolean).length > 1;
+  const n = norm(topic);
+  if (SERVICE_CATEGORIES.some((c) => norm(c) === n)) return false;
+  return n.split(" ").filter(Boolean).length > 1;
 }
 
 /**

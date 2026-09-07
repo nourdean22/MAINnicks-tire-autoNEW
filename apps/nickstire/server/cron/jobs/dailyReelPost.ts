@@ -30,6 +30,7 @@ import { auditPublishBlock, condemnedContentProblem } from "@shared/reelClaimAud
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import {
+  advanceRotationPastRefusedPack,
   approvedReelPackAt,
   buildBriefFromApprovedProductionPack,
   loadApprovedProductionPack,
@@ -211,55 +212,17 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
 }
 
 /**
- * Advance the rotation past a pack whose reel was TERMINALLY refused.
- *
- * THE DEADLOCK THIS BREAKS. `setApprovedPackProgress` — the only other writer
- * of this cursor — is called exclusively inside the successful-publish branch.
- * So the rotation advances only when a reel actually reaches Instagram. When
- * every candidate is refused, the cursor freezes, the next day regenerates the
- * SAME pack's topic, the new reel closely duplicates the last attempt at it,
- * the originality gate refuses it as a repost, and nothing publishes — which
- * holds the cursor. Measured in production 2026-09-07: the cursor had been
- * stuck at index 1 (`2026-08-16-check-engine-light`) since the last successful
- * post on 2026-08-29, and the held queue is that one topic attempted over and
- * over — 1740001, 1770005 and 1830003 are all check-engine/E-Check reels.
- *
- * This is a ROTATION, not a discard: the pack keeps its slot and comes back
- * around after the other 31. By then the published corpus and the generator's
- * inputs have moved, so the same topic gets a genuinely fresh attempt instead
- * of an identical one tomorrow.
- *
- * Deliberately NOT called for a hold that a human or a retry can clear —
- * awaiting approval is the system working, and a rendered-QA hold is
- * transient. Only a verdict that will read the same tomorrow advances it.
- *
- * It writes ONLY the index. `setApprovedPackProgress` also stamps
- * `reel_autopost_last_date`, which is the one-post-per-day guard; stamping
- * that here would spend the day's slot on a reel that never posted.
+ * Terminal-refusal rotation advance. The decision and the write live in
+ * services/approvedReelPackRotation so they can be exercised directly against a
+ * mocked database — an earlier version lived inline here and was covered only
+ * by tests that matched source text, which stay green if the write never
+ * persists. This is now just "pull the slug off the job and delegate".
  */
 async function advancePastRefusedPack(job: { id: number; payload: string | null }, reason: string): Promise<void> {
-  const slug = parseReelJobPayload(job.payload).approvedPackSlug;
-  if (!slug) return; // miner- or manifest-sourced job: no rotation to advance
-  const idx = resolveApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
-  if (idx === null) return; // rotation already exhausted; the miner is authority
-  // Same concurrency guard the success path uses: only move the cursor when it
-  // still points at the pack this job actually came from.
-  if (approvedReelPackAt(idx)?.slug !== slug) {
-    log.warn("refused reel's pack is no longer at the cursor — index held", { jobId: job.id, slug, idx });
-    return;
-  }
-  const { getDb } = await import("../../db");
-  const d = await getDb();
-  if (!d) return;
-  await d.insert(shopSettings).values({
-    key: "reel_approved_pack_rotation_index",
-    value: String(idx + 1),
-    label: "Approved Reel-pack rotation — next pack index",
-    category: "general",
-    updatedBy: "system",
-  }).onDuplicateKeyUpdate({ set: { value: String(idx + 1), updatedBy: "system" } });
-  log.warn("approved-pack rotation ADVANCED past a terminally refused reel", {
-    jobId: job.id, slug, from: idx, to: idx + 1, reason,
+  await advanceRotationPastRefusedPack({
+    jobId: job.id,
+    jobPackSlug: parseReelJobPayload(job.payload).approvedPackSlug,
+    reason,
   });
 }
 
@@ -1009,7 +972,12 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
         }
         log.error(`daily reel: disclosure gate VETOES job ${job.id} — not publishing`, { reason: violation });
-        return { recordsProcessed: 0, details: `held: disclosure gate vetoes job ${job.id}; index not advanced` };
+        // TERMINAL: the verdict is computed from the PERSISTED caption and
+        // on-screen text, so a retry re-derives the same violation. Flagged in
+        // review on #2167 — without this, a disclosure veto pins the rotation
+        // on its pack exactly the way a repost used to.
+        await advancePastRefusedPack(job, "disclosure veto");
+        return { recordsProcessed: 0, details: `held: disclosure gate vetoes job ${job.id}; rotation advanced` };
       }
     }
 

@@ -1,128 +1,203 @@
 /**
- * The deadlock that produced the whole unpublishable backlog.
+ * The deadlock that produced the whole unpublishable backlog, tested by
+ * EXECUTION rather than by matching source text.
  *
- * `setApprovedPackProgress` — the only writer of the rotation cursor before
- * this change — is called exclusively inside dailyReelPost's successful-publish
- * branch, after "Successfully posted dynamic reel". So the rotation advanced
- * only when a reel actually reached Instagram:
+ * `setApprovedPackProgress` was the only writer of the rotation cursor and is
+ * called exclusively inside dailyReelPost's successful-publish branch, so the
+ * rotation advanced only when a reel actually reached Instagram:
  *
  *   cursor frozen -> tomorrow regenerates the SAME pack's topic -> the new reel
- *   closely duplicates the last attempt -> originality refuses it as a repost
- *   -> nothing publishes -> cursor stays frozen.
+ *   duplicates the last attempt -> originality refuses it as a repost ->
+ *   nothing publishes -> cursor stays frozen.
  *
- * Measured in production 2026-09-07: the cursor had sat at index 1
+ * Measured in production 2026-09-07: frozen at index 1
  * (`2026-08-16-check-engine-light`) since the last successful post on
- * 2026-08-29, and the held queue is that one topic attempted repeatedly —
- * 1740001, 1770005 and 1830003 are all check-engine / E-Check reels.
+ * 2026-08-29. Jobs 1740001, 1770005 and 1830003 are all that one topic.
  *
- * These tests pin the SOURCE, because the behaviour lives in a cron handler
- * whose runtime path needs a database, a rendered asset and a live Instagram
- * call. Asserting the wiring is what is available; each assertion is bounded to
- * the construct it names so it cannot drift onto unrelated code (a previous
- * test in this repo sliced to end-of-file and passed with the field deleted).
+ * WHY THIS FILE WAS REWRITTEN. v1 asserted that particular strings appeared in
+ * dailyReelPost.ts. Review on #2167 pointed out — correctly, and citing
+ * AGENTS.md "assert BEHAVIOUR, never presence" — that such a test stays green
+ * if the database write never persists or the helper returns early. The logic
+ * now lives in services/approvedReelPackRotation as a pure decision plus a thin
+ * writer, and both are executed here.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  APPROVED_REEL_PACK_SLUGS,
+  nextRotationIndexAfterRefusal,
+} from "./services/approvedReelPackRotation";
 
-const SRC = readFileSync(
-  path.join(__dirname, "cron", "jobs", "dailyReelPost.ts"),
-  "utf8",
-);
+const PACK_0 = APPROVED_REEL_PACK_SLUGS[0];
+const PACK_1 = APPROVED_REEL_PACK_SLUGS[1];
 
-/** The body of a named top-level function, bounded at the next top-level construct. */
-function functionBody(name: string): string {
-  const start = SRC.indexOf(`async function ${name}(`);
-  expect(start, `${name} not found`).toBeGreaterThan(-1);
-  const rest = SRC.slice(start);
-  const end = rest.search(/\n(?:async function |function |export |const |\/\*\*)/);
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-describe("the cursor can now advance without a successful publish", () => {
-  it("advancePastRefusedPack exists and writes the rotation index", () => {
-    const body = functionBody("advancePastRefusedPack");
-    expect(body).toContain("reel_approved_pack_rotation_index");
-    expect(body).toContain("String(idx + 1)");
+describe("the decision — exercised, not inspected", () => {
+  it("advances past the pack the refused reel came from", () => {
+    expect(nextRotationIndexAfterRefusal(PACK_1, 1, PACK_1)).toBe(2);
+    expect(nextRotationIndexAfterRefusal(PACK_0, 0, PACK_0)).toBe(1);
   });
 
-  it("it does NOT stamp the one-post-per-day date — that would spend the day's slot", () => {
-    // setApprovedPackProgress writes both keys in one transaction. Skipping a
-    // refused pack must move only the index; stamping reel_autopost_last_date
-    // here would mark the day as posted for a reel that never posted.
-    const body = functionBody("advancePastRefusedPack");
-    expect(body).not.toContain("reel_autopost_last_date");
+  it("holds when the job came from no pack — miner and manifest jobs own no slot", () => {
+    expect(nextRotationIndexAfterRefusal(null, 1, PACK_1)).toBeNull();
+    expect(nextRotationIndexAfterRefusal(undefined, 1, PACK_1)).toBeNull();
+    expect(nextRotationIndexAfterRefusal("", 1, PACK_1)).toBeNull();
   });
 
-  it("it holds the index when the cursor has moved on — the concurrency guard", () => {
-    const body = functionBody("advancePastRefusedPack");
-    expect(body).toContain("approvedReelPackAt(idx)?.slug !== slug");
-    expect(body).toContain("index held");
+  it("holds when the rotation is exhausted or the cursor was malformed", () => {
+    // resolveApprovedPackRotationIndex returns null for both, and neither is
+    // guessed at — the miner is the authority once the rotation runs out.
+    expect(nextRotationIndexAfterRefusal(PACK_1, null, PACK_1)).toBeNull();
   });
 
-  it("a miner- or manifest-sourced job has no rotation to advance", () => {
-    const body = functionBody("advancePastRefusedPack");
-    expect(body).toContain("if (!slug) return;");
+  it("holds when the cursor moved while the reel rendered", () => {
+    // Advancing here would skip an untouched pack. Same posture as the success
+    // path's concurrency guard.
+    expect(nextRotationIndexAfterRefusal(PACK_1, 0, PACK_0)).toBeNull();
+    expect(nextRotationIndexAfterRefusal(PACK_1, 5, undefined)).toBeNull();
   });
 
-  it("an already-exhausted rotation is left alone — the miner is authority there", () => {
-    const body = functionBody("advancePastRefusedPack");
-    expect(body).toContain("if (idx === null) return;");
+  it("advances AT MOST ONCE per pack — the property that keeps ~100 pulses/day safe", () => {
+    // Pulse 1: cursor points at the job's pack, so it moves.
+    const afterFirst = nextRotationIndexAfterRefusal(PACK_1, 1, PACK_1);
+    expect(afterFirst).toBe(2);
+    // Pulse 2: same refused job, but the cursor now points elsewhere. Without
+    // this the drain would burn the entire 32-pack rotation in a single day.
+    expect(nextRotationIndexAfterRefusal(PACK_1, afterFirst!, APPROVED_REEL_PACK_SLUGS[afterFirst!])).toBeNull();
   });
 });
 
-describe("it fires on TERMINAL refusals only", () => {
-  const CALLS = SRC.split("await advancePastRefusedPack(").slice(1).map((s) => s.slice(0, 80));
+/**
+ * The writer, against a fake database. This is what a source-matching test
+ * could not do: prove the row is actually written, with the right value, and
+ * that the one-post-per-day key is never touched.
+ */
+let dbAvailable = true;
+const writes: Array<{ values: Record<string, unknown>; update: Record<string, unknown> }> = [];
+let storedCursor: string | null = "1";
 
-  it("is called exactly three times — repost, condemned content, claim audit", () => {
-    expect(CALLS).toHaveLength(3);
-    const joined = CALLS.join(" | ");
+const database = {
+  select: () => ({
+    from: () => ({
+      where: () => ({
+        limit: async () => (storedCursor === null ? [] : [{ value: storedCursor }]),
+      }),
+    }),
+  }),
+  insert: () => ({
+    values: (values: Record<string, unknown>) => ({
+      onDuplicateKeyUpdate: async ({ set }: { set: Record<string, unknown> }) => {
+        writes.push({ values, update: set });
+        storedCursor = String(set.value);
+      },
+    }),
+  }),
+};
+
+vi.mock("./db", () => ({ getDb: async () => (dbAvailable ? database : null) }));
+
+describe("the write — proven to persist", () => {
+  beforeEach(() => {
+    writes.length = 0;
+    storedCursor = "1";
+    dbAvailable = true;
+  });
+
+  it("writes the next index when the cursor points at the refused job's pack", async () => {
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    const result = await advanceRotationPastRefusedPack({
+      jobId: 1740003, jobPackSlug: PACK_1, reason: "repost of published post 123",
+    });
+    expect(result).toBe(2);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].values.key).toBe("reel_approved_pack_rotation_index");
+    expect(writes[0].update.value).toBe("2");
+    expect(storedCursor).toBe("2");
+  });
+
+  it("NEVER stamps reel_autopost_last_date — that would spend the day's post slot", async () => {
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    await advanceRotationPastRefusedPack({ jobId: 1, jobPackSlug: PACK_1, reason: "x" });
+    for (const w of writes) {
+      expect(w.values.key).not.toBe("reel_autopost_last_date");
+      expect(JSON.stringify(w)).not.toContain("reel_autopost_last_date");
+    }
+  });
+
+  it("writes NOTHING when the cursor already moved on", async () => {
+    storedCursor = "5";
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    const result = await advanceRotationPastRefusedPack({
+      jobId: 1, jobPackSlug: PACK_1, reason: "cursor moved",
+    });
+    expect(result).toBeNull();
+    expect(writes).toHaveLength(0);
+    expect(storedCursor).toBe("5");
+  });
+
+  it("writes NOTHING for a job that came from no pack", async () => {
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    expect(await advanceRotationPastRefusedPack({ jobId: 1, jobPackSlug: null, reason: "miner job" })).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("writes NOTHING when the cursor is malformed — a bad value is never guessed at", async () => {
+    storedCursor = "not-a-number";
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    expect(await advanceRotationPastRefusedPack({ jobId: 1, jobPackSlug: PACK_1, reason: "x" })).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("writes NOTHING when there is no database", async () => {
+    dbAvailable = false;
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    expect(await advanceRotationPastRefusedPack({ jobId: 1, jobPackSlug: PACK_1, reason: "x" })).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+});
+
+describe("every TERMINAL refusal routes through it, and no transient one does", () => {
+  /**
+   * These four are wiring assertions and are honestly labelled as such: the
+   * call sites live inside a 1,100-line cron handler whose runtime path needs a
+   * database, a rendered asset and a live Instagram call. The BEHAVIOUR they
+   * delegate to is executed above; this only proves the delegation exists at
+   * the right branches.
+   *
+   * The disclosure site was added after review on #2167 pointed out that a
+   * disclosure veto is computed from the persisted caption and on-screen text,
+   * so it re-derives identically on retry and pinned the rotation exactly the
+   * way a repost did.
+   */
+  const SRC = new URL("./cron/jobs/dailyReelPost.ts", import.meta.url);
+
+  it("fires on all four terminal verdicts", async () => {
+    const src = await (await import("node:fs/promises")).readFile(SRC, "utf8");
+    const calls = src.split("await advancePastRefusedPack(").slice(1).map((s) => s.slice(0, 80));
+    expect(calls).toHaveLength(4);
+    const joined = calls.join(" | ");
     expect(joined).toContain("repost of");
     expect(joined).toContain("condemned script (content)");
     expect(joined).toContain("claim audit veto");
+    expect(joined).toContain("disclosure veto");
   });
 
-  /**
-   * The canary. A gate that advanced on EVERY hold would silently burn the
-   * whole 32-pack rotation in one day over a transient QA failure or while
-   * waiting for an operator — and would still pass every assertion above.
-   * These two holds must NOT advance, and asserting their absence is the only
-   * thing standing between "skips a dead pack" and "skips everything".
-   */
-  it("does NOT advance while awaiting human approval — that hold is the system working", () => {
-    const idx = SRC.indexOf("held: awaiting human approval");
+  it("does NOT fire while awaiting human approval — that hold is the system working", async () => {
+    const src = await (await import("node:fs/promises")).readFile(SRC, "utf8");
+    const idx = src.indexOf("held: awaiting human approval");
     expect(idx).toBeGreaterThan(-1);
-    // Look back over the approval branch only, not the whole file.
-    const branch = SRC.slice(Math.max(0, idx - 1400), idx);
-    expect(branch).not.toContain("advancePastRefusedPack");
+    expect(src.slice(Math.max(0, idx - 1400), idx)).not.toContain("advancePastRefusedPack");
   });
 
-  it("does NOT advance on a rendered-QA hold — auto-repair can still clear it", () => {
-    const idx = SRC.indexOf("held by rendered-QA gate");
+  it("does NOT fire on a rendered-QA hold — auto-repair can still clear it", async () => {
+    const src = await (await import("node:fs/promises")).readFile(SRC, "utf8");
+    const idx = src.indexOf("held by rendered-QA gate");
     expect(idx).toBeGreaterThan(-1);
-    const branch = SRC.slice(Math.max(0, idx - 1400), idx);
-    expect(branch).not.toContain("advancePastRefusedPack");
+    expect(src.slice(Math.max(0, idx - 1400), idx)).not.toContain("advancePastRefusedPack");
   });
 
-  it("the absence assertions are not vacuous — the same window around a terminal refusal DOES contain it", () => {
-    // Positive control for the two negatives above: prove the window technique
-    // finds the call when it is genuinely there.
-    const idx = SRC.indexOf("duplicates ${dupe.label}");
+  it("the absence assertions are not vacuous — the same window around a terminal refusal DOES contain it", async () => {
+    const src = await (await import("node:fs/promises")).readFile(SRC, "utf8");
+    const idx = src.indexOf("duplicates ${dupe.label}");
     expect(idx).toBeGreaterThan(-1);
-    const branch = SRC.slice(Math.max(0, idx - 1400), idx);
-    expect(branch).toContain("advancePastRefusedPack");
-  });
-});
-
-describe("the success path is unchanged", () => {
-  it("still advances via setApprovedPackProgress after a real post", () => {
-    expect(SRC).toContain("await setApprovedPackProgress(approvedPackIndex + 1, date)");
-    expect(SRC).toContain("Successfully posted dynamic reel");
-  });
-
-  it("setApprovedPackProgress still stamps BOTH keys — this change did not touch it", () => {
-    const body = functionBody("setApprovedPackProgress");
-    expect(body).toContain("reel_approved_pack_rotation_index");
-    expect(body).toContain("reel_autopost_last_date");
+    expect(src.slice(Math.max(0, idx - 1400), idx)).toContain("advancePastRefusedPack");
   });
 });
