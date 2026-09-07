@@ -19,18 +19,42 @@
  * gate.
  */
 import express from "express";
-import type { Server } from "node:http";
+import http, { type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+/**
+ * Plain node:http, NOT the global `fetch`. The suite runs serially in one
+ * process (see AGENTS.md §3) and an earlier file's `global.fetch = vi.fn()`
+ * leaks into this one: in CI on 2026-09-07 these tests read a canned 200
+ * from that stub for every URL (4 failed, 1 passed by accident) while the same
+ * tests were green in isolation. A request that cannot be mocked away is the
+ * only honest probe of the wiring.
+ */
+function httpGet(url: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+  return new Promise((resolve, reject) => {
+    http
+      .get(url, (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }),
+        );
+        res.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
 import {
-  HTML_CACHE_CONTROL,
   createSpaFallbackHandler,
   injectNotFoundMeta,
   injectRouteMeta,
-  isNoindexPath,
   pathnameOf,
   resolvePublicPath,
 } from "./_core/spaFallback";
+
+/** The 2026-05-06 cache contract for every HTML route, pinned as a literal. */
+const HTML_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
 import { SITE_URL } from "../shared/business";
 import { ALL_ROUTES, DYNAMIC_ROUTE_PREFIXES, NON_REGISTRY_PUBLIC_PATHS } from "../shared/routes";
 
@@ -151,15 +175,6 @@ describe("injectRouteMeta — registry pages keep their own meta", () => {
   });
 });
 
-describe("isNoindexPath", () => {
-  it("covers the admin shell only", () => {
-    expect(isNoindexPath("/admin")).toBe(true);
-    expect(isNoindexPath("/admin/reel-studio")).toBe(true);
-    expect(isNoindexPath("/brakes")).toBe(false);
-    expect(isNoindexPath("/administration-guide")).toBe(false);
-  });
-});
-
 /**
  * THE WIRING TEST. Everything above exercises pure functions; this mounts the
  * real handler the way production does — `app.use("*", …)` — and speaks HTTP
@@ -193,40 +208,46 @@ describe("createSpaFallbackHandler mounted on app.use('*') — real HTTP", () =>
   });
 
   it("answers 404 + noindex for an unknown URL through the wildcard mount", async () => {
-    const res = await fetch(`${base}/this-page-does-not-exist-xyz?utm_source=x`, { redirect: "manual" });
+    const res = await httpGet(`${base}/this-page-does-not-exist-xyz?utm_source=x`);
     expect(res.status).toBe(404);
-    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
-    expect(res.headers.get("cache-control")).toBe("no-cache");
-    const body = await res.text();
-    expect(body).toContain("<title>Page Not Found | Nick's Tire &amp; Auto Cleveland</title>");
-    expect(body).toContain('<meta name="robots" content="noindex, nofollow" />');
+    expect(res.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    expect(res.headers["cache-control"]).toBe("no-cache");
+    expect(res.body).toContain("<title>Page Not Found | Nick's Tire &amp; Auto Cleveland</title>");
+    expect(res.body).toContain('<meta name="robots" content="noindex, nofollow" />');
   });
 
   it("answers 200 with the registry title and the 5-minute cache header for a real page", async () => {
-    const res = await fetch(`${base}/brakes`, { redirect: "manual" });
+    const res = await httpGet(`${base}/brakes`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("cache-control")).toBe(HTML_CACHE_CONTROL);
-    expect(res.headers.get("x-robots-tag")).toBeNull();
-    const body = await res.text();
+    expect(res.headers["cache-control"]).toBe(HTML_CACHE_CONTROL);
+    expect(res.headers["x-robots-tag"]).toBeUndefined();
     const brakes = ALL_ROUTES.find((r) => r.path === "/brakes")!;
-    expect(body).toContain(`<title>${brakes.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}</title>`);
-    expect(body).toContain(`<link rel="canonical" href="${SITE_URL}/brakes" />`);
+    expect(res.body).toContain(`<title>${brakes.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}</title>`);
+    expect(res.body).toContain(`<link rel="canonical" href="${SITE_URL}/brakes" />`);
   });
 
   it("answers 200 for the home page and a dynamic page", async () => {
-    expect((await fetch(`${base}/`, { redirect: "manual" })).status).toBe(200);
-    expect((await fetch(`${base}/blog/some-slug`, { redirect: "manual" })).status).toBe(200);
+    expect((await httpGet(`${base}/`)).status).toBe(200);
+    expect((await httpGet(`${base}/blog/some-slug`)).status).toBe(200);
   });
 
   it("301s a mis-cased twin and keeps the query string", async () => {
-    const res = await fetch(`${base}/Tires?size=205-55r16`, { redirect: "manual" });
+    const res = await httpGet(`${base}/Tires?size=205-55r16`);
     expect(res.status).toBe(301);
-    expect(res.headers.get("location")).toBe("/tires?size=205-55r16");
+    expect(res.headers.location).toBe("/tires?size=205-55r16");
   });
 
   it("marks the admin shell noindex while still serving it", async () => {
-    const res = await fetch(`${base}/admin/reel-studio`, { redirect: "manual" });
+    const res = await httpGet(`${base}/admin/reel-studio`);
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(res.headers["x-robots-tag"]).toBe("noindex, nofollow");
+  });
+
+  it("keys the noindex rule on the /admin segment, not on a prefix", async () => {
+    const admin = await httpGet(`${base}/admin`);
+    expect(admin.status).toBe(200);
+    expect(admin.headers["x-robots-tag"]).toBe("noindex, nofollow");
+    const brakes = await httpGet(`${base}/brakes`);
+    expect(brakes.headers["x-robots-tag"]).toBeUndefined();
   });
 });

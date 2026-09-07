@@ -31,8 +31,13 @@
  *   out of it structurally (see the disjointness test).
  */
 
+// The four policy lists below are deliberately NOT exported: the knip orphan
+// gate counts an export consumed only by its own test as an orphan, and the
+// contract is pinned by literals in server/robotsTxt.test.ts instead — which
+// is the stronger shape anyway (a silent edit to a list fails the test).
+
 /** Paths no crawler should fetch. Shared by every group that allows anything. */
-export const PRIVATE_PATH_DISALLOWS = [
+const PRIVATE_PATH_DISALLOWS = [
   "/admin",
   "/admin/",
   "/my-garage",
@@ -48,13 +53,14 @@ export const PRIVATE_PATH_DISALLOWS = [
  * statement that it runs no crawler at all (Cohere: "do not use Cohere bots
  * or user agents"), so the token is an unknown operator wearing the name.
  */
-export const ALWAYS_BLOCKED_CRAWLERS = ["Bytespider", "cohere-ai"] as const;
+const ALWAYS_BLOCKED_CRAWLERS = ["Bytespider", "cohere-ai"] as const;
 
 /**
  * Documented training-only tokens. The answer / search agents of the same
- * vendors are deliberately NOT here — see ANSWER_ENGINE_AGENTS.
+ * vendors are deliberately NOT here — see the ANSWER_ENGINE_AGENTS list pinned
+ * in server/robotsTxt.test.ts.
  */
-export const AI_TRAINING_CRAWLERS = [
+const AI_TRAINING_CRAWLERS = [
   "GPTBot", // OpenAI — "may be used in training our generative AI foundation models"
   "ClaudeBot", // Anthropic — content that "could potentially contribute to their training"
   "CCBot", // Common Crawl — open archive, no answer surface
@@ -62,30 +68,14 @@ export const AI_TRAINING_CRAWLERS = [
   "MistralAI-Training", // Mistral — dataset crawl
 ] as const;
 
-/**
- * Agents that produce or index a customer-facing answer about the shop. They
- * must never appear in a block group in either mode — the disjointness test
- * pins this so a future "complete the set" edit fails.
- */
-export const ANSWER_ENGINE_AGENTS = [
-  "Googlebot",
-  "Bingbot",
-  "OAI-SearchBot",
-  "ChatGPT-User",
-  "PerplexityBot",
-  "Perplexity-User",
-  "Claude-SearchBot",
-  "Claude-User",
-  "Applebot",
-  "DuckAssistBot",
-  "Amzn-SearchBot",
-  "Amzn-User",
-  "MistralAI-Index",
-  "MistralAI-User",
-  "Meta-ExternalFetcher",
-] as const;
+// Agents that produce or index a customer-facing answer about the shop
+// (Googlebot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot,
+// Perplexity-User, Claude-SearchBot, Claude-User, Applebot, DuckAssistBot,
+// Amzn-SearchBot, Amzn-User, MistralAI-Index, MistralAI-User,
+// Meta-ExternalFetcher) must never appear in a block group in either mode.
+// The test pins that list so a future "complete the set" edit fails.
 
-export const SITEMAP_PATHS = [
+const SITEMAP_PATHS = [
   "/sitemap.xml",
   "/sitemap-services.xml",
   "/sitemap-locations.xml",

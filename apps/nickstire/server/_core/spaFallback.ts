@@ -96,7 +96,7 @@ export function resolvePublicPath(pathname: string): SpaResolution {
 }
 
 /** Paths whose HTML must never be indexed even if a crawler reaches it. */
-export function isNoindexPath(pathname: string): boolean {
+function isNoindexPath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
@@ -219,7 +219,7 @@ export function injectNotFoundMeta(html: string): string {
   return html;
 }
 
-export const HTML_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
+const HTML_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
 
 /**
  * The production SPA fallback, as one handler so the wildcard wiring can be

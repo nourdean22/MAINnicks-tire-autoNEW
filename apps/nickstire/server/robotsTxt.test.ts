@@ -11,15 +11,36 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  AI_TRAINING_CRAWLERS,
-  ALWAYS_BLOCKED_CRAWLERS,
-  ANSWER_ENGINE_AGENTS,
-  PRIVATE_PATH_DISALLOWS,
-  buildRobotsTxt,
-} from "./_core/robots";
+import { buildRobotsTxt } from "./_core/robots";
 
 const SITE = "https://nickstire.org";
+
+/**
+ * The policy, pinned as literals rather than imported: the lists are
+ * module-private in robots.ts (the knip orphan gate counts a test-only export
+ * as an orphan), and a contract test that imports the thing it checks would
+ * pass no matter what the list said. Change the policy → change both.
+ */
+const PRIVATE_PATH_DISALLOWS = ["/admin", "/admin/", "/my-garage", "/portal", "/api/", "/status/", "/inspection/"];
+const ALWAYS_BLOCKED_CRAWLERS = ["Bytespider", "cohere-ai"];
+const AI_TRAINING_CRAWLERS = ["GPTBot", "ClaudeBot", "CCBot", "Applebot-Extended", "MistralAI-Training"];
+const ANSWER_ENGINE_AGENTS = [
+  "Googlebot",
+  "Bingbot",
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "PerplexityBot",
+  "Perplexity-User",
+  "Claude-SearchBot",
+  "Claude-User",
+  "Applebot",
+  "DuckAssistBot",
+  "Amzn-SearchBot",
+  "Amzn-User",
+  "MistralAI-Index",
+  "MistralAI-User",
+  "Meta-ExternalFetcher",
+];
 
 /** User agents that own a `Disallow: /` group in the rendered file. */
 function fullyBlockedAgents(txt: string): string[] {
@@ -94,8 +115,9 @@ describe("answer-engine agents are never blocked, in either mode", () => {
   });
 
   it("the bundled-purpose tokens are not in the switch (owner decisions, not defaults)", () => {
+    const txt = buildRobotsTxt({ siteUrl: SITE, blockAiTrainingCrawlers: true });
     for (const bundled of ["Google-Extended", "Amazonbot", "Meta-ExternalAgent"]) {
-      expect(AI_TRAINING_CRAWLERS as readonly string[]).not.toContain(bundled);
+      expect(fullyBlockedAgents(txt), bundled).not.toContain(bundled);
     }
   });
 });
