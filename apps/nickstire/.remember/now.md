@@ -20,7 +20,16 @@
 check 0 · truth guard 15/15 · relevant tests 98/98 + gate 5/5 · prerender check 0 missing + semantic OK · brand-voice no new violations · live smoke 11/11 money pages 200 · **/brakes renders clean** (refuted the external report's "chunk error" — stale Google cache).
 
 ## Open / next
-- **Operator (the real growth levers, no code):** add Nour + a neutral `admin@` as GBP owners (split is a lockout risk, not a ranking one); claim Bing Places; fix Apple Business Connect ("Moe's"); **verify the "1,700+ / 4.9★" figures against live Google Maps** (unverifiable here — GBP is under moeseuclid@); start the ungated review flywheel. Full 48h/2wk/30d plan in the report artifact.
+- **Operator (the real growth levers, no code):** claim Bing Places; fix Apple Business Connect ("Moe's"). **Verify the "1,700+ / 4.9★" figures against live Google Maps before any copy uses them** — no agent session can read GBP, so they stay UNVERIFIED *here* no matter who owns the account. Full 48h/2wk/30d plan in the report artifact.
+- **ACCOUNT OWNERSHIP — operator-confirmed 2026-09-07. Do NOT re-raise.** Nour owns BOTH
+  `nourdean22@gmail.com` (his CEO email) and `moeseuclid@gmail.com` (the Euclid store's
+  account, which holds GBP). There is no third-party access, no owner split, and no lockout
+  risk. The prior version of the line above claimed GBP was "under moeseuclid@" as if that
+  were an access barrier, and told the next session to add owners to fix a split. **Both were
+  false and cost a session real advice-time.** `moeseuclid@` being the *store's* address is a
+  naming artifact of the Moe's → Nick's rename, not a sign of outside control.
+- **Review flywheel: operator declined 2026-09-07.** Previously listed here as a growth lever.
+  Not wanted. Do not propose it again.
 - **Follow-up code (flagged, not rushed):** Playwright live-production smoke suite + `dynamic_import_failure` telemetry (heavy dep + CI wiring — do deliberately); `NEIGHBORHOODS` duplicates several city slugs → shadowed dead NeighborhoodPage routes (the gate surfaced this).
 - **Re-indexing the 12 neighborhoods properly** (only if data justifies — it currently doesn't): needs prerender regen on CI/Linux + a visible FAQ to match FAQPage schema + the SITEMAP_ROUTES neighborhood-group exclusion lifted. The new gate now makes that safe (fails if you re-flag without regenerating).
 
