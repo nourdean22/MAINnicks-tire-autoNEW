@@ -10,6 +10,7 @@
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 
 // Load env variables first
 dotenv.config({ path: path.resolve("C:/Users/nourd/NOURCITY/apps/nickstire/.env") });
@@ -453,7 +454,7 @@ async function main() {
     const carouselNotes = `\n> Run notes (midday ${etNow}, CAROUSEL bot): Boost-quality gate ${carouselBrief.boostScore}/75. Campaign keyword: **${carouselBrief.campaignKeyword}** ("DM us ${carouselBrief.campaignKeyword}"). Topic is FRESH (no prior salt posts). Pipeline: generated base templates with quality keywords, PIL-composited overlays. FB cross-post toggle OFF. Verified draft saved to Sheets.\n`;
 
     const reelRow = `| ${etNow} | Evening Reel run | ${reelBrief.motionLens} | Hyperreal cinematic | ${reelBrief.objectCharacter} | ${reelBrief.topic} | ${reelBrief.concepts[0].hook} | ${reelBrief.mechanicTruth} | ${mockReelUrl} |`;
-    const reelNotes = `\n> Run notes (evening ${etNow}, REEL bot): Quality gate ${reelBrief.qualityScore}/75. Campaign keyword: **${reelBrief.campaignKeyword}** ("DM us ${reelBrief.campaignKeyword}"). Faceless contract verified. Storyboard length: 22s target (5 beats). FB cross-post toggle OFF. Mock assets generated.\n`;
+    const reelNotes = `\n> Run notes (evening ${etNow}, REEL bot): Quality gate ${reelBrief.qualityScore}/75. Campaign keyword: **${reelBrief.campaignKeyword}** ("DM us ${reelBrief.campaignKeyword}"). Faceless contract verified. Storyboard length: ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds}s target (5 beats). FB cross-post toggle OFF. Mock assets generated.\n`;
 
     let logContent = fs.readFileSync(logPath, "utf-8");
     logContent += `\n${carouselRow}\n${carouselNotes}\n${reelRow}\n${reelNotes}`;

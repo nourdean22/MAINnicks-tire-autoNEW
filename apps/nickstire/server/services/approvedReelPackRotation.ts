@@ -402,7 +402,10 @@ export function nextRotationIndexAfterRefusal(
  * Returns the new index, or null when it held (and why is logged).
  */
 export async function advanceRotationPastRefusedPack(input: {
-  jobId: number;
+  /** Log-only. Absent when the refusal happened BEFORE a job row existed —
+   *  an approved pack blocked at enqueue preflight never gets an id, and the
+   *  rotation must still move or that pack jams every later pulse. */
+  jobId?: number | null;
   jobPackSlug: string | null | undefined;
   reason: string;
 }): Promise<number | null> {

@@ -20,7 +20,9 @@ export interface BeatStructureSignals {
    *  normally-ordered storyboard, and robust to out-of-order beats — the
    *  code is Math.max, and this comment previously claimed "the LAST beat's"
    *  which described a weaker guarantee than the code provides). The brief's
-   *  declared 15-22s band is a target, not an enforced gate here (that
+   *  declared duration band (REEL_OUTPUT_RULES.minSeconds..maxSeconds - named
+   *  rather than restated, because a number in prose is a cache with no
+   *  invalidation) is a target, not an enforced gate here (that
    *  decision belongs to the QC gate, not to a measurement tool). Null when
    *  no beat carries an endSecond, so "unknown" is never read as zero. */
   totalDurationSeconds: number | null;

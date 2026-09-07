@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { evaluateOriginalityQc, type OriginalityQcInput } from "../../../shared/originalityQcChecklist";
 import type { StoryboardBeat } from "../lib/facelessReelStudio";
+import { REEL_OUTPUT_RULES } from "../lib/facelessReelStudio";
 
 function beat(over: Partial<StoryboardBeat> = {}): StoryboardBeat {
   return {
@@ -110,11 +111,20 @@ describe("evaluateOriginalityQc", () => {
     expect(r.checks.find((c) => c.id === "caption_claim_safety")!.status).toBe("pass");
   });
 
-  it("duration outside the 15-22s target fails; missing duration is unknown, not zero", () => {
-    expect(evaluateOriginalityQc(base({ totalDurationSeconds: 45 })).checks.find((c) => c.id === "format_length")!.status).toBe("fail");
-    expect(evaluateOriginalityQc(base({ totalDurationSeconds: null })).checks.find((c) => c.id === "format_length")!.status).toBe("unknown");
-    expect(evaluateOriginalityQc(base({ totalDurationSeconds: 15 })).checks.find((c) => c.id === "format_length")!.status).toBe("pass");
-    expect(evaluateOriginalityQc(base({ totalDurationSeconds: 22 })).checks.find((c) => c.id === "format_length")!.status).toBe("pass");
+  it("duration outside the declared band fails; missing duration is unknown, not zero", () => {
+    // These were pinned to a 15-22 band by hand. The band is now sourced from
+    // REEL_OUTPUT_RULES, so the assertions derive too — otherwise this test goes
+    // on describing a ceiling the code no longer has, while staying green
+    // (45 fails at 22 AND at 35, so nothing here would have noticed the move).
+    const status = (sec: number | null) =>
+      evaluateOriginalityQc(base({ totalDurationSeconds: sec })).checks.find((c) => c.id === "format_length")!.status;
+    const { minSeconds, maxSeconds } = REEL_OUTPUT_RULES;
+    expect(status(null)).toBe("unknown");
+    expect(status(minSeconds)).toBe("pass");
+    expect(status(maxSeconds)).toBe("pass");
+    // The boundaries the band actually has — this is what pins the ceiling.
+    expect(status(maxSeconds + 1)).toBe("fail");
+    expect(status(minSeconds - 1)).toBe("fail");
   });
 
   it("a non-animated disclosureMode reports unknown for the fake-humans check, not a false pass", () => {
