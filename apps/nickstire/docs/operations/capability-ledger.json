@@ -1626,8 +1626,8 @@
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "Migration drizzle/0112_reel_publish_approvals.sql is hand-applied and has NOT been applied to production TiDB - 0113 got a read-back receipt on 2026-08-31, 0112 has none anywhere in docs. Until it runs, findLiveApproval catches on the missing table, the drain reads zero approvals, and NO reel can publish - which is the state production has been in since 2026-08-29. The surface shipped here is therefore inert on arrival by design: fail-closed is correct, but it means this capability does nothing at all until the DDL lands. Apply script: apps/nickstire/scripts/migrations/apply-0112-reel-publish-approvals.ts - additive, idempotent, prints the target host, refuses to execute any statement that is not CREATE TABLE IF NOT EXISTS, and post-checks the columns, the index and the id column type before reporting success."
+          "severity": "P2",
+          "description": "RESOLVED 2026-09-07 — recorded rather than deleted, because the previous P1 asserted the opposite and was read as current for days. The old blocker said drizzle/0112_reel_publish_approvals.sql had NOT been applied to production TiDB. Verified read-only 2026-09-07: it IS applied — the table exists, its sha256 is recorded in __drizzle_migrations, and it holds 5 approval rows. It was applied around 2026-08-28 via db-migrate's unjournaled-discovery path, which is why its recorded created_at is a Date.now() stamp rather than the journal `when` and why no receipt existed in docs. 0118 (delivery window + asset digest + scheduling intent) was then applied 2026-09-07 on explicit operator instruction; reconcile reports `✓ no blocking drift`. WHAT REMAINS (P2, not blocking): the wiring that reads and writes the 0118 columns is on branch nickstire/wire-reel-publish-window and is NOT deployed. Until it merges and ships, the new window/digest fields are present in the database and unread in production, so the gate behaves exactly as it did before — the rolling 72h TTL governs. Promote operationalState only once a deployment actually runs this code."
         }
       ],
       "deferredScope": [
@@ -1636,7 +1636,7 @@
       ],
       "lastVerifiedAt": "2026-09-07",
       "codeState": "merged",
-      "operationalState": "live_verified",
+      "operationalState": "unit_verified",
       "exposure": "disabled"
     },
     {
