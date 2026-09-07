@@ -36,7 +36,7 @@ this branch ships code, a PR, and a runtime-verification list.
 
 | # | Defect (VERIFIED live before fix) | Fix on this branch | Test / receipt |
 |---|---|---|---|
-| 1 | Unknown URLs answered **200** with the home `<title>` and `robots: index, follow` (soft 404). NotFound.tsx set noindex only after hydration, invisible to non-JS crawlers. | `server/_core/spaFallback.ts`: registry + declared dynamic prefixes decide 200/404/301; unknown → **404** + noindex + canonical `/`; mis-cased twins (`/Tires`) → 301. Dev and prod share the resolver. Validator Rule 5 pins App.tsx ↔ prefix list in both directions. | `server/spaFallback.test.ts` 17 tests (every registry path stays 200; canary pair) · `validate:routes` 0 errors |
+| 1 | Unknown URLs answered **200** with the home `<title>` and `robots: index, follow` (soft 404). NotFound.tsx set noindex only after hydration, invisible to non-JS crawlers. | `server/_core/spaFallback.ts`: registry + declared dynamic prefixes decide 200/404/301; unknown → **404** + noindex + canonical `/`; mis-cased twins (`/Tires`) → 301. One exported handler serves dev and prod. Validator Rule 5 pins App.tsx ↔ prefix list in both directions. | `server/spaFallback.test.ts` 23 tests: 17 pure (every registry path stays 200; canary pair) + 6 over real HTTP through an `app.use("*")` mount — see the self-audit note below · `validate:routes` 0 errors |
 | 2 | Home HTML served with `Cache-Control: public, max-age=86400` (express.static answered `/` as a file). A deploy could take a day to reach a returning phone. | `express.static(..., { index: false })` so `/` takes the 5-minute must-revalidate path like every other route. | same test file; header path read in code |
 | 3 | `og:image` / `twitter:image` pointed at a CloudFront PNG returning **403** — every shared link rendered imageless. | `client/public/og-image.jpg` (1200×630, 127 KB, real storefront photo) + tags updated. | `curl -I https://nickstire.org/og-image.jpg` → 200 after deploy |
 | 4 | Sitemap `<lastmod>` = today's date on every URL, every day (Google: ignored once "consistently" wrong; Bing: "may disregard"). | Static routes omit the tag; DB articles emit real `updatedAt`. | `server/sitemap.test.ts` 6 green |
@@ -60,6 +60,16 @@ violations · `prerender:check` 336 present / 0 missing · `prerender:semantic-c
 in the dlx cache — machine-environmental, not this diff; gates after it were run individually) ·
 `migrations:check` skipped (no `DATABASE_URL` in this worktree; the diff carries no migration).
 Full-suite result is appended to the PR body.
+
+**Self-audit catch, after the PR was open (fixed in the same PR, commit `6f32d186a`).** Inside
+`app.use("*", handler)` Express rewrites `req.path` to `/` for every request; only `req.originalUrl`
+survives the mount (probed: `GET /this-does-not-exist?x=1` → `path "/"`, `baseUrl
+"/this-does-not-exist"`). The first version of the 404 resolver was keyed on `req.path`, so in
+production it would have answered 200 for everything while its 17 pure-function tests stayed green —
+the silent-instrument shape this repo keeps meeting. The handler now reads `originalUrl`, and the test
+file mounts the real handler on a wildcard and speaks HTTP to it; mutating it back to `req.path` fails
+3 of those 6 tests (planted, confirmed, restored). Rule worth keeping: a catch-all's decision is tested
+**through the mount**, never only as a pure function.
 
 **Not touched on purpose:** anything under `server/services/reel*`, `server/cron/jobs/dailyReelPost.ts`,
 `server/routers/content.ts`, `instagramAdmin.ts`, reel tests, `docs/reel-packs/` — another session owns
