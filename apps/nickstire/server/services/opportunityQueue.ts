@@ -355,25 +355,46 @@ export async function upsertOpportunity(
     // touch `do_not_contact` — consent outranks evidence.
     if (input.reopenIfTerminal && outcome === "refreshed") {
       try {
-        await db.execute(sql`
-          UPDATE revenue_opportunities
-          SET state = 'new',
-              due_at = NULL,
-              updated_at = CURRENT_TIMESTAMP,
-              receipts_json = JSON_ARRAY_APPEND(
-                COALESCE(receipts_json, JSON_ARRAY()), '$',
-                CAST(${JSON.stringify({
-                  at: new Date().toISOString(),
-                  by: "system:new-evidence",
-                  from: "terminal",
-                  to: "new",
-                  note: `reopened by new ${input.sourceType} evidence`,
-                })} AS JSON)
-              )
-          WHERE source_type = ${input.sourceType}
-            AND source_id = ${input.sourceId}
-            AND state IN ('lost', 'duplicate', 'dismissed')
-        `);
+        // Receipts are built in JS and written whole, matching
+        // transitionOpportunity. An earlier draft did the append SQL-side with
+        // JSON_ARRAY_APPEND + CAST(... AS JSON) — an idiom used NOWHERE else in
+        // this codebase and unproven against TiDB, in a write path whose only
+        // failure signal is a log line. The house pattern is proven; a novel
+        // one here would have degraded silently to "reopen never happens".
+        const existing = rowsFromExecute(
+          await db.execute(sql`
+            SELECT id, state, receipts_json FROM revenue_opportunities
+            WHERE source_type = ${input.sourceType} AND source_id = ${input.sourceId}
+            LIMIT 1
+          `),
+        );
+        const row = existing[0];
+        const currentState = row ? String(row.state ?? "") : "";
+        if (row && ["lost", "duplicate", "dismissed"].includes(currentState)) {
+          const priorReceipts = mapRow(row).receipts;
+          const receipts = [
+            ...priorReceipts,
+            {
+              at: new Date().toISOString(),
+              by: "system:new-evidence",
+              from: currentState,
+              to: "new",
+              note: `reopened by new ${input.sourceType} evidence`,
+            },
+          ];
+          // The state guard stays in the WHERE clause, not just the JS check —
+          // a concurrent transition between the read and the write must lose,
+          // not be overwritten. Losing that race simply means no reopen.
+          await db.execute(sql`
+            UPDATE revenue_opportunities
+            SET state = 'new',
+                due_at = NULL,
+                receipts_json = ${JSON.stringify(receipts)},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${row.id}
+              AND state = ${currentState}
+          `);
+        }
       } catch (reopenErr) {
         // A failed reopen must not lose the upsert; the row is still refreshed
         // and the next event retries. Loud, because a silently un-reopened

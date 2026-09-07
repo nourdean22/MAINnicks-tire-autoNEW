@@ -129,7 +129,32 @@ describe("3 · complaint identity — the same one stops, a new one gets through
     expect(service).toMatch(/reopenIfTerminal: true/);
     const reopen = service.match(/if \(input\.reopenIfTerminal[\s\S]*?\n    \}/)?.[0] ?? "";
     expect(reopen).toMatch(/SET state = 'new'/);
-    expect(reopen).toMatch(/state IN \('lost', 'duplicate', 'dismissed'\)/);
+    // Only these three close-states reopen. Asserted on the allowlist itself so
+    // adding a fourth is a deliberate edit here, not a silent widening.
+    expect(reopen).toMatch(/\["lost", "duplicate", "dismissed"\]\.includes\(currentState\)/);
+  });
+
+  it("the reopen cannot lose a concurrent transition", () => {
+    // Read-then-write, so the state guard must ALSO be in the WHERE clause —
+    // a JS check alone would let a transition landing between the two
+    // statements be overwritten. Losing the race means no reopen, which is safe.
+    const reopen = service.match(/if \(input\.reopenIfTerminal[\s\S]*?\n    \}/)?.[0] ?? "";
+    expect(reopen).toMatch(/WHERE id = \$\{row\.id\}\s*\n\s*AND state = \$\{currentState\}/);
+  });
+
+  it("uses the house receipts idiom, not a novel SQL one", () => {
+    // transitionOpportunity builds receipts in JS and writes them whole; that
+    // is proven against TiDB. An earlier draft appended SQL-side with
+    // JSON_ARRAY_APPEND — used nowhere else here, unproven on TiDB, and in a
+    // path whose only failure signal is a log line, so a silent no-op.
+    //
+    // Asserted POSITIVELY only. A whole-file `not.toMatch(/JSON_ARRAY_APPEND/)`
+    // fails on the comment above explaining why the idiom was dropped — the
+    // third time in this wave that a negative source assertion matched its own
+    // documentation. Prose is not code; assert what the code DOES.
+    const reopen = service.match(/if \(input\.reopenIfTerminal[\s\S]*?\n    \}/)?.[0] ?? "";
+    expect(reopen).toMatch(/receipts_json = \$\{JSON\.stringify\(receipts\)\}/);
+    expect(reopen).not.toMatch(/JSON_ARRAY_APPEND\(/); // the CALL, not the word
   });
 
   it("reopening never overrides consent — do_not_contact is not in the reopen set", () => {
