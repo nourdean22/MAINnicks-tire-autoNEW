@@ -157,8 +157,9 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const opportunityId = String(filters.opportunityId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(opportunityId)) return { error: "opportunityId (uuid) required" };
     const { listOpportunities } = await import("../services/opportunityQueue");
-    const rows = await listOpportunities({ limit: 500 });
-    const opp = rows.find((r) => r.id === opportunityId);
+    const { items, queryable } = await listOpportunities({ limit: 500 });
+    if (!queryable) return { error: "opportunity queue unreadable — this is UNKNOWN, not empty" };
+    const opp = items.find((r) => r.id === opportunityId);
     if (!opp) return { error: "opportunity not found" };
     const { draftOpportunityOutreach } = await import("../services/opportunityDraft");
     const draft = await draftOpportunityOutreach(opp);

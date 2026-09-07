@@ -110,16 +110,19 @@ describe("sendOpportunityDraft identity gate", () => {
       resolveIdentity: async () => verdict,
     }));
     vi.doMock("./services/opportunityQueue", () => ({
-      listOpportunities: async () => [{
-        id: "11111111-2222-4333-8444-555555555555",
-        sourceType: "stale_lead",
-        customerName: "Sam",
-        customerPhone: "+12165550101",
-        state: "new",
-        consentOk: true,
-        evidence: {},
-        dataQuality: "verified",
-      }],
+      listOpportunities: async () => ({
+        queryable: true,
+        items: [{
+          id: "11111111-2222-4333-8444-555555555555",
+          sourceType: "stale_lead",
+          customerName: "Sam",
+          customerPhone: "+12165550101",
+          state: "new",
+          consentOk: true,
+          evidence: {},
+          dataQuality: "verified",
+        }],
+      }),
       transitionOpportunity: async () => ({ ok: true }),
     }));
     vi.doMock("./sms", () => ({ sendSms: (...a: unknown[]) => sendSpy(...a) }));

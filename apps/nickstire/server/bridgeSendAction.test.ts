@@ -32,15 +32,18 @@ vi.mock("./services/auditTrail", () => ({
 
 const OPP_ID = "11111111-2222-4333-8444-555555555555";
 vi.mock("./services/opportunityQueue", () => ({
-  listOpportunities: async () => [{
-    id: OPP_ID,
-    sourceType: "stale_lead",
-    customerName: "Sam",
-    customerPhone: "+12165550101",
-    state: "new",
-    consentOk: true,
-    recommendedAction: "Call Sam",
-  }],
+  listOpportunities: async () => ({
+    queryable: true,
+    items: [{
+      id: OPP_ID,
+      sourceType: "stale_lead",
+      customerName: "Sam",
+      customerPhone: "+12165550101",
+      state: "new",
+      consentOk: true,
+      recommendedAction: "Call Sam",
+    }],
+  }),
   topDecisions: async () => ({ decisions: [], totalLive: 0, excludedNoConsent: 0, excludedSnoozed: 0 }),
 }));
 

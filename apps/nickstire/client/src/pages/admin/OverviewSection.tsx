@@ -1,6 +1,5 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import ClosedLoopLiftPanel from "./ClosedLoopLiftPanel";
-import DecisionInboxPanel from "./DecisionInboxPanel";
 import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
@@ -389,14 +388,16 @@ export default function OverviewSection() {
           already fetched. Self-suppresses when empty AND healthy. */}
       <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
 
-      {/* Owner Decision Inbox (Wave 4) — the top-5 evidence-backed
-          decisions LEAD the day. Everything below is monitoring; this is
-          the part that moves money. Degrades to an empty card until the
-          queue table (0099) is applied + collectors run. */}
-      <DecisionInboxPanel />
+      {/* The owner Decision Inbox was RETIRED from this page on 2026-09-07 by
+          operator decision: a queue that leads the day manufactures obligations
+          on a healthy day. The service is unchanged — `opportunityQueue.list`
+          is now mounted as the staff-facing Follow-ups tab under Sales Pipeline,
+          and the operational rails (declinedWorkRecovery, missedCallRecovery,
+          staleLeadFollowup) were always where real follow-ups live. Do NOT
+          re-mount a decision queue here under another name. */}
 
       {/* Promise Ledger (0102) — log promises the moment they're made;
-          the sweep escalates overdue ones back into the inbox above. */}
+          the sweep escalates overdue ones into the queue read on that tab. */}
       <PromisesPanel />
 
       {/* Automation lift (2026-07-29) — first admin consumer of the

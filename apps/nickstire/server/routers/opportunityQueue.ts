@@ -113,19 +113,45 @@ export const opportunityQueueRouter = router({
     ),
 
   /**
-   * Recovery 2.0 · operator capture of the customer's stated concern on
-   * a declined estimate. Source is recorded as "operator". A second
-   * capture path is the passive SMS observer (recoveryReplyCapture,
-   * source "sms_reply") on both inbound webhooks — first signal wins
-   * there, but THIS endpoint overwrites freely: the operator is the
-   * correction authority. Closed signals stop the recovery cron for the
-   * estimate on its next run and drop it from future collection.
+   * Recovery 2.0 · an operator RELAYING what the customer actually said.
+   *
+   * 2026-09-07 · reshaped, not removed. The defect was never that staff may
+   * record a customer's words — front-desk hears them on the phone constantly,
+   * and that is real evidence that should stop a recovery sequence. The defect
+   * was that HIDING A CARD wrote those words as a side effect.
+   *
+   * This endpoint's only caller was the Decision Inbox's "Fixed elsewhere /
+   * Sold the car / Not interested" chips, which an operator clicked to clear a
+   * card off the home screen. It stamped `stated_concern_source = "operator"`,
+   * and three consumers then treated that as the customer speaking: the
+   * collector excluded the estimate forever, the reconciler flipped the
+   * opportunity to `lost`, and declinedWorkRecovery ended that customer's real
+   * recovery sequence — under a comment reading "The customer told us".
+   *
+   * The two acts are now separated and cannot be confused:
+   *   · "This row is not worth acting on"  -> transition -> "dismissed".
+   *     Neutral. Writes no concern, no consent change, no lost.
+   *   · "The customer told me X"           -> THIS endpoint, which now requires
+   *     an explicit `heardFrom: "customer"` attestation. There is no way to
+   *     reach it as a side effect of tidying a list.
+   *
+   * Source is recorded as `operator_relayed` — distinct from `sms_reply` (the
+   * customer's own words, captured passively) and from the old undifferentiated
+   * `operator`. Both count as customer-sourced in CUSTOMER_SOURCED_CONCERN,
+   * because in both a human is attesting to what the customer said; the
+   * distinction is preserved in the column so the two can ever be told apart.
    */
   captureStatedConcern: adminProcedure
     .input(
       z.object({
         estimateId: z.number().int().positive(),
         concern: statedConcernSchema,
+        /**
+         * Required attestation. A literal, not a boolean, so the call site has
+         * to say the quiet part out loud — and so a future "hide this" feature
+         * cannot satisfy it by passing a default.
+         */
+        heardFrom: z.literal("customer"),
         note: z.string().max(300).optional(),
       }),
     )
@@ -138,7 +164,7 @@ export const opportunityQueueRouter = router({
         .update(algEstimates)
         .set({
           statedConcern: input.concern,
-          statedConcernSource: "operator",
+          statedConcernSource: "operator_relayed",
           statedConcernAt: new Date(),
         })
         .where(eq(algEstimates.id, input.estimateId));
@@ -168,8 +194,11 @@ export const opportunityQueueRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ input }) => {
       const { draftOpportunityOutreach } = await import("../services/opportunityDraft");
-      const rows = await listOpportunities({ limit: 500 });
-      const opp = rows.find((r) => r.id === input.id);
+      const { items, queryable } = await listOpportunities({ limit: 500 });
+      // An unreadable queue is not an absent opportunity. Saying "not found"
+      // would invite the operator to conclude the row is gone.
+      if (!queryable) return { ok: false as const, error: "opportunity queue unreadable — this is UNKNOWN, not empty" };
+      const opp = items.find((r) => r.id === input.id);
       if (!opp) return { ok: false as const, error: "opportunity not found" };
       return draftOpportunityOutreach(opp);
     }),
