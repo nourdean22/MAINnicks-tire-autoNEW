@@ -294,7 +294,13 @@ describe("prompt engine", () => {
       expect(p, `missing ${section}`).toContain(section);
     }
     expect(p).toContain("FACELESS");
-    expect(p).toContain("15-22 seconds");
+    // Derived, not a literal. This read "15-22 seconds" and broke the moment the
+    // operator raised the ceiling to 35s — a test failing for a reason unrelated
+    // to its subject (it checks that the prompt HAS a format contract, not what
+    // the band happens to be this quarter).
+    expect(p).toContain(
+      `${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds} seconds total`,
+    );
   });
 
   it("threads proprietary evidence when provided", () => {
@@ -592,7 +598,13 @@ describe("builders", () => {
     }
     // Timing speaks the renderer truth per beat: 4s source, trim to storyboard
     // length, action completes before the settle window (trim - min(0.6, 20%)).
-    for (const p of pack) expect(p.prompt).toContain("Generate a four-second source clip");
+    // Derived. This pinned the ENGLISH WORD "four-second" while the trim it
+    // describes was a separate literal — so the prompt could ask for one length
+    // and the assembler clamp to another with nothing to catch it. Both now come
+    // from REEL_OUTPUT_RULES.maxClipSeconds.
+    for (const p of pack) {
+      expect(p.prompt).toContain(`Generate a ${REEL_OUTPUT_RULES.maxClipSeconds}-second source clip`);
+    }
     const beats = sample().storyboardBeats;
     pack.forEach((p, i) => {
       const trim = Math.min(4, Math.max(0.8, beats[i].endSecond - beats[i].startSecond));

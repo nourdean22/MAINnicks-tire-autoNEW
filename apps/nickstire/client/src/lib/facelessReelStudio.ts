@@ -85,7 +85,27 @@ export const STUDIO_BRAND = {
 export const REEL_OUTPUT_RULES = {
   reelsPerRun: 1,
   minSeconds: 15,
-  maxSeconds: 22,
+  /**
+   * ACCEPTANCE ceiling for the storyboard, raised 22 -> 35 on 2026-09-07 by operator
+   * decision: 95 of the 99 rotating packs are authored at 25-35s and were being refused
+   * by `validateReelLengthTarget` alone.
+   *
+   * IT IS NOT A RENDER CAPABILITY. `maxClipSeconds` below is what the pipeline can
+   * actually put on screen, and it is the smaller number. A storyboard may DECLARE 35s;
+   * assembly still clamps every beat to a real clip, so the finished video is
+   * `beats x maxClipSeconds + SAVE freeze`. Budget narration against THAT, never this.
+   */
+  maxSeconds: 35,
+  /**
+   * Longest real footage one beat can carry — provider clips render at ~4s, and
+   * `briefToSegments` clamps to it (`reelAssembly.ts`, which imports this value so the
+   * two cannot drift; `reelRenderBudget.test.ts` asserts the import).
+   *
+   * Padding a beat past its source clip does not buy motion, it FREEZES the last frame:
+   * the 2026-07-17 incident shipped a 25s container holding 72 unique frames — "one
+   * image the whole time".
+   */
+  maxClipSeconds: 4,
   resolution: "1080x1920",
   codec: "H.264 MP4",
   pixelFormat: "yuv420p",
@@ -802,6 +822,68 @@ export function validateSourceGrounding(brief: Pick<ReelBrief, "sourceNotes" | "
   return { ok: true };
 }
 
+/** Conversational narration rate the voiceover contract is written against. */
+export const SPOKEN_WORDS_PER_SECOND = 2.2;
+
+/**
+ * Seconds of finished video a storyboard will actually produce.
+ *
+ * NOT `max(endSecond)`. Assembly clamps every beat to one provider clip
+ * (`briefToSegments` -> `maxClipSeconds`), so the declared duration and the
+ * rendered one diverge as soon as a beat is authored longer than a clip. The
+ * SAVE freeze is excluded deliberately: narration must land BEFORE it.
+ */
+export function renderableVideoSeconds(beats: StoryboardBeat[]): number {
+  return Number(
+    beats
+      .reduce((total, b) => {
+        const raw = Number(b.endSecond) - Number(b.startSecond);
+        const dur = Number.isFinite(raw) && raw > 0 ? raw : 0;
+        return total + Math.min(dur, REEL_OUTPUT_RULES.maxClipSeconds);
+      }, 0)
+      .toFixed(2),
+  );
+}
+
+/**
+ * The voiceover must fit the video that will actually be RENDERED.
+ *
+ * This gate exists because raising `maxSeconds` 22 -> 35 admitted 30 packs, and
+ * 29 of them carry more narration than their own render can play. The ffmpeg
+ * graph forces the voice track to exactly the video length
+ * (`atrim=0:${videoTotal}` + `apad=whole_dur=${videoTotal}`), so an over-long
+ * script is not slowed or squeezed — it is CUT, mid-sentence, taking the payoff
+ * with it. Measured worst case in the rotation: 121 words (~55s of speech) in a
+ * 27s video, so more than half the script never plays.
+ *
+ * Nothing caught this before. The length gate read the DECLARED duration, the
+ * quality scorer scored the brief, and the render-integrity gate compares the
+ * output against the CLAMPED segments — so it agrees with the truncated result
+ * and passes. The defect was only ever visible in the finished artifact.
+ *
+ * Fails closed: an unreadable/absent script is not a violation (a deliberately
+ * silent reel is legal), but a script that cannot fit is.
+ */
+export function validateVoiceoverFitsRender(
+  brief: Pick<ReelBrief, "voiceoverScript" | "storyboardBeats">,
+): { ok: boolean; reason?: string } {
+  const words = String(brief.voiceoverScript ?? "").trim().split(/\s+/).filter(Boolean).length;
+  if (words === 0) return { ok: true };
+  const spokenSeconds = words / SPOKEN_WORDS_PER_SECOND;
+  const videoSeconds = renderableVideoSeconds(brief.storyboardBeats ?? []);
+  if (videoSeconds <= 0) return { ok: true }; // beat-count gate owns that failure
+  if (spokenSeconds <= videoSeconds) return { ok: true };
+  const budget = Math.floor(videoSeconds * SPOKEN_WORDS_PER_SECOND);
+  return {
+    ok: false,
+    reason:
+      `Voiceover is ${words} words (~${spokenSeconds.toFixed(1)}s of speech) but the reel only ` +
+      `renders ${videoSeconds.toFixed(1)}s of video — the voice track is hard-trimmed to the ` +
+      `video, so ${(spokenSeconds - videoSeconds).toFixed(1)}s would be cut off mid-sentence. ` +
+      `Trim to ${budget} words or fewer.`,
+  };
+}
+
 /**
  * Attests that THIS pure module performs no external calls (no network, storage,
  * or process execution). It does NOT attest about consumers: the Studio page and
@@ -974,6 +1056,14 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   // block, so an ungrounded brief costs one LLM call, not a render.
   const grounding = validateSourceGrounding(brief);
   if (!grounding.ok) push("truth", "block", grounding.reason ?? "no verified proof source for the mechanic truth");
+
+  // Production: the voiceover must fit the video that will actually RENDER, not
+  // the duration the storyboard declares. BLOCKS, for the same reason grounding
+  // does — this is a pre-spend gate, and a reel whose narration gets cut in half
+  // is a defect the render would inherit, not an advisory. See
+  // validateVoiceoverFitsRender for why nothing downstream catches it.
+  const voFit = validateVoiceoverFitsRender(brief);
+  if (!voFit.ok) push("production", "block", voFit.reason ?? "voiceover is longer than the rendered video");
 
   // Production + truth: claim safety, faceless, in-frame-text (over the design)
   for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);
@@ -1335,7 +1425,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
     return {
       beatNumber: b.beatNumber,
       prompt: [
-        `Vertical 9:16 cinematic clip. Generate a four-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
+        `Vertical 9:16 cinematic clip. Generate a ${REEL_OUTPUT_RULES.maxClipSeconds}-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
         `Subject: ${providerScene.scene}`,
         `Character energy: ${character.label} - ${character.essence}`,
         // Motion is a provider-facing field too — run it through the SAME

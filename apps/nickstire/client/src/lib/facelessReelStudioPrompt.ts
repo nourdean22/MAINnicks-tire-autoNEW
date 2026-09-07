@@ -165,7 +165,12 @@ Every reel is built on ONE verifiable mechanic truth. Acceptable proof source fa
 
   sections.push(`# VOICEOVER CONTRACT (hard)
 voiceoverScript is REQUIRED and must not be empty (every brief tonight shipped SILENT because this was left "optional"):
-- 38-48 words total for a ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds}s reel (roughly 2.2 spoken words/second)
+- 38-48 words TOTAL (~2.2 spoken words/second, so 17-22s of speech). This budget is set by what the
+  pipeline can RENDER, not by the storyboard's declared end second: every beat is capped at
+  ${REEL_OUTPUT_RULES.maxClipSeconds}s of real footage, so a ${REEL_OUTPUT_RULES.maxBeats}-beat reel
+  is at most ${REEL_OUTPUT_RULES.maxBeats * REEL_OUTPUT_RULES.maxClipSeconds}s of video. The
+  voiceover is HARD-TRIMMED to the finished video length — a longer script is silently cut off
+  mid-sentence, so overwriting this budget destroys the ending you wrote.
 - One spoken idea per beat, in beat order - narration must land before the SAVE ending, never talk over it
 - Conversational Cleveland mechanic voice: plain, warm, zero hype
 - Claim-safe: no prices, no guarantees, no "you need", no diagnosis-by-sound

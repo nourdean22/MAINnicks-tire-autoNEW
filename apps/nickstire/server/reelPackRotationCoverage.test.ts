@@ -132,12 +132,31 @@ describe("the rotation array's own invariants", () => {
 });
 
 /**
- * RATCHET. Measured 2026-09-07 against the real `runReelPreflight`: 2 of the 99
- * rotating packs would clear the pre-spend gate. Raise this as briefs are
- * fixed; never lower it. A drop means a brief edit broke a pack that used to
- * ship, which is precisely the regression no other test in this repo can see.
+ * RATCHET. Raise as briefs are fixed; never lower it WITHOUT recording why.
+ *
+ * 2026-09-07, first measurement: 2 of 99.
+ * 2026-09-07, after `maxSeconds` 22 -> 35 (operator decision): the length gate
+ *   stopped refusing 95 packs and the count rose to 30.
+ * 2026-09-07, after `validateVoiceoverFitsRender` landed: back to **1**.
+ *
+ * THE DROP TO 1 IS THE POINT, not a regression. Raising the ceiling exposed a
+ * defect the ceiling had been hiding: 93 of the 99 packs carry more narration
+ * than their own reel can PLAY. Assembly clamps every beat to one ~4s provider
+ * clip, so a 5-beat pack renders ~20s of video, and the ffmpeg graph forces the
+ * voice track to exactly that length — the rest is cut off mid-sentence. The
+ * worst pack has 121 words (~55s of speech) for a 27s video.
+ *
+ * Before the ceiling moved, those packs were refused for being 25-35s and the
+ * truncation never came up. So the honest reading is not "the change lost a
+ * pack" but "the change revealed that ~all of the library was unshippable for
+ * a second, worse reason, and only one pack was ever genuinely clean".
+ * `2026-08-20-slow-leak-soap-test` is the one that moved: 56 words (~25.5s)
+ * against 19s of renderable video.
+ *
+ * This floor climbs again as voiceover scripts are trimmed to their budget —
+ * the failure message prints the exact word target for each pack.
  */
-const PREFLIGHT_PASSING_FLOOR = 2;
+const PREFLIGHT_PASSING_FLOOR = 1;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {
