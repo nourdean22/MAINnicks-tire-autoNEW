@@ -1074,6 +1074,35 @@ Keep it under 200 characters.`;
     }),
 
   /**
+   * The recovery ledger: what a reel job cost, what survived, and what is UNKNOWN.
+   *
+   * READ-ONLY — no provider connection, no spend, no write. It exists to answer
+   * one question before repeating a paid request: "what did we pay for, and
+   * might any of it still be live remotely?" Outstanding provider operations are
+   * called out separately; reconcile those before spending again.
+   *
+   * Every gap is NAMED rather than inferred. A beat with no recorded operation
+   * reports "either it predates op history, or none was submitted — NOT evidence
+   * that nothing was paid for", clip reachability is explicitly not probed, and
+   * cost is labelled an estimate with the reason. The failure this guards
+   * against is concluding "nothing was paid for" from an absence of evidence and
+   * then spending again.
+   */
+  reelRecoveryLedger: adminProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(200).optional(),
+          jobId: z.number().int().positive().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const { buildReelRecoveryLedger } = await import("../services/reelRecoveryLedger");
+      return buildReelRecoveryLedger({ limit: input?.limit, jobId: input?.jobId });
+    }),
+
+  /**
    * Record one attributable human yes, bound to the exact caption bytes and
    * exact asset the cron will send.
    *
