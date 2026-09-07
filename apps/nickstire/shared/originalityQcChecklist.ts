@@ -49,7 +49,7 @@ export interface OriginalityQcInput {
   caption?: string;
   totalDurationSeconds: number | null;
   /** Post-merge self-review (2026-08-13): the brief bundles "format/length
-   *  checks (15-22s, 9:16, muted-first readable)" as ONE line item, and the
+   *  checks (the declared duration band, 9:16, muted-first readable)" as ONE line item, and the
    *  original version of this checklist only implemented the duration
    *  sub-check — 9:16 and muted-first were enforced elsewhere in the
    *  pipeline but never surfaced in this "one canonical readout." Passing
@@ -172,7 +172,7 @@ export function evaluateOriginalityQc(input: OriginalityQcInput): { checks: QcCh
 
   checks.push({
     id: "format_length",
-    label: "Format/length (15-22s target)",
+    label: `Format/length (${TARGET_DURATION_MIN_S}-${TARGET_DURATION_MAX_S}s target)`,
     status:
       input.totalDurationSeconds === null
         ? "unknown"

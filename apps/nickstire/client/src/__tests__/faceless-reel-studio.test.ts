@@ -202,7 +202,7 @@ describe("structure validators", () => {
     expect(validateBeatCount(gappy).ok).toBe(false);
   });
 
-  it("enforces the 15-22 second band", () => {
+  it("enforces the declared duration band, whatever it currently is", () => {
     expect(validateReelLengthTarget(sample().storyboardBeats).ok).toBe(true);
     const short = structuredClone(sample().storyboardBeats).map((b) => ({ ...b, startSecond: b.startSecond / 2, endSecond: b.endSecond / 2 }));
     expect(validateReelLengthTarget(short).ok).toBe(false);
