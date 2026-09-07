@@ -42,6 +42,21 @@ export interface ReelJobPayloadView {
   campaignKeyword?: string;
   motionLens?: string;
   storyboardBeats?: StoryboardBeat[];
+  /**
+   * The narration. IN the persisted payload all along and simply undeclared
+   * here — same shape as `motion`/`audioCue` on StoryboardBeat, and the same
+   * fix: the brief is JSON.stringify'd whole at enqueue and a TS interface does
+   * not strip fields at runtime, so declaring it needs no migration.
+   *
+   * Verified against production 2026-09-07: jobs 1710001, 1740001, 1740004,
+   * 1770005 and 1830001-1830003 all carry a non-empty `voiceoverScript`.
+   *
+   * It matters because the condemned-script check reads it. Left undeclared,
+   * that gate would have compared an `undefined` voiceover against every
+   * condemned script, scored 0.00 on all of them, and reported "clean" —
+   * a green gate measuring nothing.
+   */
+  voiceoverScript?: string;
   episodeContract?: EpisodeContract;
 }
 
