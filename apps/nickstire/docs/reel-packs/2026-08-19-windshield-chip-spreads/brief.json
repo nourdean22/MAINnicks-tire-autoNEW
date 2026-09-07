@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "That small chip in your windshield? It's a clue that starts a clock.",
-      "onScreenText": "That chip? It's a clock, not a curiosity.",
+      "onScreenText": "A windshield chip spreads with the weather.",
       "visual": "Extreme close-up of a small rock chip in a car windshield, morning sun glare catching the glass, static camera with a slow, subtle focus pull onto the chip, blurred dashboard reflection in the background, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

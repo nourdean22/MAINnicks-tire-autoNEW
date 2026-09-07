@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "The pothole that did not flatten your tire may still have cost you.",
-      "onScreenText": "",
+      "onScreenText": "Pothole damage shows up days later.",
       "providerScene": "Extreme slow-motion macro, a car tire compressing into a pothole edge, asphalt texture, dust and small debris kicked up, harsh midday sun, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

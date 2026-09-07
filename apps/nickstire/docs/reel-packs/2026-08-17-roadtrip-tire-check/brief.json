@@ -20,7 +20,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Most road-trip breakdowns start as a ten-minute check somebody skipped.",
-      "onScreenText": "",
+      "onScreenText": "The breakdown starts in the driveway.",
       "providerScene": "Forensic-scan style close-up of a car's front tire and wheel well under bright inspection-bay light, faint scan-line HUD glow sweeping across the surface, clean dark background, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

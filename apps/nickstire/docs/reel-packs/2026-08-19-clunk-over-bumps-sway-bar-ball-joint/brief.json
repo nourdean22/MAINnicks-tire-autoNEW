@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Hear a clunk every time you hit a bump? The way it happens is one clue to why.",
-      "onScreenText": "Clunk every time you hit a bump?",
+      "onScreenText": "SAME CLUNK. TWO DIFFERENT PARTS.",
       "visual": "Low-angle static shot of a car's front wheel well driving over a rough residential road, subtle camera shake synced to a bump impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

@@ -27,6 +27,7 @@
       "beatNumber": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
+      "onScreenText": "NEW PADS WON'T STOP THE SHAKE",
       "narration": "Steering wheel shaking when you brake? That's not you being nervous.",
       "prompt": "Extreme close-up on a car steering wheel, subtle rhythmic vibration visible in the frame, driver's view through windshield softly blurred behind it, daylight, no hands or face visible, cinematic shallow depth of field, slow static hold with the vibration as the only motion.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",

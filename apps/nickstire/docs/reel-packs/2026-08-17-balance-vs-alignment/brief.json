@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Shaking at highway speed? You might be fixing the wrong thing.",
-      "onScreenText": "",
+      "onScreenText": "A shake at 60 is usually wheel balance.",
       "providerScene": "Driver's-POV-adjacent shot of a steering wheel from the dash, subtle vertical blur/shake vibration effect on the wheel rim, highway lane lines streaking past through the windshield, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

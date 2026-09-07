@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Heat blowing cold? The clue is in when it happens.",
-      "onScreenText": "Heat blowing cold? Here's the clue.",
+      "onScreenText": "Heat blowing cold is three different problems.",
       "visual": "Close-up static shot of a car's heater dial and dashboard vents on a cold morning, faint breath-fog visible on the windshield glass beyond, dial glowing amber in dim early light, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

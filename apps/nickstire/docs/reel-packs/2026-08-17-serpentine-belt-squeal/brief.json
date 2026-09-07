@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That high-pitched squeal when you start your car? That is not your brakes.",
-      "onScreenText": "",
+      "onScreenText": "Cold rubber slips. That's the squeal.",
       "providerScene": "Cold morning engine bay, hood open, frost visible on surrounding metal, breath-fog implied by cool blue morning light, slow push-in toward the front of the engine, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

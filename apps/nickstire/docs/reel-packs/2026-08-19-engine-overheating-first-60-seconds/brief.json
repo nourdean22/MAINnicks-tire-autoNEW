@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Temp gauge climbing? Steam under the hood? Do not keep driving.",
-      "onScreenText": "",
+      "onScreenText": "Overheating damages engines in minutes.",
       "providerScene": "Close-up of a car dashboard temperature gauge needle climbing into the red zone, shallow depth of field, dim cabin light, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

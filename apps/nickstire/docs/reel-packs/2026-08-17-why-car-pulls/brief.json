@@ -13,6 +13,7 @@
       "startSecond": 0,
       "endSecond": 2,
       "onScreenText": null,
+      "onScreenText": "The wheel is straight. The car isn't.",
       "visual": "Top-down technical blueprint schematic: a car icon on a straight dashed-centerline road, a thin glowing motion-vector line trailing behind it bends visibly off-center, dark blueprint-blue background, no faces, no legible text baked into the shot"
     },
     {

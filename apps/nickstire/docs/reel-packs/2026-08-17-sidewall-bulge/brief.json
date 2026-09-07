@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That bump on your tire's sidewall isn't a warranty problem. It's a blowout waiting to happen.",
-      "onScreenText": "",
+      "onScreenText": "A SIDEWALL BULGE CANNOT BE PATCHED",
       "providerScene": "Extreme macro, slow push-in on a tire sidewall showing a visible bulge/deformation in the rubber, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

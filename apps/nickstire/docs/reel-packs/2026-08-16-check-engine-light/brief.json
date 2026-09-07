@@ -19,7 +19,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Solid and flashing mean completely different things.",
-      "onScreenText": "",
+      "onScreenText": "A flashing check engine light means stop.",
       "providerScene": "Macro shot of a car instrument cluster, check-engine warning icon glowing amber at frame center, shallow depth of field, subtle idle-engine vibration, dim cabin ambient light, cinematic automotive commercial look, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

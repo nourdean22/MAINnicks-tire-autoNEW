@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Smell gas inside your car? The way it shows up is one clue to why.",
-      "onScreenText": "Smell gas inside your car?",
+      "onScreenText": "GAS SMELL AT IDLE IS A DIFFERENT PROBLEM.",
       "visual": "Close-up static shot of a car's fuel gauge on the instrument cluster, needle near full, subtle slow push-in, warm daylight through windshield, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

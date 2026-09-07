@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "A humming that changes when you steer is not your tires.",
-      "onScreenText": "",
+      "onScreenText": "That hum changes when you steer. Not tires.",
       "providerScene": "Extreme macro, front wheel hub and bearing assembly exposed on a shop stand, slow rotation, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

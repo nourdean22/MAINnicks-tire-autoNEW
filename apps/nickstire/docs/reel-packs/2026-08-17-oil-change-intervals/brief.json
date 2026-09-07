@@ -19,7 +19,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "The 3,000-mile oil sticker is a sales tool. It is not an engineering spec.",
-      "onScreenText": "",
+      "onScreenText": "The 3,000-mile oil sticker is a sales tool.",
       "providerScene": "Extreme macro of an oil dipstick being pulled from an engine, dark engine bay lit by a single work light, oil sheen catching the light along the dipstick blade, slow pull-out motion, shallow depth of field, moody amber-and-black garage lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

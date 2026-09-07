@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Pull your transmission dipstick. This ten-second look is worth checking.",
-      "onScreenText": "",
+      "onScreenText": "Your transmission fluid should be red.",
       "providerScene": "Extreme macro, a transmission dipstick suspended just above a white inspection cloth as if rig-mounted, a bead of bright red fluid catching the light, shallow depth of field, slow push-in, warm garage practical lighting, cinematic automotive commercial look, 9:16 vertical framing, no hand visible",
       "sceneStatus": "clean",
       "negativePromptOverride": null

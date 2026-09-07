@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "That smell while you're driving? It's telling you something specific.",
-      "onScreenText": "That smell while driving? It's telling you something.",
+      "onScreenText": "That sweet smell is coolant.",
       "visual": "First-person driving POV, dashboard and road ahead through windshield, daylight, slow steady forward motion, subtle camera handheld sway, no people visible in frame (hands/steering wheel excluded per negative prompt)",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That tire light in August might be heat, not a warning.",
-      "onScreenText": "",
+      "onScreenText": "Heat makes a low tire read full.",
       "providerScene": "Extreme macro, dashboard TPMS warning icon glowing amber, shallow depth of field, slight handheld-style micro-shake, hot afternoon sunlight glare through a windshield, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

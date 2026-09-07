@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Most car noises can wait. These three cannot.",
-      "onScreenText": "",
+      "onScreenText": "Most car noises can wait. These three cannot.",
       "providerScene": "Interior POV from the driver's seat, hands resting on the steering wheel, dashboard instrument cluster softly glowing, dusk light through the windshield, faint tension in the framing, slow subtle handheld sway, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

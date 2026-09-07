@@ -13,6 +13,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:03",
+      "onScreenText": "Your car gets one bounce. That's it.",
       "narration": "\"Time for struts.\" You hear it a lot. It's explained almost never.",
       "visualPrompt": "Slow macro push-in on a mechanic's paper estimate/clipboard on a workbench, the word STRUT-related line item visible but out of sharp focus, garage bay softly lit in the background. Static camera, shallow depth of field.",
       "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]

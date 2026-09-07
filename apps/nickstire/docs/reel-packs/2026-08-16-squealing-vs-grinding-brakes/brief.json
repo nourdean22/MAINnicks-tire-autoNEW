@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Grinding when you brake is not \"almost time.\" It is past time.",
-      "onScreenText": "",
+      "onScreenText": "Grinding is cutting your rotors.",
       "providerScene": "Extreme macro, brake caliper gripping a rotor, studio-lit garage bay, shallow depth of field, slow push-in, sparks of reflected light off brushed metal, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

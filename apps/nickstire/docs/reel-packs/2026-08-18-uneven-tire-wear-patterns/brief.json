@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Your tire wear has a shape — and that shape can point to what's wrong.",
-      "onScreenText": "",
+      "onScreenText": "WORN DOWN THE MIDDLE MEANS TOO MUCH AIR",
       "providerScene": "Extreme macro low-angle shot of a tire tread, camera slowly rotating around the circumference revealing an uneven wear pattern silhouette against dramatic raking side light, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

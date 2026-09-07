@@ -11,6 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
+      "onScreenText": "AMBER. BLACK. MILKY. ONLY ONE IS FINE.",
       "narration": "Pull your dipstick. The color is telling you something.",
       "visualPrompt": "Macro shot of a dipstick being pulled from a car engine, oil droplet catching light, engine bay softly blurred in background, shallow depth of field, cinematic garage lighting",
       "stockSearchTerms": ["dipstick pulled from car engine closeup", "checking engine oil hood open"]

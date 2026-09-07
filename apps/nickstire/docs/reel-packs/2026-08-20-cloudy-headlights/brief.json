@@ -11,6 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
+      "onScreenText": "That haze is the lens, not the bulb.",
       "narration": "Your headlights look cloudy? That's not just looks.",
       "visualPrompt": "Extreme close-up of a yellowed, hazy plastic headlight lens on a parked car at dusk, slow push-in, no people, no visible license plate or logo",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",

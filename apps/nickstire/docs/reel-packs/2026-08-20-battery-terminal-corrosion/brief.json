@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Green or white powder on your battery? One clue, more than one cause.",
-      "onScreenText": "Powder on your battery terminals?",
+      "onScreenText": "Green powder isn't always the battery.",
       "visual": "Extreme close-up of a car battery's terminal posts under the hood, subtle green/white crust visible on metal, static camera with slow creeping push-in, dim engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },

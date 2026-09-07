@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That puddle under your car? The color tells you everything.",
-      "onScreenText": "",
+      "onScreenText": "GREEN. ORANGE. PINK. THAT'S COOLANT.",
       "providerScene": "Extreme macro, colored liquid pooling on dark asphalt under a parked car, low angle, reflective surface catching moody teal-and-amber practical light, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

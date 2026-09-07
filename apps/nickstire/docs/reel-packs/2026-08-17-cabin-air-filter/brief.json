@@ -12,6 +12,7 @@
       "startSecond": 0,
       "endSecond": 2,
       "onScreenText": null,
+      "onScreenText": "Your car has two air filters.",
       "visual": "Car interior world, dashboard AC vents blasting visible heat-haze shimmer instead of cool air, sunlight glare through the windshield, no faces, no legible text baked into the shot"
     },
     {

@@ -62,7 +62,7 @@
       "endSecond": 3,
       "visual": "Dark car dashboard interior at night, all indicator lights unlit, calm and still",
       "motion": "Slow static hold, no camera movement",
-      "onScreenText": "NO LIGHT. NO WORRIES... RIGHT?",
+      "onScreenText": "E-CHECK FAILS CARS WITH THE LIGHT OFF.",
       "purpose": "Hook — the familiar false-safe moment",
       "audioCue": "Low ambient engine idle hum",
       "safeZoneNotes": "Text centered, clear of top ~250px and bottom ~200px IG UI zones"
