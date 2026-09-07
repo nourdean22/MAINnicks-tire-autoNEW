@@ -262,16 +262,16 @@ pending an actual render — not `PASS`, and not silently omitted:
 
 **Primary caption (SEND-oriented):**
 
-> Dash lights come on fine. You push the start button — nothing happens.
+> Dash lights come on fine. You push the start button - nothing happens.
 >
 > That's not always a dead car battery. Check your key fob first.
 >
 > A weak or dead fob battery can stop a push-button start cold, even with a
 > fully charged car battery. Most fobs hide a backup key and a spot to hold
-> the fob against the start button — check your owner's manual.
+> the fob against the start button - check your owner's manual.
 >
-> We test key fob batteries free. Send this to someone whose car "won't
-> start" for no reason.
+> A fob battery is worth ruling out before anyone chases a starter or a
+> car battery that is fine.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

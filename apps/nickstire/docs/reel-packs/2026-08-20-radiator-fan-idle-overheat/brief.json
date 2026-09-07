@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Airflow through the radiator at road speed does the cooling on its own, so a car that heats up only at a standstill and cools back down once it is moving points at the electric fan circuit rather than the radiator; on a warmed-up engine that fan should be spinning while the car sits still.",
   "packId": "2026-08-20-radiator-fan-idle-overheat",
   "generatedAt": "2026-08-20",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 27,
       "narration": "Do not guess.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm late-afternoon light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, an empty lift and racked hand tools in the background, warm late-afternoon light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     },

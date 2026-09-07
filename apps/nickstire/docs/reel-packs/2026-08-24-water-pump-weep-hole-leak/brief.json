@@ -45,62 +45,54 @@
   "aspectRatio": "9:16",
   "beats": [
     {
-      "index": 1,
-      "role": "hook",
-      "startSec": 0,
-      "endSec": 4,
-      "shot": "Macro close-up: colored fluid drips from under a parked engine bay onto clean concrete",
-      "prompt": "macro close up shot of colored coolant fluid dripping slowly from the underside of a car engine bay onto a clean concrete garage floor, shallow depth of field, cinematic lighting, photorealistic",
-      "vo": "A few drops of colored fluid under the engine."
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "A few bright colored coolant drops beading on grey concrete beneath a dark engine bay, oil-stained garage floor, macro, no people",
+      "motion": "slow push-in on the drops",
+      "onScreenText": "COLORED DROPS",
+      "narration": "A few colored drops underneath, not always the radiator."
     },
     {
-      "index": 2,
-      "startSec": 4,
-      "endSec": 9,
-      "shot": "Engine bay wide shot pushing toward the front-center pulley and serpentine belt driving the water pump",
-      "prompt": "wide shot of a car engine bay pushing in toward the front center pulley and serpentine belt assembly driving a water pump, bright shop lighting, photorealistic, cinematic camera movement",
-      "vo": "Not always the radiator."
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "A water pump housing on a steel bench, cast aluminum body and pulley, a tiny weep hole in the casting catching the light, macro",
+      "motion": "slow orbit to the hole",
+      "onScreenText": "THE WEEP HOLE",
+      "narration": "Water pumps have a weep hole that seeps first."
     },
     {
-      "index": 3,
-      "startSec": 9,
-      "endSec": 14,
-      "shot": "Extreme macro of the weep hole on the water pump housing with a faint drip trail",
-      "prompt": "extreme macro close up of a small drain weep hole on a car water pump housing, a faint colored drip trail visible below it, engine bay detail, photorealistic",
-      "vo": "Water pumps have a tiny weep hole, meant to leak first."
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "A single bead of coolant swelling at that weep hole and running down the cast housing, raking light, shallow focus, no hands",
+      "motion": "macro hold, bead runs down",
+      "onScreenText": "EARLY WARNING",
+      "narration": "That seep is the early warning."
     },
     {
-      "index": 4,
-      "startSec": 14,
-      "endSec": 19,
-      "shot": "Close-up of the translucent coolant overflow reservoir with a light residue stain near the cap",
-      "prompt": "close up of a translucent car coolant overflow reservoir tank showing colored fluid level inside, a faint dried residue stain around the cap on the outside, engine bay lighting, photorealistic",
-      "vo": "It leaks early instead of the seal letting go without warning."
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "clue",
+      "visual": "Two drops side by side on concrete, one bright and syrupy, one clear and thin, hard light, extreme macro",
+      "motion": "slow rack between the drops",
+      "onScreenText": "STICKY, NOT CLEAR",
+      "narration": "Colored and sticky, not clear like condensation."
     },
     {
-      "index": 5,
-      "startSec": 19,
-      "endSec": 24,
-      "shot": "Macro of dried, crusty residue near a pump housing bolt, no active drip",
-      "prompt": "macro close up of dried crusty mineral residue buildup trailing down from a car water pump housing bolt, no active dripping, engine bay detail, photorealistic",
-      "vo": "One clue: colored and sticky, not clear like condensation."
-    },
-    {
-      "index": 6,
-      "startSec": 24,
-      "endSec": 27,
-      "shot": "Dash close-up: temperature gauge needle drifting toward hot",
-      "prompt": "close up of a car dashboard temperature gauge needle slowly drifting from the normal center position toward the hot zone, dim interior lighting, photorealistic",
-      "vo": "A dried crusty trail near the pump can show before any puddle."
-    },
-    {
-      "index": 7,
-      "role": "cta_save_freeze",
-      "startSec": 27,
-      "endSec": 33,
-      "shot": "Wide static hold: clean automotive service bay, no signage/logo",
-      "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame",
-      "vo": "Worth checking early."
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "A dried crusty coolant trail crusted down the pump housing and across the belt edge, chalky pale texture, close macro, dim shop light",
+      "motion": "slow tilt down the trail",
+      "onScreenText": "CRUST BEFORE PUDDLE",
+      "narration": "A dried crusty trail shows before any puddle."
     }
   ],
   "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",

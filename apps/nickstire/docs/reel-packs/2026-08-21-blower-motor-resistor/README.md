@@ -251,7 +251,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 **Primary caption (SEND-oriented):**
 
 > Your heat or A/C only blows on one speed, usually the highest. That's not
-> a broken fan — it's usually the blower motor resistor.
+> a broken fan - it's usually the blower motor resistor.
 >
 > The resistor steps the fan down to low and medium. High speed often skips
 > it entirely, so high keeps working while every other speed goes dead.
@@ -259,8 +259,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > Ignore it and the motor keeps pulling full power every time the fan runs,
 > which can wear it out sooner.
 >
-> We check the blower circuit free with a heating and A/C inspection. Send
-> this to someone whose fan only works on high.
+> Worth having the blower circuit checked with a heating and A/C
+> inspection. One speed left is the clue.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

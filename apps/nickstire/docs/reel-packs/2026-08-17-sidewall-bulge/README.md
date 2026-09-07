@@ -256,16 +256,16 @@ pending an actual render — not `PASS`, and not silently omitted:
 
 **Primary caption (matches slate's corrected SEND-oriented objective):**
 
-> That bump on your tire's sidewall isn't a warranty problem. It's a
+> That bump on your tire's sidewall is not a cosmetic flaw. It's a
 > blowout waiting to happen.
 >
-> A bulge means the inner layers tore loose — usually from hitting a curb
+> A bulge means the inner layers tore loose - usually from hitting a curb
 > or a hard pothole. There is no patch or plug for this.
 >
-> It can hold air for weeks, then let go without warning — especially at
+> It can hold air for weeks, then let go without warning - especially at
 > highway speed.
 >
-> See a bulge on your sidewall? Send this to them today.
+> See a bulge on your sidewall? That one gets replaced, not repaired.
 >
 > #tiresafety #cartips #clevelandohio #carmaintenance
 

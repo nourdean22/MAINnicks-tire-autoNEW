@@ -1,68 +1,62 @@
 {
+  "mechanicTruth": "Heat, not cold, does most of the damage to a lead-acid battery: high underhood temperatures speed up evaporation and plate corrosion, so capacity drops through the warm months. The first cold morning only exposes the loss, because cold thickens the oil and leaves less usable capacity, which shows up as a slow crank.",
   "id": "content-pack-2026-08-16-battery-summer-heat",
   "campaignKeyword": "BATTERY",
   "archetype": "myth_vs_reality",
   "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "Everyone blames winter for this. Summer is what actually kills your battery. Heat cooks the acid and corrodes the plates all season, quietly — then one cool morning, there's nothing left to give. Slow crank. Dim headlights at idle. One jump start already. Most batteries last three to five years — heat cuts that shorter. Worth checking before it strands you.",
   "hashtags": ["#carbattery", "#summercarcare", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Everyone blames winter for this. Summer is what actually kills your battery. Heat cooks the acid and corrodes the plates all season, quietly. Then one cool morning, there's nothing left to give. Slow crank. Dim headlights at idle. One jump start already. Most batteries last three to five years - heat cuts that shorter. Worth checking before it strands you.",
+  "voiceoverScript": "Summer wears batteries down. Heat cooks the acid. Plates corrode, capacity drops. Cold only exposes it. Slow crank, worth checking.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
-      "endSecond": 2,
-      "onScreenText": null,
-      "onScreenText": "Summer kills batteries. Winter gets blamed.",
-      "visual": "Inside a dark car dashboard interior world, an amber battery warning indicator light flickers awake out of black, deep blacks with amber bokeh glow, macro perspective, no faces, no legible text baked into the shot"
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "A car battery sitting on sun-baked asphalt in hard summer light, heat shimmer rising off the black casing, grit and dust across the top, smooth blank casing, no faces, no hands",
+      "motion": "slow push-in through the shimmer",
+      "onScreenText": "HEAT, NOT COLD",
+      "narration": "Summer wears batteries down."
     },
     {
       "beatNumber": 2,
-      "startSecond": 2,
-      "endSecond": 5,
-      "onScreenText": "MYTH: WINTER KILLS BATTERIES",
-      "visual": "Same dark dashboard interior world, the amber battery warning light holds steady and glows brighter, deep blacks with amber bokeh glow"
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Macro on a battery terminal post, white and green corrosion crust blooming around the lead post and the clamp, harsh raking light, shallow depth of field, no hands",
+      "motion": "slow drift across the crust",
+      "onScreenText": "COOKED UNDER THE HOOD",
+      "narration": "Heat cooks the acid."
     },
     {
       "beatNumber": 3,
-      "startSecond": 5,
-      "endSecond": 10,
-      "onScreenText": "HEAT: THE REAL CAUSE",
-      "visual": "Technical x-ray cutaway visualization of a car battery case, translucent layered materials showing internal fluid and plates, warm heat-shimmer glow, cool schematic lighting, clean dark field"
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "Cutaway view into a battery interior, stacked lead cells standing in fluid, warm shimmer moving between the cells, dark schematic field, smooth blank casing",
+      "motion": "push through the cutaway",
+      "onScreenText": "CELLS CORRODE",
+      "narration": "Plates corrode, capacity drops."
     },
     {
       "beatNumber": 4,
-      "startSecond": 10,
-      "endSecond": 15,
-      "onScreenText": null,
-      "visual": "Technical x-ray cutaway visualization continues, visible corrosion building on the internal plates, the heat-shimmer glow cooling to a dim blue, precise engineering aesthetic"
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "clue",
+      "visual": "The same battery on a frozen morning, frost crust across the casing, cold blue dawn light behind it, fog hanging in the air, no people",
+      "motion": "slow pull back",
+      "onScreenText": "COLD REVEALS IT",
+      "narration": "Cold only exposes it."
     },
     {
       "beatNumber": 5,
-      "startSecond": 15,
+      "startSecond": 16,
       "endSecond": 20,
-      "onScreenText": "SLOW CRANK · DIM LIGHTS · ONE JUMP",
-      "visual": "Inside the dark dashboard interior world again, indicator lights dim and flicker unevenly as if power is fading, deep blacks with amber and red bokeh glow"
-    },
-    {
-      "beatNumber": 6,
-      "startSecond": 20,
-      "endSecond": 25,
-      "onScreenText": "3-5 YEARS · HEAT CUTS IT SHORTER",
-      "visual": "Premium product commercial shot of a car battery, 85mm macro lens, shallow depth of field, studio-grade key lighting on a dark seamless background, slow turntable rotation, blank label area on the case (label added as ffmpeg overlay, not AI-rendered text)"
-    },
-    {
-      "beatNumber": 7,
-      "startSecond": 25,
-      "endSecond": 30,
-      "onScreenText": "WORTH CHECKING.",
-      "visual": "Inside the dark dashboard interior world, the amber battery warning light flickers and fades back to black, mirroring the beat-1 opening for a loop seam"
-    },
-    {
-      "beatNumber": 8,
-      "startSecond": 30,
-      "endSecond": 33,
-      "onScreenText": "HEAT DOES THE DAMAGE. COLD JUST REVEALS IT.",
-      "visual": "Static hold on the CTA card, silent ambient tone only"
+      "purpose": "payoff",
+      "visual": "A clean battery centered on a scarred steel shop bench under one work lamp, dark seamless background, smooth blank casing, no people",
+      "motion": "slow turntable rotation",
+      "onScreenText": "SLOW CRANK = CLUE",
+      "narration": "Slow crank, worth checking."
     }
   ],
   "qualityEstimate": {

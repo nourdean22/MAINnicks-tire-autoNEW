@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A steady check engine light is a stored fault to have read soon; a flashing one means a misfire is happening right now, sending unburned fuel into the exhaust where it can overheat the catalytic converter.",
   "packId": "2026-08-16-check-engine-light",
   "generatedAt": "2026-08-16",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -64,7 +65,7 @@
       "endSecond": 27,
       "narration": "Solid means soon. Flashing means stop.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted cinderblock walls and a plain metal roll-up door, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

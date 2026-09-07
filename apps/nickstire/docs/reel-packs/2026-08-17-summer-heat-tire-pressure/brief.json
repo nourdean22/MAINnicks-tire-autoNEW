@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Pressure inside a tire rises and falls with the air temperature inside it, roughly one PSI for every ten degrees Fahrenheit, so a tire measured hot off midday asphalt can read right at spec and still be several PSI low when the same tire is measured cold the next morning.",
   "packId": "2026-08-17-summer-heat-tire-pressure",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 28,
       "narration": "Check pressure cold, before driving.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, no readable signage or branding in frame, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

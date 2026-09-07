@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A CV joint has to spin the axle and flex with the steering at the same time, and it stays quiet only while the grease sealed inside its rubber boot stays put; once the boot splits and that grease is gone, the joint clicks under steering load - so the sound shows up in a turn and not going straight.",
   "packId": "2026-08-18-cv-joint-click",
   "generatedAt": "2026-08-18",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 27,
       "narration": "That noise does not quiet down.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on the back wall, bare painted block and a clean concrete floor, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

@@ -61,10 +61,10 @@
       "vo": "If they light up, that points at the sensor, not bulbs."
     },
     {
-      "index": "SAVE",
+      "index": 6,
       "startSec": 18,
       "endSec": 21,
-      "visualPrompt": "Static end card: shop exterior/sign or logo card, warm lighting, no motion required beyond ambient.",
+      "visualPrompt": "Static closing shot: warm tungsten glow filling an empty shop bay at night, roll-up door open to the street, clean concrete floor, ambient motion only.",
       "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
       "vo": "Worth checking before buying new bulbs."
     }

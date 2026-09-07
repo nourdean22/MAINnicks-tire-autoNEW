@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A wheel is held on by the clamping force of all its studs together, so when one shears the remaining studs carry its share unevenly; that is why a lug nut that keeps working loose after being torqued can point to a broken stud rather than a bad nut.",
   "mode": "INTELLIGENCE",
   "date": "2026-09-07",
   "slug": "wheel-stud-snapped",
@@ -48,10 +49,10 @@
       "voiceover": "Caught early, a snapped stud is a quick fix — worth checking before it gets worse."
     },
     {
-      "index": "SAVE",
+      "index": 6,
       "startSec": 18,
       "endSec": 21,
-      "visualPrompt": "Static end card: shop exterior/sign or logo card, warm lighting, no motion required beyond ambient.",
+      "visualPrompt": "Static closing shot: warm tungsten light across a quiet shop bay, a rack of tires and swept concrete floor in soft focus, ambient motion only.",
       "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
       "voiceover": "Nick's Tire and Auto — stop by and we'll take a look."
     }

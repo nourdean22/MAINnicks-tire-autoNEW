@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "An unbalanced wheel has a heavy spot that shakes harder the faster it spins, so balance shows up as a vibration that arrives at highway speed; alignment is the angle the wheel sits at, so it shows up as a steady pull or wear along one tread edge.",
   "packId": "2026-08-17-balance-vs-alignment",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 29,
       "narration": "Shake means balance. Pull means alignment.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted cinderblock walls and a plain metal roll-up door, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

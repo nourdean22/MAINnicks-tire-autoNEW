@@ -258,10 +258,10 @@ an actual render — not `PASS`, and not silently omitted:
 > Your brake fluid is quietly pulling water out of the air. That's not a
 > defect. That's chemistry.
 >
-> Brake fluid is hygroscopic — it absorbs moisture through the lines over
+> Brake fluid is hygroscopic - it absorbs moisture through the lines over
 > time, even sealed. More water means a lower boiling point, and a spongier
-> pedal exactly when you need it firm. It's also how corrosion starts inside
-> steel brake lines, from the inside out.
+> pedal exactly where it should be firm. It's also how corrosion starts
+> inside steel brake lines, from the inside out.
 >
 > Fifteen seconds with a test strip tells you which one you are.
 >

@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Coolant is dyed green, orange, or pink, so a colored puddle is coolant leaving the system, while the clear, odorless water that drips under a car after the AC has run is condensation off the air conditioning drain.",
   "packId": "2026-08-17-coolant-color",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 27,
       "narration": "Color tells you which puddle matters.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted cinderblock walls and a plain metal roll-up door, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

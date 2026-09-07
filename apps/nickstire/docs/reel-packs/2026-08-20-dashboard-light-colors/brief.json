@@ -51,7 +51,7 @@
       "startSecond": 22,
       "endSecond": 28,
       "narration": "The color tells you how fast to move.",
-      "onScreenText": "We'll read it for you, free.",
+      "onScreenText": "Color sets the urgency.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a diagnostic scanner screen glowing near the foreground echoing beat 1's glowing-icon close-up, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

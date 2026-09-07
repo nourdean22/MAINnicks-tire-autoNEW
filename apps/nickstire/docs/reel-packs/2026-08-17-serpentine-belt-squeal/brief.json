@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "One serpentine belt drives the alternator, the AC and the power steering, and cold stiffens that rubber so it slips across the pulleys and squeals - which is why the noise shows up on a cold start and quiets down once the belt warms up.",
   "packId": "2026-08-17-serpentine-belt-squeal",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -52,7 +53,7 @@
       "endSecond": 21,
       "narration": "Slipping today can mean cracking later.",
       "onScreenText": "",
-      "providerScene": "Close-up of a worn belt off the vehicle, visible surface cracking along the ribs, hand-free rotating turntable reveal against a clean shop backdrop, even studio light, 9:16 vertical framing",
+      "providerScene": "Close-up of a worn belt off the vehicle, visible surface cracking along the ribs, slow rotating turntable reveal against a clean shop backdrop, even studio light, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     },
@@ -63,7 +64,7 @@
       "endSecond": 27,
       "narration": "Worth checking on a cold morning.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm morning light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on the back wall, bare painted block and a clean concrete floor, warm morning light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

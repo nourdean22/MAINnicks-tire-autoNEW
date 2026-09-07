@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A cooling system is sealed and pressurized, which holds the coolant above its normal boiling point, so lifting the radiator cap while the engine is hot drops that pressure and the coolant flashes to steam; once it has cooled, a low reservoir level or a puddle under the car points to where the coolant went.",
   "packId": "2026-08-19-engine-overheating-first-60-seconds",
   "generatedAt": "2026-08-19",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 30,
       "narration": "Overheat once is a warning. Twice takes the engine.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, rolling tool chests and racked wrenches in the background, bare painted block wall, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

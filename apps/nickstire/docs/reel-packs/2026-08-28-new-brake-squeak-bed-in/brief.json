@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Fresh pads transfer a thin film of pad material onto the rotor face, and until a bed-in of a few firm stops from speed lays that film down evenly, the uneven patches ring as a squeak - so a squeak still there after two or three weeks of normal driving is no longer bed-in noise.",
   "packId": "2026-08-28-new-brake-squeak-bed-in",
   "generatedAt": "2026-08-28",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 27,
       "narration": "Worth a second look.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on bare steel shelving and a lift in the background, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }
