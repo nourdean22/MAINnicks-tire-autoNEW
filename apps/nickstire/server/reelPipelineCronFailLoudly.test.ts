@@ -53,7 +53,10 @@ describe("the reel-pipeline job handler actually wires the loud-failure check", 
   const SCHEDULER = fs.readFileSync(path.join(__dirname, "cron", "scheduler.ts"), "utf8");
 
   it("re-throws using the shared predicate, AFTER assembly/repair have already run", () => {
-    const genIdx = SCHEDULER.indexOf('const gen = await settle(processNextReelJob());');
+    // Anchor updated 2026-09-07: generation became CONDITIONAL on the active
+    // provider having credentials, so the old literal no longer exists. The
+    // ordering property below is the actual invariant and is unchanged.
+    const genIdx = SCHEDULER.indexOf('await settle(processNextReelJob())');
     const asmIdx = SCHEDULER.indexOf('const asm = await settle(processNextAssemblyJob());');
     const repIdx = SCHEDULER.indexOf('const rep = await settle(processNextRepairJob());');
     const throwIdx = SCHEDULER.indexOf('if (reelPipelineCronShouldFailLoudly(gen)) {');
@@ -70,5 +73,19 @@ describe("the reel-pipeline job handler actually wires the loud-failure check", 
 
   it("throws the real error message, not a generic string", () => {
     expect(SCHEDULER).toMatch(/throw new Error\(gen\.error\);/);
+  });
+
+  it("a provider-credential SKIP cannot trip the loud failure", () => {
+    // The guard added 2026-09-07 substitutes a synthetic result when the active
+    // provider has no credentials. reelPipelineCronShouldFailLoudly is
+    // `!processed && Boolean(error)`, so that object must carry NO error field —
+    // otherwise a deliberate, expected skip would throw and page every 15
+    // minutes, which is the failure the guard exists to prevent.
+    expect(reelPipelineCronShouldFailLoudly({ processed: false })).toBe(false);
+    expect(SCHEDULER).toContain('status: `generation skipped: REEL_VIDEO_PROVIDER=');
+    const skip = SCHEDULER.slice(SCHEDULER.indexOf('generation skipped: REEL_VIDEO_PROVIDER='));
+    expect(skip.slice(0, 160)).not.toContain('error:');
+    // Positive control: a genuine generation failure still throws.
+    expect(reelPipelineCronShouldFailLoudly({ processed: false, error: "boom" })).toBe(true);
   });
 });

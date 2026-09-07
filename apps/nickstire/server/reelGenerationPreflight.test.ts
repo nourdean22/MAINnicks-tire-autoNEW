@@ -39,6 +39,21 @@ const higgsfieldSessionHealth = vi.hoisted(() => vi.fn());
 vi.mock("./services/higgsfieldStudio", () => ({ higgsfieldSessionHealth }));
 vi.mock("./services/veoStudio", () => ({ veoCredentialsPresent: () => false }));
 
+/**
+ * The preflight now asks whether the KEY-BASED API lane is configured before it
+ * probes the browser session, so this harness has to control that answer too.
+ *
+ * It was NOT mocked when the conditional landed, and the result was a CI-only
+ * failure that passed alone: singleFork shares one `process.env`, a sibling
+ * file leaks `HIGGSFIELD_API_KEY_ID`, the real resolver reads it, the API lane
+ * looks configured, the session probe is skipped, and `res.error` is undefined
+ * — `.toMatch()` then receives undefined. Exactly the order-dependent leak
+ * AGENTS.md §3 warns about, caused by adding a dependency without extending
+ * the mock surface that isolates this file from it.
+ */
+const getHiggsfieldApiCredentials = vi.hoisted(() => vi.fn());
+vi.mock("./services/higgsfieldApiClient", () => ({ getHiggsfieldApiCredentials }));
+
 import { processNextReelJob } from "./services/reelPipeline";
 
 // 2026-08-20 · self-audit (workflow-confirmed P2): this file previously wrote
@@ -47,12 +62,27 @@ import { processNextReelJob } from "./services/reelPipeline";
 // singleFork process — the documented house rule (apps/nickstire/AGENTS.md
 // §3: "restore-or-delete in afterEach/afterAll") that reelProviderFallbackChain.test.ts
 // (the sibling this file was modeled on) already follows correctly.
-const ENV_KEYS = ["REEL_GENERATION_ENABLED", "REEL_VIDEO_PROVIDER"];
+// The two API-lane vars are saved/restored here as well. The resolver is
+// mocked above so they no longer decide anything in this file, but a sibling
+// that leaks them must not be able to reach in either — belt and braces, and
+// the same restore-or-delete rule this block already documents.
+const ENV_KEYS = [
+  "REEL_GENERATION_ENABLED",
+  "REEL_VIDEO_PROVIDER",
+  "HIGGSFIELD_API_KEY_ID",
+  "HIGGSFIELD_API_KEY_SECRET",
+];
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
   dbState.claimCalls = 0;
   higgsfieldSessionHealth.mockReset();
+  // Default: NO API lane, so the session is the only lane and the dead-session
+  // abort below is reached. Each test that needs the other case says so.
+  getHiggsfieldApiCredentials.mockReset();
+  getHiggsfieldApiCredentials.mockResolvedValue(null);
+  delete process.env.HIGGSFIELD_API_KEY_ID;
+  delete process.env.HIGGSFIELD_API_KEY_SECRET;
   for (const k of ENV_KEYS) saved[k] = process.env[k];
   process.env.REEL_GENERATION_ENABLED = "true";
   process.env.REEL_VIDEO_PROVIDER = "higgsfield";
@@ -78,6 +108,46 @@ describe("reel generation preflight", () => {
     expect(res.processed).toBe(false);
     expect(res.error).toMatch(/preflight: higgsfield session dead/);
     // The whole point: no job was ever queried or claimed for this dead run.
+    expect(dbState.claimCalls).toBe(0);
+  });
+
+  it("does NOT abort on a dead session when the KEY-BASED API lane is configured", async () => {
+    // Review P1 on #2170. higgsfieldStudio PREFERS the Cloud API whenever
+    // getHiggsfieldApiCredentials() resolves, so aborting here on session
+    // health meant that in the exact configuration the API lane exists to
+    // rescue — keys present, browser session expired — generation still
+    // refused to start, and blamed a session the render would never use.
+    // Buying API credits would have unblocked nothing.
+    getHiggsfieldApiCredentials.mockResolvedValue({ keyId: "k", keySecret: "s" });
+    higgsfieldSessionHealth.mockResolvedValue({
+      healthy: false,
+      reason: "re-login required (refresh token revoked)",
+      checkedAt: new Date("2026-08-20T12:00:00Z"),
+    });
+
+    const res = await processNextReelJob();
+
+    // Must NOT carry the preflight abort. It proceeds to the claim path, which
+    // in this harness finds no queued row — processed:false for a DIFFERENT
+    // reason, exactly as the healthy-session case below.
+    expect(res.error).toBeUndefined();
+    expect(higgsfieldSessionHealth).not.toHaveBeenCalled();
+  });
+
+  it("canary — the API-lane bypass is what changed the verdict, not the mock", async () => {
+    // Positive control for the test above: same dead session, same everything,
+    // only the API credentials removed. If this did NOT abort, the assertion
+    // above would be passing for a reason unrelated to its subject.
+    getHiggsfieldApiCredentials.mockResolvedValue(null);
+    higgsfieldSessionHealth.mockResolvedValue({
+      healthy: false,
+      reason: "re-login required (refresh token revoked)",
+      checkedAt: new Date("2026-08-20T12:00:00Z"),
+    });
+
+    const res = await processNextReelJob();
+
+    expect(res.error).toMatch(/preflight: higgsfield session dead/);
     expect(dbState.claimCalls).toBe(0);
   });
 

@@ -731,8 +731,30 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
   // never block a working provider on a blind spot.
   const preflightProvider = await selectReelVideoProvider();
   if (preflightProvider === "higgsfield") {
+    // THE SESSION CHECK GATES THE SESSION LANE, NOT THE API LANE.
+    //
+    // Review P1 on #2170, verified: higgsfieldStudio.generateReelClipVideo
+    // PREFERS the key-based Cloud API whenever getHiggsfieldApiCredentials()
+    // resolves ("PURCHASED, setting the two env vars switches lanes with no
+    // caller change"). This preflight ran before that choice and aborted on a
+    // dead BROWSER SESSION regardless — so with API credentials configured and
+    // the session expired, which is precisely the configuration the API lane
+    // exists to rescue, generation still refused to start.
+    //
+    // That made the documented remedy inert: buying Cloud API credits and
+    // setting HIGGSFIELD_API_KEY_ID/_SECRET would not have unblocked a single
+    // render while the CLI session stayed dead, and nothing said why.
+    //
+    // So: skip the session preflight when the API lane is configured, and let
+    // generateReelClipVideo pick. A dead session is only disqualifying when the
+    // session is the ONLY lane available.
+    const { getHiggsfieldApiCredentials } = await import("./higgsfieldApiClient");
+    const apiLaneConfigured = Boolean(await getHiggsfieldApiCredentials());
     const { higgsfieldSessionHealth } = await import("./higgsfieldStudio");
-    const health = await higgsfieldSessionHealth();
+    const health = apiLaneConfigured ? { healthy: null as boolean | null, reason: null as string | null, checkedAt: null as Date | null } : await higgsfieldSessionHealth();
+    if (apiLaneConfigured) {
+      log.info("reel generation preflight: higgsfield API lane configured — CLI session health is not disqualifying", {});
+    }
     if (health.healthy === false) {
       log.error("reel generation preflight: higgsfield session is dead — aborting the batch before claiming a job", {
         reason: health.reason,
