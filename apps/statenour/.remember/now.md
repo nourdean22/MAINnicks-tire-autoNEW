@@ -1,11 +1,46 @@
 # Session ledger — statenour
 
-Updated: 2026-09-02
+**Updated:** 2026-09-07 (backlog drain · #2096/#2102/#2103/#2160 · tool-selection
+telemetry migration APPLIED to prod Neon)
 
-**Updated:** 2026-09-02 (observability arc · #2080 provider conflict · #2082 root sampling · #2083 receipt)
+**Objective this wave:** land four PRs a prior session wrote but ran out of usage before
+merging, then apply the migration the telemetry had been silently waiting on.
 
-**Objective:** wire Langfuse tracing properly, then wire Sentry — and prove both actually work
-rather than trusting a `configured: true` badge.
+## Shipped 2026-09-07
+- **#2096 `08bef3cb`** — Agent OS research program + tool SELECTION telemetry (43 files,
+  +5,317). Records which of 181 tools were OFFERED per turn, not just which ran: candidate
+  count before truncation, the tier that supplied each pick, what fell off the budget cliff,
+  and whether tier 5 no-opped on a cold embedding cache. Opt-in on `opts.turnId` (no turnId =
+  byte-identical behaviour), fire-and-forget, fail-soft but NOT silent —
+  `getSelectionTelemetryHealth()` distinguishes an empty table from a broken recorder. Also
+  unpinned `ai` from 113 releases back: upstream had already fixed the null-`activeResponse`
+  crash better than the local patch (locally-captured const, closing a concurrent-clear race
+  the patch still had), so the patch was DELETED, not rebased.
+- **#2102 `2a7f1eca`** — heal from the authoritative cron window.
+- **#2103 `b3bebdeb`** — expose unavailable health reads.
+- **#2160 `5b3ef319`** — promoted `20260903190000_tool_selection_semantic_tier_state` from
+  `prisma/migrations-pending/` into `prisma/migrations/`. File move only, no SQL change.
+
+## Migration receipt — APPLIED 2026-09-07
+`railway run --service statenour-web -- pnpm release:db` →
+`All migrations have been successfully applied.`; `pnpm prisma migrate status` →
+**`Database schema is up to date!`, 54 migrations**, against `ep-quiet-wave-am320eo1-pooler`.
+
+**The telemetry writer now has its table.** Before this it fail-softed and recorded NOTHING —
+so any read of tool-selection data taken before 2026-09-07 is an empty table, not a signal.
+
+**Only ONE migration was outstanding.** `20260903120000_tool_selection_telemetry` (which
+CREATEs the table) was already applied and recorded before this wave; only the promoted ALTER
+was pending. A session brief claiming "both are pending" was wrong — `migrate status` BEFORE
+`migrate deploy` is what caught it, and is the habit worth keeping: it bounds the blast radius
+before you widen it.
+
+**Why the file move instead of pasting the SQL.** Hand-applying leaves `_prisma_migrations`
+blind. `prisma/migrations-pending/README.md` records that on 2026-07-29 hand-inserted rows for
+names with no `prisma/migrations/<name>/` dir turned `prisma migrate status` RED. Promote the
+file, run one deploy, let Prisma record it.
+
+## Carried forward — the 2026-09-02 observability arc (still true)
 
 **The finding that shaped the whole arc.** Adding Sentry (#2074) silently killed Langfuse.
 `Sentry.init()` registers the global OpenTelemetry tracer provider; `@opentelemetry/api`'s
