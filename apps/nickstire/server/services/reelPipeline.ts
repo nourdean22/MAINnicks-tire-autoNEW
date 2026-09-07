@@ -237,6 +237,30 @@ export interface ReelJobBrief {
     audioCue?: string;
     /** Higgsfield API request already submitted; resume polling, never resubmit. */
     higgsfieldRequestId?: string;
+    /**
+     * APPEND-ONLY history of every provider operation this beat ever submitted.
+     *
+     * `higgsfieldRequestId` and `veoOperationName` above are ACTIVE handles:
+     * their presence means "a request is outstanding, reconcile it rather than
+     * buying a duplicate", and they are deleted the moment the beat resolves.
+     * That is correct for resume semantics and fatal for accounting — the
+     * identifier for work we PAID FOR was destroyed on the happy path (:898)
+     * and on terminal remote failure (:860), so there was no way to ask "for
+     * job N, what did we pay for, and might any of it still be live remotely".
+     *
+     * A recovery ledger cannot be reconstructed from rows that were deleted, so
+     * the handle is copied here BEFORE the active one is cleared. This changes
+     * no resume behaviour: nothing reads `providerOps` to decide whether to
+     * resubmit, and the active-handle fields are unchanged.
+     */
+    providerOps?: Array<{
+      provider: "higgsfield" | "veo";
+      /** The provider's own operation/request id — the paid handle. */
+      opId: string;
+      /** ISO timestamp of when this outcome was recorded. */
+      at: string;
+      outcome: "succeeded" | "failed" | "abandoned";
+    }>;
   }>;
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
@@ -258,6 +282,32 @@ export interface ReelJobBrief {
  * missing operator-applied migration must stop before reservations or paid
  * work, rather than silently creating a legacy row that has no identity.
  */
+/**
+ * Copy a provider handle into the beat's append-only history before the active
+ * handle is cleared.
+ *
+ * Call this immediately BEFORE `delete beat.higgsfieldRequestId` (or the veo
+ * equivalent). The active field means "outstanding, reconcile me"; this one
+ * means "we submitted this, and here is how it ended". Losing the second is how
+ * a paid request became unaccountable.
+ *
+ * Deliberately tolerant: a malformed or missing id is skipped rather than
+ * throwing, because this is bookkeeping on the generation path and must never
+ * be the reason a clip fails. Bounded at 50 entries per beat so a pathological
+ * retry loop cannot grow `payload` (MEDIUMTEXT) without limit.
+ */
+function recordProviderOp(
+  beat: { providerOps?: Array<{ provider: "higgsfield" | "veo"; opId: string; at: string; outcome: "succeeded" | "failed" | "abandoned" }> },
+  provider: "higgsfield" | "veo",
+  opId: string | undefined | null,
+  outcome: "succeeded" | "failed" | "abandoned",
+): void {
+  if (typeof opId !== "string" || !opId.trim()) return;
+  if (!Array.isArray(beat.providerOps)) beat.providerOps = [];
+  if (beat.providerOps.length >= 50) return;
+  beat.providerOps.push({ provider, opId, at: new Date().toISOString(), outcome });
+}
+
 async function assertEpisodeQueueSchemaReady(d: any): Promise<void> {
   if (typeof d.execute !== "function") {
     throw new Error("REEL_EPISODE_SCHEMA_NOT_APPLIED: database adapter cannot verify migration 0113; enqueue fail closed");
@@ -857,6 +907,10 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
               // submitted error remains attached so the next pulse reconciles
               // the same paid request rather than buying a duplicate.
               if (reconcileErr instanceof HiggsfieldApiSubmittedError && /generation (failed|cancelled|canceled)/i.test(reconcileErr.message)) {
+                // History BEFORE the active handle is cleared: this request was
+                // submitted and may have billed, and the ledger needs to know it
+                // existed even though it produced nothing.
+                recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "failed");
                 delete beat.higgsfieldRequestId;
                 await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
               }
@@ -895,6 +949,9 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           throw genErr;
         }
         clipUrls[i] = finalClipUrl;
+        // Same reason as the failure path above — a SUCCEEDED request is the one
+        // we definitely paid for, and its id was the field being deleted.
+        recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "succeeded");
         delete beat.higgsfieldRequestId;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(brief), updatedAt: new Date() })
@@ -937,6 +994,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
             throw pollErr;
           }
           log.warn("existing Veo op failed (provider error) — submitting a fresh request", { jobId: job.id, beat: beat.beatNumber, err: pollErr });
+          // Abandoned, but it WAS submitted and may have billed. Record it
+          // before the handle is dropped, or the resubmit below makes the first
+          // op invisible and the job looks like it cost one request when it
+          // cost two.
+          recordProviderOp(beat, "veo", opName, "abandoned");
           opName = undefined;
         }
       }
@@ -961,11 +1023,13 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       
       // Save clip URL at the specific beat index
       clipUrls[i] = finalClipUrl;
+      recordProviderOp(beat, "veo", opName, "succeeded");
 
       // Heartbeat: bump updatedAt and progressive clipUrlsJson in the DB immediately after each success
       await d.update(reelJobs)
         .set({ 
           clipUrlsJson: JSON.stringify(clipUrls),
+          payload: JSON.stringify(brief),
           updatedAt: new Date() 
         })
         .where(eq(reelJobs.id, job.id));
