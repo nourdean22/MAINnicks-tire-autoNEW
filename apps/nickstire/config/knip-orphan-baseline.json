@@ -5050,6 +5050,16 @@
       "file": "apps/nickstire/server/services/declinedRecoverySequence.ts",
       "symbol": "RECOVERY_CLOSED_SIGNALS",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and it became export-only on 2026-09-07 by design. declinedWorkRecovery used to import this list and test membership itself, which is precisely how an OPERATOR-sourced concern ended a real customer's recovery sequence — the halt read WHAT was said and never WHO said it. The membership test now lives inside isCustomerClosedSignal(), which checks provenance first, and that is the only thing callers may use. The list stays exported so server/neutralDismissal.test.ts can assert every closed signal round-trips through the provenance guard; re-importing it at a call site would reintroduce the defect."
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "textCondemnedEntries",
+      "reason": "Exported for the same reason condemnedJobIds is: a report and the gate must not be able to disagree about WHICH entries condemn a script rather than a file. It is also the subject of the coverage test that asserts every text-condemned entry actually carries its condemned text - a gate over a hand-maintained table is only as wide as its data, and that test is what stops a new condemned entry being added with the payload forgotten."
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "CONDEMNED_CONTENT_THRESHOLD",
+      "reason": "Exported so the test can assert it equals the originality gate threshold instead of a second hand-tuned number. Both are 0.5 because both were measured over the same corpus - the account own reel scripts, where genuinely different reels peaked at 0.35 and real duplicates score 1.00."
     }
   ]
 }

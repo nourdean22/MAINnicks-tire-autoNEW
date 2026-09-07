@@ -1665,6 +1665,29 @@
       "operationalState": "live_verified",
       "exposure": "internal",
       "verificationExpiresAt": "2026-10-02"
+    },
+    {
+      "capabilityId": "reel-condemned-script-gate",
+      "name": "Condemned reel scripts are refused by CONTENT, not only by job id",
+      "owner": "operator",
+      "operationalState": "unit_verified",
+      "lastVerifiedAt": "2026-09-07",
+      "evidence": {
+        "codeCommit": "2026-09-07: the 2026-08-29 claim audit condemned SCRIPTS but expressed its veto as a lookup keyed by JOB ID, so copying a condemned script into a new row cleared it. On 2026-08-30 jobs 1830001-1830003 were created as replacements for three condemned jobs and reproduced their scripts verbatim (voiceover and on-screen similarity 1.00, measured against production payloads 2026-09-07); auditPublishBlock returned null for every one. condemnedContentProblem() now asks the question the audit was answering — is this SCRIPT condemned — using two matchers that fail in opposite directions: an exact normalised phrase (precise about the claim, defeated by rewording) and jaccard similarity against the recorded condemned text (catches wholesale copying, defeated by paraphrase). Wired at BOTH doors: enqueueReelJob before the spend boundary, and the daily-reel-post publish gate for jobs queued before that check existed.",
+        "tests": [
+          "server/reelCondemnedContent.test.ts (15): blocks the two regenerated scripts that repeat condemned claims; PASSES 1830001, whose antecedent was condemned for a broken asset while its claims are cleared against NHTSA TireWise, so re-rendering it is the prescribed cure — a gate that blocked every condemned script would forbid the fix and still be green on every 'does it block?' test. Also passes two corrected rewrites, an unrelated script and empty input. Canaries break each matcher independently and assert the fixtures are not self-blocking. Subject-coverage test asserts every text-condemned entry actually carries its condemned text, so adding a condemned entry with the payload forgotten fails the suite."
+        ],
+        "verifiedAgainst": "Production, read-only, 2026-09-07: the real gate run over every non-published reel_jobs payload through the real parseReelJobPayload path catches FIVE jobs the id-keyed veto missed — 1830002 and 1830003 (queued), 1410001 and 1710002 (failed), and 1500001, which is ALREADY PUBLISHED and carries 'pull you off the road'. The audit only ever covered jobs 1710001-1770005, so identical claims in earlier jobs were never examined. Ohio E-Check scope from Ohio EPA testing information: seven participating counties of 88.",
+        "limits": "NOT deployed — this branch is not merged, so in production the gate does not yet run and the id-keyed veto is still the only claim check. Two known evasions, stated rather than discovered later: a deliberate paraphrase below 0.75 that also avoids every recorded phrase passes, and a claim condemned in a job the 2026-08-29 audit never examined is not in the table at all — which is exactly how 1500001 came to be published. This is a hygiene gate over a hand-maintained table, not an adversary, and it is only as wide as that table."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "REPORTED, NOT ACTED ON — operator decision. Reel job 1500001 is PUBLISHED and its script carries 'Wait, and it will chew up your tire and pull you off the road', the exact claim the audit condemned in 1740004 as an unsourceable loss-of-control assertion. Two more jobs carrying the condemned statewide E-Check claim (1410001, 1710002) are in 'failed' state and cannot publish. Removing or editing a live Instagram post is a customer-facing action and is not taken on agent initiative."
+        }
+      ],
+      "codeState": "merged",
+      "exposure": "internal"
     }
   ],
   "axes": {

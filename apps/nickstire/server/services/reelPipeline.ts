@@ -400,6 +400,34 @@ export async function enqueueReelJob(
     }
   }
 
+  // CONDEMNED-SCRIPT CHECK — here because this is BEFORE the spend boundary.
+  //
+  // The claim audit's veto is keyed by job id, so a condemned script escapes it
+  // simply by being regenerated into a new row. That is not hypothetical: on
+  // 2026-08-30, jobs 1830001-1830003 were created as replacements for three
+  // condemned jobs and reproduced their scripts VERBATIM (voiceover and
+  // on-screen similarity 1.00, measured against production payloads
+  // 2026-09-07). Two of the three carried the false claims that condemned their
+  // antecedents — including "In Ohio, it's an automatic fail for your E-Check",
+  // which is false in 81 of Ohio's 88 counties.
+  //
+  // Blocking at the publish door alone would be too late in the only sense that
+  // costs money: the clips would already have been generated and paid for. A
+  // condemned script must never reach the renderer.
+  {
+    const { condemnedContentProblem } = await import("../../shared/reelClaimAudit");
+    const condemned = condemnedContentProblem({
+      voiceover: brief.voiceoverScript,
+      onScreenText: (brief.storyboardBeats ?? []).map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+    });
+    if (condemned) {
+      log.error("condemned script BLOCKED at enqueue — no clips generated, no spend reserved", {
+        briefId: brief.id, source, reason: condemned,
+      });
+      throw new Error(`REEL_SCRIPT_CONDEMNED: ${condemned}`);
+    }
+  }
+
   {
     const { contractFromDeclaration, preflightEpisode } = await import("../../shared/episodeContract");
     const contract = contractFromDeclaration(brief as Record<string, unknown>, episode);

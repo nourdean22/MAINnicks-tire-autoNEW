@@ -26,7 +26,7 @@ import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/r
 import { enqueueReelJob } from "../../services/reelPipeline";
 import { publishToSocial } from "../../services/socialPublish";
 import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosure";
-import { auditPublishBlock } from "@shared/reelClaimAudit";
+import { auditPublishBlock, condemnedContentProblem } from "@shared/reelClaimAudit";
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import {
@@ -848,6 +848,28 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // held job stays held indefinitely, so an unconditional UPDATE here would
     // rewrite the same string forever - pointless load on TiDB and a churning
     // updatedAt that makes a stuck job look freshly touched.
+    // The id-keyed veto and the CONTENT veto, in that order. The second exists
+    // because the first is keyed by row: jobs 1830001-1830003 were regenerated
+    // from three condemned jobs on 2026-08-30 and reproduced their scripts
+    // verbatim, so `auditPublishBlock` returned null for every one of them.
+    // Enqueue now refuses a condemned script outright, but jobs already sitting
+    // in the queue predate that check — this is what holds them.
+    {
+      const beats = parseReelJobPayload(job.payload).storyboardBeats ?? [];
+      const condemned = condemnedContentProblem({
+        voiceover: parseReelJobPayload(job.payload).voiceoverScript,
+        onScreenText: beats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+      });
+      if (condemned) {
+        const note = `BLOCKED by claim audit (content): ${condemned}`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.error(`daily reel: job ${job.id} reproduces a condemned script — not publishing`, { reason: condemned });
+        return { recordsProcessed: 0, details: `held: job ${job.id} reproduces a condemned script; index not advanced` };
+      }
+    }
+
     {
       const vetoed = auditPublishBlock(job.id);
       if (vetoed) {
