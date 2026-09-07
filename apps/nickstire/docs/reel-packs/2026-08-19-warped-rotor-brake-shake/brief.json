@@ -64,7 +64,7 @@
       "beatNumber": 5,
       "role": "CTA",
       "window": "0:22-0:27",
-      "narration": "Worth checking before your next stop. Nick's Tire and Auto checks rotor thickness free. Link in bio.",
+      "narration": "Worth checking before your next stop. Rotor thickness is the number that settles it.",
       "prompt": "Wide establishing shot of an auto repair shop garage bay interior, open bay door with daylight streaming in, clean and organized, warm inviting color grade, static hold for end-card text overlay, no people in frame.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 5

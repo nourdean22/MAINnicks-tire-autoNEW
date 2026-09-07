@@ -51,7 +51,7 @@
       "label": "CTA",
       "startSecond": 25,
       "endSecond": 30,
-      "narration": "Don't guess. Stop by Nick's Tire and Auto and we'll check all four.",
+      "narration": "Don't guess. On all-wheel drive, the other three tires decide the answer.",
       "onScreenText": "Nick's Tire & Auto · Euclid Ave, Cleveland",
       "visual": "Slow forward dolly through a clean tire shop bay toward a rack of four tires standing upright in a row, bay door open to daylight behind them, warm inviting light, camera settling on the row of four at the same low framing the reel opened on, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

@@ -5,7 +5,7 @@
   "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "Everyone blames winter for this. Summer is what actually kills your battery. Heat cooks the acid and corrodes the plates all season, quietly — then one cool morning, there's nothing left to give. Slow crank. Dim headlights at idle. One jump start already. Most batteries last three to five years — heat cuts that shorter. Worth checking before it strands you.",
   "hashtags": ["#carbattery", "#summercarcare", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Everyone blames winter for this. Summer is what actually kills your battery. Heat cooks the acid and corrodes the plates all season, quietly. Then one cool morning, there's nothing left to give. Slow crank. Dim headlights at idle. One jump start already. Most batteries last three to five years — heat cuts that shorter. Worth checking before it strands you. Send this to whoever's battery is over three years old. Stop by — we'll test it, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Everyone blames winter for this. Summer is what actually kills your battery. Heat cooks the acid and corrodes the plates all season, quietly. Then one cool morning, there's nothing left to give. Slow crank. Dim headlights at idle. One jump start already. Most batteries last three to five years - heat cuts that shorter. Worth checking before it strands you.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
@@ -61,7 +61,7 @@
       "beatNumber": 8,
       "startSecond": 30,
       "endSecond": 33,
-      "onScreenText": "Send this to whoever's battery is over three years old. Stop by — we'll test it, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "onScreenText": "HEAT DOES THE DAMAGE. COLD JUST REVEALS IT.",
       "visual": "Static hold on the CTA card, silent ambient tone only"
     }
   ],

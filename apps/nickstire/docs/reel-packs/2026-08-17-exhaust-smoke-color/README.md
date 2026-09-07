@@ -236,6 +236,8 @@ or `UNKNOWN` (no evidence read). None are silently marked `PASS`:
 > Your exhaust is telling you something 🚗💨 Blue, white, or black — the color of the smoke is a real clue. Worth checking, not guessing.
 > #TireShop #AutoRepair #CarCareTips #ClevelandOhio #EuclidOhio #CarMaintenance #ExhaustSmoke #MechanicTips
 
+---
+
 **Variant A (hook-forward, curiosity CTA):**
 > Hook: "Blue smoke, white smoke, black smoke — do you know which one means trouble?"
 > Caption: Three exhaust smoke colors, three different stories. We break down what each one usually points to — and why guessing is the wrong move. Stop by Nick's Tire & Auto and we'll take a real look.

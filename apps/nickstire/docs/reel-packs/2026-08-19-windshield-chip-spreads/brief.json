@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess how long it'll hold. Stop by and we'll take a look, free. Nick's Tire and Auto, link in bio.",
-      "onScreenText": "Free look, no pressure. Link in bio.",
+      "narration": "Don't guess how long it'll hold. Worth checking before it reaches the edge.",
+      "onScreenText": "Check it before it reaches the edge.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, tool cart visible; camera slowly pushes in and racks focus onto a parked car's windshield inside the bay, echoing the opening beat's chip-close-up composition, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

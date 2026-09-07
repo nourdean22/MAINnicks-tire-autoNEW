@@ -5,7 +5,7 @@
   "motionLenses": ["rain_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "2/32\" is the legal minimum. It is not the safe one. Below 3/32\", hydroplaning risk climbs sharply in rain. Below 4/32\", you lose meaningful grip in snow. Legal and safe are two different numbers — and they matter at different times of year. Worth checking before the next storm, not after.",
   "hashtags": ["#tiresafety", "#cartips", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Two-thirty-seconds is legal. Legal isn't the same as safe. Below three-thirty-seconds, rain grip drops fast — hydroplaning risk climbs sharply. Below four-thirty-seconds, snow grip goes next. Two different numbers. Two different seasons. One check tells you both. Worth checking before the next storm, not after. Save both numbers — they matter at different times of year. Stop by and we'll check yours, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Two-thirty-seconds is legal. Legal isn't the same as safe. Below three-thirty-seconds, rain grip drops fast - hydroplaning risk climbs sharply. Below four-thirty-seconds, snow grip goes next. Two different numbers. Two different seasons. One check tells you both. Worth checking before the next storm, not after. Save both numbers - they matter at different times of year. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
@@ -61,7 +61,7 @@
       "beatNumber": 8,
       "startSecond": 30,
       "endSecond": 33,
-      "onScreenText": "Save both numbers — they matter at different times of year. Stop by and we'll check yours, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "onScreenText": "Save both numbers - they matter at different times of year. Nick's Tire & Auto - 17625 Euclid Ave, Cleveland",
       "visual": "Static hold on the CTA card, silent ambient tone only"
     }
   ],

@@ -47,7 +47,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:22-0:28",
-      "narration": "Warm air out of your vents? Send this to whoever's sweating in traffic right now. Nick's Tire and Auto — link in bio.",
+      "narration": "Warm air is the symptom. Refrigerant, compressor, or a clogged filter - the cause decides the fix. Nick's Tire and Auto.",
       "visualPrompt": "Wide shot of a garage service bay entrance, warm inviting light, slow dolly out.",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchFallback": ["auto repair garage bay wide shot", "car service bay interior"]

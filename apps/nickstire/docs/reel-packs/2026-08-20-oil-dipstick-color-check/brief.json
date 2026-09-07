@@ -44,7 +44,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Thirty seconds under the hood can save you thousands. Nick's Tire and Auto checks it free. Link in bio.",
+      "narration": "Thirty seconds under the hood tells you which of the three you're looking at.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

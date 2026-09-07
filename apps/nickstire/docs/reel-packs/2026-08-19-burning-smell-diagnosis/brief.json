@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Guessing costs you a tow. Nick's Tire and Auto will sniff it out, free. Link in bio.",
-      "onScreenText": "We'll sniff it out free. Link in bio.",
+      "narration": "Guessing costs you a tow. The smell tells you which system to look at.",
+      "onScreenText": "EACH SMELL POINTS AT A DIFFERENT SYSTEM.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

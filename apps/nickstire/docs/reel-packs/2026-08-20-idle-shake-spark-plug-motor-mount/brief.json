@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess. Nick's Tire and Auto checks it free. Link in bio.",
-      "onScreenText": "We check it free. Link in bio.",
+      "narration": "Don't guess. Park versus Drive is what tells the two apart.",
+      "onScreenText": "PARK VS DRIVE TELLS THEM APART.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

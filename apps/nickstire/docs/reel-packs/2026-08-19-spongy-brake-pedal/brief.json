@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 26,
-      "narration": "Don't wait on brakes. Nick's Tire and Auto checks your pedal feel free. Link in bio.",
-      "onScreenText": "We check pedal feel free. Link in bio.",
+      "narration": "Don't wait on brakes. The way the pedal feels narrows it to one of the three.",
+      "onScreenText": "Pedal feel narrows it down.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

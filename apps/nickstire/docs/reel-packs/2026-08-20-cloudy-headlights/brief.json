@@ -48,7 +48,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:23-0:29",
-      "narration": "Don't drive half-blind. Nick's Tire and Auto can take a look. Send this to someone whose headlights look foggy.",
+      "narration": "Don't drive half-blind. A new bulb won't clear a hazed lens.",
       "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, no people, no readable signage close enough to assert as a verified logo shot",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "fallbackStockSearch": ["auto repair shop garage bay interior open door"]
