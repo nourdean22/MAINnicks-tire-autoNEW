@@ -6,7 +6,7 @@
   "motionLenses": ["blueprint_technical", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "The wheel is straight. The car isn't. A pull has more than one cause, and they're not equally urgent. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just uneven tire pressure. Check pressure first. It's free, and it's often the answer. Worth checking before it becomes a bigger fix.",
   "hashtags": ["#wheelalignment", "#cartips", "#autorepair", "#clevelandohio"],
-  "voiceoverScript": "The wheel is straight. The car isn't. A pull like this has more than one cause. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment - or just tire pressure. Check pressure first. It's free, and it's often the answer. Changing pull, worth checking soon. Steady and mild can wait - but do not guess. Worth checking before it becomes a bigger fix. The pattern tells you which one it is.",
+  "voiceoverScript": "The wheel is straight, the car is not. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment, or just tire pressure. Check pressure first. It is quick, and often the answer. The pattern tells you which one it is, so do not guess.",
   "storyboardBeats": [
     {
       "beatNumber": 1,

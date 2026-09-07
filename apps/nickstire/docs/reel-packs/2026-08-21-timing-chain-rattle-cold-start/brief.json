@@ -19,7 +19,7 @@
       "name": "Hook",
       "startSec": 0,
       "endSec": 3,
-      "narration": "That rattle for the first few seconds after you start your car? Don't ignore it.",
+      "narration": "A rattle for the first few seconds after startup.",
       "prompt": "Close-up on a car's ignition switch and key at dawn in a cold driveway, frost visible on the windshield glass behind it; the key turns on its own to the start position, dash gauge needles sweep up and settle, no hands present.",
       "physicalAction": "key turning + gauge needle sweep"
     },
@@ -28,7 +28,7 @@
       "name": "Setup",
       "startSec": 3,
       "endSec": 8,
-      "narration": "It's a quick, metallic sound right at startup, and then it goes away once the engine warms up.",
+      "narration": "Metallic, and it fades as the engine warms up.",
       "prompt": "Object-only cutaway of an engine's timing cover area, a chain visibly slack against its guides in the first moment after startup, subtle vibration/rattle motion animated along the chain length; clean diagrammatic lighting, slow camera push-in, no text or labels rendered in-scene.",
       "physicalAction": "chain-slack vibration animation"
     },
@@ -37,7 +37,7 @@
       "name": "Explanation",
       "startSec": 8,
       "endSec": 15,
-      "narration": "That pattern can point to a stretched timing chain or worn guides not getting oil pressure fast enough.",
+      "narration": "That pattern can point to a stretched timing chain or worn guides.",
       "prompt": "Object-only technical cutaway continuing from beat 2, an oil pressure line filling and a hydraulic tensioner arm slowly extending to take up the chain's slack, the rattle-motion animation visibly settling and stopping as the tensioner reaches full extension; clean diagrammatic lighting.",
       "physicalAction": "tensioner arm extending, rattle animation damping out"
     },
@@ -46,7 +46,7 @@
       "name": "Consequence",
       "startSec": 15,
       "endSec": 21,
-      "narration": "It's more noticeable on cold mornings, when the oil is thicker and takes longer to build pressure.",
+      "narration": "Cold oil is thick and takes longer to build pressure.",
       "prompt": "Close-up on an analog oil-temperature gauge needle on a dashboard, needle slowly climbing from cold (blue zone) toward normal operating range (mid zone), frost on the windshield visible behind it fading/melting slightly with time-lapse motion; no hands present.",
       "physicalAction": "gauge needle climb + frost-melt time-lapse"
     },
@@ -55,7 +55,7 @@
       "name": "Safe action",
       "startSec": 21,
       "endSec": 26,
-      "narration": "One clue is not a diagnosis — worth checking before it gets louder.",
+      "narration": "One clue, not a verdict.",
       "prompt": "A shop inspection light on a stand sweeps its beam across an engine's timing cover from outside, illuminating the cover bolts and gasket seam — no hands present, the light beam itself is the only motion besides a slow rack-focus.",
       "physicalAction": "light-beam sweep + rack-focus"
     },
@@ -64,7 +64,7 @@
       "name": "Branded CTA",
       "startSec": 26,
       "endSec": 30,
-      "narration": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue.",
+      "narration": "Worth checking before it gets louder.",
       "prompt": "Exterior establishing shot of Nick's Tire & Auto's shop bay, engine timing-cover gasket and chain-tensioner parts neatly arranged on a service cart in the foreground, early-morning light, logo signage visible and legible; camera holds steady for a clean end-card composite.",
       "physicalAction": "static hold, camera-steady establishing shot"
     }

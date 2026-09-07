@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Smell gas inside your car? The way it shows up is one clue to why.",
+      "narration": "Smell gas inside the car?",
       "onScreenText": "GAS SMELL AT IDLE IS A DIFFERENT PROBLEM.",
       "visual": "Close-up static shot of a car's fuel gauge on the instrument cluster, needle near full, subtle slow push-in, warm daylight through windshield, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Only smell it right after fueling up? That can point to a loose gas cap.",
+      "narration": "Only after fueling? That can point to a loose cap.",
       "onScreenText": "Only right after fueling up?",
       "visual": "Extreme close-up of a gas cap and open fuel filler door on the exterior of a car, static camera with slight handheld drift, daylight, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Smell it while idling or parked? That may indicate a small fuel-line or EVAP leak.",
+      "narration": "Idling or parked? Worth checking fuel lines and EVAP.",
       "onScreenText": "Smell it idling or parked?",
       "visual": "Close-up of a car engine bay near the fuel-line area, static camera with subtle vibration to imply an idling engine, dim garage lighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Smell gets stronger while you're driving? Pull over — worth checking before you go further.",
+      "narration": "Stronger while driving? Pull over somewhere safe.",
       "onScreenText": "Getting stronger while driving?",
       "visual": "Dashboard shot from driver's-seat POV of a car pulling onto a road shoulder, hazard-light glow reflecting on the dash, slow motion implied by blurred passing roadside motion, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess with a fuel smell. When it shows up is what narrows it down.",
+      "narration": "When it shows up narrows it down.",
       "onScreenText": "WHEN IT SHOWS UP IS THE CLUE.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

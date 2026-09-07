@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your brake pedal suddenly feels like a rock, and there's no warning light on.",
+      "narration": "The pedal feels like a rock, no warning light.",
       "visualPrompt": "Close-up shot of a car brake pedal from the driver footwell, low angle, dim cabin light, slow push-in toward the pedal",
       "stockSearchTerms": ["car brake pedal closeup footwell", "brake pedal interior car dark"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's usually not the brakes themselves. It's the vacuum booster losing its assist.",
+      "narration": "That can point to the vacuum booster.",
       "visualPrompt": "Macro shot of a brake booster canister under the hood, matte black dome shape, engine bay in soft focus behind it, static camera",
       "stockSearchTerms": ["brake booster under hood macro", "vacuum brake booster engine bay closeup"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The booster uses engine vacuum to multiply your leg force. A cracked hose or a failing check valve breaks that seal, and suddenly you're pushing the pedal on your own.",
+      "narration": "Engine vacuum multiplies your leg force.",
       "visualPrompt": "Extreme macro of a rubber vacuum hose fitting near the booster check valve, visible surface cracking, slow orbital camera move, dim garage light",
       "stockSearchTerms": ["cracked vacuum hose engine macro", "brake booster check valve closeup"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "A quick check: with the engine off, pump the pedal a few times, then hold it down and start the car. It should drop slightly if the booster's working.",
+      "narration": "Engine off, pump the pedal, hold it, then start the car.",
       "visualPrompt": "Static wide-to-medium shot of a driver footwell and lower dash from outside the open car door, ambient daylight, no hands or people visible",
       "stockSearchTerms": ["car footwell open door daylight", "car interior dashboard lower angle empty"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "If it doesn't drop, don't wait on it. Nick's Tire and Auto checks the booster and vacuum lines free with a brake inspection.",
+      "narration": "A working booster drops the pedal slightly.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

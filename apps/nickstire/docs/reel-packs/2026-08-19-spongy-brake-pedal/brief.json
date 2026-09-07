@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Brake pedal feels different than it used to? That's not nothing.",
+      "narration": "Brake pedal feel changed?",
       "onScreenText": "Soft, sinking, low. Three different problems.",
       "visual": "Close-up static shot of a car brake pedal from the driver footwell, engine off, parked in a driveway at dusk, slow creeping camera push-in, moody blue-hour lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Pedal sinks slowly toward the floor while you're stopped? That can point to air in the lines.",
+      "narration": "Sinks at a stop? Can point to air in the lines.",
       "onScreenText": "Pedal sinks slowly while stopped?",
       "visual": "Close-up of a brake pedal slowly descending toward the floor while the car is stationary, shallow focus, slight camera drift, dim interior lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Pedal feels soft every time you press it? Worth checking the fluid and lines for a leak.",
+      "narration": "Soft every press? Worth checking for a leak.",
       "onScreenText": "Soft pedal every time?",
       "visual": "Close-up of a brake fluid reservoir under the hood, cap slightly reflecting daylight, static camera with subtle vibration, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Pedal travels almost to the floor before it grabs? That may indicate the master cylinder.",
+      "narration": "Almost to the floor before it grabs? May indicate the master cylinder.",
       "onScreenText": "Pedal near the floor before it grabs?",
       "visual": "Close-up of a brake pedal pressed low, near the floor of the footwell, dim garage lighting, slow dolly-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 26,
-      "narration": "Don't wait on brakes. The way the pedal feels narrows it to one of the three.",
+      "narration": "Do not guess on brakes.",
       "onScreenText": "Pedal feel narrows it down.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

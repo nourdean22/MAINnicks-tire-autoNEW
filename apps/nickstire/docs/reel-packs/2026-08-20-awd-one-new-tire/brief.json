@@ -11,7 +11,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 5,
-      "narration": "Buying one new tire for an all-wheel-drive car? Worth checking the other three first.",
+      "narration": "Buying one new tire for all-wheel drive?",
       "onScreenText": "A new tire is taller than your other three.",
       "visual": "Low-angle macro dolly gliding across a polished concrete shop floor toward four tires standing upright in a row: one is visibly brand new with deep sharp tread, the other three are worn smooth. Shallow depth of field, cool overhead shop lighting, slow continuous forward camera movement, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -21,7 +21,7 @@
       "label": "SETUP",
       "startSecond": 5,
       "endSecond": 12,
-      "narration": "All-wheel drive works by keeping all four tires turning at nearly the same rate. Deeper tread means a bigger tire.",
+      "narration": "All four have to turn at nearly the same rate.",
       "onScreenText": "AWD needs all four tires turning at nearly the same rate",
       "visual": "Underbody tracking shot beneath a car on a lift: a rotating driveshaft spinning toward a rear differential housing, metal catching hard rim light, camera sliding forward along the shaft, oily mechanical detail, shallow focus, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -31,7 +31,7 @@
       "label": "VALUE",
       "startSecond": 12,
       "endSecond": 19,
-      "narration": "One taller tire turns slower than the other three. That difference can put constant strain on the drivetrain.",
+      "narration": "Deeper tread means a bigger tire, turning slower.",
       "onScreenText": "One taller tire turns slower than the other three",
       "visual": "Extreme macro of two tire treads side by side rotating slowly on a turntable — the left with deep sharp-edged grooves, the right shallow and rounded off — hard directional rim light raking across the rubber, continuous rotation, dark background, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -41,7 +41,7 @@
       "label": "VALUE",
       "startSecond": 19,
       "endSecond": 25,
-      "narration": "Most all-wheel-drive owner's manuals list a maximum tread-depth difference. One clue: measure all four, not just the flat one.",
+      "narration": "That difference strains the drivetrain.",
       "onScreenText": "One clue: measure all four, not just the flat one",
       "visual": "Macro of a metal tread-depth gauge probe descending into a tire groove, tool only with no hand present, slow vertical motion, then a slow orbit continuing around the wheels of a car raised on a lift, cool garage lighting, shallow focus, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -51,7 +51,7 @@
       "label": "CTA",
       "startSecond": 25,
       "endSecond": 30,
-      "narration": "Don't guess. On all-wheel drive, the other three tires decide the answer.",
+      "narration": "Measure all four, not just the flat one.",
       "onScreenText": "Nick's Tire & Auto · Euclid Ave, Cleveland",
       "visual": "Slow forward dolly through a clean tire shop bay toward a rack of four tires standing upright in a row, bay door open to daylight behind them, warm inviting light, camera settling on the row of four at the same low framing the reel opened on, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

@@ -17,7 +17,7 @@
       "role": "hook",
       "startSec": 0,
       "endSec": 4,
-      "vo": "Water dripping from your headliner after it rains? Might not be a roof leak.",
+      "vo": "Water dripping from the headliner after rain?",
       "prompt": "macro slow motion water droplet forming and falling from a car headliner seam onto a fabric car seat, interior car cabin, soft window light, shallow depth of field, cinematic, photorealistic"
     },
     {
@@ -25,7 +25,7 @@
       "role": "context",
       "startSec": 4,
       "endSec": 9,
-      "vo": "Most sunroofs have four drain tubes that carry rainwater down through the pillars.",
+      "vo": "Most sunroofs have four drain tubes running down the pillars.",
       "prompt": "close up exterior shot of car sunroof glass panel, rain droplets beading and running toward the front corner drain channel, wet reflective glass, overcast daylight, photorealistic"
     },
     {
@@ -33,7 +33,7 @@
       "role": "mechanism",
       "startSec": 9,
       "endSec": 14,
-      "vo": "Leaves and dirt can clog one, so water backs up instead of draining out.",
+      "vo": "Leaves clog one, and water backs up.",
       "prompt": "extreme close up of a narrow plastic drain tube opening inside a car door pillar, partially clogged with small leaf debris and dirt, water pooling against the blockage, macro detail, photorealistic"
     },
     {
@@ -41,7 +41,7 @@
       "role": "symptom",
       "startSec": 14,
       "endSec": 19,
-      "vo": "That backup finds the easiest way in — usually the headliner or a rear pillar.",
+      "vo": "It finds the easiest way in: the headliner.",
       "prompt": "interior car cabin, water beading and dripping from a headliner corner trim piece onto a car seat cushion, a small dark water spot spreading on the carpet below, moody interior lighting, photorealistic"
     },
     {
@@ -49,7 +49,7 @@
       "role": "diagnostic_clue",
       "startSec": 19,
       "endSec": 24,
-      "vo": "One clue: it usually only happens after rain or a car wash — not all the time.",
+      "vo": "One clue: only after rain or a car wash.",
       "prompt": "close up of a small flexible plastic pick tool clearing leaf debris from a car drain tube opening with no hands or human figures visible, water then flowing freely through the cleared tube, macro detail, photorealistic"
     },
     {
@@ -57,7 +57,7 @@
       "role": "resolution",
       "startSec": 24,
       "endSec": 27,
-      "vo": "Worth checking before you assume it's a full roof leak.",
+      "vo": "Worth checking before you assume a roof leak.",
       "prompt": "wide shot of a clean dry car sunroof track and headliner interior, cut to water flowing clearly out of a drain tube exit under the vehicle rocker panel onto pavement, photorealistic, cinematic"
     },
     {
@@ -65,7 +65,7 @@
       "role": "cta_save_freeze",
       "startSec": 27,
       "endSec": 33,
-      "vo": "Stop by and we'll take a look.",
+      "vo": "Clearing a drain beats chasing a seal.",
       "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame"
     }
   ],

@@ -9,7 +9,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
-      "narration": "Your fuel gauge says empty right after you filled up, or it bounces around while you drive.",
+      "narration": "Gauge reads empty after a fill, or bounces while driving.",
       "visualPrompt": "Macro shot, dashboard fuel gauge cluster, needle sitting near empty, subtle backlight glow, slow push-in, no hands or driver visible, shallow depth of field",
       "stockSearchTerms": ["car fuel gauge dashboard closeup", "dashboard needle empty macro"]
     },
@@ -17,7 +17,7 @@
       "index": 2,
       "role": "SETUP",
       "window": "0:04-0:09",
-      "narration": "That's usually not the tank. It's the sending unit, the float that tells the gauge how much fuel is left.",
+      "narration": "That points to the sending unit, not the tank.",
       "visualPrompt": "Cutaway-style macro shot of a fuel tank sending unit assembly on a workbench, float arm and resistor strip visible, static locked shot with subtle rack-focus shift, no hands",
       "stockSearchTerms": ["fuel sending unit float arm", "fuel pump module resistor strip"]
     },
@@ -25,7 +25,7 @@
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:18",
-      "narration": "Inside the tank, a float rides the fuel level and moves a resistor. Years of fuel and vibration wear down that resistor's contact points, so the signal skips or reads wrong.",
+      "narration": "A float moves a resistor whose contacts wear.",
       "visualPrompt": "Close macro orbit around the sending unit's resistor strip and float arm, slight worn/oxidized texture visible on contact points, slow orbital camera move, no hands or text",
       "stockSearchTerms": ["fuel sender resistor wear closeup", "fuel float arm mechanism macro"]
     },
@@ -33,7 +33,7 @@
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
-      "narration": "A quick check: if the needle jumps when you hit a bump or take a turn, that's the sending unit talking, not a tank problem.",
+      "narration": "A needle that jumps over bumps is one clue.",
       "visualPrompt": "Macro shot of dashboard fuel needle mid-flutter, subtle vibration blur on the needle, car interior softly lit, no hands, no on-screen text",
       "stockSearchTerms": ["fuel needle flutter dashboard", "car gauge cluster vibration macro"]
     },
@@ -41,7 +41,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:29",
-      "narration": "Don't just live with guessing your fuel level. Nick's Tire and Auto can check the sending unit and confirm it before you're stuck guessing at the pump.",
+      "narration": "Worth checking before you guess.",
       "visualPrompt": "Wide, warm-lit shot of a shop garage bay entrance, clean and inviting, static locked shot with subtle ambient depth-of-field breathing, no faces or logos",
       "stockSearchTerms": ["auto repair shop garage bay wide", "tire shop entrance warm light"]
     }

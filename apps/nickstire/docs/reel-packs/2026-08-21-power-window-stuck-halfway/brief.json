@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your window stopped halfway down and now it won't move at all.",
+      "narration": "Your window stopped halfway and will not move.",
       "visualPrompt": "Macro shot of a car door window glass frozen halfway in its track, shallow depth of field, slow camera push-in, neutral daylight through the glass",
       "stockSearchTerms": ["car window stuck halfway closeup", "car door window track macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "Press the button and listen. A motor that hums but the glass doesn't move means a snapped cable.",
+      "narration": "Press the button and listen.",
       "visualPrompt": "Close-up of a finger-free view of a door panel window switch under interior ambient light, static camera, clean shop interior background",
       "stockSearchTerms": ["car window switch closeup interior", "power window control panel macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "Total silence, no hum at all, usually points to a dead window motor or a blown fuse instead.",
+      "narration": "A hum with no movement can point to a snapped regulator cable.",
       "visualPrompt": "Extreme macro of a fuse box panel with one fuse partially pulled, slow orbital camera move, dim garage light",
       "stockSearchTerms": ["car fuse box closeup", "blown fuse macro shop light"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
-      "narration": "Either way, don't force the glass by hand - that can crack the track or the door panel clips.",
+      "narration": "Silence points more toward a dead motor or blown fuse.",
       "visualPrompt": "Wide-to-macro rack focus shot starting on a full car door panel and pulling focus to the window track edge, neutral shop lighting",
       "stockSearchTerms": ["car door panel to window track focus pull", "car door interior closeup garage"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Nick's Tire and Auto can diagnose it in minutes. Link in bio.",
+      "narration": "Do not force the glass by hand.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

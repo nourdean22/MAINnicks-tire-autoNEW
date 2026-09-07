@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your oil pressure light just flickered at a stoplight, then went off.",
+      "narration": "Oil pressure light flickers at idle, then goes off.",
       "visualPrompt": "Macro shot of an instrument cluster with the oil-can warning icon flickering on and off, shallow depth of field, slow push-in, dim cabin lighting at dusk",
       "stockSearchTerms": ["oil pressure warning light dashboard closeup", "car oil can icon dashboard flicker macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That flicker matters more than you'd think. A light that stays solid usually means shut off now.",
+      "narration": "A solid light means shut it off. A flicker counts.",
       "visualPrompt": "Close-up of an analog oil pressure gauge needle dropping toward the low end, static camera, dim engine-bay ambient light reflecting off the glass",
       "stockSearchTerms": ["oil pressure gauge needle closeup", "car gauge cluster low pressure macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "Low oil level is the first thing to check, but a worn oil pressure sending unit can point to this too.",
+      "narration": "Check the oil level. A worn sending unit can do this.",
       "visualPrompt": "Top-down macro of an open engine bay, oil filler cap removed resting beside the opening, then rack focus to a small sensor unit threaded into the engine block with a faint oil sheen around its base, garage lighting",
       "stockSearchTerms": ["engine bay oil filler cap open closeup", "oil pressure sending unit engine block macro"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
-      "narration": "Either way, don't keep driving on it. Low oil pressure can wreck bearings in minutes, not miles.",
+      "narration": "Either way, do not keep driving.",
       "visualPrompt": "Slow orbital pull-back from a close engine valve-cover shot to a wider view of the engine bay, neutral shop lighting shifting slightly warmer to signal urgency, no motion blur cuts",
       "stockSearchTerms": ["engine bay orbital shot garage", "car engine closeup pull back shop lighting"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Nick's Tire and Auto can check your level and the sensor same day. Link in bio.",
+      "narration": "Low oil pressure wears bearings.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight, slow push-in that ends on a close-up of a dashboard cluster with the oil-can icon fading to off, mirroring beat 1's opening frame",
       "stockSearchTerms": ["auto repair shop garage bay interior open door", "dashboard warning light fading off closeup"]
     }

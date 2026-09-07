@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Same light, different color? That's one clue to what you do next.",
+      "narration": "Same light, different color, different answer.",
       "onScreenText": "Not all warning lights mean the same thing.",
       "visual": "Extreme close-up of an illuminated amber dashboard warning icon, softly pulsing, dim car interior lighting at dusk, shallow depth of field, slow static hold, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Amber or yellow? Worth checking soon — no need to pull over yet.",
+      "narration": "Amber or yellow means worth checking soon.",
       "onScreenText": "Amber = worth checking soon",
       "visual": "Close-up of a dashboard instrument cluster with an amber icon glowing steady, ambient interior light, slow static hold, subtle lens breathing, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Red? That can point to something serious — pull over safely and shut it off.",
+      "narration": "Red means pull over safely and shut it off.",
       "onScreenText": "Red = pull over now",
       "visual": "Extreme close-up of a red dashboard warning icon glowing intensely, brief slow camera push-in, high-contrast interior lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Flashing instead of solid? That often means don't keep driving on it.",
+      "narration": "Flashing instead of solid? Don't keep driving on it.",
       "onScreenText": "Flashing = stop driving",
       "visual": "Close-up of a dashboard icon flickering rapidly on and off, dim cabin lighting, subtle handheld micro-movement, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess which light you're looking at. The color tells you how fast to move.",
+      "narration": "The color tells you how fast to move.",
       "onScreenText": "We'll read it for you, free.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a diagnostic scanner screen glowing near the foreground echoing beat 1's glowing-icon close-up, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

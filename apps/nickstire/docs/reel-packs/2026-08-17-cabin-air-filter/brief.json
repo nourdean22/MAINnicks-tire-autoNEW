@@ -5,7 +5,7 @@
   "motionLenses": ["cabin_interior_heat_haze", "product_teardown_macro"],
   "selectedCaption": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine — that's not your problem. The cabin filter cleans the air coming through your vents, and it's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. Often a ten-minute swap. Worth checking before you blame the AC system.",
   "hashtags": ["#cartips", "#carmaintenance", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine. That one's not your problem. The cabin filter cleans the air coming through your vents - and this one's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. It's often a ten-minute swap, commonly right behind the glovebox. Worth checking before you blame the AC system. Nick's Tire and Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Vents on full and still not cold? Your car has two air filters. The engine one gets all the attention. The cabin filter cleans the air through your vents, and that one gets caked. Clogged, it chokes the airflow, so even good AC feels weak. It sits behind the glovebox. Worth checking before you blame the AC.",
   "storyboardBeats": [
     {
       "beatNumber": 1,

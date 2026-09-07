@@ -51,7 +51,7 @@
       "endSec": 3,
       "shot": "Close-up on an SUV's transfer case housing between the front and rear driveshafts, sunlight, subtle idle vibration",
       "prompt": "macro close up shot of a car transfer case housing between the front and rear driveshafts on the underside of an SUV, sunlight catching the metal casing, subtle engine idle vibration, shallow depth of field, photorealistic",
-      "vo": "Your 4WD or AWD binding up in tight turns? That's probably not your tires."
+      "vo": "4WD binding in tight turns is probably not the tires."
     },
     {
       "index": 2,
@@ -59,7 +59,7 @@
       "endSec": 8,
       "shot": "Bird's-eye drone shot of an SUV tracing a tight, complete circle in an empty parking lot at full lock",
       "prompt": "bird's eye drone style shot of an SUV slowly tracing a tight complete circle in an empty parking lot at full steering lock, tire contact patches visibly scrubbing sideways against dry pavement, photorealistic",
-      "vo": "A shudder, hop, or binding feeling in a slow, tight turn — usually noticed in a parking lot or driveway on dry pavement."
+      "vo": "A shudder or hop in a slow turn on dry pavement."
     },
     {
       "index": 3,
@@ -67,7 +67,7 @@
       "endSec": 14,
       "shot": "Object-only cutaway of a transfer case gear-and-chain assembly, front and rear output shafts rotating at slightly different speeds",
       "prompt": "object only technical cutaway of an open car transfer case gear and chain assembly, front and rear output shafts rotating at slightly different speeds, clean diagrammatic lighting, slow orbiting camera move, no text or labels, photorealistic",
-      "vo": "That points to your transfer case or center differential — the part that lets all four wheels travel different paths in a turn."
+      "vo": "That can point to the transfer case or center differential."
     },
     {
       "index": 4,
@@ -75,7 +75,7 @@
       "endSec": 20,
       "shot": "Two dishes side by side, clean amber gear oil vs. dark metal-flecked gear oil, slow rack-focus",
       "prompt": "close up comparison of two shallow dishes side by side under even studio light, one holding clean amber gear oil, the other holding dark metal fleck flecked gear oil, slow rack focus between them, no hands present, photorealistic",
-      "vo": "Old or low transfer case fluid can make that binding worse, and pushing through it again and again wears the drivetrain faster."
+      "vo": "It lets the wheels travel different distances in a turn."
     },
     {
       "index": 5,
@@ -83,7 +83,7 @@
       "endSec": 26,
       "shot": "Shop inspection light sweeping across a transfer case fill-plug bolt with a faint oil weep line",
       "prompt": "a shop inspection light on a stand sweeps its beam across a car transfer case housing fill plug bolt, threads and a faint oil weep line visible under the light, no hands present, slow rack focus, photorealistic",
-      "vo": "One clue is not a diagnosis — worth having the transfer case fluid checked before a tight parking lot turn becomes a bigger repair."
+      "vo": "Old or low fluid makes the bind worse."
     },
     {
       "index": 6,
@@ -92,7 +92,7 @@
       "endSec": 34,
       "shot": "Exterior establishing shot of the shop bay, tire stack in foreground, logo signage visible; static hold for the final 3s end card",
       "prompt": "exterior establishing shot of an automotive shop bay, tire stack in foreground, late afternoon light, logo signage visible and legible, camera holds steady, photorealistic",
-      "vo": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue."
+      "vo": "Worth checking."
     }
   ],
   "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",

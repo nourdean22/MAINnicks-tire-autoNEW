@@ -5,7 +5,7 @@
   "motionLenses": ["forensic_evidence_scan", "product_ad_macro"],
   "selectedCaption": "You didn't run over anything. That warning light isn't damage — it's the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire. That's why the light shows up on the first cold Cleveland morning, out of nowhere. Warm tires read high and hide the real number. Check the pressure cold, before you drive. Worth checking before that first frost.",
   "hashtags": ["#tirepressure", "#ohioweather", "#cartips", "#clevelandohio"],
-  "voiceoverScript": "You didn't run over anything. That warning light isn't damage - it's the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire. That's why the light shows up on the first cold Cleveland morning - out of nowhere. Warm tires read high and hide the real number. Check the pressure cold, before you drive - that's the number that counts. Worth checking before that first frost. The first cold snap does this every year. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "You did not run over anything. That light is the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire, so it shows up on the first cold Cleveland morning. Warm tires read high and hide the real number. Check them cold, before you drive. The first frost does this every year.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
