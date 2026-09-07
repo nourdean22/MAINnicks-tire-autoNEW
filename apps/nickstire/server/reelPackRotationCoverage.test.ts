@@ -18,10 +18,28 @@
  * is survivable specifically because a terminally-refused pack now advances the
  * cursor past itself (089823177) — a repost that slips into the rotation ejects
  * itself on first attempt instead of jamming it.
+ *
+ * REACHABLE IS NOT THE SAME AS SHIPPABLE — review P1 on #2169, and the number
+ * it corrects was mine. "The builder accepts it" was used as the definition of
+ * usable, and a count built on it (50) was reported as shippable. The real
+ * pre-spend gate is `runReelPreflight`, which is strictly stronger, and through
+ * it the honest count is **2 of 99**. Same defect shape as the one in the
+ * header: a weaker instrument reporting a clean result was mistaken for the
+ * strong one passing.
+ *
+ * Both properties are now asserted, separately, because they fail for different
+ * reasons and want different fixes:
+ *   · REACHABILITY — is a usable pack wired into the rotation at all? (a code
+ *     defect; fixed by editing the array)
+ *   · ENQUEUEABILITY — would preflight let it reserve paid generation? (a
+ *     CONTENT defect; fixed by editing briefs)
+ * A pack can be perfectly reachable and still never spend a credit. Until this
+ * ran, nothing in the repo could tell those two apart.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runReelPreflight } from "../client/src/lib/facelessReelStudio";
 import {
   APPROVED_REEL_PACK_SLUGS,
   ROTATION_EXCLUDED,
@@ -110,5 +128,82 @@ describe("the rotation array's own invariants", () => {
 
   it("grew — 32 was the stalled state, not the intended one", () => {
     expect(APPROVED_REEL_PACK_SLUGS.length).toBeGreaterThan(90);
+  });
+});
+
+/**
+ * RATCHET. Measured 2026-09-07 against the real `runReelPreflight`: 2 of the 99
+ * rotating packs would clear the pre-spend gate. Raise this as briefs are
+ * fixed; never lower it. A drop means a brief edit broke a pack that used to
+ * ship, which is precisely the regression no other test in this repo can see.
+ */
+const PREFLIGHT_PASSING_FLOOR = 2;
+
+/** Packs that clear the REAL pre-spend gate, not merely the builder. */
+function preflightVerdicts() {
+  const passing: string[] = [];
+  const blockers = new Map<string, number>();
+  for (const slug of APPROVED_REEL_PACK_SLUGS) {
+    const brief = buildApprovedPackBriefForTest(slug);
+    if (!brief) continue;
+    const report = runReelPreflight(brief);
+    if (report.status === "pass") {
+      passing.push(slug);
+      continue;
+    }
+    for (const f of report.blocking) {
+      // Normalise the varying parts so the histogram groups by CAUSE, not by
+      // the particular second or beat number that tripped it.
+      const key = f.message
+        .replace(/beat \d+/gi, "beat N")
+        .replace(/\d+(\.\d+)?s/g, "Ns")
+        .replace(/\d+/g, "N")
+        .slice(0, 80);
+      blockers.set(key, (blockers.get(key) ?? 0) + 1);
+    }
+  }
+  return { passing, blockers };
+}
+
+describe("reachable is not shippable — the pre-spend gate is the real one", () => {
+  it("at least the measured number of packs still clears preflight", () => {
+    const { passing, blockers } = preflightVerdicts();
+    const histogram = [...blockers.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([reason, n]) => `  ${String(n).padStart(3)}x  ${reason}`)
+      .join("\n");
+    expect(
+      passing.length,
+      `${passing.length} of ${APPROVED_REEL_PACK_SLUGS.length} rotating packs clear ` +
+        `runReelPreflight (floor ${PREFLIGHT_PASSING_FLOOR}).\n` +
+        `Passing: ${passing.join(", ") || "(none)"}\n` +
+        `Blocking causes, by pack count:\n${histogram}\n` +
+        `If you FIXED briefs, raise PREFLIGHT_PASSING_FLOOR. If this DROPPED, a ` +
+        `brief edit broke a pack that used to ship.`,
+    ).toBeGreaterThanOrEqual(PREFLIGHT_PASSING_FLOOR);
+  });
+
+  it("the preflight actually ran — a silent zero would look identical to a clean sweep", () => {
+    // The instrument must be shown to FIRE. If every brief were unbuildable,
+    // `passing` and `blockers` would both be empty and the assertion above
+    // would still pass on the floor being 0-ish. Pin that both halves have
+    // content: some packs pass, and the rest fail for stated reasons.
+    const { passing, blockers } = preflightVerdicts();
+    expect(passing.length, "no pack passes — the gate is measuring nothing").toBeGreaterThan(0);
+    expect(blockers.size, "no pack fails — implausible, so the probe is not reading").toBeGreaterThan(0);
+  });
+
+  it("canary — preflight really would refuse a defective brief", () => {
+    // Positive control for the assertions above. Take a pack that PASSES today
+    // and break one rule; preflight must flip to "block". Without this, a
+    // preflight that returned "pass" unconditionally would score green.
+    const { passing } = preflightVerdicts();
+    const good = buildApprovedPackBriefForTest(passing[0]);
+    expect(good, "the ratchet names a pack the builder cannot build").not.toBeNull();
+    expect(runReelPreflight(good!).status).toBe("pass");
+    const broken = { ...good!, mechanicTruth: "   " };
+    const verdict = runReelPreflight(broken);
+    expect(verdict.status, "preflight passed a brief with no mechanic truth").toBe("block");
+    expect(verdict.blocking.some((f) => /mechanic truth/i.test(f.message))).toBe(true);
   });
 });
