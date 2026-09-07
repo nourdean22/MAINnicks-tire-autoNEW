@@ -7,6 +7,16 @@ routine disabled. Prior arc 2026-09-03 below.)
 
 ## 2026-09-07 (evening) · quality program — 16 public-site/admin fixes, one document
 
+**PR #2173** (this branch) · **AGENTS.md rules PR #2176 MERGED `80c2b5d37`** ("No early exits" + "write the
+if-this-then-that branches before starting; a branch that does not land is a hard block"). Three traps this
+PR's CI taught, all green-locally/red-in-CI: (1) inside `app.use("*")` `req.path` is "/" — a catch-all keyed on
+it never fires; test THROUGH the mount; (2) the knip orphan gate counts a test-only export as an orphan — keep
+policy lists private and pin them as literals in the test; (3) an earlier file's `global.fetch = vi.fn()` leaks
+into later files in the serial suite — probe a local server with `node:http`, never global `fetch`. Also:
+`git add` on the gitignored-but-tracked `.remember/now.md` exits 1 and silently aborts a `&&` chain.
+The prerendered snapshots were refreshed IN the PR via `workflow_dispatch` of `prerender-refresh.yml` on the
+branch (the reviewer's P2), so the schema/og:image fixes reach crawlers with the deploy.
+
 Full write-up: `docs/QUALITY-PROGRAM-2026-09-07.md` (answer first, fact-check of two outside reports,
 the five Phase 1 slices against the code, design system, ordered SEO/AI list, gates, coverage matrix,
 SEND-TO-THE-CODING-AGENT block). **Reel files were deliberately untouched** — a sibling session owned
