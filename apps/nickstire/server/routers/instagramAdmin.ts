@@ -1116,6 +1116,17 @@ Keep it under 200 characters.`;
       expectedCaptionSha: z.string().length(64),
       expectedVideoUrl: z.string().min(1),
       note: z.string().max(500).optional(),
+      /**
+       * DELIVERY ELIGIBILITY (0118). Optional: omit both and behaviour is
+       * exactly as before — the rolling 72h TTL governs.
+       *
+       * Supplying them means the operator authorized a SPECIFIC SLOT they were
+       * shown, which suppresses the TTL. That is the only way to approve today
+       * for a date more than 72h out; without it such an approval expires
+       * before its own slot. A window says ALLOWED DURING, never DUE AT.
+       */
+      publishWindowStartISO: z.string().datetime().nullable().optional(),
+      publishWindowEndISO: z.string().datetime().nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // Same standard as approveDraft: no fallback approver. An unattributed
@@ -1134,6 +1145,8 @@ Keep it under 200 characters.`;
           expectedCaptionSha: input.expectedCaptionSha,
           expectedVideoUrl: input.expectedVideoUrl,
           note: input.note,
+          publishWindowStart: input.publishWindowStartISO ? new Date(input.publishWindowStartISO) : null,
+          publishWindowEnd: input.publishWindowEndISO ? new Date(input.publishWindowEndISO) : null,
         });
         log.info("reel publish approval recorded", {
           jobId: input.jobId, approvalId: res.approvalId, by: `admin:${ctx.user.id}`,
