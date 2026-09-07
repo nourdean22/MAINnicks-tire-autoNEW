@@ -63,8 +63,11 @@ export const MAX_CLIP_SECONDS: number = REEL_OUTPUT_RULES.maxClipSeconds;
 const MIN_BEAT_SECONDS = 0.8;
 const DEFAULT_BEAT_SECONDS = 3;
 /** Phase 3.1 save-payload: hold the final frame this long. The overlay text is
- *  no longer built here — it comes from the declared ask (shared/reelAsk.ts). */
-export const SAVE_FREEZE_SECONDS = 3;
+ *  no longer built here — it comes from the declared ask (shared/reelAsk.ts).
+ *
+ *  Re-exported, not redeclared: the preflight voiceover gate has to budget
+ *  against `beats + this`, because that is what the voice track is trimmed to. */
+export const SAVE_FREEZE_SECONDS: number = REEL_OUTPUT_RULES.saveFreezeSeconds;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 

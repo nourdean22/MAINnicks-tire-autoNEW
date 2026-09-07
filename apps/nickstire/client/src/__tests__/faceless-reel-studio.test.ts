@@ -261,7 +261,13 @@ describe("prompt engine", () => {
   it("voiceover is a HARD requirement (three straight briefs shipped silent while it was optional)", () => {
     const p = buildFacelessReelSystemPrompt({ mode: "asset_prep", factBucket: "myth_buster" });
     expect(p).toContain("voiceoverScript is REQUIRED and must not be empty");
-    expect(p).toContain("38-48 words");
+    // The fixed 38-48 range is GONE (review P2 on #2171): it conflicted with the
+    // preflight gate, which budgets against the RENDERED video. A 4-beat reel's
+    // budget is below the old 38-word minimum, so the contract demanded
+    // something no legal 4-beat brief could satisfy. The prompt now states a
+    // per-beat-count budget instead.
+    expect(p).toContain("WORD BUDGET IS A FUNCTION OF YOUR BEAT COUNT");
+    expect(p).toMatch(/- \d+ beats -> \d+s of video -> \d+ words/);
     expect(p).not.toContain("optional VO");
   });
 

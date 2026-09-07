@@ -74,6 +74,32 @@ const listOf = (record: Record<string, { label: string; essence: string }>) =>
     .map(([key, v]) => `- ${key}: ${v.label} — ${v.essence}`)
     .join("\n");
 
+/**
+ * Words a voiceover may carry, per legal beat count — review P2 on #2171.
+ *
+ * The prompt used to state a FIXED "38-48 words" while the preflight gate
+ * budgets against the RENDERED video, which is `beats x maxClipSeconds`. Those
+ * disagreed: a 5-beat reel renders 20s and allows ~42 words, so the prompt was
+ * inviting 43-48-word scripts that preflight would then refuse — model output
+ * that satisfied every stated hard contract, burned a regeneration attempt, and
+ * could exhaust the day's attempts. A 4-beat reel was worse: its budget is
+ * below the old 38-word MINIMUM, so the contract demanded something no legal
+ * 4-beat brief could satisfy.
+ *
+ * Derived from the same constants the gate uses, minus a 3-word cushion for the
+ * sentence breaks the synthesizer inserts.
+ */
+const VOICEOVER_WORD_BUDGET_TABLE = Array.from(
+  { length: REEL_OUTPUT_RULES.maxBeats - REEL_OUTPUT_RULES.minBeats + 1 },
+  (_, i) => REEL_OUTPUT_RULES.minBeats + i,
+)
+  .map((n) => {
+    const seconds = n * REEL_OUTPUT_RULES.maxClipSeconds;
+    const words = Math.floor(seconds * 2.2 * 0.97) - 3;
+    return `    - ${n} beats -> ${seconds}s of video -> ${words} words`;
+  })
+  .join("\n");
+
 export function buildFacelessReelSystemPrompt(opts: ReelPromptOptions = {}): string {
   const mode = opts.mode ?? "draft";
   const sections: string[] = [];
@@ -165,12 +191,17 @@ Every reel is built on ONE verifiable mechanic truth. Acceptable proof source fa
 
   sections.push(`# VOICEOVER CONTRACT (hard)
 voiceoverScript is REQUIRED and must not be empty (every brief tonight shipped SILENT because this was left "optional"):
-- 38-48 words TOTAL (~2.2 spoken words/second, so 17-22s of speech). This budget is set by what the
+- WORD BUDGET IS A FUNCTION OF YOUR BEAT COUNT, not a fixed range. The budget is set by what the
   pipeline can RENDER, not by the storyboard's declared end second: every beat is capped at
-  ${REEL_OUTPUT_RULES.maxClipSeconds}s of real footage, so a ${REEL_OUTPUT_RULES.maxBeats}-beat reel
-  is at most ${REEL_OUTPUT_RULES.maxBeats * REEL_OUTPUT_RULES.maxClipSeconds}s of video. The
-  voiceover is HARD-TRIMMED to the finished video length — a longer script is silently cut off
-  mid-sentence, so overwriting this budget destroys the ending you wrote.
+  ${REEL_OUTPUT_RULES.maxClipSeconds}s of real footage, so the finished video is
+  (beats x ${REEL_OUTPUT_RULES.maxClipSeconds}s). Write AT MOST:
+${VOICEOVER_WORD_BUDGET_TABLE}
+  Those figures already allow for the synthesizer's pacing: it speaks slightly under the nominal
+  rate and inserts a 350ms pause between sentences, so more sentences means fewer words. Fewer
+  words than the budget is always safe; more is never safe.
+- The voiceover is HARD-TRIMMED to the finished video length — a longer script is silently cut off
+  mid-sentence, so overrunning this budget destroys the ending you wrote. Preflight REFUSES a brief
+  whose narration does not fit, before any generation is paid for.
 - One spoken idea per beat, in beat order - narration must land before the SAVE ending, never talk over it
 - Conversational Cleveland mechanic voice: plain, warm, zero hype
 - Claim-safe: no prices, no guarantees, no "you need", no diagnosis-by-sound

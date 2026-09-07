@@ -658,7 +658,24 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // Declared, not defaulted. `visibly_animated` is a real assertion about
     // this pipeline's output — fully generated, no photorealistic human
     // footage — and it is what decides whether Meta AI disclosure is mandatory.
-    const { jobId } = await enqueueReelJob(brief, "cron", {
+    // ─── ENQUEUE PREFLIGHT CAN REFUSE, AND A REFUSED *PACK* MUST NOT JAM ───
+    //
+    // Review P1 on #2171, and it is the rotation deadlock of 089823177 coming
+    // back through a different door. `enqueueReelJob` runs runReelPreflight and
+    // THROWS before persisting anything, while `advancePastRefusedPack` needs a
+    // job row — so an approved pack that fails preflight left the cursor
+    // untouched and every later pulse re-picked the same pack forever. The
+    // 35s-ceiling change made that reachable: the new voiceover-fits-render gate
+    // refuses packs that used to enqueue.
+    //
+    // A content verdict is TERMINAL for that pack (retrying it unchanged can
+    // never succeed), so the rotation advances past it and the run ends as a
+    // legible skip. Every OTHER failure still throws: a provider outage or DB
+    // fault is transient and must stay loud, which is why this catches the
+    // TYPED error and nothing wider.
+    let jobId: number;
+    try {
+      ({ jobId } = await enqueueReelJob(brief, "cron", {
       objective: "DISCOVERY",
       disclosureMode: "visibly_animated",
       // ReelBrief (the generator's shape) has no ctaType yet — the generated
@@ -671,7 +688,28 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         : {}),
       claims: claimPacket.claims,
       evidence: claimPacket.evidence,
-    });
+      }));
+    } catch (err) {
+      const { ReelPreflightBlockedError } = await import("../../services/reelPipeline");
+      if (!(err instanceof ReelPreflightBlockedError)) throw err;
+      if (!approvedPack) {
+        // Miner lane: prepareCleanReelBrief already regenerates on a block, so
+        // reaching here means the attempt loop is exhausted. No cursor to move.
+        log.warn("daily reel: mined brief refused at enqueue preflight", { briefId, blocking: err.blocking });
+        return { recordsProcessed: 0, details: `skipped — enqueue preflight blocked: ${err.message}` };
+      }
+      await advanceRotationPastRefusedPack({
+        jobPackSlug: approvedPack.slug,
+        reason: `enqueue preflight blocked: ${err.blocking.join("; ")}`,
+      });
+      log.warn("daily reel: approved pack refused at enqueue preflight — rotation advanced past it", {
+        slug: approvedPack.slug, briefId, blocking: err.blocking,
+      });
+      return {
+        recordsProcessed: 0,
+        details: `skipped — approved pack ${approvedPack.slug} blocked at enqueue preflight, rotation advanced: ${err.message}`,
+      };
+    }
     log.info(`Enqueued new dynamic reel job: ${jobId} for briefId: ${briefId} (brief attempt ${prepared.attempts})`);
     // topicOrigin is in the cron_log line on purpose: a run that quietly fell
     // back to the manifest looks identical to a healthy one otherwise, and
