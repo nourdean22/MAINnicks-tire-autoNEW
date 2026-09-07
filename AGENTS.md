@@ -16,17 +16,14 @@ One pnpm + Turborepo workspace · **three** Railway services · one deploy branc
 | `apps/statenour/` | `@statenour/web` | Next.js 16 (App Router) · Prisma 6.19 -> Neon Postgres (pgvector/tsvector via raw SQL only) · AI SDK v6 · Tailwind 4. "NOUR OS" + the Nick agent. | bdnick.info |
 | `apps/worker/` | `@statenour/worker` | Express 4 + node-cron. Secret-gated tick dispatcher plus an in-process Remotion render loop. **No DB client** — every read/write goes over authenticated HTTP. | Railway internal |
 
-The two web products are independent — different frameworks, databases, domains. They share this repo, the
-tooling, `main`, a small bridge contract, and `packages/*` (`ls packages/` for the roster). **A change under
-`packages/` or to `pnpm-lock.yaml` affects both web apps — build the package before testing a consumer.**
-Vendored, non-workspace: `camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
+The two web products are independent — different frameworks, databases, domains. They share this repo, the tooling,
+`main`, a small bridge contract, and `packages/*` (`ls packages/` for the roster). **A change under `packages/` or to
+`pnpm-lock.yaml` affects both web apps — build the package before testing a consumer.** Vendored, non-workspace:
+`camera-bridge/`, `MoneyPrinterTurbo/`, `last30days-skill/`, `ad-factory/`.
 
 **These no longer exist — do not go looking:** `apps/voice` + its Railway service, and the `perplexica-mcp`
-sidecar (deleted 2026-08-05; `perplexica` + `searxng-perplexica` ARE live and are what the app calls).
-
-> **`ls apps/` still shows `voice/`. It is a husk, not a package: zero tracked files, here and on
-> `origin/main`.** Git does not track empty dirs, so `git status` never mentions it and it survives
-> every checkout. Check membership with `git ls-files`, never `ls` — this cost one audit a false alarm.
+sidecar (deleted 2026-08-05; `perplexica` + `searxng-perplexica` ARE live and are what the app calls). **`ls apps/`
+still shows `voice/`: a husk with zero tracked files** (git does not track empty dirs) — check membership with `git ls-files`.
 
 ## Source-of-truth hierarchy
 
@@ -137,11 +134,10 @@ change's blast radius and let CI be the sweep.
 
 ## Ship the canary, not just the control
 
-**Precedents:** `policy.test.mjs` and `lintGateFailClosed.test.ts` each break their gate AND assert an
-unbroken run still passes — without that pair, a permanently-broken gate scores green. Generalise it: **no
-hook, gate, lint, guard, alert or probe ships without a test that breaks it and asserts it fails** — assert
-BEHAVIOUR, never presence. [Coverage](docs/agent-audit/CONTROL-CANARY-COVERAGE.md) (5 shapes, why no count
-lives here) · [probes](docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md) for finding each shape.
+**Precedents:** `policy.test.mjs` and `lintGateFailClosed.test.ts` each break their gate AND assert an unbroken
+run still passes — without that pair, a permanently-broken gate scores green. Generalise it: **no hook, gate, lint,
+guard, alert or probe ships without a test that breaks it and asserts it fails** — assert BEHAVIOUR, never presence.
+[Coverage](docs/agent-audit/CONTROL-CANARY-COVERAGE.md) (5 shapes) · [probes](docs/agent-audit/DEFECT-SHAPE-ORPHANED-SUBJECT.md).
 
 ## Standard of work — initiative, not compliance
 
@@ -155,6 +151,16 @@ Every adversarial self-review since 2026-08-12 found real defects in the session
   REST API existed for weeks while sessions concluded "no API path".
 - **Prove the instrument fired at all** — a zero, a green and a surviving mutation are all "no signal".
   Plant a known positive: [silent instrument](docs/agent-audit/DEFECT-SHAPE-SILENT-INSTRUMENT.md).
+- **No early exits.** A turn ends in one of three states: done; hard-blocked on something only a human can clear
+  (spend, customer contact, a destructive or production write, a credential); or refused on a false premise, said in
+  sentence one with the rest still finished. A red gate, a tool error or "needs authorization" is a branch point, not
+  an exit: take the branch, finish what does not depend on it, and report done · blocked-on-X · not-started separately.
+- **Write the if-this-then-that branches before starting, and take them without asking.** If a gate is red for an
+  environmental reason, run its inner gates one by one and name the broken link. If pre-push is blocked by the OTHER app's
+  build, push from a hook-free clone and let CI carry the real gate (never `--no-verify`). If the classifier denies a
+  compound command, send one plain command per call. If CI is cancelled by a sibling's merge, rerun; don't debug. If a
+  requirement is derived per diff (completion evidence), rewrite the entry for THIS diff. **A branch that does not land is
+  a hard block:** no second reshape, no retry loop — name it, hand the operator the exact one-liner, finish the rest.
 
 ## Commit Attribution
 
@@ -164,9 +170,8 @@ Subject `<type> · <app> · <one-line summary>`. AI commits MUST carry a trailer
 ## Environment (Windows)
 
 - The CLI shell is Windows PowerShell. **Do not chain with `&&`** — parser error. Use `;`.
-- **Mojibake is silent, permanent and unchecked.** A cp1252 round-trip corrupts an em-dash inside the *reader*
-  and the damage gets committed. Prefer ASCII in files you edit programmatically. `grep -c` for a newline
-  is NOT a CRLF test, and for a NUL byte is NOT a binary test — each matches EVERY line, returning the count.
+- **Mojibake is silent, permanent and unchecked.** A cp1252 round-trip corrupts an em-dash inside the *reader*; the damage
+  gets committed. Prefer ASCII in files you edit programmatically. `grep -c` for a newline is NOT a CRLF test, nor a NUL a binary test.
 - **The PreToolUse guard matches command strings quoted inside documentation** — writing a doc containing a
   forbidden literal via Bash trips it. Use the Write tool, or describe the flag.
 
@@ -180,15 +185,10 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Memory / handoff
 
-- Cross-session agent memory: `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` (index +
-  topic files) — **concurrently edited by sibling sessions; re-read before editing.**
-- Per-app last-session handoff: `apps/<app>/.remember/`.
-- statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature — separate from agent
-  memory. Do not conflate them.
-
-<!-- Do NOT delete this section without checking who points at it first. It was deleted once on
-     2026-08-21 while removing an unregistered-MCP bullet from CLAUDE.md, and restored. Forensics:
-     docs/agent-audit/AUDIT-2026-08-21.md (tracked on origin/main). -->
+- Cross-session agent memory: `~/.claude/projects/C--Users-nourd-NOURCITY/memory/MEMORY.md` (index + topic
+  files) — **concurrently edited by sibling sessions; re-read before editing.** Per-app handoff: `apps/<app>/.remember/`.
+- statenour's own "brain" (BrainMemory + pgvector recall) is a PRODUCT feature, separate from agent memory; do not conflate.
+<!-- Do NOT delete this section without checking who points at it (deleted once 2026-08-21; docs/agent-audit/AUDIT-2026-08-21.md). -->
 
 ## Operating frameworks
 
