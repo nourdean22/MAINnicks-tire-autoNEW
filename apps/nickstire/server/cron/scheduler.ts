@@ -1126,7 +1126,8 @@ function buildTiers(): void {
         // runs and silently no-ops. See the requiresFlag docstring.
         requiresFlag: "REEL_GENERATION_ENABLED",
         handler: async () => {
-          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import(
+          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs,
+                  selectReelVideoProvider, reelProviderCredentialsPresent } = await import(
             "../services/reelPipeline"
           );
           // Settle each stage independently: a pre-try DB rejection in the gen
@@ -1140,7 +1141,36 @@ function buildTiers(): void {
           const recovered = await recoverStuckReelJobs()
             .then((r) => r.recovered)
             .catch(() => 0);
-          const gen = await settle(processNextReelJob());
+          // GENERATION IS GUARDED BY THE *ACTIVE* PROVIDER, not by requiresEnv.
+          //
+          // Self-audit catch before merge, 2026-09-07. The requiresEnv gate on
+          // this job asks only "is SOME non-interactive lane credentialed", and
+          // GEMINI_API_KEY is set in production, so it OPENS. But
+          // selectReelVideoProvider returns an explicit REEL_VIDEO_PROVIDER pin
+          // UNCONDITIONALLY, before any credential check ("the pin still wins -
+          // that is its job"), and prod pins `higgsfield`, whose session
+          // credential probes credsValid:false. Promoting on requiresEnv alone
+          // would therefore have generated into a DEAD provider every 15
+          // minutes - the exact failure this job was staged to prevent, and the
+          // one that produced 296 failed runs in 72h. A gate on the union of
+          // possible lanes is not a gate on the lane that will be used.
+          //
+          // ASSEMBLY IS DELIBERATELY LEFT UNGUARDED below. It downloads
+          // already-rendered clips, generates the voiceover and runs ffmpeg; it
+          // never calls a video provider. Gating it here would strand every job
+          // whose clips already exist - which is the path an externally
+          // rendered clip takes to become a finished reel.
+          const activeProvider = await selectReelVideoProvider();
+          const generationReady = await reelProviderCredentialsPresent(activeProvider);
+          const gen = generationReady
+            ? await settle(processNextReelJob())
+            : { processed: false, status: `generation skipped: REEL_VIDEO_PROVIDER=${activeProvider} has no credentials present` };
+          if (!generationReady) {
+            log.warn("reel-pipeline: generation stage skipped, assembly still running", {
+              provider: activeProvider,
+              hint: "point REEL_VIDEO_PROVIDER at a credentialed lane, or load that provider's credentials",
+            });
+          }
           const { processNextRepairJob } = await import("../services/selectiveRepair");
           const rep = await settle(processNextRepairJob());
           const asm = await settle(processNextAssemblyJob());
