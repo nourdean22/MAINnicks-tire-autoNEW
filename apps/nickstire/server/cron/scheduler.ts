@@ -1063,16 +1063,64 @@ function buildTiers(): void {
         // operator authenticates, fires this job manually, and a block of the
         // paid credits is spent inside that window.
         //
-        // `enabled: false` stops the SCHEDULER ONLY - same semantics as the
-        // 2026-08-25 staging above. Fire via POST /api/admin/run-staged-cron.
+        // PROMOTED 2026-09-07, and the promotion is CONDITIONAL BY CONSTRUCTION
+        // rather than by anyone's attention.
         //
-        // Promotion requires the ledger fact to change, not the flakiness to
-        // improve. Deleting this flag while the session lane still needs a
-        // browser click re-creates a cron that dies silently between logins.
-        // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
-        // cronControlPlane.test.ts fails if they disagree.
+        // The staging above was correct and its reasoning is unchanged: the CLI
+        // session lane needs a browser login no cron can perform, and it is
+        // dead again right now (probed 2026-09-07: HIGGSFIELD_CREDENTIALS_JSON
+        // is SET in prod and returns `credsValid:false — Session expired`). The
+        // MCP is not an escape hatch either — re-verified upstream the same day,
+        // ten days after the UPSTREAMS REJECT row: the hosted server is
+        // OAuth-only ("no API keys live in your config"), the self-hosted
+        // variant authenticates by Clerk BROWSER SESSION token, and Higgsfield's
+        // own headless guidance points non-conversational pipelines at the
+        // CLI/API tokens instead. The reopen trigger has NOT fired.
+        //
+        // What changed is WHO decides. `enabled: false` meant a human had to
+        // notice the ledger fact had changed and ship a deploy to act on it —
+        // and the previous promote note asked for exactly that vigilance.
+        // Vigilance is what failed here for eleven days. So the flag is now the
+        // CREDENTIAL ITSELF: requiresEnv keeps this dormant, logging a legible
+        // `requiresEnv:HIGGSFIELD_API_KEY_ID (no env var set)` skip to cron_log,
+        // until the key-based lane is funded and configured. The moment those
+        // vars exist the job runs, with no second deploy and no session needed.
+        //
+        // EITHER NON-INTERACTIVE LANE, not Higgsfield's alone. requiresEnv is a
+        // `.some()` check, so this reads "run when at least one provider that
+        // cannot expire mid-week is credentialed":
+        //   GEMINI_API_KEY        -> the Veo lane, which selectReelVideoProvider
+        //                            already auto-prefers. Probed live
+        //                            2026-09-07: the key AUTHENTICATES (HTTP
+        //                            200, 50 models) and REEL_VEO_MODEL
+        //                            `veo-3.1-fast-generate-preview` is
+        //                            available. This lane is usable TODAY.
+        //   HIGGSFIELD_API_KEY_ID -> the Higgsfield Cloud API lane, key-based
+        //                            and already preferred by higgsfieldStudio
+        //                            when configured, but its ledger holds no
+        //                            credits.
+        //
+        // A first draft of this gate named HIGGSFIELD_API_KEY_ID alone, which
+        // would have held the cron dormant forever while a funded, authenticated
+        // Veo lane sat unused three lines away in the same selector.
+        //
+        // HIGGSFIELD_CREDENTIALS_JSON is deliberately EXCLUDED. It is the
+        // browser-session credential, it is SET in production right now, and it
+        // probes `credsValid:false — Session expired`. requiresEnv is
+        // presence-only, so naming it would gate OPEN on a dead credential —
+        // which is the failure this staging existed to prevent (296 failed runs
+        // in 72h, half of ~50 Telegram alerts in three days).
+        //
+        // `higgsfield-session-keepalive` STAYS STAGED and is now decoupled: it
+        // rotates the CLI session token, and this job no longer runs on the CLI
+        // lane unattended, so there is nothing for it to keep alive. Its
+        // "promote together with reel-pipeline, never before it" note referred
+        // to the CLI pairing and no longer applies in that direction.
         name: "reel-pipeline",
-        enabled: false,
+        enabled: true,
+        // The credential IS the gate. `.some(k => process.env[k])` means this
+        // one var must be present; see the requiresEnv skip in the tier loop.
+        requiresEnv: ["GEMINI_API_KEY", "HIGGSFIELD_API_KEY_ID"],
         // requiresFlag (not requiresEnv): the stages compare against the
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.

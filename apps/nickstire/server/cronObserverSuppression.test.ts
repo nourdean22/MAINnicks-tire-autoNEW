@@ -117,8 +117,24 @@ describe("staged jobs do not page (review #1996)", () => {
   });
 
   it("keeps live jobs while dropping staged ones in the same batch", () => {
-    const mixed = [snap("reel-pipeline"), snap("some-live-job"), snap("higgsfield-session-keepalive")];
+    // The staged fixtures are DERIVED, not hardcoded. This test named
+    // "reel-pipeline" until 2026-09-07, when that job was promoted off staging
+    // (gated on HIGGSFIELD_API_KEY_ID instead) and the test failed for the
+    // right reason wearing the wrong clothes — the filter was correct and the
+    // example was stale. Reading the registry keeps the two in step.
+    const stagedNames = MANUAL_TRIGGER_STAGED.map((j) => j.name);
+    expect(stagedNames.length, "no staged jobs left — this test needs at least one").toBeGreaterThan(0);
+    const mixed = [...stagedNames.map(snap), snap("some-live-job")];
     expect(excludeStagedJobs(mixed).map((f) => f.jobName)).toEqual(["some-live-job"]);
+  });
+
+  it("a PROMOTED job is no longer suppressed — silence must not outlive staging", () => {
+    // The other direction, and the one that bites later: a job removed from
+    // MANUAL_TRIGGER_STAGED must start paging again. Without this, promoting a
+    // job while the observer still swallows its failures produces a cron that
+    // runs, fails, and never tells anyone.
+    expect(MANUAL_TRIGGER_STAGED.map((j) => j.name)).not.toContain("reel-pipeline");
+    expect(excludeStagedJobs([snap("reel-pipeline")]).map((f) => f.jobName)).toEqual(["reel-pipeline"]);
   });
 });
 
