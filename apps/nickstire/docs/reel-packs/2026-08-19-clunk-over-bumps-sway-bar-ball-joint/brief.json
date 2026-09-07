@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Hear a clunk every time you hit a bump? The way it happens is one clue to why.",
-      "onScreenText": "Clunk every time you hit a bump?",
+      "onScreenText": "SAME CLUNK. TWO DIFFERENT PARTS.",
       "visual": "Low-angle static shot of a car's front wheel well driving over a rough residential road, subtle camera shake synced to a bump impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess — Nick's Tire and Auto checks your full suspension free. Link in bio.",
-      "onScreenText": "Free suspension check. Link in bio.",
+      "narration": "Don't guess. The way it clunks narrows down which part it is.",
+      "onScreenText": "BUMPS ONLY, OR BUMPS WHILE TURNING?",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, lift and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

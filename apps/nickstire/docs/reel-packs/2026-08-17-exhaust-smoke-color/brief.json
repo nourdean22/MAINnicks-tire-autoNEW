@@ -14,6 +14,7 @@
       "label": "hook",
       "startSec": 0.0,
       "endSec": 3.0,
+      "onScreenText": "Blue smoke is oil. White is coolant.",
       "vo": "Exhaust smoke color is a clue.",
       "prompt": "Close-up static shot of a car exhaust tailpipe at idle in a dim shop bay, faint haze in the air, shallow depth of field, realistic automotive documentary lighting, no visible smoke yet"
     },

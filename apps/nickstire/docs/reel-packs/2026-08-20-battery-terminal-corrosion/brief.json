@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Green or white powder on your battery? One clue, more than one cause.",
-      "onScreenText": "Powder on your battery terminals?",
+      "onScreenText": "Green powder isn't always the battery.",
       "visual": "Extreme close-up of a car battery's terminal posts under the hood, subtle green/white crust visible on metal, static camera with slow creeping push-in, dim engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess with corrosion. Nick's Tire and Auto checks it free — link in bio.",
-      "onScreenText": "Free battery check. Link in bio.",
+      "narration": "Don't guess with corrosion. Clean it once, and see whether it comes back in days.",
+      "onScreenText": "CLEAN IT ONCE. SEE IF IT COMES BACK.",
       "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

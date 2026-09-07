@@ -43,7 +43,114 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-08-18-power-steering-whine",
   "2026-08-19-wont-start-battery-starter-alternator",
 
+  // ── Approved 2026-09-07 on explicit operator instruction ──────────────
+  // "all 132 packs do need to be in rotation ... I do not know why they are
+  // just being off put to the side."
+  //
+  // 67 packs, every one verified through buildBriefFromApprovedProductionPack
+  // — the SAME builder production uses, which normalises both brief schemas
+  // (`beats` and `storyboardBeats`) and returns null below 4 beats or with no
+  // caption. A first pass read `storyboardBeats` by hand and called 113 packs
+  // unusable and 30 others clean; both numbers were artefacts of reading the
+  // wrong key, and the "clean" half was absent-evidence-as-pass. Gate through
+  // the real builder or do not gate.
+  //
+  // Each also cleared the claim gate and the originality gate against the live
+  // 144-item published corpus. Of the 164 packs carrying a brief.json: 99
+  // clean (32 already listed above + these 67), 1 repost
+  // (2026-08-20-tire-sidewall-numbers, on-screen text 1.00 — deliberately NOT
+  // added), 0 condemned, 64 rejected by the builder itself.
+  //
+  // APPENDED, NEVER REORDERED. The rotation cursor is an INDEX into this
+  // array, so inserting or sorting would silently move the daily topic to a
+  // different pack. The operator set that cursor to 2 by hand today; it still
+  // means 2026-08-17-balance-vs-alignment.
+  //
+  // Safe to be this long ONLY because a terminally-refused pack now advances
+  // the cursor past itself (089823177). Before that, one bad pack in a
+  // 99-entry rotation jammed it as completely as one in a 32-entry rotation.
+  "2026-08-14-penny-test",
+  "2026-08-16-battery-summer-heat",
+  "2026-08-16-squealing-vs-grinding-brakes",
+  "2026-08-19-burning-smell-diagnosis",
+  "2026-08-19-clunk-over-bumps-sway-bar-ball-joint",
+  "2026-08-19-engine-overheating-first-60-seconds",
+  "2026-08-19-heat-shield-rattle",
+  "2026-08-19-spongy-brake-pedal",
+  "2026-08-19-timing-belt-no-warning-light",
+  "2026-08-19-warped-rotor-brake-shake",
+  "2026-08-19-windshield-chip-spreads",
+  "2026-08-20-awd-one-new-tire",
+  "2026-08-20-battery-terminal-corrosion",
+  "2026-08-20-caliper-sticking-hot-wheel",
+  "2026-08-20-cloudy-headlights",
+  "2026-08-20-dashboard-light-colors",
+  "2026-08-20-echeck-readiness-monitors",
+  "2026-08-20-fuel-smell-in-cabin",
+  "2026-08-20-heater-not-blowing-hot",
+  "2026-08-20-idle-shake-spark-plug-motor-mount",
+  "2026-08-20-oil-dipstick-color-check",
+  "2026-08-20-radiator-fan-idle-overheat",
+  "2026-08-20-slow-leak-soap-test",
+  "2026-08-20-tie-rod-steering-wobble-test",
+  "2026-08-21-abs-light-wheel-speed-sensor",
+  "2026-08-21-battery-parasitic-drain",
+  "2026-08-21-blower-motor-resistor",
+  "2026-08-21-key-fob-dead-battery-no-start",
+  "2026-08-21-pcv-valve-oil-consumption",
+  "2026-08-21-power-window-stuck-halfway",
+  "2026-08-21-radiator-cap-pressure-test",
+  "2026-08-21-spark-plug-wire-arcing",
+  "2026-08-21-timing-chain-rattle-cold-start",
+  "2026-08-21-valve-stem-dry-rot",
+  "2026-08-22-clutch-slipping-rpm-flare",
+  "2026-08-22-hard-brake-pedal-vacuum-booster",
+  "2026-08-22-motor-mount-clunk-acceleration",
+  "2026-08-22-oil-pressure-light-flicker-idle",
+  "2026-08-23-door-lock-actuator-stripped-gear",
+  "2026-08-23-exhaust-suddenly-loud-rusted-muffler",
+  "2026-08-23-fuel-gauge-sending-unit",
+  "2026-08-23-fuel-pump-whine",
+  "2026-08-23-rough-shifting-check-fluid-first",
+  "2026-08-23-sunroof-drain-clog-water-leak",
+  "2026-08-23-sweet-smell-heater-core-coolant-leak",
+  "2026-08-23-trunk-hatch-gas-strut-sag",
+  "2026-08-23-washer-fluid-wont-spray",
+  "2026-08-24-head-gasket-white-smoke-milky-oil",
+  "2026-08-24-horn-wont-work",
+  "2026-08-24-turbo-whistle-vs-boost-leak",
+  "2026-08-24-water-pump-weep-hole-leak",
+  "2026-08-25-4wd-transfer-case-bind-tight-turns",
+  "2026-08-25-collapsing-radiator-hose",
+  "2026-08-25-misfire-shudder-coil-vs-plug",
+  "2026-08-25-torque-converter-shudder-40-45mph",
+  "2026-08-26-check-engine-flashing-vs-steady",
+  "2026-08-26-exhaust-hanger-rattle-over-bumps",
+  "2026-08-28-new-brake-squeak-bed-in",
+  "2026-08-28-power-steering-fluid-leak-color",
+  "2026-09-01-clutch-pedal-sinks-hydraulic-leak",
+  "2026-09-04-back-to-school-carpool-check",
+  "2026-09-04-fall-car-care-checklist",
+  "2026-09-04-trunk-release-not-working",
+  "2026-09-05-battery-date-code",
+  "2026-09-06-sealed-transmission-no-dipstick-check",
+  "2026-09-07-auto-headlights-wont-turn-on-dusk",
+  "2026-09-07-wheel-stud-snapped",
 ] as const;
+
+/**
+ * Packs deliberately kept OUT of the rotation, each with the reason.
+ *
+ * This exists so "not in rotation" can never again mean "nobody looked".
+ * `reelPackRotationCoverage.test.ts` fails when a pack on disk is accepted by
+ * `buildBriefFromApprovedProductionPack` and appears in neither list — which is
+ * how 67 usable packs sat unreachable while new ones kept being written.
+ */
+export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
+  "2026-08-20-tire-sidewall-numbers":
+    "Repost: on-screen text scores 1.00 against an already-published post. The originality gate " +
+    "would refuse it at the publish door anyway; keeping it out of the rotation saves the render.",
+};
 
 export interface ApprovedReelPack {
   slug: (typeof APPROVED_REEL_PACK_SLUGS)[number];
@@ -345,4 +452,19 @@ export async function advanceRotationPastRefusedPack(input: {
     jobId: input.jobId, slug: input.jobPackSlug, from: currentIndex, to: next, reason: input.reason,
   });
   return next;
+}
+
+/**
+ * Load a pack and build its brief in one call, by slug.
+ *
+ * Exists for `reelPackRotationCoverage.test.ts`, which must ask exactly what
+ * production asks — "can the real builder turn this directory into a brief?" —
+ * rather than re-deriving that judgement. A hand-rolled version of this check
+ * read the wrong beat key on 2026-09-07 and misclassified 143 of 164 packs in
+ * both directions.
+ */
+export function buildApprovedPackBriefForTest(slug: string): Record<string, unknown> | null {
+  const snapshot = loadApprovedProductionPack(slug);
+  if (!snapshot) return null;
+  return buildBriefFromApprovedProductionPack({ slug: slug as ApprovedReelPack["slug"], topic: "" }, snapshot, "coverage-probe");
 }

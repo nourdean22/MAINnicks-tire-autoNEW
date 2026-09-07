@@ -11,6 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
+      "onScreenText": "That haze is the lens, not the bulb.",
       "narration": "Your headlights look cloudy? That's not just looks.",
       "visualPrompt": "Extreme close-up of a yellowed, hazy plastic headlight lens on a parked car at dusk, slow push-in, no people, no visible license plate or logo",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
@@ -47,7 +48,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:23-0:29",
-      "narration": "Don't drive half-blind. Nick's Tire and Auto can take a look. Send this to someone whose headlights look foggy.",
+      "narration": "Don't drive half-blind. A new bulb won't clear a hazed lens.",
       "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, no people, no readable signage close enough to assert as a verified logo shot",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "fallbackStockSearch": ["auto repair shop garage bay interior open door"]

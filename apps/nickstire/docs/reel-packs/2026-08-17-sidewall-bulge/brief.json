@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That bump on your tire's sidewall isn't a warranty problem. It's a blowout waiting to happen.",
-      "onScreenText": "",
+      "onScreenText": "A SIDEWALL BULGE CANNOT BE PATCHED",
       "providerScene": "Extreme macro, slow push-in on a tire sidewall showing a visible bulge/deformation in the rubber, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 21,
       "endSecond": 28,
-      "narration": "See a bulge on your sidewall? Send this to them today. Nick's Tire and Auto — link in bio.",
+      "narration": "See a bulge on your sidewall? That tire gets replaced, not repaired. Nick's Tire and Auto.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

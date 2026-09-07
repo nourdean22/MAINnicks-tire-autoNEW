@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Temp gauge climbing? Steam under the hood? Do not keep driving.",
-      "onScreenText": "",
+      "onScreenText": "Overheating damages engines in minutes.",
       "providerScene": "Close-up of a car dashboard temperature gauge needle climbing into the red zone, shallow depth of field, dim cabin light, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 24,
       "endSecond": 30,
-      "narration": "Overheat once, it's a warning. Overheat twice, it can total the engine. Nick's Tire and Auto — link in bio.",
+      "narration": "Overheat once, it's a warning. Overheat twice, it can total the engine.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

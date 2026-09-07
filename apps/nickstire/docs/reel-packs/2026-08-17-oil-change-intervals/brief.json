@@ -19,7 +19,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "The 3,000-mile oil sticker is a sales tool. It is not an engineering spec.",
-      "onScreenText": "",
+      "onScreenText": "The 3,000-mile oil sticker is a sales tool.",
       "providerScene": "Extreme macro of an oil dipstick being pulled from an engine, dark engine bay lit by a single work light, oil sheen catching the light along the dipstick blade, slow pull-out motion, shallow depth of field, moody amber-and-black garage lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -62,7 +62,7 @@
       "intent": "CTA",
       "startSecond": 22,
       "endSecond": 29,
-      "narration": "Check your manual before the next sticker. Not sure what it says? Nick's Tire and Auto — link in bio.",
+      "narration": "Check your manual before the next sticker. The real number is in there, not on the windshield.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

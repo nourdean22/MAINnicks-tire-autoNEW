@@ -20,7 +20,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Most road-trip breakdowns start as a ten-minute check somebody skipped.",
-      "onScreenText": "",
+      "onScreenText": "The breakdown starts in the driveway.",
       "providerScene": "Forensic-scan style close-up of a car's front tire and wheel well under bright inspection-bay light, faint scan-line HUD glow sweeping across the surface, clean dark background, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -74,7 +74,7 @@
       "intent": "CTA",
       "startSecond": 23,
       "endSecond": 28,
-      "narration": "All four, one visit, before you go. Nick's Tire and Auto — link in bio.",
+      "narration": "All four, one visit, before you go. Nick's Tire and Auto.",
       "onScreenText": "ONE VISIT. BEFORE YOU GO.",
       "providerScene": "Premium product-ad-macro wide shot of a clean garage bay counter with tools racked in soft studio light, no readable signage or branding in frame, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

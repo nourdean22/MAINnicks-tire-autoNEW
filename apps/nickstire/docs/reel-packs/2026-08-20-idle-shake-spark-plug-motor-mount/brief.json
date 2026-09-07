@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Your car shakes at a stoplight? The pattern is the clue.",
-      "onScreenText": "Shakes at a stoplight? The pattern is the clue.",
+      "onScreenText": "SHAKES IN DRIVE. LESS IN PARK.",
       "visual": "Close-up static shot of a car's dashboard and steering wheel at a red light, dusk, subtle idle vibration blur on the RPM needle, slow creeping camera push-in, moody streetlight reflections through the windshield, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess. Nick's Tire and Auto checks it free. Link in bio.",
-      "onScreenText": "We check it free. Link in bio.",
+      "narration": "Don't guess. Park versus Drive is what tells the two apart.",
+      "onScreenText": "PARK VS DRIVE TELLS THEM APART.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Rotation is the cheapest way to make tires last longer.",
-      "onScreenText": "",
+      "onScreenText": "Your tires are not wearing evenly.",
       "providerScene": "Wide low-angle shot of a car on a hydraulic lift in a clean garage bay, wheel removed and resting nearby, bright even shop lighting, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 20,
       "endSecond": 24,
-      "narration": "Check when yours were last rotated. Nick's Tire and Auto — link in bio.",
+      "narration": "Even wear is what makes a set last.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

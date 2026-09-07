@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Nick's Tire and Auto can scan the code and tell you exactly what's wrong. Link in bio.",
+      "narration": "The code stored behind that light is what points to the sensor.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight, slow push-in that ends on a close-up of a dashboard cluster with the ABS icon fading to off, mirroring beat 1's opening frame",
       "stockSearchTerms": ["auto repair shop garage bay interior open door", "dashboard warning light fading off closeup"]
     }

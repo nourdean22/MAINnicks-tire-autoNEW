@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That tire light in August might be heat, not a warning.",
-      "onScreenText": "",
+      "onScreenText": "Heat makes a low tire read full.",
       "providerScene": "Extreme macro, dashboard TPMS warning icon glowing amber, shallow depth of field, slight handheld-style micro-shake, hot afternoon sunlight glare through a windshield, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Check pressure cold, before you drive. Or stop by and we'll take a look. Nick's Tire and Auto — link in bio.",
+      "narration": "Check pressure cold, before you drive. A hot reading tells you less than a cold one.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, no readable signage or branding in frame, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

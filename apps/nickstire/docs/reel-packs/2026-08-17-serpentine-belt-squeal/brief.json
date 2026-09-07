@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That high-pitched squeal when you start your car? That is not your brakes.",
-      "onScreenText": "",
+      "onScreenText": "Cold rubber slips. That's the squeal.",
       "providerScene": "Cold morning engine bay, hood open, frost visible on surrounding metal, breath-fog implied by cool blue morning light, slow push-in toward the front of the engine, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 21,
       "endSecond": 27,
-      "narration": "Hear it every cold start? Get the belt checked before it strands you. Nick's Tire and Auto — link in bio.",
+      "narration": "Hear it every cold start? That is usually the belt, not the brakes. Nick's Tire and Auto.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm morning light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

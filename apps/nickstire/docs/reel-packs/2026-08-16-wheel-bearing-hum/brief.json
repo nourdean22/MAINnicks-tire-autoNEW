@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "A humming that changes when you steer is not your tires.",
-      "onScreenText": "",
+      "onScreenText": "That hum changes when you steer. Not tires.",
       "providerScene": "Extreme macro, front wheel hub and bearing assembly exposed on a shop stand, slow rotation, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 21,
       "endSecond": 26,
-      "narration": "Send this to someone whose car hums on the highway. Nick's Tire and Auto — link in bio.",
+      "narration": "Which way it gets louder tells you which side it is. Nick's Tire and Auto.",
       "onScreenText": "",
       "providerScene": "Wide interior shot of a clean auto repair garage bay, single car on a lift, warm inviting practical light, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",

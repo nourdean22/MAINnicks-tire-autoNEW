@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "That puddle under your car? The color tells you everything.",
-      "onScreenText": "",
+      "onScreenText": "GREEN. ORANGE. PINK. THAT'S COOLANT.",
       "providerScene": "Extreme macro, colored liquid pooling on dark asphalt under a parked car, low angle, reflective surface catching moody teal-and-amber practical light, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 20,
       "endSecond": 27,
-      "narration": "Send this to whoever's got a mystery puddle in their driveway. Nick's Tire and Auto — link in bio.",
+      "narration": "The color tells you which puddle matters. Nick's Tire and Auto.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

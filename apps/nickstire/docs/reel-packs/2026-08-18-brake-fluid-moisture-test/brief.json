@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Your brake fluid is quietly pulling water out of the air. That's not a defect. That's chemistry.",
-      "onScreenText": "",
+      "onScreenText": "Brake fluid drinks water.",
       "providerScene": "Extreme macro, brake fluid reservoir cap slowly unscrewed, pale amber fluid visible inside, single shaft of light catching the surface, shallow depth of field, slow push-in, moody garage-bay lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null

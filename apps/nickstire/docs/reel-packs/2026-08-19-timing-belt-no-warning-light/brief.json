@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 23,
       "endSecond": 28,
-      "narration": "Don't wait for a light that isn't coming. Nick's Tire and Auto checks your belt interval free. Link in bio.",
-      "onScreenText": "We check it free. Link in bio.",
+      "narration": "Don't wait for a light that isn't coming. The mileage is the only thing that tells you.",
+      "onScreenText": "The mileage is the only warning.",
       "visual": "Close-up on the same dashboard odometer framing as beat 1, camera pulls back and reveals an auto repair shop garage bay in soft daylight behind/through the windshield, warm inviting light take-over as the pull-back completes, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

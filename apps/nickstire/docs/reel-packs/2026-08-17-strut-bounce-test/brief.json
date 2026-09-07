@@ -13,6 +13,7 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:03",
+      "onScreenText": "Your car gets one bounce. That's it.",
       "narration": "\"Time for struts.\" You hear it a lot. It's explained almost never.",
       "visualPrompt": "Slow macro push-in on a mechanic's paper estimate/clipboard on a workbench, the word STRUT-related line item visible but out of sharp focus, garage bay softly lit in the background. Static camera, shallow depth of field.",
       "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]
@@ -45,7 +46,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:21-0:27",
-      "narration": "Try it in your driveway. Not sure what you felt? Nick's Tire and Auto — link in bio.",
+      "narration": "Try it in your driveway. One bounce, then settle, is what you want to feel.",
       "visualPrompt": "Wide establishing shot of the shop's garage bay exterior/signage area, warm late-afternoon light, static or very slow push-in.",
       "stockSearchTerms": ["auto repair garage bay exterior"]
     }

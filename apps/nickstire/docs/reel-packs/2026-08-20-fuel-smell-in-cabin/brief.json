@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Smell gas inside your car? The way it shows up is one clue to why.",
-      "onScreenText": "Smell gas inside your car?",
+      "onScreenText": "GAS SMELL AT IDLE IS A DIFFERENT PROBLEM.",
       "visual": "Close-up static shot of a car's fuel gauge on the instrument cluster, needle near full, subtle slow push-in, warm daylight through windshield, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess with a fuel smell. Stop by and we'll take a look, free. Nick's Tire and Auto — link in bio.",
-      "onScreenText": "We'll take a look, free. Link in bio.",
+      "narration": "Don't guess with a fuel smell. When it shows up is what narrows it down.",
+      "onScreenText": "WHEN IT SHOWS UP IS THE CLUE.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

@@ -12,6 +12,7 @@
       "role": "hook",
       "startSec": 0,
       "endSec": 4,
+      "onScreenText": "Smearing isn't a rain problem.",
       "vo": "If your wipers are smearing instead of clearing, that's not just rain.",
       "stockSearchTerms": ["windshield wiper streaking rain glass close up", "wiper blade smear windshield"],
       "generationPrompt": "Rain streaking down a car windshield at dusk, wiper blade dragging a visible smear across the glass instead of clearing it, close-to-medium shot, moody blue-grey lighting, no people, no text",
@@ -62,7 +63,7 @@
       "role": "save_freeze",
       "startSec": 27,
       "endSec": 30,
-      "vo": "Stop by and we'll take a look.",
+      "vo": "Cheap to replace, and easy to put off until it rains.",
       "visual": "static end-card graphic, text + CTA overlay in post, no logo asset provided",
       "isFreezeFrame": true
     }

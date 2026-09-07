@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "This is a steering safety check, not a guess. Nick's Tire and Auto checks it free. Link in bio.",
-      "onScreenText": "We check it free. Link in bio.",
+      "narration": "This is a steering safety check, not a guess. Which way it rocks tells you which part is worn.",
+      "onScreenText": "Which way it rocks tells you which part.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a wheel/tire faintly visible on a lift in the background echoing beat 1's tire close-up, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

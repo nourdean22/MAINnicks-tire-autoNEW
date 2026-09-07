@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Grinding when you brake is not \"almost time.\" It is past time.",
-      "onScreenText": "",
+      "onScreenText": "Grinding is cutting your rotors.",
       "providerScene": "Extreme macro, brake caliper gripping a rotor, studio-lit garage bay, shallow depth of field, slow push-in, sparks of reflected light off brushed metal, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 20,
       "endSecond": 27,
-      "narration": "Send this to someone whose car is making one of these sounds. Nick's Tire and Auto — link in bio.",
+      "narration": "Squealing gives you time. Grinding already took it.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

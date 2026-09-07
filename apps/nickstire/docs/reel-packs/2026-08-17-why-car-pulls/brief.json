@@ -6,13 +6,14 @@
   "motionLenses": ["blueprint_technical", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "The wheel is straight. The car isn't. A pull has more than one cause, and they're not equally urgent. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just uneven tire pressure. Check pressure first. It's free, and it's often the answer. Worth checking before it becomes a bigger fix.",
   "hashtags": ["#wheelalignment", "#cartips", "#autorepair", "#clevelandohio"],
-  "voiceoverScript": "The wheel is straight. The car isn't. A pull like this has more than one cause. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just tire pressure. Check pressure first. It's free, and it's often the answer. Changing pull, worth checking soon. Steady and mild can wait — but do not guess. Worth checking before it becomes a bigger fix. Send this before you book anything. Stop by — we'll check pressure and take a look, free. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "The wheel is straight. The car isn't. A pull like this has more than one cause. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment - or just tire pressure. Check pressure first. It's free, and it's often the answer. Changing pull, worth checking soon. Steady and mild can wait - but do not guess. Worth checking before it becomes a bigger fix. The pattern tells you which one it is.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
       "endSecond": 2,
       "onScreenText": null,
+      "onScreenText": "The wheel is straight. The car isn't.",
       "visual": "Top-down technical blueprint schematic: a car icon on a straight dashed-centerline road, a thin glowing motion-vector line trailing behind it bends visibly off-center, dark blueprint-blue background, no faces, no legible text baked into the shot"
     },
     {
@@ -61,7 +62,7 @@
       "beatNumber": 8,
       "startSecond": 30,
       "endSecond": 33,
-      "onScreenText": "Send this before you book anything. Stop by — we'll check pressure and take a look, free. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "onScreenText": "PRESSURE FIRST. THE PATTERN TELLS THE REST.",
       "visual": "Static hold on the CTA card, silent ambient tone only"
     }
   ],

@@ -15,6 +15,7 @@
       "label": "Hook",
       "startSec": 0,
       "endSec": 2,
+      "onScreenText": "ALL-SEASON RUBBER HARDENS BELOW 45F",
       "visual": "Extreme macro shot of a tire tread block on dry asphalt, soft natural daylight, shallow depth of field, no snow or ice visible anywhere",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "overlayText": null,

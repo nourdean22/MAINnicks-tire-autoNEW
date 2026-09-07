@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "That smell while you're driving? It's telling you something specific.",
-      "onScreenText": "That smell while driving? It's telling you something.",
+      "onScreenText": "That sweet smell is coolant.",
       "visual": "First-person driving POV, dashboard and road ahead through windshield, daylight, slow steady forward motion, subtle camera handheld sway, no people visible in frame (hands/steering wheel excluded per negative prompt)",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Guessing costs you a tow. Nick's Tire and Auto will sniff it out, free. Link in bio.",
-      "onScreenText": "We'll sniff it out free. Link in bio.",
+      "narration": "Guessing costs you a tow. The smell tells you which system to look at.",
+      "onScreenText": "EACH SMELL POINTS AT A DIFFERENT SYSTEM.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }

@@ -5,13 +5,14 @@
   "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "Your TPMS light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn it off. Worth checking before you keep adding air for nothing.",
   "hashtags": ["#tpmswarning", "#tirecare", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Your tire light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn that light off — the sensor is the problem, not the pressure. Worth checking before you keep adding air for nothing. Send this to whoever keeps topping off air and the light won't go away. Stop by — we'll scan it, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Your tire light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn that light off - the sensor is the problem, not the pressure. Worth checking before you keep adding air for nothing. That light is the sensor talking, not the tire. Nick's Tire and Auto, 17625 Euclid Avenue, Cleveland.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
       "endSecond": 2,
       "onScreenText": null,
+      "onScreenText": "There's a battery inside your tire.",
       "visual": "Inside a dark car dashboard interior world, an amber tire-pressure warning indicator (tire outline with exclamation point) flickers awake out of black, deep blacks with amber bokeh glow, macro perspective, no faces, no legible text baked into the shot"
     },
     {
@@ -60,7 +61,7 @@
       "beatNumber": 8,
       "startSecond": 30,
       "endSecond": 33,
-      "onScreenText": "Send this to whoever keeps topping off air and the light won't go away. Stop by — we'll scan it, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "onScreenText": "Topping off the air won't clear it - the sensor is what's dead, not the tire.\nSealed battery - five to ten years, then the light.\nNick's Tire & Auto - 17625 Euclid Ave, Cleveland",
       "visual": "Static hold on the CTA card, silent ambient tone only"
     }
   ],

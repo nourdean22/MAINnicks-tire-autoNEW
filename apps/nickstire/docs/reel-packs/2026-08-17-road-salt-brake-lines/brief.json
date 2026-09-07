@@ -68,8 +68,8 @@
       "role": "branded_cta",
       "startSec": 23,
       "endSec": 28,
-      "vo": "Stop by and we'll take a look — no guessing, just a look underneath.",
-      "caption": "STOP BY AND WE'LL TAKE A LOOK",
+      "vo": "Worth a look underneath before winter, not after.",
+      "caption": "EASIER TO CATCH EARLY",
       "stockSearchTerms": ["car pulling out of auto shop bay exterior wide", "garage bay door open exterior daylight"],
       "genPrompt": "Wide exterior shot of a car pulling out of an open auto-shop garage bay into daylight, photorealistic, cinematic, 9:16",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

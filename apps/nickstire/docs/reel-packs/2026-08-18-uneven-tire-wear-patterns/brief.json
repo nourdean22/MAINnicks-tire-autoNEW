@@ -18,7 +18,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Your tire wear has a shape — and that shape can point to what's wrong.",
-      "onScreenText": "",
+      "onScreenText": "WORN DOWN THE MIDDLE MEANS TOO MUCH AIR",
       "providerScene": "Extreme macro low-angle shot of a tire tread, camera slowly rotating around the circumference revealing an uneven wear pattern silhouette against dramatic raking side light, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,7 +61,7 @@
       "intent": "CTA",
       "startSecond": 20,
       "endSecond": 27,
-      "narration": "Send this to someone whose tires look uneven. Stop by and we'll take a look — Nick's Tire and Auto.",
+      "narration": "The shape tells you which one it is - air, alignment, or suspension. Nick's Tire and Auto.",
       "onScreenText": "",
       "providerScene": "Wide shot of a tire shop garage bay interior, alignment rack visible in the background, bay door partially open to daylight, no readable signage or branding in frame, warm late-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",

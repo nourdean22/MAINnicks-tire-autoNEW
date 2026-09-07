@@ -97,7 +97,7 @@
       "label": "branded_cta",
       "startSecond": 18,
       "endSecond": 21,
-      "narration": "Stop by and we'll take a look.",
+      "narration": "Where it bubbles decides the fix.",
       "onScreenText": "NICK'S TIRE & AUTO / EUCLID AVE",
       "visual": "The same valve stem and bead seat, soap film gone, rubber still and dry, warm late-afternoon shop light raking across it, matching the opening angle.",
       "motion": "Camera settles into a still hold on the opening framing for a seamless loop.",
@@ -112,7 +112,7 @@
     }
   ],
   "loopIdea": "The final dry valve-stem framing matches the opening macro exactly, so the first bubble appears to begin forming again on replay.",
-  "voiceoverScript": "Topping off the same tire every week? That's a leak. Losing a pound a month is normal. Weekly top-offs can point to a leak. Usually it's a nail, a cracked valve stem, or corrosion at the rim. Soapy water finds all three — bubbles mark the spot. Do not guess. Stop by and we'll take a look.",
+  "voiceoverScript": "Topping off the same tire every week? That's a leak. Losing a pound a month is normal. Weekly top-offs can point to a leak. Usually it's a nail, a cracked valve stem, or corrosion at the rim. Soapy water finds all three - bubbles mark the spot. Do not guess. Where it bubbles decides the fix.",
   "selectedCaption": "Topping off the same tire every week? That's not the weather — that's a leak. A healthy tire loses about a pound a month, not a pound a week. Soapy water on the tread, the valve stem, and the rim edge will bubble right where the air is escaping. Where it bubbles decides the fix, so do not guess. Nick's Tire & Auto, 17625 Euclid Ave, Cleveland - (216) 862-0005",
   "hashtags": ["#ClevelandMechanic", "#TireRepair", "#EuclidOhio", "#CarCareTips", "#TirePressure"],
   "avoidedForRepetition": "Avoided tread depth / penny test (already covered), TPMS light behaviour (covered), and plug-vs-patch repair method (covered) — this pack is leak LOCALIZATION only.",

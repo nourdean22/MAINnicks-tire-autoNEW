@@ -11,7 +11,7 @@
       "startSecond": 0,
       "endSecond": 4,
       "narration": "Heat blowing cold? The clue is in when it happens.",
-      "onScreenText": "Heat blowing cold? Here's the clue.",
+      "onScreenText": "Heat blowing cold is three different problems.",
       "visual": "Close-up static shot of a car's heater dial and dashboard vents on a cold morning, faint breath-fog visible on the windshield glass beyond, dial glowing amber in dim early light, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -50,8 +50,8 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess before winter hits. Nick's Tire and Auto checks all three free. Link in bio.",
-      "onScreenText": "We check all three free. Link in bio.",
+      "narration": "Don't guess before winter hits. Three different causes, and the timing tells you which.",
+      "onScreenText": "THREE CAUSES. THE TIMING TELLS YOU WHICH.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a vehicle's dashboard faintly visible glowing through its windshield as it is pulled into the bay, echoing beat 1's dashboard motif, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
