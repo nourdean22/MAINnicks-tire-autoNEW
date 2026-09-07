@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "That small chip in your windshield? It's a clue that starts a clock.",
+      "narration": "That chip in your windshield starts a clock.",
       "onScreenText": "A windshield chip spreads with the weather.",
       "visual": "Extreme close-up of a small rock chip in a car windshield, morning sun glare catching the glass, static camera with a slow, subtle focus pull onto the chip, blurred dashboard reflection in the background, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Temperature swings and road vibration are what usually make it spread.",
+      "narration": "Temperature swings and road vibration make it spread.",
       "onScreenText": "Heat, cold, and road vibration spread it.",
       "visual": "Macro shot of windshield glass around the chip, subtle heat-shimmer visual effect implying thermal stress, slow camera drift, warm sunlight shifting to cooler shade across the frame, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "A chip smaller than a quarter can often be repaired in under thirty minutes.",
+      "narration": "A chip smaller than a quarter can often be repaired.",
       "onScreenText": "Small chip? Often a 30-minute fix.",
       "visual": "Close-up of a windshield-repair resin injector tool mounted and positioned over a small chip, static camera, clean workshop lighting, clear resin catching a glint of light, no hands or people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Once a crack reaches the edge of the glass, that may indicate it's a replacement instead.",
+      "narration": "Once it reaches the glass edge, it's usually a replacement.",
       "onScreenText": "Crack reaches the edge? Often a replacement.",
       "visual": "Wide-angle shot of a windshield with a crack running from the edge toward the center, dusk exterior lighting, slow dolly-in emphasizing the crack's length, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess how long it'll hold. Worth checking before it reaches the edge.",
+      "narration": "Worth checking while it's still small.",
       "onScreenText": "Check it before it reaches the edge.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, tool cart visible; camera slowly pushes in and racks focus onto a parked car's windshield inside the bay, echoing the opening beat's chip-close-up composition, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

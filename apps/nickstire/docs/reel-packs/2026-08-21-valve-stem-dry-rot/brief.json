@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your tire keeps going flat and there's no nail anywhere in it.",
+      "narration": "The tire keeps going flat with no nail in it.",
       "visualPrompt": "Macro shot of a rubber tire valve stem protruding from a wheel rim, shallow depth of field, slow camera push-in, neutral garage lighting",
       "stockSearchTerms": ["tire valve stem closeup", "car wheel valve stem macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "Check the valve stem. Rubber ones dry out and crack after three to five years.",
+      "narration": "Check the valve stem.",
       "visualPrompt": "Extreme close-up of a rubber valve stem base against a wheel rim, static camera, soft daylight, clean shop background",
       "stockSearchTerms": ["rubber tire valve stem base closeup", "valve stem on rim macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "Look for cracks, splits, or a stem that feels soft near the base - that's a slow leak hiding in plain sight.",
+      "narration": "Rubber stems dry out and crack after three to five years.",
       "visualPrompt": "Extreme macro of cracked, dry, weathered rubber valve stem texture with visible hairline splits, slow orbital camera move, dim garage light",
       "stockSearchTerms": ["cracked rubber valve stem macro", "dry rotted rubber texture closeup"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
-      "narration": "A cracked stem can point to a tire that's older than you think, not just a bad valve.",
+      "narration": "Look for cracks, or a base that feels soft.",
       "visualPrompt": "Wide-to-macro rack focus shot starting on a full tire sidewall and pulling focus to the valve stem in the foreground, neutral shop lighting",
       "stockSearchTerms": ["tire sidewall to valve stem focus pull", "car tire closeup garage"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Nick's Tire and Auto checks every valve stem free with a tire inspection. Link in bio.",
+      "narration": "A slow leak hiding in plain sight.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

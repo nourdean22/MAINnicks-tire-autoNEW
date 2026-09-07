@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Heat blowing cold? The clue is in when it happens.",
+      "narration": "Heat blowing cold? Timing is the clue.",
       "onScreenText": "Heat blowing cold is three different problems.",
       "visual": "Close-up static shot of a car's heater dial and dashboard vents on a cold morning, faint breath-fog visible on the windshield glass beyond, dial glowing amber in dim early light, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Cold at idle, better on the highway? That can point to low coolant.",
+      "narration": "Cold at idle, warm at speed can point to low coolant.",
       "onScreenText": "Cold at idle, better on the highway?",
       "visual": "Macro close-up of a translucent coolant reservoir under the hood, fluid level sitting visibly below the fill line, dim garage lighting, subtle camera drift, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Never gets warm, no matter what? That may indicate a stuck thermostat.",
+      "narration": "Never warm may indicate a stuck thermostat.",
       "onScreenText": "Never gets warm at all?",
       "visual": "Close-up of a dashboard temperature gauge needle sitting low and staying there, shallow focus, slight camera drift, cool blue-toned cabin light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Warm air, then it clicks and goes cold? Worth checking the blend door.",
+      "narration": "Warm, then it switches to cold? Worth checking the blend door.",
       "onScreenText": "Warm, then a click, then cold?",
       "visual": "Extreme close-up of dashboard vent louvers, static camera with a single subtle vibration pulse to imply a mechanical click, dim cabin interior light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess before winter hits. Three different causes, and the timing tells you which.",
+      "narration": "Three causes. Don't guess.",
       "onScreenText": "THREE CAUSES. THE TIMING TELLS YOU WHICH.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a vehicle's dashboard faintly visible glowing through its windshield as it is pulled into the bay, echoing beat 1's dashboard motif, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

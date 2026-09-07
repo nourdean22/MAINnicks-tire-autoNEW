@@ -5,7 +5,7 @@
   "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "Your TPMS light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn it off. Worth checking before you keep adding air for nothing.",
   "hashtags": ["#tpmswarning", "#tirecare", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Your tire light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn that light off - the sensor is the problem, not the pressure. Worth checking before you keep adding air for nothing. That light is the sensor talking, not the tire. Nick's Tire and Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Your tire light is not always about air. Every tire has a small sensor inside the wheel running on a sealed battery. After five to ten years it quietly dies. The light comes on, the tires are fine, and adding air will not turn it off. That light is the sensor, not the tire.",
   "storyboardBeats": [
     {
       "beatNumber": 1,

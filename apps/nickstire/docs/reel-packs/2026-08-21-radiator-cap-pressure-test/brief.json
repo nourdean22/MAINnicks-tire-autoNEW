@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Coolant keeps disappearing and there's no puddle anywhere under the car.",
+      "narration": "Coolant keeps disappearing with no puddle under the car.",
       "visualPrompt": "Macro shot of a radiator cap on top of a coolant reservoir, slow push-in, neutral garage lighting, condensation beading on nearby metal",
       "stockSearchTerms": ["radiator cap closeup", "coolant reservoir cap macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "It might not be a hose or a gasket. Check the radiator cap first.",
+      "narration": "Check the radiator cap first.",
       "visualPrompt": "Extreme close-up of a radiator cap being lifted slightly to reveal the rubber pressure seal underneath, static camera, soft daylight",
       "stockSearchTerms": ["radiator cap seal closeup", "radiator cap rubber gasket macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The cap holds pressure in the system. A worn seal or a weak spring lets coolant boil off past the overflow before you ever see a drop on the ground.",
+      "narration": "The cap holds pressure in the system.",
       "visualPrompt": "Macro of a radiator cap's spring-loaded pressure valve mechanism, slow orbital camera move highlighting the spring and rubber seal, dim garage light",
       "stockSearchTerms": ["radiator cap pressure valve spring macro", "cooling system pressure cap mechanism"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "A cap that won't hold pressure can look brand new and still be the reason you keep topping off.",
+      "narration": "A worn seal lets coolant boil off past the overflow.",
       "visualPrompt": "Rack focus from a clean, new-looking radiator cap in the foreground to an overflow reservoir with a low coolant line in the background, neutral shop lighting",
       "stockSearchTerms": ["radiator overflow reservoir low coolant level", "coolant reservoir line closeup"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Nick's Tire and Auto pressure-tests your cooling system free with any inspection. Link in bio.",
+      "narration": "A cap can look new and still not hold pressure.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

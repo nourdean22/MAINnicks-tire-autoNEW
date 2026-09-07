@@ -132,12 +132,38 @@ describe("the rotation array's own invariants", () => {
 });
 
 /**
- * RATCHET. Measured 2026-09-07 against the real `runReelPreflight`: 2 of the 99
- * rotating packs would clear the pre-spend gate. Raise this as briefs are
- * fixed; never lower it. A drop means a brief edit broke a pack that used to
- * ship, which is precisely the regression no other test in this repo can see.
+ * RATCHET. Raise as briefs are fixed; never lower it WITHOUT recording why.
+ *
+ * 2026-09-07, first measurement: 2 of 99.
+ * 2026-09-07, after `maxSeconds` 22 -> 35 (operator decision): the length gate
+ *   stopped refusing 95 packs and the count rose to 30.
+ * 2026-09-07, after `validateVoiceoverFitsRender` landed: back to **1**.
+ *
+ * THE DROP TO 1 IS THE POINT, not a regression. Raising the ceiling exposed a
+ * defect the ceiling had been hiding: 93 of the 99 packs carry more narration
+ * than their own reel can PLAY. Assembly clamps every beat to one ~4s provider
+ * clip, so a 5-beat pack renders ~20s of video, and the ffmpeg graph forces the
+ * voice track to exactly that length — the rest is cut off mid-sentence. The
+ * worst pack has 121 words (~55s of speech) for a 27s video.
+ *
+ * Before the ceiling moved, those packs were refused for being 25-35s and the
+ * truncation never came up. So the honest reading is not "the change lost a
+ * pack" but "the change revealed that ~all of the library was unshippable for
+ * a second, worse reason, and only one pack was ever genuinely clean".
+ * `2026-08-20-slow-leak-soap-test` is the one that moved: 56 words (~25.5s)
+ * against 19s of renderable video.
+ *
+ * 2026-09-07, after the voiceover trim: **31**. All 93 over-long scripts were
+ * rewritten to their per-pack budget, so the voiceover blocker is gone from the
+ * histogram entirely. It also took `no-free-claims` from 39 to 24 as a side
+ * effect — several scripts carried the word only in the sentences that were cut.
+ *
+ * This floor climbs further as the REMAINING blockers are cleared: 38 packs have
+ * no mechanic truth, 26 depend on rendered in-frame text, 24 still carry a
+ * "free" claim in their captions or beat text, 19 are outside the 4-6 beat band.
+ * The failure message prints the current histogram, which is the work list.
  */
-const PREFLIGHT_PASSING_FLOOR = 2;
+const PREFLIGHT_PASSING_FLOOR = 31;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {

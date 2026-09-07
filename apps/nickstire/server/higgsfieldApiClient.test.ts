@@ -603,7 +603,7 @@ describe("the clip FORMAT matches the lane that has actually shipped reels", () 
   // passes `--aspect_ratio 9:16 --duration 4 --resolution 1080p`. reelAssembly
   // THROWS unless a clip is 1080x1920, so DoP defaults would have produced clips
   // that failed the render gate AFTER being paid for. Clip length also feeds the
-  // 15-22s total-duration target, so a default duration silently changes reel
+  // declared total-duration target, so a default duration silently changes reel
   // length depending on which lane ran.
   afterEach(() => vi.restoreAllMocks());
 

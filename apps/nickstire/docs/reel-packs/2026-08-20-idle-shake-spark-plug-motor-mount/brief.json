@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Your car shakes at a stoplight? The pattern is the clue.",
+      "narration": "Shaking at a stoplight? Watch the pattern.",
       "onScreenText": "SHAKES IN DRIVE. LESS IN PARK.",
       "visual": "Close-up static shot of a car's dashboard and steering wheel at a red light, dusk, subtle idle vibration blur on the RPM needle, slow creeping camera push-in, moody streetlight reflections through the windshield, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Only shakes at idle, and fades once you're moving? That can point to a spark plug or a misfire.",
+      "narration": "Shakes at idle, smooth once moving, can point to a misfire.",
       "onScreenText": "Only shakes at idle, fades once moving?",
       "visual": "Extreme close-up of a car engine bay near the spark plug / ignition coil area, shallow focus, slight camera drift implying a subtle mechanical tremor, dim garage lighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Feel it more in Drive or Reverse than in Park? Worth checking the motor mounts.",
+      "narration": "Worse in Drive than Park? Worth checking the motor mounts.",
       "onScreenText": "Worse in Drive or Reverse than Park?",
       "visual": "Close-up of an engine mount area underside of the engine bay, static camera with subtle rocking motion to imply mount movement under load, dim garage lighting, macro lens, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Either way, a small shake now can turn into a rough-running engine later.",
+      "narration": "A small shake usually gets rougher.",
       "onScreenText": "Small shake now can become rough-running later.",
       "visual": "Close-up of loose coins in a car's cup holder subtly rattling and vibrating, shallow depth of field, dashboard softly blurred in the background, warm interior light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess. Park versus Drive is what tells the two apart.",
+      "narration": "Park versus Drive tells them apart.",
       "onScreenText": "PARK VS DRIVE TELLS THEM APART.",
       "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

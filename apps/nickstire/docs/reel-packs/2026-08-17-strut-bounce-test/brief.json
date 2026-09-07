@@ -14,7 +14,7 @@
       "role": "HOOK",
       "window": "0:00-0:03",
       "onScreenText": "Your car gets one bounce. That's it.",
-      "narration": "\"Time for struts.\" You hear it a lot. It's explained almost never.",
+      "narration": "You hear \"time for struts.\" Nobody explains it.",
       "visualPrompt": "Slow macro push-in on a mechanic's paper estimate/clipboard on a workbench, the word STRUT-related line item visible but out of sharp focus, garage bay softly lit in the background. Static camera, shallow depth of field.",
       "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]
     },
@@ -22,7 +22,7 @@
       "index": 2,
       "role": "SETUP",
       "window": "0:03-0:09",
-      "narration": "Struts control how your car settles after a bump. Worn ones keep bouncing.",
+      "narration": "Struts control how a car settles after bumps.",
       "visualPrompt": "Macro shot of a strut/shock absorber assembly and coil spring on a vehicle lift, slow orbit or slight push-in, garage bay lighting, metallic surfaces catching light.",
       "stockSearchTerms": ["car strut shock absorber closeup", "suspension coil spring garage"]
     },
@@ -30,7 +30,7 @@
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:15",
-      "narration": "That bounce can point to longer stopping distance and chewed-up tread — even when the ride feels normal.",
+      "narration": "Worn ones keep bouncing, chewing tread.",
       "visualPrompt": "Macro shot of a tire tread showing cupped/scalloped uneven wear pattern, slow pan across the tread surface, natural daylight in a shop bay.",
       "stockSearchTerms": ["tire tread cupping wear macro", "worn tire uneven wear closeup"]
     },
@@ -38,7 +38,7 @@
       "index": 4,
       "role": "VALUE_DEMO",
       "window": "0:15-0:21",
-      "narration": "The test: push down hard on one corner. It should rebound once, then settle. More bounce than that is worth checking.",
+      "narration": "Push hard on one corner: it should rebound once, then settle.",
       "visualPrompt": "Static low-angle shot of a car's front corner from outside the vehicle as it rolls over a speed bump in a parking lot, suspension compressing then rebounding once and settling. No hands, no driver visible in frame — exterior body-and-wheel-well view only.",
       "stockSearchTerms": ["car suspension bounce speed bump slow motion", "car driving over bump suspension travel"]
     },
@@ -46,7 +46,7 @@
       "index": 5,
       "role": "CTA",
       "window": "0:21-0:27",
-      "narration": "Try it in your driveway. One bounce, then settle, is what you want to feel.",
+      "narration": "More bounce than that is worth checking.",
       "visualPrompt": "Wide establishing shot of the shop's garage bay exterior/signage area, warm late-afternoon light, static or very slow push-in.",
       "stockSearchTerms": ["auto repair garage bay exterior"]
     }

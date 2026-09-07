@@ -23,7 +23,7 @@
       "label": "blue-smoke",
       "startSec": 3.0,
       "endSec": 11.0,
-      "vo": "Blue-gray smoke usually points to oil getting into the engine and burning off — often worn valve seals or piston rings.",
+      "vo": "Blue-gray usually points to oil burning off - often valve seals or rings.",
       "prompt": "Close-up slow-motion shot of thick blue-gray smoke puffing rhythmically from a car exhaust pipe against dark wet asphalt, cool overcast light, realistic vapor texture, shallow depth of field",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },
@@ -32,7 +32,7 @@
       "label": "white-smoke",
       "startSec": 11.0,
       "endSec": 19.0,
-      "vo": "Thick white smoke that doesn't clear after warm-up can point to coolant getting into the engine — that one shouldn't wait.",
+      "vo": "Thick white that stays after warm-up can point to coolant getting in.",
       "prompt": "Close-up shot of thick white smoke billowing continuously from a car exhaust pipe in cold shop-bay air, dense opaque vapor, moody fluorescent garage lighting, realistic texture",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },
@@ -41,7 +41,7 @@
       "label": "black-smoke-cta",
       "startSec": 19.0,
       "endSec": 27.0,
-      "vo": "Black smoke usually means the engine's running rich, burning more fuel than it should — worth having someone check, not a guess.",
+      "vo": "Black usually means running rich. Color narrows it down; it does not diagnose.",
       "prompt": "Close-up shot of black sooty smoke puffing from an exhaust pipe during hard acceleration on a city street, gritty high-contrast look, slight handheld drift, realistic exhaust soot texture",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },

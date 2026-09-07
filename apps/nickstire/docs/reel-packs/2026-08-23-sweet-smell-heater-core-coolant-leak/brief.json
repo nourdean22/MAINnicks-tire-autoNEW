@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "That sweet smell from your vents isn't spilled juice in the console.",
+      "narration": "That sweet smell from the vents is not spilled juice.",
       "visualPrompt": "Close-up of a car dashboard air vent, faint mist gently drifting from the louvers, soft interior ambient light, static camera, no people",
       "stockSearchTerms": ["car dashboard air vent closeup", "car interior vent mist macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "It's often coolant leaking into the heater core, then blowing right into the cabin.",
+      "narration": "It can be coolant leaking from the heater core.",
       "visualPrompt": "Static shot of the inside of a windshield with faint fog building near the base, dim dusk light outside, no people, slow subtle fog spread over the take",
       "stockSearchTerms": ["foggy windshield interior closeup", "car windshield condensation static shot"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The heater core sits behind the dash and warms cabin air using hot coolant. A small crack there lets coolant mix with the air you breathe.",
+      "narration": "The core warms cabin air with hot coolant.",
       "visualPrompt": "Macro cutaway shot of a small radiator-like heater core unit on a workbench, a hairline crack visible with a faint sheen of coolant residue, slow orbital camera move, dim garage light",
       "stockSearchTerms": ["heater core closeup workbench", "small radiator core cracked macro"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "A quick check: fog on the inside of the windshield with that sweet smell, especially with the heat on, is the classic sign.",
+      "narration": "Fog inside the windshield with that smell is one clue.",
       "visualPrompt": "Wide static shot from the driver's seat looking through a fogged windshield, dashboard heater controls faintly glowing in the foreground, dim ambient light, no hands or people",
       "stockSearchTerms": ["car interior fogged windshield wide shot", "dashboard heater controls glow closeup"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 27],
-      "narration": "Don't ignore it, it can also mean you're losing coolant. Nick's Tire and Auto checks the heater core and coolant system free with any inspection.",
+      "narration": "You may be losing coolant.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

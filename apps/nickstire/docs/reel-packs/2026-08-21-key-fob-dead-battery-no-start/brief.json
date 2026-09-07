@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Dash lights come on fine. Push the start button - nothing happens.",
+      "narration": "Dash lights come on. The start button does nothing.",
       "visualPrompt": "Close-up of a fully illuminated car instrument cluster at night, gauges lit, static camera, slight push-in",
       "stockSearchTerms": ["car dashboard lit up at night closeup", "instrument cluster illuminated macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's not always a dead car battery. Check your key fob first.",
+      "narration": "Check the key fob first.",
       "visualPrompt": "Close-up of a push-button ignition start switch on a car center console, soft interior ambient light, static shot, no hand in frame",
       "stockSearchTerms": ["push button start ignition closeup", "car center console start button macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "A weak or dead key fob battery can stop a push-button start cold, even with a fully charged car battery.",
+      "narration": "A weak fob battery can stop a push-button start cold.",
       "visualPrompt": "Extreme macro of a key fob with its back cover removed, small coin-cell battery visible inside, slow rotating turntable-style camera move, neutral tabletop lighting",
       "stockSearchTerms": ["key fob battery replacement closeup", "coin cell battery inside key fob macro"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
-      "narration": "Most fobs hide a backup key and a spot to hold the fob against the start button - check your owner's manual.",
+      "narration": "Most fobs hide a backup key. Your manual shows where.",
       "visualPrompt": "Macro shot of a key fob resting on a car center console next to the push-button start, slow orbital camera move, warm interior lighting",
       "stockSearchTerms": ["key fob on car console near start button", "smart key fob macro shot"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "A lit dash with a silent start usually points at the fob, not the car battery.",
+      "narration": "Lit dash, silent start points at the fob.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

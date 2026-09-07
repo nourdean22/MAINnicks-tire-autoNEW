@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your battery starts the car fine every day, but it's dead again this morning.",
+      "narration": "Starts fine all week, dead this morning?",
       "visualPrompt": "Close-up of a car dashboard at night, ignition key inserted but dash gauges dark and dead, faint dome-light glow, static camera",
       "stockSearchTerms": ["dead car dashboard night", "car won't start dark garage"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's not always a bad battery. Something could be draining it while the car sits off.",
+      "narration": "Not always the battery. Something can drain it overnight.",
       "visualPrompt": "Macro shot of a car battery under the hood, terminals clean and intact (no corrosion), slow push-in, cool workshop lighting",
       "stockSearchTerms": ["car battery under hood closeup", "automotive battery terminals clean"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "A trunk light, a bad relay, or a module that won't power down can all pull current overnight.",
+      "narration": "A trunk light, a stuck relay, or a module that never sleeps.",
       "visualPrompt": "Static close-up of a fuse/relay box with cover open, dim ambient light, one relay slightly highlighted by a shallow rack-focus pull",
       "stockSearchTerms": ["car fuse box relay closeup", "automotive relay panel macro"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "Buying a new battery without finding the drain usually just repeats the same dead morning.",
+      "narration": "A new battery without finding the drain buys another dead morning.",
       "visualPrompt": "Wide-to-close shot: a new battery box sitting on a shop counter, camera slowly pulls back to reveal a dark dashboard in soft background blur",
       "stockSearchTerms": ["new car battery box shop counter", "auto parts store battery display"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Finding the drain is what stops the dead mornings.",
+      "narration": "Find the drain first.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

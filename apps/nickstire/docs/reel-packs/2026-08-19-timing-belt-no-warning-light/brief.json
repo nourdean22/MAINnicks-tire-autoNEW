@@ -10,7 +10,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Your timing belt can fail with zero warning light.",
+      "narration": "Your timing belt has no warning light.",
       "onScreenText": "Zero warning light for THIS one.",
       "visual": "Extreme close-up of a car's odometer/mileage readout on the instrument cluster, dashboard otherwise clean with no warning lights lit, slow creeping camera push-in, neutral daylight cabin lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +20,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "No check-engine light. No dash symbol. It's mileage-based, not warning-based.",
+      "narration": "It's mileage based, not warning based.",
       "onScreenText": "No check-engine light. No dash symbol.",
       "visual": "Wide shot of full dashboard instrument cluster, dark and unlit, static camera with subtle handheld drift, no icons illuminated, cool neutral tone",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +30,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 17,
-      "narration": "Most belts are due somewhere between sixty and a hundred thousand miles — check your owner's manual for the exact number.",
+      "narration": "Most come due between sixty and a hundred thousand miles.",
       "onScreenText": "60,000-100,000 miles (check your manual)",
       "visual": "Close-up of a car engine bay, timing cover / front pulley area, static camera with subtle mechanical vibration, dim garage lighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +40,7 @@
       "label": "VALUE",
       "startSecond": 17,
       "endSecond": 23,
-      "narration": "On some engines, a snapped belt can lead to serious, expensive engine damage — not just a stall.",
+      "narration": "On some engines a snapped belt can cause expensive damage.",
       "onScreenText": "On some engines: serious damage, not just a stall.",
       "visual": "Wide shot of an open engine bay showing the serpentine/timing belt area, slow dolly-in, dim workshop lighting bleeding in from one side, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,7 +50,7 @@
       "label": "CTA",
       "startSecond": 23,
       "endSecond": 28,
-      "narration": "Don't wait for a light that isn't coming. The mileage is the only thing that tells you.",
+      "narration": "Your owner's manual has the number.",
       "onScreenText": "The mileage is the only warning.",
       "visual": "Close-up on the same dashboard odometer framing as beat 1, camera pulls back and reveals an auto repair shop garage bay in soft daylight behind/through the windshield, warm inviting light take-over as the pull-back completes, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"

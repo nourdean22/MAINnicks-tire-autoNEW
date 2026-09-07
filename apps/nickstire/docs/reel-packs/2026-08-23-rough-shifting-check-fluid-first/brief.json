@@ -14,7 +14,7 @@
       "id": 1,
       "label": "HOOK",
       "window": "0:00-0:04",
-      "narration": "Your automatic suddenly shifts hard or hesitates between gears.",
+      "narration": "Your automatic shifts hard or hesitates.",
       "visualPrompt": "Extreme macro shot inside a car cabin, center console gear shifter in park position, shallow depth of field, slight ambient handheld micro-motion, moody interior light through a windshield, no visible driver or hands on the shifter, photorealistic automotive macro cinematography",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["car gear shifter macro", "automatic transmission console interior", "car interior console close up"]
@@ -23,7 +23,7 @@
       "id": 2,
       "label": "SETUP",
       "window": "0:04-0:09",
-      "narration": "Before you assume it's the solenoid, check one thing that takes thirty seconds.",
+      "narration": "Before you blame a solenoid, check the fluid.",
       "visualPrompt": "Hood of a car popping open, camera pushes in toward the open engine bay, cool blue-toned garage lighting, slow forward dolly, no visible hands or faces, photorealistic automotive macro cinematography",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["car hood opening engine bay", "engine bay reveal shot", "garage bay overhead light"]
@@ -32,7 +32,7 @@
       "id": 3,
       "label": "VALUE",
       "window": "0:09-0:17",
-      "narration": "Low or old transmission fluid changes how the valve body applies pressure, and that alone can cause hard, delayed, or slipping shifts.",
+      "narration": "Low or old fluid changes the pressure in the valve body.",
       "visualPrompt": "Extreme macro of a transmission dipstick tube in an engine bay, subtle heat shimmer, warm engine glow, slow orbital camera move around the dipstick cap, no visible hands or faces, photorealistic automotive macro cinematography",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["transmission dipstick engine bay", "engine bay macro detail", "car fluid check macro"]
@@ -41,7 +41,7 @@
       "id": 4,
       "label": "VALUE",
       "window": "0:17-0:23",
-      "narration": "Warm and running, pull the dipstick. It should be pink or red, not brown, and right at the fill line.",
+      "narration": "Warm and running, pull the dipstick.",
       "visualPrompt": "Extreme macro split composition: a drop of clear pink-red transmission fluid on a white cloth beside a drop of dark brown transmission fluid, static locked shot with subtle rack focus shift between the two drops, clean neutral studio-style lighting, no visible hands or faces",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["transmission fluid color comparison", "fluid drop on cloth macro", "automotive fluid color test"]
@@ -50,7 +50,7 @@
       "id": 5,
       "label": "CTA",
       "window": "0:23-0:28",
-      "narration": "Low or dark fluid? That's a simple fix. Nick's Tire and Auto checks it free before we talk about anything bigger.",
+      "narration": "Pink or red, not brown, and at the fill line.",
       "visualPrompt": "Wide establishing shot of a clean, well-lit tire and auto shop bay, warm inviting color grade, slow static or subtle push-in, organized tools and a lift in the background, no visible faces in focus, photorealistic",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["auto repair shop bay wide shot", "clean garage interior wide", "tire shop bay establishing shot"]

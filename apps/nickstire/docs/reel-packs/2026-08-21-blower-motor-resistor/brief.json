@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your heat or A/C only blows on one speed, usually the highest.",
+      "narration": "Fan only blows on high?",
       "visualPrompt": "Macro shot of a car dashboard fan-speed dial being turned through low, medium, and high positions, shallow depth of field, neutral cabin lighting, 9:16 vertical framing",
       "stockSearchTerms": ["car dashboard fan speed dial closeup", "hvac fan control knob macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's not a broken fan. It's usually the blower motor resistor.",
+      "narration": "That can point to the blower motor resistor, not the fan.",
       "visualPrompt": "Extreme close-up of a small electronic resistor module mounted under a dashboard near the blower housing, static camera, soft work-light illumination, 9:16 vertical framing",
       "stockSearchTerms": ["blower motor resistor closeup", "hvac resistor module under dash macro"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The resistor steps the fan down to low and medium. High speed often skips it entirely, so high keeps working while every other speed goes dead.",
+      "narration": "The resistor makes low and medium. High skips it entirely.",
       "visualPrompt": "Macro of the resistor module's coiled metal contacts, slow orbital camera move revealing scorch marks on one contact strip, dim garage light, 9:16 vertical framing",
       "stockSearchTerms": ["blower resistor burnt contact macro", "hvac resistor coil closeup automotive"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
-      "narration": "Ignore it and the motor keeps pulling full power every time the fan runs, which can wear it out sooner.",
+      "narration": "So high works while the rest go quiet.",
       "visualPrompt": "Rack focus from the resistor module in the foreground to the blower motor fan wheel visible in the housing behind it, neutral shop lighting, 9:16 vertical framing",
       "stockSearchTerms": ["blower motor fan wheel housing closeup", "car hvac blower assembly macro"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "High still works, the rest don't. Usually that's the resistor, not the fan.",
+      "narration": "One speed left is the clue.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in, 9:16 vertical framing",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

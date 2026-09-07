@@ -28,7 +28,7 @@
       "role": "HOOK",
       "window": "0:00-0:04",
       "onScreenText": "NEW PADS WON'T STOP THE SHAKE",
-      "narration": "Steering wheel shaking when you brake? That's not you being nervous.",
+      "narration": "Steering wheel shakes when you brake?",
       "prompt": "Extreme close-up on a car steering wheel, subtle rhythmic vibration visible in the frame, driver's view through windshield softly blurred behind it, daylight, no hands or face visible, cinematic shallow depth of field, slow static hold with the vibration as the only motion.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 4
@@ -37,7 +37,7 @@
       "beatNumber": 2,
       "role": "SETUP",
       "window": "0:04-0:10",
-      "narration": "A pulse through the pedal or the wheel can point to a warped rotor -- not worn pads.",
+      "narration": "That pulse can point to a warped rotor, not worn pads.",
       "prompt": "Macro shot of a car brake disc rotor mounted on a wheel hub in a garage bay, slow orbiting camera move revealing faint heat-discoloration rings on the rotor surface, clean shop lighting, no people in frame.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 6
@@ -46,7 +46,7 @@
       "beatNumber": 3,
       "role": "VALUE",
       "window": "0:10-0:16",
-      "narration": "Keep driving on it, and that pulse wears the new pads unevenly too.",
+      "narration": "A high spot pushes the pad back every rotation.",
       "prompt": "Close-up of a brake pad and caliper assembly, slow push-in camera move showing uneven wear pattern on the pad surface, dramatic side lighting, garage bay background softly out of focus, no people in frame.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 6
@@ -55,7 +55,7 @@
       "beatNumber": 4,
       "role": "VALUE",
       "window": "0:16-0:22",
-      "narration": "New pads on a warped rotor? The shake can come right back.",
+      "narration": "New pads on a warped rotor, and the shake returns.",
       "prompt": "A precision micrometer tool resting against a rotor surface on a workbench, measuring gauge visible and legible, slow rack-focus from tool to rotor, clean shop lighting, no people or hands in frame -- the tool appears already positioned, not being placed.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 6
@@ -64,7 +64,7 @@
       "beatNumber": 5,
       "role": "CTA",
       "window": "0:22-0:27",
-      "narration": "Worth checking before your next stop. Rotor thickness is the number that settles it.",
+      "narration": "Measuring rotor thickness settles it.",
       "prompt": "Wide establishing shot of an auto repair shop garage bay interior, open bay door with daylight streaming in, clean and organized, warm inviting color grade, static hold for end-card text overlay, no people in frame.",
       "negativePrompt": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
       "durationSec": 5

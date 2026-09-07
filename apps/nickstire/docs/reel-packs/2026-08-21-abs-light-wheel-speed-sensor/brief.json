@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your ABS light just came on, but your brakes still feel normal.",
+      "narration": "ABS light on, brakes feel normal?",
       "visualPrompt": "Macro shot of an instrument cluster with the ABS warning icon illuminated, shallow depth of field, slow push-in, dim cabin lighting at dusk",
       "stockSearchTerms": ["ABS warning light dashboard closeup", "car instrument cluster ABS icon macro"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's common. ABS only kicks in on hard stops, so you can miss it being off for weeks.",
+      "narration": "ABS only kicks in on hard stops, so nothing feels off.",
       "visualPrompt": "Close-up of a foot resting near a brake pedal in a parked car, static camera, soft natural light through the windshield",
       "stockSearchTerms": ["brake pedal closeup car interior", "foot near brake pedal static shot"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "A dirty or damaged wheel speed sensor can point to this, often from rust, brake dust, or road salt.",
+      "narration": "Road salt on a wheel speed sensor is one clue.",
       "visualPrompt": "Extreme macro of a wheel hub assembly with a small sensor and toothed tone ring, visible surface rust and brake dust, slow orbital camera move, garage lighting",
       "stockSearchTerms": ["wheel speed sensor hub closeup", "ABS sensor tone ring macro rust"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
-      "narration": "This isn't the red brake warning light, but traction control stays off until it's fixed.",
+      "narration": "Not the red brake light, but traction control is off.",
       "visualPrompt": "Rack focus from a full wheel and brake rotor in the foreground to a parked car in a garage bay in the background, neutral shop lighting",
       "stockSearchTerms": ["car wheel brake rotor garage focus pull", "parked car wheel closeup shop"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "The code stored behind that light is what points to the sensor.",
+      "narration": "The stored code names the sensor.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight, slow push-in that ends on a close-up of a dashboard cluster with the ABS icon fading to off, mirroring beat 1's opening frame",
       "stockSearchTerms": ["auto repair shop garage bay interior open door", "dashboard warning light fading off closeup"]
     }

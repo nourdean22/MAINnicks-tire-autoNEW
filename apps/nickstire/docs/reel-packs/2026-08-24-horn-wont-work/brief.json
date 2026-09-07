@@ -11,7 +11,7 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 3],
-      "narration": "You press the horn. Nothing happens.",
+      "narration": "You press the horn. Nothing.",
       "visualPrompt": "Close-up of a steering wheel horn pad/center emblem, static camera, soft interior light, nothing else moving",
       "stockSearchTerms": ["steering wheel horn button closeup", "car steering wheel center emblem"]
     },
@@ -19,7 +19,7 @@
       "index": 2,
       "role": "SETUP",
       "windowSec": [3, 8],
-      "narration": "That silence usually points to one of three things: a blown fuse, a bad relay, or a worn clockspring.",
+      "narration": "Usually a fuse, a relay, or the clockspring.",
       "visualPrompt": "Close-up of a car fuse box panel with a puller tool resting nearby, one fuse slightly pulled out, workshop lighting",
       "stockSearchTerms": ["car fuse box closeup", "automotive fuse panel diagnostic"]
     },
@@ -27,7 +27,7 @@
       "index": 3,
       "role": "VALUE",
       "windowSec": [8, 13],
-      "narration": "The clockspring is the coiled ribbon behind your steering wheel - it lets power reach the horn button while the wheel turns.",
+      "narration": "The clockspring is the coiled ribbon behind the wheel that feeds the horn button.",
       "visualPrompt": "Close-up of a steering column with the wheel removed, coiled ribbon cable (clockspring) visible, cool workshop lighting, slow push-in",
       "stockSearchTerms": ["steering column clockspring closeup", "car steering wheel removed ribbon cable"]
     },
@@ -35,7 +35,7 @@
       "index": 4,
       "role": "VALUE",
       "windowSec": [13, 17],
-      "narration": "Years of turning can wear that ribbon out, and once it's gone, the horn just goes quiet.",
+      "narration": "Years of turning wear that ribbon, and the horn goes quiet.",
       "visualPrompt": "Close-up of the same clockspring ribbon, slight visual wear/fraying emphasis via lighting angle, static camera - visual callback to beat 3",
       "stockSearchTerms": ["worn ribbon cable closeup", "steering column component wear"]
     },
@@ -43,7 +43,7 @@
       "index": 5,
       "role": "CTA",
       "windowSec": [17, 20],
-      "narration": "Check the cheap parts first. If it's still silent, stop by and we'll trace it.",
+      "narration": "Check the fuse first.",
       "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }

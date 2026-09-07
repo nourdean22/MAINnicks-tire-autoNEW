@@ -366,6 +366,23 @@ async function findReelJobByIdempotency(d: any, reelJobs: any, idempotencyKey: s
  * job, so every later stage derives from one stored artifact instead of
  * re-deriving from a bag of optional fields.
  */
+/**
+ * Preflight refused this brief BEFORE any spend or persistence.
+ *
+ * Typed rather than a bare Error because a caller has to be able to tell this
+ * apart from a provider outage or a DB fault: this one is a verdict about the
+ * CONTENT and retrying it unchanged can never succeed, while the others are
+ * transient and must stay loud. `dailyReelPost` relies on that distinction to
+ * advance the pack rotation instead of retrying the same pack forever — see
+ * the deadlock note there.
+ */
+export class ReelPreflightBlockedError extends Error {
+  constructor(public readonly blocking: string[]) {
+    super(`Reel preflight blocked (${blocking.length}): ${blocking.join("; ")}`);
+    this.name = "ReelPreflightBlockedError";
+  }
+}
+
 export async function enqueueReelJob(
   brief: ReelJobBrief,
   source: "admin" | "cron",
@@ -478,7 +495,7 @@ export async function enqueueReelJob(
     const pre = runReelPreflight(brief as never);
     if (pre.status === "block") {
       log.warn("reel preflight BLOCKED enqueue — no spend reserved", { blocking: pre.blocking });
-      throw new Error(`Reel preflight blocked (${pre.blocking.length}): ${pre.blocking.map((f) => f.message).join("; ")}`);
+      throw new ReelPreflightBlockedError(pre.blocking.map((f) => f.message));
     }
   }
 

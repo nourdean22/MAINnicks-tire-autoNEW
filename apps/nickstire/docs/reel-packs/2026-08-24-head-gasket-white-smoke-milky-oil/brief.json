@@ -24,7 +24,7 @@
       "endSeconds": 4,
       "shot": "Close-up: thick white smoke rolling continuously from a car tailpipe at idle, cold morning light",
       "prompt": "close up shot of a car tailpipe at idle, thick white smoke rolling out continuously, cold morning light, condensation visible, photorealistic, cinematic",
-      "vo": "White smoke from your tailpipe that doesn't stop after a minute? Worth checking before you drive further."
+      "vo": "White tailpipe smoke that keeps going after warmup."
     },
     {
       "index": 2,
@@ -33,7 +33,7 @@
       "endSeconds": 9,
       "shot": "Close-up: engine oil filler cap being lifted off, revealing pale frothy milkshake-colored residue under the cap",
       "prompt": "extreme close up of a car engine oil filler cap being lifted off, the underside coated in pale frothy milkshake-colored residue, engine bay lighting, macro detail, photorealistic",
-      "vo": "One clue: pop the oil cap. If it looks like a milkshake instead of black oil, that's coolant mixing in."
+      "vo": "Pop the oil cap. A milkshake look can point to coolant mixing in."
     },
     {
       "index": 3,
@@ -42,7 +42,7 @@
       "endSeconds": 14,
       "shot": "Macro cutaway-style shot: cross-section of a head gasket surface with a visible gap between cylinder and coolant passage",
       "prompt": "macro cutaway diagram-style shot of an engine cylinder head gasket surface, a visible thin gap between the cylinder bore and an adjacent coolant passage, clean technical lighting, photorealistic illustration style",
-      "vo": "The head gasket seals coolant and combustion completely apart. When it fails, the two start mixing."
+      "vo": "The head gasket seals coolant and combustion apart."
     },
     {
       "index": 4,
@@ -51,7 +51,7 @@
       "endSeconds": 19,
       "shot": "Close-up: coolant reservoir tank with unusual bubbling / rising fluid level at idle",
       "prompt": "close up of a translucent car coolant reservoir tank, coolant fluid visibly bubbling and slowly rising with the engine idling, engine bay background, photorealistic",
-      "vo": "Coolant that keeps disappearing, or bubbles in the overflow tank at idle, is a second clue pointing the same direction."
+      "vo": "Disappearing coolant, or bubbles in the overflow tank, is a second clue."
     },
     {
       "index": 5,
@@ -60,7 +60,7 @@
       "endSeconds": 24,
       "shot": "Close-up: exhaust tailpipe again, sweet-smelling steam-like vapor distinct from normal exhaust, sunlight backlighting the vapor",
       "prompt": "close up backlit shot of vapor and light smoke exiting a car exhaust tailpipe, sunlight catching the vapor trail, outdoor daylight, photorealistic",
-      "vo": "Sweet-smelling white vapor, not black or blue smoke — that's the coolant burning off inside the cylinder."
+      "vo": "It smells sweet, not like burnt oil."
     },
     {
       "index": 6,
@@ -69,7 +69,7 @@
       "endSeconds": 27,
       "shot": "Close-up: dipstick pulled and wiped clean against a white cloth, showing the oil's true color and texture",
       "prompt": "close up of an engine oil dipstick being wiped against a white cloth, showing oil color and texture, garage lighting, photorealistic, no hands or human figures visible",
-      "vo": "One clue alone doesn't confirm it — we check both the oil and the coolant before we guess."
+      "vo": "Do not guess on one clue."
     },
     {
       "index": 7,
@@ -78,7 +78,7 @@
       "endSeconds": 33,
       "shot": "Wide static hold: clean, dry automotive service bay under bright shop lighting, no signage/logo visible",
       "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame",
-      "vo": "Stop by and we'll take a look."
+      "vo": "We check both."
     }
   ],
   "captions": "captions.srt",
