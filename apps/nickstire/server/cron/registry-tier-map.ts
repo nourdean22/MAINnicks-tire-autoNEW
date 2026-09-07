@@ -239,25 +239,14 @@ export interface ManualTriggerStagedJob {
 }
 
 export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
-  {
-    name: "reel-pipeline",
-    why:
-      "NOT staged for flakiness - staged because the only Higgsfield lane funded by the " +
-      "operator's paid subscription requires a human browser login. Verified on his account " +
-      "2026-08-29: consumer/Ultra holds 1,934.62 credits and is what the CLI session lane spends; " +
-      "Higgsfield Cloud API (Authorization: Key ID:SECRET) is a SEPARATE paid product holding ZERO " +
-      "credits, with no payment method and 0 API calls lifetime despite 2 keys already existing. " +
-      "The Ultra subscription does not fund the API lane, so the API keys are not an escape hatch - " +
-      "provisioning them would authenticate cleanly and then fail at generation on a zero balance. " +
-      "The session lane needs `higgsfield auth login` in a browser, which no cron can do, so " +
-      "generation becomes a human-triggered batch instead of an unattended job that dies between logins.",
-    promote:
-      "the LEDGER fact changes, not the failure rate: either Higgsfield Cloud API credits are " +
-      "purchased and HIGGSFIELD_API_KEY_ID/SECRET are set (higgsfieldStudio prefers that lane " +
-      "automatically when configured), or Higgsfield ships a non-interactive credential for the " +
-      "consumer ledger. Promoting because 'it looks stable now' re-creates a cron that dies " +
-      "silently the next time the refresh token is revoked.",
-  },
+  // reel-pipeline WAS here. Promoted 2026-09-07 and removed together with its
+  // `enabled: false`, as this file's own instruction requires — but NOT because
+  // the ledger fact changed. The CLI session is still dead and the MCP is still
+  // OAuth-only (both re-verified that day). It is promoted because the gate
+  // moved from a human's attention to the credential itself: `requiresEnv:
+  // "HIGGSFIELD_API_KEY_ID"` keeps it dormant, logging a legible skip, until the
+  // non-interactive lane is funded — and live the moment it is, with no deploy.
+  // A staged job needs a human to notice; a requiresEnv job does not.
   {
     name: "higgsfield-session-keepalive",
     why:
@@ -267,8 +256,12 @@ export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
       "is half of the ~50 Telegram alerts delivered in three days. Staging one of this pair without " +
       "the other is the half-done shape review caught on PR #1830.",
     promote:
-      "promote together with reel-pipeline and never before it - a keepalive for a job that does not " +
-      "run is pure alert noise pointed at a session nothing is using.",
+      "DECOUPLED 2026-09-07. This said 'promote together with reel-pipeline and never before it', which was " +
+      "right while reel-pipeline ran on the CLI session lane. It no longer does unattended: reel-pipeline is now " +
+      "gated on HIGGSFIELD_API_KEY_ID, the non-interactive lane, so there is no unattended session for a " +
+      "keepalive to keep alive. Promote this ONLY if the CLI session lane is ever restored as an unattended " +
+      "path - which would require a non-interactive credential for the consumer ledger that Higgsfield does not " +
+      "publish. Until then a keepalive is still pure alert noise pointed at a session nothing is using.",
   },
   {
     name: "campaign-resume",

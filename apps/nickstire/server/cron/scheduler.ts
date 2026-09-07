@@ -1063,22 +1063,70 @@ function buildTiers(): void {
         // operator authenticates, fires this job manually, and a block of the
         // paid credits is spent inside that window.
         //
-        // `enabled: false` stops the SCHEDULER ONLY - same semantics as the
-        // 2026-08-25 staging above. Fire via POST /api/admin/run-staged-cron.
+        // PROMOTED 2026-09-07, and the promotion is CONDITIONAL BY CONSTRUCTION
+        // rather than by anyone's attention.
         //
-        // Promotion requires the ledger fact to change, not the flakiness to
-        // improve. Deleting this flag while the session lane still needs a
-        // browser click re-creates a cron that dies silently between logins.
-        // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
-        // cronControlPlane.test.ts fails if they disagree.
+        // The staging above was correct and its reasoning is unchanged: the CLI
+        // session lane needs a browser login no cron can perform, and it is
+        // dead again right now (probed 2026-09-07: HIGGSFIELD_CREDENTIALS_JSON
+        // is SET in prod and returns `credsValid:false — Session expired`). The
+        // MCP is not an escape hatch either — re-verified upstream the same day,
+        // ten days after the UPSTREAMS REJECT row: the hosted server is
+        // OAuth-only ("no API keys live in your config"), the self-hosted
+        // variant authenticates by Clerk BROWSER SESSION token, and Higgsfield's
+        // own headless guidance points non-conversational pipelines at the
+        // CLI/API tokens instead. The reopen trigger has NOT fired.
+        //
+        // What changed is WHO decides. `enabled: false` meant a human had to
+        // notice the ledger fact had changed and ship a deploy to act on it —
+        // and the previous promote note asked for exactly that vigilance.
+        // Vigilance is what failed here for eleven days. So the flag is now the
+        // CREDENTIAL ITSELF: the handler asks the provider modules whether the
+        // ACTIVE lane is credentialed and skips generation with a legible
+        // cron_log reason when it is not. The moment that lane is funded and
+        // configured the job generates, with no second deploy and no session.
+        //
+        // NO requiresEnv HERE, DELIBERATELY. Review P2 on #2170: an env-name
+        // list cannot express what these providers actually accept. Veo takes
+        // GEMINI_API_KEY *or* GOOGLE_AI_API_KEY *or* GOOGLE_GENAI_API_KEY *or* a
+        // GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY pair (veoStudio.ts:55-58), and
+        // Higgsfield's API resolver also reads DB-backed app_secret_kv rows that
+        // no env list can name at all. A subset list false-NEGATIVES: it would
+        // hold this cron dormant while a provider was genuinely credentialed,
+        // which is the same silent-stall this promotion exists to end, wearing
+        // the opposite sign.
+        //
+        // The credential gate lives in the handler instead, where it calls the
+        // REAL resolvers via reelProviderCredentialsPresent() on the ACTIVE
+        // provider. One definition of "credentialed", owned by the module that
+        // knows — not a second copy in a scheduler flag that drifts from it.
+        //
+        // HIGGSFIELD_CREDENTIALS_JSON must never become that gate. It is the
+        // browser-session credential, it is SET in production right now, and it
+        // probes `credsValid:false — Session expired`. A presence-only check on
+        // it would gate OPEN on a dead credential — the failure this staging
+        // existed to prevent (296 failed runs in 72h, half of ~50 Telegram
+        // alerts in three days). The handler's resolver check is about whether
+        // the lane WORKS, not whether a variable is set; that difference is the
+        // whole point.
+        //
+        // `higgsfield-session-keepalive` STAYS STAGED and is now decoupled: it
+        // rotates the CLI session token, and this job no longer runs on the CLI
+        // lane unattended, so there is nothing for it to keep alive. Its
+        // "promote together with reel-pipeline, never before it" note referred
+        // to the CLI pairing and no longer applies in that direction.
         name: "reel-pipeline",
-        enabled: false,
+        // Explicit, not omitted. `enabled` only disables on === false, so this
+        // is a behavioural no-op — it is here as the receipt of the promotion
+        // from `enabled: false`, which is what the staging above described.
+        enabled: true,
         // requiresFlag (not requiresEnv): the stages compare against the
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.
         requiresFlag: "REEL_GENERATION_ENABLED",
         handler: async () => {
-          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import(
+          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs,
+                  selectReelVideoProvider, reelProviderCredentialsPresent } = await import(
             "../services/reelPipeline"
           );
           // Settle each stage independently: a pre-try DB rejection in the gen
@@ -1092,7 +1140,36 @@ function buildTiers(): void {
           const recovered = await recoverStuckReelJobs()
             .then((r) => r.recovered)
             .catch(() => 0);
-          const gen = await settle(processNextReelJob());
+          // GENERATION IS GUARDED BY THE *ACTIVE* PROVIDER, not by requiresEnv.
+          //
+          // Self-audit catch before merge, 2026-09-07. The requiresEnv gate on
+          // this job asks only "is SOME non-interactive lane credentialed", and
+          // GEMINI_API_KEY is set in production, so it OPENS. But
+          // selectReelVideoProvider returns an explicit REEL_VIDEO_PROVIDER pin
+          // UNCONDITIONALLY, before any credential check ("the pin still wins -
+          // that is its job"), and prod pins `higgsfield`, whose session
+          // credential probes credsValid:false. Promoting on requiresEnv alone
+          // would therefore have generated into a DEAD provider every 15
+          // minutes - the exact failure this job was staged to prevent, and the
+          // one that produced 296 failed runs in 72h. A gate on the union of
+          // possible lanes is not a gate on the lane that will be used.
+          //
+          // ASSEMBLY IS DELIBERATELY LEFT UNGUARDED below. It downloads
+          // already-rendered clips, generates the voiceover and runs ffmpeg; it
+          // never calls a video provider. Gating it here would strand every job
+          // whose clips already exist - which is the path an externally
+          // rendered clip takes to become a finished reel.
+          const activeProvider = await selectReelVideoProvider();
+          const generationReady = await reelProviderCredentialsPresent(activeProvider);
+          const gen = generationReady
+            ? await settle(processNextReelJob())
+            : { processed: false, status: `generation skipped: REEL_VIDEO_PROVIDER=${activeProvider} has no credentials present` };
+          if (!generationReady) {
+            log.warn("reel-pipeline: generation stage skipped, assembly still running", {
+              provider: activeProvider,
+              hint: "point REEL_VIDEO_PROVIDER at a credentialed lane, or load that provider's credentials",
+            });
+          }
           const { processNextRepairJob } = await import("../services/selectiveRepair");
           const rep = await settle(processNextRepairJob());
           const asm = await settle(processNextAssemblyJob());
