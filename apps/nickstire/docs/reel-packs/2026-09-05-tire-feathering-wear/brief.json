@@ -1,0 +1,76 @@
+{
+  "topic": "Run your hand across your tire tread — feel that saw-tooth edge?",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-09-05",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 49,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "Run your hand across your tire tread — feel sharp on one side, smooth on the other?",
+      "visualPrompt": "Extreme macro shot of a tire tread block pattern under raking side light, texture strongly emphasized, static camera, no hand or tool in frame."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "That saw-tooth feel is called feathering — it doesn't show up as a bulge or a crack, you have to feel for it.",
+      "visualPrompt": "Extreme macro of a single tread block edge in profile: one side crisp and sharp in shadow, the opposite side visibly rounded/worn smooth, hard side lighting, slow push-in."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: it usually points to toe misalignment — the tires pointed slightly in or out instead of straight.",
+      "visualPrompt": "Undercarriage/wheel-well shot of a front tire and the visible steering knuckle/tie-rod area, static mounted camera, dim garage lighting."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "But an alignment alone doesn't always fix it — a worn tie rod end or bushing can cause the same wear and needs replacing first.",
+      "visualPrompt": "Close-up cutaway macro of a tie rod end and its rubber boot showing visible looseness/play, static mounted camera, dim garage light, no hands or tools in frame."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't guess which one it is. A quick check can point to the actual cause.",
+      "visualPrompt": "Close-up on an alignment-rack wheel clamp and sensor target mounted on a wheel in a shop bay, static camera, ambient shop lighting, no person in frame."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before it eats through a new set of tires. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#TireWear", "#TireFeathering", "#WheelAlignment", "#TireCare", "#CarMaintenance", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "Feel a saw-tooth edge across your tread? That's feathering — usually toe misalignment, but sometimes a worn tie rod that needs replacing before the alignment will hold. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the feathering/toe/tie-rod fault-tree claim",
+      "whether Nick's Tire & Auto specifically performs toe/alignment diagnosis and tie-rod replacement (not confirmed against a live business_facts row)",
+      "whether 0112_reel_publish_approvals.sql has been applied to production TiDB"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 11,
+    "statusOnlyPRsInBacklog": 4,
+    "statusOnlyPRExamples": [2122, 2123, 2124, 2125],
+    "statusOnlyPRCadence": "roughly hourly, 2026-09-04 18:32 to 00:30",
+    "newestTopicPRExamples": [2121, 2120, 2118, 2117, 2116, 2115, 2114],
+    "priorFlaggedBacklog": 141,
+    "priorFlagSource": "PR #2076 (2026-09-02)",
+    "escalationNote": "Backlog now growing on two fronts (topic packs + hourly status-only PRs) with no merge/close activity observed since #2076's flag."
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "packId": "2026-09-04-back-to-school-carpool-check",
+  "generatedAt": "2026-09-04",
+  "mode": "SCHEDULED (== INTELLIGENCE: pack only) — scheduled/unattended run, no reel-canary call made",
+  "campaignKeyword": "CARPOOL",
+  "landingDestination": "/general-repair",
+  "landingDestinationNote": "judgment call — no dedicated back-to-school/carpool landing page exists in shared/routes.ts; /general-repair is the closest generic multi-point-inspection page. Human reviewer may prefer to leave unassigned.",
+  "productionType": "real-footage",
+  "productionTypeRationale": "TRIAGE.json (dated 2026-08-29, stale but directionally the only signal available) shows all 3 then-promotable concepts share productionType=real-footage and cost=0; the other 133 were blocked either on generated-video credit spend + Meta AI-disclosure requirements (93) or on having no motion route at all (40). This pack is authored real-footage-only to avoid joining the 93-deep bucket, and because 10 reel packs already shipped today from this same scheduled task (README.md §2) — adding a 137th single-symptom AI-clip script was judged lower value than following the one lever that's shown to actually convert.",
+  "hookText": "Carpool starts again — is your car actually ready?",
+  "ctaText": "Fifteen-minute multi-point check, no appointment needed.",
+  "durationSeconds": 28,
+  "faceless": true,
+  "mutedFirst": true,
+  "onScreenTextPolicy": "burned-in captions only via ffmpeg subtitle filter — never generated in-frame text",
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "intent": "HOOK",
+      "startSecond": 0,
+      "endSecond": 3,
+      "narration": "Carpool starts again — is your car actually ready?",
+      "onScreenText": "",
+      "footageSource": "real/stock — no AI generation route needed",
+      "shotDescription": "Car pulling out of a driveway or school drop-off lane in early-morning light, no faces in frame, plate not legible",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 2,
+      "intent": "VALUE",
+      "startSecond": 3,
+      "endSecond": 10,
+      "narration": "More stop-and-go means your brakes wear faster. Get the pads checked before drop-off line season.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Macro shot through a wheel at a brake caliper/pad edge, or gloved hand holding a worn pad next to a new one, no face",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 3,
+      "intent": "VALUE",
+      "startSecond": 10,
+      "endSecond": 17,
+      "narration": "Backpacks, gear, extra passengers — that changes your tire pressure, not just your tread.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Tire pressure gauge pressed onto a valve stem, digital or dial reading visible (legible readout is fine on real footage, unlike a generator)",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 4,
+      "intent": "VALUE",
+      "startSecond": 17,
+      "endSecond": 23,
+      "narration": "Sunset's coming earlier. Test your headlights and wipers before the first foggy morning.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Dusk headlight beam test against a shop wall, or a wiper blade lifted off the windshield for inspection",
+      "sceneStatus": "clean"
+    },
+    {
+      "beatNumber": 5,
+      "intent": "CTA",
+      "startSecond": 23,
+      "endSecond": 28,
+      "narration": "Fifteen-minute multi-point check, no appointment needed. Nick's Tire and Auto — link in bio.",
+      "onScreenText": "",
+      "footageSource": "real/stock",
+      "shotDescription": "Wide shop-bay shot, gloved hands checking under a hood, no face, no readable branding required in frame",
+      "sceneStatus": "clean"
+    }
+  ],
+  "audio": {
+    "voiceover": "required — not generated this run (no live TTS call made; see README §1)",
+    "musicBed": "none — deliberately omitted, unresolved music-rights gap (README §6); ambient room-tone only, royalty-free",
+    "sfxNotes": "no SFX assigned — no dramatic reveal beat in this checklist-format script"
+  },
+  "qualityScoreSelfEstimate": {
+    "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
+    "dimensions": {
+      "firstFrameScrollStop": { "max": 10, "score": 5, "detail": "preventive/checklist hook, not visceral or symptom-urgent" },
+      "mutedFirst": { "max": 10, "score": 10 },
+      "beatStructure": { "max": 5, "score": 5 },
+      "length": { "max": 5, "score": 5 },
+      "loop": { "max": 5, "score": 2, "detail": "no deliberate loop seam authored this run" },
+      "sourcedFact": { "max": 10, "score": 4, "detail": "claims are general automotive/seasonal knowledge, not cited against evidenceResolver.ts — not queried live this run" },
+      "faceless": { "max": 10, "score": 10 },
+      "claimSafety": { "max": 10, "score": 10 },
+      "keyword": { "max": 5, "score": 5 },
+      "winningConceptGate": { "max": 5, "score": 0, "detail": "not awarded — running subtotal (56/70) is near the informal bar but not confirmed; treat as not cleared until a real re-score runs" }
+    },
+    "estimatedTotal": "56/75 (self-estimate) — below the 70/75 auto-pass floor; needs a real evidence citation for sourcedFact and a deliberate loop seam before this would likely clear the real gate"
+  },
+  "operatorFlag": "10th reel pack produced by this scheduled task today (2026-09-04); see README.md §2 and §9 for the cadence/backlog concern this run surfaced but cannot resolve on its own."
+}

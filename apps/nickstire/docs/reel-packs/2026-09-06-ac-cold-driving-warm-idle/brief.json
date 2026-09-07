@@ -1,0 +1,74 @@
+{
+  "topic": "Cold air at 40 mph, warm air at a red light?",
+  "producedBy": "scheduled-task",
+  "producedAt": "2026-09-06",
+  "mode": "SCHEDULED",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "motionRoute": "BLOCKED_NO_MOTION_ROUTE",
+  "selfEstimatedQualityScore": 48,
+  "qualityFloor": 70,
+  "runtimeSeconds": 30,
+  "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "beats": [
+    {
+      "time": "0:00-0:04",
+      "role": "HOOK",
+      "narration": "AC ice-cold on the highway, then goes warm the second you sit at a light?",
+      "visualPrompt": "Static shot through a car's dashboard AC vent, cold mist/condensation visibly swirling from the vent opening, dim cabin interior, no hand or person in frame."
+    },
+    {
+      "time": "0:04-0:09",
+      "role": "SYMPTOM",
+      "narration": "That speed-dependent switch isn't random — it's a real clue about what's wrong.",
+      "visualPrompt": "Close-up on a dashboard AC temperature/fan control cluster, ambient light shifting subtly to suggest change, static camera, no hand adjusting it."
+    },
+    {
+      "time": "0:09-0:15",
+      "role": "EXPLANATION",
+      "narration": "One clue: it usually points to airflow at the condenser — without wind from driving, something isn't moving air across it.",
+      "visualPrompt": "Front-of-engine-bay shot of an AC condenser core (thin finned radiator-like unit behind the grille), static mounted camera, dim garage light, no hands or tools in frame."
+    },
+    {
+      "time": "0:15-0:21",
+      "role": "CONSEQUENCE",
+      "narration": "Could be a cooling fan that isn't kicking on, a clogged condenser, or a charge that's just low enough to need the extra airflow.",
+      "visualPrompt": "Close-up cutaway macro on an electric cooling fan assembly mounted behind the condenser, blades static, dim garage lighting, no person in frame."
+    },
+    {
+      "time": "0:21-0:26",
+      "role": "SAFE_ACTION",
+      "narration": "Don't just top off refrigerant and hope — a quick check can point to the actual cause.",
+      "visualPrompt": "Close-up on an AC service gauge manifold connected to a low-side port, gauge needle visible, static camera, ambient shop lighting, no hands in frame."
+    },
+    {
+      "time": "0:26-0:30",
+      "role": "BRANDED_CTA",
+      "narration": "Worth checking before a summer traffic jam turns into a sweatbox. Stop by and we'll take a look. Nick's Tire & Auto.",
+      "visualPrompt": "Branded end-card plate: Nick's Tire & Auto shop bay wide shot, warm daylight, static hold. Logo and CTA text composited in post, never AI-generated."
+    }
+  ],
+  "postingSpecs": {
+    "platforms": ["instagram_reels", "facebook_reels"],
+    "dimensions": "1080x1920",
+    "hashtags": ["#CarAC", "#ACRepair", "#CondenserFan", "#SummerCarCare", "#CarMaintenance", "#AutoRepair", "#ClevelandAuto", "#NicksTireAndAuto"],
+    "feedCaption": "AC ice-cold on the highway but warm the moment you stop? That speed-dependent switch usually points to airflow at the condenser — a fan, a clog, or a charge that needs the extra help from driving speed. Stop by and we'll take a look."
+  },
+  "evidence": {
+    "evidenceRecordRead": false,
+    "businessFactRead": false,
+    "entailmentStatus": "not_evaluated",
+    "unknowns": [
+      "live entailment status of the idle-airflow/condenser-fan fault-tree claim",
+      "whether Nick's Tire & Auto specifically performs AC diagnosis and condenser-fan/refrigerant service (not confirmed against a live business_facts row)",
+      "whether 0112_reel_publish_approvals.sql has been applied to production TiDB"
+    ]
+  },
+  "backlogContextAtProduction": {
+    "openReelPackPRs": 2,
+    "statusOnlyPRExamples": [2140],
+    "otherTopicPRExamples": [2141],
+    "priorFlaggedBacklogPeak": 141,
+    "priorFlagSource": "PR #2076 (2026-09-02), escalated again in the 2026-09-05 pack",
+    "note": "Queue depth has dropped sharply since the 2026-09-05 escalation (11 open -> 2 open); no overproduction signal found this run."
+  }
+}

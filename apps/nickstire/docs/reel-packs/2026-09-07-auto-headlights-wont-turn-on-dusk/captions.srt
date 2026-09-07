@@ -1,0 +1,29 @@
+1
+00:00:00,000 --> 00:00:03,000
+Headlights set to "auto," and they're
+still not coming on at dusk?
+
+2
+00:00:03,000 --> 00:00:07,000
+Before you blame the bulb — "auto" mode
+runs off a light sensor, not the bulb itself.
+
+3
+00:00:07,000 --> 00:00:11,000
+A dead sensor, or a stuck relay behind it,
+is what tells your car it's dark outside.
+
+4
+00:00:11,000 --> 00:00:15,000
+Fastest safe check: flip the switch to "ON"
+manually. If they light up, it's the sensor.
+
+5
+00:00:15,000 --> 00:00:18,000
+A dead sensor or relay is a quick diagnosis —
+not a guessing game.
+
+6
+00:00:18,000 --> 00:00:21,000
+Nick's Tire and Auto —
+stop by and we'll take a look.

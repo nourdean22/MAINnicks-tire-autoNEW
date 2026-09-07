@@ -1,0 +1,106 @@
+{
+  "topic": "Sealed transmission: how ATF gets checked without a dipstick",
+  "mode": "INTELLIGENCE",
+  "generatedAt": "2026-09-06",
+  "status": "READY_FOR_HUMAN_APPROVAL",
+  "objectCharacter": "the sealed transmission dipstick tube / fill plug",
+  "motionLens": "macro push-in and slow rack focus on engine-bay and underside detail shots",
+  "visualWorld": "Nick's Tire & Auto shop bay, engine bays and lifts, warm practical lighting",
+  "faceless": true,
+  "durationSeconds": 21,
+  "storyboardSeconds": 18,
+  "saveFreezeSeconds": 3,
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 3,
+      "visual": "Macro, shallow depth of field: a sealed transmission dipstick tube cap under a hood, condensation beading on nearby metal, soft shop bay light behind, static camera with a slow push-in.",
+      "motion": "slow push-in",
+      "onScreenText": "No transmission dipstick under your hood?"
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 3,
+      "endSecond": 7,
+      "visual": "Wide engine-bay shot, slow pan left to right across the bay, revealing the oil dipstick handle present but nothing where a transmission dipstick would be.",
+      "motion": "slow lateral pan",
+      "onScreenText": "Newer transmissions are sealed — that's normal."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 7,
+      "endSecond": 11,
+      "visual": "Macro, underside-of-car framing: a transmission pan fill plug bolt highlighted with a rack light, a wrench resting nearby (not in use, no hand).",
+      "motion": "rack focus background to plug",
+      "onScreenText": "Fluid level is checked at a fill plug — a lift job, not a driveway job."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 11,
+      "endSecond": 15,
+      "visual": "Close-up: a thermometer-style gauge prop near a transmission housing, subtle heat-shimmer effect.",
+      "motion": "static, subtle heat shimmer",
+      "onScreenText": "Some need the fluid at the right temp to read correctly."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 15,
+      "endSecond": 18,
+      "visual": "Wide shop-bay pull-back: a wheel spinning down slowly on a lift, warm tungsten lighting, shop signage soft-focus in the background.",
+      "motion": "slow pull-back",
+      "onScreenText": "Dark or burnt-smelling fluid? Worth checking before a long trip."
+    }
+  ],
+  "saveCard": {
+    "startSecond": 18,
+    "endSecond": 21,
+    "visual": "Static end card: shop exterior/sign or logo card, warm lighting.",
+    "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland (216) 862-0005"
+  },
+  "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "voiceover": [
+    { "start": 0.0, "end": 3.0, "text": "Your car doesn't have a transmission dipstick? You're not imagining things." },
+    { "start": 3.0, "end": 7.0, "text": "A lot of newer transmissions are sealed for life — no dipstick, by design." },
+    { "start": 7.0, "end": 11.0, "text": "The fluid level gets checked at a fill plug, usually from underneath, on a lift." },
+    { "start": 11.0, "end": 15.0, "text": "Some also need the fluid at a specific temperature to get an accurate reading." },
+    { "start": 15.0, "end": 18.0, "text": "Fluid looks dark or smells burnt? That's worth checking before it becomes a bigger repair." },
+    { "start": 18.0, "end": 21.0, "text": "Nick's Tire and Auto — stop by and we'll take a look." }
+  ],
+  "caption": "No dipstick under the hood for your transmission? You're not imagining it — a lot of newer transmissions are sealed for life. The fluid gets checked at a fill plug, sometimes at a specific temperature. Dark or burnt-smelling fluid is worth checking before it turns into a bigger repair. Nick's Tire & Auto, 17625 Euclid Ave, Cleveland — stop by and we'll take a look.",
+  "hashtags": [
+    "#ClevelandAutoRepair",
+    "#EuclidOhio",
+    "#TransmissionCare",
+    "#CarMaintenanceTips",
+    "#NicksTireAndAuto",
+    "#AutoRepairShop",
+    "#FaceOfCleveland",
+    "#TireShop",
+    "#CarCare101",
+    "#NortheastOhio"
+  ],
+  "adVariants": [
+    {
+      "label": "A",
+      "hook": "Your transmission doesn't have a dipstick. Here's why that's normal — and how it's actually checked.",
+      "cta": "Stop by Nick's Tire & Auto on Euclid Ave — we'll take a look, no guesswork."
+    },
+    {
+      "label": "B",
+      "hook": "Missing a transmission dipstick? You didn't lose it. It was never there.",
+      "cta": "Questions about your transmission fluid? Call (216) 862-0005 or stop in."
+    }
+  ],
+  "evidence": {
+    "businessFactsUsed": ["shop_identity_contact"],
+    "repoEvidenceRecords": [],
+    "mechanicalClaimsStatus": "UNKNOWN_NOT_REPO_SOURCED"
+  },
+  "musicRights": {
+    "status": "BLOCKED",
+    "reason": "No music-rights ledger exists in this repo; no track cleared."
+  },
+  "renderStatus": "NOT_RENDERED",
+  "publishStatus": "NOT_AUTHORIZED"
+}

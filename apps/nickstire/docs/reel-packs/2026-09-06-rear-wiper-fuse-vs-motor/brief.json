@@ -1,0 +1,51 @@
+{
+  "id": "2026-09-06-rear-wiper-fuse-vs-motor",
+  "topic": "Rear wiper stopped moving? Don't assume the motor's dead yet.",
+  "franchise": "rear-wiper-fuse-vs-motor",
+  "productionType": "faceless-ai-or-stock",
+  "cost": 0,
+  "status": "ready-for-human-approval",
+  "landingDestination": "/services",
+  "durationSeconds": 27,
+  "totalWithFreezeSeconds": 30,
+  "beats": [
+    {
+      "start": 0.0,
+      "end": 4.0,
+      "vo": "Rear wiper stopped moving? Don't assume the motor's dead yet.",
+      "visual": "Macro shot of a rear windshield wiper arm resting against dark tinted glass, static camera, overcast exterior light"
+    },
+    {
+      "start": 4.0,
+      "end": 10.0,
+      "vo": "Most rear wiper failures aren't the motor at all — it's a blown fuse, and it usually has its own, separate from the front.",
+      "visual": "Close-up of a vehicle interior fuse box panel, rows of colored fuses in focus, static camera, no hand in frame"
+    },
+    {
+      "start": 10.0,
+      "end": 17.0,
+      "vo": "Check the fuse box first. If it's blown, that's a five-minute fix, not a motor replacement.",
+      "visual": "Extreme macro push-in on a single pulled fuse in a small fixture, showing the blown metal element inside"
+    },
+    {
+      "start": 17.0,
+      "end": 23.0,
+      "vo": "If the fuse is fine but you hear a hum with no movement, that points to the linkage or motor — that one needs a look.",
+      "visual": "Interior shot looking into the open rear hatch trim area where a wiper motor linkage sits, dim ambient garage light, static camera"
+    },
+    {
+      "start": 23.0,
+      "end": 27.0,
+      "vo": "Worth checking the fuse before you assume the worst. Stop by and we'll take a look.",
+      "visual": "Shop card / logo, /services landing card"
+    }
+  ],
+  "saveFreezeSeconds": 3,
+  "negativePromptStandard": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "note": "No AI clip generation attempted or requested this session — no motion route available (no ffmpeg, no CapCut, no Higgsfield/TTS credentials in this session's environment). Standing negative prompt recorded for format consistency only, for use by a session with real generation access.",
+  "claimSafety": {
+    "pricesUsed": false,
+    "warrantiesClaimed": false,
+    "approvedSoftLanguageUsed": ["worth checking", "stop by and we'll take a look"]
+  }
+}

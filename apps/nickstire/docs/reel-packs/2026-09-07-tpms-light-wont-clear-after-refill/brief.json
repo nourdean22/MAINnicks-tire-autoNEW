@@ -1,0 +1,51 @@
+{
+  "id": "2026-09-07-tpms-light-wont-clear-after-refill",
+  "topic": "Aired up the tire and the low-pressure light is still on? Here's why it doesn't clear right away.",
+  "franchise": "tpms-light-wont-clear-after-refill",
+  "productionType": "faceless-ai-or-stock",
+  "cost": 0,
+  "status": "ready-for-human-approval",
+  "landingDestination": "/tires",
+  "durationSeconds": 27,
+  "totalWithFreezeSeconds": 30,
+  "beats": [
+    {
+      "start": 0.0,
+      "end": 4.0,
+      "vo": "Aired up the tire and the low-pressure light is still on?",
+      "visual": "Macro shot of a tire pressure gauge dial, needle settling, pressed to a valve stem against a dark tire sidewall backdrop, static camera"
+    },
+    {
+      "start": 4.0,
+      "end": 10.0,
+      "vo": "Most systems don't clear the second you fill it — they need a short drive to recheck all four sensors.",
+      "visual": "Interior wide shot of a dashboard instrument cluster with the TPMS icon illuminated, static mounted camera, dim ambient cabin light"
+    },
+    {
+      "start": 10.0,
+      "end": 17.0,
+      "vo": "Give it a few minutes above around fifteen miles an hour. If it's still lit after that, double-check every tire actually got filled — not just the one that looked low.",
+      "visual": "Sequence of four macro valve-stem shots in a row implying all four corners, consistent studio lighting, static/locked pans between cuts"
+    },
+    {
+      "start": 17.0,
+      "end": 23.0,
+      "vo": "A light that stays on after a real drive may indicate a sensor issue, not just low pressure.",
+      "visual": "Close-up of a handheld diagnostic scanner plugged into an OBD port beneath a dash, screen glow soft-focus, static camera, no hand in frame"
+    },
+    {
+      "start": 23.0,
+      "end": 27.0,
+      "vo": "Worth checking if it lingers. Stop by and we'll take a look.",
+      "visual": "Shop card / logo, /tires landing card"
+    }
+  ],
+  "saveFreezeSeconds": 3,
+  "negativePromptStandard": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
+  "note": "No AI clip generation attempted or requested this session — no motion route available (no ffmpeg, no CapCut, no Higgsfield/TTS credentials in this session's environment). Standing negative prompt recorded for format consistency only, for use by a session with real generation access.",
+  "claimSafety": {
+    "pricesUsed": false,
+    "warrantiesClaimed": false,
+    "approvedSoftLanguageUsed": ["may indicate", "worth checking", "stop by and we'll take a look"]
+  }
+}
