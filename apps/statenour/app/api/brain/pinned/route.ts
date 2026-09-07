@@ -35,6 +35,26 @@ import {
   PinContentTooLongError,
 } from "@/lib/services/pins";
 
+/**
+ * 2026-09-07 · anonymous requests used to hit `requireSession()` OUTSIDE the
+ * handler's try/catch, so the ServiceError it throws escaped as an unhandled
+ * 500 — live-probed: `GET /api/brain/pinned` answered 500 and minted a Sentry
+ * issue per probe, while every sibling under the session-exempt `/api/brain`
+ * prefix answered 401. Same denial, honest status, no error-log noise. Any
+ * throw from the session check is a denial: nothing else is allowed through.
+ * Pinned by tests/security/brain-pinned-anonymous.test.ts. The name keeps
+ * the `requireSession` idiom scripts/check-sensitive-get-auth.ts scans each
+ * handler body for.
+ */
+async function requireSessionOr401(req: NextRequest): Promise<NextResponse | null> {
+  try {
+    await requireSession(req);
+    return null;
+  } catch {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+}
+
 interface PinCreateBody {
   content?: string;
   source?: string;
@@ -49,7 +69,8 @@ interface PinPatchBody {
 }
 
 export async function GET(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionOr401(req);
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const withStats = url.searchParams.get("withStats") === "1";
@@ -66,7 +87,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionOr401(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as PinCreateBody;
     return NextResponse.json(
@@ -94,7 +116,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionOr401(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as PinPatchBody;
     if (!body.id) {
@@ -126,7 +149,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionOr401(req);
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

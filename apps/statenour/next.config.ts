@@ -104,6 +104,19 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         {
+          // 2026-09-07 · a private, owner-only app is never indexable.
+          // robots.txt already says `Disallow: /`, but Google documents that
+          // a robots-blocked URL can still be listed by URL alone when linked
+          // from elsewhere, and the user-triggered AI fetchers (ChatGPT-User,
+          // Perplexity-User, Google-Agent, meta-externalfetcher, Amzn-User)
+          // document that they ignore robots.txt. This header is the second
+          // layer on every response, incl. the sign-in page — the only 200 a
+          // crawler ever sees. Auth (middleware.ts) remains the actual
+          // access control. tests/repo/private-discovery.test.ts pins it.
+          key: "X-Robots-Tag",
+          value: "noindex, nofollow, noarchive, noimageindex",
+        },
+        {
           // microphone=(self) · Voice mode (Talk to Nick) uses getUserMedia
           // for the OpenAI Realtime session. An empty allowlist `()` blocks
           // the mic for EVERY origin including self, so the browser rejected

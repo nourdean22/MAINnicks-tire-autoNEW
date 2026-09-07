@@ -140,6 +140,18 @@
    WRITE-PATH RULE: new code uses these utilities; raw var() arbitrary
    values are legacy read-path only. */
 @theme inline {
+  /* 2026-09-07 · FONT bridge. Tailwind v4 defines the `font-sans` and
+   * `font-mono` utilities from --font-sans / --font-mono in @theme, and
+   * neither was declared here — so the 200+ files of `font-mono` labels
+   * rendered in the browser's ui-monospace stack (Consolas on Windows, SF
+   * Mono on iOS) while next/font still preloaded Geist Mono on every cold
+   * load: the live Home page reported `GeistMono: unloaded` in
+   * document.fonts with the woff2 already downloaded. Same defect class as
+   * the colour bridge below — an unregistered token emits Tailwind's
+   * default, silently. Pinned by __tests__/theme-font-utilities.test.ts. */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
   --color-void: var(--bg-void);
   --color-base-layer: var(--bg-base);
   --color-raised: var(--bg-raised);
