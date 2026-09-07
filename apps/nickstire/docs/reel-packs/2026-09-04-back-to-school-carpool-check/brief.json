@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Stop-and-go carpool driving turns more of the car's motion into brake heat per mile than steady highway cruising, so pads wear faster on the school run than over the same miles on the freeway; and every added passenger and backpack raises the load each tire carries, so a tire left at the same pressure flexes more and runs hotter.",
   "packId": "2026-09-04-back-to-school-carpool-check",
   "generatedAt": "2026-09-04",
   "mode": "SCHEDULED (== INTELLIGENCE: pack only) — scheduled/unattended run, no reel-canary call made",

@@ -233,7 +233,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 **Primary caption (SEND-oriented):**
 
 > If your car suddenly sounds louder than it used to, it's probably not
-> the engine — it's almost always a rust hole in the muffler or a pipe
+> the engine - it's almost always a rust hole in the muffler or a pipe
 > joint that's let go.
 >
 > Exhaust pipes sit low and wet, and road salt eats through the metal from
@@ -244,8 +244,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > a joint where two pipes have pulled apart.
 >
 > Driving on it won't hurt the engine, but it will keep getting louder. We
-> check the exhaust free with any inspection. Send this to someone whose
-> car just got louder.
+> check the exhaust at no charge with any inspection.
+> whose car just got louder.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #exhaustrepair
 

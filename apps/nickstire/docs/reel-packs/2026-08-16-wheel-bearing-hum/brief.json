@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A worn wheel bearing changes its hum with steering load, so it gets louder turning one way and quieter the other; tire noise stays about the same all the way through the turn.",
   "packId": "2026-08-16-wheel-bearing-hum",
   "generatedAt": "2026-08-16",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",

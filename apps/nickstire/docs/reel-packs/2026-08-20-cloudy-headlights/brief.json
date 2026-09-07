@@ -13,7 +13,7 @@
       "window": "0:00-0:04",
       "onScreenText": "That haze is the lens, not the bulb.",
       "narration": "Headlights look cloudy? That's not just looks.",
-      "visualPrompt": "Extreme close-up of a yellowed, hazy plastic headlight lens on a parked car at dusk, slow push-in, no people, no visible license plate or logo",
+      "visualPrompt": "Extreme close-up of a yellowed, hazy plastic headlight lens on a parked car at dusk, lens facets and pitted clearcoat filling the frame, slow push-in, no people",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "fallbackStockSearch": ["cloudy yellow headlight lens closeup", "car headlight dusk parked driveway"]
     },
@@ -49,7 +49,7 @@
       "role": "CTA",
       "window": "0:23-0:29",
       "narration": "A new bulb won't clear a hazed lens.",
-      "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, no people, no readable signage close enough to assert as a verified logo shot",
+      "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, bare block wall and a rolling tool chest just inside the doorway, no people",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "fallbackStockSearch": ["auto repair shop garage bay interior open door"]
     }

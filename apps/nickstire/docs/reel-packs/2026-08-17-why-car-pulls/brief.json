@@ -1,69 +1,63 @@
 {
+  "mechanicTruth": "When a pull shows up tells you where it comes from: a pull that appears only while braking points at the brakes, because that is the only time the brake system is loaded, while a pull that is there all the time points at alignment or uneven tire pressure, which act on the car whether or not you are on the pedal.",
   "id": "content-pack-2026-08-17-why-car-pulls",
   "campaignKeyword": "PULLING",
   "slateItem": 13,
   "archetype": "diagnostic_hud_reveal",
   "motionLenses": ["blueprint_technical", "xray_cutaway", "product_ad_macro"],
-  "selectedCaption": "The wheel is straight. The car isn't. A pull has more than one cause, and they're not equally urgent. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment — or just uneven tire pressure. Check pressure first. It's free, and it's often the answer. Worth checking before it becomes a bigger fix.",
+  "selectedCaption": "The wheel is straight. The car isn't. A pull has more than one cause, and they're not equally urgent. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment - or just uneven tire pressure. Check pressure first. It costs nothing, and it's often the answer. Worth checking before it becomes a bigger fix.",
   "hashtags": ["#wheelalignment", "#cartips", "#autorepair", "#clevelandohio"],
-  "voiceoverScript": "The wheel is straight, the car is not. Only pulls when you brake? That can point to the brakes. Pulls all the time? That can point to alignment, or just tire pressure. Check pressure first. It is quick, and often the answer. The pattern tells you which one it is, so do not guess.",
+  "voiceoverScript": "The wheel's straight. The car isn't. Only when braking? Brakes. All the time? Alignment or pressure. Check pressure first; soft tires mimic both. The pattern tells you.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
-      "endSecond": 2,
-      "onScreenText": null,
-      "onScreenText": "The wheel is straight. The car isn't.",
-      "visual": "Top-down technical blueprint schematic: a car icon on a straight dashed-centerline road, a thin glowing motion-vector line trailing behind it bends visibly off-center, dark blueprint-blue background, no faces, no legible text baked into the shot"
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "Low ground-level tracking shot of a front tire rolling on asphalt while the painted lane line slides out of frame to one side, long low-sun shadow",
+      "motion": "low tracking shot drifting off the line",
+      "onScreenText": "IT KEEPS PULLING",
+      "narration": "The wheel's straight. The car isn't."
     },
     {
       "beatNumber": 2,
-      "startSecond": 2,
-      "endSecond": 5,
-      "onScreenText": null,
-      "visual": "Same blueprint schematic, camera pushes in on the bending glowing vector line as it pulses"
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Macro on a brake caliper clamped over a rotor, one rotor face scorched blue and streaked while the other stays clean grey, lift legs soft in the background",
+      "motion": "slow arc around the caliper",
+      "onScreenText": "ONLY WHEN BRAKING",
+      "narration": "Only when braking? Brakes."
     },
     {
       "beatNumber": 3,
-      "startSecond": 5,
-      "endSecond": 10,
-      "onScreenText": "BRAKING-ONLY PULL",
-      "visual": "X-ray cutaway into a front brake caliper and rotor, one side glowing hot/uneven against the other, cool schematic lighting"
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "Front tire seen from ground level, one tread shoulder feathered and scrubbed to a slant while the opposite shoulder stays square and full",
+      "motion": "slow lateral slide across the tread shoulders",
+      "onScreenText": "PULLS ALL THE TIME",
+      "narration": "All the time? Alignment or pressure."
     },
     {
       "beatNumber": 4,
-      "startSecond": 10,
-      "endSecond": 15,
-      "onScreenText": "CONSTANT PULL",
-      "visual": "X-ray cutaway into a wheel's alignment geometry (toe angle skewing) dissolving into a tire cross-section with uneven pressure on one side"
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "clue",
+      "visual": "Macro on a tire valve stem with the cap off, sidewall rubber bulging slightly under load, bay floor reflection beneath",
+      "motion": "tight push-in on the valve stem",
+      "onScreenText": "PRESSURE FIRST",
+      "narration": "Check pressure first; soft tires mimic both."
     },
     {
       "beatNumber": 5,
-      "startSecond": 15,
+      "startSecond": 16,
       "endSecond": 20,
-      "onScreenText": "CHECK PRESSURE FIRST",
-      "visual": "Product-ad macro on a tire valve stem, an abstract analog needle/dial sweeping, no legible digits (numbers never asked of the generator)"
-    },
-    {
-      "beatNumber": 6,
-      "startSecond": 20,
-      "endSecond": 25,
-      "onScreenText": "CHANGING = SOONER · STEADY = SOON, NOT BLIND",
-      "visual": "Back to the blueprint schematic, the vector line flickers between a bent state and a straight state"
-    },
-    {
-      "beatNumber": 7,
-      "startSecond": 25,
-      "endSecond": 30,
-      "onScreenText": "WORTH CHECKING.",
-      "visual": "Blueprint schematic vector line straightens fully, mirroring the beat-1 opening for a loop seam"
-    },
-    {
-      "beatNumber": 8,
-      "startSecond": 30,
-      "endSecond": 33,
-      "onScreenText": "PRESSURE FIRST. THE PATTERN TELLS THE REST.",
-      "visual": "Static hold on the CTA card, silent ambient tone only"
+      "purpose": "payoff",
+      "visual": "The same front tire rolling straight along the painted lane line, wheel and line parallel, dust settling behind it",
+      "motion": "tracking shot settling parallel to the line",
+      "onScreenText": "THE PATTERN TELLS",
+      "narration": "The pattern tells you."
     }
   ],
   "qualityEstimate": {

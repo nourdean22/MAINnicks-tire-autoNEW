@@ -256,7 +256,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 
 **Primary caption (SEND-oriented):**
 
-> Your automatic suddenly shifts hard or hesitates between gears — and
+> Your automatic suddenly shifts hard or hesitates between gears - and
 > you're already picturing an expensive repair bill.
 >
 > Before you assume it's the solenoid, check one thing that takes thirty
@@ -267,8 +267,9 @@ pending an actual render — not `PASS`, and not silently omitted:
 > Warm and running, pull the dipstick. It should be pink or red, not
 > brown, and right at the fill line.
 >
-> Low or dark fluid? That's a simple fix. We check it free before we talk
-> about anything bigger. Send this to someone whose car shifts weird.
+> Low or dark fluid? That's a simple fix. We check it at no charge before
+> we talk about anything bigger.
+> weird.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #transmissioncare
 

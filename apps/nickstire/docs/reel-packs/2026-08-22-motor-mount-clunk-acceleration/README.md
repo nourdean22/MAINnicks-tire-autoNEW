@@ -254,15 +254,15 @@ pending an actual render — not `PASS`, and not silently omitted:
 **Primary caption (SEND-oriented):**
 
 > You hit the gas, or shift into drive, and you feel a clunk from
-> underneath. That's different from a clunk over a bump — this one shows up
+> underneath. That's different from a clunk over a bump - this one shows up
 > when the engine torques.
 >
-> It can mean a worn motor mount — the rubber that keeps your engine from
+> It can mean a worn motor mount - the rubber that keeps your engine from
 > rocking under load. A torn or collapsed mount can also let the engine
 > shift enough to rub or strain a hose or wire nearby.
 >
-> We check engine mounts free with any diagnostic visit. Send this to
-> someone whose car clunks when they hit the gas.
+> We check engine mounts at no charge with any diagnostic visit. Send
+> this to someone whose car clunks when they hit the gas.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

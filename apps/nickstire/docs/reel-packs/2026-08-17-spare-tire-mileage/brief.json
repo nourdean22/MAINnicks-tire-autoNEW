@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "A compact spare is a narrower wheel with shallow tread and no wear indicator, and most are rated for roughly 50 miles at speeds under 50 mph, so it is built to reach a shop rather than to replace a full-size tire.",
   "packId": "2026-08-17-spare-tire-mileage",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -30,7 +31,7 @@
       "endSecond": 7,
       "narration": "Most are rated near 50 miles at low speed.",
       "onScreenText": "50 MPH · 50 MILES",
-      "providerScene": "Close-up orbit around the compact spare's sidewall, hand-free rotating turntable reveal of the narrow tread band, soft key light, shallow DOF, 9:16 vertical framing",
+      "providerScene": "Close-up orbit around the compact spare's sidewall, slow turntable rotation revealing the narrow tread band, soft key light, shallow DOF, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     },
@@ -63,7 +64,7 @@
       "endSecond": 20,
       "narration": "It gets you to the shop.",
       "onScreenText": "SEND TO SOMEONE ON A SPARE",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, centered static framing echoing beat 1's composition, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, centered static framing echoing beat 1's composition, bare painted cinderblock walls and a plain metal roll-up door, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

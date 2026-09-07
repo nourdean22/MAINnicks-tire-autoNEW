@@ -1,68 +1,62 @@
 {
+  "mechanicTruth": "Air pressure falls as air cools, so about one PSI leaves a tire for every ten degrees Fahrenheit the temperature drops - which is why the low-pressure light appears after the first cold night with nothing punctured, and why the reading only means something taken cold, before driving warms the tires and reads high.",
   "id": "content-pack-2026-08-18-cold-weather-tire-light",
   "campaignKeyword": "COLDSNAP",
   "archetype": "caught_on_camera_documentary",
   "motionLenses": ["forensic_evidence_scan", "product_ad_macro"],
   "selectedCaption": "You didn't run over anything. That warning light isn't damage — it's the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire. That's why the light shows up on the first cold Cleveland morning, out of nowhere. Warm tires read high and hide the real number. Check the pressure cold, before you drive. Worth checking before that first frost.",
   "hashtags": ["#tirepressure", "#ohioweather", "#cartips", "#clevelandohio"],
-  "voiceoverScript": "You did not run over anything. That light is the weather. Every ten degrees the temperature drops pulls about one PSI out of every tire, so it shows up on the first cold Cleveland morning. Warm tires read high and hide the real number. Check them cold, before you drive. The first frost does this every year.",
+  "voiceoverScript": "You did not run over anything - the first cold snap does this. Cooling air shrinks, so tire pressure falls. About a pound for every ten degrees. Read them cold, before you drive. One clue worth checking, not a verdict.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
-      "endSecond": 2,
-      "onScreenText": null,
-      "onScreenText": "You didn't run over anything.",
-      "visual": "Extreme macro inside a dark car dashboard, an amber tire-pressure warning icon glowing to life, a thin diagnostic scan-line sweeps across the icon, deep blacks with amber bokeh glow, no faces, no legible text baked into the shot"
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "Extreme macro inside a dark car cabin, a small amber warning lamp blooming out of black behind dark plastic, deep blacks and amber bokeh, no people in frame",
+      "motion": "slow push-in as the lamp blooms",
+      "onScreenText": "NOT A NAIL",
+      "narration": "You did not run over anything - the first cold snap does this."
     },
     {
       "beatNumber": 2,
-      "startSecond": 2,
-      "endSecond": 5,
-      "onScreenText": "NOT DAMAGE.",
-      "visual": "Same dark dashboard macro, the amber warning icon holds steady as the diagnostic scan-line locks in place, deep blacks with amber bokeh glow"
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Macro on a tire sidewall in a frozen driveway at dawn, frost crystals creeping across the rubber, cold blue light, clean dark field",
+      "motion": "slow drift along the sidewall",
+      "onScreenText": "COLD AIR SHRINKS",
+      "narration": "Cooling air shrinks, so tire pressure falls."
     },
     {
       "beatNumber": 3,
-      "startSecond": 5,
-      "endSecond": 10,
-      "onScreenText": "EVIDENCE 1: -10F ~ -1 PSI",
-      "visual": "Forensic evidence-scan aesthetic: extreme macro on a tire sidewall, a horizontal scan-line sweeps across it, cool investigative lighting, clean dark field"
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "clue",
+      "visual": "Macro of frost blooming across a car window at dawn, feathered ice fanning over the glass, cold blue morning light",
+      "motion": "static, frost creeping in real time",
+      "onScreenText": "10F = ~1 PSI",
+      "narration": "About a pound for every ten degrees."
     },
     {
       "beatNumber": 4,
-      "startSecond": 10,
-      "endSecond": 15,
-      "onScreenText": "EVIDENCE 2: THE FIRST COLD MORNING",
-      "visual": "Forensic evidence-scan aesthetic continues: macro on frost forming on a car window at dawn, cool blue morning light, investigative lighting style"
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "payoff",
+      "visual": "Extreme macro of a valve stem and its cap on a cold wheel rim, frost beading on the metal, shallow depth of field, cool morning light",
+      "motion": "slow rack focus onto the valve",
+      "onScreenText": "CHECK THEM COLD",
+      "narration": "Read them cold, before you drive."
     },
     {
       "beatNumber": 5,
-      "startSecond": 15,
+      "startSecond": 16,
       "endSecond": 20,
-      "onScreenText": "WARM TIRES READ HIGH",
-      "visual": "Premium product commercial macro of a hand-held tire-pressure gauge pressed to a tire valve stem, the needle settling, shallow depth of field, cool morning light"
-    },
-    {
-      "beatNumber": 6,
-      "startSecond": 20,
-      "endSecond": 25,
-      "onScreenText": "CHECK IT COLD, BEFORE YOU DRIVE",
-      "visual": "Same premium product macro style, the gauge needle settling to a lower cold-tire reading, shallow depth of field, cool morning light"
-    },
-    {
-      "beatNumber": 7,
-      "startSecond": 25,
-      "endSecond": 30,
-      "onScreenText": "WORTH CHECKING.",
-      "visual": "Extreme macro inside the dark car dashboard again, the amber warning icon fades back to black, mirroring the beat-1 opening for a loop seam"
-    },
-    {
-      "beatNumber": 8,
-      "startSecond": 30,
-      "endSecond": 33,
-      "onScreenText": "THE FIRST COLD SNAP DOES THIS EVERY YEAR. Nick's Tire & Auto - 17625 Euclid Ave, Cleveland",
-      "visual": "Static hold on the CTA card, silent ambient tone only"
+      "purpose": "save",
+      "visual": "Extreme macro inside the dark car cabin again, the amber warning lamp dimming back to black, mirroring the opening framing for a loop seam",
+      "motion": "slow pull-back as the glow fades",
+      "onScreenText": "WORTH CHECKING",
+      "narration": "One clue worth checking, not a verdict."
     }
   ],
   "qualityEstimate": {

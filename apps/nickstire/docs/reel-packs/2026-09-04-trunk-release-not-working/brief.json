@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "The trunk button does not pull the latch itself - it sends power through a fuse to a solenoid that releases it, so a blown fuse leaves the button silent while the latch itself is still fine, and that is why the fuse gets checked before the solenoid or the release cable.",
   "packId": "2026-09-04-trunk-release-not-working",
   "generatedAt": "2026-09-04",
   "mode": "SCHEDULED (== INTELLIGENCE: pack only) — scheduled/unattended run, no reel-canary call made",

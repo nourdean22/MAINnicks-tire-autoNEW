@@ -44,7 +44,7 @@
       "role": "CTA",
       "window": "0:24-0:30",
       "narration": "One look underneath settles it.",
-      "visualPrompt": "Interior of an auto repair shop garage bay, empty lift with clean tools, open bay door, warm inviting light, shop signage blurred/out of focus (no legible text), no people",
+      "visualPrompt": "Interior of an auto repair shop garage bay, empty lift with clean tools, open bay door, warm inviting light, bare block wall and rolling tool chests softly out of focus behind the lift, no people",
       "audioNote": "no rattle SFX, warm ambient garage room-tone only",
       "endFreezeSeconds": 3,
       "endFreezeNote": "hold this frame + CTA text card for 3s after narration ends (SAVE-prompt convention, matches render-integrity gate's beats+3s duration contract)"

@@ -265,14 +265,14 @@ pending an actual render — not `PASS`, and not silently omitted:
 > Your engine bay is sparking blue in the dark and you didn't even know it.
 >
 > A cracked spark plug wire or coil boot lets voltage jump to the block
-> instead of the plug. That's lost voltage the cylinder never gets — it
+> instead of the plug. That's lost voltage the cylinder never gets - it
 > can show up as a misfire, a rough idle, or a check-engine light.
 >
 > Pop the hood at night and look for a flicker near the plugs. That flicker
 > is the clue, not the problem itself.
 >
-> We check plug wires and coils free with any diagnostic visit. Send this
-> to someone who just heard a weird engine sound at night.
+> We check plug wires and coils at no charge with any diagnostic visit.
+>
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

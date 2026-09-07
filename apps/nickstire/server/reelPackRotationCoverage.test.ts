@@ -158,12 +158,18 @@ describe("the rotation array's own invariants", () => {
  * histogram entirely. It also took `no-free-claims` from 39 to 24 as a side
  * effect — several scripts carried the word only in the sentences that were cut.
  *
- * This floor climbs further as the REMAINING blockers are cleared: 38 packs have
- * no mechanic truth, 26 depend on rendered in-frame text, 24 still carry a
- * "free" claim in their captions or beat text, 19 are outside the 4-6 beat band.
- * The failure message prints the current histogram, which is the work list.
+ * 2026-09-07, after the blocker sweep: **99 of 99**. Every remaining class was
+ * cleared - 38 mechanic truths written from each pack's own teaching content,
+ * 28 in-frame-text and 5 faceless visuals recast as physical objects, 20 claim
+ * rewordings, 19 storyboards merged into the 4-6 beat band, 2 malformed beat
+ * indices, and 8 top-level voiceover scripts re-synced to their merged beats.
+ *
+ * THE FLOOR IS NOW THE WHOLE ROTATION, which changes what a failure means: any
+ * drop is a REGRESSION in a pack that shipped clean, not a pack that was never
+ * fixed. The failure message still prints the blocking histogram, so the first
+ * line of a red run names the class and the pack.
  */
-const PREFLIGHT_PASSING_FLOOR = 31;
+const PREFLIGHT_PASSING_FLOOR = 99;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {
@@ -210,13 +216,24 @@ describe("reachable is not shippable — the pre-spend gate is the real one", ()
   });
 
   it("the preflight actually ran — a silent zero would look identical to a clean sweep", () => {
-    // The instrument must be shown to FIRE. If every brief were unbuildable,
-    // `passing` and `blockers` would both be empty and the assertion above
-    // would still pass on the floor being 0-ish. Pin that both halves have
-    // content: some packs pass, and the rest fail for stated reasons.
-    const { passing, blockers } = preflightVerdicts();
-    expect(passing.length, "no pack passes — the gate is measuring nothing").toBeGreaterThan(0);
-    expect(blockers.size, "no pack fails — implausible, so the probe is not reading").toBeGreaterThan(0);
+    // The instrument must be shown to FIRE. This used to assert that SOME pack
+    // fails, on the reasoning that an all-green sweep is indistinguishable from
+    // a probe reading nothing. That was true while packs were failing and is
+    // now simply wrong: the sweep cleared every blocker, so the "some pack must
+    // fail" half asserted a defect that no longer exists.
+    //
+    // The property that still matters is that the probe READ the whole
+    // rotation, so pin the count against the array itself rather than against
+    // zero. A misread directory or an unbuildable brief shows up here as a
+    // shortfall, and the deliberate-break canary below supplies the other half
+    // of the proof — that a blocking verdict is still reachable at all.
+    const { passing } = preflightVerdicts();
+    expect(APPROVED_REEL_PACK_SLUGS.length, "the rotation itself went empty").toBeGreaterThan(90);
+    expect(
+      passing.length,
+      `only ${passing.length} of ${APPROVED_REEL_PACK_SLUGS.length} packs were read — the probe is ` +
+        `not seeing the whole rotation`,
+    ).toBe(APPROVED_REEL_PACK_SLUGS.length);
   });
 
   it("canary — preflight really would refuse a defective brief", () => {

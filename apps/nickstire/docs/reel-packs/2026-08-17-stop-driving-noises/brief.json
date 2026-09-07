@@ -1,4 +1,5 @@
 {
+  "mechanicTruth": "Whether a noise tracks engine speed or wheel speed tells you which system it lives in: a knock that rises and falls with the throttle stays in step with the engine even in neutral, while a rhythmic clunk that changes only with road speed comes from the rotating wheel end and goes quiet the moment the car stops rolling.",
   "packId": "2026-08-17-stop-driving-noises",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -63,7 +64,7 @@
       "endSecond": 28,
       "narration": "Grinding, knocking, clunking. Worth checking.",
       "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, warm end-of-day light, static hold, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

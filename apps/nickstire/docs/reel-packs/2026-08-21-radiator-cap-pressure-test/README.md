@@ -242,7 +242,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 **Primary caption (SEND-oriented):**
 
 > Coolant keeps disappearing and there's no puddle anywhere under the car.
-> It might not be a hose or a gasket — check the radiator cap first.
+> It might not be a hose or a gasket - check the radiator cap first.
 >
 > The cap holds pressure in the system. A worn seal or a weak spring lets
 > coolant boil off past the overflow before you ever see a drop on the
@@ -251,8 +251,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > A cap that won't hold pressure can look brand new and still be the reason
 > you keep topping off.
 >
-> We pressure-test your cooling system free with any inspection. Send this
-> to someone who keeps buying coolant.
+> A cooling system pressure test during any inspection shows whether the
+> cap still holds the pressure it is rated for.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

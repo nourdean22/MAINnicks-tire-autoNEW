@@ -12,7 +12,7 @@
       "endSecond": 4,
       "narration": "Your timing belt has no warning light.",
       "onScreenText": "Zero warning light for THIS one.",
-      "visual": "Extreme close-up of a car's odometer/mileage readout on the instrument cluster, dashboard otherwise clean with no warning lights lit, slow creeping camera push-in, neutral daylight cabin lighting, no people visible",
+      "visual": "Extreme macro on a row of unlit tell-tale lenses in the instrument cluster, dark glass and bezel detail only, slow creeping camera push-in, neutral daylight cabin lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
@@ -52,7 +52,7 @@
       "endSecond": 28,
       "narration": "Your owner's manual has the number.",
       "onScreenText": "The mileage is the only warning.",
-      "visual": "Close-up on the same dashboard odometer framing as beat 1, camera pulls back and reveals an auto repair shop garage bay in soft daylight behind/through the windshield, warm inviting light take-over as the pull-back completes, no people visible",
+      "visual": "Slow pull-back from the same dark instrument cluster framing as the opening beat, revealing an auto repair shop garage bay in soft daylight through the windshield, warm inviting light taking over as the pull-back completes, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],
