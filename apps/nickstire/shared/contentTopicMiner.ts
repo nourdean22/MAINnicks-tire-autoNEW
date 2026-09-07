@@ -118,20 +118,88 @@ const SOURCE_WEIGHT: Record<TopicSource, number> = {
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+/**
+ * The SUBJECT of a topic — the part before the editorial framing.
+ *
+ * `declinedWorkTopics` builds each topic from a per-category TEMPLATE:
+ * "<part>: what a driver actually feels when it is going, and why this is the
+ * category we do not tell people to wait on". Four different parts in one
+ * category therefore share an eleven-word tail and differ by two or three
+ * words, which made the word-overlap check below read them as the same topic.
+ *
+ * Measured against production 2026-09-07: ALL EIGHT declined-work candidates
+ * were suppressed, and four of those were false — "the front hub or bearing",
+ * "the tie rod end inner" and "the front strut assembly" were each dropped as
+ * duplicates of "the lower control arm", and "the alternator" was dropped as a
+ * duplicate of "the catalytic converter". Those are unrelated repairs.
+ *
+ * That silenced the highest-weight source in the table (34, above everything)
+ * and the only one that is un-generic by construction, leaving the daily topic
+ * to `performance_signal` and `coverage_gap` — which is how reels came to be
+ * generated under the topics "seasonal" and "Engine".
+ */
+function subject(s: string): string {
+  const i = s.indexOf(": ");
+  return i > 0 ? s.slice(0, i) : s;
+}
+
 /** Overlap check that tolerates rewording — exact-match dedup lets the same
  *  idea back in wearing different words, which is how a feed gets repetitive
- *  while every row looks unique. */
+ *  while every row looks unique.
+ *
+ *  Compares SUBJECTS when both sides declare one, so shared boilerplate cannot
+ *  mask a different subject. Two topics about the same part still collide —
+ *  identical subjects overlap completely — so this loosens nothing that the
+ *  check was actually there to catch. */
 export function isNearDuplicate(candidate: string, priors: string[]): boolean {
-  const a = new Set(norm(candidate).split(" ").filter((w) => w.length > 3));
-  if (a.size === 0) return false;
+  const candSubject = subject(norm(candidate));
   for (const p of priors) {
-    const b = new Set(norm(p).split(" ").filter((w) => w.length > 3));
-    if (b.size === 0) continue;
+    const priorNorm = norm(p);
+    // Only compare head-to-head when BOTH carry a template separator. Against a
+    // free-form prior ("You just hit a pothole on Euclid Ave...") the whole
+    // string is the subject, and truncating one side would compare a fragment.
+    const bothTemplated = candSubject !== norm(candidate) && subject(priorNorm) !== priorNorm;
+    const left = bothTemplated ? candSubject : norm(candidate);
+    const right = bothTemplated ? subject(priorNorm) : priorNorm;
+
+    const a = new Set(left.split(" ").filter((w) => w.length > 3));
+    const b = new Set(right.split(" ").filter((w) => w.length > 3));
+    if (a.size === 0 || b.size === 0) continue;
     let shared = 0;
     for (const w of a) if (b.has(w)) shared++;
     if (shared / Math.min(a.size, b.size) >= 0.6) return true;
   }
   return false;
+}
+
+/**
+ * Minimum specificity for something to be worth scripting.
+ *
+ * `performance_signal` emits analytics THEME LABELS ("seasonal", "community",
+ * "promo") and `coverage_gap` emits bare SERVICE CATEGORIES ("Engine",
+ * "Brakes", "Tires & Wheels"). Neither is a topic — nobody can write a
+ * six-beat script about the word "promo" — yet performance_signal scores 30,
+ * second only to declined work, so with declined work suppressed these WON the
+ * daily pick. Production evidence: reel job 1830003's stored topic is the
+ * single word "Engine", and 1830001's antecedent chain shows the same shape.
+ *
+ * ONE WORD is the bar, and it is deliberately that low. A first attempt
+ * required four words and broke two existing tests whose fixtures — "brake
+ * noise", "exhaust work" — are perfectly good two-word topics. Those tests
+ * were right and the bar was wrong: the defect is not shortness, it is that a
+ * value lifted verbatim out of a fixed enum is a LABEL, and every real offender
+ * ("seasonal", "community", "promo", "Engine", "Brakes", "Cooling", "Fluids",
+ * "Suspension") happens to be a single word.
+ *
+ * This is a floor, not the mechanism. The mechanism is the ranking: declined
+ * work scores 34 and wins outright once it is no longer suppressed, so labels
+ * return to the low-ranked fallback role they were designed for. The floor
+ * only matters on a day when every higher source is genuinely empty — and on
+ * that day the honest outcome is the manifest fallback, which announces
+ * itself, rather than a reel titled "Engine".
+ */
+export function isScriptableTopic(topic: string): boolean {
+  return norm(topic).split(" ").filter(Boolean).length > 1;
 }
 
 /**
@@ -176,6 +244,9 @@ export function mineTopicCandidates(signals: TopicSignals): TopicCandidate[] {
 
   const add = (topic: string, source: TopicSource) => {
     if (!topic.trim()) return;
+    // Before dedup: a bare category label is not a topic at all, so it should
+    // not occupy a candidate slot NOR suppress a real topic behind it.
+    if (!isScriptableTopic(topic)) return;
     if (isNearDuplicate(topic, recentTopics)) return;
     const franchiseId = franchiseForSource(source, recentFranchises);
     const franchise = FRANCHISES[franchiseId];
