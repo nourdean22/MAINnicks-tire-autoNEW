@@ -5035,6 +5035,21 @@
       "file": "apps/statenour/package.json",
       "symbol": "graphify:sync",
       "reason": "UNINVOKED, KNOWN. Nothing in the repo runs it; the scheduled sync is scripts/graphify-obsidian-sync.ps1. Its child scripts (graphify:manifest, graphify:ingest) are the only importers of the graphify adapter, so that whole chain is alive only if a human types this command. Reconcile or delete."
+    },
+    {
+      "file": "apps/nickstire/server/services/shopSales.ts",
+      "symbol": "salesWindow",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The window arithmetic is where every 'revenue for a period' defect in this repo has actually lived — a UTC CURDATE() on an Eastern shop (already tomorrow in Cleveland from 20:00 ET), a Monday-based WEEKDAY() paired with a Sunday-based JS loop, a per-transacting-day average multiplied by 30 calendar days. The SUM is trivial; the boundaries are the risk. Exported so server/shopSales.test.ts can assert them directly against a fixed clock, including the 20:00-ET case and the year-crossing prev_month. Its only runtime caller is paidInvoiceRevenue in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/shopSales.ts",
+      "symbol": "SALES_DEFINITION_VERSION",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The version string is stamped onto every ShopSales payload so a stored or screenshotted figure states which transaction-set rules produced it. Exported so the test can assert the version actually names its basis (invoice-date) rather than being an opaque counter — a version nobody can decode is not provenance. Consumed at runtime inside paidInvoiceRevenue in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/declinedRecoverySequence.ts",
+      "symbol": "RECOVERY_CLOSED_SIGNALS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and it became export-only on 2026-09-07 by design. declinedWorkRecovery used to import this list and test membership itself, which is precisely how an OPERATOR-sourced concern ended a real customer's recovery sequence — the halt read WHAT was said and never WHO said it. The membership test now lives inside isCustomerClosedSignal(), which checks provenance first, and that is the only thing callers may use. The list stays exported so server/neutralDismissal.test.ts can assert every closed signal round-trips through the provenance guard; re-importing it at a call site would reintroduce the defect."
     }
   ]
 }

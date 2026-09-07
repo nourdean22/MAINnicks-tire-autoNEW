@@ -1,7 +1,45 @@
 # Session ledger — nickstire
 
-**Updated:** 2026-09-07 (brand-voice debt pass · 0112 verified ALREADY applied · prerender
-found already current · reel routine disabled. Prior arc 2026-09-03 below.)
+**Updated:** 2026-09-07 (admin Phase 1 shipped to PR #2163 · brand-voice debt pass · 0112
+verified ALREADY applied · prerender found already current · reel routine disabled.
+Prior arc 2026-09-03 below.)
+
+## 2026-09-07 · admin Phase 1 — PR #2163 (open)
+
+Branch `nickstire/admin-queue-retire-sales-contract`, 10 commits, 47 files, all under
+`apps/nickstire/`. **Nothing applied to production.** Full suite **542 files passed | 2
+skipped (544) · 6,831 passed | 50 skipped | 1 todo (6,882) · 0 failed**.
+
+**Verified in the LIVE admin first** (real browser, owner session): the home carried **no
+revenue figure at all**, opened with a **227-item Decision Inbox**, and the summary counts
+sat **7th** below an Automation Lift panel last measured 2026-06-07 with 3 of 4 metrics at
+0.0%. The top 5 queue items were customers who texted **38–41 days ago, never answered**.
+
+Shipped: Decision Inbox retired (home **and** morning brief — ROS-083 resolved by removing
+the block AND the "Top 3 priorities" mandate together, since removing one re-creates it);
+neutral `dismissed` state (VARCHAR(24), no migration); `captureStatedConcern` reshaped to
+require `heardFrom: z.literal("customer")` — that literal made the old hide-button call site
+a **compile error**; one sales definition (`services/shopSales.ts`, contract extended not
+duplicated), labelled **"Billed"** not "Total Sales" until reconciled to ALG; two live-publish
+bypasses closed (`reel-canary` + `generateAndPublishLiveTestReel`, the latter was posting AI
+video **undisclosed**); drain fixed twice over; provider handle retained; read-only recovery
+ledger; `docs/ADMIN-COVERAGE-2026-09-07.md` (18 sections, **10 honestly marked NOT AUDITED**).
+
+**Prod flags re-verified live (read-only)** — these had been unverified in docs since
+2026-08-11/16: `S3_BUCKET` + `S3_ENDPOINT` **set** (so masters ARE durable — the measured
+404s are historical), `CLOUDFRONT_DOMAIN` unset, `REEL_PUBLISH_ENABLED` /
+`REEL_AUTOPOST_ENABLED` / `REEL_GENERATION_ENABLED` **true**, `IG_AUTOPOST_DRYRUN` **false**,
+`RENDERED_QA_ENABLED` **true**, `REEL_APPROVAL_TTL_HOURS` unset (72h default),
+`REEL_VIDEO_PROVIDER` = `higgsfield`.
+
+**Operator actions:** (1) apply `drizzle/0118` — **apply → reconcile → THEN wire schema.ts**;
+wiring first makes `findLiveApproval`'s bare `select()` throw and it fails closed, silently
+holding every reel. (2) The 227 open opportunities are real customers. (3) Visual pass after
+deploy — **not verified**, the authed admin cannot render outside a signed-in browser.
+
+**Environment note:** the pre-push gate fails on `@statenour/web#build` —
+`Cannot find module '@sentry/nextjs/config'`, **missing from the primary checkout too**.
+Environmental, hits any branch. Pushed via a hookless clone; CI runs the real gate.
 
 **Objective:** Execute the 18-agent audit's findings + a forensic/growth audit grounded in the shop's REAL GSC data, fix every code-fixable defect, and ship a gate so the next drift can't hide.
 

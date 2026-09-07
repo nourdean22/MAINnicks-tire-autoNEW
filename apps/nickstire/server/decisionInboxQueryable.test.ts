@@ -1,23 +1,25 @@
 /**
- * decisionInboxQueryable.test.ts · 2026-08-04
+ * "Unknown is not empty", across BOTH queue reads.
  *
- * #1340 added `queryable: boolean` to topDecisions() precisely so an
- * unconsultable decision queue would stop reading as a clear one — then wired it
- * to the cron and the LLM query route (morningBrief.ts:235,
- * nour-os-query.ts:117) and not to the admin panel the operator actually looks at.
+ * HISTORY. #1340 added `queryable: boolean` to topDecisions() precisely so an
+ * unconsultable queue would stop reading as a clear one, and wired it to the
+ * cron, the LLM query route and the admin Decision Inbox panel.
  *
- * The gap is invisible to `isError`: topDecisions returns
- * `{ decisions: [], queryable: false }` when the DB is unreachable
- * (opportunityQueue.ts:398) or the query throws (:442). The tRPC call SUCCEEDS
- * carrying that shape, so isError stays false, decisions is empty, and the panel
- * printed "Either the queue is clear...". Same class the wave was closing, opened
- * by the wave.
+ * WHAT THIS FILE NOW COVERS. On 2026-09-07 the Decision Inbox was retired from
+ * the admin home and the queue moved to a staff Opportunities tab, which is the
+ * first UI consumer of `opportunityQueue.list`. Auditing that mount found the
+ * fix had only ever been applied to ONE of the two reads: `listOpportunities`
+ * returned a bare `[]` on BOTH failure exits (no database handle, and
+ * `revenue_opportunities` missing), so "we could not read the queue" would have
+ * rendered as "you have no opportunities" — the same defect #1340 closed, sitting
+ * one function to the left the whole time.
  *
- * These are source-text assertions in the deadEndClosure style, because the
- * defect is a missing BRANCH — there is no value to assert, only the absence of
- * a guard. A render test that mounted the panel with queryable:false would prove
- * more, but the panel pulls tRPC, auth and a mutation, and the repo has no
- * harness for that; a guard that ships beats a harness that does not.
+ * That is the recurring shape worth naming: a fix applied to an INSTANCE rather
+ * than to the SUBJECT. So this file now asserts the property for every read that
+ * reaches a human, not just the one that had the bug.
+ *
+ * Source-text assertions in the deadEndClosure style, because the defect is a
+ * missing BRANCH — there is no value to assert, only the absence of a guard.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -25,42 +27,64 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-const panel = read("client/src/pages/admin/DecisionInboxPanel.tsx");
 const service = read("server/services/opportunityQueue.ts");
 const router = read("server/routers/opportunityQueue.ts");
+const opportunitiesTab = read("client/src/pages/admin/OpportunitiesSection.tsx");
 
-describe("the queryable flag reaches the operator, not just the cron", () => {
-  /** If the service stops emitting it, the panel's guard silently does nothing. */
-  it("topDecisions still reports queryable on both failure paths", () => {
+describe("both queue reads distinguish unreadable from empty", () => {
+  it("topDecisions still reports queryable on every failure path", () => {
     expect(service).toMatch(/queryable:\s*false/);
     expect(service).toMatch(/queryable:\s*true/);
-    // Both known failure exits must carry it, not just one.
     const falses = service.match(/queryable:\s*false/g) ?? [];
-    expect(falses.length).toBeGreaterThanOrEqual(2);
+    // topDecisions has 2 (no-db, missing-table); listOpportunities adds 2 more.
+    expect(falses.length).toBeGreaterThanOrEqual(4);
   });
 
-  it("the top procedure forwards topDecisions verbatim, so the flag is on the wire", () => {
-    expect(router).toMatch(/top:\s*adminProcedure[\s\S]{0,220}topDecisions\(/);
+  it("listOpportunities returns a shape that CANNOT be mistaken for a list", () => {
+    // The regression guard. A future edit reverting this to `return []` makes
+    // `.items` a type error at four call sites rather than a silent zero — but
+    // only if the object shape survives, which is what this asserts.
+    expect(service).toMatch(/listOpportunities\([\s\S]{0,200}?Promise<\{\s*items:\s*OpportunityRow\[\];\s*queryable:\s*boolean\s*\}>/);
+    expect(service).toMatch(/return\s*\{\s*items:\s*\[\],\s*queryable:\s*false\s*\}/);
   });
 
-  it("the panel branches on queryable === false", () => {
-    expect(panel).toMatch(/data\?\.queryable === false/);
+  it("the send path refuses to act on an unreadable queue", () => {
+    // sendOpportunityDraft TEXTS A CUSTOMER. An unreadable queue must not be
+    // reported as "opportunity not found", which reads as "the row is gone".
+    const draft = read("server/services/opportunityDraft.ts");
+    expect(draft).toMatch(/if\s*\(!queryable\)/);
+    expect(draft).toMatch(/refusing to send against an unknown queue/);
+  });
+
+  it("the list procedure forwards the flag verbatim, so it is on the wire", () => {
+    expect(router).toMatch(/list:\s*adminProcedure[\s\S]{0,400}listOpportunities\(/);
+  });
+});
+
+describe("the Opportunities tab renders unknown as unknown", () => {
+  it("branches on queryable === false", () => {
+    expect(opportunitiesTab).toMatch(/queryable === false/);
+  });
+
+  it("says UNKNOWN, not clear", () => {
+    expect(opportunitiesTab).toMatch(/UNKNOWN, not clear/);
   });
 
   /**
-   * The regression that matters. The empty state must not render when the queue
-   * was unreadable — otherwise the guard above adds a banner while the "queue is
-   * clear" sentence still prints underneath it, which is worse than either alone.
+   * The regression that matters, inherited from the retired panel's test: the
+   * empty state must not render when the queue was unreadable, or the banner
+   * and the "genuinely clear" sentence print together — worse than either alone.
    */
-  it("the empty state is gated on queryable, not only on isError", () => {
-    const emptyBranch = panel.match(/\{!isError && [^}]*decisions\.length === 0 &&/);
-    expect(emptyBranch, "the decisions.length === 0 branch changed shape").not.toBeNull();
-    expect(emptyBranch![0]).toContain("queryable");
+  it("only claims 'clear' when the queue was actually read", () => {
+    const emptyBranch = opportunitiesTab.match(/queryable === true && items\.length === 0/);
+    expect(emptyBranch, "the empty-state branch changed shape").not.toBeNull();
   });
+});
 
-  it("the header does not print a count derived from an unread queue", () => {
-    // totalLive is 0 on the unreadable path, so "top 0 of 0 live" would be a
-    // fabricated all-clear in the same breath as the banner saying otherwise.
-    expect(panel).toMatch(/queue unreadable/i);
+describe("the retired panel stays retired", () => {
+  it("DecisionInboxPanel is gone and not mounted on the admin home", () => {
+    const overview = read("client/src/pages/admin/OverviewSection.tsx");
+    expect(overview).not.toMatch(/DecisionInboxPanel/);
+    expect(() => read("client/src/pages/admin/DecisionInboxPanel.tsx")).toThrow();
   });
 });

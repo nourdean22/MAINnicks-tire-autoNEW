@@ -47,9 +47,20 @@ const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
   // "approvals" added 2026-08-12 (trust-ladder queue) — a DELIBERATE grant to
   // owner + manager only, per this pin's own rule that role changes must be an
   // explicit edit here, never a silent by-product.
-  owner: ["overview", "approvals", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  manager: ["overview", "approvals", "intelligence", "customers", "leads", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  front_desk: ["overview", "customers", "leads", "tireOrders", "voiceReceptionist", "callTrackingView"],
+  // "opportunities" added 2026-09-07 with the Decision Inbox retirement. The queue
+  // moved off the owner's home to a staff worklist, so the grant is owner +
+  // manager + front_desk — the same set as `leads`, because it is the same job.
+  //
+  // DELIBERATELY NOT granted to: `tech` (does not do customer follow-up),
+  // `accountant` and `viewer` (read-only money/report roles with no reason to
+  // action a customer contact). Widening it later means editing THIS pin AND
+  // checking `permissionForAdminProcedure` for every procedure the page calls —
+  // the trafficFunnel line below is what happens when only the cosmetic gate is
+  // changed: the role got a door it could not walk through, 7 of 10 calls threw
+  // FORBIDDEN, and the grant had to be withdrawn.
+  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  manager: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  front_desk: ["overview", "customers", "leads", "opportunities", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
   // trafficFunnel removed 2026-09-02: its procedures need marketing.manage /
   // customers.manage, which accountant does not hold (PR #2063 self-review).

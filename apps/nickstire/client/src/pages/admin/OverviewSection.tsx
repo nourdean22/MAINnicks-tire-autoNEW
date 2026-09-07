@@ -1,6 +1,6 @@
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import ClosedLoopLiftPanel from "./ClosedLoopLiftPanel";
-import DecisionInboxPanel from "./DecisionInboxPanel";
+import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
@@ -383,31 +383,35 @@ export default function OverviewSection() {
           predicates. It self-suppresses when there is no real signal. */}
       <MorningBrief priorityQueueLength={queue.length} urgentLeads={urgentLeadCount} />
 
+      {/* SALES LEADS THE PAGE (2026-09-07).
+          Measured on the live admin the same day: this home carried NO revenue
+          figure anywhere. The page opened with a 227-item decision queue and the
+          four summary counts sat SEVENTH, below an "Automation Lift" panel last
+          measured 2026-06-07 with three of its four metrics at 0.0%.
+          The owner's first question is what the shop sold, so it is answered
+          first. Deliberately NOT "Total Sales" — see SalesCard's header. */}
+      <SalesCard />
+
       {/* Arrival load (NT-008) — the walk-in shop's planning signal: who said
           they're coming today (expected_arrivals' FIRST client consumer) +
           tomorrow's preferred-date bookings from the same bundle this page
           already fetched. Self-suppresses when empty AND healthy. */}
       <ArrivalLoadStrip bookings={bookings} bookingsTrustworthy={!unavailable.includes("bookings")} />
 
-      {/* Owner Decision Inbox (Wave 4) — the top-5 evidence-backed
-          decisions LEAD the day. Everything below is monitoring; this is
-          the part that moves money. Degrades to an empty card until the
-          queue table (0099) is applied + collectors run. */}
-      <DecisionInboxPanel />
+      {/* The owner Decision Inbox was RETIRED from this page on 2026-09-07 by
+          operator decision: a queue that leads the day manufactures obligations
+          on a healthy day. The service is unchanged — `opportunityQueue.list`
+          is now mounted as the staff-facing Follow-ups tab under Sales Pipeline,
+          and the operational rails (declinedWorkRecovery, missedCallRecovery,
+          staleLeadFollowup) were always where real follow-ups live. Do NOT
+          re-mount a decision queue here under another name. */}
 
-      {/* Promise Ledger (0102) — log promises the moment they're made;
-          the sweep escalates overdue ones back into the inbox above. */}
-      <PromisesPanel />
-
-      {/* Automation lift (2026-07-29) — first admin consumer of the
-          closedLoop A/B lift math (it previously reached the operator
-          only via Telegram digest): winning / flat / hurting with the
-          wave receipts underneath. */}
-      <ClosedLoopLiftPanel />
-
-      {/* DVI capture (drop-off intake) — the inspection loop's inlet:
-          findings + photos → publish → hand the customer the link. */}
-      <InspectionCapturePanel />
+      {/* 2026-09-07 · READING ORDER. The numbers now come before the panels.
+          These three (promises, automation lift, DVI capture) used to sit
+          between Arrival load and the summary counts, which put an A/B-lift
+          panel last measured 2026-06-07 — three of its four metrics at 0.0% —
+          above the four figures describing today. They are monitoring, not
+          answers, so they follow the counts they were burying. */}
 
       {/* A slice can fail while the request succeeds. Without this the operator
           sees a clean board built on reads that never happened. */}
@@ -450,6 +454,22 @@ export default function OverviewSection() {
           alert={workOrdersFailed}
         />
       </section>
+
+      {/* Promise Ledger (0102) — log promises the moment they're made;
+          the sweep escalates overdue ones into the queue read on the
+          Opportunities tab. */}
+      <PromisesPanel />
+
+      {/* DVI capture (drop-off intake) — the inspection loop's inlet:
+          findings + photos → publish → hand the customer the link. */}
+      <InspectionCapturePanel />
+
+      {/* Automation lift (2026-07-29) — first admin consumer of the
+          closedLoop A/B lift math (it previously reached the operator
+          only via Telegram digest): winning / flat / hurting with the
+          wave receipts underneath. Sits below the day's own numbers: it is a
+          slow-moving measurement, not something the operator acts on today. */}
+      <ClosedLoopLiftPanel />
 
       {/*
         Cross-domain exceptions: publishing holds, tire orders and membership

@@ -251,6 +251,48 @@ export const RECOVERY_CLOSED_SIGNALS: readonly ObservedDeclineSignal[] = [
   "not_interested",
 ];
 
+/**
+ * WHO said it — 2026-09-07. A closed signal ends a customer-facing sequence,
+ * so it must be traceable to the CUSTOMER.
+ *
+ * `alg_estimates.stated_concern` had two writers with equal authority:
+ *   · recoveryReplyCapture.ts:111 — `stated_concern_source = 'sms_reply'`,
+ *     classified from the customer's own words. Genuine.
+ *   · the admin Decision Inbox concern chips — `stated_concern_source =
+ *     'operator'`, written when an operator clicked "Fixed elsewhere / Sold
+ *     the car / Not interested" to HIDE a card. Same column, same authority,
+ *     but produced by an act of tidying rather than an act of listening.
+ *
+ * declinedWorkRecovery read `stated_concern` and ignored `stated_concern_source`
+ * entirely, under a comment reading "The customer told us the outcome" — so
+ * clearing a card silently ended a real customer's recovery sequence.
+ *
+ * THE FIX IS NOT "DISTRUST OPERATORS". Front desk hears customers say these
+ * things on the phone every day, and that is real evidence that SHOULD stop a
+ * sequence. The fix is that recording a customer statement is now a deliberate,
+ * attested act (`captureStatedConcern` requires `heardFrom: "customer"` and
+ * writes `operator_relayed`), while hiding a row is a separate, neutral act
+ * (`dismissed`) that writes no concern at all.
+ *
+ * Both entries below are customer statements — one captured passively from the
+ * customer's own text, one attested by the human who heard it. The legacy bare
+ * `'operator'` value is deliberately ABSENT: those rows were written by the hide
+ * button and cannot be distinguished from genuine captures after the fact, so
+ * they no longer close or route a customer-facing rail. They are retained in the
+ * column as history rather than deleted.
+ */
+export const CUSTOMER_SOURCED_CONCERN: readonly string[] = ["sms_reply", "operator_relayed"];
+
+/** True only when the concern is a closed signal AND the customer said it. */
+export function isCustomerClosedSignal(
+  concern: string | null | undefined,
+  source: string | null | undefined,
+): boolean {
+  if (!concern || !source) return false;
+  if (!CUSTOMER_SOURCED_CONCERN.includes(source)) return false;
+  return RECOVERY_CLOSED_SIGNALS.includes(concern as ObservedDeclineSignal);
+}
+
 /** Map a stored stated_concern to the routing input. Closed signals and
  *  unknown strings return null (→ P0 or skip; the cron checks closed
  *  separately). waiting_event rides the logistics track. */

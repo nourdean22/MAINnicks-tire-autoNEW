@@ -46,6 +46,21 @@ export const OPPORTUNITY_STATES = [
   "no_response",
   "do_not_contact",
   "duplicate",
+  // 2026-09-07 · the honest close. Added because the vocabulary had no way to
+  // say "this is not worth acting on" without asserting something false:
+  //   lost           — claims a sale was lost
+  //   do_not_contact — sets consent_ok=0 for that PHONE, forever, from any UI
+  //   duplicate      — claims this row duplicates another (nothing ever wrote it)
+  //   snooze         — neutral, but time-boxed and not a close
+  // An operator hiding an irrelevant row was forced to pick a lie. `dismissed`
+  // records exactly what happened: a human looked and judged it not actionable.
+  //
+  // WIDTH: `revenue_opportunities.state` is VARCHAR(24) (drizzle/0099:34) and
+  // the longest value written today is `walk_in_expected` (16), so "dismissed"
+  // (9) needs NO migration. 0099 chose VARCHAR over ENUM precisely so a new
+  // state costs no DDL — TiDB STRICT_TRANS_TABLES rejects an out-of-enum write
+  // and loses the row.
+  "dismissed",
 ] as const;
 export type OpportunityState = (typeof OPPORTUNITY_STATES)[number];
 
@@ -54,6 +69,7 @@ export const TERMINAL_STATES: readonly OpportunityState[] = [
   "lost",
   "do_not_contact",
   "duplicate",
+  "dismissed",
 ];
 
 /**
@@ -61,6 +77,8 @@ export const TERMINAL_STATES: readonly OpportunityState[] = [
  * list — it is only reachable through recordOutcome() with a verified
  * invoice. do_not_contact is reachable from every live state (consent
  * supremacy) and is added in canTransition rather than listed per-state.
+ * `dismissed` is likewise reachable from every live state and added in
+ * canTransition — a human may judge any live row not actionable.
  */
 const TRANSITIONS: Record<OpportunityState, readonly OpportunityState[]> = {
   new: ["assigned", "attempted", "duplicate", "lost"],
@@ -75,12 +93,18 @@ const TRANSITIONS: Record<OpportunityState, readonly OpportunityState[]> = {
   lost: [],
   do_not_contact: [],
   duplicate: [],
+  dismissed: [],
 };
 
 export function canTransition(from: OpportunityState, to: OpportunityState): boolean {
   if (from === to && from === "attempted") return true; // re-attempt bumps the counter
   if (TERMINAL_STATES.includes(from)) return false;
   if (to === "do_not_contact") return true; // consent supremacy from any live state
+  // The neutral close, from any live state. Deliberately NOT gated per-state:
+  // the whole point is that a human can always say "not actionable" without
+  // being forced into `lost` (falsifies a sale) or `do_not_contact` (falsifies
+  // consent, and suppresses the whole phone number).
+  if (to === "dismissed") return true;
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
 
@@ -225,6 +249,21 @@ export interface UpsertOpportunityInput {
   evidence?: Record<string, unknown> | null;
   consentOk?: boolean;
   dueAt?: Date | null;
+  /**
+   * Reopen a CLOSED row when this upsert carries materially new evidence.
+   *
+   * Off by default, and it must stay that way: the whole reason a dismissal is
+   * durable is that ON DUPLICATE KEY UPDATE never touches `state`. A collector
+   * that re-derives the same standing fact every run (a stale lead is still
+   * stale) must NOT set this, or dismissal becomes a no-op and the operator is
+   * back to swatting the same card forever.
+   *
+   * Set it only where a NEW REAL-WORLD EVENT produced this call — currently just
+   * `captureComplaintOpportunity`, which fires on an inbound complaint SMS the
+   * customer actually sent. `do_not_contact` is never reopened: consent outranks
+   * evidence.
+   */
+  reopenIfTerminal?: boolean;
 }
 
 /**
@@ -307,7 +346,66 @@ export async function upsertOpportunity(
       ? result[0]
       : result) as { affectedRows?: number };
     // mysql2 reports affectedRows 1 for insert, 2 for duplicate-update.
-    return (raw.affectedRows ?? 1) >= 2 ? "refreshed" : "inserted";
+    const outcome = (raw.affectedRows ?? 1) >= 2 ? "refreshed" : "inserted";
+
+    // Materially-new-evidence reopen. Separate statement on purpose: the INSERT
+    // above must keep its exact ON DUPLICATE KEY UPDATE list, which deliberately
+    // never writes `state`. Scoped by an explicit state IN (...) so it can only
+    // ever move a CLOSED row back to `new`, never disturb a live one, and never
+    // touch `do_not_contact` — consent outranks evidence.
+    if (input.reopenIfTerminal && outcome === "refreshed") {
+      try {
+        // Receipts are built in JS and written whole, matching
+        // transitionOpportunity. An earlier draft did the append SQL-side with
+        // JSON_ARRAY_APPEND + CAST(... AS JSON) — an idiom used NOWHERE else in
+        // this codebase and unproven against TiDB, in a write path whose only
+        // failure signal is a log line. The house pattern is proven; a novel
+        // one here would have degraded silently to "reopen never happens".
+        const existing = rowsFromExecute(
+          await db.execute(sql`
+            SELECT id, state, receipts_json FROM revenue_opportunities
+            WHERE source_type = ${input.sourceType} AND source_id = ${input.sourceId}
+            LIMIT 1
+          `),
+        );
+        const row = existing[0];
+        const currentState = row ? String(row.state ?? "") : "";
+        if (row && ["lost", "duplicate", "dismissed"].includes(currentState)) {
+          const priorReceipts = mapRow(row).receipts;
+          const receipts = [
+            ...priorReceipts,
+            {
+              at: new Date().toISOString(),
+              by: "system:new-evidence",
+              from: currentState,
+              to: "new",
+              note: `reopened by new ${input.sourceType} evidence`,
+            },
+          ];
+          // The state guard stays in the WHERE clause, not just the JS check —
+          // a concurrent transition between the read and the write must lose,
+          // not be overwritten. Losing that race simply means no reopen.
+          await db.execute(sql`
+            UPDATE revenue_opportunities
+            SET state = 'new',
+                due_at = NULL,
+                receipts_json = ${JSON.stringify(receipts)},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${row.id}
+              AND state = ${currentState}
+          `);
+        }
+      } catch (reopenErr) {
+        // A failed reopen must not lose the upsert; the row is still refreshed
+        // and the next event retries. Loud, because a silently un-reopened
+        // complaint is a customer nobody called back.
+        log.warn("[opportunity-queue] reopen-on-new-evidence failed", {
+          sourceType: input.sourceType,
+          error: reopenErr instanceof Error ? reopenErr.message : String(reopenErr),
+        });
+      }
+    }
+    return outcome;
   } catch (err) {
     if (isMissingTableError(err)) {
       warnMissingOnce("upsert");
@@ -319,14 +417,33 @@ export async function upsertOpportunity(
 
 // ─── Reads ──────────────────────────────────────────────────────────
 
+/**
+ * 2026-09-07 · `queryable` added here, mirroring topDecisions().
+ *
+ * #1340 added `queryable` to topDecisions() precisely so an UNCONSULTABLE queue
+ * would stop reading as a CLEAR one — and wired it to the cron, the LLM query
+ * route and the admin panel. It was never applied to this sibling, which kept
+ * returning a bare `[]` on both failure exits: no database handle (`if (!db)`)
+ * and `revenue_opportunities` missing. A caller cannot tell those apart from a
+ * genuinely empty queue.
+ *
+ * That was survivable while nothing rendered this function. The staff Follow-ups
+ * tab renders it, so "we could not read the queue" would have printed as "you
+ * have no follow-ups" — the same defect #1340 closed, re-opened one function to
+ * the left. Fixing the SUBJECT rather than one instance of it is the point.
+ *
+ * Returns `{ items, queryable }`, deliberately not a bare array, so the honest
+ * shape cannot be ignored by a future caller: `.length` on the result is a type
+ * error rather than a silent zero.
+ */
 export async function listOpportunities(opts?: {
   states?: OpportunityState[];
   limit?: number;
-}): Promise<OpportunityRow[]> {
+}): Promise<{ items: OpportunityRow[]; queryable: boolean }> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
-  if (!db) return [];
+  if (!db) return { items: [], queryable: false };
 
   const limit = Math.min(opts?.limit ?? 100, 500);
   const states = opts?.states?.length ? opts.states : null;
@@ -340,11 +457,11 @@ export async function listOpportunities(opts?: {
       : await db.execute(sql`
           SELECT * FROM revenue_opportunities ORDER BY updated_at DESC LIMIT ${limit}
         `);
-    return rowsFromExecute(result).map(mapRow);
+    return { items: rowsFromExecute(result).map(mapRow), queryable: true };
   } catch (err) {
     if (isMissingTableError(err)) {
       warnMissingOnce("list");
-      return [];
+      return { items: [], queryable: false };
     }
     throw err;
   }
@@ -1419,11 +1536,27 @@ export async function captureComplaintOpportunity(
 
     const phone10 = phone.replace(/\D/g, "").slice(-10);
     if (phone10.length !== 10) return { captured: false };
-    const dayKey = new Date().toISOString().slice(0, 10);
 
+    // 2026-09-07 · the day-key was REMOVED from this natural key.
+    //
+    // It used to be `${phone10}:${dayKey}` with dayKey = UTC yyyy-mm-dd. Every
+    // other collector keys on the SOURCE ROW's own primary key, so dismissing an
+    // item is durable: `uq_opportunity_source` collides and the ON DUPLICATE KEY
+    // UPDATE above deliberately never touches `state`. A date in the key defeated
+    // that entirely — the same complaining customer minted a BRAND NEW row every
+    // day, whatever the operator did to yesterday's, and it counted in totalLive
+    // each time. (The date was also UTC, so on Eastern the "day" rolled at 20:00
+    // local — the day-bucket trap this repo documents.)
+    //
+    // Keyed on the phone alone, a dismissal now sticks. A genuinely NEW complaint
+    // is still materially new evidence, so `reopenIfTerminal` below reopens a
+    // closed row rather than silently swallowing the customer's second complaint
+    // into a hidden one. Durable dismissal and a re-heard customer, not a choice
+    // between them.
     const res = await upsertOpportunity({
       sourceType: "review_recovery",
-      sourceId: `${phone10}:${dayKey}`,
+      sourceId: phone10,
+      reopenIfTerminal: true,
       customerPhone: phone,
       expectedRevenueCents: null,
       dataQuality: "verified",

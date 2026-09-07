@@ -53,6 +53,17 @@ export interface ReelPublishCandidate {
   captionFingerprint: string;
   /** The exact rendered asset URL about to be published. */
   videoUrl: string;
+  /**
+   * sha256 of the asset BYTES about to be published, when known.
+   *
+   * A STABLE URL IS NOT PROOF OF UNCHANGED BYTES. `storagePut` writes to a
+   * deterministic key (`reels/reel-<jobId>.mp4`), so a re-render, a repair, or
+   * a manual overwrite produces the SAME url with different content — and the
+   * videoUrl comparison below would pass while publishing a video nobody
+   * approved. `media_assets` already records sha256 + byte size at registration
+   * (reelAssembly.ts), so the digest exists; this is what binds to it.
+   */
+  assetSha256?: string | null;
 }
 
 /** A recorded human decision. Absence of one is not a soft signal - it blocks. */
@@ -67,6 +78,39 @@ export interface ReelApprovalRecord {
   revokedAt?: Date | string | null;
   /** When the authorization lapses. Null only for rows predating the TTL. */
   expiresAt?: Date | string | null;
+  /**
+   * ── DELIVERY ELIGIBILITY, which is not the same thing as creative approval ──
+   *
+   * The rolling 72h TTL answers "is this yes still fresh?". It cannot answer
+   * "may this publish on the 14th?", so a post approved today for a slot two
+   * weeks out is structurally impossible: the approval expires four days before
+   * its own slot. Removing the TTL would solve the wrong problem — it exists
+   * because a stale yes firing unattended is the exact hazard of an autonomous
+   * lane.
+   *
+   * So the two are separated. CREATIVE APPROVAL is the human reading these
+   * caption bytes and this asset and saying yes. DELIVERY ELIGIBILITY is the
+   * human also authorizing WHEN, as a bounded window they explicitly saw.
+   *
+   * When a window is present it GOVERNS, and the rolling TTL does not apply —
+   * an explicit "publish it between the 12th and the 15th" is a stronger, more
+   * specific authorization than a default freshness heuristic, and letting the
+   * heuristic veto it would make scheduling impossible again. When absent,
+   * behaviour is exactly as before: the 72h TTL.
+   *
+   * A window is NOT a schedule. It says "allowed during", never "due at". The
+   * intended publish time lives on the job (`reel_jobs.publication_intended_at`),
+   * because a job has one intent while approvals may be superseded.
+   */
+  publishWindowStart?: Date | string | null;
+  publishWindowEnd?: Date | string | null;
+  /**
+   * sha256 of the asset bytes AS APPROVED. When set, the candidate must present
+   * a matching digest — and a candidate that cannot present one at all is
+   * refused rather than waved through, because "we could not check" is not
+   * "unchanged".
+   */
+  assetSha256?: string | null;
 }
 
 /**
@@ -91,6 +135,14 @@ export const APPROVAL_BLOCK = {
   captionChanged: "caption_changed_since_approval",
   videoChanged: "video_changed_since_approval",
   expired: "approval_expired",
+  /** Approved for a later slot. Not an error — it is simply not due yet. */
+  notYetDue: "before_approved_window",
+  /** The authorized slot has passed. Re-approve for a new one. */
+  windowPassed: "approved_window_passed",
+  /** Same URL, different bytes. */
+  assetBytesChanged: "asset_bytes_changed_since_approval",
+  /** The approval binds to a digest and the candidate has none to compare. */
+  assetDigestUnverifiable: "asset_digest_unverifiable",
 } as const;
 
 export type ApprovalBlockCode = (typeof APPROVAL_BLOCK)[keyof typeof APPROVAL_BLOCK];
@@ -138,12 +190,40 @@ export function approvalProblem(
     };
   }
 
-  // A null expiry means a row written before the TTL existed. It is honoured
-  // rather than rejected, matching how contentApprovals.ts treats its own
-  // pre-0087 legacy rows - a migration should not brick a queue.
-  if (approval.expiresAt) {
-    const lapsed = new Date(approval.expiresAt).getTime();
-    if (Number.isFinite(lapsed) && lapsed < now.getTime()) {
+  // ── DELIVERY ELIGIBILITY ──
+  //
+  // An explicit window GOVERNS and suppresses the rolling TTL. The human named
+  // these dates while looking at this item; a freshness default must not veto a
+  // more specific authorization, or scheduling ahead becomes impossible again.
+  // With no window, behaviour is unchanged: the 72h TTL.
+  const windowStart = toTime(approval.publishWindowStart);
+  const windowEnd = toTime(approval.publishWindowEnd);
+  const hasWindow = windowStart !== null || windowEnd !== null;
+
+  if (hasWindow) {
+    if (windowStart !== null && now.getTime() < windowStart) {
+      return {
+        code: APPROVAL_BLOCK.notYetDue,
+        reason:
+          `reel job ${candidate.jobId} is approved for a later slot (from ` +
+          `${new Date(windowStart).toISOString()}). It is not blocked — it is not due yet.`,
+      };
+    }
+    if (windowEnd !== null && now.getTime() > windowEnd) {
+      return {
+        code: APPROVAL_BLOCK.windowPassed,
+        reason:
+          `the approved publishing window for reel job ${candidate.jobId} ended ` +
+          `${new Date(windowEnd).toISOString()}. A slot that has passed is not a licence to post late — ` +
+          "re-approve for a new window. Time-sensitive copy is the reason this expires.",
+      };
+    }
+  } else if (approval.expiresAt) {
+    // A null expiry means a row written before the TTL existed. It is honoured
+    // rather than rejected, matching how contentApprovals.ts treats its own
+    // pre-0087 legacy rows - a migration should not brick a queue.
+    const lapsed = toTime(approval.expiresAt);
+    if (lapsed !== null && lapsed < now.getTime()) {
       return {
         code: APPROVAL_BLOCK.expired,
         reason:
@@ -182,7 +262,44 @@ export function approvalProblem(
     };
   }
 
+  // ── BYTES, not just the name of the bytes ──
+  //
+  // The URL check above is necessary and not sufficient. `storagePut` writes to
+  // a deterministic key (`reels/reel-<jobId>.mp4`), so a re-render or a beat
+  // repair produces the SAME url with different content and sails through an
+  // equality check on the string. When the approval recorded a digest, the
+  // candidate must match it — and a candidate with no digest at all is REFUSED,
+  // because "we could not verify" is not "unchanged". Approvals with no digest
+  // (rows predating this) skip the check, the same legacy-tolerance the expiry
+  // branch uses.
+  if (approval.assetSha256) {
+    if (!candidate.assetSha256) {
+      return {
+        code: APPROVAL_BLOCK.assetDigestUnverifiable,
+        reason:
+          `the approval for reel job ${candidate.jobId} binds to a specific asset digest, but the ` +
+          "asset about to be published presents none, so it cannot be shown to be the approved bytes. " +
+          "A stable URL is not proof of unchanged content.",
+      };
+    }
+    if (approval.assetSha256 !== candidate.assetSha256) {
+      return {
+        code: APPROVAL_BLOCK.assetBytesChanged,
+        reason:
+          `the video bytes for reel job ${candidate.jobId} changed after approval even though the URL ` +
+          "did not — the asset was re-rendered or repaired in place. Re-approve the current asset.",
+      };
+    }
+  }
+
   return null;
+}
+
+/** Milliseconds, or null for absent/unparseable. Null never blocks by itself. */
+function toTime(v: Date | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
 }
 
 /** Convenience predicate. Deliberately derived from approvalProblem, never parallel to it. */

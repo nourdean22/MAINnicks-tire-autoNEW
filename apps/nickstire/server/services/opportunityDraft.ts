@@ -199,8 +199,12 @@ export interface SendDraftResult {
 export async function sendOpportunityDraft(params: SendDraftParams): Promise<SendDraftResult> {
   const { listOpportunities, transitionOpportunity } = await import("./opportunityQueue");
   // No single-row getter exists; the list read is bounded and admin-only.
-  const rows = await listOpportunities({ limit: 500 });
-  const opp = rows.find((r) => r.id === params.id);
+  const { items, queryable } = await listOpportunities({ limit: 500 });
+  // Fail closed on an unreadable queue: this function SENDS. Treating unknown as
+  // "not found" is already safe (it refuses), but saying so honestly stops an
+  // operator retrying against a queue that is simply down.
+  if (!queryable) return { ok: false, error: "opportunity queue unreadable — refusing to send against an unknown queue" };
+  const opp = items.find((r) => r.id === params.id);
   if (!opp) return { ok: false, error: "opportunity not found" };
   if (!opp.consentOk) return { ok: false, error: "consent_ok=0 — this customer must not be texted" };
   if (!opp.customerPhone) return { ok: false, error: "no phone on this opportunity" };

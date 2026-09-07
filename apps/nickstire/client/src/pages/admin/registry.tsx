@@ -55,6 +55,7 @@ const OverviewSection = lazy(() => import("./OverviewSection"));
 const ApprovalsSection = lazy(() => import("./ApprovalsSection"));
 const InstagramSection = lazy(() => import("./instagram/InstagramAdmin").then((m) => ({ default: m.InstagramAdmin })));
 const LeadsSection = lazy(() => import("./LeadsSection"));
+const OpportunitiesSection = lazy(() => import("./OpportunitiesSection"));
 const ContentSection = lazy(() => import("./ContentSection"));
 const CustomersSection = lazy(() => import("./CustomersSection"));
 const SettingsSection = lazy(() => import("./SettingsSection"));
@@ -131,6 +132,36 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"],
     group: "Daily",
     priority: 30,
+    showInSidebar: true,
+    allowedRoles: [...FULL_ACCESS, "front_desk"],
+  },
+  {
+    // 2026-09-07 · the retired Decision Inbox's data, as staff work rather than
+    // an owner obligation. Sits next to Sales Pipeline (priority 31) because it
+    // is the same job — following up with customers — and deliberately NOT in
+    // the owner's default home, which is `overview`.
+    //
+    // ROLES: same set as `leads`. This is front-desk work; it is intentionally
+    // NOT owner-only, and intentionally NOT widened to accountant/viewer, who
+    // have no reason to action a customer follow-up. Any change here must be
+    // diffed per role — see the trafficFunnel precedent in this file, where a
+    // cosmetic role grant let a role in that the procedure gate then refused.
+    id: "opportunities",
+    label: "Opportunities",
+    icon: <ClipboardList className="w-4 h-4" />,
+    component: OpportunitiesSection,
+    // NAMING: this is NOT called "Follow-ups". Outreach already owns that word —
+    // it has a Follow-Ups tab (notification follow-ups: thank-yous, review
+    // requests, booking confirmations) and the alias "followups". Two surfaces
+    // with one name is the duplication the 2026-09-01 thesis §8 warns against,
+    // so this section is named for its actual table, `revenue_opportunities`.
+    // "queue" is likewise absent — it belongs to `approvals`.
+    // The old-name aliases are kept so anyone who bookmarked or still says
+    // "decision inbox" lands on where the data went.
+    aliases: ["decisioninbox", "decisions", "openwork"],
+    keywords: ["follow up", "follow-up", "opportunity", "callback", "recovery", "worklist"],
+    group: "Daily",
+    priority: 31,
     showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "front_desk"],
   },

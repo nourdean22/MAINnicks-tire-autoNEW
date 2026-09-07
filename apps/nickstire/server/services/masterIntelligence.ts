@@ -71,6 +71,16 @@ export interface MasterIntelligenceReport {
     topOpportunity: string;
     topRisk: string;
     score: number;
+    /**
+     * FALSE when >= 1/3 of the engines failed. The score starts at a baseline of
+     * 50 and each block is `if (engine)`, so a dead engine is absent from the
+     * score rather than penalised — a total outage still returns 50. A score
+     * averaged over silence is UNKNOWN, not average, and the UI must say so
+     * instead of printing a reassuring number.
+     */
+    scoreReliable: boolean;
+    enginesFailed: number;
+    enginesTotal: number;
     /** Per-component breakdown so the dashboard can show WHY the score is what it is. */
     scoreBreakdown: ScoreComponent[];
     failures: string[];
@@ -534,17 +544,52 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   opportunityCandidates.sort((a, b) => b.priority - a.priority);
   riskCandidates.sort((a, b) => b.priority - a.priority);
 
-  const topAlert = alertCandidates[0]?.text || "No critical alerts — systems nominal";
-  const topOpportunity = opportunityCandidates[0]?.text || "No standout opportunities detected this cycle";
-  const topRisk = riskCandidates[0]?.text || "No elevated risks detected";
-
-  // Log failures for debugging
   const failures = results.filter(r => r.status === "rejected");
   if (failures.length > 0) {
     log.warn(`Master report: ${failures.length}/${results.length} engines failed`, {
       errors: failures.map(f => (f as PromiseRejectedResult).reason?.message || String((f as PromiseRejectedResult).reason)).slice(0, 5),
     });
   }
+
+  /**
+   * 2026-09-07 · a silent intelligence outage used to render as good news.
+   *
+   * `settled()` maps a REJECTED engine to `null`, and every scoring block is
+   * `if (engine) { ... }`. So a dead engine is not penalised — it is simply
+   * ABSENT from the score, which starts at a baseline of 50. With no engine
+   * returning anything there are also no alert candidates, so `topAlert` fell
+   * through to "No critical alerts — systems nominal".
+   *
+   * A total outage therefore reported: health 50/100, "systems nominal", no
+   * risks, no opportunities. The failure list existed but reached the UI only
+   * as a count on a COLLAPSED accordion label.
+   *
+   * A score computed from a third of its inputs is not a low score, it is an
+   * unknown one — the same distinction the admin home already draws for its
+   * slices. So the outage now outranks every alert candidate and the score
+   * carries a reliability flag instead of quietly averaging over silence.
+   */
+  const engineFailureRate = results.length > 0 ? failures.length / results.length : 0;
+  const scoreReliable = engineFailureRate < 0.34;
+  const outageAlert =
+    failures.length > 0
+      ? `${failures.length} of ${results.length} intelligence engines FAILED — the figures below are incomplete${
+          scoreReliable ? "" : ", and the health score is UNKNOWN, not average"
+        }.`
+      : null;
+
+  // An outage is not one alert among many; it invalidates the others.
+  const topAlert =
+    (!scoreReliable && outageAlert) ||
+    alertCandidates[0]?.text ||
+    outageAlert ||
+    "No critical alerts — systems nominal";
+  const topOpportunity =
+    opportunityCandidates[0]?.text ||
+    (scoreReliable ? "No standout opportunities detected this cycle" : "Not assessed — engines failed");
+  const topRisk =
+    riskCandidates[0]?.text ||
+    (scoreReliable ? "No elevated risks detected" : "Not assessed — engines failed");
 
   return {
     timestamp: new Date().toISOString(),
@@ -554,6 +599,17 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     marketing: { channelROI, reviewVelocity: reviewVel, smsEngagement: smsEng, leadResponse: leadResp, contentPerformance: contentPerf },
     growth: { newCustomerVelocity: custVelocity, referralNetwork: referralNet, portfolioLTV, marketShare, seasonalDemand: seasonal },
     competitive: { competitorGap: compGap, chatFunnel, reviewSentiment: reviewSent },
-    summary: { topAlert, topOpportunity, topRisk, score, scoreBreakdown, failures: failures.map(f => (f as PromiseRejectedResult).reason?.message || "Unknown error") },
+    summary: {
+      topAlert,
+      topOpportunity,
+      topRisk,
+      score,
+      /** False when >= 1/3 of engines failed: the score averaged over silence. */
+      scoreReliable,
+      enginesFailed: failures.length,
+      enginesTotal: results.length,
+      scoreBreakdown,
+      failures: failures.map(f => (f as PromiseRejectedResult).reason?.message || "Unknown error"),
+    },
   };
 }
