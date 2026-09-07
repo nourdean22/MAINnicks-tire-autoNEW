@@ -5070,6 +5070,16 @@
       "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
       "symbol": "nextRotationIndexAfterRefusal",
       "reason": "The pure half of the rotation advance, split out and exported specifically so the decision can be EXERCISED rather than matched in source text. Review on #2167 flagged the original inline version as untestable - a source-matching test stays green if the write never persists. Its only production caller is advanceRotationPastRefusedPack in the same module; the export exists for the behaviour tests that AGENTS.md requires."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "ROTATION_EXCLUDED",
+      "reason": "A POLICY RECORD whose enforcement is the gate, not a runtime read - and that is deliberate, so say it plainly rather than let the reason imply a consumer that does not exist. Nothing reads it at request time; reelPackRotationCoverage.test.ts reads it to decide whether a pack absent from the rotation was EXCLUDED ON PURPOSE or merely forgotten. Those two states were previously indistinguishable, which is how 67 usable packs sat unreachable while new ones kept being written. Deleting this export does not break production - it deletes the distinction, and the gate goes with it."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "buildApprovedPackBriefForTest",
+      "reason": "Exists so the coverage gate asks EXACTLY what production asks - can the real builder turn this pack directory into a brief - instead of re-deriving that judgement. A hand-rolled version of this check read the wrong beat key on 2026-09-07 and misclassified 143 of 164 packs in BOTH directions, including calling 30 packs clean when the gate simply had nothing to read. Its production caller is buildBriefFromApprovedProductionPack, which it wraps; the export is the seam that keeps the test honest."
     }
   ]
 }
