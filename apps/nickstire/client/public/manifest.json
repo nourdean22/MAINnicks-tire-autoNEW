@@ -1,7 +1,7 @@
 {
   "name": "Nick's Tire & Auto",
   "short_name": "Nick's Tire",
-  "description": "Cleveland's #1 tire shop & auto repair. 4.9 stars, 1685+ reviews. Order tires, get estimates, track orders.",
+  "description": "Nick's Tire & Auto on Euclid Ave, Cleveland. Tires, brakes and repairs. Walk in 7 days, no appointment. Check prices, drop off, track your repair.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
@@ -21,9 +21,9 @@
     { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Book Now", "short_name": "Book", "url": "/booking", "description": "Book auto repair — walk-ins welcome" },
+    { "name": "Drop Off", "short_name": "Drop Off", "url": "/booking", "description": "Drop your car off — first come, first served, no appointment" },
     { "name": "Check Status", "short_name": "Status", "url": "/status", "description": "Track your vehicle repair" },
-    { "name": "Order Tires", "short_name": "Tires", "url": "/tires", "description": "Browse and order tires online" },
+    { "name": "Find Tires", "short_name": "Tires", "url": "/tires", "description": "Search your size and see installed prices" },
     { "name": "Get Estimate", "short_name": "Estimate", "url": "/cost-estimator", "description": "Free repair cost estimate" },
     { "name": "Pay Invoice", "short_name": "Pay", "url": "/pay", "description": "Pay your invoice online" },
     { "name": "Admin · Approvals", "short_name": "Approvals", "url": "/admin?tab=approvals", "description": "Review Nick's pending drafts — the check-tasks queue" },

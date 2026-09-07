@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
                 information only in the following limited circumstances:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li><strong className="text-foreground">Service providers:</strong> We use vetted third-party services (such as Twilio for SMS messaging, Google for analytics and maps) that process data on our behalf under strict confidentiality agreements</li>
+                <li><strong className="text-foreground">Service providers:</strong> We use vetted third-party services (such as Twilio for SMS messaging, Google for analytics and maps, and Meta — Facebook and Instagram — for advertising measurement) that process data on our behalf under their published terms</li>
                 <li><strong className="text-foreground">Legal requirements:</strong> We may disclose information when required by law, court order, or government regulation</li>
                 <li><strong className="text-foreground">Business protection:</strong> We may share information to protect the rights, property, or safety of Nick's Tire & Auto, our customers, or others</li>
               </ul>
@@ -128,11 +128,34 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">8. Cookies</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">8. Cookies, Analytics and Advertising Measurement</h2>
               <p>
-                Our website uses cookies and similar technologies to enhance your browsing experience, analyze
-                website traffic, and understand how visitors interact with our site. You can control cookie
-                preferences through your browser settings. Disabling cookies may affect some website functionality.
+                Our website uses cookies and similar technologies to analyze website traffic and to measure our
+                advertising. Specifically:
+              </p>
+              <ul className="list-disc pl-6 space-y-2 mt-3">
+                <li>
+                  <strong className="text-foreground">Google Analytics</strong> collects information about how visitors use
+                  the site (pages viewed, device, approximate location). How Google uses this information is described at{" "}
+                  <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer" className="text-primary underline">policies.google.com/technologies/partner-sites</a>.
+                </li>
+                <li>
+                  <strong className="text-foreground">Meta Pixel and Conversions API</strong> (Facebook and Instagram) collect
+                  information about your visit — such as pages viewed and actions taken, like tapping to call — so we can
+                  measure and improve our advertising. Meta may also use this information for ad targeting under its own
+                  data policy. You can opt out of Meta&apos;s use of this data at{" "}
+                  <a href="https://www.facebook.com/ads/preferences" target="_blank" rel="noopener noreferrer" className="text-primary underline">facebook.com/ads/preferences</a>{" "}
+                  and of interest-based advertising generally at{" "}
+                  <a href="https://optout.aboutads.info" target="_blank" rel="noopener noreferrer" className="text-primary underline">optout.aboutads.info</a>.
+                </li>
+                <li>
+                  <strong className="text-foreground">Ahrefs Web Analytics</strong> counts visits without cookies and without
+                  collecting personal data.
+                </li>
+              </ul>
+              <p className="mt-3">
+                You can control cookies through your browser settings. Disabling cookies may affect some website
+                functionality.
               </p>
             </div>
 

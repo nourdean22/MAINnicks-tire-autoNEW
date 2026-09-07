@@ -108,7 +108,7 @@ export default function SiteFooter() {
               <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed max-w-[240px]">
                 {BUSINESS.taglines.meme} Honest auto repair for Cleveland since 2018.
               </p>
-              <p className="mt-3 text-foreground/30 text-[13px] leading-relaxed">
+              <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed">
                 {BUSINESS.address.full}
               </p>
               <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("footer-brand")} className="block mt-1 text-foreground/60 hover:text-foreground/90 text-[13px] transition-colors duration-200">
@@ -355,10 +355,10 @@ export default function SiteFooter() {
 
           {/* ─── BOTTOM BAR ─── */}
           <div className="mt-10 pt-6 border-t border-[#2A2A2A] flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-foreground/20 text-[12px]">
+            <p className="text-foreground/55 text-[12px]">
               &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
             </p>
-            <p className="text-foreground/20 text-[12px]">
+            <p className="text-foreground/55 text-[12px]">
               Honest auto repair for Cleveland since 2018
             </p>
           </div>

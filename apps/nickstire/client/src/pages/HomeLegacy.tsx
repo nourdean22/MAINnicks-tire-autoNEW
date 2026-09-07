@@ -1180,7 +1180,7 @@ export default function HomeLegacy() {
         description="Nick's Tire & Auto on Euclid Ave. Tires from $25, brake repair, auto service. Walk in 7 days. Free check, written quote, pay only when satisfied. (216) 862-0005"
         canonicalPath="/"
       />
-      <LocalBusinessSchema includeHowTo includeReviews includeServices />
+      <LocalBusinessSchema includeReviews />
       {/* 2026-05-06 cannibalization deep fix · explicit WebSite schema
           on the home page only. Tells Google's knowledge graph that /
           is the canonical entry point for the brand entity, regardless

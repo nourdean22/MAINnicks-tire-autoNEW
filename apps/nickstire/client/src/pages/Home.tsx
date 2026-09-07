@@ -110,7 +110,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         <PrimaryLane
           href="/brakes"
           onClick={() => trackEvent("brake_cta_click", { source: "hero-router-personalized" })}
-          ariaLabel="Get a free brake check"
+          ariaLabel="Brake check today: free check, written quote first"
           heading="Brake check today"
           sub="Free check · see the worn part yourself · written quote first"
         />
@@ -118,7 +118,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         <PrimaryLane
           href="/tires"
           onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router" })}
-          ariaLabel="Find and order tires by size"
+          ariaLabel="Get tires now: search your size, see installed prices"
           heading="Get tires now"
           sub="Search your size · see installed prices · request online"
         />
@@ -129,7 +129,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
           href="/tires"
           onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router-secondary" })}
           className={SECONDARY_LANE_CLASS}
-          aria-label="Find and order tires by size"
+          aria-label="Need tires too? Search your size, installed prices online"
         >
           <Wrench className="w-5 h-5 text-nick-yellow shrink-0" />
           <span>
@@ -142,7 +142,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
           href="/diagnose"
           onClick={() => trackEvent("diagnose_cta_click", { source: "hero-router" })}
           className={SECONDARY_LANE_CLASS}
-          aria-label="Describe a symptom and get an answer"
+          aria-label="Something's wrong: describe it, free check, written quote first"
         >
           <Activity className="w-5 h-5 text-nick-yellow shrink-0" />
           <span>
@@ -156,7 +156,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         href="#dropoff"
         onClick={() => trackEvent("booking_cta_click", { source: "hero-router" })}
         className={SECONDARY_LANE_CLASS}
-        aria-label="Drop your car off — first come, first served"
+        aria-label="Dropping off: keys in, Uber out, first come first served"
       >
         <KeyRound className="w-5 h-5 text-nick-yellow shrink-0" />
         <span>
@@ -169,7 +169,7 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
         href={BUSINESS.phone.href}
         onClick={() => trackPhoneClick("hero-router")}
         className={`${SECONDARY_LANE_CLASS} sm:col-span-2`}
-        aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
+        aria-label={`Talk to a human: call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
       >
         <MessageCircle className="w-5 h-5 text-nick-yellow shrink-0" />
         <span className="flex-1">
@@ -764,24 +764,13 @@ export default function Home() {
         description="Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
         canonicalPath="/"
       />
-      <LocalBusinessSchema includeHowTo includeReviews includeServices />
-      {/* WebSite schema anchors "/" as the brand entity's canonical entry.
-          feat/home-v2: the SearchAction was REMOVED — it pointed at
-          /search?q= which has no route (App.tsx catch-all → NotFound), so
-          Google's sitelinks searchbox 404'd. Restore only WITH a real
-          /search route. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: "Nick's Tire & Auto",
-            alternateName: ["Nicks Tire", "Nick's Tire", "Nicks Tires", "Nicks Tire and Auto"],
-            url: "https://nickstire.org/",
-          }),
-        }}
-      />
+      <LocalBusinessSchema includeReviews />
+      {/* The WebSite node lives ONCE, in client/index.html (every page ships
+          it, which is what a site-level entity wants). This component used to
+          emit a second, different WebSite for the same URL — one with a
+          SearchAction, one without — so the home page carried two conflicting
+          copies of the same entity. Removed 2026-09-07; alternateName moved to
+          the index.html node. */}
       {/* Homepage-only Service schema. feat/home-v2: value corrected
           $289→$266 — the itemized package in gatewayTire.ts sums to $266
           and that's what the live getPackage endpoint + order modal show. */}
