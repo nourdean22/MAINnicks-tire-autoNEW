@@ -236,6 +236,42 @@ hours; #1610 duplicated #1607's battery topic exactly, because at 20:36 #1607 wa
 still an unmerged draft and therefore invisible to `ls`. Checking only the
 directory is blind during precisely the window when collisions happen.
 
+## Backlog ceiling — when NOT to add a new pack
+
+By 2026-09-07 this trigger had fired often enough that 16+ consecutive runs each
+independently re-derived "content supply is not the bottleneck" (see
+`apps/nickstire/docs/reel-packs/BACKLOG-STATUS-*.md`) — nothing short-circuited the loop, so
+every firing paid the full analysis cost to reach the same place. Check the ceiling below
+BEFORE drafting a new topic so this firing doesn't become #17.
+
+A new pack is only worth producing if the backlog can eventually post it. The real constraint
+is `RESERVATION_FEED_CAP` (2 posts/day, guardrail table above) and
+`drizzle/0112_reel_publish_approvals.sql` — until an operator confirms that migration is
+applied to production TiDB, `evaluateReelPublishGate`'s human-approval door stays shut and
+**nothing in the backlog can publish, no matter how large it is.**
+
+Before drafting, count both (the same two checks as above already give you this):
+
+    ls apps/nickstire/docs/reel-packs/ | grep -c '^2026-'   # merged packs
+    gh pr list --state open --search "reel pack in:title"  # + open ones
+
+If merged + open is already many times what `RESERVATION_FEED_CAP` could post in a couple of
+weeks (2/day × 14d = 28 — merged alone was 166 as of 2026-09-07), **do not open a new
+content-pack PR.** Instead write `BACKLOG-STATUS-<date>.md`: today's capability preflight (one
+line — it hasn't changed in weeks), current pack count, any clean/green stranded PRs you
+merged this run, and a one-line pointer to the standing ask below. Don't re-litigate the
+argument each time — link the newest prior `BACKLOG-STATUS-*.md` instead of restating it.
+
+**Standing ask, carried forward until an operator responds — do not re-argue it, just
+reference it:** reduce or pause this trigger's firing interval, and get an explicit operator
+decision on `0112_reel_publish_approvals.sql`. Neither is actionable from inside a firing.
+`PushNotification` for this was already sent once — don't repeat it; a `BACKLOG-STATUS-*.md`
+note per firing satisfies "informed" without adding interruption noise.
+
+The ceiling does not relax the hard rule above. A firing under the ceiling still never
+generates, spends, or publishes without live, in-the-moment authorization — the ceiling only
+decides whether drafting a new *pack* (a docs-only PR) is worth the cycle at all.
+
 ## Required final response
 
 Follow the spec's 9-point receipt shape. Map its generic asks onto this
