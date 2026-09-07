@@ -1,8 +1,39 @@
 # Session ledger — nickstire
 
-**Updated:** 2026-09-07 (admin Phase 1 shipped to PR #2163 · brand-voice debt pass · 0112
-verified ALREADY applied · prerender found already current · reel routine disabled.
-Prior arc 2026-09-03 below.)
+**Updated:** 2026-09-07, evening (public-site + admin quality program on branch
+`claude/nicks-tire-quality-audit-544da2` · earlier the same day: admin Phase 1 shipped to PR #2163 ·
+brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
+routine disabled. Prior arc 2026-09-03 below.)
+
+## 2026-09-07 (evening) · quality program — 16 public-site/admin fixes, one document
+
+Full write-up: `docs/QUALITY-PROGRAM-2026-09-07.md` (answer first, fact-check of two outside reports,
+the five Phase 1 slices against the code, design system, ordered SEO/AI list, gates, coverage matrix,
+SEND-TO-THE-CODING-AGENT block). **Reel files were deliberately untouched** — a sibling session owned
+the reel lane; two reel findings are handoffs in §3 of that doc (approval-time content-similarity veto
+parity; delete the disarmed legacy `publishReel` route + its two tests — `REEL_LEGACY_PUBLISH_ENABLED`
+is UNSET in prod, read across 410 Railway variables).
+
+Measured live BEFORE fixing (all fixed on the branch): unknown URL → **200** with the home title and
+`index, follow` (soft 404) · home HTML `max-age=86400` (express.static served `/` as a FILE; every other
+route already had the 5-minute header) · `og:image` CloudFront PNG → **403** · sitemap `lastmod` = today
+on every URL · `ai.txt`/`llms-full.txt`/`business-data.json` + 3 schema JSON orphaned and contradicting
+canon (city "Euclid", oil $39/$69) · CityPage minted a distinct rated entity with `aggregateRating`
+twice per page on 21 pages · two `WebSite` nodes on `/` · CSP `connect-src` blocked
+`region1.google-analytics.com` / `analytics.google.com` / `stats.g.doubleclick.net` (real-Chrome probe;
+no `/g/collect` beacon seen on load) · privacy policy never named Meta · Shop Pulse rendered a failed
+read as "$0 · SLOW DAY" (writer fixed in #2163, consumer never read `_unavailableCounts`).
+
+**TRAP:** `curl -I` (HEAD) as Googlebot returns the SPA shell with no `X-Prerendered` — the middleware
+intercepts GET only. Probe crawlers with GET. Prerender is healthy (336 pages, 4+ JSON-LD blocks).
+
+Environment: `pnpm run verify` stops at `lint:orphans` on this machine (pnpm dlx cache for knip is
+broken: `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`); every gate after it was run individually — full suite
+**553 files passed | 2 skipped (555)**, tsc exit 0. PageSpeed Insights public API quota exhausted for
+the day; Chrome DevTools MCP `lighthouse_audit` gave lab scores (a11y 96 → fixes, BP 73, SEO 100).
+
+Runtime verification after deploy = §11 of the doc (404 status, 5-min cache header, og-image 200,
+lastmod count, robots content, `/g/collect` 204, then `workflow_dispatch` the prerender refresh).
 
 ## 2026-09-07 · admin Phase 1 — PR #2163 (open)
 
