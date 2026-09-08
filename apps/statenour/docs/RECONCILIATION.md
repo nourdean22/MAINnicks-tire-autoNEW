@@ -16,7 +16,7 @@
 > (`Hw_HsAKQQXG_WIFI_20230421`, Anyka family) expose only TCP 8800/9800: RTSP needs the SD-card `ceshi.ini`
 > unlock (procedure in the plan section 3.3) or PoE replacements for LPR.
 >
-> **#TBD-A `statenour/camera-arrival-p0` — cloud fixes.** `lib/services/devices.ts` resolves cuid OR
+> **#2222 `statenour/camera-arrival-p0` — cloud fixes.** `lib/services/devices.ts` resolves cuid OR
 > platformDeviceId in `[id]/events`, `[id]` and `[id]/command` (the route test was run red on the unfixed
 > routes first, 3 of 5 failing, then green); `vehicle-detection.ts` rewritten: zod contract v2 (`visitId`,
 > `eventId` idempotency), dedupe by visit across Frigate re-ids, quiet hours 20:00-07:00 ET recorded as
@@ -29,12 +29,12 @@
 > `check:crons` 7/7; eslint 0. `tsc`: 0 errors in changed files, 7 pre-existing `@sentry/nextjs` resolution
 > errors in this junctioned worktree because the primary checkout predates #2074 (CI is the gate).
 >
-> **#TBD-B `nickstire/vehicle-lookup-by-plate` — read-only bridge action.** `vehicle_lookup_by_plate` over
+> **#2221 `nickstire/vehicle-lookup-by-plate` — read-only bridge action.** `vehicle_lookup_by_plate` over
 > `memberships.vehiclePlate` (`vehicles` was retired in 0117; `customer_vehicles` has no plate column yet),
 > OCR-confusable variants, today's bookings by phone (ET in SQL); contract v11.10 in both copies. nickstire
 > `tsc` 0, `plate.test.ts` 3 passed.
 >
-> **#TBD-C `docs/camera-vision-master-plan` — the plan, ADR-0017, eight UPSTREAMS verdicts** (Frigate pinned
+> **#2223 `docs/camera-vision-master-plan` — the plan, ADR-0017, eight UPSTREAMS verdicts** (Frigate pinned
 > 0.17.2, V380 protocol bridges REJECT, Ultralytics/BoxMOT REJECT, fast-alpr WATCH, Plate Recognizer WATCH,
 > Coral REJECT for new builds, Hailo WATCH, NVR alternatives REJECT).
 >
