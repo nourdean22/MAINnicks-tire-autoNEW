@@ -178,11 +178,15 @@ export function BottomPulseTicker() {
   const safeIdx = idx % items.length;
   const current = items[safeIdx];
 
+  // Section 5.8 (2026-09-08): this strip is bottom-chrome geometry (--bottom-chrome-h, the FAB
+  // lane); its 32px controls are exempt from the 44px target audit until the chrome is resized
+  // as one change. Named in tests/e2e/target-size.spec.ts.
   return (
     <div
       role="region"
       aria-label="System pulse"
       aria-live="off"
+      data-target-audit="exempt"
       className="relative min-h-[32px] sm:h-5 border-t border-[var(--border-default)] bg-[var(--bg-void)]/60"
     >
       {/* gap-3: the snooze button uses the pulled-margin pattern (p-3 -m-3),

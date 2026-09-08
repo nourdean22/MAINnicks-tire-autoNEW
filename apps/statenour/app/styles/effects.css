@@ -683,8 +683,8 @@ body::after {
 /* Neural glass card — upgraded glass with neon edge glow */
 .neural-glass {
   background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6));
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
+  /* Section 5.3 (2026-09-08): no backdrop-filter on in-page cards -- it is a compositing cost on
+     iOS for no visible gain over the void. Overlays (.neural-glass-modal, sheets) keep theirs. */
   border: 1px solid rgba(253, 185, 19, 0.08);
   border-radius: 16px;
   padding: 1.25rem;
