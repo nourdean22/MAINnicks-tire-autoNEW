@@ -3,6 +3,7 @@ import { operatorProcedure } from "../../trpc";
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
+import { expiredApprovalMessage, isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 
 export const actionsProcedures = {
   getCurrentUser: operatorProcedure.query(async ({ ctx }) => {
@@ -14,10 +15,16 @@ export const actionsProcedures = {
   }),
 
   getPendingApprovals: operatorProcedure.query(async () => {
-    return prisma.approvalRequest.findMany({
+    const rows = await prisma.approvalRequest.findMany({
       where: { status: "pending_approval" },
       orderBy: { createdAt: "asc" },
     });
+    // 2026-09-07 (D12) · `expiresAt` was written by every requester and read
+    // by nobody. Expired rows stay LISTED (the obligation is still real) but
+    // are flagged so the UI can say "re-request or dismiss" instead of
+    // offering an Approve that would execute against stale state.
+    const now = new Date();
+    return rows.map((r) => ({ ...r, expired: isApprovalRequestExpired(r, now) }));
   }),
 
   approveApprovalRequest: operatorProcedure
@@ -31,6 +38,17 @@ export const actionsProcedures = {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Request not found or not in pending state",
+        });
+      }
+
+      // Expire authorization, not obligations: an approval is permission to
+      // run THIS payload against the state it was raised in. Past `expiresAt`
+      // the permission is void — refuse before any state transition so the
+      // background executor is never spawned. Reject stays available.
+      if (isApprovalRequestExpired(request)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: expiredApprovalMessage("request", request.expiresAt),
         });
       }
 

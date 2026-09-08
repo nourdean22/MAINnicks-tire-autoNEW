@@ -48,14 +48,18 @@ export const POST = apiHandler(
     }
 
     const ids = candidates.map((c) => c.id);
-    // FK cleanup first
-    await prisma.deviceCommand.deleteMany({ where: { deviceId: { in: ids } } }).catch(() => ({ count: 0 }));
-    await prisma.deviceEvent.deleteMany({ where: { deviceId: { in: ids } } }).catch(() => ({ count: 0 }));
-    const deleted = await prisma.smartDevice.deleteMany({ where: { id: { in: ids } } });
+    // 2026-09-07 (D11) · retirement is a lifecycle DECISION, not a purge.
+    // Mark the rows RETIRED: they leave every health count (system-pulse
+    // classifyDevices skips RETIRED) while the device, its events and its
+    // commands stay inspectable. The old path hard-deleted all three.
+    const retired = await prisma.smartDevice.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "RETIRED" },
+    });
 
     return {
       ok: true,
-      retired: deleted.count,
+      retired: retired.count,
       candidates: candidates.map((c) => ({ id: c.id, name: c.name })),
     };
   },

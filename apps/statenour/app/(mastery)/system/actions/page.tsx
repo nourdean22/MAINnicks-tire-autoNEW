@@ -490,7 +490,11 @@ export default function ActionsPage() {
             <div className="space-y-4">
               {approvals.map((req: any) => {
                 const isCritical = req.riskClass === "critical";
-                const cannotApprove = isCritical && userRole !== "owner";
+                // 2026-09-07 (D12) · expired authorization: the server refuses approve
+                // (CONFLICT); the button says so instead of failing after the tap.
+                const isExpired = req.expired === true;
+                const needsOwner = isCritical && userRole !== "owner";
+                const cannotApprove = needsOwner || isExpired;
                 return (
                   <div
                     key={req.id}
@@ -533,7 +537,7 @@ export default function ActionsPage() {
                             "rounded-lg px-3 py-1.5 text-xs font-semibold text-black transition disabled:opacity-40",
                             isCritical ? "bg-rose-500 hover:bg-rose-600 disabled:bg-rose-800" : "bg-[var(--gold)] hover:bg-[var(--gold)]/80"
                           )}
-                          title={cannotApprove ? "Requires owner privilege" : undefined}
+                          title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                         >
                           Approve
                         </button>
@@ -582,7 +586,7 @@ export default function ActionsPage() {
                               }}
                               disabled={cannotApprove || !editParse.ok || rejectMutation.isPending || approveMutation.isPending}
                               className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-sky-400 disabled:opacity-40 transition"
-                              title={cannotApprove ? "Requires owner privilege" : undefined}
+                              title={isExpired ? "Authorization expired — re-request or reject" : needsOwner ? "Requires owner privilege" : undefined}
                             >
                               Approve edited
                             </button>
@@ -595,7 +599,12 @@ export default function ActionsPage() {
                       )}
                     </div>
 
-                    {cannotApprove && (
+                    {isExpired && (
+                      <div className="text-xs text-amber-300 flex items-center gap-1.5">
+                        <span>⏱</span> Authorization expired{req.expiresAt ? ` ${new Date(req.expiresAt).toLocaleString()}` : ""} — approve is refused. Re-request it against current state, or reject it.
+                      </div>
+                    )}
+                    {needsOwner && (
                       <div className="text-xs text-rose-400 flex items-center gap-1.5">
                         <span>⚠️</span> Owner privilege is required to approve this critical risk action.
                       </div>

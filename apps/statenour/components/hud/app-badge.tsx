@@ -35,7 +35,13 @@ export function AppBadge() {
   });
 
   const loaded = pendingQ.data !== undefined || approvalsQ.data !== undefined;
-  const count = (pendingQ.data?.length ?? 0) + (approvalsQ.data?.rows?.length ?? 0);
+  // 2026-09-07 (D12) · expired authorizations are listed but not "waiting on
+  // you" — the icon badge counts what can still be approved.
+  // Narrow to the one field we read: the tRPC-inferred row types are deep
+  // enough that filtering on them directly trips TS2589.
+  const requests: ReadonlyArray<{ expired?: boolean }> = pendingQ.data ?? [];
+  const actions: ReadonlyArray<{ expired?: boolean }> = approvalsQ.data?.rows ?? [];
+  const count = requests.filter((r) => !r.expired).length + actions.filter((r) => !r.expired).length;
 
   useEffect(() => {
     const nav = navigator as BadgeNavigator;
