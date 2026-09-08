@@ -144,6 +144,47 @@ describe("deck · next move eligibility (the boundary pin)", () => {
     expect(heroPool).not.toContain("t-blocked");
   });
 
+  // U5 (2026-09-07) · the structured resume record rides the same parked event.
+  it("a parked event with a record surfaces it beside the note, with parkedAt", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-doing", title: "Half-done drywall", status: "DOING", startedAt: new Date(NOW.getTime() - 3600e3) }),
+    ]);
+    const parkedAt = new Date(NOW.getTime() - 2 * DAY);
+    mocks.taskEvent.findFirst.mockResolvedValue({
+      createdAt: parkedAt,
+      payload: {
+        note: "drywall cut, tape next",
+        record: {
+          intendedOutcome: "wall ready to paint",
+          lastVerifiedStep: "seam taped and dry",
+          evidenceLinks: ["/journal", "https://example.test/photo", "javascript:alert(1)"],
+          nextPhysicalAction: "sand the seam",
+        },
+      },
+    });
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove?.kind).toBe("resume");
+    expect(deck.nextMove?.resumeNote).toBe("drywall cut, tape next");
+    expect(deck.nextMove?.resumeRecord).toEqual({
+      intendedOutcome: "wall ready to paint",
+      lastVerifiedStep: "seam taped and dry",
+      evidenceLinks: ["/journal", "https://example.test/photo"],
+      openQuestion: null,
+      nextPhysicalAction: "sand the seam",
+    });
+    expect(deck.nextMove?.parkedAt).toBe(parkedAt.toISOString());
+  });
+
+  it("a legacy parked event (note only) yields resumeRecord null, never an invented record", async () => {
+    mocks.task.findMany.mockResolvedValue([
+      task({ id: "t-doing", title: "Half-done drywall", status: "DOING", startedAt: new Date(NOW.getTime() - 3600e3) }),
+    ]);
+    mocks.taskEvent.findFirst.mockResolvedValue({ createdAt: NOW, payload: { note: "drywall cut" } });
+    const deck = await buildMissionsDeck(NOW);
+    expect(deck.nextMove?.resumeRecord).toBeNull();
+    expect(deck.nextMove?.parkedAt).toBe(NOW.toISOString());
+  });
+
   it("empty board → null next move, never a fabricated pick", async () => {
     mocks.task.findMany.mockResolvedValue([]);
     const deck = await buildMissionsDeck(NOW);

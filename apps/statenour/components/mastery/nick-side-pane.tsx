@@ -45,12 +45,23 @@ const STORAGE_KEY = "nour:nick-side-pane:open:v1";
  * only honest fix is to reserve the lane it occupies. While a pane is
  * mounted, `--nick-fab-lane` is set on <html> and (mastery)/layout.tsx's
  * <main> pads its right edge by it on md+ screens; pages without the pane
- * (chat, home) pay nothing. Phone widths are NOT changed here — the collision
- * was not reproducible from the harness at 390 px and reserving 76 px of a
- * 390 px viewport would be its own regression; verify on the device first.
+ * (chat, home) pay nothing.
+ *
+ * 2026-09-08 · the Playwright instrument (tests/e2e/floating-collision.spec.ts)
+ * reproduced the phone collision the harness could not: at 390 px the pill
+ * covered "Pin new" on /brain and "Ask Nick for Recommendations" on
+ * /missions. Below md the floating pill is therefore NOT rendered; the
+ * bottom chrome's More sheet carries an "Ask Nick about this page" row
+ * (shown only while a pane is mounted — `data-nick-pane` on <html>) that
+ * opens the pane through NICK_PANE_OPEN_EVENT. On md+ the lane is 7rem:
+ * the pill measures ~78 px plus its 16 px right offset, so 4.75rem (76 px)
+ * still let it intrude on the content column at 768 px.
  */
-export const NICK_FAB_LANE = "4.75rem";
+export const NICK_FAB_LANE = "7rem";
 export const NICK_FAB_LANE_VAR = "--nick-fab-lane";
+/** Window event that opens a mounted pane (dispatched by the More sheet on phones). */
+export const NICK_PANE_OPEN_EVENT = "nick-side-pane:open";
+export const NICK_PANE_MOUNTED_ATTR = "nickPane";
 
 /** Pure: reserve the lane on `root` and return the release. Testable without a DOM. */
 export function reserveFabLane(root: {
@@ -161,7 +172,18 @@ export function NickSidePane({
   }, [open, toggle]);
 
   // Reserve the FAB lane while this pane is mounted (see NICK_FAB_LANE).
-  useEffect(() => reserveFabLane(document.documentElement), []);
+  useEffect(() => {
+    const root = document.documentElement;
+    const release = reserveFabLane(root);
+    root.dataset[NICK_PANE_MOUNTED_ATTR] = "1";
+    const onOpen = () => setOpen(true);
+    window.addEventListener(NICK_PANE_OPEN_EVENT, onOpen);
+    return () => {
+      release();
+      delete root.dataset[NICK_PANE_MOUNTED_ATTR];
+      window.removeEventListener(NICK_PANE_OPEN_EVENT, onOpen);
+    };
+  }, []);
 
   return (
     <>
@@ -176,7 +198,8 @@ export function NickSidePane({
           // Execution Deck fix (2026-09-01): the FAB sat at bottom-4/z-40 —
           // INSIDE the fixed tab bar's ~96px z-[55] band, painted under it.
           // Dock it above the measured chrome height and above the bar.
-          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-4 z-[56] inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
+          // 2026-09-08 · hidden below md: on phones the More sheet opens the pane.
+          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-4 z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
           "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
           "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
           "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",

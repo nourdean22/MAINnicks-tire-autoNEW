@@ -41,9 +41,10 @@ describe("NICK FAB lane", () => {
   });
 
   it("the lane is at least as wide as the FAB it clears (44px + gap)", () => {
-    // 4.75rem = 76px at the 16px root; the FAB is h-11 (44px) with min-w 44px,
-    // px-3.5 and the "nick" label — measured ~66px wide live, plus right-4.
-    expect(parseFloat(NICK_FAB_LANE) * 16).toBeGreaterThanOrEqual(44 + 16 + 8);
+    // 7rem = 112px at the 16px root. The pill (icon + "nick" label + px-3.5 +
+    // border) measures ~78px and sits at right-4 (16px); 4.75rem let it intrude
+    // on the content column at 768px (e2e run 34175702944, 2026-09-08).
+    expect(parseFloat(NICK_FAB_LANE) * 16).toBeGreaterThanOrEqual(78 + 16 + 8);
   });
 
   it("the mastery layout consumes the variable on md+ screens", () => {
@@ -53,6 +54,11 @@ describe("NICK FAB lane", () => {
 
   it("the pane reserves the lane while mounted (the effect is wired, not just exported)", () => {
     const pane = readFileSync(resolve(APP_ROOT, "components/mastery/nick-side-pane.tsx"), "utf8");
-    expect(pane).toMatch(/useEffect\(\(\) => reserveFabLane\(document\.documentElement\), \[\]\)/);
+    // 2026-09-08 · the effect also announces the pane on <html> and listens for the
+    // More-sheet open event (phones no longer render the floating pill).
+    expect(pane).toMatch(/const release = reserveFabLane\(root\)/);
+    expect(pane).toMatch(/root\.dataset\[NICK_PANE_MOUNTED_ATTR\] = "1"/);
+    expect(pane).toMatch(/window\.addEventListener\(NICK_PANE_OPEN_EVENT, onOpen\)/);
+    expect(pane).toMatch(/hidden md:inline-flex/);
   });
 });

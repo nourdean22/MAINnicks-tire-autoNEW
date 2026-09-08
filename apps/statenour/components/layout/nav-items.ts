@@ -73,8 +73,21 @@ export const NAV: NavEntry[] = [
   { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },
 
   // ── REFLECT ──
+  // 2026-09-07 (program §5.11) · the More-sheet listed 4 of Brain's 9 tabs.
+  // Order and labels mirror app/(mastery)/brain/page.tsx; pinned by
+  // tests/repo/brain-nav-tabs.test.ts so the two cannot drift apart again.
   { href: "/brain", label: "Brain", icon: Brain, section: "reflect",
-    tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
+    tabs: [
+      { key: "graph", label: "Map" },
+      { key: "discover", label: "Discover" },
+      { key: "review", label: "Review" },
+      { key: "memory", label: "Memory" },
+      { key: "wisdom", label: "Wisdom" },
+      { key: "board", label: "Board" },
+      { key: "reason", label: "Reason" },
+      { key: "continuity", label: "Changed" },
+      { key: "health", label: "Health" },
+    ] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
 
   // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)

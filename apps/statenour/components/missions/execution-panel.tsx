@@ -15,6 +15,7 @@
  * Reduces choice fatigue completely.
  */
 
+import { MAX_RESUME_LINKS, type ResumeRecordInput } from "@/lib/missions/resume-record";
 import { useEffect, useState } from "react";
 import {
   Play,
@@ -42,7 +43,7 @@ interface ExecutionPanelProps {
   onUpdateTask: (id: string, fields: any) => void | Promise<void>;
   /** Execution Deck (2026-09-01): park a DOING task with a ready-to-resume
    *  note. When absent, Pause falls back to a bare status flip. */
-  onPark?: (id: string, note: string) => void | Promise<void>;
+  onPark?: (id: string, note: string, record?: ResumeRecordInput) => void | Promise<void>;
   onExit: () => void;
 }
 
@@ -80,6 +81,18 @@ export function ExecutionPanel({
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [showParkForm, setShowParkForm] = useState(false);
   const [parkNote, setParkNote] = useState("");
+  // U5 (2026-09-07) · optional resume record. Collapsed by default: the one-line
+  // note stays the fast path; the record is for parks you expect to outlive a day.
+  const [showRecord, setShowRecord] = useState(false);
+  const [record, setRecord] = useState<ResumeRecordInput>({});
+  const [evidenceText, setEvidenceText] = useState("");
+  const resetPark = () => {
+    setShowParkForm(false);
+    setParkNote("");
+    setShowRecord(false);
+    setRecord({});
+    setEvidenceText("");
+  };
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
@@ -134,12 +147,17 @@ export function ExecutionPanel({
     setSubmitting("park");
     try {
       if (onPark) {
-        await onPark(task.id, parkNote);
+        const evidenceLinks = evidenceText
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .slice(0, MAX_RESUME_LINKS);
+        const rec: ResumeRecordInput = { ...record, evidenceLinks: evidenceLinks.length ? evidenceLinks : undefined };
+        await onPark(task.id, parkNote, showRecord ? rec : undefined);
       } else {
         await onUpdateTask(task.id, { status: "READY" });
       }
-      setShowParkForm(false);
-      setParkNote("");
+      resetPark();
     } finally {
       setSubmitting(null);
     }
@@ -282,13 +300,53 @@ export function ExecutionPanel({
               placeholder="e.g. drywall cut — tape the seam next"
               className="w-full rounded-md border border-[var(--gold)]/30 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
             />
+            {/* U5 · resume record — what future-you needs after 48 h away */}
+            <button
+              type="button"
+              onClick={() => setShowRecord((v) => !v)}
+              aria-expanded={showRecord}
+              className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 min-h-[44px]"
+            >
+              {showRecord ? "hide resume record" : "add resume record (for parks that outlive today)"}
+            </button>
+            {showRecord && (
+              <div className="space-y-2">
+                {(
+                  [
+                    ["intendedOutcome", "Intended outcome", "what done looks like"],
+                    ["lastVerifiedStep", "Last verified step", "what you actually confirmed, not what you assume"],
+                    ["openQuestion", "Open question", "what you still do not know"],
+                    ["nextPhysicalAction", "Next physical action", "the first concrete move on resume"],
+                  ] as const
+                ).map(([key, label, hint]) => (
+                  <label key={key} className="block">
+                    <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500">{label}</span>
+                    <input
+                      type="text"
+                      maxLength={300}
+                      value={record[key] ?? ""}
+                      onChange={(e) => setRecord((r) => ({ ...r, [key]: e.target.value }))}
+                      placeholder={hint}
+                      className="w-full rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+                    />
+                  </label>
+                ))}
+                <label className="block">
+                  <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500">Evidence links, one per line, max {MAX_RESUME_LINKS}</span>
+                  <textarea
+                    rows={2}
+                    value={evidenceText}
+                    onChange={(e) => setEvidenceText(e.target.value)}
+                    placeholder="https://... or /journal"
+                    className="w-full rounded-md border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 placeholder:text-zinc-600"
+                  />
+                </label>
+              </div>
+            )}
             <div className="flex justify-end gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  setShowParkForm(false);
-                  setParkNote("");
-                }}
+                onClick={resetPark}
                 className="px-2.5 py-1.5 rounded border border-zinc-800 text-zinc-400 hover:text-zinc-200 min-h-[44px]"
               >
                 Keep going
