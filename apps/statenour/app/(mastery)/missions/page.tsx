@@ -303,7 +303,7 @@ function MissionsPageInner() {
                   <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">capture</span>
                 </h2>
                 <span className="hidden text-[10px] font-mono text-[var(--text-tertiary)] sm:block">
-                  lands in decide, never in today
+                  Captured items go to Decide. Nothing is scheduled for today.
                 </span>
               </div>
               <div className="mt-3">

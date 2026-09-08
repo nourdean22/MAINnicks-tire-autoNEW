@@ -173,6 +173,22 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
     };
   }
 
+  // 8b. U4 sink policy (2026-09-08): external side effect while UNTRUSTED
+  // content is in the turn -> owner, regardless of the tool's own policy.
+  // The flag is set by the fences (external_web / external_doc) through the
+  // turn context — not declared by the model — so a prompt-injected "send
+  // this" cannot execute without a human. Fencing is probabilistic; this is
+  // the deterministic sink.
+  const isExternalSideEffect = request.externalMutation || cap.externalMutation;
+  if (isExternalSideEffect && request.containsExternalContent) {
+    return {
+      decision: "require_owner",
+      riskClass: riskClass === "low" ? "medium" : riskClass,
+      reason: "Untrusted external content is in this turn; an external side effect needs a human (sink policy).",
+      requiredApproval: "owner_required"
+    };
+  }
+
   // 9. External mutation -> require approval / owner
   const isExternalMutation = request.externalMutation || cap.externalMutation;
   if (isExternalMutation) {

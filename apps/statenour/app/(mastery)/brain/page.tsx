@@ -49,7 +49,7 @@ export default function BrainPage() {
       <StandardPage
         eyebrow="Mastery"
         title="Brain"
-        description="Everything the system knows about you."
+        description="What is saved, where it came from, and what is inferred."
         width="3xl"
         rhythm="compact"
       >

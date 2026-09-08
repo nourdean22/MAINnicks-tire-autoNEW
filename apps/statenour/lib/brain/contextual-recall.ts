@@ -11,6 +11,7 @@
  * + 0.15 × category importance
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 // v10.0.64 · AgentTrace coverage. getEmbedding kept direct (its own
@@ -461,7 +462,7 @@ export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number
   ]);
 }
 
-export async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
+export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
   if (!tsQueryText) return [];
   try {
@@ -485,13 +486,13 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
-         AND bm.superseded_by_id IS NULL
-         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND ${validitySql("bm", asOf ? "$2" : null)}
          AND to_tsvector('english', bm.content)
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
        LIMIT ${limit}`,
       tsQueryText,
+      ...(asOf ? [asOf] : []),
       );
     });
   } catch (err) {
@@ -524,7 +525,7 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
 // queryEmbedding, so this costs one indexed KNN query and zero embedding
 // calls. Best-effort like the lexical lane: any failure returns [].
 
-async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRow[]> {
+async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   try {
     const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
     const lit = vectorLiteral(padded);
@@ -547,11 +548,11 @@ async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRo
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
          AND bm.confidence >= 0.3
-         AND bm.superseded_by_id IS NULL
-         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND ${validitySql("bm", asOf ? "$2" : null)}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
        LIMIT ${limit}`,
       lit,
+      ...(asOf ? [asOf] : []),
     );
   } catch (err) {
     console.warn(
@@ -586,6 +587,73 @@ async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRo
 const DEFAULT_TOKEN_BUDGET = 4000;
 const CHARS_PER_TOKEN_APPROX = 4;
 
+/**
+ * U3 (2026-09-08, review on #2198) · the validity window of a belief, at an
+ * instant. Every recall lane and the searchMemories tool read this one helper.
+ *
+ * Current mode (no `asOf`): a belief is live when nothing supersedes it and
+ * its validUntil is unset or still ahead of now (BDN-310).
+ *
+ * Historical mode (`asOf`): "what was believed THEN". Supersession is a fact
+ * about now, so it is NOT consulted -- the belief that was live on that date
+ * is the answer even though a later correction replaced it. A row is visible
+ * when its interval covers the instant: it started on or before `asOf`
+ * (validFrom, else createdAt) and had not ended (validUntil unset or after
+ * `asOf`). A row saved after `asOf` with no earlier validFrom is out.
+ *
+ * `isVisibleAsOf` is the same predicate over a loaded row; `validitySql` is
+ * the same predicate for the raw-SQL lanes. Change one, change all three --
+ * tests/brain/recall-as-of.test.ts pins them together.
+ */
+export type ValidityRow = {
+  createdAt: Date;
+  validFrom?: Date | null;
+  validUntil?: Date | null;
+  supersededById?: string | null;
+};
+
+export function validityWhere(asOf?: Date): Prisma.BrainMemoryWhereInput {
+  if (!asOf) {
+    const at = new Date();
+    return { supersededById: null, OR: [{ validUntil: null }, { validUntil: { gt: at } }] };
+  }
+  return {
+    AND: [
+      { OR: [{ validFrom: { lte: asOf } }, { validFrom: null, createdAt: { lte: asOf } }] },
+      { OR: [{ validUntil: null }, { validUntil: { gt: asOf } }] },
+    ],
+  };
+}
+
+export function isVisibleAsOf(row: ValidityRow, asOf?: Date): boolean {
+  if (!asOf) {
+    if (row.supersededById) return false;
+    return !row.validUntil || row.validUntil.getTime() > Date.now();
+  }
+  const t = asOf.getTime();
+  const started = row.validFrom ? row.validFrom.getTime() <= t : row.createdAt.getTime() <= t;
+  const ended = !!row.validUntil && row.validUntil.getTime() <= t;
+  return started && !ended;
+}
+
+/**
+ * Raw-SQL twin of validityWhere. `alias` prefixes the columns ("bm"), "" for
+ * an unaliased table. `asOfParam` is the positional parameter that carries
+ * `asOf` ("$2"); null = current mode (NOW(), no parameter referenced -- so
+ * the caller must add the parameter to the argument list ONLY in as-of mode).
+ */
+export function validitySql(alias: string, asOfParam: string | null): string {
+  const p = alias ? `${alias}.` : "";
+  if (!asOfParam) {
+    return `${p}superseded_by_id IS NULL AND (${p}valid_until IS NULL OR ${p}valid_until > NOW())`;
+  }
+  return (
+    `((${p}valid_from IS NOT NULL AND ${p}valid_from <= ${asOfParam}) OR ` +
+    `(${p}valid_from IS NULL AND ${p}created_at <= ${asOfParam})) AND ` +
+    `(${p}valid_until IS NULL OR ${p}valid_until > ${asOfParam})`
+  );
+}
+
 export async function getContextualMemories(
   recentMessages: string[],
   maxMemories: number = 20,
@@ -603,6 +671,8 @@ export async function getContextualMemories(
      * the canonical pipeline.
      */
     queryEmbedding?: number[];
+    /** U3 · answer as of this instant (see validityWhere). Undefined = now. */
+    asOf?: Date;
     /**
      * v10.0.529.106 · Wave 81 · pgvector efSearch override. Defaults
      * to the standard ef tuning · pass HIGH_RECALL (80) for high-stakes
@@ -685,8 +755,7 @@ export async function getContextualMemories(
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19): superseded or
       // expired-validity beliefs leave the recall pool.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(opts.asOf),
     },
     orderBy: { confidence: "desc" },
     take: 300,
@@ -714,7 +783,7 @@ export async function getContextualMemories(
   // not already in allMemories into the candidate pool. Best-effort: on any
   // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
   const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
-  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics)))
+  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)))
     .filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
   const lexicalRankById = new Map<string, number>();
@@ -723,7 +792,7 @@ export async function getContextualMemories(
   // embedding (the chat hot path) — other callers keep today's pool shape.
   const knnRows =
     opts.queryEmbedding && opts.queryEmbedding.length > 0
-      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!))).filter(
+      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))).filter(
           (r) => !excludeSet.has(r.category),
         )
       : [];
@@ -1124,7 +1193,7 @@ export async function getContextualMemories(
     .slice(0, 2)
     .map((m) => m.id);
   await timed("graph", () =>
-    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content))),
+    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content)), opts.asOf),
   );
 
   // ── Cross-source semantic pull ──
@@ -1406,6 +1475,7 @@ async function appendGraphContext(
   lines: string[],
   anchorMemoryIds: string[],
   alreadyIncluded: Set<string>,
+  asOf?: Date,
 ): Promise<void> {
   if (anchorMemoryIds.length === 0) return;
   try {
@@ -1435,8 +1505,7 @@ async function appendGraphContext(
       where: {
         id: { in: top.map(([id]) => id) },
         deletedAt: null,
-        supersededById: null,
-        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        ...validityWhere(asOf),
       },
       select: { id: true, category: true, content: true },
     });
@@ -1543,8 +1612,7 @@ async function getFallbackMemories(max: number): Promise<string> {
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19) — same guard as the
       // primary path; the fallback must not resurrect a superseded belief.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(),
     },
     orderBy: { confidence: "desc" },
     take: max,

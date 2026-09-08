@@ -40,6 +40,8 @@ export const SELECTION_TIER = {
   KEYWORD_FAMILY: 4,
   SEMANTIC: 5,
   DEFAULT_EXTRAS: 6,
+  /** U7 (2026-09-08) · attached by an intent playbook (lib/ai/tools/playbooks.ts). */
+  PLAYBOOK: 7,
 } as const;
 
 export interface GateDecision {

@@ -153,18 +153,22 @@ describe("supersession readers · recall-lane source pins", () => {
 
   it("Lane B prisma pool, the fallback AND the graph-context lane all filter supersededById/validUntil", () => {
     const src = read("lib/brain/contextual-recall.ts");
-    const hits = src.match(/supersededById: null/g) ?? [];
+    // 2026-09-08 (U3) · the three lanes now spread the shared `validityWhere()` helper
+    // (definition carries the literal once); a lane that drops the spread drops a hit.
+    const hits = [...(src.match(/supersededById: null/g) ?? []), ...(src.match(/\.\.\.validityWhere\(/g) ?? [])];
     // top-300 pool + getFallbackMemories + appendGraphContext (round-2:
     // the graph lane injected content past the filtered pool).
     expect(hits.length).toBeGreaterThanOrEqual(3);
-    expect(src).toMatch(/OR: \[\{ validUntil: null \}, \{ validUntil: \{ gt: new Date\(\) \} \}\]/);
+    // the window itself now lives in validityWhere(): `gt: at` (= asOf ?? now)
+    expect(src).toMatch(/OR: \[\{ validUntil: null \}, \{ validUntil: \{ gt: (new Date\(\)|at) \} \}\]/);
   });
 
   // Round-2 review: "both recall lanes honor it" was FALSE — three more
   // operator-facing read lanes had no filter. Each is pinned now.
   it("searchMemories (the ask-Nick-directly chat tool) filters in BOTH its FTS SQL and prisma where", () => {
     const src = read("lib/ai/tools/brain.ts");
-    expect(src).toMatch(/superseded_by_id IS NULL/);
+    // #2198: the FTS SQL now composes the shared validitySql() (which carries the literal)
+    expect(src).toMatch(/superseded_by_id IS NULL|validitySql\(/);
     expect(src).toMatch(/supersededById: null/);
   });
 
