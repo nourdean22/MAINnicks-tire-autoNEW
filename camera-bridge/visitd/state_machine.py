@@ -64,6 +64,7 @@ class VisitPolicy:
     plate_confirm_score: float = 0.9
     plate_candidate_score: float = 0.7
     plate_single_read_confirm_score: float = 0.95
+    max_sighting_seconds: float = 43200.0
     topology: Tuple[TopologyLink, ...] = ()
 
 
@@ -315,6 +316,7 @@ class VisitTracker:
         self._visits: Dict[str, Visit] = {}
         self._by_sighting: Dict[str, str] = {}
         self._closed: List[Visit] = []
+        self._force_ended: Dict[str, int] = {}
         self._new_id = id_factory or (lambda: str(uuid.uuid4()))
         self.counters: Dict[str, int] = {
             "split_joins": 0,
@@ -337,6 +339,27 @@ class VisitTracker:
         """Visits closed since the last drain (for persistence)."""
         out, self._closed = self._closed, []
         return out
+
+    def drain_force_ended(self) -> Dict[str, int]:
+        """Sightings force-ended since the last drain, by reason (for the metrics counter)."""
+        out, self._force_ended = self._force_ended, {}
+        return out
+
+    def force_end_open_sightings(self, at: float, reason: str) -> List[Emission]:
+        """End every open sighting at the estimated time `at` (Frigate lost its object registry).
+
+        The visits then go DEPARTING and reach LEFT / PASS_THROUGH through the normal grace,
+        exactly as a Frigate `end` would, with estimated=True on what is emitted.
+        """
+        ended = 0
+        for visit in list(self._visits.values()):
+            for sighting in visit.open_sightings():
+                self._force_end(sighting, at)
+                ended += 1
+        if not ended:
+            return []
+        self._force_ended[reason] = self._force_ended.get(reason, 0) + ended
+        return self._evaluate_all(at, estimated=True)
 
     def handle_event(self, ev: FrigateEvent) -> List[Emission]:
         """Apply one frigate/events message and evaluate every timer at its frame time."""
@@ -383,6 +406,7 @@ class VisitTracker:
 
     def tick(self, now: float) -> List[Emission]:
         """Evaluate timers at an estimated frame time; promotions are flagged estimated."""
+        self._expire_old_sightings(now)
         return self._evaluate_all(now, estimated=True)
 
     def export_state(self) -> Dict[str, object]:
@@ -449,6 +473,29 @@ class VisitTracker:
         )
         self._visits[visit.visit_id] = visit
         return self._attach(visit, sighting, at)
+
+    def _force_end(self, sighting: Sighting, at: float) -> None:
+        """Close a sighting and its open zone intervals at `at` as if Frigate had sent `end`."""
+        sighting.ended_in_zone = bool(sighting.open_zones())
+        for iv in sighting.intervals:
+            if iv.end is None:
+                iv.end = at
+        sighting.end_time = at
+        sighting.last_frame_time = max(sighting.last_frame_time, at)
+
+    def _expire_old_sightings(self, at: float) -> None:
+        """Force-end open sightings older than max_sighting_seconds (a track Frigate will never end)."""
+        limit = self.policy.max_sighting_seconds
+        if limit <= 0:
+            return
+        ended = 0
+        for visit in list(self._visits.values()):
+            for sighting in visit.open_sightings():
+                if at - sighting.start_time >= limit:
+                    self._force_end(sighting, at)
+                    ended += 1
+        if ended:
+            self._force_ended["max_age"] = self._force_ended.get("max_age", 0) + ended
 
     def _attach(self, visit: Visit, sighting: Sighting, at: float) -> Visit:
         """Bind a sighting to a visit; a DEPARTING visit restarts its grace from the join."""
@@ -519,6 +566,8 @@ class VisitTracker:
     def _apply_snapshot(self, visit: Visit, sighting: Sighting, spec: CameraSpec, ev: FrigateEvent, at: float, out: List[Emission]) -> None:
         """Update sighting facts and zone intervals from one message (no state transitions here)."""
         after = ev.after
+        if ev.type != "end" and sighting.end_time is not None:
+            sighting.end_time = None  # we force-ended it (restart / max age) but Frigate still tracks it
         sighting.last_frame_time = max(sighting.last_frame_time, after.frame_time)
         sighting.last_box = after.box or sighting.last_box
         sighting.best_score = max(sighting.best_score, after.score, after.top_score)
@@ -538,6 +587,8 @@ class VisitTracker:
             sighting.ended_in_zone = bool(set(after.current_zones) & spec.zones)
         for text, score, source, known in snapshot_reads(after):
             self._add_read(visit, sighting, text, score, source, at, known, out)
+            # a read may have re-parented the sighting; the next read must see its current visit
+            visit = self._visits.get(self._by_sighting.get(sighting.id, ""), visit)
 
     def _add_read(self, visit: Visit, sighting: Sighting, text: str, score: float, source: str, at: float, known_name: Optional[str], out: List[Emission]) -> None:
         """Record a plate read (deduped per source); a match to another open visit merges this sighting into it."""
@@ -559,9 +610,15 @@ class VisitTracker:
             self._move_sighting(sighting, visit, target, at, out)
 
     def _move_sighting(self, sighting: Sighting, src: Visit, dst: Visit, at: float, out: List[Emission]) -> None:
-        """Re-parent a sighting (plate rule); an emptied, already-emitted visit gets a LEFT tombstone."""
+        """Re-parent a sighting (plate rule); an emptied, already-emitted visit gets a LEFT tombstone.
+
+        Idempotent: a sighting that already belongs to `dst` is left alone, and `src` is only
+        tombstoned when this call is the one that empties it.
+        """
+        if sighting.id in dst.sightings and self._by_sighting.get(sighting.id) == dst.visit_id:
+            return
         self.counters["plate_joins"] += 1
-        if len(src.sightings) == 1:
+        if sighting.id in src.sightings and len(src.sightings) == 1:
             src.merged_into = dst.visit_id
             if src.emitted:
                 out.append(self._emit(src, LEFT, at, False, sighting, merged_into=dst.visit_id))
@@ -569,7 +626,7 @@ class VisitTracker:
                 src.state = LEFT
                 src.left_at = at
                 self._close(src)
-        del src.sightings[sighting.id]
+        src.sightings.pop(sighting.id, None)
         self._attach(dst, sighting, at)
 
     # ---- evaluation
@@ -651,15 +708,14 @@ class VisitTracker:
         return in_arrival, in_bay, stationary_in_arrival, ever
 
     def _departure_hold(self, visit: Visit) -> float:
-        """When a DEPARTING visit may be declared LEFT: grace for live/split tracks, topology window otherwise."""
+        """When a DEPARTING visit may be declared LEFT: the leave grace after the later of the zone exit and the
+        last track end, or the topology window when that is longer. A Frigate `end` therefore never emits LEFT
+        by itself (rule 1: a split track within splitTrackSeconds <= leaveGraceSeconds can still rejoin)."""
         base = visit.departing_since if visit.departing_since is not None else visit.last_activity
-        if visit.open_sightings():
-            hold = self.policy.leave_grace_seconds
-        else:
-            last = max(visit.sightings.values(), key=lambda s: s.end_time or 0.0, default=None)
-            hold = self.policy.leave_grace_seconds if (last is not None and last.ended_in_zone) else 0.0
+        if not visit.open_sightings():
+            base = max(base, max((s.end_time or 0.0 for s in visit.sightings.values()), default=base))
         topo = max((l.max_seconds for l in self.policy.topology if l.from_camera == visit.last_camera), default=0.0)
-        return base + max(hold, topo)
+        return base + max(self.policy.leave_grace_seconds, topo)
 
     def _emit(self, visit: Visit, state: str, at: float, estimated: bool, sighting: Sighting, merged_into: Optional[str] = None) -> Emission:
         """Transition to `state`, bump seq, and build the Emission snapshot."""

@@ -22,6 +22,8 @@ backend:
   retryMinSeconds: 1               # exponential backoff floor for cloud POST retries
   retryMaxSeconds: 60              # backoff ceiling
   outboxMaxDepth: 5000             # oldest events are dropped (and counted) beyond this depth
+  outboxMaxAttempts: 40            # HTTP error responses (5xx/429) for ONE event before it is parked in the
+                                   # ledger's dead_letter table; transport failures (WAN down) never count
 
 # Frigate camera name -> cloud device (statenour SmartDevice.platformDeviceId) + zone roles.
 cameras:
@@ -52,6 +54,8 @@ visit:
   leaveGraceSeconds: 20            # DEPARTING -> LEFT when no zone re-entry within this window
   splitTrackSeconds: 10            # rule 1: new track within N s of an ended track on the same camera
   splitTrackIou: 0.5               # rule 1: box overlap threshold
+  maxSightingSeconds: 43200        # 12 h: an open track older than this is force-ended (Frigate will never `end` it);
+                                   # a Frigate restart (frigate/available offline/online) force-ends every open track at once
 
 plate:
   reattachMinutes: 30              # rule 2: plate joins an open visit active within this window
@@ -61,6 +65,8 @@ plate:
 
 ledger:
   path: ./data/visitd.sqlite       # overridden by env VISITD_LEDGER (Docker: /data/visitd.sqlite)
+  retentionDays: 90                # terminal visits (LEFT/PASS_THROUGH) older than this are pruned hourly with their
+                                   # sightings and zone intervals; dead_letter rows go after 7 days. The cloud is canonical.
 
 metrics:
   host: 127.0.0.1                  # loopback only; scraped into the heartbeat payload

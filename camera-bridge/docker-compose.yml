@@ -51,9 +51,12 @@ services:
     build:
       context: .
       dockerfile: visitd.Dockerfile
-    image: camera-bridge/visitd:2.0.0
+    image: camera-bridge/visitd:2.1.0
     container_name: visitd
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"          # Prometheus text (README section 4 step 5), loopback only on the host. Inside the
+                                       # container set metrics.host: 0.0.0.0 in config.yaml: its loopback is not the host's.
     env_file:
       - .env                           # STATENOUR_SYNC_KEY, MQTT_USERNAME, MQTT_PASSWORD
     environment:

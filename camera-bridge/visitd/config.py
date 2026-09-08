@@ -33,6 +33,7 @@ class BackendConfig:
     retry_min_seconds: float = 1.0
     retry_max_seconds: float = 60.0
     outbox_max_depth: int = 5000
+    outbox_max_attempts: int = 40
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ class Config:
     cameras: Dict[str, CameraConfig]
     policy: VisitPolicy
     ledger_path: str = "./data/visitd.sqlite"
+    ledger_retention_days: float = 90.0
     metrics_host: str = "127.0.0.1"
     metrics_port: int = 9090
     tick_seconds: float = 5.0
@@ -112,6 +114,7 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
         retry_min_seconds=float(_get(backend_raw, "retryMinSeconds", 1.0)),
         retry_max_seconds=float(_get(backend_raw, "retryMaxSeconds", 60.0)),
         outbox_max_depth=int(_get(backend_raw, "outboxMaxDepth", 5000)),
+        outbox_max_attempts=int(_get(backend_raw, "outboxMaxAttempts", 40)),
     )
 
     cameras_raw = _get(raw, "cameras", {})
@@ -166,6 +169,7 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
         plate_confirm_score=float(_get(plate_raw, "confirmScore", 0.9)),
         plate_candidate_score=float(_get(plate_raw, "candidateScore", 0.7)),
         plate_single_read_confirm_score=float(_get(plate_raw, "singleReadConfirmScore", 0.95)),
+        max_sighting_seconds=float(_get(visit_raw, "maxSightingSeconds", 43200.0)),
         topology=tuple(links),
     )
     for name, value in (("candidateSeconds", policy.candidate_seconds), ("confirmSeconds", policy.confirm_seconds)):
@@ -180,6 +184,7 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
         cameras=cameras,
         policy=policy,
         ledger_path=env.get("VISITD_LEDGER") or str(_get(ledger_raw, "path", "./data/visitd.sqlite")),
+        ledger_retention_days=float(_get(ledger_raw, "retentionDays", 90.0)),
         metrics_host=str(_get(metrics_raw, "host", "127.0.0.1")),
         metrics_port=int(_get(metrics_raw, "port", 9090)),
         tick_seconds=float(_get(raw, "tickSeconds", 5.0)),

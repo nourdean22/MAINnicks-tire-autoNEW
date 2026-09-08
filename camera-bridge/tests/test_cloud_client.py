@@ -1,6 +1,7 @@
-"""Cloud worker with a fake transport: retry order, 401 drop, dry-run, secret hygiene."""
+"""Cloud worker with a fake transport: retry order, 401 drop, dead-letter cap, dry-run, secret hygiene."""
 from __future__ import annotations
 
+import dataclasses
 import logging
 import unittest
 from typing import Dict, List, Tuple
@@ -83,6 +84,47 @@ class CloudClientTest(unittest.TestCase):
             self.assertEqual(client.deliver_once(), "retry")
         self.assertTrue(any("ConnectionError" in line for line in logs.output))
         self.assertEqual(self.ledger.outbox_peek().attempts, 1)
+
+    def test_poison_head_is_dead_lettered_after_cap_and_the_healthy_item_behind_it_flows(self) -> None:
+        backend = dataclasses.replace(self.backend, outbox_max_attempts=3)
+        transport = FakeTransport([(500, "boom")] * 3 + [(200, "ok")])
+        client = self._client(transport, backend=backend)
+        self.ledger.enqueue("poison", "dev-a", "u", {"eventId": "poison"})
+        self.ledger.enqueue("good", "dev-b", "u", {"eventId": "good"})
+        self.assertEqual(client.deliver_once(), "retry")
+        self.assertEqual(client.deliver_once(), "retry")
+        self.assertEqual(self.ledger.outbox_peek().http_failures, 2)
+        with self.assertLogs("visitd.cloud", level="ERROR") as logs:
+            self.assertEqual(client.deliver_once(), "dead_lettered")
+        self.assertTrue(any("dead-lettered" in line and "event_id=poison" in line for line in logs.output))
+        self.assertEqual(client._backoff, backend.retry_min_seconds)
+        self.assertEqual(client.deliver_once(), "sent")
+        self.assertEqual(client.deliver_once(), "idle")
+        self.assertEqual([c[2]["eventId"] for c in transport.calls], ["poison", "poison", "poison", "good"])
+        self.assertEqual(self.ledger.outbox_depth(), 0)
+        self.assertEqual(self.ledger.dead_letter_depth(), 1)
+        parked = self.ledger.dead_letter_rows()
+        self.assertEqual(len(parked), 1)
+        self.assertEqual((parked[0]["event_id"], parked[0]["device_id"], parked[0]["last_status"], parked[0]["http_failures"]), ("poison", "dev-a", 500, 3))
+        self.assertIn("boom", parked[0]["last_error"])
+        self.assertEqual(self.metrics.get("visitd_outbox_dead_lettered_total"), 1)
+        self.assertEqual(self.metrics.get("visitd_cloud_events_total", {"result": "retry"}), 3)
+        self.assertEqual(self.metrics.get("visitd_cloud_events_total", {"result": "ok"}), 1)
+
+    def test_transport_failures_never_count_toward_the_dead_letter_cap(self) -> None:
+        """WAN down must flush in order once it ends: only HTTP error responses advance the cap."""
+        backend = dataclasses.replace(self.backend, outbox_max_attempts=2)
+        transport = FakeTransport([])  # every call raises ConnectionError
+        client = self._client(transport, backend=backend)
+        self.ledger.enqueue("e1", "dev", "u", {"eventId": "e1"})
+        for _ in range(5):
+            self.assertEqual(client.deliver_once(), "retry")
+        item = self.ledger.outbox_peek()
+        self.assertEqual((item.event_id, item.attempts, item.http_failures), ("e1", 5, 0))
+        self.assertEqual(self.ledger.dead_letter_depth(), 0)
+        self.assertEqual(self.metrics.get("visitd_outbox_dead_lettered_total"), 0)
+        transport.responses = [(200, "ok")]
+        self.assertEqual(client.deliver_once(), "sent")
 
     def test_dry_run_logs_json_and_acks_without_transport(self) -> None:
         transport = FakeTransport([(200, "never")])
