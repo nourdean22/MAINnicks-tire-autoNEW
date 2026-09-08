@@ -15,6 +15,7 @@
  * the ONLY ordering brain — this file never sorts by the stored
  * autoPriority column (stored-score staleness is a defect class, #1946).
  */
+import { parseResumeRecord, type ResumeRecord } from "@/lib/missions/resume-record";
 import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { serializeForJson } from "@/lib/utils/serialize";
@@ -71,6 +72,10 @@ export type DeckNextMove = {
   alternates: DeckTaskRef[];
   /** Latest "parked" note for the hero — where the operator stopped. */
   resumeNote: string | null;
+  /** U5 (2026-09-07) · structured record from the same parked event; null on legacy parks. */
+  resumeRecord: ResumeRecord | null;
+  /** When the hero was parked (ISO) — the reader weighs freshness before acting. */
+  parkedAt: string | null;
 } | null;
 
 export type DeckTriageRow = {
@@ -276,15 +281,19 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
   // Ready-to-resume note: the latest "parked" event's payload.note for the
   // hero — shown when the pick is a resume so the block starts clean.
   let resumeNote: string | null = null;
+  let resumeRecord: ResumeRecord | null = null;
+  let parkedAt: string | null = null;
   if (heroPick) {
     try {
       const parked = await prisma.taskEvent.findFirst({
         where: { taskId: heroPick.id, kind: "parked" },
         orderBy: { createdAt: "desc" },
-        select: { payload: true },
+        select: { payload: true, createdAt: true },
       });
       const note = (parked?.payload as { note?: unknown } | null)?.note;
       resumeNote = typeof note === "string" && note.trim().length > 0 ? note.trim() : null;
+      resumeRecord = parseResumeRecord(parked?.payload);
+      parkedAt = parked?.createdAt ? new Date(parked.createdAt).toISOString() : null;
     } catch {
       unmeasured.push("resume note");
     }
@@ -296,6 +305,8 @@ export async function buildMissionsDeck(now = new Date()): Promise<MissionsDeck>
         task: toRef(heroPick, titleOf(heroPick.missionId), heroPick._score, heroPick._why),
         alternates,
         resumeNote,
+        resumeRecord,
+        parkedAt,
       }
     : null;
 

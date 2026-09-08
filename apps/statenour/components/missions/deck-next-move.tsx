@@ -12,6 +12,7 @@
  * ordering brain); this component states it, says why in the scorer's
  * own words, and starts it. No fabricated confidence, no percentages.
  */
+import { resumeAgeLabel } from "@/lib/missions/resume-record";
 import { useState } from "react";
 import type { MissionsDeck } from "@/lib/missions/deck";
 
@@ -51,7 +52,8 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
     );
   }
 
-  const { task, kind, alternates, resumeNote } = nextMove;
+  const { task, kind, alternates, resumeNote, resumeRecord, parkedAt } = nextMove;
+  const parkedAge = resumeAgeLabel(parkedAt);
 
   return (
     <section
@@ -88,7 +90,48 @@ export function DeckNextMove({ nextMove, capacity, onStart, onPickDifferent }: P
             you stopped at ·{" "}
           </span>
           {resumeNote}
+          {parkedAge && <span className="ml-2 font-mono text-[10px] text-[var(--text-tertiary)]">{parkedAge}</span>}
         </p>
+      )}
+      {kind === "resume" && resumeRecord && (
+        <dl className="mt-2 rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-base)]/60 px-3 py-2 text-[13px] text-[var(--text-primary)]">
+          {(
+            [
+              ["Intended outcome", resumeRecord.intendedOutcome],
+              ["Last verified step", resumeRecord.lastVerifiedStep],
+              ["Open question", resumeRecord.openQuestion],
+              ["Next physical action", resumeRecord.nextPhysicalAction],
+            ] as const
+          )
+            .filter(([, v]) => !!v)
+            .map(([k, v]) => (
+              <div key={k} className="flex gap-2 py-0.5">
+                <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--gold)]/80 pt-0.5 w-[9.5rem]">{k}</dt>
+                <dd className="min-w-0">{v}</dd>
+              </div>
+            ))}
+          {resumeRecord.evidenceLinks.length > 0 && (
+            <div className="flex gap-2 py-0.5">
+              <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--gold)]/80 pt-0.5 w-[9.5rem]">Evidence</dt>
+              <dd className="min-w-0 flex flex-wrap gap-2">
+                {resumeRecord.evidenceLinks.map((href) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target={href.startsWith("/") ? undefined : "_blank"}
+                    rel="noreferrer"
+                    className="underline decoration-[var(--gold)]/40 underline-offset-2 break-all"
+                  >
+                    {href.replace(/^https?:\/\//, "").slice(0, 60)}
+                  </a>
+                ))}
+              </dd>
+            </div>
+          )}
+          <p className="mt-1 font-mono text-[10px] text-[var(--text-tertiary)]">
+            {parkedAge ?? "parked"} · a memory aid, not a plan — verify the last step before acting on it
+          </p>
+        </dl>
       )}
 
       <p className="mt-2 text-[11px] font-mono text-[var(--text-tertiary)]">
