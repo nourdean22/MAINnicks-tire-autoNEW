@@ -5,6 +5,7 @@
 // Better to fail at compile time with a clear "you can't import
 // server-only from client" message than at deploy time with an
 // opaque module-not-found error.
+import { getSetting } from "@/lib/services/settings";
 import "server-only";
 
 /**
@@ -169,4 +170,86 @@ export class BudgetExceededError extends Error {
     this.name = "BudgetExceededError";
     this.status = status;
   }
+}
+
+// ── U6 (2026-09-08) · per-lane budgets ──────────────────────────────────────
+// A lane is the `feature` a call is recorded under (chat, ai:reason, plan_day…).
+// Caps: setting `ai.laneBudgetCents` (JSON map), else env AI_LANE_BUDGET_CENTS_JSON.
+// A capped lane at or past its cap is a deterministic stop in aiChat.
+
+export const LANE_BUDGET_SETTING_KEY = "ai.laneBudgetCents";
+export const LANE_BUDGET_ENV_KEY = "AI_LANE_BUDGET_CENTS_JSON";
+const LANE_CACHE_TTL_MS = 30_000;
+
+export interface LaneStatus {
+  feature: string;
+  spentCents: number;
+  capCents: number | null;
+  over: boolean;
+}
+
+export function parseLaneCaps(raw: unknown): Record<string, number> {
+  if (typeof raw !== "string" || raw.trim().length === 0) return {};
+  try {
+    const obj = JSON.parse(raw) as unknown;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isInteger(v) && v > 0 && k.trim().length > 0) out[k.trim()] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function getLaneCaps(): Promise<{ caps: Record<string, number>; source: "setting" | "env" | "none" }> {
+  const stored = await getSetting<unknown>(LANE_BUDGET_SETTING_KEY, null);
+  const fromSetting = parseLaneCaps(stored);
+  if (Object.keys(fromSetting).length > 0) return { caps: fromSetting, source: "setting" };
+  const fromEnv = parseLaneCaps(process.env[LANE_BUDGET_ENV_KEY]);
+  if (Object.keys(fromEnv).length > 0) return { caps: fromEnv, source: "env" };
+  return { caps: {}, source: "none" };
+}
+
+const laneCache = new Map<string, { at: number; status: LaneStatus }>();
+export function resetLaneBudgetCache(): void {
+  laneCache.clear();
+}
+
+/** Today's spend for one lane against its cap. Throws on a failed read — never a silent zero. */
+export async function checkLaneBudget(feature: string): Promise<LaneStatus> {
+  const hit = laneCache.get(feature);
+  if (hit && Date.now() - hit.at < LANE_CACHE_TTL_MS) return hit.status;
+  const { caps } = await getLaneCaps();
+  const capCents = caps[feature] ?? null;
+  const agg = await prisma.aiGeneration.aggregate({
+    where: { feature, createdAt: { gte: startOfDay() } },
+    _sum: { costCents: true },
+  });
+  const spentCents = agg._sum.costCents ?? 0;
+  const status: LaneStatus = { feature, spentCents, capCents, over: capCents != null && spentCents >= capCents };
+  laneCache.set(feature, { at: Date.now(), status });
+  return status;
+}
+
+/** Every capped lane, plus today's uncapped spenders — for the /system cost page. */
+export async function listLaneStatus(): Promise<{ lanes: LaneStatus[]; source: "setting" | "env" | "none" }> {
+  const { caps, source } = await getLaneCaps();
+  const rows = await prisma.aiGeneration.groupBy({
+    by: ["feature"],
+    where: { createdAt: { gte: startOfDay() } },
+    _sum: { costCents: true },
+  });
+  const spent = new Map<string, number>();
+  for (const r of rows) spent.set(r.feature ?? "unknown", r._sum.costCents ?? 0);
+  const features = [...new Set([...Object.keys(caps), ...spent.keys()])];
+  const lanes = features
+    .map((feature) => {
+      const capCents = caps[feature] ?? null;
+      const spentCents = spent.get(feature) ?? 0;
+      return { feature, spentCents, capCents, over: capCents != null && spentCents >= capCents };
+    })
+    .sort((a, b) => Number(b.capCents != null) - Number(a.capCents != null) || b.spentCents - a.spentCents);
+  return { lanes, source };
 }

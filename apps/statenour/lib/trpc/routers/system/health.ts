@@ -8,6 +8,7 @@
  * change. See system.ts for the recomposition.
  */
 
+import { listLaneStatus } from "@/lib/ai/budget";
 import { z } from "zod";
 import { operatorProcedure } from "../../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
@@ -245,6 +246,8 @@ export const healthProcedures = {
    * procedure can't drift.
    */
   aiCost: operatorProcedure.query(async () => buildAiCostFeed()),
+  /** U6 (2026-09-08) · per-lane spend vs cap for today. */
+  aiLanes: operatorProcedure.query(async () => listLaneStatus()),
 
   /**
    * scattered-components slice · owner-only · today's AI spend vs the

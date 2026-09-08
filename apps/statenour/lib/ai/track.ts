@@ -5,6 +5,7 @@
  * Now includes: cost estimation, daily budget tracking, per-feature analytics.
  */
 
+import { estimateCostUsd, usdToCents } from "@/lib/ai/pricing";
 import { prisma } from "@/lib/prisma";
 
 // Cost per 1M tokens (approximate, updated Apr 28 2026).
@@ -58,7 +59,19 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   default: { input: 0.50, output: 1.50 },
 };
 
-function estimateCostCents(model: string, promptTokens?: number, outputTokens?: number): number {
+/** U6 · true when the model table names this SKU (substring match, same rule as estimateCostCents). */
+function MODEL_COSTS_HAS(model: string): boolean {
+  const lower = model.toLowerCase();
+  return Object.keys(MODEL_COSTS).some((k) => k !== "default" && lower.includes(k.toLowerCase()));
+}
+
+function estimateCostCents(model: string, promptTokens?: number, outputTokens?: number, provider?: string): number {
+  // U6 · provider family rate first (the same table provider.ts prices with);
+  // the model table below refines SKUs the family rate would misprice.
+  if (provider) {
+    const usd = estimateCostUsd(provider, promptTokens, outputTokens);
+    if (usd != null && !MODEL_COSTS_HAS(model)) return usdToCents(usd);
+  }
   const modelKey = Object.keys(MODEL_COSTS).find(k => model.toLowerCase().includes(k.toLowerCase()));
   const costs = MODEL_COSTS[modelKey || "default"] || MODEL_COSTS.default;
   const inputCost = ((promptTokens || 0) / 1_000_000) * costs.input;
@@ -82,8 +95,15 @@ export async function trackGeneration(data: {
   durationMs?: number;
   status?: string;
   conversationId?: string;
+  /** U6 · provider family (prices via lib/ai/pricing.ts when the model table has no SKU). */
+  provider?: string;
+  /** U6 · the cost the provider chain already computed — wins over every estimate. */
+  costUsd?: number;
 }) {
-  const costCents = estimateCostCents(data.model, data.promptTokens, data.outputTokens);
+  const costCents =
+    data.costUsd != null
+      ? usdToCents(data.costUsd)
+      : estimateCostCents(data.model, data.promptTokens, data.outputTokens, data.provider);
 
   return prisma.aiGeneration.create({
     data: {
