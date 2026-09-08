@@ -252,10 +252,13 @@ no length guard. "Succeeding" on that fallback would silently poison a
 Two of every three "failures" in the 2026-09-02 wave needed no code
 change. Triage before fixing:
 
-- **`##[error]The operation was canceled.`** = a run superseded by a
-  newer push, reported as a failed check. **No FAIL lines and no
-  assertions means nothing failed** — look for those before touching
-  code.
+- **`##[error]The operation was canceled.` is INCONCLUSIVE, not a pass.**
+  A cancel can be a sibling's merge superseding the run, a manual cancel,
+  or a timeout — and in every case the checks did not finish, so an
+  absence of `FAIL` lines proves nothing about whether they would have
+  failed. Read the cancellation cause, then **rerun**; root `AGENTS.md`
+  is explicit: "If CI is cancelled by a sibling's merge, rerun; don't
+  debug." Never treat a cancelled run as green evidence.
 - **`completion-authority` evaluates review threads at run time.**
   Resolving threads afterwards leaves a STALE red. Re-run it; do not
   re-litigate the threads.

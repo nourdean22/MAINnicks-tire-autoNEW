@@ -1523,12 +1523,17 @@ statenour primitives documented (existence re-verified at
 - The owner confirmed 2026-09-03 that Nick's is the **same owner** who renamed Moe's Tire
   & Auto — there was never new ownership, and #2099 removed the copy. **The test now pins a
   falsehood as a required invariant.**
-- It is green only by accident: `/new ownership/i` matches an unrelated consumer-advice
-  sentence in `shared/guides.ts:887` ("If something changes — new ownership, new
-  technicians…", about shops in general) and a **comment** in `shared/voice.ts:350`. The
-  same file states "MENTION IS NOT ASSERTION" for its `run by moe` rule and does not apply
-  it to this control. Clean up either string and the test goes red, and the obvious "fix"
-  is to re-add a false ownership claim.
+- It is green on **exactly one** line, and that line is not a claim about this business:
+  `shared/guides.ts:887`, a generic consumer-advice sentence ("If something changes — new
+  ownership, new technicians, declining quality — it is okay to re-evaluate") about shops
+  in general. Simulating the scanner's own filter over 494 files / 110,189 non-comment
+  lines returns that single hit and zero for `run by moe`. Edit or delete that unrelated
+  article sentence and the control goes red, with the obvious "fix" being to re-add a false
+  ownership claim to the site.
+  **Correction to this entry's first draft:** it also named a comment at
+  `shared/voice.ts:350` as a second cause. That was wrong — `LINES` already excludes
+  comment lines (the file's own "MENTION IS NOT ASSERTION" rule), so that comment was never
+  counted. One cause, not two.
 - **Not fixed here:** business-truth is operator-owned and this pass had no remit to change
   nickstire copy or its canonical constants. Recommended: delete the control or re-point it
   at the true invariant (same owner, renamed ~2018).
@@ -1542,3 +1547,25 @@ statenour primitives documented (existence re-verified at
 > handling, reviewer dispatch and embedding dimensions under a name that says "verification
 > sequence". That is the likeliest reason three new-skill proposals sat unapplied for
 > 11 days. A split is worth an operator decision.
+
+### P7 · the automated reviewer was right 4/4 AGAIN on this very PR
+- **Trigger (witnessed):** Codex reviewed #2203 and filed four P2 findings, all verified
+  true before acting: (1) `prior-art-grep` searched `pgTable(` for nickstire, which is
+  TiDB — all **146** declarations are `mysqlTable`, so the duplicate-table safeguard was
+  dead for one of the two apps; (2) it searched a root `.env.example` that **does not
+  exist**, and `git grep` exits 1 for an unmatched pathspec exactly as for a real
+  no-match, so the miss reads as "Prior art: none"; (3) **`empty-vs-error`'s own detection
+  regex required `()` immediately before `=>` and therefore missed every
+  `.catch((): never[] => [])` — 147 files match with the annotation allowed, 98 without,
+  a **49-file blind spot**, in the skill written specifically about instruments that
+  cannot fire; (4) `statenour-verify` classified `The operation was canceled`
+  unconditionally as "superseded, nothing failed", where root `AGENTS.md` says rerun.
+- **Cost:** none — caught pre-merge. But finding (3) is the fourth consecutive wave in
+  which a defect appeared in code written *while criticising that exact defect class*,
+  and the reviewer's cumulative record across the last two waves is now **8/8**.
+- **Proposed edit:** none new. This is `positive-control-first` and `empty-vs-error`
+  working as written, on their own author, and it is the evidence for the standing rule
+  that **no wave is finished before an independent adversarial pass** — the author's own
+  hostile pass ran here and missed all four.
+- **Confidence:** high (all four independently verified; fixes positive-controlled)
+- **Status:** applied in the same PR

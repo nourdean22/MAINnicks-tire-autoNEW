@@ -69,32 +69,40 @@ Do not invent a state model. Three verified reference implementations:
 
 ## Detection — scope to the DIFF, never the repo
 
-**A repo-wide grep for this shape does not work here, and knowing why is
-the point.** Measured 2026-09-08 across `apps/statenour/{lib,app}`:
+**Match the TYPE ANNOTATION, or you miss a third of them.** The house
+form is often `.catch((): never[] => [])`, and a pattern that requires
+`()` immediately before `=>` silently skips every one. Measured on
+`6ade5771b` across `apps/statenour/{lib,app}`:
 
 | Pattern | Files |
 |---|---|
-| `.catch(() => null)` | 120 |
-| `.catch(() => [])` | 93 |
-| `.catch((): never[] => [])` | 36 |
-| `.catch(() => 0)` | 22 |
+| dangerous fallbacks — `=> []` / `=> 0`, **any annotation** | **147** |
+| the same, matched **untyped-only** (the naive regex) | 98 |
+| `=> null` — usually honest, null is a legitimate "unknown" | 130 |
 
-These are house idioms, not a defect list. `=> null` is usually *honest*
-— null is a legitimate "unknown". The dangerous two are **`=> []` and
-`=> 0`**, because the caller cannot distinguish them from a real empty
-or a real zero. So run the grep over your own change, or over one
-surface you are auditing — never as a repo gate:
+The 49-file gap between the first two rows is the cost of a detector that
+does not allow an annotation. **This exact miss shipped in the first
+version of this skill and was caught in review** — the counts it quoted
+came from a stricter regex than the one it told you to run.
+
+Those totals are also why a repo-wide grep is not a gate: at 147 files
+this is a house idiom, not a defect list. Scope to your own change, or to
+one surface you are auditing:
 
 ```bash
 # your diff only
-git diff origin/main | grep -nE '\?\? *0|\?\? *\[\]|\.catch\(\(\) *=> *(\[\]|0)|useState\(\{[^}]*: *0'
+git diff origin/main | grep -nE '\?\? *0|\?\? *\[\]|\.catch\(\([^)]*\)( *: *[^=]+?)? *=> *(\[\]|0)|useState\(\{[^}]*: *0'
 
 # one surface, when auditing a page
-git grep -nE '\.catch\(\(\) *=> *(\[\]|0)' -- apps/statenour/components/brain
+git grep -nE '\.catch\(\([^)]*\)( *: *[^=]+?)? *=> *(\[\]|0)' -- apps/statenour/components/brain
 
 # a read with no writer: prove the discriminator has a producer
 git grep -n "status: *'failed'"   # 0 hits today — writers emit complete/error
 ```
+
+Positive-control any change to these patterns against all four forms
+before trusting them — `() => []`, `(): never[] => []`, `() => 0`,
+`(): number => 0` must all match, and `() => null` must not.
 
 Three specific traps behind these:
 

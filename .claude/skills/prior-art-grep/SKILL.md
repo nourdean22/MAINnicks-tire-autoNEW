@@ -23,17 +23,26 @@ queue beside `PostTurnOutbox` and `WorkItem`**.
 ## Run this before building, and paste the result
 
 ```bash
-# schema models
-git grep -nE "^model " -- apps/statenour/prisma/schema.prisma
-git grep -rn "pgTable(" -- apps/nickstire/drizzle
+# schema models — the two apps use DIFFERENT stacks and different keywords
+git grep -nE "^model " -- apps/statenour/prisma/schema.prisma     # statenour = Prisma/Postgres
+git grep -n  "mysqlTable(" -- apps/nickstire/drizzle/schema.ts    # nickstire = Drizzle/TiDB (MySQL)
 
 # tool names + catalog
 git grep -rn "<candidate-name>" -- apps/statenour/lib/ai
 # cron manifest
 git grep -rn "<candidate-name>" -- apps/statenour/config apps/nickstire/server
-# feature flags / env
-git grep -n "<CANDIDATE_ENV>" -- .env.example
+# feature flags / env — there is NO root .env.example
+git grep -n "<CANDIDATE_ENV>" -- apps/statenour/.env.example apps/nickstire/.env.example camera-bridge/bridge/.env.example
 ```
+
+⚠ **`pgTable(` returns nothing for nickstire** — all 146 declarations in
+`apps/nickstire/drizzle/schema.ts` are `mysqlTable`, because nickstire is
+TiDB. A Postgres-shaped search there is a guaranteed false "no prior art".
+
+⚠ **`git grep` exits 1 for an unmatched PATHSPEC exactly as it does for a
+genuine no-match.** A typo'd or non-existent path therefore reads as
+"nothing found" and gets recorded as "Prior art: none". Confirm the path
+exists (`git ls-files <path>`) before believing an empty result.
 
 Then write ONE line before you build:
 
