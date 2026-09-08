@@ -586,6 +586,27 @@ async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRo
 const DEFAULT_TOKEN_BUDGET = 4000;
 const CHARS_PER_TOKEN_APPROX = 4;
 
+/**
+ * U3 (2026-09-08) · the validity window of a belief, at an instant.
+ * Default = now: superseded rows and rows whose validUntil has passed leave
+ * the pool (BDN-310). With `asOf`, recall answers "what was believed THEN":
+ * a belief corrected since is still returned when its validUntil is after
+ * the instant, and nothing saved after the instant is returned. Every
+ * recall lane and the searchMemories tool read this one helper.
+ */
+export function validityWhere(asOf?: Date): {
+  supersededById: null;
+  OR: Array<{ validUntil: null } | { validUntil: { gt: Date } }>;
+  createdAt?: { lte: Date };
+} {
+  const at = asOf ?? new Date();
+  return {
+    supersededById: null,
+    OR: [{ validUntil: null }, { validUntil: { gt: at } }],
+    ...(asOf ? { createdAt: { lte: asOf } } : {}),
+  };
+}
+
 export async function getContextualMemories(
   recentMessages: string[],
   maxMemories: number = 20,
@@ -603,6 +624,8 @@ export async function getContextualMemories(
      * the canonical pipeline.
      */
     queryEmbedding?: number[];
+    /** U3 · answer as of this instant (see validityWhere). Undefined = now. */
+    asOf?: Date;
     /**
      * v10.0.529.106 · Wave 81 · pgvector efSearch override. Defaults
      * to the standard ef tuning · pass HIGH_RECALL (80) for high-stakes
@@ -685,8 +708,7 @@ export async function getContextualMemories(
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19): superseded or
       // expired-validity beliefs leave the recall pool.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(opts.asOf),
     },
     orderBy: { confidence: "desc" },
     take: 300,
@@ -1124,7 +1146,7 @@ export async function getContextualMemories(
     .slice(0, 2)
     .map((m) => m.id);
   await timed("graph", () =>
-    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content))),
+    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content)), opts.asOf),
   );
 
   // ── Cross-source semantic pull ──
@@ -1406,6 +1428,7 @@ async function appendGraphContext(
   lines: string[],
   anchorMemoryIds: string[],
   alreadyIncluded: Set<string>,
+  asOf?: Date,
 ): Promise<void> {
   if (anchorMemoryIds.length === 0) return;
   try {
@@ -1435,8 +1458,7 @@ async function appendGraphContext(
       where: {
         id: { in: top.map(([id]) => id) },
         deletedAt: null,
-        supersededById: null,
-        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        ...validityWhere(asOf),
       },
       select: { id: true, category: true, content: true },
     });
@@ -1543,8 +1565,7 @@ async function getFallbackMemories(max: number): Promise<string> {
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19) — same guard as the
       // primary path; the fallback must not resurrect a superseded belief.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(),
     },
     orderBy: { confidence: "desc" },
     take: max,

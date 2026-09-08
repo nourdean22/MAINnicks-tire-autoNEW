@@ -35,6 +35,7 @@
 // Rule: client-side only imports `@/lib/ai/chat-mode-detect`. This
 // file (`chat-mode`) is server-only (routes, system prompt).
 export { detectChatMode } from "./chat-mode-detect";
+import { matchPlaybook } from "@/lib/ai/tools/playbooks";
 import type { ChatMode } from "./chat-mode-detect";
 export type { ChatMode };
 
@@ -599,6 +600,14 @@ export async function pruneTools(
   const sortedKeyword = Array.from(keywordMatches).sort();
   for (const name of sortedKeyword) {
     addIfSpace(name, 4);
+  }
+
+  // Tier 7 (U7 · 2026-09-08): intent playbooks — one bundle per recurring job
+  // (reflect / execute / publish). Adds only; recorded under its own tier so the
+  // telemetry can answer whether the bundle was used.
+  const playbook = matchPlaybook(userContent);
+  if (playbook) {
+    for (const name of playbook.tools) addIfSpace(name, 7);
   }
 
   // Tier 5: Semantic-ranked tools

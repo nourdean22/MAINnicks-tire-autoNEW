@@ -95,7 +95,7 @@ export function MemoryTab() {
           /brain/health remains its own sub-route (auto back-links here). */}
       <div className="flex items-start justify-between gap-3 mb-5">
         <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
-          Everything the system knows about you · learns every day.
+          What is saved, where it came from, and what is inferred · updated every day.
         </p>
         <a
           href="/brain?tab=health"

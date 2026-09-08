@@ -17,6 +17,7 @@
  * always awaited bare inline).
  */
 
+import { matchPlaybook } from "@/lib/ai/tools/playbooks";
 import { ACTION_CATALOG } from "@/lib/ai/nick-agent";
 import type { classifyTurn } from "@/lib/ai/turn-intelligence";
 import type { logger as rootLogger } from "@/lib/logger";
@@ -173,5 +174,8 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   const gscBlock = await buildGscPrefetch(userTextSlice);
   if (gscBlock) finalSystemPrompt = finalSystemPrompt + "\n\n" + gscBlock;
 
+  // U7 (2026-09-08) · the intent playbook's operating note (its tools are attached in pruneTools).
+  const playbook = matchPlaybook(args.userContent);
+  if (playbook) finalSystemPrompt += `\n\n## Playbook · ${playbook.id}\n${playbook.guidance}`;
   return finalSystemPrompt;
 }

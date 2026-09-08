@@ -22,6 +22,7 @@
  * call sites just rethrow / surface the message.
  */
 
+import { currentTurn } from "@/lib/agent/turn-context";
 import { logger as rootLogger } from "@/lib/logger";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
 import { prisma } from "@/lib/prisma";
@@ -404,7 +405,9 @@ export function withGuardian<T, A extends unknown[]>(
         toolId: toolName,
         actionType: "execute",
         destructive: (payload as any)?.destructive,
-        containsExternalContent: (payload as any)?.containsExternalContent,
+        // U4 · the turn's taint (set by the fences) counts, not only the model's own declaration.
+        containsExternalContent:
+          Boolean((payload as any)?.containsExternalContent) || currentTurn()?.untrustedInput === true,
         memoryWriteRequested: (payload as any)?.memoryWriteRequested,
       });
 

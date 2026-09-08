@@ -290,3 +290,13 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
     font-size: 16px;
   }
 }
+
+/* ── §5.1 phone type floor (2026-09-08) ─────────────────────────────────────
+   9 px and 10 px labels are unreadable on a phone. 523 `text-[9px]` and 987
+   `text-[10px]` call sites exist; editing them one by one is churn with no
+   instrument. Below md the floor is raised here, once, by class substring —
+   desktop keeps its density. Pinned by tests/repo/phone-type-floor.test.ts. */
+@media (max-width: 767px) {
+  [class*="text-[9px]"] { font-size: 11px !important; }
+  [class*="text-[10px]"] { font-size: 12px !important; }
+}
