@@ -258,7 +258,11 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
       {/* Desktop splits into the 58/42 grid the copy width already implied.
           Below lg this stays a plain block, so mobile layout is unchanged. */}
       <div className="relative container lg:grid lg:grid-cols-[58%_1fr] lg:gap-10 lg:items-start">
-        <div className="max-w-full mt-28 sm:mt-48 lg:mt-40">
+        {/* Top margins clear the fixed nav cluster at scroll-top: phone =
+            nav row 60 + ShopStrip ~64 = 124 → mt-36 (144px, measured 8px was
+            too tight); desktop = band 44 + row 60 + strip 36 = 140 →
+            lg:mt-48 (192px). */}
+        <div className="max-w-full mt-36 sm:mt-48 lg:mt-48">
           <h1
             className="font-heading font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
             style={{
@@ -322,7 +326,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             compress badly in a 42% column. Mobile keeps the same pill in the
             strip below the hero (that section is lg:hidden), so the widget
             renders exactly once at every breakpoint. */}
-        <aside className="hidden lg:flex lg:justify-end lg:mt-40 motion-safe:animate-[fadeIn_0.6s_ease-out_0.8s_both]">
+        <aside className="hidden lg:flex lg:justify-end lg:mt-48 motion-safe:animate-[fadeIn_0.6s_ease-out_0.8s_both]">
           <ShopStatusWidget compact />
         </aside>
       </div>

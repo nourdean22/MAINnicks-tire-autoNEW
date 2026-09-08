@@ -279,7 +279,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
       </div>
-      <div className="relative container pb-12 pt-28 lg:pb-16">
+      <div className="relative container pb-12 pt-32 lg:pt-36 lg:pb-16">
         <FadeIn>
           <span className="text-[13px] text-nick-blue-light tracking-wide font-mono">{config.eyebrow}</span>
         </FadeIn>
@@ -388,7 +388,10 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     : "a free check with a written estimate before any work";
   const answer =
     config.aeoAnswer ||
-    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
+    // 2026-09-08 · was "you don't pay until you say yes" — false for a page
+    // whose diagnostic carries a fee (credited toward the repair, but charged).
+    // What is always true: every charge is on the written estimate first.
+    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed; every charge is on a written estimate you approve first. Call (216) 862-0005.`;
   return <AeoAnswerBlock answer={answer} />;
 }
 
@@ -454,6 +457,71 @@ function PricingSection({ config }: { config: ServicePageConfig }) {
         <p className="text-[11px] text-foreground/40 text-center mt-4">Most vehicles. Pricing varies by vehicle and parts. Call for exact quote.</p>
         </>
         )}
+      </div>
+    </section>
+  );
+}
+
+// ─── WRITTEN ESTIMATE TICKET ─────────────────────────────────────
+// The trust motif of the whole site (quality program §4, "the sign and the
+// ticket"): the customer's written estimate, shown as the object it is —
+// paper, a yellow header, mono figures, a signature line. Every line is the
+// page config's own tiers; the block invents no number and no promise beyond
+// the one the shop already makes on every page: written estimate, your
+// approval, then work.
+function EstimateTicket({ config }: { config: ServicePageConfig }) {
+  const lines = config.tiers.slice(0, 3);
+  return (
+    <section aria-labelledby="estimate-ticket-title" className="py-12 bg-[oklch(0.055_0.004_260)] border-y border-border/30">
+      <div className="container max-w-xl">
+        <div
+          data-testid="estimate-ticket"
+          className="rounded-sm bg-[#F5F1E6] text-[#141414] shadow-[0_18px_40px_-20px_rgba(0,0,0,0.85)] overflow-hidden"
+        >
+          <div className="bg-[#FDB913] px-5 py-3 flex items-center justify-between gap-3">
+            <h2 id="estimate-ticket-title" className="font-heading font-black uppercase tracking-wide text-[15px] text-black">
+              Written estimate
+            </h2>
+            <span className="font-mono text-[11px] uppercase tracking-widest text-black/70 whitespace-nowrap">Before any work</span>
+          </div>
+          <div className="px-5 py-4 font-mono text-[13px]">
+            <div className="flex justify-between gap-3 text-black/60 text-[11px] uppercase tracking-widest pb-2 border-b border-dashed border-black/20">
+              <span>Nick&apos;s Tire &amp; Auto</span>
+              <span>{BUSINESS.address.street}</span>
+            </div>
+            <ul className="divide-y divide-dashed divide-black/15">
+              {lines.map((tier) => (
+                <li key={tier.name} className="flex items-baseline justify-between gap-4 py-2.5">
+                  <span>
+                    <span className="font-semibold">{tier.name}</span>
+                    {tier.sub && <span className="block text-[11px] text-black/55 font-sans">{tier.sub}</span>}
+                  </span>
+                  <span className="font-semibold whitespace-nowrap text-right">{tier.price}</span>
+                </li>
+              ))}
+              <li className="flex justify-between gap-4 py-2.5 text-black/70">
+                <span>Parts &amp; labor</span>
+                <span>itemized</span>
+              </li>
+              <li className="flex justify-between gap-4 py-2.5 text-black/70">
+                <span>Tax</span>
+                <span>on the sheet</span>
+              </li>
+            </ul>
+            <div className="mt-3 pt-3 border-t-2 border-black/80 flex items-center justify-between gap-4">
+              <span className="font-sans font-bold text-[14px]">You approve it. Then we start.</span>
+              <span className="font-mono text-[11px] uppercase tracking-widest text-black/60 whitespace-nowrap">Sign here ____</span>
+            </div>
+          </div>
+          <div className="bg-[#141414] text-[#F5F5F5]/80 px-5 py-3 text-[12px] font-sans leading-snug">
+            Ohio&apos;s motor-vehicle repair rule gives you the right to an estimate and to approve the work first.
+            Nick&apos;s puts it in writing every time — pull up, or{" "}
+            <a href={BUSINESS.phone.href} className="text-[#FDB913] underline underline-offset-2 whitespace-nowrap">
+              call {BUSINESS.phone.display}
+            </a>
+            .
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -860,6 +928,8 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           reference frame so Nick's price feels like rescue. */}
       <RiseInView className="parallax-rise"><AnchorSection config={config} /></RiseInView>
       <RiseInView className="parallax-rise"><PricingSection config={config} /></RiseInView>
+      {/* The written estimate, right after the price the reader just saw. */}
+      <RiseInView className="parallax-rise"><EstimateTicket config={config} /></RiseInView>
       {/* Curiosity-arc stakes hook (2026-05-30) — honest open-loop at the
           Pricing→Fear seam. Reader just saw the price; this line reframes to
           "can it wait?" and pulls them into the fear stats that answer it.

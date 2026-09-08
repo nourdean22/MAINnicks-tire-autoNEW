@@ -30,7 +30,19 @@ inline loader; 336/336 snapshots share the hash — test walks every file), `cf-
 `TRUST_CLOUDFLARE_HEADERS` (rotating the header defeated the 10/h form limit — proven through the real limiter),
 `/.well-known/security.txt`. Post-deploy check: DevTools console on `/`, `/tires`, `/book` shows no "Refused to
 execute inline script"; `curl -sI https://nickstire.org/ | grep -i content-security` shows `'sha256-` and no
-`'unsafe-inline'` inside script-src. Rollback without deploy: `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true`. **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
+`'unsafe-inline'` inside script-src. Rollback without deploy: `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true`.
+**Security PR #2187 MERGED `829067f76`** (after one knip red: three test-only exports — the #2179 lesson, re-learned;
+helpers made private, test reads the served body).
+**Mobile shop strip + estimate ticket (branch `nickstire/mobile-shop-strip-2026-09-08`):** MEASURED before designing —
+the "StickyTrustBar" was static at y=0 under the fixed nav cluster and never visible (`elementFromPoint` → the red
+closed-banner, or the membership band when open); no address/phone above the fold on a phone. Shipped: `ShopStrip`
+inside `SiteNavbar`'s fixed cluster (open/closed + until · address → directions · tel · rating; closed adds Emergency
+→ `nickstire:emergency-request` window event → `EmergencyMode` form), membership band `hidden lg:block`, red
+closed-banner deleted, `StickyTrustBar` deleted, `shopHours` = Eastern time from canon (was visitor-local + a second
+hard-coded schedule), hero margins `mt-36`/`pt-32`, written-estimate ticket on every `FocusedServicePage`, AEO
+sentence fixed ("until you say yes" was false with a $59.99 diagnostic). Verified in the Browser pane at 375×812 on
+`vite preview` (launch config `nickstire-preview` added to `.claude/launch.json`). OPEN: `NotificationBar` toast + two
+FABs overlap the hero's third intent card on 812px phones (NotificationBar offset/timing, later PR). **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
 GitHub skipped EVERY workflow for that push — the token counts anywhere in the head commit message. Never spell it
 out in a commit message or in a PR body a squash merge might copy; pass `--subject`/`--body` to the merge. Verify by a bot-UA **GET** of a city page, never HEAD; bot responses are cached 1 h. `grep -c FAQPage`
 over-counts (chunk names) — count `"@type":"FAQPage"`. Owner item: create the read-only prerender credential.
