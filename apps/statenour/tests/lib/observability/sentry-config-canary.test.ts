@@ -64,6 +64,13 @@ describe("sentryInitOptions · the block every runtime config spreads", () => {
     expect(opts.release).toBe("abc123");
   });
 
+  it("tags every event app:statenour — the project is shared with nickstire (2026-09-07)", () => {
+    expect(sentryInitOptions({ SENTRY_DSN: SAMPLE_DSN }).initialScope).toEqual({ tags: { app: "statenour" } });
+    // The tag must survive the disabled path too: a config that only tags
+    // when enabled would silently drop it on the next env mishap.
+    expect(sentryInitOptions({}).initialScope).toEqual({ tags: { app: "statenour" } });
+  });
+
   it("environment and release follow the same ladder Langfuse uses", () => {
     expect(resolveSentryEnvironment({ SENTRY_ENVIRONMENT: "staging", RAILWAY_ENVIRONMENT_NAME: "production" })).toBe("staging");
     expect(resolveSentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "Production" })).toBe("production");
