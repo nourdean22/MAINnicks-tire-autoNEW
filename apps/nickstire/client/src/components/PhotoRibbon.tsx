@@ -252,7 +252,7 @@ export function PhotoRibbon({
   // Adaptive sort — fetch per-photo view counts only when the page
   // opted in. Skipped entirely for non-data-driven instances so we
   // don't add a tRPC round-trip to every page view.
-  const { data: topPhotosData } = trpc.customerEvents.topRibbonPhotos.useQuery(
+  const { data: topPhotosData } = trpc.customerEvents.topRibbonPhotosPublic.useQuery(
     { days: dataDrivenDays, limit: 50 },
     {
       enabled: dataDriven,

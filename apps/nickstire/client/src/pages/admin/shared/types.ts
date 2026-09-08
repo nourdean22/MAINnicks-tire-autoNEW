@@ -22,7 +22,7 @@ export type AdminSection =
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
   | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals"
-  | "opportunities";
+  | "opportunities" | "market";
 // 2026-09-07 · `opportunities` added. The opportunity queue used to render as the
 // owner's Decision Inbox on the admin home, where the top 5 "LEAD the day".
 // The operator retired it — a queue that leads the day manufactures obligations

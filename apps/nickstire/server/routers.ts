@@ -85,6 +85,7 @@ import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { statenourMetricsRouter } from "./routers/statenourMetrics";
+import { marketAdminRouter } from "./routers/admin/market";
 import { instagramStudioRouter } from "./routers/instagramStudio";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { vehicleDataRouter } from "./routers/vehicleData";
@@ -128,6 +129,8 @@ export const appRouter = router({
   quoteGuard: quoteGuardRouter,
   smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,
+  /** 2026-09-08 · Search Console + master report, moved here from StateNour /market. */
+  market: marketAdminRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
 
