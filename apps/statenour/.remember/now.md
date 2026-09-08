@@ -1,6 +1,6 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-08 (quality + power Phases 1–2 shipped and deployed; docs closure)
+**Updated:** 2026-09-08 (backlog wave shipped and deployed; docs closure #2)
 
 **Objective this wave:** independently inspect, stress-test and repair bdnick.info, then hand the
 operator a prioritized program. Program doc: `docs/research/2026-09-07-statenour-quality-power-program.md`
@@ -12,6 +12,22 @@ services showed `Deploy failed`; the build log ended with `COPY apps/statenour/p
 found`. #2096 deleted the only file in that directory, git dropped the directory, and both
 Dockerfiles failed at the deps stage on every push after 12:34Z. The previous ledger entry said
 #2096 "shipped" — it was merged, not deployed. Merged and deployed are different claims.
+
+## Shipped 2026-09-08, backlog wave (deployed-verified; details: RECONCILIATION top)
+- **#2193 `008afcf20`** cost truth: aiChat records every call · one price table · lane caps = deterministic
+  stops · thumbs → Langfuse scores · model prices registered in Langfuse (5/5, via `railway run`).
+- **#2196 `e2d4ea2d2f14`** nickstire Market admin section (`/admin/market`, `market.*` → marketing.manage) + public
+  cached ribbon counts (D14). **#2195 `26b4b382eb2b`** approval windows (env override) + the deferred-automation
+  list (press-and-hold Approve) · /market retired → redirect · image-flag prerequisites · HSTS preload-ready.
+- **#2198 `bfccff82c636`** as-of recall (`validityWhere`, `searchMemories.asOf`) · sink policy (fence taints the
+  turn → external side effects need a human) · intent playbooks (tier 7) · copy voice · phone type floor.
+- Outside git: Neon `production` branch protected · Railway `IMAGES_REQUIRE_SIGNATURE=1` set on
+  statenour-web and verified on the redeployed container (raw image id without a session -> 401, a
+  signed URL passes auth, a bogus signature -> 403; prod holds no `generated_image` audit rows today,
+  the orchestrator GC removes them after 90 days, so the probe used a synthetic id) · Langfuse model
+  prices registered (5/5) by `scripts/langfuse-register-models.ts` under `railway run`, keys never printed.
+- Blocked on the operator: Sentry project split (MCP tool rejects the call; one-liner in RECONCILIATION) ·
+  HSTS preload submission. Not started: §5.3/5.4/5.8 design pass (needs screenshots).
 
 ## Shipped 2026-09-08 (all deployed-verified via `/api/version` ancestry; details: RECONCILIATION top)
 - **#2180 `b531b203f`** deploy-drift observer (GitHub workflow, canaries) · inbound-crm header-only · read-mode
