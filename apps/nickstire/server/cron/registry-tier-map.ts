@@ -247,22 +247,17 @@ export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
   // "HIGGSFIELD_API_KEY_ID"` keeps it dormant, logging a legible skip, until the
   // non-interactive lane is funded — and live the moment it is, with no deploy.
   // A staged job needs a human to notice; a requiresEnv job does not.
-  {
-    name: "higgsfield-session-keepalive",
-    why:
-      "exists only to rotate the CLI session token before reel-pipeline renders. With generation " +
-      "staged there is nothing to keep alive between batches, and left on schedule it re-fails every " +
-      "15 minutes against the same dead session - 296 failed runs in 72h measured 2026-08-29, which " +
-      "is half of the ~50 Telegram alerts delivered in three days. Staging one of this pair without " +
-      "the other is the half-done shape review caught on PR #1830.",
-    promote:
-      "DECOUPLED 2026-09-07. This said 'promote together with reel-pipeline and never before it', which was " +
-      "right while reel-pipeline ran on the CLI session lane. It no longer does unattended: reel-pipeline is now " +
-      "gated on HIGGSFIELD_API_KEY_ID, the non-interactive lane, so there is no unattended session for a " +
-      "keepalive to keep alive. Promote this ONLY if the CLI session lane is ever restored as an unattended " +
-      "path - which would require a non-interactive credential for the consumer ledger that Higgsfield does not " +
-      "publish. Until then a keepalive is still pure alert noise pointed at a session nothing is using.",
-  },
+  // higgsfield-session-keepalive WAS here (staged 2026-08-29, "decoupled" 2026-09-07).
+  // Promoted 2026-09-08 and removed together with its `enabled: false`, as this
+  // file requires. Its entry rested on "reel-pipeline is gated on
+  // HIGGSFIELD_API_KEY_ID, so there is no unattended session to keep alive" —
+  // that gate was removed in #2170 and production ran the CLI session lane
+  // unattended the whole time: the 2026-08-30 failures read "Higgsfield CLI
+  // exited ... Session expired", and nothing rendered for nine days. The
+  // keepalive is the only in-process refresher of that session. Its failure
+  // mode is loud (the handler throws), so the observer alerts instead of the
+  // outage going unnoticed — which is the entire reason to have it scheduled.
+  // Pinned by higgsfieldKeepalivePromoted.test.ts.
   {
     name: "campaign-resume",
     why:

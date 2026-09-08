@@ -239,6 +239,9 @@ export interface SourceNote {
 export const PROOF_SOURCE_FAMILIES = [
   "AAA",
   "NHTSA",
+  // Mirrors facelessReelStudio.ts — added 2026-09-08 with the ustma_tire_repair
+  // registry record. Kept in step so a carousel can cite the same source a reel can.
+  "USTMA",
   "Tire Rack",
   "Consumer Reports",
   "Bridgestone education",

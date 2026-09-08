@@ -894,13 +894,15 @@
     },
     {
       "owner": "system",
-      "lastVerifiedAt": "2026-08-18",
-      "verificationExpiresAt": "2026-09-08",
-      "deferredScope": [],
+      "lastVerifiedAt": "2026-09-08",
+      "verificationExpiresAt": "2026-09-15",
+      "deferredScope": [
+        "LIVE-VERIFY AFTER DEPLOY: a cron_log row job_name='higgsfield-session-keepalive' status='completed' details 'session refreshed, N credits' within 15 min of the container coming up. Until that row exists this stays unit_verified — 'deployed' was exactly the claim this row made for ten days while the job never ran."
+      ],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
       "codeState": "merged",
-      "operationalState": "deployed",
+      "operationalState": "unit_verified",
       "exposure": "internal",
       "evidence": {
         "codeCommit": "#852",

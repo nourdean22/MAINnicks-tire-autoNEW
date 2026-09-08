@@ -58,7 +58,13 @@ export function registerJob(
   enabled = true
 ): void {
   registeredJobs.set(name, { name, intervalMs, handler, enabled });
-  log.info(`Cron job registered: ${name} (every ${Math.round(intervalMs / 60000)}min, ${enabled ? "enabled" : "disabled"})`);
+  // LEGACY REGISTRY ONLY. This line used to read "Cron job registered: X
+  // (every Nmin, enabled)" and was read, on 2026-09-08, as proof that a job
+  // was scheduled — it is not. `enabled` here is this function's own parameter
+  // default; scheduling is owned entirely by the tiered scheduler, which
+  // honours its own `enabled: false` (cron/scheduler.ts). A job can print
+  // "enabled" here and never run. Say so in the line itself.
+  log.info(`Cron job registered in LEGACY registry (manual-run lookup only, NOT scheduled here — tiers own scheduling): ${name} (every ${Math.round(intervalMs / 60000)}min, legacy flag=${enabled ? "enabled" : "disabled"})`);
 }
 
 /** Start all registered jobs */

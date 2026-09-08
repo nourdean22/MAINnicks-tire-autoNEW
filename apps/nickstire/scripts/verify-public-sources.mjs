@@ -29,6 +29,9 @@ const CANDIDATES = [
     "Winter road salt accelerates rust on a vehicle undercarriage."],
   ["Bridgestone education", "https://www.bridgestonetire.com/learn/maintenance/how-to-check-tire-pressure/",
     "Check tire pressure monthly when tires are cold."],
+  // Admitted 2026-09-08: status "fetched", 2,823 chars, both probe claims landed a supporting passage.
+  ["USTMA", "https://www.ustires.org/tire-care-safety/tire-repair-basics",
+    "A puncture in the tread area can be repaired if it is no larger than a quarter inch."],
   ["Ohio BMV", "https://bmv.ohio.gov/vr-registration.aspx",
     "Vehicle registration renewal is required annually in Ohio."],
 ];
