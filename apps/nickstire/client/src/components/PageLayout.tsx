@@ -6,7 +6,6 @@ import { useEffect } from "react";
 import SiteNavbar from "@/components/SiteNavbar";
 import SiteFooter from "@/components/SiteFooter";
 import SiteMobileCTA from "@/components/SiteMobileCTA";
-import StickyTrustBar from "@/components/StickyTrustBar";
 import FomoTicker from "@/components/FomoTicker";
 import ChatWidget from "@/components/ChatWidget";
 import NotificationBar from "@/components/NotificationBar";
@@ -55,9 +54,12 @@ export default function PageLayout({
       <NotificationBar />
       {/* Membership band moved INSIDE SiteNavbar's fixed cluster
           (2026-07-04 overlap fix — a static bar here collided with the
-          fixed navbar at scroll-top; see NonstopNickTopBar header). */}
+          fixed navbar at scroll-top; see NonstopNickTopBar header).
+          2026-09-08 · StickyTrustBar, the static bar that stayed here, had
+          the exact same collision: at y=0 under the fixed cluster it was
+          never visible (measured). Deleted; ShopStrip inside the cluster
+          carries rating, open state, address and phone instead. */}
       <SiteNavbar activeHref={activeHref} />
-      <StickyTrustBar />
       <main id="main-content" className="flex-1">
         {children}
       </main>

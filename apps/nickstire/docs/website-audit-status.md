@@ -75,6 +75,19 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
   identical across all 336 prerendered snapshots by test; `cf-connecting-ip` was a client-chosen rate-limit key
   while Cloudflare is not in front (rotating it defeated the 10/h form limit — proven, then closed behind
   `TRUST_CLOUDFLARE_HEADERS`); `/.well-known/security.txt` (RFC 9116) added with a 180-day Expires.
+- **Mobile page top (follow-up PR):** the "StickyTrustBar" was never visible — static at y=0 under the fixed nav
+  cluster (membership band when open, red closed-banner when closed; measured with `elementFromPoint`) — and a
+  phone showed no address or phone number above the fold. Replaced by `ShopStrip` inside the fixed cluster
+  (open/closed + "Closes 6 PM"/"Opens tomorrow 8 AM", address → directions, `tel:`, rating); the membership band
+  is desktop-only now; the fixed red closed-banner (which also pushed the nav down 56px for a 37px strip) is gone,
+  its Emergency button moved into the strip and reaches the same form through a window event. `shopHours` was the
+  visitor's local clock with a second hard-coded schedule — now Eastern time from `BUSINESS.hours.structured`.
+- **Service pages:** a written-estimate ticket after the pricing tiers (the page's own tiers, verbatim; approval
+  line; Ohio repair-rule sentence). The AEO answer said "you don't pay until you say yes", false on any page whose
+  diagnostic carries a fee; it now says every charge is on a written estimate you approve first.
+- **Still open (seen in the same screenshots):** on an 812px phone the `NotificationBar` toast and the two floating
+  buttons sit over the hero's third intent card; the strip makes phone + address independent of that chrome, but
+  the overlap itself is a NotificationBar offset/timing fix for a later PR.
 
 ## Open (honest list)
 

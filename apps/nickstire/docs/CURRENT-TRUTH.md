@@ -51,6 +51,31 @@ Adjacent contracts that changed in the same PR:
   unverified — confirm with one logged request before changing `TRUST_PROXY`.
 - **`/.well-known/security.txt`** (RFC 9116) is served by `server/_core/securityTxt.ts`: contact page + public
   phone, `Expires` = boot time + 180 days, `Canonical`; `/security.txt` 301s to it.
+
+## Page-top contract (2026-09-08, mobile shop strip)
+
+What every `PageLayout` page shows at scroll-top, and why it changed:
+
+- **`SiteNavbar` is the only fixed cluster** (`top-0`, z-50): desktop = membership band (44px, `hidden lg:block`)
+  + nav row (60px) + `ShopStrip` (36px); phone = nav row (60px) + `ShopStrip` (~64px, two rows). Band and strip
+  collapse on scroll and while the mobile menu is open, so the persistent chrome is the 60px row. Hero top
+  margins that clear it: Home `mt-36 sm:mt-48 lg:mt-48`; `FocusedServicePage` hero `pt-32 lg:pt-36`.
+- **`ShopStrip`** (`client/src/components/ShopStrip.tsx`) = open/closed + "Closes 6 PM" / "Opens tomorrow 8 AM",
+  address (→ Google Maps directions), phone (`tel:`, tracked as `shop_strip`), rating with the live Google count
+  (canon fallback). Closed state adds an **Emergency** button that dispatches `nickstire:emergency-request` on
+  `window`; `EmergencyMode` listens and opens its existing form. Every value is canon or live.
+- **Deleted:** `StickyTrustBar` (static at y=0 under the fixed cluster — measured with `elementFromPoint`, it was
+  never visible in either shop state) and `EmergencyMode`'s fixed red top banner (37px at z-60 that covered the
+  trust bar and pushed the nav down 56px). The floating emergency button and the form are unchanged.
+- **Clock:** `client/src/lib/shopHours.ts` is America/New_York and derives the schedule from
+  `BUSINESS.hours.structured` (it used to be the visitor's local clock with a second hard-coded schedule).
+  `useBusinessHours` still exists for `EmergencyMode`; both read the same canon.
+- **Service pages:** `FocusedServicePage` renders a **written-estimate ticket** after the pricing tiers (the page's
+  own tiers, verbatim; "You approve it. Then we start."; Ohio repair-rule line). The AEO sentence now says "every
+  charge is on a written estimate you approve first" — "you don't pay until you say yes" was false for pages
+  whose diagnostic carries a fee.
+- **Known, not fixed here:** on an 812px phone `NotificationBar`'s toast (fixed above the mobile CTA bar) and the
+  two floating buttons overlap the hero's third intent card; the strip now carries phone + address regardless.
 - **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a
   regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
   FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
