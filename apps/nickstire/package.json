@@ -106,7 +106,7 @@
     "input-otp": "^1.4.2",
     "jose": "6.1.0",
     "lucide-react": "catalog:",
-    "mysql2": "^3.15.0",
+    "mysql2": "^3.23.1",
     "nanoid": "^5.1.7",
     "next-themes": "^0.4.6",
     "qrcode.react": "^4.2.0",
