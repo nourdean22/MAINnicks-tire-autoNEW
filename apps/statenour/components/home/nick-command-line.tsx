@@ -301,7 +301,7 @@ export function NickCommandLine() {
               disabled={!canSend}
               aria-label="send"
               className={cn(
-                "inline-flex size-10 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
+                "inline-flex size-11 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold",
                 canSend
                   ? "bg-gold text-black hover:bg-gold-dim"
                   : "border border-edge bg-raised text-fg-tertiary",
@@ -321,7 +321,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-3 text-[10px] font-mono uppercase tracking-[0.12em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-3 text-[10px] font-mono uppercase tracking-[0.12em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Brain size={11} />
           Morning brief

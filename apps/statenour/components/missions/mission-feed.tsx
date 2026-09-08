@@ -370,7 +370,7 @@ function EmptyMissions() {
         <button
           type="button"
           onClick={handleAskNick}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-[var(--gold)] border border-zinc-700/60 shadow-lg shadow-black/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-[var(--gold)] border border-zinc-700/60 shadow-lg shadow-black/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
         >
           ✨ Ask Nick for Recommendations
         </button>
