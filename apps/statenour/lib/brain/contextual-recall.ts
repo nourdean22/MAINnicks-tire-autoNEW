@@ -616,6 +616,10 @@ export interface RankedRecallRow {
   category: string;
   source: string;
   relevance: string;
+  /** The rendered text (already truncated by the lane); the arbiter dedupes on it. */
+  content: string;
+  seenCount?: number;
+  confidence?: number;
 }
 
 export type ValidityRow = {
@@ -1200,6 +1204,9 @@ export async function getContextualMemories(
           category: m.category,
           source: m.source ?? "system",
           relevance: m.relevance ?? "background",
+          content: m.content,
+          seenCount: m.seenCount,
+          confidence: m.confidence,
         })),
       );
     } catch {
