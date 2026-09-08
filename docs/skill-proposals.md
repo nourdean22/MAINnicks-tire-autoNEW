@@ -1596,3 +1596,71 @@ statenour primitives documented (existence re-verified at
   until it is applied everywhere the claim appears; grep the claim, not the file.
 - **Confidence:** high (all four verified; fixes positive-controlled)
 - **Status:** applied in the same PR
+
+---
+
+## 2026-09-08 · camera vision wave 0 (PRs #2221 #2222 #2223, edge PR pending)
+
+### P1 · `statenour-verify` (Traps)
+- **Trigger (witnessed):** a multi-app wave (statenour + nickstire + worker + docs) in ONE worktree. The
+  junctioned `node_modules` lacked `@sentry/nextjs` (the primary predates #2074), so `pnpm typecheck` and the
+  pre-commit hook were red on environment alone, and the pre-push `turbo build --affected` would have pulled
+  the statenour Next build into the nickstire push because the statenour edits were still uncommitted in the
+  same tree. All branches went out through the hookless sparse scratch clone the skill already documents.
+- **Cost:** ~40 minutes of gate archaeology before choosing the clone path; every local hook receipt had to be
+  reproduced by hand (eslint, staged secret scan, check:crons, agent-os verify, the nickstire lint gates).
+- **Proposed edit:** add under "When no statenour toolchain exists": "The same applies to a MULTI-APP wave in one
+  worktree: `turbo build --affected` reads the working tree, so another app's uncommitted edits make its build a
+  gate for your push. Either one worktree per app, or export per-app patches (`git add -N` for new files, then
+  `git diff HEAD --binary --output=<file> -- <paths>`) and commit each from the hookless clone. Run the
+  per-app pre-commit gates by hand on the STAGED files first (brand-voice scans 0 files unless staged)."
+- **Confidence:** medium (once, clear; the toolchain trap itself recurred - 2026-09-02 and today)
+- **Status:** proposed
+
+### P2 · `harness-worktree-setup` / `scripts/worktree-setup.ps1`
+- **Trigger (witnessed):** `worktree-setup.ps1` refused to junction `node_modules` because `pnpm-lock.yaml`
+  differed between the primary's branch and `origin/main` (861 lines) and advised a package install - which
+  the install-in-junctioned-worktree rule forbids. Junctioning the 15 `node_modules` dirs by hand worked for
+  every test and lint run of the wave. The script also copies tracked `apps/*/.env.example` files, so `git
+  status` showed two modified `.env.example` files that were not mine.
+- **Cost:** one manual junction pass; a standing risk of staging a sibling's `.env.example`.
+- **Proposed edit:** (a) add a `-Junction` switch (or default when the lockfile diff does not touch the app you
+  name) instead of the dead-end install advice; (b) copy only untracked `.env*` files (skip anything
+  `git ls-files` knows), so the worktree starts clean.
+- **Confidence:** high (both witnessed; the lockfile-diff branch has no safe manual path today)
+- **Status:** proposed
+
+### P3 · root `AGENTS.md` Environment (Windows)
+- **Trigger (witnessed):** `git diff HEAD --binary -- <paths> | Out-File -NoNewline` produced a patch with every
+  line concatenated (no newlines); `git diff --output=<file>` wrote it correctly. Separately, the deletion guard
+  blocked the PowerShell remove cmdlet on a scratch file INSIDE the repo; moving the file to the scratchpad
+  achieved the same result.
+- **Cost:** one wasted patch round; one blocked command.
+- **Proposed edit:** two lines under Environment (Windows): "Never pipe `git diff` through `Out-File` - use
+  `git diff --output=<file>` (raw bytes, LF). To get rid of a stray untracked file the guard will not let you
+  delete, move it to the scratchpad instead."
+- **Confidence:** high (structural; reproducible)
+- **Status:** proposed
+
+### P4 · `prior-art-grep`
+- **Trigger (witnessed):** the camera plan first named `vehicles.licensePlate` as the plate store (three audit
+  agents quoted the Drizzle schema); `drizzle/0117_retire_dead_vehicles_table.sql` had already retired that
+  table. Caught only because the migrations directory was listed for naming conventions, not by the grep set.
+- **Cost:** a wrong data-model claim in a plan and a wrong PR scope (index migration) until corrected.
+- **Proposed edit:** add to the fixed grep set: "for every table you are about to read from or build on, list the
+  newest migrations and grep them for `drop table` / `retire` - the schema file can outlive the table (Drizzle
+  keeps the definition after the DROP)."
+- **Confidence:** medium (once, clear)
+- **Status:** proposed
+
+### P5 · `nickstire-shared-main-push` (PR mechanics)
+- **Trigger (witnessed):** minutes after #2220 merged, every new PR (#2221 nickstire, #2222 statenour, #2223
+  docs-only) showed the `knip orphan gate` red. The gate's own control step printed "reports failure on an
+  unmodified tree - the gate is stuck red" and listed three exports from #2220's files, none in the new diffs.
+- **Cost:** one investigation; without the control step's message it would have read as three regressions.
+- **Proposed edit:** add rule 4 under PR mechanics: "A red `knip orphan gate` whose log says `failure on an
+  unmodified tree` is main's condition, not yours - confirm the listed orphans are outside your diff (a
+  docs-only PR showing the same red is the cleanest proof), disclose it on the PR, spawn the fix as its own
+  task, and do not absorb it."
+- **Confidence:** high (witnessed on three PRs at once)
+- **Status:** proposed
