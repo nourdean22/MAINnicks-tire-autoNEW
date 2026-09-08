@@ -1,10 +1,19 @@
+/**
+ * tests/services/vehicle-detection.test.ts · rewritten 2026-09-08 (ADR-0017).
+ *
+ * Covers the arrival ingest contract end to end against an in-memory Prisma
+ * that honours the JSON-path filters the service actually issues (data.path
+ * + equals, AND lists). Cases: v1 track dedupe (kept from the original
+ * file), v2 visit dedupe across a Frigate re-id, eventId idempotency, quiet
+ * hours, per-camera cooldown, payload validation.
+ */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { handleVehicleEvent } from "@/lib/services/vehicle-detection";
+import { handleVehicleEvent, isQuietHoursET } from "@/lib/services/vehicle-detection";
 import * as telegram from "@/lib/services/telegram";
-import * as featureFlags from "@/lib/feature-flags";
+import * as push from "@/lib/notifications/push";
+import * as datetime from "@/lib/utils/datetime";
 
-// Mock Telegram service
 vi.mock("@/lib/services/telegram", async (importOriginal) => {
   const actual = await importOriginal<typeof telegram>();
   return {
@@ -13,217 +22,222 @@ vi.mock("@/lib/services/telegram", async (importOriginal) => {
     editTelegramMessage: vi.fn().mockResolvedValue(true),
   };
 });
+vi.mock("@/lib/feature-flags", () => ({
+  getFlag: vi.fn().mockReturnValue({ key: "NICK_ARRIVAL_INTELLIGENCE", isOn: true }),
+}));
+vi.mock("@/lib/notifications/push", () => ({
+  sendPush: vi.fn().mockResolvedValue({ sent: 1, failed: 0 }),
+}));
+const mockLink = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("@/lib/services/vehicle-customer-link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/vehicle-customer-link")>()),
+  linkVisitToCustomer: mockLink,
+}));
+vi.mock("@/lib/utils/datetime", async (importOriginal) => {
+  const actual = await importOriginal<typeof datetime>();
+  return { ...actual, hourET: vi.fn(() => 12) };
+});
 
-// Mock feature flags
-vi.mock("@/lib/feature-flags", async (importOriginal) => {
-  const actual = await importOriginal<typeof featureFlags>();
+type Row = { id: string; deviceId: string; event: string; data: Record<string, unknown>; createdAt: Date; timestamp: Date };
+const store = vi.hoisted(() => ({ events: [] as Array<Record<string, unknown>>, seq: 0 }));
+
+vi.mock("@/lib/prisma", () => {
+  const dig = (obj: unknown, path: string[]) => path.reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], obj);
+  const matchData = (row: Row, cond?: { path: string[]; equals: unknown }) => !cond || dig(row.data, cond.path) === cond.equals;
+  const matches = (row: Row, where: Record<string, unknown>) =>
+    (!where.deviceId || row.deviceId === where.deviceId) &&
+    (!where.event || row.event === where.event) &&
+    matchData(row, where.data as { path: string[]; equals: unknown } | undefined) &&
+    ((where.AND as Array<{ data: { path: string[]; equals: unknown } }> | undefined) ?? []).every((c) => matchData(row, c.data));
   return {
-    ...actual,
-    getFlag: vi.fn().mockReturnValue({ key: "NICK_ARRIVAL_INTELLIGENCE", isOn: true }),
+    prisma: {
+      deviceEvent: {
+        deleteMany: vi.fn(async () => { store.events.length = 0; return { count: 0 }; }),
+        findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const rows = (store.events as Row[]).filter((r) => matches(r, where));
+          rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          return rows[0] ?? null;
+        }),
+        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          const row = { id: `event_${++store.seq}`, createdAt: new Date(), ...data };
+          store.events.push(row);
+          return row;
+        }),
+        update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = store.events.find((r) => r.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        }),
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => store.events.find((r) => r.id === where.id) ?? null),
+      },
+    },
   };
 });
 
-// Mock Prisma
-let mockDbEvent: any = null;
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    smartDevice: {
-      upsert: vi.fn().mockResolvedValue({}),
-    },
-    deviceEvent: {
-      deleteMany: vi.fn().mockImplementation(() => { mockDbEvent = null; return { count: 0 }; }),
-      findFirst: vi.fn().mockImplementation((args: any) => {
-        if (!mockDbEvent) return null;
-        const path = args?.where?.data?.path?.[0];
-        const expectedValue = args?.where?.data?.equals;
-        if (path && expectedValue) {
-          if (mockDbEvent.data?.[path] !== expectedValue) {
-            return null;
-          }
-        }
-        return mockDbEvent;
-      }),
-      create: vi.fn().mockImplementation((args: any) => { mockDbEvent = { ...args.data, id: "event_1" }; return mockDbEvent; }),
-      update: vi.fn().mockImplementation((args: any) => { mockDbEvent = { ...mockDbEvent, ...args.data, id: "event_1" }; return mockDbEvent; }),
-      findUnique: vi.fn().mockImplementation(() => mockDbEvent),
-    },
+const deviceId = "cmn7h45nu0009rls02e3rypx0";
+const base = (data: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+  event: "vehicle_detected",
+  source: "frigate",
+  timestamp: new Date().toISOString(),
+  ...extra,
+  data: {
+    cameraId: "sign",
+    cameraName: "Shop Sign Camera",
+    zone: "front_lot",
+    zoneName: "Front Lot",
+    label: "car",
+    confidence: 0.9,
+    dwellSeconds: 0,
+    plate: { status: "NONE" },
+    ...data,
   },
-}));
+});
 
-describe("Arrival Intelligence Ingest Pipeline", () => {
-  const deviceId = "test-camera-outside";
-
+describe("Arrival Intelligence ingest", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(datetime.hourET).mockReturnValue(12);
     await prisma.deviceEvent.deleteMany({});
-
-    // 1. Ensure test device exists in DB
-    await prisma.smartDevice.upsert({
-      where: { platformDeviceId: deviceId },
-      create: {
-        id: deviceId,
-        name: "Test Shop Camera",
-        platform: "V380",
-        platformDeviceId: deviceId,
-        deviceType: "CAMERA",
-        location: "shop",
-        status: "ONLINE",
-
-      },
-      update: {
-        status: "ONLINE",
-      },
-    });
-
-    // 2. Clean up previous test events
-    await prisma.deviceEvent.deleteMany({
-      where: { deviceId },
-    });
   });
 
-  it("should create new event and send Telegram alert on ENTERED_ZONE", async () => {
-    const payload = {
-      event: "vehicle_detected",
-      source: "frigate",
-      timestamp: new Date().toISOString(),
-      data: {
-        cameraId: deviceId,
-        cameraName: "Test Shop Camera",
-        zone: "front_lot",
-        zoneName: "Front Lot",
-        state: "ENTERED_ZONE",
-        label: "car",
-        confidence: 0.90,
-        dwellSeconds: 0.0,
-        trackId: "track-xyz-123",
-        plate: { status: "NONE" },
-      },
-    };
-
-    const eventId = await handleVehicleEvent(deviceId, payload);
-    expect(eventId).toBeDefined();
-
-    // Verify persisted in DB
-    const dbEvent = await prisma.deviceEvent.findUnique({
-      where: { id: eventId },
-    });
-    expect(dbEvent).toBeDefined();
-    expect(dbEvent?.event).toBe("vehicle_detected");
-    expect((dbEvent?.data as any).trackId).toBe("track-xyz-123");
-    expect((dbEvent?.data as any).telegramMessageId).toBe("999123");
-
-    // Verify Telegram triggered
+  it("v1: ENTERED_ZONE creates the row, sends Telegram and a tagged push", async () => {
+    const id = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", trackId: "track-xyz-123" }));
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect(row?.event).toBe("vehicle_detected");
+    expect((row?.data as Record<string, unknown>).trackId).toBe("track-xyz-123");
+    expect((row?.data as Record<string, unknown>).telegramMessageId).toBe("999123");
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBeNull();
     expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(push.sendPush).toHaveBeenCalledWith(expect.objectContaining({ tag: "arrival:track-xyz-123", level: "medium" }));
   });
 
-  it("should update existing event and edit Telegram message when trackId matches", async () => {
-    // 1. Send initial event
-    const payload1 = {
-      event: "vehicle_detected",
-      source: "frigate",
-      timestamp: new Date().toISOString(),
-      data: {
-        cameraId: deviceId,
-        cameraName: "Test Shop Camera",
-        zone: "front_lot",
-        zoneName: "Front Lot",
-        state: "ENTERED_ZONE",
-        label: "car",
-        confidence: 0.90,
-        dwellSeconds: 0.0,
-        trackId: "track-xyz-123",
-        plate: { status: "NONE" },
-      },
-    };
-    const eventId1 = await handleVehicleEvent(deviceId, payload1);
-
-    // 2. Send updated event (dwell confirm + plate resolved)
-    const payload2 = {
-      event: "vehicle_detected",
-      source: "frigate",
-      timestamp: new Date().toISOString(),
-      data: {
-        cameraId: deviceId,
-        cameraName: "Test Shop Camera",
-        zone: "front_lot",
-        zoneName: "Front Lot",
-        state: "CONFIRMED_ARRIVAL",
-        label: "car",
-        confidence: 0.94,
-        dwellSeconds: 3.5,
-        trackId: "track-xyz-123",
-        plate: {
-          status: "CANDIDATE",
-          text: "ABC1234",
-          normalizedText: "ABC1234",
-          state: "OH",
-          confidence: 0.88,
-          provider: "mock",
-        },
-      },
-    };
-    
-    const eventId2 = await handleVehicleEvent(deviceId, payload2);
-    expect(eventId2).toBe(eventId1); // Should update the SAME record
-
-    // Verify data updated in DB
-    const dbEvent = await prisma.deviceEvent.findUnique({
-      where: { id: eventId1 },
-    });
-    expect((dbEvent?.data as any).state).toBe("CONFIRMED_ARRIVAL");
-    expect((dbEvent?.data as any).dwellSeconds).toBe(3.5);
-    expect((dbEvent?.data as any).plate.text).toBe("ABC1234");
-
-    // Verify Telegram message edit was triggered
+  it("v1: the same trackId updates the row and edits the Telegram message instead of sending again", async () => {
+    const first = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", trackId: "t-1", dwellSeconds: 1 }));
+    const second = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "t-1", dwellSeconds: 50 }));
+    expect(second).toBe(first);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
     expect(telegram.editTelegramMessage).toHaveBeenCalledOnce();
-    expect(telegram.editTelegramMessage).toHaveBeenCalledWith(
-      999123,
-      expect.stringContaining("ABC1234"),
-      undefined,
-      expect.any(Array)
-    );
+    const row = await prisma.deviceEvent.findUnique({ where: { id: first } });
+    expect((row?.data as Record<string, unknown>).state).toBe("CONFIRMED_ARRIVAL");
   });
 
-  it("should respect cooldown and suppress Telegram alerts on rapid consecutive events", async () => {
-    // 1. Send first event (will alert)
-    const payload1 = {
-      event: "vehicle_detected",
-      source: "frigate",
-      data: {
-        cameraId: deviceId,
-        zone: "front_lot",
-        state: "CONFIRMED_ARRIVAL",
-        trackId: "track-1",
-      },
-    };
-    await handleVehicleEvent(deviceId, payload1);
+  it("v2: visitId keys the visit across a Frigate re-id (new trackId, same visit)", async () => {
+    const first = await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "visit-A", trackId: "t-1" }, { schemaVersion: 2, eventId: "e1" }));
+    const second = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "visit-A", trackId: "t-9", dwellSeconds: 47 }, { schemaVersion: 2, eventId: "e2" }));
+    expect(second).toBe(first);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(push.sendPush).toHaveBeenCalledWith(expect.objectContaining({ tag: "arrival:visit-A" }));
+  });
 
-    // 2. Clear calls to reset count
-    vi.mocked(telegram.sendTelegramWithButtons).mockClear();
+  it("v2: a repeated eventId is a retry — same row, no second alert", async () => {
+    const payload = base({ state: "CONFIRMED_ARRIVAL", visitId: "visit-B", trackId: "t-2" }, { schemaVersion: 2, eventId: "e-dup" });
+    const first = await handleVehicleEvent(deviceId, payload);
+    const again = await handleVehicleEvent(deviceId, payload);
+    expect(again).toBe(first);
+    expect(prisma.deviceEvent.create).toHaveBeenCalledTimes(1);
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledOnce();
+    expect(push.sendPush).toHaveBeenCalledTimes(1);
+  });
 
-    // 3. Send second event with DIFFERENT trackId instantly (cooldown active)
-    const payload2 = {
-      event: "vehicle_detected",
-      source: "frigate",
-      data: {
-        cameraId: deviceId,
-        zone: "front_lot",
-        state: "CONFIRMED_ARRIVAL",
-        trackId: "track-2", // different vehicle
-      },
-    };
-    const eventId2 = await handleVehicleEvent(deviceId, payload2);
-    expect(eventId2).toBeDefined();
-
-    // Verify event exists in DB
-    const dbEvent2 = await prisma.deviceEvent.findUnique({
-      where: { id: eventId2 },
-    });
-    expect(dbEvent2).toBeDefined();
-    expect((dbEvent2?.data as any).telegramMessageId).toBeNull(); // No Telegram ID, throttled
-
-    // Verify Telegram NOT called again
+  it("quiet hours: the row is stored, nothing pages, and the silence is recorded", async () => {
+    vi.mocked(datetime.hourET).mockReturnValue(23);
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "t-night" }));
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("quiet_hours");
     expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
+    expect(push.sendPush).not.toHaveBeenCalled();
+    expect(isQuietHoursET(23)).toBe(true);
+    expect(isQuietHoursET(6)).toBe(true);
+    expect(isQuietHoursET(7)).toBe(false);
+    expect(isQuietHoursET(19)).toBe(false);
+  });
+
+  it("cooldown is per camera + zone: a second camera in the same zone still alerts, the same camera does not", async () => {
+    await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "a-1", cameraId: "sign" }));
+    await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "b-1", cameraId: "lot" }));
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledTimes(2);
+    const suppressedId = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "a-2", cameraId: "sign" }));
+    expect(telegram.sendTelegramWithButtons).toHaveBeenCalledTimes(2);
+    const row = await prisma.deviceEvent.findUnique({ where: { id: suppressedId } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("cooldown");
+  });
+
+  it("a confirmed arrival with a readable plate asks nickstire who it is; a bare entry does not", async () => {
+    await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", trackId: "p-0" }));
+    expect(mockLink).not.toHaveBeenCalled();
+    await handleVehicleEvent(
+      deviceId,
+      base({ state: "CONFIRMED_ARRIVAL", trackId: "p-1", cameraId: "lot", plate: { status: "CANDIDATE", text: "ABC 1234", normalizedText: "ABC1234", confidence: 0.91 } }),
+    );
+    expect(mockLink).toHaveBeenCalledWith(expect.objectContaining({ plate: "ABC1234", telegramMessageId: "999123" }));
+    await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", trackId: "p-2", cameraId: "sign", plate: { status: "UNREADABLE" } }));
+    expect(mockLink).toHaveBeenCalledTimes(1);
+  });
+
+  it("customer link: lookup_failed and a corrected plate are retried; a terminal answer for the same plate is not", async () => {
+    const confirmed = (plate: Record<string, unknown>) =>
+      base({ state: "CONFIRMED_ARRIVAL", visitId: "v-link", cameraId: "lot", plate: { status: "CANDIDATE", confidence: 0.9, ...plate } });
+    const setRef = async (id: string, customerRef: Record<string, unknown>) => {
+      const row = (await prisma.deviceEvent.findUnique({ where: { id } }))!;
+      row.data = { ...(row.data as Record<string, unknown>), customerRef };
+    };
+    const id = await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(1);
+
+    // the bridge was down (or the nickstire handler not deployed yet): retried
+    await setRef(id, { status: "lookup_failed", plate: "ABC1234" });
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(2);
+
+    // a terminal answer for this plate text: not asked again
+    await setRef(id, { status: "unmatched", plate: "ABC1234" });
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(2);
+
+    // the edge corrected the read: the new plate is looked up
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1284", normalizedText: "ABC1284" }));
+    expect(mockLink).toHaveBeenCalledTimes(3);
+    expect(mockLink).toHaveBeenLastCalledWith(expect.objectContaining({ plate: "ABC1284" }));
+  });
+
+  it("a replayed event (edge outbox flushing after an outage) is stored but never pages now", async () => {
+    const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-old" }, { timestamp: old }));
+    expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
+    expect(push.sendPush).not.toHaveBeenCalled();
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("stale_replay");
+  });
+
+  it("eventId idempotency spans the 90-day retention window, not a day", async () => {
+    await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "v-w" }, { eventId: "e-w" }));
+    const first = vi.mocked(prisma.deviceEvent.findFirst).mock.calls[0][0] as { where: { createdAt: { gte: Date } } };
+    expect(Date.now() - first.where.createdAt.gte.getTime()).toBeGreaterThanOrEqual(89 * 24 * 60 * 60 * 1000);
+  });
+
+  it("a refreshed alert keeps the persisted customer line and does not ask nickstire again", async () => {
+    const plate = { status: "CANDIDATE", text: "ABC1234", normalizedText: "ABC1234", confidence: 0.9 };
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-cust", plate }));
+    const row = (await prisma.deviceEvent.findUnique({ where: { id } }))!;
+    row.data = {
+      ...(row.data as Record<string, unknown>),
+      customerRef: {
+        status: "matched",
+        plate: "ABC1234",
+        matches: [{ name: "Jane Member", phoneMasked: "***-0199", exact: true, bookingsToday: [{ service: "Oil change", linkage: "phone+name" }] }],
+      },
+    };
+    await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-cust", dwellSeconds: 90, plate: { ...plate, status: "CONFIRMED" } }));
+    const edits = vi.mocked(telegram.editTelegramMessage).mock.calls;
+    expect(edits.length).toBeGreaterThan(0);
+    const text = edits[edits.length - 1][1] as string;
+    expect(text).toContain("Jane Member (***-0199)");
+    expect(text).toContain("booked today: Oil change");
+    expect(mockLink).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a malformed payload with a 400 ServiceError instead of persisting garbage", async () => {
+    await expect(handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", confidence: "high" as unknown as number }))).rejects.toMatchObject({ status: 400 });
+    expect(prisma.deviceEvent.create).not.toHaveBeenCalled();
   });
 });

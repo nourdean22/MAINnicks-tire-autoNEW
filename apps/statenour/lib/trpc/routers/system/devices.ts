@@ -16,6 +16,7 @@ import { tailEvents } from "@/lib/db/brain-bus-tail";
 import { buildReposOverview } from "@/lib/services/system-pages-b";
 import { getEcosystemDigest } from "@/lib/system/repo-briefing";
 import { cached } from "@/lib/utils/cache";
+import { startOfDayET } from "@/lib/utils/datetime";
 interface BrainBusTailView {
   generatedAt: string;
   cursor: string | null;
@@ -210,9 +211,11 @@ export const devicesProcedures = {
       },
     });
 
-    // Calculate today's counts
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Calculate today's counts — ET day, not server-local. Railway runs UTC,
+    // so a bare setHours(0,0,0,0) floored to 8 pm ET the previous evening and
+    // leaked 4-5 h of yesterday into "Today's Arrivals" (ADR-0017 C5; the
+    // same trap camera-intelligence.ts already fixed with startOfDayET).
+    const todayStart = startOfDayET();
     const todayCount = await prisma.deviceEvent.count({
       where: {
         event: "vehicle_detected",

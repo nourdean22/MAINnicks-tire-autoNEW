@@ -1,7 +1,19 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-08 (design pass + chat leftovers + Brain plan/Wave 0-1 shipped)
+**Updated:** 2026-09-08 (camera vision wave 0 on top of the design pass + Brain plan/Wave 0-1)
 
+## Camera vision wave 0 (2026-09-08; PRs #2221 nickstire, #2222 statenour, #2223 docs; edge PR pending)
+**Objective:** make the #315 Arrival Intelligence pipeline receive its first real event and hand the operator an
+implementation-grade plan: `docs/research/2026-09-08-camera-vision-MASTER-PLAN.md` + ADR-0017.
+**Finding:** every `[id]` device route resolved the cuid while the bridge sends `platformDeviceId`, so every event
+and heartbeat answered 404; prod `device_events` = 2 rows, both the June test device. Fixed in #2222 with a route
+test proven red first. The edge (camera-bridge) was pinned to Frigate 0.13.2 with a 0.14+ config; rewrite lands on
+`chore/camera-bridge-v2`. The cameras are Anyka `Hw_HsAKQQXG_WIFI_20230421` exposing only TCP 8800/9800; the
+SD-card `ceshi.ini` unlock is the documented path (plan section 3.3), PoE cameras for LPR.
+**Next:** merge #2221 -> #2222 -> #2223 -> edge PR on green; operator runs the unlock on SHOPSIGN and orders the
+PoE overview camera; Phase 1 = Frigate 0.17.2 + visitd on the laptop as a lab with the recorded replay fixture;
+`NICK_ARRIVAL_INTELLIGENCE` stays off until gate G3. Still open: `analyzeCameraData` has no scheduler;
+`local-agent/v380_agent.py` is a delete after edge heartbeats are live.
 **Objective this wave:** independently inspect, stress-test and repair bdnick.info, then hand the
 operator a prioritized program. Program doc: `docs/research/2026-09-07-statenour-quality-power-program.md`
 (read THAT before re-auditing anything here). Full wave entry: RECONCILIATION top.
