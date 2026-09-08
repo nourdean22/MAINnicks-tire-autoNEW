@@ -69,26 +69,36 @@ function focusProbe() {
   // The browser considers it visible and will not scroll it on focus (measured on /journal),
   // so the app's focusin handler (components/layout/bottom-tab-bar.tsx) must lift it. The probe
   // parks the control 10px above the viewport bottom, focuses it, and measures.
-  const target = Array.from(document.querySelectorAll<HTMLElement>(sel)).find((el) => {
+  // Candidates below the fold with room to be parked AND lifted. Run 6 measured focused=false
+  // on /journal: the empty hermetic state leaves that page's controls DISABLED, and a disabled
+  // control cannot take focus, so no focusin ever fired. Only a control that actually takes
+  // focus measures the handler; the probe walks candidates until one does.
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>(sel)).filter((el) => {
     if (el.closest('[data-target-audit="exempt"]') || getComputedStyle(el).position === "fixed") return false;
+    if ((el as HTMLButtonElement).disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("tabindex") === "-1") return false;
+    if (el.closest("[inert]")) return false;
     const b = el.getBoundingClientRect();
     if (b.width <= 1 || b.height <= 1 || b.top <= window.innerHeight) return false;
     const bottomAbs = b.bottom + window.scrollY;
-    // room to park it 10px above the viewport bottom AND to lift it a full chrome height
-    // afterwards — a control in the page's last 120px cannot be lifted by scrolling (the lane
-    // padding is what keeps it clear there) and would only measure the layout, not the handler.
     return bottomAbs + 10 + 120 <= docHeight;
   });
-  if (!target) return { skipped: "no control below the fold" as const };
-  const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
-  const b0 = target.getBoundingClientRect();
-  window.scrollTo(0, b0.bottom + window.scrollY - window.innerHeight + 10);
-  const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10: under the chrome
-  const scrollBefore = window.scrollY;
-  target.focus({ preventScroll: false });
-  const lifted = target.getBoundingClientRect().bottom;
+  if (candidates.length === 0) return { skipped: "no focusable control below the fold" as const };
   const maxScroll = docHeight - window.innerHeight;
-  return { chromeTop, parkedBottom, lifted, label, scrollBefore, scrollAfter: window.scrollY, maxScroll, focused: document.activeElement === target };
+  let tried = 0;
+  for (const target of candidates.slice(0, 6)) {
+    tried += 1;
+    const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    window.scrollTo(0, 0);
+    const b0 = target.getBoundingClientRect();
+    window.scrollTo(0, b0.bottom + window.scrollY - window.innerHeight + 10);
+    const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10: under the chrome
+    const scrollBefore = window.scrollY;
+    target.focus({ preventScroll: false });
+    if (document.activeElement !== target) continue; // not focusable in this state — next candidate
+    const lifted = target.getBoundingClientRect().bottom;
+    return { chromeTop, parkedBottom, lifted, label, scrollBefore, scrollAfter: window.scrollY, maxScroll, focused: true, tried };
+  }
+  return { skipped: `no candidate took focus (tried ${tried})` as const };
 }
 
 async function open(page: import("@playwright/test").Page, path: string) {
