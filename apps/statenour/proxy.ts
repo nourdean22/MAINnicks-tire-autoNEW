@@ -1,3 +1,15 @@
+/**
+ * proxy.ts · 2026-09-08 (program D18) · was middleware.ts.
+ *
+ * Next 16 renamed the network-boundary file to `proxy` and runs it on the
+ * Node.js runtime only (the `runtime` segment option is not allowed here).
+ * Nothing below depends on the edge runtime: the nonce comes from
+ * lib/security/csp.ts (Web Crypto), NextAuth's `auth()` wrapper is
+ * runtime-agnostic, and `config.matcher` is unchanged. The default export
+ * is one of the two shapes Next accepts (default, or a named `proxy`).
+ * Behaviour is pinned by tests/security/middleware-boundary.test.ts, which
+ * now imports `@/proxy`.
+ */
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { generateNonce, buildCsp } from "@/lib/security/csp";

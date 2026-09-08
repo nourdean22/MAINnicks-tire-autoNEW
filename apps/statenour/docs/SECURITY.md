@@ -26,7 +26,7 @@ assumptions below reflect that.
 **NextAuth v5-beta.30 with Google OAuth provider + single allowlist email.**
 
 ```
-middleware.ts
+proxy.ts (was middleware.ts)
     │
     ├── public prefixes bypass:
     │     /api/auth, /api/webhooks, /api/telegram, /api/images,
@@ -131,7 +131,7 @@ all three paths (v11.0).
 ## CSP + headers
 
 **The CSP lives in exactly one place: `lib/security/csp.ts`, emitted by
-`middleware.ts` with a per-request nonce.** Static headers live in
+`proxy.ts` (the Next 16 name for `middleware.ts`, renamed 2026-09-08; Node runtime) with a per-request nonce.** Static headers live in
 `next.config.ts` `headers()`. Two CSP sources would make the browser
 enforce their intersection and break the nonce model, so never add one to
 `next.config.ts`. What production actually sends (read back 2026-09-07):

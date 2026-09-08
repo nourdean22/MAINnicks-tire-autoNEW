@@ -164,7 +164,7 @@ exactly why.
 | Nav items + system tabs | `components/layout/nav-items.ts` |
 | Cross-cutting state | `lib/state/nour-state.tsx` |
 | Useful hooks | `lib/hooks/` (`useSystemPulse`, `usePullRefresh`, …) |
-| Auth + middleware | `auth.ts` + `middleware.ts` |
+| Auth + proxy | `auth.ts` + `proxy.ts` (was `middleware.ts`, renamed 2026-09-08 for Next 16) |
 | Product vision | [`ULTRON-VISION.md`](ULTRON-VISION.md) (partially superseded by v10.4) |
 | Endpoint primary/helper map | [`ENDPOINT-HYGIENE.md`](ENDPOINT-HYGIENE.md) |
 
