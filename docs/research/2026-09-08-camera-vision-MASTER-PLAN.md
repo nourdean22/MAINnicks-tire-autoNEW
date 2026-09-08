@@ -12,10 +12,10 @@ Evidence classes: **A** verified current code at the pinned SHA · **B** verifie
 
 | Slice | Branch / PR | Status |
 |---|---|---|
-| This plan + ADR-0017 + UPSTREAMS rows | `docs/camera-vision-master-plan` | PR #2223 (`d311b499a`) |
-| Cloud fixes (P0 device lookup, day boundary, silent-zero cockpit, `getPlates`, quiet hours, heartbeat sentinel, plate->customer link, route-level tests) | `statenour/camera-arrival-p0` | PR #2222 (`94d2307e7`), CI pending |
-| Edge v2 (`camera-bridge/` rewrite: visit state machine, SQLite ledger/outbox, Frigate 0.17.2 config, mqtt auth, replay harness, unit tests) | `chore/camera-bridge-v2` | see PR link when landed |
-| nickstire `vehicle_lookup_by_plate` bridge action (memberships plates; no migration needed) | `nickstire/vehicle-lookup-by-plate` | PR #2221 (`919e196b8`), CI pending |
+| This plan + ADR-0017 + UPSTREAMS rows | `docs/camera-vision-master-plan` | PR #2223 (two Codex rounds: 7 + 4 findings, all fixed) |
+| Cloud fixes (P0 device lookup, day boundary, silent-zero cockpit, `getPlates`, quiet hours, heartbeat sentinel with owed-alert retry, plate->customer link, non-writing `?dryRun=1` probe, 90-day idempotency + stale-replay silence, 30-day plate scrub, route-level tests) | `statenour/camera-arrival-p0` | PR #2222 MERGED `dcb8f7695` (Codex rounds: 4 + 5 findings, all fixed) |
+| Edge v2 (`camera-bridge/` rewrite: visit state machine, SQLite ledger/outbox, Frigate 0.17.2 config, mqtt auth, replay harness, 63 unit tests) | `chore/camera-bridge-v2` | PR #2225 (independent hostile review: 1 P0 + 4 P1 disclosed in the PR body; fix commit `visitd` 2.1.0 in progress) |
+| nickstire `vehicle_lookup_by_plate` bridge action (memberships plates; booking linkage by name; plate masked in logs; no migration) | `nickstire/vehicle-lookup-by-plate` | PR #2221 MERGED `72d5e4c7d` (Codex rounds: 2 + 2 findings, all fixed) |
 | Typed visit ledger (`vehicle_visits`, `visit_events`, `visit_zone_intervals`) | Phase 3, after first 7 days of real data | designed in section 7, not coded |
 
 ---
@@ -48,7 +48,7 @@ Evidence classes: **A** verified current code at the pinned SHA · **B** verifie
 | Chat tools | `lib/ai/agent-actions/camera-actions.ts` (4 handlers, wired in `nick-agent.ts:393-403`); `lib/brain/camera-intelligence.ts` (`getCameraIntelligence` live; `analyzeCameraData` has zero callers) |
 | Flag | `NICK_ARRIVAL_INTELLIGENCE` (`lib/feature-flags.ts:437-444`, default off, gates Telegram only, not DB writes) |
 | Legacy | `apps/statenour/local-agent/v380_agent.py` - liveness poller (TCP 554 / ping / PPCS relay), no video; dormant since 2026-05-01 per `docs/agent/DEVICE_DIAGNOSTIC.md:5-9`; nothing schedules it |
-| nickstire | `vehicles.licensePlate varchar(20)` (unindexed) and `memberships.vehiclePlate` are the only plate columns; `bookings` has no plate; `bays` (`currentWorkOrderId`, `currentTechId`, `type`, `hasLift`) and `workOrders.assignedBay` exist (`drizzle/schema.ts:2094-2115, 2120-2180, 2880-2892`); `server/services/cameraProxy.ts:162-225` polls statenour `GET /api/devices` for snapshot metadata only |
+| nickstire | `memberships.vehiclePlate` is the only live plate column (`vehicles` was retired in migration 0117; `customer_vehicles` has no plate column yet); `bookings` has no plate; `bays` (`currentWorkOrderId`, `currentTechId`, `type`, `hasLift`) and `workOrders.assignedBay` exist (`drizzle/schema.ts:2094-2115, 2120-2180, 2880-2892`); `server/services/cameraProxy.ts:162-225` polls statenour `GET /api/devices` for snapshot metadata only |
 | Bridge contract | `docs/NICKSTIRE-QUERY-CONTRACT.md` (mirrored in both apps): `POST /api/nour-os/query` with `x-sync-key`, 18 actions incl. `customer_search`, `customer_detail`, `bookings_today`; none touch plates |
 | UPSTREAMS | row 58 Home Assistant WATCH ("camera-bridge + SmartDevice are the incumbents"); row 111 Auto-Editor WATCH ("camera-bridge is outdoor front-lot ALPR with no bay angle"); rows 87/88 reject CDC/outbox until a write lane exists; no Frigate/YOLO/Coral row |
 
@@ -226,7 +226,7 @@ OpenIPC lists Anyka SoCs on paper but has shipped zero `ak39*` images in every 2
  +----------------------------+-------------------------------------------------------------------------------+
                               | queryNick("vehicle_lookup_by_plate") - read-only, advisory
  +----------------------------v-------------------------------------------------------------------------------+
- | nickstire (nickstire.org, TiDB)  vehicles.licensePlate (indexed) -> customers -> bookings/workOrders/bays  |
+ | nickstire (nickstire.org, TiDB)  memberships.vehiclePlate (today) / customer_vehicles.plate (Phase 3) -> customers -> bookings/workOrders/bays  |
  |  admin Command Center keeps polling GET /api/devices for snapshot tiles (unchanged)                        |
  +------------------------------------------------------------------------------------------------------------+
 ```
@@ -264,7 +264,7 @@ Deployment topology: Frigate + Mosquitto + visitd on one Linux mini-PC at the sh
 | `CONFIRMED_ARRIVAL` | zone dwell >= `confirmSeconds` (45) OR (`stationary` AND dwell >= 20) | yes, priority high; alert |
 | `IN_SERVICE` | a bay zone interval opens (Phase 2, bay cameras) | yes |
 | `DEPARTING` | all arrival/bay intervals closed; grace timer `leaveGraceSeconds` (20) running | no |
-| `LEFT` | Frigate `end` for the last sighting, or grace expired without re-entry | yes; carries total dwell, per-zone dwell, plate |
+| `LEFT` | the leave grace expired with no stitched sighting. A Frigate `end` NEVER emits LEFT directly: it moves the visit to DEPARTING (grace 20 s >= the 10 s split-track window) so a re-identified track can rejoin; LEFT then follows from the tick with `estimated: true` | yes; carries total dwell, per-zone dwell, plate |
 | `PASS_THROUGH` | LEFT reached without ever hitting `ARRIVAL_CANDIDATE` | yes, low priority (analytics only, no alert) |
 
 Timers are evaluated on every message and on a 5 s wall-clock tick (needed for stationary objects that send no updates); tick promotions use `last_frame_time + elapsed_wall` and are flagged `estimated: true` until the next Frigate message confirms.
@@ -316,7 +316,7 @@ Cloud handling: `eventId` deduplicates retries; `visitId` (falling back to `trac
 
 ### 7.1 Today (Phase 1-2): keep `DeviceEvent.data` JSON, add nothing to the schema
 
-The v2 contract is stored verbatim; `cameraArrivals` and the cockpit already read `data.*`. This avoids a hand-applied migration before a single real event exists.
+The v2 contract is stored verbatim; `cameraArrivals` and the cockpit already read `data.*`. This avoids a hand-applied migration before a single real event exists. Retention is enforced in this phase too: `data-cleanup` runs `lib/services/plate-retention.ts` (#2222), which nulls `plate.text` / `plate.normalizedText` on camera events older than 30 days unless `customerRef.status = matched`, stamping `plateScrubbedAt`; the row itself lives to the 90-day line for dwell analytics.
 
 ### 7.2 Phase 3: typed ledger (Prisma, hand-applied migration per `statenour-migration`)
 
@@ -415,9 +415,9 @@ Plus `vehicle_identities` (plate_normalized unique, first/last seen, visit_count
 
 | Path | Change |
 |---|---|
-| `server/routes/nour-os-query.ts` | action `vehicle_lookup_by_plate` (filters: `plate`, optional `sinceDays`): normalized match on `vehicles.license_plate` and `memberships.vehiclePlate`, joined to `customers`, today's `bookings` (by phone) and open `work_orders` -> `{ matches: [...], count }` |
-| `server/lib/plate.ts` (new) | `normalizePlate()` shared helper |
-| `drizzle/migrations/<ts>_vehicles_plate_index.sql` (hand-applied, per `nickstire-tidb-ddl`) | `CREATE INDEX idx_veh_plate ON vehicles (license_plate)`; TiDB-safe |
+| `server/routes/nour-os-query.ts` | action `vehicle_lookup_by_plate` (filter: `plate`): normalized match on `memberships.vehiclePlate` - the only live plate column (`vehicles` was retired in migration 0117) - plus OCR-confusable variants; today's `bookings` by the member's phone, each row tagged `linkage` (`phone+name` / `phone_only`, phone-only rows carry no service/vehicle) -> `{ matches: [...], count }`. Shipped as #2221 |
+| `server/lib/plate.ts` (new) | `normalizePlate()`, `plateVariants()`, `maskPhone()`, `maskPlate()` (log redaction), `bookingLinkage()` |
+| no migration in this wave | Phase 3 adds `customer_vehicles.plate` (normalized) with an index, hand-applied per `nickstire-tidb-ddl`; until then memberships is the source and no index is needed at its row count |
 | `docs/NICKSTIRE-QUERY-CONTRACT.md` (both copies) | action documented, version bumped |
 | tests | normalization + query shape |
 
@@ -586,12 +586,12 @@ Zone drawing procedure: mount camera -> Frigate UI zone editor -> copy relative 
 
 | Gate | Criterion | Receipt |
 |---|---|---|
-| G0 (this wave) | prod `POST /api/devices/v380-shopsign/events` returns 200 with `synced: 1` from a dry-run payload; sentinel cron registered and `check:crons` green | Railway http log line + CI run |
+| G0 (this wave) | prod `POST /api/devices/v380-shopsign/events?dryRun=1` (the NON-WRITING validation path from #2222: schema + device resolution, no DeviceEvent row, no ONLINE flip, no alert) returns 200 with `valid: true`; sentinel cron registered and `check:crons` green | Railway http log line + CI run |
 | G1 (fixture) | replay clip produces the labeled visits: 0 missed arrivals, <= 1 duplicate, `LEFT` emitted for every visit, no exceptions in 24 h loop | `visitd` metrics JSON |
 | G2 (field, 14 days, alerts off) | arrival recall >= 0.95, precision >= 0.90 on the truth log; dwell MAE < 15 s; duplicate rate < 5 %; ghost rate < 3 %; bridge uptime >= 99.5 % (heartbeats) | cockpit metrics panel |
 | G3 (alerts on) | <= 2 false alerts/day for 7 days; zero alerts in quiet hours except after-hours events; median alert latency (confirm -> Telegram) < 10 s | Telegram log + `push_suppressed` rows |
 | G4 (LPR) | plate read rate >= 70 % of confirmed visits, accuracy >= 95 % on reads >= 0.9 (else fix geometry before buying compute) | truth log |
-| G5 (customer link) | >= 80 % of plate-read visits with a `vehicles.license_plate` match resolve to the right customer (staff-confirmed) | confirm queue stats |
+| G5 (customer link) | >= 80 % of plate-read visits with a customer-provided plate match (`memberships.vehiclePlate` today) resolve to the right customer (staff-confirmed) | confirm queue stats |
 | Ops SLOs | edge box CPU < 60 % sustained; detector inference < 40 ms (N150 iGPU) ; recordings retention respected; disk < 80 % | Frigate `/api/stats` scraped by the sentinel |
 
 ---
@@ -627,7 +627,7 @@ Zone drawing procedure: mount camera -> Frigate UI zone editor -> copy relative 
 | Video on the premises | Lawful where there is no reasonable expectation of privacy (lot, bays, counter). Never restrooms or changing areas - ORC 2907.08. |
 | Audio | ORC 2933.52 is one-party consent, but an unattended camera records conversations the shop is not party to; disable audio on every camera and in Frigate (`audio.enabled: false`). |
 | ALPR by a private business | No Ohio statute (Ohio is not among NCSL's 16 ALPR states); LE-side rules changed 2026-09-07 (ORC 149.43(A)(1)(yy)); bills to limit government access to private ALPR data are pending - keep plate retention short and documented. |
-| Plate -> owner identity | BMV records are barred for this use (ORC 4501.27, DPPA 18 USC 2721). The only lawful join is to plates the customer gave us (`vehicles.license_plate`). |
+| Plate -> owner identity | BMV records are barred for this use (ORC 4501.27, DPPA 18 USC 2721). The only lawful join is to plates the customer gave us (`memberships.vehiclePlate` today; `customer_vehicles.plate` in Phase 3). |
 | Retention | Recordings 30 days (alerts) / 14 (detections) / 3 (motion); plate reads 30 days unless linked to a customer record; visit rows 13 months without plate text. |
 | Biometrics / faces | Ohio has no biometric statute; still, no face recognition on customers (FTC v. Rite Aid precedent). Frigate `face_recognition.enabled: false`; person detection is used for presence only. |
 | Notice | Post "video surveillance in use" signage at the entrance and counter; written staff policy acknowledged at onboarding; a one-page retention policy in `docs/operations/`. |
@@ -689,7 +689,7 @@ Avoid: Ultralytics/BoxMOT (AGPL-3.0 - internal business use needs an enterprise 
 | Wait-time SLA | `CONFIRMED_ARRIVAL -> IN_SERVICE` per visit; alert the counter at 10 min | staff-facing only |
 | Bay throughput and tech utilization | `IN_SERVICE` intervals joined to `work_orders.assignedBay` | aggregate reporting; no per-tech ranking published without consent |
 | No-show and early-arrival detection | booking time vs visit `confirmedAt` via `vehicle_lookup_by_plate` | advisory match; staff confirms before any customer contact |
-| Repeat-vehicle CRM enrichment | plate -> `vehicles` row; visit count and last seen | only plates the customer gave us; no BMV lookups |
+| Repeat-vehicle CRM enrichment | plate -> the customer's stored plate (`memberships.vehiclePlate`; `customer_vehicles.plate` in Phase 3); visit count and last seen | only plates the customer gave us; no BMV lookups |
 | Traffic curves for staffing and marketing | hourly arrivals/pass-throughs by day | aggregates only |
 | Marketing attribution | arrivals after campaigns (Instagram/Google) with plate-linked first visits | aggregate lift only |
 | After-hours security | person/vehicle in `front_lot` 8 pm-7 am -> high-priority alert with clip | retention 30 days; police disclosure logged |
