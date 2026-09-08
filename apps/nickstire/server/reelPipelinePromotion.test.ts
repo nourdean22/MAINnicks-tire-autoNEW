@@ -98,13 +98,18 @@ describe("the staged registry and the scheduler still agree", () => {
     expect(extractDisabledTierJobNames(SCHEDULER).has("reel-pipeline")).toBe(false);
   });
 
-  it("the keepalive stays staged — it has nothing left to keep alive", () => {
-    // It rotates the CLI session token, and reel-pipeline no longer runs that
-    // lane unattended. Its "promote together, never before" note referred to
-    // the CLI pairing and was updated rather than silently outgrown.
+  it("the keepalive is promoted alongside it — 2026-09-08 reversed the 09-07 decoupling", () => {
+    // This used to assert the keepalive STAYS staged because "reel-pipeline no
+    // longer runs the CLI lane unattended". Production disagreed: the
+    // 2026-08-30 failures read "Higgsfield CLI exited ... Session expired" and
+    // nothing rendered for nine days, because the keepalive is the only
+    // in-container refresher of that session. Updated rather than silently
+    // outgrown, same as the note it replaced. The full pin — not disabled, not
+    // staged, throws on invalid, clears the stale cache first — lives in
+    // higgsfieldKeepalivePromoted.test.ts; this only guards the pairing.
     const keepalive = MANUAL_TRIGGER_STAGED.find((j) => j.name === "higgsfield-session-keepalive");
-    expect(keepalive, "keepalive must remain staged").toBeDefined();
-    expect(keepalive!.promote).toContain("DECOUPLED");
+    expect(keepalive, "keepalive must not be re-staged while reel-pipeline runs the CLI lane").toBeUndefined();
+    expect(extractDisabledTierJobNames(SCHEDULER).has("higgsfield-session-keepalive")).toBe(false);
   });
 });
 

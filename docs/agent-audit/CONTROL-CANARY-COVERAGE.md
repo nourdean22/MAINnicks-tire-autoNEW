@@ -143,7 +143,7 @@ Same session, immediately after. Two further probes came back green and the
 reflex was to log two more blind canaries. Both were **the mutation being
 inert**, not the canary being blind:
 
-- Widening `/^([0-9]){9,}$/` to `{3,}` was supposed to make a real number
+- Widening `/^([0-9])\1{9,}$/` to `{3,}` was supposed to make a real number
   wrongly match. It could not: the pattern is anchored `^...$`, so it still
   demands the *entire* string be one repeated digit. The fixture number was
   never going to match either way.

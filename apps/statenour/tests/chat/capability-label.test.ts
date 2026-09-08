@@ -61,14 +61,15 @@ describe("capabilityBadge — real states still report accurately", () => {
     expect(b.unknown).toBe(false);
   });
 
-  it("fully healthy reports the tool count and is NOT cautious", () => {
+  it("fully healthy says ready — no tool count (section 5.5) — and is NOT cautious", () => {
     const b = capabilityBadge({
       connection: "online",
       providerTone: "green",
       providerErrored: false,
       toolSummary: healthyTools,
     });
-    expect(b.label).toBe("174 catalog tools");
+    expect(b.label).toBe("ready");
+    expect(b.label).not.toMatch(/\d/);
     expect(b.cautious).toBe(false);
     expect(b.unknown).toBe(false);
   });
@@ -87,5 +88,25 @@ describe("capabilityBadge — real states still report accurately", () => {
     const b = capabilityBadge({ connection: "online", providerTone: "green", providerErrored: false });
     expect(b.cautious).toBe(true);
     expect(b.unknown).toBe(true);
+  });
+});
+
+describe("a degraded stream is not a tool outage (review on #2204)", () => {
+  it("degraded connection with green providers and healthy tools says chat degraded — no tool blame", () => {
+    const b = capabilityBadge({ connection: "degraded", providerTone: "green", providerErrored: false, toolSummary: healthyTools });
+    expect(b.label).toBe("chat degraded");
+    expect(b.label).not.toMatch(/tool/);
+    expect(b.cautious).toBe(true);
+    expect(b.unknown).toBe(false);
+  });
+  it("online with measured tool degradation says tools limited", () => {
+    const b = capabilityBadge({
+      connection: "online",
+      providerTone: "green",
+      providerErrored: false,
+      toolSummary: { totalTools: 174, degraded: 3, down: 1 },
+    });
+    expect(b.label).toBe("tools limited");
+    expect(b.cautious).toBe(true);
   });
 });

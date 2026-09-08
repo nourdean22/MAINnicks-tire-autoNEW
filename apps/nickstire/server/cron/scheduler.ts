@@ -785,8 +785,28 @@ function buildTiers(): void {
         // browser click re-creates a cron that dies silently between logins.
         // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
         // cronControlPlane.test.ts fails if they disagree.
+        //
+        // ─── 2026-09-08 · PROMOTED. The staging premise did not survive prod ──
+        //
+        // The ledger fact above is unchanged: the CLI lane is still the only
+        // funded lane and still needs a human device-login. What changed is the
+        // reading of what this job is FOR. It does not log in; it keeps an
+        // already-valid session alive by forcing the ~90-minute refresh so the
+        // rotated pair is persisted from INSIDE this process. Staging it on
+        // 2026-08-29 removed that; on 2026-08-30 the next renders failed with
+        // "Higgsfield CLI exited with code 2 ... Session expired", and for nine
+        // days no reel was generated. reel-pipeline runs the CLI lane unattended
+        // — its `requiresEnv: HIGGSFIELD_API_KEY_ID` was removed in #2170 — so
+        // "nothing for it to keep alive" was false the whole time.
+        //
+        // "Dies silently between logins" is already handled one screen down:
+        // an invalid session THROWS, status='failed' is recorded, and
+        // cron-failure-observer alerts on two consecutive failures. It is loud
+        // now. The 296-failures-in-72h noise the staging cites was a dead
+        // session left unfixed, not a broken job; the fix for that is the
+        // alert, not silence. higgsfieldKeepalivePromoted.test.ts pins both
+        // the promotion and the loud-failure shape.
         name: "higgsfield-session-keepalive",
-        enabled: false,
         handler: async () => {
           const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
           if (!(await getHiggsfieldCredentialsJson())) return { recordsProcessed: 0, details: "no higgsfield creds — skip" };

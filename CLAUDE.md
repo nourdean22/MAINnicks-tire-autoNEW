@@ -16,7 +16,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 19 repo-specific — invoke by exact name). Each `SKILL.md` carries
+- **Skills** (`.claude/skills/`, 23 repo-specific — invoke by exact name). Each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing the report →
     **answer-first**.
@@ -31,11 +31,12 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
     **nickstire-verifier-reel-pipeline**.
   - A pasted plan/audit/roadmap → **plan-gate**. "Turn this book/doc/repo into a skill" →
     **source-to-skill**. "Which skills actually fire?" → **skill-fire-audit**.
+  - A read that RENDERS or SCORES → **empty-vs-error**; adding a WRITER (header, env var,
+    column, tool registration) → **assert-the-consumer**; a new test or canary →
+    **positive-control-first**; a new table/queue/tool/flag → **prior-art-grep**; a filtered ratio → **base-rate-check**.
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
     `docs/skill-proposals.md`).
-  - **base-rate-check** has NO frontmatter `description`, so auto-discovery cannot surface it —
-    invoke it by hand whenever you report a ratio computed inside a filtered population.
 - **Output shape** — lead with the answer in sentence one, number every procedure, put the receipt
   inline (`417 files, 4,670 passed, exit 0`, never "tests pass"). The operator reads on a phone,
   mid-task, usually while something is broken. Cut whole items; never compress sentences to fragments.
