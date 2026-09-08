@@ -47,6 +47,7 @@ vi.mock("@/lib/prisma", () => {
     {
       get: (_t, prop: string) => {
         if (prop === "$queryRaw") return () => Promise.resolve([]);
+        if (prop === "$executeRaw") return () => Promise.resolve(0); // plate-retention scrub (ADR-0017)
         return modelStub();
       },
     },

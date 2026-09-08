@@ -67,6 +67,13 @@ describe("device-heartbeat-sentinel", () => {
     );
     expect(mockSendTelegram).toHaveBeenCalledTimes(1);
     expect(mockSendPush).toHaveBeenCalledWith(expect.objectContaining({ tag: "device-offline:v380-shopsign", level: "high" }));
+    // delivery is persisted on the flag so pass 3 knows nothing is owed
+    expect(db.smartDevice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "cmn-sign" },
+        data: { metadata: expect.objectContaining({ sentinel: expect.objectContaining({ alertedAt: expect.any(String), alertAttempts: 1 }) }) },
+      }),
+    );
     expect(res.ok).toBe(true);
   });
 
@@ -91,14 +98,51 @@ describe("device-heartbeat-sentinel", () => {
     expect(mockSendTelegram).not.toHaveBeenCalled();
   });
 
-  it("`alerted` reflects delivery: a failed Telegram send is reported, not claimed", async () => {
+  it("`alerted` reflects delivery: Telegram false AND zero push deliveries is reported, not claimed", async () => {
     db.smartDevice.findMany.mockResolvedValueOnce([SILENT]).mockResolvedValueOnce([]);
     mockSendTelegram.mockResolvedValue(false);
+    mockSendPush.mockResolvedValue({ sent: 0, failed: 0 });
     const res = await runHeartbeatSentinel(NOW);
     expect(res.flipped[0].alerted).toBe(false);
     expect(res.ok).toBe(false);
     // the state change still happened — silence is the failure, not the flip
     expect(db.smartDevice.updateMany).toHaveBeenCalledTimes(1);
+    // ...and the flag records that the alert is still owed
+    expect(db.smartDevice.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { metadata: expect.objectContaining({ sentinel: expect.objectContaining({ alertedAt: null, alertAttempts: 1 }) }) } }),
+    );
+  });
+
+  it("a push that reached a subscriber counts as delivery even when Telegram failed", async () => {
+    db.smartDevice.findMany.mockResolvedValueOnce([SILENT]).mockResolvedValueOnce([]);
+    mockSendTelegram.mockResolvedValue(false);
+    const res = await runHeartbeatSentinel(NOW);
+    expect(res.flipped[0].alerted).toBe(true);
+  });
+
+  it("an owed alert is retried on the next tick and marked delivered once a channel accepts it", async () => {
+    const owed = { ...SILENT, metadata: { source: "V380", sentinel: { offlineAt: "2026-09-08T15:00:00Z", lastSeenAt: null, alertedAt: null, alertAttempts: 1 } } };
+    db.smartDevice.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([owed]);
+    const res = await runHeartbeatSentinel(NOW);
+    expect(mockSendTelegram).toHaveBeenCalledTimes(1);
+    expect(res.retried).toEqual([{ id: "cmn-sign", platformDeviceId: "v380-shopsign", alerted: true, attempts: 2 }]);
+    expect(db.smartDevice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "cmn-sign" },
+        data: { metadata: expect.objectContaining({ sentinel: expect.objectContaining({ alertedAt: NOW.toISOString(), alertAttempts: 2 }) }) },
+      }),
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("a delivered flag is never re-sent, and an exhausted one is left alone", async () => {
+    const delivered = { ...SILENT, metadata: { source: "V380", sentinel: { offlineAt: "x", lastSeenAt: null, alertedAt: "2026-09-08T15:01:00Z", alertAttempts: 1 } } };
+    const exhausted = { ...SILENT, id: "cmn-2", platformDeviceId: "v380-shopinside", metadata: { source: "V380", sentinel: { offlineAt: "x", lastSeenAt: null, alertedAt: null, alertAttempts: 12 } } };
+    db.smartDevice.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([delivered, exhausted]);
+    const res = await runHeartbeatSentinel(NOW);
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+    expect(mockSendPush).not.toHaveBeenCalled();
+    expect(res.retried).toEqual([]);
   });
 
   it("a heartbeat that lands between the read and the write wins: no flip, no page", async () => {

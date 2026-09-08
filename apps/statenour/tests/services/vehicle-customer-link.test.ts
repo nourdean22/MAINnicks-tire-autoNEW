@@ -31,7 +31,7 @@ const MATCH = {
   exact: true,
   vehicleDesc: "2019 Civic",
   membershipStatus: "active",
-  bookingsToday: [{ id: 42, service: "Oil change", status: "confirmed" }],
+  bookingsToday: [{ id: 42, service: "Oil change", status: "confirmed", linkage: "phone+name" }],
 };
 
 describe("vehicle-customer-link", () => {
@@ -57,6 +57,7 @@ describe("vehicle-customer-link", () => {
   });
 
   it("no match is recorded as unmatched and the alert is left alone", async () => {
+    db.deviceEvent.findUnique.mockResolvedValue({ id: "evt_1", data: { plate: { text: "ZZZ 9999" } } });
     mockQueryNick.mockResolvedValue({ query: "vehicle_lookup_by_plate", timestamp: "t", data: { normalized: "ZZZ9999", matches: [], count: 0 } });
     await linkVisitToCustomer({ eventId: "evt_1", plate: "ZZZ9999", telegramMessageId: "999", alertText: "ALERT" });
     const written = db.deviceEvent.update.mock.calls[0][0].data.data.customerRef;
@@ -70,6 +71,23 @@ describe("vehicle-customer-link", () => {
     const written = db.deviceEvent.update.mock.calls[0][0].data.data.customerRef;
     expect(written).toMatchObject({ status: "lookup_failed", plate: "ABC1234", error: expect.stringContaining("Unknown query") });
     expect(mockEdit).not.toHaveBeenCalled();
+  });
+
+  it("an in-flight lookup for a plate the row no longer carries is discarded (the corrected read wins)", async () => {
+    db.deviceEvent.findUnique.mockResolvedValue({ id: "evt_1", data: { plate: { text: "XYZ 5555", normalizedText: "XYZ5555" } } });
+    mockQueryNick.mockResolvedValue({ query: "vehicle_lookup_by_plate", timestamp: "t", data: { normalized: "ABC1234", matches: [MATCH], count: 1 } });
+    await linkVisitToCustomer({ eventId: "evt_1", plate: "ABC1234", telegramMessageId: "999", alertText: "ALERT" });
+    expect(db.deviceEvent.update).not.toHaveBeenCalled();
+    expect(mockEdit).not.toHaveBeenCalled();
+  });
+
+  it("a phone-only booking is shown as unconfirmed and never exposes the service", async () => {
+    const phoneOnly = { ...MATCH, bookingsToday: [{ id: 9, status: "new", preferredDate: "2026-09-08", linkage: "phone_only" }] };
+    mockQueryNick.mockResolvedValue({ query: "vehicle_lookup_by_plate", timestamp: "t", data: { normalized: "ABC1234", matches: [phoneOnly], count: 1 } });
+    await linkVisitToCustomer({ eventId: "evt_1", plate: "ABC 1234", telegramMessageId: "999", alertText: "ALERT" });
+    const text = mockEdit.mock.calls[0][1] as string;
+    expect(text).toContain("same phone, unconfirmed");
+    expect(text).not.toContain("booked today");
   });
 
   it("a thrown prisma error is swallowed (ingest must not fail on enrichment)", async () => {

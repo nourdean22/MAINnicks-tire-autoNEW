@@ -75,12 +75,16 @@ export async function handleCameraGetPlates(params: ActionParams, type: string):
   // as an empty list (empty-vs-error).
   const days = Math.min(30, Math.max(1, Number(params.days ?? 7) || 7));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // Newest-first scan cap. Hitting it means older plate reads inside the
+  // window were NOT seen, and the result says so instead of posing as the
+  // whole period.
+  const PLATE_SCAN_LIMIT = 500;
   let rows: Array<{ id: string; deviceId: string; timestamp: Date; data: unknown }> | null = null;
   try {
     rows = await prisma.deviceEvent.findMany({
       where: { event: "vehicle_detected", timestamp: { gte: since } },
       orderBy: { timestamp: "desc" },
-      take: 500,
+      take: PLATE_SCAN_LIMIT,
       select: { id: true, deviceId: true, timestamp: true, data: true },
     });
   } catch (err) {
@@ -114,9 +118,15 @@ export async function handleCameraGetPlates(params: ActionParams, type: string):
     result: {
       days,
       eventsScanned: rows.length,
+      partial: rows.length >= PLATE_SCAN_LIMIT,
       count: plates.length,
       plates: plates.slice(0, 100),
-      note: rows.length === 0 ? `no vehicle_detected events in the last ${days} day(s)` : undefined,
+      note:
+        rows.length === 0
+          ? `no vehicle_detected events in the last ${days} day(s)`
+          : rows.length >= PLATE_SCAN_LIMIT
+            ? `PARTIAL: only the newest ${PLATE_SCAN_LIMIT} events in the window were scanned; older plate reads are not included - narrow days`
+            : undefined,
     },
   };
 }

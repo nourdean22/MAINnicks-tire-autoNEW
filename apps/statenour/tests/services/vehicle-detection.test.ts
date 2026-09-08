@@ -29,7 +29,10 @@ vi.mock("@/lib/notifications/push", () => ({
   sendPush: vi.fn().mockResolvedValue({ sent: 1, failed: 0 }),
 }));
 const mockLink = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("@/lib/services/vehicle-customer-link", () => ({ linkVisitToCustomer: mockLink }));
+vi.mock("@/lib/services/vehicle-customer-link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/vehicle-customer-link")>()),
+  linkVisitToCustomer: mockLink,
+}));
 vi.mock("@/lib/utils/datetime", async (importOriginal) => {
   const actual = await importOriginal<typeof datetime>();
   return { ...actual, hourET: vi.fn(() => 12) };
@@ -195,6 +198,42 @@ describe("Arrival Intelligence ingest", () => {
     await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1284", normalizedText: "ABC1284" }));
     expect(mockLink).toHaveBeenCalledTimes(3);
     expect(mockLink).toHaveBeenLastCalledWith(expect.objectContaining({ plate: "ABC1284" }));
+  });
+
+  it("a replayed event (edge outbox flushing after an outage) is stored but never pages now", async () => {
+    const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-old" }, { timestamp: old }));
+    expect(telegram.sendTelegramWithButtons).not.toHaveBeenCalled();
+    expect(push.sendPush).not.toHaveBeenCalled();
+    const row = await prisma.deviceEvent.findUnique({ where: { id } });
+    expect((row?.data as Record<string, unknown>).alertSuppressedReason).toBe("stale_replay");
+  });
+
+  it("eventId idempotency spans the 90-day retention window, not a day", async () => {
+    await handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", visitId: "v-w" }, { eventId: "e-w" }));
+    const first = vi.mocked(prisma.deviceEvent.findFirst).mock.calls[0][0] as { where: { createdAt: { gte: Date } } };
+    expect(Date.now() - first.where.createdAt.gte.getTime()).toBeGreaterThanOrEqual(89 * 24 * 60 * 60 * 1000);
+  });
+
+  it("a refreshed alert keeps the persisted customer line and does not ask nickstire again", async () => {
+    const plate = { status: "CANDIDATE", text: "ABC1234", normalizedText: "ABC1234", confidence: 0.9 };
+    const id = await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-cust", plate }));
+    const row = (await prisma.deviceEvent.findUnique({ where: { id } }))!;
+    row.data = {
+      ...(row.data as Record<string, unknown>),
+      customerRef: {
+        status: "matched",
+        plate: "ABC1234",
+        matches: [{ name: "Jane Member", phoneMasked: "***-0199", exact: true, bookingsToday: [{ service: "Oil change", linkage: "phone+name" }] }],
+      },
+    };
+    await handleVehicleEvent(deviceId, base({ state: "CONFIRMED_ARRIVAL", visitId: "v-cust", dwellSeconds: 90, plate: { ...plate, status: "CONFIRMED" } }));
+    const edits = vi.mocked(telegram.editTelegramMessage).mock.calls;
+    expect(edits.length).toBeGreaterThan(0);
+    const text = edits[edits.length - 1][1] as string;
+    expect(text).toContain("Jane Member (***-0199)");
+    expect(text).toContain("booked today: Oil change");
+    expect(mockLink).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a malformed payload with a 400 ServiceError instead of persisting garbage", async () => {

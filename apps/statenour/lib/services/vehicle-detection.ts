@@ -1,10 +1,10 @@
-import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFlag } from "@/lib/feature-flags";
 import { sendTelegramWithButtons, editTelegramMessage, InlineButton } from "@/lib/services/telegram";
 import { sendPush } from "@/lib/notifications/push";
-import { linkVisitToCustomer } from "@/lib/services/vehicle-customer-link";
+import { linkVisitToCustomer, renderCustomerLine } from "@/lib/services/vehicle-customer-link";
+import { VehicleEventSchema, ALERT_STATES } from "@/lib/services/vehicle-event-contract";
 import { hourET } from "@/lib/utils/datetime";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
@@ -32,56 +32,11 @@ const log = logger.withSurface("services/vehicle-detection");
  *  · Nothing here is an LLM: every field is copied or computed.
  */
 
-const PlateSchema = z
-  .object({
-    status: z.string().optional(),
-    text: z.string().optional(),
-    normalizedText: z.string().optional(),
-    state: z.string().optional(),
-    confidence: z.number().optional(),
-    provider: z.string().optional(),
-    reads: z.number().optional(),
-    knownName: z.string().optional(),
-  })
-  .passthrough();
-
-const DataSchema = z
-  .object({
-    cameraId: z.string().optional(),
-    cameraName: z.string().optional(),
-    visitId: z.string().optional(),
-    sightingId: z.string().optional(),
-    trackId: z.string().nullable().optional(),
-    zone: z.string().optional(),
-    zoneName: z.string().optional(),
-    state: z.string().optional(),
-    priority: z.string().optional(),
-    label: z.string().optional(),
-    confidence: z.number().optional(),
-    dwellSeconds: z.number().optional(),
-    zoneDwell: z.record(z.string(), z.number()).optional(),
-    stationary: z.boolean().optional(),
-    estimated: z.boolean().optional(),
-    plate: PlateSchema.optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .passthrough();
-
-export const VehicleEventSchema = z
-  .object({
-    schemaVersion: z.number().optional(),
-    event: z.string().optional(),
-    eventId: z.string().optional(),
-    source: z.string().optional(),
-    timestamp: z.string().optional(),
-    data: DataSchema.optional(),
-  })
-  .passthrough();
-
-export type VehicleEventPayload = z.infer<typeof VehicleEventSchema>;
+// The payload schema lives in vehicle-event-contract.ts (shared with the
+// route's non-writing dry-run probe).
 
 /** Edge + cockpit state vocabulary. Unknown states are stored but logged. */
-export const VEHICLE_STATES = [
+const VEHICLE_STATES = [
   "DETECTED",
   "ENTERED_ZONE",
   "ARRIVAL_CANDIDATE",
@@ -94,14 +49,24 @@ export const VEHICLE_STATES = [
   "FALSE_POSITIVE",
 ] as const;
 
-/** States that page the operator. */
-const ALERT_STATES = new Set(["CONFIRMED_ARRIVAL", "ENTERED_ZONE"]);
-
-export const QUIET_HOURS = { startHourET: 20, endHourET: 7 } as const;
+const QUIET_HOURS = { startHourET: 20, endHourET: 7 } as const;
 const COOLDOWN_SECONDS = 120;
 const VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
 const TRACK_WINDOW_MS = 10 * 60 * 1000;
-const EVENT_ID_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * eventId idempotency spans the whole DeviceEvent retention (data-cleanup
+ * deletes after 90 days): the edge outbox is durable and can legitimately
+ * replay an event days after an outage, and a replay must never become a
+ * second row or a second alert while the original still exists.
+ */
+const EVENT_ID_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+/**
+ * An event whose own timestamp is older than this is a replay (the outbox
+ * flushing after a WAN outage), not a car arriving now: stored for the
+ * ledger, never paged. Two hours also absorbs any Frigate/box clock skew
+ * short of a broken NTP, which the heartbeat sentinel would surface anyway.
+ */
+const STALE_EVENT_MS = 2 * 60 * 60 * 1000;
 
 /** Pure: 20:00-07:00 ET is quiet. Exported for the tests. */
 export function isQuietHoursET(hour: number): boolean {
@@ -182,7 +147,7 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
     log.warn("vehicle_event_unknown_state", { deviceId, state });
   }
 
-  log.info("processing_vehicle_event", { deviceId, visitId, trackId, state, zone, plateText: plate.text ?? "" });
+  log.info("processing_vehicle_event", { deviceId, visitId, trackId, state, zone, hasPlate: Boolean(plate.text) });
 
   // 0. Idempotency: a repeated eventId is a retry from the edge outbox.
   if (event.eventId) {
@@ -269,7 +234,10 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
     });
 
     const telegramMessageId = existingData.telegramMessageId;
-    const updatedText = formatAlertText(state, dwellSeconds, plate);
+    // Every refresh re-composes the persisted customer line; the link path
+    // appends only when it writes a NEW answer (it gets the base text).
+    const baseText = formatAlertText(state, dwellSeconds, plate);
+    const updatedText = baseText + renderCustomerLine(existingData.customerRef);
     if (telegramMessageId && isEnabled) {
       log.info("editing_telegram_alert", { telegramMessageId, state });
       await editTelegramMessage(Number(telegramMessageId), updatedText, undefined, buttons).catch((err) => {
@@ -283,7 +251,7 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       plate,
       existingData,
       telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
-      alertText: isEnabled ? updatedText : undefined,
+      alertText: isEnabled ? baseText : undefined,
       buttons,
     });
 
@@ -310,6 +278,10 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
 
   // 3. Quiet hours: arrivals do not page at night. The suppression is recorded.
   const quiet = isQuietHoursET(hourET());
+  // 3b. A replayed event (the edge outbox flushing after an outage) is a
+  //     ledger fact about the past, never a page now.
+  const ageMs = Date.now() - timestamp.getTime();
+  const staleReplay = ageMs > STALE_EVENT_MS;
 
   let telegramMessageId: number | null = null;
   let alertSuppressedReason: string | null = null;
@@ -318,6 +290,7 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
 
   if (!isEnabled) alertSuppressedReason = "flag_off";
   else if (!wantsAlert) alertSuppressedReason = "state";
+  else if (staleReplay) alertSuppressedReason = "stale_replay";
   else if (isCooldownActive) alertSuppressedReason = "cooldown";
   else if (quiet) alertSuppressedReason = "quiet_hours";
 
@@ -350,7 +323,7 @@ export async function handleVehicleEvent(deviceId: string, payload: unknown): Pr
       log.warn("arrival_push_failed", { error: err instanceof Error ? err.message : String(err) });
     }
   } else {
-    log.info("telegram_alert_skipped", { reason: alertSuppressedReason, state, isEnabled, isCooldownActive, quiet });
+    log.info("telegram_alert_skipped", { reason: alertSuppressedReason, state, isEnabled, isCooldownActive, quiet, ageMs });
   }
 
   const eventData = {

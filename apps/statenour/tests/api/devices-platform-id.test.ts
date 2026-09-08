@@ -128,4 +128,22 @@ describe("[id] device routes resolve platformDeviceId as well as the cuid", () =
     const hb = await patchDevice(req("/api/devices/ghost", "PATCH", { status: "ONLINE" }), ctx("ghost"));
     expect(hb.status).toBe(404);
   });
+
+  it("POST ?dryRun=1 validates the payload and writes nothing (the gate G0 probe)", async () => {
+    const res = await postEvents(req("/api/devices/v380-shopsign/events?dryRun=1", "POST", VEHICLE_EVENT), ctx("v380-shopsign"));
+    expect(res.status).toBe(200);
+    const data = (await res.json()).data;
+    expect(data).toMatchObject({ dryRun: true, valid: true, platformDeviceId: "v380-shopsign", deviceId: DEVICE.id });
+    expect(data.events[0]).toMatchObject({ valid: true, state: "CONFIRMED_ARRIVAL", wouldAlert: true });
+    expect(handleVehicleEvent).not.toHaveBeenCalled();
+    expect(db.smartDevice.update).not.toHaveBeenCalled();
+    expect(db.deviceEvent.createMany).not.toHaveBeenCalled();
+
+    const bad = await postEvents(
+      req("/api/devices/v380-shopsign/events?dryRun=1", "POST", { ...VEHICLE_EVENT, data: { ...VEHICLE_EVENT.data, confidence: "high" } }),
+      ctx("v380-shopsign"),
+    );
+    expect((await bad.json()).data).toMatchObject({ dryRun: true, valid: false });
+    expect(handleVehicleEvent).not.toHaveBeenCalled();
+  });
 });

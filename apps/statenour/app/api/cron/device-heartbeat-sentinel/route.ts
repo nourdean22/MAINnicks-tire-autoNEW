@@ -37,11 +37,56 @@ const WATCHED = {
 
 const COCKPIT_URL = "https://bdnick.info/system/camera";
 
-type SentinelMeta = { offlineAt: string; lastSeenAt: string | null };
+type SentinelMeta = {
+  offlineAt: string;
+  lastSeenAt: string | null;
+  /** When at least one channel accepted the outage alert; null = still owed. */
+  alertedAt: string | null;
+  alertAttempts: number;
+};
+
+/** Stop retrying an undeliverable outage alert after ~3 h of 15-min ticks. */
+const MAX_ALERT_ATTEMPTS = 12;
 
 function readSentinel(metadata: unknown): SentinelMeta | null {
   const m = metadata as { sentinel?: Partial<SentinelMeta> } | null;
-  return m?.sentinel?.offlineAt ? { offlineAt: m.sentinel.offlineAt, lastSeenAt: m.sentinel.lastSeenAt ?? null } : null;
+  if (!m?.sentinel?.offlineAt) return null;
+  return {
+    offlineAt: m.sentinel.offlineAt,
+    lastSeenAt: m.sentinel.lastSeenAt ?? null,
+    alertedAt: m.sentinel.alertedAt ?? null,
+    alertAttempts: m.sentinel.alertAttempts ?? 0,
+  };
+}
+
+type WatchedDevice = { id: string; name: string; platformDeviceId: string; lastSeenAt: Date | null; metadata: unknown };
+
+/**
+ * Telegram + tagged push. `delivered` is true only when a channel accepted
+ * the message: sendTelegram returns false instead of throwing, and a push
+ * with zero subscriptions reports `sent: 0`.
+ */
+async function deliverOutageAlert(d: WatchedDevice, silentMinutes: number): Promise<boolean> {
+  const body =
+    `${d.name} (${d.platformDeviceId}) last heartbeat ${silentMinutes} min ago — marked OFFLINE. ` +
+    `Edge box: docker compose ps · visitd logs · Frigate 8971. Cockpit: ${COCKPIT_URL}`;
+  const telegramOk = await sendTelegram(formatTelegramNotification("Camera bridge silent", body, "high"));
+  if (!telegramOk) log.error("sentinel_alert_undelivered", { device: d.platformDeviceId, channel: "telegram" });
+  let pushSent = 0;
+  try {
+    const res = await sendPush({
+      title: "Camera bridge silent",
+      body: `${d.name}: no heartbeat for ${silentMinutes} min`,
+      level: "high",
+      tag: `device-offline:${d.platformDeviceId}`,
+      url: COCKPIT_URL,
+      data: { deviceId: d.id, platformDeviceId: d.platformDeviceId, silentMinutes },
+    });
+    pushSent = res.sent;
+  } catch (err) {
+    log.warn("sentinel_push_failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+  return telegramOk || pushSent > 0;
 }
 
 export async function runHeartbeatSentinel(now: Date = new Date()) {
@@ -57,10 +102,14 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
   const flipped: Array<{ id: string; platformDeviceId: string; silentMinutes: number; alerted: boolean }> = [];
   for (const d of stale) {
     const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
-    const metadata = {
-      ...((d.metadata as Record<string, unknown> | null) ?? {}),
-      sentinel: { offlineAt: now.toISOString(), lastSeenAt: d.lastSeenAt?.toISOString() ?? null },
-    } as Prisma.InputJsonObject;
+    const rest = (d.metadata as Record<string, unknown> | null) ?? {};
+    const sentinel: SentinelMeta = {
+      offlineAt: now.toISOString(),
+      lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
+      alertedAt: null,
+      alertAttempts: 0,
+    };
+    const metadata = { ...rest, sentinel } as Prisma.InputJsonObject;
     // Conditional write: the bridge's heartbeat PATCH runs independently and
     // may land between the findMany above and this update. Require the row
     // to STILL be silent, and only alert when the transition really happened
@@ -74,23 +123,18 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
       continue;
     }
 
-    const body =
-      `${d.name} (${d.platformDeviceId}) last heartbeat ${silentMinutes} min ago — marked OFFLINE. ` +
-      `Edge box: docker compose ps · visitd logs · Frigate 8971. Cockpit: ${COCKPIT_URL}`;
-    const alerted = await sendTelegram(formatTelegramNotification("Camera bridge silent", body, "high"));
-    if (!alerted) log.error("sentinel_alert_undelivered", { device: d.platformDeviceId });
-    try {
-      await sendPush({
-        title: "Camera bridge silent",
-        body: `${d.name}: no heartbeat for ${silentMinutes} min`,
-        level: "high",
-        tag: `device-offline:${d.platformDeviceId}`,
-        url: COCKPIT_URL,
-        data: { deviceId: d.id, platformDeviceId: d.platformDeviceId, silentMinutes },
-      });
-    } catch (err) {
-      log.warn("sentinel_push_failed", { error: err instanceof Error ? err.message : String(err) });
-    }
+    const alerted = await deliverOutageAlert(d, silentMinutes);
+    // Delivery state is persisted so an alert nobody received is retried
+    // by pass 3 instead of being lost behind the OFFLINE status.
+    await prisma.smartDevice.update({
+      where: { id: d.id },
+      data: {
+        metadata: {
+          ...rest,
+          sentinel: { ...sentinel, alertedAt: alerted ? now.toISOString() : null, alertAttempts: 1 },
+        } as Prisma.InputJsonObject,
+      },
+    });
     log.warn("device_marked_offline", { device: d.platformDeviceId, silentMinutes, alerted });
     flipped.push({ id: d.id, platformDeviceId: d.platformDeviceId, silentMinutes, alerted });
   }
@@ -123,8 +167,47 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
     recovered.push({ id: d.id, platformDeviceId: d.platformDeviceId, offlineAt: flag.offlineAt });
   }
 
-  const ok = flipped.every((f) => f.alerted);
-  return { ok, staleAfterMs: STALE_AFTER_MS, checked: stale.length + online.length, flipped, recovered };
+  // 3. Owed alerts: devices we flagged OFFLINE whose outage alert reached no
+  //    channel. The OFFLINE status excludes them from pass 1 forever, so
+  //    without this pass a transient Telegram/push failure would leave a dead
+  //    bridge unannounced. Retried every tick, capped.
+  const offline = await prisma.smartDevice.findMany({
+    where: { status: "OFFLINE", ...WATCHED },
+    select: { id: true, name: true, platformDeviceId: true, lastSeenAt: true, metadata: true },
+  });
+  const retried: Array<{ id: string; platformDeviceId: string; alerted: boolean; attempts: number }> = [];
+  for (const d of offline) {
+    const flag = readSentinel(d.metadata);
+    if (!flag || flag.alertedAt || flag.alertAttempts >= MAX_ALERT_ATTEMPTS) continue;
+    const silentMinutes = d.lastSeenAt ? Math.round((now.getTime() - d.lastSeenAt.getTime()) / 60_000) : -1;
+    const alerted = await deliverOutageAlert(d, silentMinutes);
+    const attempts = flag.alertAttempts + 1;
+    const rest = (d.metadata as Record<string, unknown> | null) ?? {};
+    await prisma.smartDevice.update({
+      where: { id: d.id },
+      data: {
+        metadata: {
+          ...rest,
+          sentinel: { ...flag, alertedAt: alerted ? now.toISOString() : null, alertAttempts: attempts },
+        } as Prisma.InputJsonObject,
+      },
+    });
+    if (!alerted && attempts >= MAX_ALERT_ATTEMPTS) {
+      log.error("sentinel_alert_abandoned", { device: d.platformDeviceId, attempts });
+    }
+    log.warn("sentinel_alert_retried", { device: d.platformDeviceId, attempts, alerted });
+    retried.push({ id: d.id, platformDeviceId: d.platformDeviceId, alerted, attempts });
+  }
+
+  const ok = flipped.every((f) => f.alerted) && retried.every((r) => r.alerted);
+  return {
+    ok,
+    staleAfterMs: STALE_AFTER_MS,
+    checked: stale.length + online.length + offline.length,
+    flipped,
+    recovered,
+    retried,
+  };
 }
 
 export const GET = cronHandler(async () => runHeartbeatSentinel());

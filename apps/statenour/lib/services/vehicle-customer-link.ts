@@ -59,6 +59,36 @@ export interface LinkArgs {
   buttons?: InlineButton[][];
 }
 
+const plateKey = (s: string) => s.toUpperCase().replace(/[^0-9A-Z]/g, "");
+
+/** The plate text the event currently carries (normalized form first). */
+function plateTextOf(data: Record<string, unknown>): string | null {
+  const p = data.plate as { normalizedText?: unknown; text?: unknown } | undefined;
+  const v = p?.normalizedText ?? p?.text;
+  return typeof v === "string" && v ? v : null;
+}
+
+/**
+ * The one line the Telegram alert carries for a matched customer; "" for
+ * anything else. Pure, so every refresh of the alert can re-compose it from
+ * the persisted `customerRef`. A booking found by PHONE is only claimed as
+ * "booked today" when nickstire could also agree on the name
+ * (`linkage: "phone+name"`); a shared household number stays "unconfirmed"
+ * and its service is never shown (the bridge does not send it).
+ */
+export function renderCustomerLine(customerRef: unknown): string {
+  const ref = customerRef as { status?: string; matches?: PlateMatch[] } | null | undefined;
+  const m = ref?.status === "matched" ? ref.matches?.[0] : undefined;
+  if (!m) return "";
+  const booking = m.bookingsToday?.[0];
+  const bookingText = !booking
+    ? ""
+    : booking.linkage === "phone+name"
+      ? ` · booked today: ${String(booking.service ?? "")}`
+      : " · a booking on file today (same phone, unconfirmed)";
+  return `\n<b>Customer:</b> ${m.name ?? "member"} (${m.phoneMasked})${m.exact ? "" : " ~plate variant"}${bookingText}`;
+}
+
 /** Annotate the event with `customerRef` and extend the alert. Never throws. */
 export async function linkVisitToCustomer(args: LinkArgs): Promise<void> {
   try {
@@ -66,6 +96,14 @@ export async function linkVisitToCustomer(args: LinkArgs): Promise<void> {
     const row = await prisma.deviceEvent.findUnique({ where: { id: args.eventId } });
     if (!row) return;
     const data = (row.data as Record<string, unknown> | null) ?? {};
+    // The lookup is asynchronous: if the edge corrected the plate while it
+    // was in flight, the row now carries a different plate and THIS answer is
+    // about the wrong one. An obsolete lookup must never win the write.
+    const current = plateTextOf(data);
+    if (current && plateKey(current) !== plateKey(args.plate)) {
+      log.info("customer_link_stale", { eventId: args.eventId, plateChanged: true });
+      return;
+    }
     const checkedAt = new Date().toISOString();
     // `plate` = the text that was looked up, so the ingest guard can tell a
     // terminal answer for THIS plate from one for a since-corrected read.
@@ -85,13 +123,8 @@ export async function linkVisitToCustomer(args: LinkArgs): Promise<void> {
     });
     log.info("customer_link", { eventId: args.eventId, status: customerRef.status });
 
-    if (result.ok && result.matches.length > 0 && args.telegramMessageId && args.alertText) {
-      const m = result.matches[0];
-      const booking = m.bookingsToday?.[0];
-      const line =
-        `\n<b>Customer:</b> ${m.name ?? "member"} (${m.phoneMasked})` +
-        `${m.exact ? "" : " ~plate variant"}` +
-        `${booking ? ` · booked today: ${String(booking.service ?? "")}` : ""}`;
+    const line = renderCustomerLine(customerRef);
+    if (line && args.telegramMessageId && args.alertText) {
       await editTelegramMessage(Number(args.telegramMessageId), args.alertText + line, undefined, args.buttons).catch(
         (err) => log.warn("customer_link_telegram_edit_failed", { error: err instanceof Error ? err.message : String(err) }),
       );
