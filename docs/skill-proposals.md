@@ -1156,7 +1156,7 @@ statenour primitives documented (existence re-verified at
   set (schema models, tool names, cron manifest, feature flags) and requires the answer to be
   written down before building. Cheap, and it has now fired twice in one session.
 - **Confidence:** medium (two instances, same session)
-- **Status:** proposed
+- **Status:** APPLIED 2026-09-08 — `.claude/skills/prior-art-grep/SKILL.md` (see the 2026-09-08 entry)
 
 ## 2026-08-28b · the finish pass (#1991)
 
@@ -1178,7 +1178,7 @@ statenour primitives documented (existence re-verified at
   producer. Explicitly: *registration is not reachability, a header set is not a header read, and a
   green unit test on the writer is the exact evidence that will fool you.*
 - **Confidence:** high (four instances, one session, all verified)
-- **Status:** proposed
+- **Status:** APPLIED 2026-09-08 — `.claude/skills/assert-the-consumer/SKILL.md` (see the 2026-09-08 entry)
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** the tool-reachability failure could only be found by RUNNING the pruner
@@ -1260,7 +1260,7 @@ statenour primitives documented (existence re-verified at
 - **Cost:** none — that is the point; without the control both harness bugs would have been invisible.
 - **Proposed edit:** "A new test is not done until it has been run against the code it is meant to catch and the failure recorded in the PR body. A test that cannot be made to fail is a silent instrument."
 - **Confidence:** high (4 tests, 2 harness bugs caught)
-- **Status:** proposed
+- **Status:** APPLIED 2026-09-08 — `.claude/skills/positive-control-first/SKILL.md` (see the 2026-09-08 entry)
 
 ## 2026-09-02 · Audit wave follow-ups (#2062 · #2064 · tool-result fencing)
 
@@ -1449,3 +1449,96 @@ statenour primitives documented (existence re-verified at
 > dependency (`@sentry/nextjs` here) — `statenour-verify` already documents it under "When no
 > statenour toolchain exists"; and the claude-in-chrome `resize_window` / `ctrl+k` limitations —
 > durable tool facts that went to the memory system, not a skill.
+
+
+## 2026-09-08 · History-mining pass (no code wave — mined the memory corpus + this queue)
+
+> Not a work wave. A sweep of `~/.claude/projects/C--/memory` (152 files) and this
+> queue for shapes that recur across sessions and had no skill. Two waves had never
+> been filed: the 2026-09-02 `/brain` nine-tab audit (five PRs, 41 defects) and the
+> 2026-09-03 nickstire growth audit. Every claim below was re-verified against
+> `origin/main` @ `bfccff82c` — the checkout the sweep started in was **90 commits
+> behind**, which alone falsified one finding (this queue does NOT stop at 09-02c; it
+> runs to 09-07).
+
+### P1 · NEW: empty-vs-error — APPLIED
+- **Trigger (witnessed):** highest-frequency defect shape in the corpus. **10 instances
+  on one page** (#2090); it then **survived its own fix twice** — an empty contradiction
+  ledger still scored a hardcoded **7 of 100** (#2091), and the identical shape
+  (`resolutionRate = 1` on an empty table) was fixed in `lib/brain/learning-velocity.ts`
+  and missed in the contradiction path by a second agent the same session. Three more on
+  2026-07-30, all "a read with no writer" rendering a fabricated all-clear.
+- **Cost:** five PRs for what was reported as one. Every instance passed typecheck, lint
+  and a green suite.
+- **What the skill carries:** the three-state contract (ERROR / UNMEASURED / measured
+  zero) and the three reference implementations that already do it right —
+  `judgment-quality-panel.tsx:34`, `contradiction-resolution-panel.tsx:300` (literal
+  `provenance` strings `"ERROR"` / `"UNMEASURED"` / `"ZERO"`), and `fleet-truth.ts:13,190`
+  ("a failed probe is UNKNOWN, never healthy"; `ok` requires every capability fresh).
+- **Measured, and it changed the skill:** a repo-wide grep for this shape does **not**
+  work here — `.catch(() => null)` 120 files, `.catch(() => [])` 93, `.catch(() => 0)` 22.
+  These are house idioms. The skill therefore scopes detection to the diff or one surface,
+  and names `=> []` / `=> 0` as the dangerous pair (`=> null` is usually honest).
+- **Confidence:** high · **Status:** applied — `.claude/skills/empty-vs-error/SKILL.md`
+
+### P2 · NEW: assert-the-consumer — APPLIED (was proposed 2026-08-28b, unapplied for 11 days)
+- Unchanged evidence from the original proposal (four dead controls, #1983 · #1991).
+  Added: the comment-filtering grep (hit 3 passed a consumer search because the only match
+  was the author's own comment), and the registration≠reachability case measured against
+  the 181-tool catalog / 24-tool budget.
+- **Confidence:** high · **Status:** applied — `.claude/skills/assert-the-consumer/SKILL.md`
+
+### P3 · NEW: positive-control-first — APPLIED (was proposed 2026-09-01, unapplied)
+- Unchanged evidence (4 tests, 2 harness bugs caught). Added a section the original did not
+  have: **a positive control can pin a falsehood** — see P6 below, found while writing it.
+- **Confidence:** high · **Status:** applied — `.claude/skills/positive-control-first/SKILL.md`
+
+### P4 · NEW: prior-art-grep — APPLIED (was proposed 2026-08-28, unapplied)
+- Unchanged evidence (2 near-misses, medium confidence, kept because the cost is one
+  command). Added the four known blind spots that make a prior-art grep miss: dynamic
+  `import()`, case, line-number windows, and comments.
+- **Confidence:** medium · **Status:** applied — `.claude/skills/prior-art-grep/SKILL.md`
+
+### P5 · statenour-verify + nickstire-verify — APPLIED as edits, deliberately NOT new skills
+- **statenour-verify** gains "Reading an ambiguous CI or hook result": `The operation was
+  canceled` = superseded not failed; `completion-authority` leaves a stale red after threads
+  are resolved; **an eslint OOM (exit 134) aborts the commit while the push prints
+  `Everything up-to-date`**; `echo $?` after a pipe reads `head`'s status (use
+  `${PIPESTATUS[0]}`); check the CI database version, not just prod. Plus "after MODIFYING a
+  verified query, re-run it".
+- **nickstire-verify** gains "Verifying a user-facing copy change": sweep with `grep -ri`
+  (a case-sensitive sweep shipped `"New ownership"`, #2099); confirm in **real Chrome**, not
+  the in-app browser (it blocks the site's fonts, so it is not a fair visual check); source
+  and served HTML can disagree (10/12 routes served stale `noindex` snapshots — drift-catcher
+  `prerender-indexability-consistency.test.ts`, #2098).
+- **Why edits, not skills:** a "copy-truth-sweep" skill was scoped and then dropped —
+  `canonical-business-truth.test.ts` already enforces it in code, and this queue's own
+  precedent is that an update beats a new skill.
+- **Status:** applied
+
+### P6 · LIVE DEFECT found while validating P3 — NOT fixed, operator's call
+- **`apps/nickstire/client/src/__tests__/canonical-business-truth.test.ts:188`** asserts
+  *"POSITIVE CONTROL: the new-ownership statement is still on the site"*
+  (`expect(newOwnership.length).toBeGreaterThan(0)`).
+- The owner confirmed 2026-09-03 that Nick's is the **same owner** who renamed Moe's Tire
+  & Auto — there was never new ownership, and #2099 removed the copy. **The test now pins a
+  falsehood as a required invariant.**
+- It is green only by accident: `/new ownership/i` matches an unrelated consumer-advice
+  sentence in `shared/guides.ts:887` ("If something changes — new ownership, new
+  technicians…", about shops in general) and a **comment** in `shared/voice.ts:350`. The
+  same file states "MENTION IS NOT ASSERTION" for its `run by moe` rule and does not apply
+  it to this control. Clean up either string and the test goes red, and the obvious "fix"
+  is to re-add a false ownership claim.
+- **Not fixed here:** business-truth is operator-owned and this pass had no remit to change
+  nickstire copy or its canonical constants. Recommended: delete the control or re-point it
+  at the true invariant (same owner, renamed ~2018).
+- **Confidence:** high (verified on `origin/main` @ `bfccff82c`)
+
+> **Deliberately NOT proposed:** a "CI false-signal triage" skill (folded into
+> statenour-verify instead — ~60% was already there); a "stale-checkout" skill
+> (`harness-worktree-setup` and `statenour-verify` already carry the junction/phantom
+> shapes). Also noted, not proposed: **`statenour-verify` is now the queue's dumping
+> ground** — P1/P2 in roughly ten entries, and it carries deploy confirmation, credential
+> handling, reviewer dispatch and embedding dimensions under a name that says "verification
+> sequence". That is the likeliest reason three new-skill proposals sat unapplied for
+> 11 days. A split is worth an operator decision.

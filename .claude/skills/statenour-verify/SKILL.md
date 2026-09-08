@@ -247,6 +247,39 @@ and rejects anything else, but the OpenAI fallback returns **1536** with
 no length guard. "Succeeding" on that fallback would silently poison a
 1024-dim corpus — check `embedding_dim` after any embedding backfill.
 
+## Reading an ambiguous CI or hook result
+
+Two of every three "failures" in the 2026-09-02 wave needed no code
+change. Triage before fixing:
+
+- **`##[error]The operation was canceled.`** = a run superseded by a
+  newer push, reported as a failed check. **No FAIL lines and no
+  assertions means nothing failed** — look for those before touching
+  code.
+- **`completion-authority` evaluates review threads at run time.**
+  Resolving threads afterwards leaves a STALE red. Re-run it; do not
+  re-litigate the threads.
+- **Trace reachability before assuming authorship.** An e2e failure
+  looked like the wave's until traced: `/api/intel` has no import path to
+  the changed code, the error was a heartbeat timeout (`curl rc=28`),
+  neighbouring runs were cancelled, and a re-run passed.
+- ⚠ **A pre-commit eslint OOM (exit 134) aborts the commit while the
+  subsequent push prints `Everything up-to-date`** — which reads exactly
+  like success and leaves the work uncommitted. **Check `git log` after
+  any commit whose hook output looks odd.**
+- ⚠ **`echo $?` after `cmd | head` captures head's status, not the
+  command's.** A subagent reported a false-green typecheck this way. Use
+  `${PIPESTATUS[0]}`, or run the command unpiped.
+- **Check the CI database version, not just prod.** CI is
+  `pgvector/pgvector:pg16`, prod is PG17 — `IS JSON OBJECT` needs PG16+.
+  Both fine here, but the gap is real and untested by default.
+
+## After MODIFYING a verified query, re-run it
+
+A receipt for the old version is not a receipt for the new one. Recorded
+after a wave modified a SQL statement post-verification and shipped it
+unre-run.
+
 ## When NOT to use
 
 Non-statenour work, or nickstire (it has its own `pnpm run verify`).
