@@ -66,8 +66,13 @@ export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
 
   // Section 5.5 (2026-09-08): the badge claims HEALTH, not inventory. "181 catalog tools"
   // was a count worn as a feature; it said nothing about whether Nick could act.
+  // A degraded STREAM is the client's own observation (use-chat-stream.ts); the providers and
+  // the tools can both be healthy, so it must not read as a tool outage (review on #2204).
+  if (connection === "degraded") {
+    return { label: "chat degraded", cautious: true, unknown: false };
+  }
   const toolsDegraded = Boolean(toolSummary && (toolSummary.degraded > 0 || toolSummary.down > 0));
-  if (connection !== "online" || toolsDegraded) {
+  if (toolsDegraded) {
     return {
       label: toolSummary ? "tools limited" : "checking capabilities",
       cautious: true,

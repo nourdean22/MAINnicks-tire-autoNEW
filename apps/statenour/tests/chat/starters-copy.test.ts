@@ -29,5 +29,6 @@ describe("chat starters (section 5.10) and the capability badge (5.5)", () => {
     expect(label).not.toMatch(/totalTools} catalog tools/);
     expect(label).toMatch(/"ready"/);
     expect(label).toMatch(/"tools limited"/);
+    expect(label).toMatch(/"chat degraded"/);
   });
 });

@@ -90,3 +90,23 @@ describe("capabilityBadge — real states still report accurately", () => {
     expect(b.unknown).toBe(true);
   });
 });
+
+describe("a degraded stream is not a tool outage (review on #2204)", () => {
+  it("degraded connection with green providers and healthy tools says chat degraded — no tool blame", () => {
+    const b = capabilityBadge({ connection: "degraded", providerTone: "green", providerErrored: false, toolSummary: healthyTools });
+    expect(b.label).toBe("chat degraded");
+    expect(b.label).not.toMatch(/tool/);
+    expect(b.cautious).toBe(true);
+    expect(b.unknown).toBe(false);
+  });
+  it("online with measured tool degradation says tools limited", () => {
+    const b = capabilityBadge({
+      connection: "online",
+      providerTone: "green",
+      providerErrored: false,
+      toolSummary: { totalTools: 174, degraded: 3, down: 1 },
+    });
+    expect(b.label).toBe("tools limited");
+    expect(b.cautious).toBe(true);
+  });
+});
