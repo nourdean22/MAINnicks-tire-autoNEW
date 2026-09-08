@@ -116,7 +116,7 @@ export default function TireFinderV2() {
         canonicalPath="/tires"
       />
       <Breadcrumbs items={[{ label: "Tires" }]} />
-      <LocalBusinessSchema includeServices />
+      <LocalBusinessSchema />
       <FAQPageSchema qa={TIRE_BUYING_FAQ} />
       <main>
         <section className="border-b border-border/30 bg-gradient-to-b from-primary/10 to-background py-12 sm:py-16">

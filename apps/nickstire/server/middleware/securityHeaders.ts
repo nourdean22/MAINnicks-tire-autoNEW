@@ -39,8 +39,12 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // Referrer policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
 
-  // Permissions policy (restrict ALL sensitive APIs — the site doesn't need camera/mic/geo)
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // Permissions policy (restrict ALL sensitive APIs — the site doesn't need camera/mic/geo).
+  // 2026-09-07 · added usb / midi / display-capture / browsing-topics (the last
+  // opts the site out of Chrome's Topics API for ad profiling). `payment=()` is
+  // deliberately NOT here: /pay uses Stripe, whose wallet buttons need the
+  // Payment Request API.
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), usb=(), midi=(), display-capture=(), browsing-topics=()");
 
   // Content Security Policy
   // unsafe-inline required for GA4/Meta Pixel inline scripts + Tailwind inline styles
@@ -51,7 +55,14 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov https://analytics.ahrefs.com",
+    // 2026-09-07 · GA4 beacons do not only go to www.google-analytics.com:
+    // gtag.js also posts to regional hosts (region1.google-analytics.com),
+    // analytics.google.com and stats.g.doubleclick.net (Google Signals).
+    // Google's own CSP guide lists exactly these wildcards for connect-src;
+    // without them a share of hits was dropped at the browser with no
+    // server-side trace. Verify in DevTools: no "Refused to connect" for a
+    // /g/collect URL.
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov https://analytics.ahrefs.com",
     "frame-src https://www.google.com https://maps.google.com",
     "media-src 'self' blob:",
     "frame-ancestors 'none'",

@@ -508,34 +508,48 @@ async function startServer() {
       },
     })
   );
+  // <lastmod> — 2026-09-07. Every entry in all three sitemaps used to carry the
+  // CURRENT date (`new Date()` at request time), so 100+ URLs claimed a change
+  // every single day. Google's sitemap reference says lastmod must reflect the
+  // last significant change and is ignored once it is consistently wrong — so
+  // the tag was costing trust and buying nothing. A static route has no
+  // per-page date the server can know at runtime (the prerendered files are
+  // rewritten wholesale by the weekly regen), so those entries omit the tag;
+  // DB-published articles carry their real updatedAt.
+  const sitemapLastmod = (value: unknown): string =>
+    value instanceof Date && !Number.isNaN(value.getTime())
+      ? `\n    <lastmod>${value.toISOString().slice(0, 10)}</lastmod>`
+      : "";
+
   // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
   app.get("/sitemap.xml", async (_req, res) => {
     const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
     const { getPublishedArticles } = await import("../content-generator");
     const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
-    const now = new Date().toISOString().split("T")[0];
 
-    // Fetch published dynamic articles from DB
-    let dynamicSlugs: string[] = [];
+    // Fetch published dynamic articles from DB — slug → real last-modified date
+    const dynamicLastmod = new Map<string, Date | null>();
     try {
       const published = await getPublishedArticles();
-      dynamicSlugs = published.map((a: any) => a.slug);
+      for (const a of published as Array<{ slug: string; updatedAt?: Date | null; createdAt?: Date | null }>) {
+        dynamicLastmod.set(a.slug, a.updatedAt ?? a.createdAt ?? null);
+      }
     } catch (err) {
       console.error("[Sitemap] Failed to fetch dynamic articles:", err instanceof Error ? err.message : err);
     }
 
-    const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
+    const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicLastmod.keys()]));
 
     // GSC audit 2026-07-04: never emit a URL that 301s (redirects.ts is the
     // truth). Catches registry aliases AND DB-published slugs that were later
     // redirected (e.g. /blog/car-ac-not-blowing-cold).
     const urls = [
       ...SITEMAP_ROUTES.filter(p => !isRedirectedPath(p.path)).map(p =>
-        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
       ),
       ...allBlogSlugs.filter(s => !isRedirectedPath(`/blog/${s}`)).map(s =>
-        `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
+        `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>${sitemapLastmod(dynamicLastmod.get(s))}\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
       ),
     ];
 
@@ -551,34 +565,22 @@ async function startServer() {
   // (shared/routes.ts), both sitemap:true + prerender:true — i.e. the
   // registry says they are MEANT to be crawled, so "correcting" the
   // disallow to the real paths would have been a new bug. Deleted instead.
-  app.get("/robots.txt", (_req, res) => {
+  // 2026-09-07 · the policy moved to ./robots.ts (one builder, one test):
+  // dropped Crawl-delay (Google ignores it; Bing's "Slow" tier) and the
+  // `/*?utm_*` disallows (Google: not a canonicalization tool — the server
+  // injects a query-free canonical instead); blocks two scrapers with no
+  // answer surface; and puts the AI model-training crawlers behind an
+  // operator switch, default off. See the module header for the sources.
+  app.get("/robots.txt", async (_req, res) => {
+    const { buildRobotsTxt } = await import("./robots");
     res.setHeader("Content-Type", "text/plain");
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.send(`User-agent: *
-Allow: /
-
-# Block admin, auth, and private pages
-Disallow: /admin
-Disallow: /admin/
-Disallow: /my-garage
-Disallow: /portal
-Disallow: /api/
-Disallow: /status/
-Disallow: /inspection/
-
-# Block tracking parameters only
-Disallow: /*?utm_*
-Disallow: /*?ref=*
-Disallow: /*?fbclid=*
-Disallow: /*?gclid=*
-
-Crawl-delay: 1
-
-Sitemap: ${SITE_URL}/sitemap.xml
-Sitemap: ${SITE_URL}/sitemap-services.xml
-Sitemap: ${SITE_URL}/sitemap-locations.xml
-Sitemap: ${SITE_URL}/sitemap-images.xml
-`);
+    res.send(
+      buildRobotsTxt({
+        siteUrl: SITE_URL,
+        blockAiTrainingCrawlers: process.env.ROBOTS_BLOCK_AI_TRAINING_CRAWLERS === "true",
+      }),
+    );
   });
 
   // IndexNow key file — verifies host ownership so Bing/IndexNow accepts our
@@ -617,7 +619,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 - Rating: 4.9 stars from 1,700+ Google reviews
 - Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
-- Financing: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
+- Payment programs: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
 - Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
 
 ## Services
@@ -628,7 +630,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Same-day pass.
 - [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
 - [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
-- [Financing](${b}/financing): $10 down, no credit check, drive away today.
+- [Payment programs](${b}/financing): $10 down, no credit check, drive away today.
 
 ## Common questions
 - Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.
@@ -644,18 +646,30 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 `);
   });
 
+  // /ai.txt and /llms-full.txt — retired 2026-09-07. Both were static,
+  // hand-maintained copies of the facts above and had drifted from each other
+  // and from canon: city "Euclid" vs "Cleveland" (the shop is at Cleveland,
+  // OH 44112 — see shared/business.ts and the Google listing), oil change
+  // "$39 / $69" vs the $49 / $80 canon, "Last verified" stamps of 2026-05-02
+  // and 2026-03-30, plus superlatives ("#1", "highest-rated") the brand-voice
+  // rule forbids. No published crawler documentation names either file.
+  // One machine-readable source is the only version that cannot contradict
+  // itself; anything that linked the old names lands on it.
+  for (const legacy of ["/ai.txt", "/llms-full.txt"]) {
+    app.get(legacy, (_req, res) => res.redirect(301, "/llms.txt"));
+  }
+
   // Sub-sitemaps for services and locations
   app.get("/sitemap-services.xml", async (_req, res) => {
     const { SITEMAP_ROUTES } = await import("@shared/routes");
     const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
-    const now = new Date().toISOString().split("T")[0];
     const serviceRoutes = SITEMAP_ROUTES.filter(r =>
       (r.group === "service" || r.group === "seo-service" || r.group === "vehicle" || r.group === "problem" || r.group === "seasonal")
       && !isRedirectedPath(r.path)
     );
     const urls = serviceRoutes.map(p =>
-      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
     );
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
@@ -667,12 +681,11 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
     const { SITEMAP_ROUTES } = await import("@shared/routes");
     const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
-    const now = new Date().toISOString().split("T")[0];
     const locationRoutes = SITEMAP_ROUTES.filter(r =>
       (r.group === "city" || r.group === "neighborhood") && !isRedirectedPath(r.path)
     );
     const urls = locationRoutes.map(p =>
-      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
     );
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
     res.setHeader("Content-Type", "application/xml; charset=utf-8");

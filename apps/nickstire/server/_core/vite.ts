@@ -5,10 +5,16 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
-import { getRouteByPath } from "../../shared/routes";
-import { SITE_URL } from "../../shared/business";
 
 import { createLogger } from "../lib/logger";
+import {
+  createSpaFallbackHandler,
+  injectNotFoundMeta,
+  injectRouteMeta,
+  pathnameOf,
+  queryStringOf,
+  resolvePublicPath,
+} from "./spaFallback";
 
 const log = createLogger("_core:vite");
 
@@ -24,84 +30,9 @@ function getPackageRoot(): string {
   }
   return import.meta.dirname;
 }
-/**
- * Inject route-specific meta tags (title, description, canonical, OG) into the HTML template.
- * This is critical for SEO — without it, Google sees the same homepage meta tags on every page,
- * causing soft 404s and duplicate content issues across the entire site.
- */
-function injectRouteMeta(html: string, url: string): string {
-  const path = url.split("?")[0];
-  const route = getRouteByPath(path);
 
-  // Critical SEO fix: if the path isn't in the route registry (e.g. dynamic
-  // /blog/:slug, /:city neighborhood pages), DON'T return early — at minimum
-  // we MUST overwrite the canonical to point to the requested URL. Otherwise
-  // every dynamic page inherits index.html's canonical (`https://nickstire.org/`),
-  // which Google interprets as "this is a duplicate of the homepage" and drops
-  // the URL from the index. That bug killed indexing for 21 of 24 blog posts.
-  if (!route) {
-    const baseUrl = SITE_URL;
-    const fullUrl = `${baseUrl}${path === "/" ? "/" : path}`;
-    html = html.replace(
-      /<link rel="canonical" href="[^"]*" \/>/,
-      `<link rel="canonical" href="${fullUrl}" />`
-    );
-    html = html.replace(
-      /<meta property="og:url" content="[^"]*" \/>/,
-      `<meta property="og:url" content="${fullUrl}" />`
-    );
-    return html;
-  }
-
-  const baseUrl = SITE_URL;
-  const fullUrl = `${baseUrl}${route.path}`;
-  const escapedTitle = route.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const escapedDesc = route.description.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-
-  // Replace title tag
-  html = html.replace(
-    /<title>[^<]*<\/title>/,
-    `<title>${escapedTitle}</title>`
-  );
-
-  // Replace meta description
-  html = html.replace(
-    /<meta name="description" content="[^"]*" \/>/,
-    `<meta name="description" content="${escapedDesc}" />`
-  );
-
-  // Replace canonical URL
-  html = html.replace(
-    /<link rel="canonical" href="[^"]*" \/>/,
-    `<link rel="canonical" href="${fullUrl}" />`
-  );
-
-  // Replace OG tags
-  html = html.replace(
-    /<meta property="og:url" content="[^"]*" \/>/,
-    `<meta property="og:url" content="${fullUrl}" />`
-  );
-  html = html.replace(
-    /<meta property="og:title" content="[^"]*" \/>/,
-    `<meta property="og:title" content="${escapedTitle}" />`
-  );
-  html = html.replace(
-    /<meta property="og:description" content="[^"]*" \/>/,
-    `<meta property="og:description" content="${escapedDesc}" />`
-  );
-
-  // Replace Twitter tags
-  html = html.replace(
-    /<meta name="twitter:title" content="[^"]*" \/>/,
-    `<meta name="twitter:title" content="${escapedTitle}" />`
-  );
-  html = html.replace(
-    /<meta name="twitter:description" content="[^"]*" \/>/,
-    `<meta name="twitter:description" content="${escapedDesc}" />`
-  );
-
-  return html;
-}
+// injectRouteMeta lives in ./spaFallback next to the status resolver it now
+// pairs with, so both the production and the Vite dev catch-all read one truth.
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -135,8 +66,16 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${nanoid()}"`
       );
       const page = await vite.transformIndexHtml(url, template);
-      const finalPage = injectRouteMeta(page, url);
-      res.status(200).set({ "Content-Type": "text/html" }).end(finalPage);
+      // Same status decision as production so a soft 404 cannot hide in dev.
+      // NOT req.path — inside app.use("*") it is always "/" (see pathnameOf).
+      const resolution = resolvePublicPath(pathnameOf(req));
+      if (resolution.kind === "redirect") {
+        res.redirect(resolution.status, `${resolution.location}${queryStringOf(req)}`);
+        return;
+      }
+      const finalPage =
+        resolution.kind === "not_found" ? injectNotFoundMeta(page) : injectRouteMeta(page, url);
+      res.status(resolution.status).set({ "Content-Type": "text/html" }).end(finalPage);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
@@ -193,7 +132,17 @@ export function serveStatic(app: Express) {
   // - .woff2/.woff/.ttf → 1 year (fonts are stable)
   // - .json (manifest, robots.txt, etc.) → 1 hour
   // - everything else → 1 day
+  //
+  // `index: false` — 2026-09-07. With the default, a request for "/" was
+  // answered here by index.html as a plain file under that 1-day max-age
+  // (measured live: `Cache-Control: public, max-age=86400` on the home page
+  // for every non-bot visitor), so a deploy could take a day to reach a
+  // returning customer's browser — the exact stale-HTML failure the 2026-05-06
+  // cache fix in the catch-all below already solved for every OTHER route.
+  // Routing "/" through the catch-all gives the home page the same 5-minute
+  // must-revalidate header and the same registry meta injection as the rest.
   app.use(express.static(distPath, {
+    index: false,
     maxAge: "1d",
     setHeaders: (res, filePath) => {
       const ext = path.extname(filePath).toLowerCase();
@@ -211,6 +160,10 @@ export function serveStatic(app: Express) {
   }));
 
   // fall through to index.html if the file doesn't exist — inject route-specific meta tags for SEO
+  const indexPath = path.resolve(distPath, "index.html");
+  const spaFallback = createSpaFallbackHandler({
+    readIndexHtml: () => fs.readFileSync(indexPath, "utf-8"),
+  });
   app.use("*", (req, res) => {
     // 2026-05-24 · defensive · never serve index.html for an asset
     // request that fell through · pre-fix any /assets/*.css or
@@ -233,21 +186,12 @@ export function serveStatic(app: Express) {
       return;
     }
 
-    const indexPath = path.resolve(distPath, "index.html");
-    let html = fs.readFileSync(indexPath, "utf-8");
-    html = injectRouteMeta(html, req.originalUrl);
-    // 2026-05-06 cache fix · was implicitly inheriting express.static's
-    // 1-day default, meaning new HTML deploys took up to 24h to
-    // propagate to returning visitors. HTML should be short-lived;
-    // it points at hashed asset filenames that ARE long-cached.
-    // 5-min browser + 5-min CDN with must-revalidate = deploy lands
-    // for everyone within 5 minutes max.
-    res
-      .status(200)
-      .set({
-        "Content-Type": "text/html",
-        "Cache-Control": "public, max-age=300, s-maxage=300, must-revalidate",
-      })
-      .end(html);
+    // 2026-09-07 · honest status codes. An unknown path used to get the home
+    // shell with a 200 (a soft 404 — see spaFallback.ts); a case-variant of a
+    // real path used to render as a second copy of it. The decision, the meta
+    // injection and the cache header live in one handler that is exercised
+    // over real HTTP in spaFallback.test.ts — a wildcard mount rewrites
+    // req.path to "/", which a pure-function test cannot catch.
+    spaFallback(req, res);
   });
 }

@@ -139,8 +139,8 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             Get directions →
           </a>
 
-          <p className="mt-6 text-[12px] text-foreground/40 leading-relaxed">
-            $10 down on tires · 4 financing partners · we text when your car is
+          <p className="mt-6 text-[12px] text-foreground/60 leading-relaxed">
+            $10 down on tires · 4 payment-program partners · we text when your car is
             ready. No appointment needed — never has been.
           </p>
         </div>

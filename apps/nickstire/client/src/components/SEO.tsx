@@ -63,7 +63,12 @@ export function SEOHead({
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
     // 2026-05-06 wave-16 · default OG image is the full-sign storefront
     // shot for social/messaging shares — strongest first-impression visual.
-    const defaultOgImage = ogImage || `${BASE_URL}/photos/shop-exterior-hero-wide-sign-bays.webp`;
+    // 2026-09-07 · same photo, but as /og-image.jpg: a 1200x630 JPEG. Link
+    // preview bots (facebookexternalhit, Twitterbot, LinkedIn, iMessage) read
+    // the PRERENDERED page, i.e. this tag, not index.html's — and a 1672x941
+    // WebP is cropped by the 1.91:1 card and not decoded by every previewer.
+    // Keep this in step with index.html's og:image.
+    const defaultOgImage = ogImage || `${BASE_URL}/og-image.jpg`;
 
     // Title
     document.title = title;

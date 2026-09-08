@@ -841,6 +841,29 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   const shopFloor = (stats as (AdminDashboardStats & { shopFloor?: ShopFloorData }) | undefined)?.shopFloor;
 
+  // 2026-09-07 · the writer was fixed first: a failed shop-floor read now lands
+  // "shopFloor" in `_unavailableCounts` (server/admin-stats.ts) instead of
+  // silently leaving the all-zero default. This consumer never looked at that
+  // list, so the fix rendered exactly as before — "$0 revenue · 0% pace · SLOW
+  // DAY" on a dead read. Unknown is not zero; say so.
+  const unavailableCounts =
+    (stats as (AdminDashboardStats & { _unavailableCounts?: string[] }) | undefined)?._unavailableCounts;
+  if (unavailableCounts?.includes("shopFloor")) {
+    return (
+      <div className="bg-muted/20 border border-border p-4" data-testid="shop-pulse-unavailable">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[13px] font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+            Shop floor · unknown
+          </span>
+        </div>
+        <div className="mt-2 text-[11px] text-foreground/60">
+          The shop-floor read failed on the server, so today&apos;s revenue, jobs and pace are unknown — not zero.
+          Retry in a minute; if it persists, check the ALG mirror.
+        </div>
+      </div>
+    );
+  }
+
   if (!shopFloor) return null;
 
   const revenueToday = Math.round(Number(shopFloor.revenueToday || 0));

@@ -19,19 +19,19 @@ interface Props {
   pageName?: string;
   /** Additional schema properties to merge */
   additionalSchema?: Record<string, unknown>;
-  /** Include HowTo schemas (default: false, enable on homepage/services) */
-  includeHowTo?: boolean;
   /** Include Review schemas (default: false, enable on homepage/reviews) */
   includeReviews?: boolean;
-  /** Include Service schemas (default: false, enable on homepage/services) */
-  includeServices?: boolean;
+  // `includeHowTo` and `includeServices` were removed 2026-09-07. Neither was
+  // ever read: no HowTo node has been emitted anywhere (repo-wide grep for
+  // "@type": "HowTo" = 0 files) and hasOfferCatalog is emitted unconditionally
+  // below. Five call sites passed them believing they did something; Google
+  // retired the HowTo rich result on 2023-09-13 anyway. A prop that promises a
+  // schema and emits nothing is a lie the next reader has to disprove.
 }
 
 export default function LocalBusinessSchema({
   additionalSchema,
-  includeHowTo = false,
   includeReviews = false,
-  includeServices = false,
 }: Props) {
   // Derive opening hours from the single source of truth so the schema can't
   // drift from BUSINESS.hours (structured values are "HH:MM-HH:MM").
@@ -254,13 +254,15 @@ export default function LocalBusinessSchema({
       {/* wave-145 — removed 3 <link rel="alternate" type="application/ld+json">
           entries. Google does NOT recognize this pattern (only inline
           <script type="application/ld+json"> or src-loaded scripts count for
-          structured data discovery), AND the referenced files
-          (/howto-schemas.json, /reviews-schema.json, /services-schema.json)
-          don't exist in public/ anyway — they 404 silently. Pure dead code.
-          If we ever want supplemental schema graphs, inline them into the
-          main script block above or emit them as separate inline <script>
-          tags per page. The includeHowTo/includeReviews/includeServices
-          props remain reserved for future use. */}
+          structured data discovery). The referenced files
+          (/howto-schemas.json, /reviews-schema.json, /services-schema.json,
+          plus /business-data.json) DID still exist in client/public/ — this
+          comment claimed they 404'd, they served 200 — and had drifted from
+          canon (city "Euclid", 1,700 self-reported reviews, generic-named
+          review quotes). Deleted 2026-09-07; this component is the one
+          structured-data source. If we ever want supplemental schema graphs,
+          inline them into the main script block above or emit them as
+          separate inline <script> tags per page. */}
     </>
   );
 }

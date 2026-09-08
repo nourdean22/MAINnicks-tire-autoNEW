@@ -87,26 +87,41 @@ function CityNavbar({ city }: { city: CityData }) {
 
 // ─── CITY SCHEMA ──────────────────────────────────────
 // Outputs three JSON-LD blocks:
-//   1. AutoRepair LocalBusiness — establishes the entity + reviews
+//   1. AutoRepair LocalBusiness — a reference to the ONE canonical entity (@id)
 //   2. BreadcrumbList — gives Google a structural trail (rich snippet)
-//   3. FAQPage — surfaces FAQ answers as expandable rich snippets in SERP
+//   3. FAQPage — Google retired the FAQ rich result for all sites on
+//      2026-05-07 (Search Central changelog); kept because the markup is
+//      harmless and mirrors visible page content, not for a SERP effect
 //
 // Three separate <script> tags is preferred over @graph; Google parses each
 // independently and one failing won't tank the others.
 function CitySchema({ city }: { city: CityData }) {
+  // 2026-09-07 · references the ONE canonical LocalBusiness (@id) instead of
+  // minting a second rated AutoRepair entity per city page — the same repair
+  // NeighborhoodPage.tsx already carries. Until now each of the 21 city pages
+  // emitted a differently-named node ("… — Serving X") with an unconditional
+  // aggregateRating, TWICE (here and inside the Service.provider below): a
+  // self-serving rating on a duplicate entity, on pages that show no reviews.
+  // Google's review-snippet doc: an entity that "controls the reviews about
+  // itself" is ineligible for stars on LocalBusiness/Organization markup, and
+  // "Don't mark up content that is not visible to readers of the page." The
+  // rating lives once, on the canonical entity, where reviews are rendered
+  // (Home + Reviews). areaServed carries the locality.
+  const localBusinessId = `${BUSINESS.urls.website}/#localbusiness`;
   const businessSchema = {
     "@context": "https://schema.org",
     "@type": "AutoRepair",
-    name: `Nick's Tire & Auto — Serving ${city.name}`,
+    "@id": localBusinessId,
+    name: BUSINESS.name,
     description: city.metaDescription,
-    url: `https://nickstire.org/${city.slug}`,
+    url: BUSINESS.urls.website,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     address: {
       "@type": "PostalAddress",
       streetAddress: BUSINESS.address.street,
-      addressLocality: "Cleveland",
-      addressRegion: "OH",
-      postalCode: "44112",
+      addressLocality: BUSINESS.address.city,
+      addressRegion: BUSINESS.address.state,
+      postalCode: BUSINESS.address.zip,
       addressCountry: "US",
     },
     areaServed: {
@@ -116,11 +131,6 @@ function CitySchema({ city }: { city: CityData }) {
         "@type": "State",
         name: "Ohio",
       },
-    },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(BUSINESS.reviews.rating),
-      reviewCount: String(BUSINESS.reviews.count),
     },
     hasMap: BUSINESS.urls.googleBusiness,
     sameAs: [...BUSINESS.sameAs],
@@ -191,24 +201,12 @@ function CitySchema({ city }: { city: CityData }) {
             name: `Auto Repair Near ${city.name}`,
             description: city.metaDescription,
             serviceType: "Auto Repair",
+            // A reference to the canonical entity above, not a second copy of
+            // it with its own rating (see the CitySchema note).
             provider: {
               "@type": "AutoRepair",
-              name: "Nick's Tire & Auto",
-              telephone: `+1-${BUSINESS.phone.dashed}`,
-              url: `https://nickstire.org/${city.slug}`,
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: BUSINESS.address.street,
-                addressLocality: "Cleveland",
-                addressRegion: "OH",
-                postalCode: "44112",
-                addressCountry: "US",
-              },
-              aggregateRating: {
-                "@type": "AggregateRating",
-                ratingValue: String(BUSINESS.reviews.rating),
-                reviewCount: String(BUSINESS.reviews.count),
-              },
+              "@id": localBusinessId,
+              name: BUSINESS.name,
             },
             areaServed: {
               "@type": "City",
