@@ -81,8 +81,11 @@ jobs:
           # Newest commit on main, older than the grace window, that touched what
           # the statenour-web image is built from.
           cutoff="$(date -u -d "-${GRACE_MINUTES} minutes" +%s)"
+          # awk must CONSUME the whole stream: an early `exit` closes the pipe,
+          # git log dies with SIGPIPE, and under `pipefail` the step reports
+          # exit 141 instead of a verdict (run 34175670920, 2026-09-08).
           sha="$(git log origin/main --format='%H %ct' -- apps/statenour packages pnpm-lock.yaml pnpm-workspace.yaml package.json apps/statenour/Dockerfile \
-                 | awk -v c="$cutoff" '$2 <= c { print $1; exit }')"
+                 | awk -v c="$cutoff" '!found && $2 <= c { print $1; found = 1 }')"
           if [ -z "$sha" ]; then
             echo "::warning::no statenour-affecting commit older than ${GRACE_MINUTES} min on main — nothing to compare"
             sha="none"
