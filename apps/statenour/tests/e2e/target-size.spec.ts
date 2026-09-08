@@ -17,9 +17,14 @@ import { test, expect } from "@playwright/test";
  * Known positives before the change (measured live in Chrome, 2026-09-08):
  * horizon links 20px, Accept 36, Dismiss 36, send 40, Morning brief 40,
  * mission move buttons 32px wide, capability badge 32px; html had no
- * scroll padding.
+ * scroll padding. First CI run of the 44px floor caught two more, only
+ * rendered by the empty hermetic database: the "system healthy" state pill
+ * (32px) and the empty-deck "Ask Nick for Recommendations" button (32px).
  */
 const PAGES = ["/", "/missions", "/chat"] as const;
+// The hermetic CI database renders these three pages short at 390x844 (nothing below the
+// fold), so the focus probe also walks pages whose length does not depend on data.
+const FOCUS_PAGES = ["/", "/missions", "/chat", "/system", "/settings", "/journal"] as const;
 
 type Small = { kind: string; label: string; w: number; h: number };
 
@@ -99,7 +104,7 @@ for (const path of PAGES) {
 
 test("focus scrolls a below-the-fold control clear of the bottom chrome — and under it without the scroll padding (control)", async ({ page }) => {
   let exercised = 0;
-  for (const path of PAGES) {
+  for (const path of FOCUS_PAGES) {
     await open(page, path);
     const r = await page.evaluate(focusProbe);
     if ("skipped" in r) continue;
