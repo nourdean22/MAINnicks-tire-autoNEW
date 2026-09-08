@@ -12,10 +12,10 @@ Evidence classes: **A** verified current code at the pinned SHA · **B** verifie
 
 | Slice | Branch / PR | Status |
 |---|---|---|
-| This plan + ADR-0017 + UPSTREAMS rows | `docs/camera-vision-master-plan` | written 2026-09-08 |
-| Cloud fixes (P0 device lookup, day boundary, silent-zero cockpit, `getPlates`, quiet hours, heartbeat sentinel, route-level tests) | `statenour/camera-arrival-p0` | see PR link when landed |
+| This plan + ADR-0017 + UPSTREAMS rows | `docs/camera-vision-master-plan` | PR #2223 (`d311b499a`) |
+| Cloud fixes (P0 device lookup, day boundary, silent-zero cockpit, `getPlates`, quiet hours, heartbeat sentinel, plate->customer link, route-level tests) | `statenour/camera-arrival-p0` | PR #2222 (`94d2307e7`), CI pending |
 | Edge v2 (`camera-bridge/` rewrite: visit state machine, SQLite ledger/outbox, Frigate 0.17.2 config, mqtt auth, replay harness, unit tests) | `chore/camera-bridge-v2` | see PR link when landed |
-| nickstire `vehicle_lookup_by_plate` bridge action + plate index migration (hand-applied) | `nickstire/vehicle-lookup-by-plate` | see PR link when landed |
+| nickstire `vehicle_lookup_by_plate` bridge action (memberships plates; no migration needed) | `nickstire/vehicle-lookup-by-plate` | PR #2221 (`919e196b8`), CI pending |
 | Typed visit ledger (`vehicle_visits`, `visit_events`, `visit_zone_intervals`) | Phase 3, after first 7 days of real data | designed in section 7, not coded |
 
 ---
