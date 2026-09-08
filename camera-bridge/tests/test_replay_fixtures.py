@@ -24,7 +24,8 @@ class ReplayFixtureTest(unittest.TestCase):
         self.assertTrue(conf_est.estimated)
         self.assertFalse(conf_real.estimated)
         self.assertEqual(conf_real.priority, "high")
-        self.assertEqual(left.at, T0 + 309.0)
+        self.assertTrue(left.estimated)  # the `end` at T0+309 starts the grace; LEFT is the first tick at/after T0+329
+        self.assertEqual(left.at, T0 + 329.0)
         self.assertAlmostEqual(left.zone_dwell["front_lot"], 305.4)
         self.assertEqual(left.plate["status"], "CONFIRMED")
         self.assertEqual(left.plate["normalizedText"], "ABC1234")

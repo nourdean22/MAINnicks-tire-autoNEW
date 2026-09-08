@@ -39,7 +39,11 @@ def build_event(
     zone_names: Dict[str, str],
     frigate_version: str,
 ) -> Dict[str, object]:
-    """Render one Emission as a v2 contract payload."""
+    """Render one Emission as a v2 contract payload.
+
+    `data.metadata` always carries direction, frigateStartTime, frigateEndTime, snapshotRef, bridgeVersion and
+    frigateVersion; `mergedIntoVisitId` (plate merge) and `continuesVisitId` (max-age continuation) only when set.
+    """
     plate = dict(emission.plate)
     plate["provider"] = PLATE_PROVIDER
     metadata: Dict[str, object] = {
@@ -52,6 +56,8 @@ def build_event(
     }
     if emission.merged_into:
         metadata["mergedIntoVisitId"] = emission.merged_into
+    if emission.continues_visit_id:
+        metadata["continuesVisitId"] = emission.continues_visit_id
     return {
         "schemaVersion": SCHEMA_VERSION,
         "event": EVENT_NAME,

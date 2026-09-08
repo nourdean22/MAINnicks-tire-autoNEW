@@ -54,7 +54,7 @@ def tracker(**overrides: object) -> VisitTracker:
     return VisitTracker(policy(**overrides), cameras(), id_factory=Ids())
 
 
-def ev(
+def event_payload(
     kind: str,
     oid: str,
     at: float,
@@ -69,8 +69,8 @@ def ev(
     sub_label: Optional[str] = None,
     label: str = "car",
     score: float = 0.85,
-) -> FrigateEvent:
-    """Build a parsed frigate/events message."""
+) -> dict:
+    """Build a raw frigate/events payload (what the MQTT message carries)."""
     after = {
         "id": oid, "camera": camera, "label": label, "score": score, "top_score": max(score, 0.9),
         "frame_time": at, "start_time": start if start is not None else at, "end_time": end, "box": list(box),
@@ -78,7 +78,12 @@ def ev(
         "current_zones": list(zones), "entered_zones": list(zones),
         "recognized_license_plate": plate, "recognized_license_plate_score": plate_score, "sub_label": sub_label,
     }
-    return parse_event({"type": kind, "before": {}, "after": after})
+    return {"type": kind, "before": {}, "after": after}
+
+
+def ev(kind: str, oid: str, at: float, zones: Sequence[str] = (), **kwargs: object) -> FrigateEvent:
+    """Build a parsed frigate/events message (same keywords as event_payload)."""
+    return parse_event(event_payload(kind, oid, at, zones, **kwargs))  # type: ignore[arg-type]
 
 
 def lpr(oid: str, plate: str, score: float, at: float, camera: str = "lot") -> LprUpdate:
@@ -86,6 +91,14 @@ def lpr(oid: str, plate: str, score: float, at: float, camera: str = "lot") -> L
     parsed = parse_tracked_object_update({"type": "lpr", "id": oid, "plate": plate, "score": score, "camera": camera, "timestamp": at})
     assert parsed is not None
     return parsed
+
+
+class FakeMqttMessage:
+    """The two paho MQTTMessage attributes MqttClient._on_message reads."""
+
+    def __init__(self, topic: str, payload: bytes) -> None:
+        self.topic = topic
+        self.payload = payload
 
 
 def states(emissions: Sequence[Emission]) -> List[str]:

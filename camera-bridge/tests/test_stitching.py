@@ -33,7 +33,8 @@ class SplitTrackTest(unittest.TestCase):
         self.assertEqual(out, [])  # re-entry restores CONFIRMED_ARRIVAL, no new ENTERED_ZONE
         self.assertEqual(t.open_visits()[0].state, CONFIRMED_ARRIVAL)
         t.handle_event(ev("update", "B", T0 + 120.0, [], start=T0 + 63.0, box=(900, 340, 1150, 560)))
-        left = t.handle_event(ev("end", "B", T0 + 123.0, [], start=T0 + 63.0, end=T0 + 123.0))
+        self.assertEqual(t.handle_event(ev("end", "B", T0 + 123.0, [], start=T0 + 63.0, end=T0 + 123.0)), [])
+        left = ticks(t, T0 + 123.0, T0 + 148.0)  # LEFT after the grace, never on the `end` itself
         self.assertEqual(states(left), [LEFT])
         self.assertEqual(left[0].visit_id, visit.visit_id)
         self.assertAlmostEqual(left[0].zone_dwell["front_lot"], 59.0 + 56.4)
@@ -106,6 +107,38 @@ class PlateTest(unittest.TestCase):
         self.assertIn("S", v1.sightings)
         self.assertEqual(out[0].plate["status"], "CANDIDATE")  # tombstone carries the absorbed visit's own single read
         self.assertEqual(plate_summary(v1.reads(), t.policy)["status"], "CONFIRMED")  # 0.96 + 0.9 agreeing reads
+
+    def test_plate_and_sub_label_on_one_snapshot_reparent_a_split_track_sighting_once(self) -> None:
+        """P0 regression: Frigate sets recognized_license_plate AND sub_label on the same object, so one
+        snapshot yields two reads; the second read must see the sighting's NEW visit, not the stale source
+        (which raised KeyError in _move_sighting and dropped every later message for that object)."""
+        t = tracker()
+        t.handle_event(ev("new", "A1", T0))
+        t.handle_event(ev("update", "A1", T0 + 1.0, ["front_lot"]))
+        t.handle_event(ev("update", "A1", T0 + 12.0, ["front_lot"], stationary=True))
+        t.handle_event(ev("update", "A1", T0 + 46.0, ["front_lot"], stationary=True))
+        self.assertEqual(t.handle_event(ev("end", "A1", T0 + 60.0, ["front_lot"], stationary=True, end=T0 + 60.0)), [])
+        src = t.open_visits()[0]
+        self.assertEqual(t.handle_event(ev("new", "A2", T0 + 63.0, start=T0 + 63.0, box=(405, 302, 702, 522))), [])
+        self.assertEqual(t.counters["split_joins"], 1)
+        self.assertEqual(set(src.sightings), {"A1", "A2"})
+        t.handle_event(ev("new", "S", T0 + 64.0, camera="sign", start=T0 + 64.0))
+        t.handle_event(ev("update", "S", T0 + 64.5, ["bay_entrance"], camera="sign", start=T0 + 64.0, plate="ABC1234", plate_score=0.75))
+        self.assertEqual(len(t.open_visits()), 2)
+        dst = next(v for v in t.open_visits() if v.visit_id != src.visit_id)
+        out = t.handle_event(
+            ev("update", "A2", T0 + 65.0, ["front_lot"], start=T0 + 63.0, box=(405, 302, 702, 522), plate="ABC1234", plate_score=0.8, sub_label="ABC1234")
+        )
+        self.assertEqual(states(out), [])
+        holders = [v.visit_id for v in t.open_visits() for sid in v.sightings if sid == "A2"]
+        self.assertEqual(holders, [dst.visit_id])  # exactly once, in dst
+        self.assertEqual(set(src.sightings), {"A1"})
+        self.assertIsNone(src.merged_into)
+        self.assertEqual(t.counters["plate_joins"], 1)
+        self.assertEqual(len(t.open_visits()), 2)
+        # the object keeps flowing into its new visit on later frames
+        self.assertEqual(states(t.handle_event(ev("update", "A2", T0 + 66.0, ["front_lot"], start=T0 + 63.0, box=(405, 302, 702, 522)))), [])
+        self.assertEqual(dst.sightings["A2"].last_frame_time, T0 + 66.0)
 
     def test_conflicting_high_confidence_plates_are_hard_rejected(self) -> None:
         t = tracker()

@@ -10,25 +10,32 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from .config import MqttConfig
 from .metrics import MetricsRegistry
 
 log = logging.getLogger("visitd.mqtt")
 
-InboxItem = Tuple[str, bytes, float]
+InboxItem = Tuple[str, bytes, float]  # (topic, payload, monotonic receipt time)
+
+DROP_WARNING_INTERVAL_SECONDS = 60.0
 
 
 class MqttClient:
     """Thin wrapper over paho with VERSION2 callbacks and auto-reconnect."""
 
-    def __init__(self, cfg: MqttConfig, inbox: "queue.Queue[InboxItem]", metrics: MetricsRegistry) -> None:
+    def __init__(
+        self, cfg: MqttConfig, inbox: "queue.Queue[InboxItem]", metrics: MetricsRegistry, clock: Callable[[], float] = time.monotonic
+    ) -> None:
         self.cfg = cfg
         self.inbox = inbox
         self.metrics = metrics
+        self._clock = clock
         self._connected = threading.Event()
         self._client: Optional[Any] = None
+        self._drops_since_warning = 0
+        self._next_drop_warning_at: Optional[float] = None
 
     @property
     def connected(self) -> bool:
@@ -88,9 +95,19 @@ class MqttClient:
         log.warning("mqtt disconnected reason=%s", reason_code)
 
     def _on_message(self, client: Any, userdata: Any, msg: Any) -> None:
-        """Enqueue only; never parse, never block."""
+        """Enqueue only; never parse, never block. The monotonic receipt time travels with the message so the
+        main thread measures elapsed time from receipt even when it drains a backlog late."""
+        now = self._clock()
         try:
-            self.inbox.put_nowait((msg.topic, bytes(msg.payload), time.time()))
+            self.inbox.put_nowait((msg.topic, bytes(msg.payload), now))
             self.metrics.inc("visitd_mqtt_messages_total")
         except queue.Full:
             self.metrics.inc("visitd_mqtt_dropped_total")
+            self._drops_since_warning += 1
+            if self._next_drop_warning_at is None or now >= self._next_drop_warning_at:
+                log.warning(
+                    "mqtt inbox full (queueMax=%s) dropped=%s since the last warning; the main thread is not keeping up",
+                    self.cfg.queue_max, self._drops_since_warning,
+                )
+                self._drops_since_warning = 0
+                self._next_drop_warning_at = now + DROP_WARNING_INTERVAL_SECONDS

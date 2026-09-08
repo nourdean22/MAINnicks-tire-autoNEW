@@ -7,7 +7,7 @@ Frigate's MQTT stream into deterministic **visits** and ships idempotent events 
 ```
 SHOP LAN (camera VLAN later)                                              CLOUD
 +-----------+  RTSP   +--------------------+  MQTT (user/pass)  +-------------------+  HTTPS x-sync-key  +--------------------+
-| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.0.0      |------------------->| statenour-web      |
+| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.1.2      |------------------->| statenour-web      |
 | lot       |         |  go2rtc restream   | frigate/events     |  frigate_events   | POST /api/devices/ |  handleVehicleEvent|
 | PoE cam B |-------->|  native LPR        | frigate/tracked_   |  state_machine    |   {id}/events      |  Telegram + push   |
 | sign/LPR  |         |  zones/review/rec  |  object_update     |  ledger (SQLite)  | PATCH /api/devices/|  /system/camera    |
@@ -78,7 +78,9 @@ the full VLAN build later.
 2. Same copies as section 3 steps 1-3 (use `cp`); keep `ov` (OpenVINO GPU) and `preset-vaapi`.
 3. `docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d` ; verify `docker compose logs frigate | grep -i openvino`.
 4. Camera VLAN with WAN egress denied; NTP from the router; UPS; Frigate 8971 only via Tailscale ACL.
-5. `curl -s 127.0.0.1:9090/metrics` on the box shows the visitd counters; the cockpit gets them through the heartbeat.
+5. `curl -s 127.0.0.1:9090/metrics` on the box shows the visitd counters (the compose file sets
+   `VISITD_METRICS_HOST=0.0.0.0` inside the container so the loopback-published port reaches it; `metrics.host` in
+   `config.yaml` stays `127.0.0.1` for host runs); the cockpit gets them through the heartbeat.
 
 ## 5. Mosquitto bootstrap (passwords)
 
@@ -120,10 +122,18 @@ States: `DETECTED` (not sent) -> `ENTERED_ZONE` -> `ARRIVAL_CANDIDATE` (10 s in 
 `CONFIRMED_ARRIVAL` (45 s, or stationary >= 20 s; priority high) -> `IN_SERVICE` (bay zone) -> `DEPARTING` (not sent,
 20 s grace) -> `LEFT`; `PASS_THROUGH` when it left before ever being a candidate (priority low). Tick-driven promotions
 carry `estimated: true` and are re-sent with `estimated: false` on the next Frigate message for that visit.
+A Frigate `end` never emits `LEFT` by itself: the visit goes `DEPARTING` and `LEFT` / `PASS_THROUGH` follows once the
+20 s grace (>= `splitTrackSeconds`) passes without a split track or topology hop rejoining it, tick-driven and
+therefore always `estimated: true`.
 
 Identity, in order: same-camera track split (<= 10 s, IoU >= 0.5) - plate match to an open visit (hard reject when two
 >= 0.9 reads differ by Levenshtein >= 2) - `topology` hop (`sign -> lot` within 1-90 s) - else a new `visitId` (UUID).
 A visit absorbed by a plate match after it already emitted gets a final `LEFT` with `metadata.mergedIntoVisitId`.
+A visit closed by the grace after a `maxSightingSeconds` force-end is never resurrected: when Frigate updates the
+same object id again (the car never moved) the new `visitId` carries `metadata.continuesVisitId` = the closed one on
+every emission, its `CONFIRMED_ARRIVAL` is priority `normal` instead of `high`, and
+`visitd_tracker_max_age_continuations_total` counts it (map of closed ids: TTL `maxSightingSeconds`, 1000 entries,
+rebuilt from the ledger on restart).
 
 Event: `eventId = sha1(visitId|state|seq)` (cloud dedupes), `timestamp` from `frame_time`, `data.plate.status` in
 NONE / UNREADABLE / CANDIDATE / CONFIRMED, `data.metadata.snapshotRef = events/<sightingId>/snapshot.jpg`
@@ -132,8 +142,9 @@ NONE / UNREADABLE / CANDIDATE / CONFIRMED, `data.metadata.snapshotRef = events/<
 ## 9. Service install (Windows lab only)
 
 `powershell -File scripts/install-windows-service.ps1` registers a Scheduled Task as the **current user** at logon
-(auto-restart every minute, log in `logs\visitd.log`). `-RunAsSystem` opts into SYSTEM at startup from an elevated
-shell; `-Uninstall` removes it; `-DryRun` prints the plan. Production runs under Docker Compose with
+(auto-restart every minute, log in `logs\visitd.log`) that runs a generated `visitd-task.cmd` wrapper (re-run the
+installer after moving the tree). `-RunAsSystem` opts into SYSTEM at startup from an elevated shell; `-Uninstall`
+removes task and wrapper; `-DryRun` prints the plan. Production runs under Docker Compose with
 `restart: unless-stopped`; nothing on Windows is production.
 
 ## 10. Metrics and heartbeats
@@ -158,8 +169,10 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 | `cloud dropped ... reason=http_404` | `cloudDeviceId` is not a statenour `platformDeviceId` | check `smart_devices.platform_device_id`; the cloud resolves id OR platformDeviceId since PR `statenour/camera-arrival-p0` |
 | `cloud blocked reason=missing_sync_key` | key not in env | events wait in the outbox (max 5000); set the key and restart |
 | events stuck, `visitd_outbox_depth` grows, `cloud retry ... status=0` | WAN down / DNS | nothing to do; flushes in order on reconnect, cloud dedupes by `eventId` |
+| `cloud dead-lettered event_id=...` | the cloud answered ONE event with an HTTP error (5xx/429) `outboxMaxAttempts` times: a poison payload | delivery moves on; the row waits 7 days in the ledger's `dead_letter` table (`sqlite3 data/visitd.sqlite "select event_id,last_status,last_error from dead_letter"`); `deadLetterDepth` is in the heartbeat |
+| `outbox full ... refused event_id=...` | outbox at `outboxMaxDepth` with only OPEN visits queued (nothing terminal to evict) | the row is dropped and counted (`visitd_outbox_refused_total`); fix whatever stalls delivery (the `cloud retry` lines above it) |
 | visit never becomes CONFIRMED | zone not in `arrivalZones`, or the zone polygon never triggers (draw it in the UI) | `docker compose logs visitd | grep transition`; check `current_zones` in `frigate/events` with `mosquitto_sub` |
-| parked car never LEFT | expected: stationary objects keep the visit open until Frigate `end` (no time-based purge) | if Frigate ended it inside the zone, LEFT follows 20 s later (`estimated: true`) |
+| parked car never LEFT | expected: stationary objects keep the visit open until Frigate `end` (no time-based purge before `maxSightingSeconds`) | after the `end` LEFT follows 20 s later (`estimated: true`), whether the track ended inside or outside the zone |
 | `LEFT` arrives with `estimated: true` and a still-alive track | grace expired while the car sat outside every zone | normal; re-entry later starts a new visit |
 | `ignored_unknown_camera` climbs | Frigate camera name missing from `config.yaml` `cameras` | add it (the `replay` camera too) |
 | metrics port busy | another visitd on the host | change `metrics.port` |
@@ -172,7 +185,7 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 |---|---|---|
 | E1 | ingest URL embedded the id; heartbeat URL derived by string replace | `cameras.<name>.cloudDeviceId` -> `POST /api/devices/{id}/events` and `PATCH /api/devices/{id}` built by `cloud_client.events_url/device_url` |
 | E2 | relative zone coordinates on Frigate 0.13.2 (pixel zones) + `rtmp` role | Frigate pinned `0.17.2`; zones relative by design; go2rtc restream, `detect`/`record` roles |
-| E3 | `current_zones[0]` on every `end` -> `IndexError` | LEFT uses the sighting's last known zone; `tests/test_state_machine.py::test_end_with_empty_current_zones_emits_left_from_last_known_zone` |
+| E3 | `current_zones[0]` on every `end` -> `IndexError` | LEFT uses the sighting's last known zone; `tests/test_state_machine.py::test_end_with_empty_current_zones_enters_departing_and_left_follows_after_the_grace_from_the_last_known_zone` |
 | E4 | dwell = wall clock since first MQTT message, zones ignored | zone intervals on `frame_time`, union per zone, arrival dwell = union of arrival zones |
 | E5 | CONFIRMED after 2 s | candidate 10 s, confirmed 45 s or stationary >= 20 s, all in `config.yaml` |
 | E6 | HTTP retries + `time.sleep` inside the paho callback thread | paho callback only enqueues; `CloudClient` worker thread + SQLite outbox with exponential backoff |
@@ -184,3 +197,35 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 | E12 | default plate provider `mock` returning `NICKS1` | provider is always `frigate_lpr`; no mock anywhere; `--dry-run` only changes where events go |
 | E13 | service as `NT AUTHORITY\SYSTEM` | current user by default, `-RunAsSystem` opt-in, lab only |
 | E14 | dormant `local-agent/v380_agent.py` | statenour follow-up PR deletes it once the v2 heartbeat is live (not part of this tree) |
+
+### v2.1 (review round 2)
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | a plate read re-parented a sighting mid-snapshot; the next read used the stale visit (`KeyError`, every later message for that object dropped) | `_apply_snapshot` re-resolves the visit after each read; `tests/test_stitching.py::test_plate_and_sub_label_on_one_snapshot_reparent_a_split_track_sighting_once` |
+| 2 | sightings Frigate would never `end` (its registry lost on restart, runaway track) stayed open forever | force-end on `frigate/available` offline -> online and after `maxSightingSeconds`; `visitd_tracker_force_ended_total{reason}` |
+| 3 | one poison payload wedged the outbox behind endless 5xx retries | parked in the `dead_letter` table after `outboxMaxAttempts` HTTP failures (transport failures never count); `deadLetterDepth` in the heartbeat |
+| 4 | the ledger grew without bound | hourly housekeeping: terminal visits past `ledger.retentionDays`, dead letters after 7 days, then a WAL checkpoint |
+| 5 | the outbox cap evicted the oldest ROWS, so the cloud could receive a LEFT for a visit whose arrival was thrown away | eviction by WHOLE terminal visit, oldest first; when only open visits are queued the new row is refused and counted (`visitd_outbox_refused_total`) |
+| 6 | a step's outbox rows and its visit update were two transactions; a crash between them reloaded the visit one seq behind its queued events | `Ledger.commit_step`: visits and outbox rows in one BEGIN/COMMIT |
+| 7 | paho queued `time.time()` and the main thread stamped `time.monotonic()` at dequeue: elapsed time understated under backpressure | the monotonic receipt time travels with the message (`Pipeline.process_inbox_item`) |
+| 8 | inbox-full drops only bumped a counter | `mqtt inbox full ... dropped=N` warning at most once per 60 s, carrying the drops since the last one |
+| 9 | `install-windows-service.ps1` interpolated paths into a cmd.exe argument string (`& \| ^ %` unescaped) | generated `visitd-task.cmd` with double-quoted tokens, `%` doubled, newline-bearing paths refused; `-Uninstall` removes it |
+| 10 | `docker-compose.yml` published no visitd port, so section 4 step 5 could not work | `127.0.0.1:9090:9090` on the visitd service (set `metrics.host: 0.0.0.0` in the container's config.yaml) |
+| 11 | a Frigate `end` outside every zone emitted LEFT at once, so rule 1 (split-track stitching within `splitTrackSeconds`) could never fire | `end` -> `DEPARTING`; LEFT / PASS_THROUGH only after the 20 s grace, `estimated: true`; `test_new_track_within_split_window_after_an_end_outside_the_zone_rejoins_the_same_visit` |
+
+### v2.1.1 (review round 3)
+
+| # | Finding | Fix |
+|---|---|---|
+| A | `after_step` drained closed visits from the tracker BEFORE `commit_step`; a failed commit (disk I/O, disk full) rolled the ledger back to the open visit while memory had already forgotten it, so the next restart resurrected a stale visit and the LEFT never reached the cloud | commit first, drain only on success; the closed visits stay buffered (`VisitTracker.closed_visits`) and the step's outbox rows are held, so the next step re-commits the same seq / `eventId`; `log.error` on the failure; `tests/test_main.py::CommitFailureTest` |
+| B | a max-aged track that Frigate kept updating was force-ended again on every later tick; an update gap longer than the leave grace closed the visit and the next update minted a second `visitId` for the same parked car | `maxSightingSeconds` fires once per track (`Sighting.max_age_fired`, persisted); a resurrected track is a real parked car and stays one visit until Frigate ends it; `test_max_age_fires_once_per_track_so_a_resurrected_parked_car_stays_one_visit` |
+| C | under backpressure the live loop processed ONE queued message and then ticked with the current wall clock, so an exit + quick re-entry that were both already queued (received while a heartbeat blocked the loop) split into two visits: the tick emitted LEFT before reading the re-entry | `Pipeline.consume_inbox` drains every queued item in receipt order before the loop ticks; `test_every_queued_message_is_consumed_before_a_tick_so_exit_and_quick_reentry_stay_one_visit` |
+| D | the documented setup copies `config.example.yaml` (`metrics.host: 127.0.0.1`), which inside the container binds only the container's loopback, so the published `127.0.0.1:9090` reached nothing (row 10's manual step was easy to miss) | env `VISITD_METRICS_HOST` overrides `metrics.host`; `docker-compose.yml` sets it to `0.0.0.0` on the visitd service, the file default stays loopback for host runs; `test_env_metrics_host_overrides_the_file` |
+
+### v2.1.2 (review round 4)
+
+| # | Finding | Fix |
+|---|---|---|
+| E | a max-aged track that got no update during the leave grace was closed and its sighting mapping dropped, so the next update for the SAME Frigate object id (still parked, Frigate never sent `end`) minted an unrelated second `visitId` (row B only helped while the update beat the closure) | the tracker remembers max-age-closed sighting ids (TTL `maxSightingSeconds`, 1000 entries, recomputed from the ledger's terminal visits on restart); the terminal visit stays closed, the new visit carries `metadata.continuesVisitId`, its `CONFIRMED_ARRIVAL` is priority `normal`, `visitd_tracker_max_age_continuations_total` counts it; `tests/test_state_machine.py::test_max_age_closed_track_that_updates_again_continues_the_old_visit_without_a_high_alert`, `tests/test_ledger.py::test_max_age_continuation_map_survives_a_restart` |
+| F | `consume_inbox` took messages until the queue was empty, so under sustained ingress it never returned and the tick, heartbeat and housekeeping behind it starved (stationary visits stuck, devices marked OFFLINE while the bridge was busy) | one pass drains what `qsize()` reported once the first item was in hand, capped at `mqtt.inboxBatchMax` (500), then returns so the periodic work runs; the next pass keeps draining in receipt order (row C's guarantee holds for everything queued at entry); `tests/test_main.py::test_consume_inbox_returns_after_the_snapshot_or_the_cap_so_the_periodic_work_runs` |

@@ -18,6 +18,8 @@ class BuildConfigTest(unittest.TestCase):
         self.assertEqual(cfg.backend.base_url, "https://bdnick.info")
         self.assertIsNone(cfg.backend.sync_key)
         self.assertEqual(cfg.backend.outbox_max_depth, 5000)
+        self.assertEqual(cfg.mqtt.inbox_batch_max, 500)
+        self.assertEqual(build_config(dict(MINIMAL, mqtt={"inboxBatchMax": 0}), environ={}).mqtt.inbox_batch_max, 1)
         self.assertEqual(cfg.policy.candidate_seconds, 10.0)
         self.assertEqual(cfg.policy.confirm_seconds, 45.0)
         self.assertEqual(cfg.policy.stationary_confirm_seconds, 20.0)
@@ -38,6 +40,12 @@ class BuildConfigTest(unittest.TestCase):
         self.assertEqual(cfg.backend.sync_key, "k")
         self.assertEqual(cfg.backend.base_url, "https://x.test")
         self.assertEqual(cfg.ledger_path, "/data/x.sqlite")
+
+    def test_env_metrics_host_overrides_the_file(self) -> None:
+        raw = dict(MINIMAL, metrics={"host": "127.0.0.1", "port": 9090})
+        self.assertEqual(build_config(raw, environ={}).metrics_host, "127.0.0.1")  # host runs keep loopback
+        self.assertEqual(build_config(raw, environ={"VISITD_METRICS_HOST": "0.0.0.0"}).metrics_host, "0.0.0.0")  # compose
+        self.assertEqual(build_config(raw, environ={"VISITD_METRICS_HOST": ""}).metrics_host, "127.0.0.1")  # empty = unset
 
     def test_topology_and_zone_names(self) -> None:
         raw = {

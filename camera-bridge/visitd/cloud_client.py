@@ -7,7 +7,10 @@ Retry policy: network errors, 408/425/429 and 5xx retry with exponential
 backoff (never skipping ahead, so order is preserved); any other 4xx is
 permanent - the item is logged and removed so one bad payload cannot wedge
 the queue. 401 additionally names the likely cause (sync key mismatch).
-The sync key is never logged.
+A payload that keeps drawing an HTTP error response is parked in the ledger's
+dead_letter table after outboxMaxAttempts such responses, and delivery moves
+on; transport failures (no response at all: WAN down, DNS) never count, so
+an outage flushes in order once it ends. The sync key is never logged.
 """
 from __future__ import annotations
 
@@ -96,7 +99,7 @@ class CloudClient:
         """Worker loop: deliver while there is work, otherwise wait for a wake-up."""
         while not self._stop.is_set():
             outcome = self.deliver_once()
-            if outcome == "sent":
+            if outcome in ("sent", "dead_lettered"):
                 continue
             wait = self._backoff if outcome == "retry" else 1.0
             self._wake.wait(wait)
@@ -109,7 +112,7 @@ class CloudClient:
         return {"Content-Type": "application/json", "x-sync-key": self.backend.sync_key or ""}
 
     def deliver_once(self) -> str:
-        """Try the oldest outbox item. Returns 'idle', 'sent', 'dropped', 'retry' or 'blocked'."""
+        """Try the oldest outbox item. Returns 'idle', 'sent', 'dropped', 'dead_lettered', 'retry' or 'blocked'."""
         item = self.ledger.outbox_peek()
         if item is None:
             self.metrics.set("visitd_outbox_depth", 0)
@@ -145,8 +148,19 @@ class CloudClient:
             self.metrics.inc("visitd_cloud_dropped_total", labels={"reason": reason})
             self.metrics.set("visitd_outbox_depth", self.ledger.outbox_depth())
             return "dropped"
-        self.ledger.outbox_fail(item.id, f"{status}: {text}", permanent=False)
+        counted = status > 0  # an HTTP error response counts toward the cap; no response at all never does
+        self.ledger.outbox_fail(item.id, f"{status}: {text}", permanent=False, counted=counted)
         self.metrics.inc("visitd_cloud_events_total", labels={"result": "retry"})
+        if counted and item.http_failures + 1 >= self.backend.outbox_max_attempts:
+            self.ledger.outbox_dead_letter(item.id, status, f"{status}: {text}")
+            self.metrics.inc("visitd_outbox_dead_lettered_total")
+            self.metrics.set("visitd_outbox_depth", self.ledger.outbox_depth())
+            log.error(
+                "cloud dead-lettered event_id=%s device=%s status=%s http_failures=%s max_attempts=%s body=%r (queue moves on; see dead_letter table)",
+                item.event_id, item.device_id, status, item.http_failures + 1, self.backend.outbox_max_attempts, text[:120],
+            )
+            self._backoff = self.backend.retry_min_seconds
+            return "dead_lettered"
         log.warning("cloud retry event_id=%s status=%s attempts=%s backoff=%.1fs error=%r", item.event_id, status, item.attempts + 1, self._backoff, text[:120])
         self._backoff = min(self._backoff * 2, self.backend.retry_max_seconds)
         return "retry"
