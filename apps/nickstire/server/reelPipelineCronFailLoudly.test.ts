@@ -57,7 +57,9 @@ describe("the reel-pipeline job handler actually wires the loud-failure check", 
     // provider having credentials, so the old literal no longer exists. The
     // ordering property below is the actual invariant and is unchanged.
     const genIdx = SCHEDULER.indexOf('await settle(processNextReelJob())');
-    const asmIdx = SCHEDULER.indexOf('const asm = await settle(processNextAssemblyJob());');
+    // Anchor updated 2026-09-08: assembly became a per-pulse loop (up to
+    // three, runs BEFORE generation) — the throw must still come after it.
+    const asmIdx = SCHEDULER.indexOf('const a = await settle(processNextAssemblyJob());');
     const repIdx = SCHEDULER.indexOf('const rep = await settle(processNextRepairJob());');
     const throwIdx = SCHEDULER.indexOf('if (reelPipelineCronShouldFailLoudly(gen)) {');
     expect(genIdx).toBeGreaterThan(-1);

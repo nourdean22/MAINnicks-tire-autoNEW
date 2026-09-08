@@ -223,7 +223,10 @@ describe("tier placement · no businessHoursOnly job may sit in the 24h daily ti
 // ───────────────────────────────────────────────────────────────────────
 describe("the once-per-day claim runs INSIDE the cross-dyno lock", () => {
   it("claimOncePerShopDay is called after acquireCronLock, not before", () => {
-    const lockAt = SOURCE.indexOf("const lockResult = await acquireCronLock(job.name)");
+    // Anchor is the call prefix: since 2026-09-08 the call also passes the
+    // per-job lock TTL (`, jobTimeoutMs(job) * 2)`), which this test does
+    // not care about — only the ordering below is the invariant.
+    const lockAt = SOURCE.indexOf("const lockResult = await acquireCronLock(job.name");
     const claimAt = SOURCE.indexOf("job.oncePerShopDay && !(await claimOncePerShopDay(job.name))");
     expect(lockAt).toBeGreaterThan(-1);
     expect(claimAt).toBeGreaterThan(-1);

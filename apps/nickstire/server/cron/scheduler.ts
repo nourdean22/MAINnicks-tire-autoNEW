@@ -84,6 +84,22 @@ interface TieredJob {
   requiresFlag?: string | string[];
   /** Skip if disabled */
   enabled?: boolean;
+  /**
+   * Per-job wall-clock budget for the timeout race below. Default 4 min —
+   * sized for SMS/sync jobs. A job that legitimately runs longer (the reel
+   * pipeline renders 5 clips at ~90s each, ~11 min measured 2026-09-08) MUST
+   * set this, or every pulse is logged `failed: timeout` while the handler
+   * keeps running as a zombie, the observer alerts on a healthy job, and the
+   * lock is held to its TTL for nothing. The cross-dyno lock TTL is derived
+   * from this value (2x) so the double-fire guard stays coherent. Keep it
+   * under the tier interval.
+   */
+  timeoutMs?: number;
+}
+
+const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
+function jobTimeoutMs(job: { timeoutMs?: number }): number {
+  return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
 }
 
 interface Tier {
@@ -396,7 +412,7 @@ async function runTier(tier: Tier): Promise<void> {
     //   held-by-other → another dyno owns it · skip this tick + log
     //   fallback      → cron_locks unavailable · proceed under in-memory
     //                   `tier.running` mutex only (no double-release)
-    const lockResult = await acquireCronLock(job.name);
+    const lockResult = await acquireCronLock(job.name, jobTimeoutMs(job) * 2);
     if (lockResult.status === "held-by-other") {
       skipped++;
       logTierJob(job.name, "skipped", 0, 0, "cross-dyno lock held by another process").catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
@@ -427,7 +443,7 @@ async function runTier(tier: Tier): Promise<void> {
       const result = await Promise.race([
         job.handler(),
         new Promise<never>((_, reject) => {
-          jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, 4 * 60 * 1000);
+          jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, jobTimeoutMs(job));
         }),
       ]) as { recordsProcessed?: number; details?: string };
       completed++;
@@ -1144,6 +1160,11 @@ function buildTiers(): void {
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.
         requiresFlag: "REEL_GENERATION_ENABLED",
+        // Measured 2026-09-08 on prod: one gen job = 5 Higgsfield clips at
+        // ~90 s each = ~11 min. Under the 4-min default every pulse logged
+        // `failed: timeout`, cron-failure-observer paged on a healthy pipeline,
+        // and the lock was held to TTL. 14 min < the 15-min pulse interval.
+        timeoutMs: 14 * 60 * 1000,
         handler: async () => {
           const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs,
                   selectReelVideoProvider, reelProviderCredentialsPresent } = await import(
@@ -1151,7 +1172,7 @@ function buildTiers(): void {
           );
           // Settle each stage independently: a pre-try DB rejection in the gen
           // stage must not skip assembly this pulse (the job simply retries on the
-          // next pulse). Both stages share the same one-job-per-pulse cadence.
+          // next pulse).
           type StageResult = { processed: boolean; jobId?: number; status?: string; error?: string };
           const settle = (p: Promise<StageResult>): Promise<StageResult> =>
             p.catch((e) => ({ processed: true, status: "error", error: e instanceof Error ? e.message : String(e) }));
@@ -1160,6 +1181,19 @@ function buildTiers(): void {
           const recovered = await recoverStuckReelJobs()
             .then((r) => r.recovered)
             .catch(() => 0);
+          // ASSEMBLY RUNS BEFORE GENERATION, up to three jobs per pulse. Assembly
+          // is ~1 min of ffmpeg over clips that already exist; generation is
+          // ~11 min of paid rendering. When gen ran first, every finished-clip
+          // job waited a full gen behind it (three assets_ready jobs sat with
+          // attempts=0 across two pulses on 2026-09-08). Finished work ships
+          // first; the loop stops at the first "nothing to assemble".
+          const ASSEMBLY_PER_PULSE = 3;
+          const asms: StageResult[] = [];
+          for (let i = 0; i < ASSEMBLY_PER_PULSE; i++) {
+            const a = await settle(processNextAssemblyJob());
+            if (!a.processed) break;
+            asms.push(a);
+          }
           // GENERATION IS GUARDED BY THE *ACTIVE* PROVIDER, not by requiresEnv.
           //
           // Self-audit catch before merge, 2026-09-07. The requiresEnv gate on
@@ -1192,15 +1226,14 @@ function buildTiers(): void {
           }
           const { processNextRepairJob } = await import("../services/selectiveRepair");
           const rep = await settle(processNextRepairJob());
-          const asm = await settle(processNextAssemblyJob());
           const details = [
             recovered ? `recovered ${recovered}` : null,
+            ...asms.map((a) => `assemble ${a.jobId ?? "?"}: ${a.status}`),
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
-            asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
             rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
           const result = {
-            recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0) + (rep.processed ? 1 : 0),
+            recordsProcessed: recovered + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
           // Assembly/repair have already run above — this re-throws AFTER them,
@@ -2914,7 +2947,7 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
       // path and can race against the scheduler-fired run of the same
       // job. Without the lock the operator pressing "Run Now" while the
       // tier was mid-firing the same job → double-fire.
-      const lockResult = await acquireCronLock(job.name);
+      const lockResult = await acquireCronLock(job.name, jobTimeoutMs(job) * 2);
       if (lockResult.status === "held-by-other") {
         return { status: "skipped", details: "manual run skipped — cross-dyno lock held by another process" };
       }
