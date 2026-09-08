@@ -4,7 +4,7 @@ import Link from "next/link";
 import { TypedToolCards } from "./typed-tool-cards";
 import { useState, useCallback } from "react";
 import type { UIMessage } from "ai";
-import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX, Wrench } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Volume2, VolumeX } from "lucide-react";
 import { ChatMediaPart, type ChatFilePart } from "./chat-media-part";
 import { MediaTimestampBar } from "./media-timestamp-bar";
 import { useChatUiStore } from "../stores/chat-ui-store";
@@ -293,9 +293,11 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
   );
 }
 
+// Section 5.10 (2026-09-08): personal-OS starters. The shop-flavoured one left with /market
+// for the Nick's Tire admin; the repeated wrench carried no meaning and is gone (5.5).
 const COMMANDS = [
   { label: "Run my command brief", prompt: "/today", detail: "Done, open, top stat, one warning" },
-  { label: "Find the biggest revenue leaks", prompt: "Show me the biggest revenue leaks right now using live shop data. Rank the actions by money and urgency.", detail: "Leads, estimates, callbacks" },
+  { label: "What needs my judgment", prompt: "What needs my judgment right now? List the decisions parked on me, oldest first, and what each one unblocks.", detail: "Parked decisions, oldest first" },
   { label: "Plan today around reality", prompt: "Plan the rest of today using my calendar, open missions, energy, and current commitments. Give me a realistic execution order.", detail: "Calendar + missions + energy" },
   { label: "Show verified recent actions", prompt: "/receipts", detail: "What Nick and the system actually did" },
 ];
@@ -402,7 +404,6 @@ export function ChatMessageList({
               className="rounded-xl border border-edge bg-raised p-4 text-left transition hover:border-gold/35 hover:bg-elevated"
             >
               <div className="flex items-start gap-3">
-                <Wrench size={16} className="mt-0.5 shrink-0 text-gold" />
                 <div>
                   <p className="text-sm font-semibold text-fg">{command.label}</p>
                   <p className="mt-1 text-[11px] text-fg-tertiary">{command.detail}</p>
