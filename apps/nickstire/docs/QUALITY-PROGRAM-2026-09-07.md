@@ -71,6 +71,15 @@ file mounts the real handler on a wildcard and speaks HTTP to it; mutating it ba
 3 of those 6 tests (planted, confirmed, restored). Rule worth keeping: a catch-all's decision is tested
 **through the mount**, never only as a pure function.
 
+**Post-merge self-audit (follow-up PR, same day).** Three more misses, none of them found by a gate:
+(a) `SEOHead` still wrote the 1672×941 WebP storefront as `og:image` on every prerendered page — link-preview
+bots read the snapshot, not index.html, so the 403 fix had only reached human visitors; default now
+`/og-image.jpg` (`c4105d71e`). (b) The 21 city pages emitted a `FAQPage` whose four questions were never
+rendered on the page — invisible markup, which Google's structured-data policy forbids; removed. (c) The footer
+review link's `aria-label` did not contain its visible text (the sixth Lighthouse label-in-name hit); removed
+so the accessible name comes from the content. Also recorded: the serving contract in `docs/CURRENT-TRUTH.md`,
+the robots switch in `.env.example`, and a machine-readable `Updated:` line in the session ledger.
+
 **Not touched on purpose:** anything under `server/services/reel*`, `server/cron/jobs/dailyReelPost.ts`,
 `server/routers/content.ts`, `instagramAdmin.ts`, reel tests, `docs/reel-packs/` — another session owns
 the reel lane today. Two reel findings are handed off in §3.
