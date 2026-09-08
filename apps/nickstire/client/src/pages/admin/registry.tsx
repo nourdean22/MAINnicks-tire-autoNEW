@@ -52,6 +52,7 @@ const FULL_ACCESS: readonly AdminRole[] = ["owner", "manager"] as const;
 
 // Lazy-load sections relative to this file's position (client/src/pages/admin/)
 const OverviewSection = lazy(() => import("./OverviewSection"));
+const MarketSection = lazy(() => import("./MarketSection"));
 const ApprovalsSection = lazy(() => import("./ApprovalsSection"));
 const InstagramSection = lazy(() => import("./instagram/InstagramAdmin").then((m) => ({ default: m.InstagramAdmin })));
 const LeadsSection = lazy(() => import("./LeadsSection"));
@@ -192,6 +193,18 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     priority: 40,
     showInSidebar: true,
     allowedRoles: [...FULL_ACCESS, "accountant"],
+  },
+  {
+    id: "market",
+    label: "Market",
+    icon: <TrendingUp className="w-4 h-4" />,
+    component: MarketSection,
+    aliases: ["gsc", "search-console", "searchconsole", "radar", "master-report"],
+    keywords: ["market", "search", "console", "queries", "pages", "report", "radar"],
+    group: "Reach",
+    priority: 45,
+    showInSidebar: true,
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "growth",

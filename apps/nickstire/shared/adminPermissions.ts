@@ -94,7 +94,7 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   if (normalized.startsWith("invoices.") || normalized.startsWith("payments.") || normalized.startsWith("memberships.") || normalized.startsWith("revenueops.") || normalized.startsWith("revenueattribution.")) {
     return type === "mutation" ? "money.manage" : "money.view";
   }
-  if (normalized.startsWith("content") || normalized.startsWith("campaigns.") || normalized.startsWith("winback.") || normalized.startsWith("instagramadmin.") || normalized.startsWith("instagramstudio.") || normalized.startsWith("socialpipeline.") || normalized.startsWith("gbp.") || normalized.startsWith("metaadsarchitect.")) return "marketing.manage";
+  if (normalized.startsWith("content") || normalized.startsWith("campaigns.") || normalized.startsWith("winback.") || normalized.startsWith("instagramadmin.") || normalized.startsWith("instagramstudio.") || normalized.startsWith("socialpipeline.") || normalized.startsWith("gbp.") || normalized.startsWith("metaadsarchitect.") || normalized.startsWith("market.")) return "marketing.manage";
   // SPLIT BY TYPE: reports.view is held by viewer and accountant — fine for
   // reading a chart, wrong for whatever mutations these routers grow
   // (closedLoop has write procedures). Reads stay reports.view; writes need
