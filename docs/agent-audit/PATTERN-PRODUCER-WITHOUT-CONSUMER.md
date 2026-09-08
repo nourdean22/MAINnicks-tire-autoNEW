@@ -89,3 +89,23 @@ module graph rather than matching symbol names.
 
 - `docs/agent-audit/CONTROL-CANARY-COVERAGE.md` — ship the canary, not just the control
 - `docs/agent-audit/KNOWN-FLAKY-CHECKS.md` — a red that is tracked beats a red that is folklore
+
+## The skill that encodes this
+
+**`.claude/skills/assert-the-consumer/SKILL.md`** (2026-09-08, PR #2203) turns this
+pattern into a pre-merge step: for every writer a change introduces, `git grep` the
+consumer and paste the hit; if there is none, build it in the same change or do not
+ship the writer; and the canary asserts the CONSUMER end, never the producer.
+
+Two traps the skill adds, both measured:
+
+- **Grep your own comment out.** One instance here passed a consumer search because
+  the only match was the author's own comment about dead controls. The filter must
+  cover block and JSX forms — `grep -vE '^[^:]+:[0-9]+: *(//|/\*|\*|\{/\*|#)'`.
+  An alternation knowing only `//`, `*` and `#` keeps `/* */` and `{/* */}`, which is
+  the very hit it exists to drop (positive-controlled: old filter keeps 2 of 5 comment
+  forms, new keeps 0).
+- **Registration is not reachability.** `TOOL_CATALOG` holds 181 tools and only
+  `NICK_TOOL_BUDGET` (default 24) reach a turn. Three registries agreeing proves the
+  tool exists, never that the selector will surface it — run the pruner against five
+  phrasings you would really type.

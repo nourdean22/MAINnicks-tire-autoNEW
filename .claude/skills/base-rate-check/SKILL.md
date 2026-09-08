@@ -1,3 +1,8 @@
+---
+name: base-rate-check
+description: Use before reporting ANY ratio, percentage or count computed inside a filtered population - failures, aborts, rejects, churned users, declined estimates. Compute the same ratio over the unfiltered population and report both, or report neither.
+---
+
 # base-rate-check
 
 A ratio computed inside a filtered population is not a finding about the
