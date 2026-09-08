@@ -1,6 +1,6 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-07 (quality + power research wave · #2175 deployed-verified · #2177 open)
+**Updated:** 2026-09-08 (quality + power Phases 1–2 shipped and deployed; docs closure)
 
 **Objective this wave:** independently inspect, stress-test and repair bdnick.info, then hand the
 operator a prioritized program. Program doc: `docs/research/2026-09-07-statenour-quality-power-program.md`
@@ -12,6 +12,17 @@ services showed `Deploy failed`; the build log ended with `COPY apps/statenour/p
 found`. #2096 deleted the only file in that directory, git dropped the directory, and both
 Dockerfiles failed at the deps stage on every push after 12:34Z. The previous ledger entry said
 #2096 "shipped" — it was merged, not deployed. Merged and deployed are different claims.
+
+## Shipped 2026-09-08 (all deployed-verified via `/api/version` ancestry; details: RECONCILIATION top)
+- **#2180 `b531b203f`** deploy-drift observer (GitHub workflow, canaries) · inbound-crm header-only · read-mode
+  contract · NICK FAB lane · Sentry app tag. **#2186 `87e5d3bfe`** fixed its SIGPIPE; plain run PASSED, stale canary FAILED.
+- **#2181 `e4e88d5d1`** approvals expire (authorization, not obligations; 409 before execution) · devices classified,
+  retire marks RETIRED. **#2183 `989345d28`** signed image URLs behind `IMAGES_REQUIRE_SIGNATURE` (unset = today).
+- **#2185 `851b597e7`** resume record on park · `tests/e2e/floating-collision.spec.ts` (first run red on real
+  collisions → NICK pill docked into the More sheet on phones, 7rem lane) · Brain nav 4→9.
+- **#2188 `d3a760d68`** middleware.ts → proxy.ts. **#2189 `66b79cc17`** violet AI accent retired, `--status-ai` deleted.
+- Operator decisions open: flip `IMAGES_REQUIRE_SIGNATURE`; approval windows; `/market` MOVE/RETIRE; Sentry split;
+  HSTS preload; Neon branch protection. Do not relaunch review workflows here unasked (usage).
 
 ## Shipped 2026-09-07
 - **#2175 `71e7cf14`** (operator-merged 21:58:41Z; deployed 22:02:50Z; runtime-verified 23:54Z
