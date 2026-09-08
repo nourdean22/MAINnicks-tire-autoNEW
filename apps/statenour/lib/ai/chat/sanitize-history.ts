@@ -29,7 +29,7 @@
  */
 
 const IMAGE_MARKDOWN_LINE =
-  /!\[Generated Image\]\(\/api\/images\/[a-z0-9_-]{8,}\)/gi;
+  /!\[Generated Image\]\(\/api\/images\/[a-z0-9_-]{8,}(?:\?[^)\s]*)?\)/gi; // D13 · signed suffix tolerated
 
 const PROMPT_MODEL_FOOTER =
   /\*\*Prompt:\*\*[^\n]*(?:\n+\*\*Model:\*\*[^\n]*)?/gi;
