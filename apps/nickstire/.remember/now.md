@@ -45,7 +45,8 @@ as a fee-safety fix — WRONG: it is the canonical Repair Haiku (`shared/voice.t
 pages), and the $59.99 diagnostic is itself quoted in writing before it is charged. Reverted in the follow-up PR;
 only the owner changes that promise. Verified in the Browser pane at 375×812 on
 `vite preview` (launch config `nickstire-preview` added to `.claude/launch.json`). OPEN: `NotificationBar` toast + two
-FABs overlap the hero's third intent card on 812px phones (NotificationBar offset/timing, later PR). **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
+FABs overlap the hero's third intent card on 812px phones → FIXED in the follow-up PR: on phones the card waits for a scroll past 60% of the first screen; desktop and the
+prerender pass unchanged (`notification-bar-fold.test.tsx`). Still open: the two FABs on the cards' right edge when closed. **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
 GitHub skipped EVERY workflow for that push — the token counts anywhere in the head commit message. Never spell it
 out in a commit message or in a PR body a squash merge might copy; pass `--subject`/`--body` to the merge. Verify by a bot-UA **GET** of a city page, never HEAD; bot responses are cached 1 h. `grep -c FAQPage`
 over-counts (chunk names) — count `"@type":"FAQPage"`. Owner item: create the read-only prerender credential.
