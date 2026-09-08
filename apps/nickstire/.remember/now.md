@@ -9,6 +9,26 @@ merged program — see the first section; 2026-09-07 evening — public-site + a
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
 routine disabled. Prior arc 2026-09-03 below.)
 
+## 2026-09-08 · knip orphan gate unstuck (branch `nickstire/knip-orphans-2220`)
+
+The `knip orphan gate` CI job was red on EVERY PR from #2215 (13:53Z) onward, docs-only ones included,
+because `main` itself carried three new orphans: `inventoryBriefJson` + `INVENTORY_BRIEF_MAX_BYTES` (#2215,
+imported only by their own test, and tests are excluded from knip project globs by design) and
+`AUTO_APPROVABLE_CODES` (#2217, exported, read nowhere outside its own file). Not #2220 - that PR only inherited
+the red. Fix: the pair is baselined WITH REASONS (test-visible contract; its runtime caller
+`ensureReelDraftForJob` has three importers, so it is not vacuous) and the Set is made module-private (the
+#2187 lesson again: keep policy lists private). Receipts: unmodified tree exit 1 naming exactly the three
+(1000 findings / 1016 baselined / 3 NEW); after the change exit 0 (999 / 1018 / 0); planted `__orphanCanary__`
+in `shared/reelScore.ts` caught by name, file restored byte-identical, exit 0 again; tsc exit 0; the three
+touched test files 10/10.
+**Running the gate on THIS machine (this is the 09-07 "stops at `lint:orphans`" note below, explained):**
+`pnpm dlx` with pnpm default isolated linker fails here for ANY package, not just knip - first
+`ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`, and once past that a Node 24 `ERR_REQUIRE_CYCLE_MODULE` inside
+formatly through the junction paths. It is NOT a stale cache: moving the `pnpm-cache/dlx` folder under
+`%LOCALAPPDATA%` aside changes nothing. A flat layout works, script unmodified:
+`npm_config_node_linker=hoisted node scripts/knip-orphan-gate.mjs` from `apps/nickstire` (60-80 s). CI (ubuntu,
+Node 24.20) needs nothing.
+
 ## 2026-09-08 · release closure — what an outside review of the MERGED code found
 
 #2173 merged `f2bcf949d` and deployed 20:14 ET (10/10 live GETs); #2179 merged `cfdcad9be`. A second outside
@@ -86,8 +106,9 @@ read as "$0 · SLOW DAY" (writer fixed in #2163, consumer never read `_unavailab
 **TRAP:** `curl -I` (HEAD) as Googlebot returns the SPA shell with no `X-Prerendered` — the middleware
 intercepts GET only. Probe crawlers with GET. Prerender is healthy (336 pages, 4+ JSON-LD blocks).
 
-Environment: `pnpm run verify` stops at `lint:orphans` on this machine (pnpm dlx cache for knip is
-broken: `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`); every gate after it was run individually — full suite
+Environment: `pnpm run verify` stops at `lint:orphans` on this machine (pnpm dlx isolated-linker installs
+break here: `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` - NOT the cache; workaround in the 09-08 knip section above:
+`npm_config_node_linker=hoisted`); every gate after it was run individually — full suite
 **553 files passed | 2 skipped (555)**, tsc exit 0. PageSpeed Insights public API quota exhausted for
 the day; Chrome DevTools MCP `lighthouse_audit` gave lab scores (a11y 96 → fixes, BP 73, SEO 100).
 

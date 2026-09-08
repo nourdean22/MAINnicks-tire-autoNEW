@@ -20,7 +20,9 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:reel-auto-approval");
 
-export const AUTO_APPROVABLE_CODES = new Set(["no_approval_recorded", "approval_expired"]);
+// Module-private on purpose: nothing outside this file reads it, so an `export` here is exactly
+// the unconsumed-export shape the knip orphan gate exists to catch (and did, on every PR after #2217).
+const AUTO_APPROVABLE_CODES = new Set(["no_approval_recorded", "approval_expired"]);
 
 export interface AutoApprovalOutcome {
   policy: "auto" | "not_auto";
