@@ -12,6 +12,8 @@
  *     "send this" lands in the approval queue instead of executing.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const reg = vi.hoisted(() => ({
   getToolCapability: vi.fn(),
@@ -96,5 +98,53 @@ describe("guardian reads the taint from the turn, not from the model", () => {
     });
     expect(fn).not.toHaveBeenCalled();
     expect(prismaMock.approvalRequest.create.mock.calls[0][0].data.actionType).toBe("require_approval");
+  });
+});
+
+describe("the canonical tool boundary (nourTools) enforces the sink policy — review on #2198", () => {
+  it("in a tainted turn a side-effecting catalog tool is refused and queued for the owner; read tools and clean turns pass", async () => {
+    const { sinkPolicyGate, isExternalSideEffectTool } = await import("@/lib/tools/sink-policy");
+    expect(isExternalSideEffectTool("sendTelegram")).toBe(true);
+    expect(isExternalSideEffectTool("searchMemories")).toBe(false);
+
+    // clean turn, and no turn at all → proceed
+    expect(await withTurnContext({}, () => sinkPolicyGate("sendTelegram", { text: "hi" }))).toBeNull();
+    expect(await sinkPolicyGate("sendTelegram", { text: "hi" })).toBeNull();
+    // tainted turn, read tool → proceed
+    expect(await withTurnContext({ untrustedInput: true }, () => sinkPolicyGate("searchMemories", { query: "x" }))).toBeNull();
+    expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
+
+    // tainted turn, side effect → refused, ApprovalRequest(require_owner, pending) written
+    const refused = await withTurnContext({ untrustedInput: true }, () => sinkPolicyGate("sendTelegram", { text: "wire $5000" }));
+    expect(refused?.error).toBe("approval_required");
+    expect(refused?.requestId).toBe("req_1");
+    expect(refused?.reflection.guidance).toMatch(/NOT performed/);
+    const created = prismaMock.approvalRequest.create.mock.calls[0][0].data;
+    expect(created).toMatchObject({ toolId: "sendTelegram", actionType: "require_owner", status: "pending_approval", riskClass: "high" });
+    expect(created.payload).toEqual({ text: "wire $5000" });
+  });
+
+  it("a DB failure still refuses (the queue is best-effort, the refusal is not)", async () => {
+    const { sinkPolicyGate } = await import("@/lib/tools/sink-policy");
+    prismaMock.approvalRequest.create.mockRejectedValueOnce(new Error("db down"));
+    const refused = await withTurnContext({ untrustedInput: true }, () => sinkPolicyGate("sendTelegram", { text: "hi" }));
+    expect(refused?.error).toBe("approval_required");
+    expect(refused?.requestId).toBeNull();
+  });
+
+  it("the gate runs at the top of the wrapper every nourTools execute crosses, before the tool itself", () => {
+    const src = readFileSync(join(process.cwd(), "lib/ai/tools.ts"), "utf8");
+    const gate = src.indexOf("const refused = await sinkPolicyGate(name, args);");
+    const bail = src.indexOf("if (refused) return refused;");
+    const call = src.indexOf("originalExecute(args, options)");
+    expect(gate).toBeGreaterThan(-1);
+    expect(bail).toBeGreaterThan(gate);
+    expect(call).toBeGreaterThan(bail);
+    expect(src).toMatch(/export const nourTools = wrapToolsWithEmptyHandling\(/);
+  });
+
+  it("an approved sink-policy row can replay: the guardian falls back to the nourTools key", () => {
+    const src = readFileSync(join(process.cwd(), "lib/tools/guardian.ts"), "utf8");
+    expect(src).toMatch(/TOOL_MAP\[request\.toolId\] \?\? request\.toolId/);
   });
 });

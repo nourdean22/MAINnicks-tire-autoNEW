@@ -167,7 +167,8 @@ describe("supersession readers · recall-lane source pins", () => {
   // operator-facing read lanes had no filter. Each is pinned now.
   it("searchMemories (the ask-Nick-directly chat tool) filters in BOTH its FTS SQL and prisma where", () => {
     const src = read("lib/ai/tools/brain.ts");
-    expect(src).toMatch(/superseded_by_id IS NULL/);
+    // #2198: the FTS SQL now composes the shared validitySql() (which carries the literal)
+    expect(src).toMatch(/superseded_by_id IS NULL|validitySql\(/);
     expect(src).toMatch(/supersededById: null/);
   });
 

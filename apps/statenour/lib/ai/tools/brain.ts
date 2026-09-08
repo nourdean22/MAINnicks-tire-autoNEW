@@ -10,7 +10,7 @@
  * all 7 domain files. Catalog source of truth: lib/ai/tools/catalog.ts.
  */
 
-import { validityWhere } from "@/lib/brain/contextual-recall";
+import { validitySql, validityWhere } from "@/lib/brain/contextual-recall";
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -304,7 +304,6 @@ export const brainTools = {
     execute: async ({ query, category, minConfidence, limit, asOf }) => {
       // U3 (2026-09-08) · as-of recall. A garbage date falls back to now.
       const asOfDate = asOf && Number.isFinite(Date.parse(asOf)) ? new Date(asOf) : undefined;
-      const validityAt = asOfDate ?? new Date();
       // Lexical pre-match via Postgres FTS (stemmed + multi-word) on content,
       // reusing the brain_memories_content_fts_idx GIN index. The prior matcher
       // was `content ILIKE '%query%'` only -- brittle: it missed plurals and
@@ -324,16 +323,14 @@ export const brainTools = {
                -- BDN-310 supersession honored (2026-08-19 round-2): the
                -- ask-Nick-directly lane must not resurface a belief the
                -- operator explicitly superseded.
-               AND superseded_by_id IS NULL
-               AND (valid_until IS NULL OR valid_until > $4)
-               AND created_at <= $4
+               AND ${validitySql("", asOfDate ? "$4" : null)}
                AND to_tsvector('english', content) @@ websearch_to_tsquery('english', $2)
              ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
              LIMIT $3`,
             minConfidence,
             _ftsSearchQuery,
             limit * 2,
-            validityAt,
+            ...(asOfDate ? [asOfDate] : []),
           );
           ftsIds = rows.map((r) => r.id);
         } catch (err) {

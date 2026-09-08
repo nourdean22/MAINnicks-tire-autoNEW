@@ -121,7 +121,8 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
         result = await guardianBypassStorage.run(true, () => durable(request.payload));
       } else {
         // Legacy last resort for pre-registry requests.
-        const toolName = TOOL_MAP[request.toolId];
+        // A sink-policy row (lib/tools/sink-policy.ts) stores the nourTools key itself.
+        const toolName = TOOL_MAP[request.toolId] ?? request.toolId;
         const toolObj = toolName ? (nourTools as any)[toolName] : null;
         if (toolObj && typeof toolObj.execute === "function") {
           result = await guardianBypassStorage.run(true, () => toolObj.execute(request.payload));
