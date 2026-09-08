@@ -12,8 +12,20 @@
 import type { Express, Request, Response } from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
+import { maskPlate } from "../lib/plate";
 
 const log = createLogger("nour-os-query");
+
+/**
+ * Every call's filters are logged at info level in the route below. Keys that
+ * carry a customer-linked identifier are masked first: `lint:pii` cannot see
+ * log output (AGENTS.md section 5), so the redaction has to live here. Add a
+ * key when a new action takes one.
+ */
+function redactFilters(filters: Record<string, unknown>): Record<string, unknown> {
+  if (!("plate" in filters)) return filters;
+  return { ...filters, plate: maskPlate(filters.plate) };
+}
 
 // v1.7 audit fix · was using `provided !== syncKey` non-timing-safe.
 // Sibling routes use timingSafeEqual via safeCompare; this one was the
@@ -418,8 +430,13 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // column yet (Phase 3 of the plan adds one with an index). Matching is on
   // the normalized plate (uppercase alphanumerics) plus single-character
   // OCR-confusable variants (O/0, I/1, B/8, S/5, Z/2) so a camera read of
-  // "0" for "O" still lands. Today's bookings are joined by the member's
-  // last-10 phone digits, ET-anchored in SQL like `bookings_today`.
+  // "0" for "O" still lands. `bookingsToday` is joined by the member's
+  // last-10 phone digits and uses the ARRIVAL-LOAD definition
+  // (client/src/pages/admin/today/ArrivalLoadStrip.tsx bookingsForDate):
+  // preferredDate = the ET date AND status new/confirmed. Not the dashboard's
+  // `bookings_today`, which also counts rows merely CREATED today and every
+  // status - a future-dated booking made this morning, or a cancelled one,
+  // must not read as "booked today" on an arrival alert.
   //
   // Filters:
   //   · plate · string · required · the raw camera read ("ABC 1234")
@@ -459,9 +476,8 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
                 SELECT id, service, vehicle, status, preferredDate
                 FROM bookings
                 WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ${phone10}
-                  AND (DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York'))
-                         = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
-                       OR preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')))
+                  AND preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+                  AND status IN ('new', 'confirmed')
                 ORDER BY createdAt DESC LIMIT 5
               `,
             )
@@ -1704,7 +1720,7 @@ export function registerNourOsQueryRoute(app: Express): void {
 
     try {
       const result = await handler(filters || {});
-      log.info(`Query: ${query}`, { filters });
+      log.info(`Query: ${query}`, { filters: redactFilters(filters || {}) });
       return res.json({ query, timestamp: new Date().toISOString(), data: result });
     } catch (err) {
       log.error(`Query failed: ${query}`, { error: err instanceof Error ? err.message : String(err) });

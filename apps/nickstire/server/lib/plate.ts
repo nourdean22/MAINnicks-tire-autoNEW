@@ -46,6 +46,17 @@ export function plateVariants(normalized: string, max = 12): string[] {
   return out;
 }
 
+/**
+ * First two characters only, for LOG LINES: enough to correlate a request
+ * with an event, never enough to identify the vehicle. The route logs every
+ * call's filters at info level and `lint:pii` cannot see log output.
+ */
+export function maskPlate(plate: unknown): string {
+  const n = normalizePlate(plate);
+  if (n.length <= 2) return "*".repeat(n.length);
+  return n.slice(0, 2) + "*".repeat(n.length - 2);
+}
+
 /** Last four digits only — the shape every other bridge response uses for phones. */
 export function maskPhone(phone: unknown): string {
   const digits = String(phone ?? "").replace(/[^0-9]/g, "");

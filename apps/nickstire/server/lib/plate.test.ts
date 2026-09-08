@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePlate, plateVariants, maskPhone } from "./plate";
+import { normalizePlate, plateVariants, maskPhone, maskPlate } from "./plate";
 
 describe("plate normalization (ADR-0017 camera -> customer lookup)", () => {
   it("normalizes case, spaces and punctuation", () => {
@@ -23,5 +23,12 @@ describe("plate normalization (ADR-0017 camera -> customer lookup)", () => {
   it("masks phones to the last four digits", () => {
     expect(maskPhone("+1 (216) 555-0199")).toBe("***-0199");
     expect(maskPhone("12")).toBe("***");
+  });
+
+  it("masks plates to the first two characters for log lines", () => {
+    expect(maskPlate("abc 1234")).toBe("AB*****");
+    expect(maskPlate("AB")).toBe("**");
+    expect(maskPlate("")).toBe("");
+    expect(maskPlate(undefined)).toBe("");
   });
 });
