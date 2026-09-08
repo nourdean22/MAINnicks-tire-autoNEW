@@ -26,10 +26,10 @@ describe("the window is Eastern, not UTC", () => {
     // tomorrow. AGENTS.md forbids exactly this.
     const at = new Date("2026-09-07T02:00:00Z");
     const { to } = salesWindow("last_7d", at);
-    expect(to).toBe("2026-09-07"); // exclusive upper bound = ET tomorrow
+    expect(to).toBe("2026-09-06"); // exclusive upper bound = ET today (the window ends yesterday)
     const mtd = salesWindow("month_to_date", at);
     expect(mtd.from).toBe("2026-09-01");
-    expect(mtd.to).toBe("2026-09-07");
+    expect(mtd.to).toBe("2026-09-07"); // month-to-date includes today → exclusive bound is ET tomorrow
   });
 
   it("01:00 ET is the same ET day as 23:00 ET before it", () => {
@@ -41,15 +41,74 @@ describe("the window is Eastern, not UTC", () => {
   });
 });
 
+/**
+ * Every calendar date a half-open [from, to) window contains, as yyyy-mm-dd.
+ * The window is date-only, so this is pure UTC-date arithmetic — no DST.
+ */
+function datesIn(w: { from: string; to: string }): string[] {
+  const out: string[] = [];
+  let d = new Date(`${w.from}T00:00:00Z`);
+  const end = new Date(`${w.to}T00:00:00Z`);
+  while (d < end) {
+    out.push(d.toISOString().slice(0, 10));
+    d = new Date(d.getTime() + 86400000);
+  }
+  return out;
+}
+
 describe("period boundaries", () => {
   const at = new Date("2026-09-15T16:00:00Z"); // 12:00 ET, Sep 15
 
-  it("last_7d is a 7-day span ending tomorrow (exclusive)", () => {
-    expect(salesWindow("last_7d", at)).toEqual({ from: "2026-09-08", to: "2026-09-16" });
+  // The old assertions here were `{ from: "2026-09-08", to: "2026-09-16" }` for
+  // "a 7-day span" — eight dates, Sep 8 through Sep 15. A test that pins the
+  // literals does not count them; these count them.
+  it("last_7d contains exactly 7 dates, ending yesterday", () => {
+    const w = salesWindow("last_7d", at);
+    const dates = datesIn(w);
+    expect(dates).toHaveLength(7);
+    expect(dates[0]).toBe("2026-09-08");
+    expect(dates[dates.length - 1]).toBe("2026-09-14"); // yesterday, never today
+    expect(dates).not.toContain("2026-09-15");
   });
 
-  it("last_30d is a 30-day span", () => {
-    expect(salesWindow("last_30d", at)).toEqual({ from: "2026-08-16", to: "2026-09-16" });
+  it("last_30d contains exactly 30 dates, ending yesterday", () => {
+    const dates = datesIn(salesWindow("last_30d", at));
+    expect(dates).toHaveLength(30);
+    expect(dates[0]).toBe("2026-08-16");
+    expect(dates[29]).toBe("2026-09-14");
+  });
+
+  it("month_to_date includes today, so on the 15th it holds 15 dates", () => {
+    const dates = datesIn(salesWindow("month_to_date", at));
+    expect(dates).toHaveLength(15);
+    expect(dates[14]).toBe("2026-09-15");
+  });
+
+  it("cardinality holds across a month boundary, a year boundary and a leap day", () => {
+    // 12:00 ET on each date; the 7-day window must still be exactly 7 dates.
+    for (const iso of ["2026-10-02T16:00:00Z", "2027-01-03T17:00:00Z", "2028-03-02T17:00:00Z"]) {
+      const w = salesWindow("last_7d", new Date(iso));
+      expect(datesIn(w), iso).toHaveLength(7);
+      expect(datesIn(salesWindow("last_30d", new Date(iso))), iso).toHaveLength(30);
+    }
+    // Leap day sits inside the window and is counted once.
+    const leap = datesIn(salesWindow("last_7d", new Date("2028-03-02T17:00:00Z")));
+    expect(leap).toContain("2028-02-29");
+  });
+
+  it("cardinality holds across both DST transitions (spring forward, fall back)", () => {
+    // 2026-03-08 02:00 ET spring forward; 2026-11-01 02:00 ET fall back.
+    for (const iso of ["2026-03-10T16:00:00Z", "2026-11-03T17:00:00Z"]) {
+      expect(datesIn(salesWindow("last_7d", new Date(iso))), iso).toHaveLength(7);
+      expect(datesIn(salesWindow("last_30d", new Date(iso))), iso).toHaveLength(30);
+    }
+  });
+
+  it("the boundary invoice dates are the ones intended: from is included, today is excluded", () => {
+    const w = salesWindow("last_7d", at);
+    // SQL is `invoiceDate >= from AND invoiceDate < to`; assert the literals the
+    // query will receive, not just the count.
+    expect(w).toEqual({ from: "2026-09-08", to: "2026-09-15" });
   });
 
   it("month_to_date starts on the 1st", () => {

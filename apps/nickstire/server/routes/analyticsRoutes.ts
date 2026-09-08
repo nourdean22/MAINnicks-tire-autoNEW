@@ -28,6 +28,15 @@ export function registerAnalyticsRoutes(app: Express): void {
   //      overlapping names like form_completed.
   app.post("/api/analytics/conversion", express.json({ limit: "8kb" }), async (req, res) => {
     try {
+      // 2026-09-08 · the prerender regen boots THIS server (PRERENDER_MODE=true)
+      // against the production database and drives every public page through
+      // Puppeteer. index.ts already skips crons and queues in that mode, but a
+      // page load still fires this beacon, so every weekly snapshot run wrote
+      // hundreds of synthetic customer_events rows. A rendering pass must never
+      // be a production write: accept the beacon, persist nothing.
+      if (process.env.PRERENDER_MODE === "true") {
+        return res.sendStatus(204);
+      }
       const body = req.body as Record<string, unknown> | null;
       if (!body || typeof body !== "object" || typeof body.type !== "string") {
         return res.sendStatus(204);

@@ -1,7 +1,7 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-09-07 (public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` on 2026-09-08 (release closure: sales windows v2, prerender write guard; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
@@ -40,6 +40,15 @@ Adjacent contracts that changed in the same PR:
   `*.g.doubleclick.net`; Permissions-Policy also denies usb, midi, display-capture, browsing-topics.
 - **Prerendered snapshots** were regenerated in the PR (`8c0be63d5`) and again on main after merge; crawlers read
   the snapshot, so a schema/meta change is not live for them until a regen commit lands.
+- **The regen is read-only by code, not yet by credential (2026-09-08).** `prerender-refresh.yml` boots this
+  server with `PRERENDER_MODE=true` against `DATABASE_URL_PRERENDER_RO || DATABASE_URL` — the read-only secret is
+  optional and, until the owner creates it, the run holds the read-write credential. `index.ts` skips crons and
+  queues in that mode, and `POST /api/analytics/conversion` now returns 204 without writing (it inserted a
+  `customer_events` row per rendered page before; canary `server/analyticsPrerenderGuard.test.ts`). Any new
+  public write path must carry the same guard.
+- **Billed-sales windows are definition v2 (2026-09-08):** `last_7d` / `last_30d` are exactly 7 / 30 completed
+  Eastern days ending yesterday; v1 ran to tomorrow and spanned 8 / 31 dates. `docs/METRICS-CONTRACT.md` has the
+  rule; `server/shopSales.test.ts` counts the dates.
 
 ## Admin audit wave (2026-09-01/02, PR #2063) — receipts, doors, loud crons
 
