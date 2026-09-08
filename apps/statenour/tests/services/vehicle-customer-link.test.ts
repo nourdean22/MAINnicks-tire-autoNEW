@@ -49,7 +49,7 @@ describe("vehicle-customer-link", () => {
     expect(db.deviceEvent.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "evt_1" },
-        data: { data: expect.objectContaining({ customerRef: expect.objectContaining({ status: "matched", normalized: "ABC1234" }) }) },
+        data: { data: expect.objectContaining({ customerRef: expect.objectContaining({ status: "matched", normalized: "ABC1234", plate: "ABC 1234" }) }) },
       }),
     );
     expect(mockEdit).toHaveBeenCalledWith(999, expect.stringContaining("Jane Member (***-0199)"), undefined, undefined);
@@ -68,7 +68,7 @@ describe("vehicle-customer-link", () => {
     mockQueryNick.mockResolvedValue({ error: "Unknown query: vehicle_lookup_by_plate", statusCode: 400 });
     await expect(linkVisitToCustomer({ eventId: "evt_1", plate: "ABC1234" })).resolves.toBeUndefined();
     const written = db.deviceEvent.update.mock.calls[0][0].data.data.customerRef;
-    expect(written).toMatchObject({ status: "lookup_failed", error: expect.stringContaining("Unknown query") });
+    expect(written).toMatchObject({ status: "lookup_failed", plate: "ABC1234", error: expect.stringContaining("Unknown query") });
     expect(mockEdit).not.toHaveBeenCalled();
   });
 

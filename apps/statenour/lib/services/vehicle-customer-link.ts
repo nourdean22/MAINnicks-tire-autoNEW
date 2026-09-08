@@ -12,7 +12,9 @@
  * process on Railway, so the promise completes after the response; the edge
  * outbox retries are idempotent by eventId, so a slow lookup can never
  * duplicate a visit. A failed lookup is recorded as `lookup_failed`, never
- * as "unmatched" (empty-vs-error).
+ * as "unmatched" (empty-vs-error), and the ingest path retries it on the
+ * next confirmed update for the visit (`maybeLinkCustomer`); only `matched`
+ * and `unmatched` are terminal, and only for the plate text they answered.
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -65,14 +67,17 @@ export async function linkVisitToCustomer(args: LinkArgs): Promise<void> {
     if (!row) return;
     const data = (row.data as Record<string, unknown> | null) ?? {};
     const checkedAt = new Date().toISOString();
+    // `plate` = the text that was looked up, so the ingest guard can tell a
+    // terminal answer for THIS plate from one for a since-corrected read.
     const customerRef = result.ok
       ? {
           checkedAt,
+          plate: args.plate,
           status: result.matches.length > 0 ? "matched" : "unmatched",
           normalized: result.normalized,
           matches: result.matches.slice(0, 3),
         }
-      : { checkedAt, status: "lookup_failed", error: result.error };
+      : { checkedAt, plate: args.plate, status: "lookup_failed", error: result.error };
 
     await prisma.deviceEvent.update({
       where: { id: args.eventId },

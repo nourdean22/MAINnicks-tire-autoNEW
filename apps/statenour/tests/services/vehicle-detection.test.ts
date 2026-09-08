@@ -171,6 +171,32 @@ describe("Arrival Intelligence ingest", () => {
     expect(mockLink).toHaveBeenCalledTimes(1);
   });
 
+  it("customer link: lookup_failed and a corrected plate are retried; a terminal answer for the same plate is not", async () => {
+    const confirmed = (plate: Record<string, unknown>) =>
+      base({ state: "CONFIRMED_ARRIVAL", visitId: "v-link", cameraId: "lot", plate: { status: "CANDIDATE", confidence: 0.9, ...plate } });
+    const setRef = async (id: string, customerRef: Record<string, unknown>) => {
+      const row = (await prisma.deviceEvent.findUnique({ where: { id } }))!;
+      row.data = { ...(row.data as Record<string, unknown>), customerRef };
+    };
+    const id = await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(1);
+
+    // the bridge was down (or the nickstire handler not deployed yet): retried
+    await setRef(id, { status: "lookup_failed", plate: "ABC1234" });
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(2);
+
+    // a terminal answer for this plate text: not asked again
+    await setRef(id, { status: "unmatched", plate: "ABC1234" });
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1234", normalizedText: "ABC1234" }));
+    expect(mockLink).toHaveBeenCalledTimes(2);
+
+    // the edge corrected the read: the new plate is looked up
+    await handleVehicleEvent(deviceId, confirmed({ text: "ABC 1284", normalizedText: "ABC1284" }));
+    expect(mockLink).toHaveBeenCalledTimes(3);
+    expect(mockLink).toHaveBeenLastCalledWith(expect.objectContaining({ plate: "ABC1284" }));
+  });
+
   it("rejects a malformed payload with a 400 ServiceError instead of persisting garbage", async () => {
     await expect(handleVehicleEvent(deviceId, base({ state: "ENTERED_ZONE", confidence: "high" as unknown as number }))).rejects.toMatchObject({ status: 400 });
     expect(prisma.deviceEvent.create).not.toHaveBeenCalled();

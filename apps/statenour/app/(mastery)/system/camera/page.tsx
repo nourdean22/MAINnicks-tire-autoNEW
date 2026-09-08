@@ -226,13 +226,19 @@ export default function CameraArrivalsPage() {
         />
         <MetricCard
           label="Active Alerts"
-          value={data.events.filter((e) => e.data?.state === "CONFIRMED_ARRIVAL").length}
-          hint="Vehicles awaiting operator attention"
+          value={readFailed ? "—" : data.events.filter((e) => e.data?.state === "CONFIRMED_ARRIVAL").length}
+          hint={readFailed ? "Read failed — value unknown" : "Vehicles awaiting operator attention"}
         />
         <MetricCard
           label="Last Detection"
-          value={data.events[0] ? formatTime(data.events[0].timestamp) : "—"}
-          hint={data.events[0] ? `${data.events[0].cameraName} (${data.events[0].data?.label || "car"})` : "No vehicles detected today"}
+          value={readFailed ? "—" : data.events[0] ? formatTime(data.events[0].timestamp) :"—"}
+          hint={
+            readFailed
+              ? "Read failed — value unknown"
+              : data.events[0]
+                ? `${data.events[0].cameraName} (${data.events[0].data?.label || "car"})`
+                : "No vehicles detected today"
+          }
         />
       </div>
 

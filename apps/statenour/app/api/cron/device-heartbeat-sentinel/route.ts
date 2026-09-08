@@ -61,7 +61,18 @@ export async function runHeartbeatSentinel(now: Date = new Date()) {
       ...((d.metadata as Record<string, unknown> | null) ?? {}),
       sentinel: { offlineAt: now.toISOString(), lastSeenAt: d.lastSeenAt?.toISOString() ?? null },
     } as Prisma.InputJsonObject;
-    await prisma.smartDevice.update({ where: { id: d.id }, data: { status: "OFFLINE", metadata } });
+    // Conditional write: the bridge's heartbeat PATCH runs independently and
+    // may land between the findMany above and this update. Require the row
+    // to STILL be silent, and only alert when the transition really happened
+    // - otherwise a fresh ONLINE would be overwritten and a false outage paged.
+    const transition = await prisma.smartDevice.updateMany({
+      where: { id: d.id, status: "ONLINE", lastSeenAt: { lt: cutoff } },
+      data: { status: "OFFLINE", metadata },
+    });
+    if (transition.count === 0) {
+      log.info("sentinel_transition_skipped", { device: d.platformDeviceId, reason: "heartbeat_arrived_first" });
+      continue;
+    }
 
     const body =
       `${d.name} (${d.platformDeviceId}) last heartbeat ${silentMinutes} min ago — marked OFFLINE. ` +

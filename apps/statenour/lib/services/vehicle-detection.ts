@@ -114,7 +114,10 @@ type PlateShape = { status?: string; text?: string; normalizedText?: string } | 
 
 /**
  * A CONFIRMED_ARRIVAL with a readable plate asks nickstire who it is
- * (advisory, fire-and-forget, idempotent per event via `customerRef`).
+ * (advisory, fire-and-forget). `customerRef` makes it idempotent per plate
+ * text: `matched` / `unmatched` are terminal for the plate that was looked
+ * up; `lookup_failed` (bridge down, handler not deployed yet) and a plate
+ * that was corrected since are retried on the next confirmed update.
  */
 function maybeLinkCustomer(args: {
   eventId: string;
@@ -129,7 +132,8 @@ function maybeLinkCustomer(args: {
   const plateText = args.plate?.normalizedText || args.plate?.text;
   if (!plateText) return;
   if (args.plate?.status === "NONE" || args.plate?.status === "UNREADABLE") return;
-  if (args.existingData.customerRef) return;
+  const ref = args.existingData.customerRef as { status?: string; plate?: string } | undefined;
+  if (ref && ref.status !== "lookup_failed" && ref.plate === plateText) return;
   void linkVisitToCustomer({
     eventId: args.eventId,
     plate: plateText,
