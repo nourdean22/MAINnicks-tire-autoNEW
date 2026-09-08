@@ -206,13 +206,44 @@ describe("the shop's tenure agrees with the canonical constant", () => {
  */
 const PREV_OWNER_PATTERN = /run by moe/i;
 
-const OWNERSHIP_CHANGE_PATTERNS: RegExp[] = [
-  /transitioned to new ownership/i,
-  /under new ownership/i,
-  /new ownership and rebranded/i,
-  /changed (?:hands|ownership)/i,
-  /new owners? (?:took over|bought)/i,
+/**
+ * Every arm carries its OWN fixture. The live scan is expected to find nothing,
+ * so without a per-arm canary a deleted or mistyped arm goes inert in silence
+ * and the suite stays green - the failure mode a single shared fixture already
+ * hid here once (found in review, 2026-09-08).
+ *
+ * The sale/takeover arms are deliberately SUBJECT-ANCHORED. A bare /sold/ hits
+ * "what the shop sold" in admin copy, and /sold to [A-Z]/ hits "the stolen
+ * converter is sold to scrap metal dealers" in shared/guides.ts, because the
+ * `i` flag defeats the capital letter. Both were caught by scanning the live
+ * corpus before these landed; keep that habit if you add an arm.
+ */
+const OWNERSHIP_CHANGE_ARMS: Array<{ label: string; pattern: RegExp; fixture: string }> = [
+  { label: "transitioned to new ownership", pattern: /transitioned to new ownership/i,
+    fixture: "the location transitioned to new ownership in 2022" },
+  { label: "under new ownership", pattern: /under new ownership/i,
+    fixture: "the shop is under new ownership" },
+  { label: "new ownership and rebranded", pattern: /new ownership and rebranded/i,
+    fixture: "new ownership and rebranded as Nick's" },
+  { label: "changed hands", pattern: /changed hands/i,
+    fixture: "the garage changed hands in 2022" },
+  { label: "ownership moved", pattern: /ownership (?:transferred|changed|passed|moved)/i,
+    fixture: "ownership transferred to Nick in 2022" },
+  { label: "the shop was sold", pattern: /(?:shop|business|store|garage)\s+(?:was|were|been)\s+(?:sold|acquired)/i,
+    fixture: "Moe's shop was sold in 2022" },
+  { label: "sold the shop", pattern: /(?:sold|transferred)\s+(?:the\s+|this\s+)?(?:shop|business|store|garage)\b/i,
+    fixture: "the family sold the shop to a new operator" },
+  { label: "Moe's was sold", pattern: /moe'?s\b[^.]{0,30}\b(?:sold|acquired|bought out)\b/i,
+    fixture: "Moe's was sold to Nick" },
+  { label: "took over the shop", pattern: /(?:took|taken)\s+over\s+(?:the\s+|this\s+)?(?:shop|business|store|garage)\b/i,
+    fixture: "Nick took over the shop in 2022" },
+  { label: "new owners took over", pattern: /new owners?\s+(?:took over|bought)/i,
+    fixture: "new owners took over in 2022" },
 ];
+
+/** Generic advice that merely MENTIONS the words is not a claim about this shop. */
+const GENERIC_ADVICE_CONTROL =
+  "If something changes - new ownership, new technicians, declining quality - it is okay to re-evaluate.";
 
 describe("the site tells one true ownership story", () => {
   it("no surface claims the shop is run by the previous name's owner", () => {
@@ -224,30 +255,29 @@ describe("the site tells one true ownership story", () => {
 
   it("no surface claims the shop changed ownership", () => {
     expect(
-      LINES.filter((l) => OWNERSHIP_CHANGE_PATTERNS.some((p) => p.test(l.text))).map(
+      LINES.filter((l) => OWNERSHIP_CHANGE_ARMS.some((a) => a.pattern.test(l.text))).map(
         (c) => `${c.file}:${c.line}`,
       ),
       "the shop was renamed, never sold (owner-confirmed 2026-09-03)",
     ).toEqual([]);
   });
 
-  // MUTATION-STYLE PROOF: both matchers must be able to SEE the claim, or the
-  // two greens above mean nothing.
-  it("the matchers detect each false claim if it returns", () => {
+  it("the previous-owner matcher detects the claim if it returns", () => {
     expect(PREV_OWNER_PATTERN.test("RUN BY MOE SINCE 2018")).toBe(true);
-    expect(
-      OWNERSHIP_CHANGE_PATTERNS.some((p) =>
-        p.test("the shop transitioned to new ownership and rebranded as Nick's Tire & Auto"),
-      ),
-    ).toBe(true);
   });
 
-  // FALSE-POSITIVE GUARD: generic advice that merely mentions the words is not
-  // a claim about THIS shop. This is the line the deleted control depended on.
-  it("does not flag generic advice that only mentions new ownership", () => {
-    const generic =
-      "If something changes - new ownership, new technicians, declining quality - it is okay to re-evaluate.";
-    expect(OWNERSHIP_CHANGE_PATTERNS.some((p) => p.test(generic))).toBe(false);
+  // PER-ARM CANARY: the green above is only meaningful if every arm can still
+  // see its own defect. One shared fixture would leave nine of ten unproven.
+  it.each(OWNERSHIP_CHANGE_ARMS)("ownership arm $label detects its own claim", ({ pattern, fixture }) => {
+    expect(pattern.test(fixture)).toBe(true);
+  });
+
+  // FALSE-POSITIVE GUARD: this is the line the DELETED positive control used to
+  // depend on. No arm may match it, or the guard starts flagging generic prose.
+  it("no arm flags generic advice that only mentions new ownership", () => {
+    expect(
+      OWNERSHIP_CHANGE_ARMS.filter((a) => a.pattern.test(GENERIC_ADVICE_CONTROL)).map((a) => a.label),
+    ).toEqual([]);
   });
 });
 
