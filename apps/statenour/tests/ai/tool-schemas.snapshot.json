@@ -3439,6 +3439,10 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "asOf": {
+          "description": "ISO date. Answer AS OF that date: what was believed then, including beliefs corrected since, and nothing saved after it. Omit for current truth.",
+          "type": "string"
+        },
         "category": {
           "description": "Filter by category: insight, pattern, preference, lesson, fact",
           "type": "string"
