@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePlate, plateVariants, maskPhone, maskPlate } from "./plate";
+import { normalizePlate, plateVariants, maskPhone, maskPlate, bookingLinkage } from "./plate";
 
 describe("plate normalization (ADR-0017 camera -> customer lookup)", () => {
   it("normalizes case, spaces and punctuation", () => {
@@ -23,6 +23,15 @@ describe("plate normalization (ADR-0017 camera -> customer lookup)", () => {
   it("masks phones to the last four digits", () => {
     expect(maskPhone("+1 (216) 555-0199")).toBe("***-0199");
     expect(maskPhone("12")).toBe("***");
+  });
+
+  it("upgrades a phone-found booking only on a first-name or full-name agreement", () => {
+    expect(bookingLinkage("Jane Member", "Jane")).toBe("phone+name");
+    expect(bookingLinkage("Jane Member", "jane   member")).toBe("phone+name");
+    expect(bookingLinkage("Jane Smith", "Bob Smith")).toBe("phone_only"); // shared household number
+    expect(bookingLinkage("J. Smith", "Jane Smith")).toBe("phone_only"); // an initial is not a name
+    expect(bookingLinkage(null, "Jane")).toBe("phone_only");
+    expect(bookingLinkage("Jane", "")).toBe("phone_only");
   });
 
   it("masks plates to the first two characters for log lines", () => {

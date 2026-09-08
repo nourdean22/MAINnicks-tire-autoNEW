@@ -57,6 +57,29 @@ export function maskPlate(plate: unknown): string {
   return n.slice(0, 2) + "*".repeat(n.length - 2);
 }
 
+/**
+ * How strongly a booking found by PHONE belongs to the member found by PLATE.
+ * A shared household/business number attaches every booking on that phone,
+ * so only a first-name (or full-name) agreement upgrades the row from
+ * "phone_only" to "phone+name"; callers hide service/vehicle on phone_only.
+ * Initials ("J. Smith") never match: one letter is not a name.
+ */
+export function bookingLinkage(memberName: unknown, bookingName: unknown): "phone+name" | "phone_only" {
+  const norm = (s: unknown) =>
+    String(s ?? "")
+      .toLowerCase()
+      .replace(/[^a-z ]/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+  const a = norm(memberName);
+  const b = norm(bookingName);
+  if (!a || !b) return "phone_only";
+  if (a === b) return "phone+name";
+  const firstA = a.split(" ")[0];
+  const firstB = b.split(" ")[0];
+  return firstA.length >= 2 && firstA === firstB ? "phone+name" : "phone_only";
+}
+
 /** Last four digits only — the shape every other bridge response uses for phones. */
 export function maskPhone(phone: unknown): string {
   const digits = String(phone ?? "").replace(/[^0-9]/g, "");

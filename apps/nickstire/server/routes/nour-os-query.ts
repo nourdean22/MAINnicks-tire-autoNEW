@@ -443,12 +443,13 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   //
   // Returns: { plate, normalized, variants, matches: [{ source, membershipId,
   //   name, phoneMasked, plate, exact, vehicleDesc, membershipStatus,
-  //   bookingsToday: [{ id, service, vehicle, status, preferredDate }] }],
+  //   bookingsToday: [{ id, status, preferredDate, linkage,
+  //                     service?, vehicle? (phone+name rows only) }] }],
   //   count, sources: ["memberships"] }
   "vehicle_lookup_by_plate": async (filters) => {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
-    const { normalizePlate, plateVariants, maskPhone } = await import("../lib/plate");
+    const { normalizePlate, plateVariants, maskPhone, bookingLinkage } = await import("../lib/plate");
     const d = await getDb();
     if (!d) return { error: "No DB" };
     const raw = String(filters.plate || "");
@@ -468,12 +469,12 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const matches: Array<Record<string, unknown>> = [];
     for (const m of members) {
       const phone10 = String(m.phone ?? "").replace(/[^0-9]/g, "").slice(-10);
-      const bookingsToday =
+      const bookingRows =
         phone10.length === 10
           ? await exec(
               d,
               sql`
-                SELECT id, service, vehicle, status, preferredDate
+                SELECT id, name, service, vehicle, status, preferredDate
                 FROM bookings
                 WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ${phone10}
                   AND preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
@@ -482,6 +483,17 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
               `,
             )
           : [];
+      // A phone is not a person: a shared household/business (or recycled)
+      // number attaches every booking on it. Only a name agreement upgrades a
+      // row to "phone+name"; a "phone_only" row keeps id/status/date and
+      // DROPS service and vehicle so another customer's history never rides
+      // along on the plate match.
+      const bookingsToday = bookingRows.map((b) => {
+        const linkage = bookingLinkage(m.name, b.name);
+        return linkage === "phone+name"
+          ? { id: b.id, service: b.service, vehicle: b.vehicle, status: b.status, preferredDate: b.preferredDate, linkage }
+          : { id: b.id, status: b.status, preferredDate: b.preferredDate, linkage };
+      });
       const storedPlate = normalizePlate(m.vehiclePlate);
       matches.push({
         source: "memberships",
@@ -1712,6 +1724,13 @@ export function registerNourOsQueryRoute(app: Express): void {
     if (!query) {
       return res.status(400).json({ error: "Missing query field", available: Object.keys(QUERY_HANDLERS) });
     }
+    // `filters` is optional but, when present, must be a plain object: a
+    // truthy primitive would let the handler run and then throw inside the
+    // logger's redaction, turning a valid query into a 500.
+    if (filters !== undefined && filters !== null && (typeof filters !== "object" || Array.isArray(filters))) {
+      return res.status(400).json({ error: "filters must be an object" });
+    }
+    const safeFilters = (filters ?? {}) as Record<string, unknown>;
 
     const handler = QUERY_HANDLERS[query];
     if (!handler) {
@@ -1719,8 +1738,8 @@ export function registerNourOsQueryRoute(app: Express): void {
     }
 
     try {
-      const result = await handler(filters || {});
-      log.info(`Query: ${query}`, { filters: redactFilters(filters || {}) });
+      const result = await handler(safeFilters);
+      log.info(`Query: ${query}`, { filters: redactFilters(safeFilters) });
       return res.json({ query, timestamp: new Date().toISOString(), data: result });
     } catch (err) {
       log.error(`Query failed: ${query}`, { error: err instanceof Error ? err.message : String(err) });
