@@ -107,3 +107,18 @@ export function authorizeImageRequest(input: AuthorizeInput): ImageAuth {
   }
   return { ok: true, signed: true, expiresAt: expNum * 1000 };
 }
+
+const RAW_IMAGE_PATH = /^\/api\/images\/([A-Za-z0-9_-]+)$/;
+
+/**
+ * A stored image path from before the flag (a scheduled post, a saved draft)
+ * is a raw id. When signing is required, re-mint it at use time so the
+ * publish leg hands Meta a URL it can fetch; anything already signed or
+ * absolute passes through unchanged.
+ */
+export function ensureSignedImagePath(path: string, opts: SignOptions = {}): string {
+  const env = opts.env ?? process.env;
+  if (!imageSignatureRequired(env)) return path;
+  const m = RAW_IMAGE_PATH.exec(path);
+  return m ? signImagePath(m[1], { ...opts, env }) : path;
+}

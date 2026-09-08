@@ -15,6 +15,7 @@ import {
   imagePath,
   imageSignatureRequired,
   signImagePath,
+  ensureSignedImagePath,
 } from "@/lib/images/signed-url";
 
 const NOW = Date.parse("2026-09-07T12:00:00Z");
@@ -105,5 +106,18 @@ describe("authorizeImageRequest · flag on", () => {
     const onlyAuth = { AUTH_SECRET: "auth-secret-fixture", IMAGES_REQUIRE_SIGNATURE: "1" };
     expect(authorizeImageRequest({ ...p, env: envA, now: NOW }).ok).toBe(true);
     expect(authorizeImageRequest({ ...p, env: onlyAuth, now: NOW })).toMatchObject({ ok: false, status: 403 });
+  });
+});
+
+describe("ensureSignedImagePath (publish-time re-mint)", () => {
+  it("flag off: passes every path through untouched", () => {
+    expect(ensureSignedImagePath("/api/images/img_1", { env: OFF })).toBe("/api/images/img_1");
+  });
+  it("flag on: a raw stored id is re-signed; signed and absolute URLs pass through", () => {
+    const out = ensureSignedImagePath("/api/images/img_1", { env: ON, now: NOW });
+    expect(out).toMatch(/^\/api\/images\/img_1\?exp=\d+&sig=[0-9a-f]{32}$/);
+    const signed = signImagePath("img_1", { env: ON, now: NOW });
+    expect(ensureSignedImagePath(signed, { env: ON, now: NOW })).toBe(signed);
+    expect(ensureSignedImagePath("https://cdn.test/x.png", { env: ON })).toBe("https://cdn.test/x.png");
   });
 });

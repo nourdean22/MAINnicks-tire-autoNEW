@@ -9,6 +9,7 @@
  * signature is always refused, so a tampered link never degrades to public.
  */
 
+import { requireSession } from "@/lib/auth-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authorizeImageRequest } from "@/lib/images/signed-url";
@@ -25,7 +26,18 @@ export async function GET(
     sig: req.nextUrl.searchParams.get("sig"),
   });
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.reason }, { status: auth.status });
+    // Flag on + raw id: the operator's own browser (chat history, the publish
+    // picker) still has a session; third parties (Meta, a shared link) do not
+    // and must present a signature. So a raw id passes with a valid session.
+    if (auth.status === 401) {
+      try {
+        await requireSession(req);
+      } catch {
+        return NextResponse.json({ error: auth.reason }, { status: 401 });
+      }
+    } else {
+      return NextResponse.json({ error: auth.reason }, { status: auth.status });
+    }
   }
 
   const record = await prisma.auditEvent.findUnique({
@@ -47,8 +59,9 @@ export async function GET(
   const buffer = Buffer.from(base64, "base64");
 
   // A signed link must not be cached past its own expiry.
-  const maxAge = auth.expiresAt
-    ? Math.max(0, Math.min(86_400, Math.floor((auth.expiresAt - Date.now()) / 1000)))
+  const expiresAt = auth.ok ? auth.expiresAt : null;
+  const maxAge = expiresAt
+    ? Math.max(0, Math.min(86_400, Math.floor((expiresAt - Date.now()) / 1000)))
     : 86_400;
 
   return new NextResponse(buffer, {

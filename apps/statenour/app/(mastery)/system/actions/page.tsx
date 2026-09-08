@@ -145,6 +145,16 @@ export default function ActionsPage() {
   const approvalsQuery = trpc.systemAutomation.getPendingApprovals.useQuery(undefined, {
     refetchInterval: 5_000,
   });
+  // 2026-09-08 · the autonomous-action queue (rules that deferred with approval="pending")
+  // had no UI since the legacy ApprovalsPage went; Home counted it, nothing listed it.
+  const autoQueue = trpc.systemAutomation.approvals.useQuery(undefined, { refetchInterval: 5_000 });
+  const windowsQuery = trpc.systemAutomation.approvalWindows.useQuery(undefined, { staleTime: 60_000 });
+  const decideAuto = trpc.systemAutomation.decideApproval.useMutation({
+    onSuccess: () => {
+      autoQueue.refetch();
+      actionsQuery.refetch();
+    },
+  });
 
   const userQuery = trpc.system.getCurrentUser.useQuery();
   const userRole = userQuery.data?.role ?? "operator";
@@ -482,6 +492,33 @@ export default function ActionsPage() {
             <h2 className="text-sm font-semibold text-white">pending action queue</h2>
             <span className="text-xs text-[var(--text-tertiary)]">requires owner/operator approval</span>
           </div>
+
+          {/* 2026-09-08 · approval windows — the operator could not find them (they were code constants). */}
+          <div className="mb-4 rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-white">approval windows</h3>
+              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+                {windowsQuery.data?.source === "env" ? "overridden by APPROVAL_FRESHNESS_DAYS" : "defaults · override with APPROVAL_FRESHNESS_DAYS (JSON)"}
+              </span>
+            </div>
+            {windowsQuery.isError ? (
+              <p className="text-xs text-amber-300">windows could not be read.</p>
+            ) : !windowsQuery.data ? (
+              <p className="text-xs text-zinc-500">loading…</p>
+            ) : (
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {windowsQuery.data.windows.map((w) => (
+                  <li key={w.actionType} className="font-mono text-zinc-300">
+                    {w.actionType} · {w.days} d{w.source === "env" ? " (env)" : ""}
+                  </li>
+                ))}
+                <li className="font-mono text-zinc-500">anything else · {windowsQuery.data.defaultDays} d</li>
+              </ul>
+            )}
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              An approval past its window cannot be approved (the server refuses); it can be rejected, or the rule re-run.
+            </p>
+          </div>
           {approvals.length === 0 ? (
             <p className="text-xs text-zinc-500 p-4">
               {loading ? "loading approvals…" : "no pending tool approvals"}
@@ -614,6 +651,75 @@ export default function ActionsPage() {
               })}
             </div>
           )}
+
+          {/* 2026-09-08 · deferred automation (autonomous_actions awaiting a verdict) */}
+          <div className="mt-6 border-t border-zinc-800/60 pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">deferred automation</h3>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                {autoQueue.data ? `${autoQueue.data.summary.live} live · ${autoQueue.data.summary.expired} expired` : autoQueue.isError ? "read failed — unknown, not zero" : "loading…"}
+              </span>
+            </div>
+            {autoQueue.data && autoQueue.data.rows.length === 0 && (
+              <p className="text-xs text-zinc-500 p-2">no rule is waiting on you.</p>
+            )}
+            <div className="space-y-3">
+              {(autoQueue.data?.rows ?? []).map((row) => (
+                <div
+                  key={row.id}
+                  className={cn(
+                    "rounded-lg border bg-[var(--bg-raised)]/[0.02] p-3 space-y-2",
+                    row.expired ? "border-amber-500/30" : "border-zinc-800/60",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-white">{row.ruleName}</p>
+                      <p className="text-[11px] font-mono text-[var(--text-tertiary)]">
+                        {row.actionType}
+                        {row.targetType ? ` · ${row.targetType}${row.targetId ? ` ${row.targetId}` : ""}` : ""}
+                        {" · "}
+                        {row.expired
+                          ? `expired ${new Date(row.expiresAt).toLocaleString()}`
+                          : `expires ${new Date(row.expiresAt).toLocaleString()}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => decideAuto.mutate({ id: row.id, decision: "rejected" })}
+                        disabled={decideAuto.isPending}
+                        className="min-h-[44px] rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 disabled:opacity-40"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => decideAuto.mutate({ id: row.id, decision: "approved" })}
+                        disabled={row.expired || decideAuto.isPending}
+                        title={row.expired ? "Authorization expired — reject it or re-run the rule" : undefined}
+                        className="min-h-[44px] rounded-lg bg-[var(--gold)] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[var(--gold)]/80 disabled:opacity-40"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                  {row.policyObjective && (
+                    <p className="text-[11px] text-zinc-400">{row.policyObjective}</p>
+                  )}
+                  {row.payload != null && (
+                    <details className="text-[11px]">
+                      <summary className="cursor-pointer text-[var(--text-tertiary)]">payload</summary>
+                      <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-zinc-300">{JSON.stringify(row.payload, null, 2)}</pre>
+                    </details>
+                  )}
+                  {row.expired && (
+                    <p className="text-xs text-amber-300">Authorization expired — approve is refused; reject it or re-run the rule against current state.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </Panel>
       )}
 

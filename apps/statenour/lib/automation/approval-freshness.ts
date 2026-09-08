@@ -41,9 +41,54 @@ export const APPROVAL_FRESHNESS_DAYS: Readonly<Record<string, number>> = {
   update_record: 7,
 };
 
-export function freshnessDaysFor(actionType: string | null | undefined): number {
-  if (!actionType) return DEFAULT_FRESHNESS_DAYS;
-  return APPROVAL_FRESHNESS_DAYS[actionType] ?? DEFAULT_FRESHNESS_DAYS;
+/**
+ * Operator override · env `APPROVAL_FRESHNESS_DAYS` as JSON, e.g.
+ * {"send_email": 5, "default": 10}. Only positive integers are accepted;
+ * anything else is ignored and the defaults stand. Read on every call so a
+ * Railway env edit takes effect on the next request, no restart needed.
+ */
+export const FRESHNESS_ENV_KEY = "APPROVAL_FRESHNESS_DAYS";
+
+export function parseFreshnessOverrides(raw: unknown): Record<string, number> {
+  if (typeof raw !== "string" || raw.trim().length === 0) return {};
+  try {
+    const obj = JSON.parse(raw) as unknown;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isInteger(v) && v > 0 && k.trim()) out[k.trim()] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export interface FreshnessTable {
+  defaultDays: number;
+  /** Effective window per action type (defaults merged with overrides). */
+  windows: Array<{ actionType: string; days: number; source: "default" | "env" }>;
+  source: "default" | "env";
+}
+
+/** The effective table — what /system/actions shows so the windows are never a mystery. */
+export function freshnessTable(env: Record<string, string | undefined> = process.env): FreshnessTable {
+  const overrides = parseFreshnessOverrides(env[FRESHNESS_ENV_KEY]);
+  const keys = [...new Set([...Object.keys(APPROVAL_FRESHNESS_DAYS), ...Object.keys(overrides).filter((k) => k !== "default")])].sort();
+  const windows = keys.map((actionType) => {
+    const o = overrides[actionType];
+    return o != null
+      ? { actionType, days: o, source: "env" as const }
+      : { actionType, days: APPROVAL_FRESHNESS_DAYS[actionType] ?? overrides.default ?? DEFAULT_FRESHNESS_DAYS, source: "default" as const };
+  });
+  const hasEnv = Object.keys(overrides).length > 0;
+  return { defaultDays: overrides.default ?? DEFAULT_FRESHNESS_DAYS, windows, source: hasEnv ? "env" : "default" };
+}
+
+export function freshnessDaysFor(actionType: string | null | undefined, env: Record<string, string | undefined> = process.env): number {
+  const overrides = parseFreshnessOverrides(env[FRESHNESS_ENV_KEY]);
+  if (!actionType) return overrides.default ?? DEFAULT_FRESHNESS_DAYS;
+  return overrides[actionType] ?? APPROVAL_FRESHNESS_DAYS[actionType] ?? overrides.default ?? DEFAULT_FRESHNESS_DAYS;
 }
 
 /** When a deferred autonomous action's authorization window closes. */

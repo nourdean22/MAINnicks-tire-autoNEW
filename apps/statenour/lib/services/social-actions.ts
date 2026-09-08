@@ -1,3 +1,4 @@
+import { ensureSignedImagePath } from "@/lib/images/signed-url";
 import { imagePath } from "@/lib/images/signed-url";
 /**
  * lib/services/social-actions.ts · misc-pages slice (2026-05-22 ·
@@ -177,6 +178,8 @@ function resolveImageUrl(
   if (!imageUrl || !imageUrl.startsWith("/")) {
     return { url: imageUrl, unresolved: false };
   }
+  // D13 · a raw pre-flag id is re-signed here so Meta can still fetch it.
+  const path = ensureSignedImagePath(imageUrl);
   const host =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     (requestHost ? `https://${requestHost}` : "");
@@ -184,8 +187,8 @@ function resolveImageUrl(
     return { url: undefined, unresolved: true };
   }
   const url = host.startsWith("http")
-    ? `${host}${imageUrl}`
-    : `https://${host}${imageUrl}`;
+    ? `${host}${path}`
+    : `https://${host}${path}`;
   return { url, unresolved: false };
 }
 

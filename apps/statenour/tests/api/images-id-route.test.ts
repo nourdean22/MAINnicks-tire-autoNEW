@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: db, resetQueryCount: vi.fn(), getQueryC
 
 import { GET } from "@/app/api/images/[id]/route";
 import { signImagePath } from "@/lib/images/signed-url";
+import { requireSession } from "@/lib/auth-guard";
 
 const PNG_B64 = Buffer.from("not-really-a-png").toString("base64");
 const get = (path: string) => GET(new NextRequest(`https://x.test${path}`), { params: Promise.resolve({ id: "img_1" }) });
@@ -57,10 +58,16 @@ describe("GET /api/images/[id]", () => {
   describe("flag on", () => {
     beforeEach(() => vi.stubEnv("IMAGES_REQUIRE_SIGNATURE", "1"));
 
-    it("a raw id is refused before any DB read", async () => {
+    it("a raw id WITHOUT a session is refused before any DB read", async () => {
+      vi.mocked(requireSession).mockRejectedValueOnce(new Error("no session"));
       const res = await get("/api/images/img_1");
       expect(res.status).toBe(401);
       expect(db.auditEvent.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("a raw id with a session serves — the operator's own chat history keeps rendering", async () => {
+      const res = await get("/api/images/img_1");
+      expect(res.status).toBe(200);
     });
 
     it("a signed link serves", async () => {

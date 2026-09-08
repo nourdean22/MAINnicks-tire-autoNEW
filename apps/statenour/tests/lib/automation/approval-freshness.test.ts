@@ -13,6 +13,8 @@ import {
   freshnessDaysFor,
   isActionExpired,
   isApprovalRequestExpired,
+  freshnessTable,
+  parseFreshnessOverrides,
 } from "@/lib/automation/approval-freshness";
 
 const NOW = new Date("2026-09-07T12:00:00Z");
@@ -76,5 +78,21 @@ describe("the refusal message says what to do", () => {
     expect(msg).toMatch(/re-request/);
     expect(msg).toMatch(/dismiss/);
     expect(msg).not.toMatch(/declined/i);
+  });
+});
+
+describe("APPROVAL_FRESHNESS_DAYS env override", () => {
+  it("a JSON map overrides per type and the default; garbage is ignored", () => {
+    expect(freshnessDaysFor("send_email", { APPROVAL_FRESHNESS_DAYS: '{"send_email": 5}' })).toBe(5);
+    expect(freshnessDaysFor("something_new", { APPROVAL_FRESHNESS_DAYS: '{"default": 10}' })).toBe(10);
+    expect(freshnessDaysFor("send_email", { APPROVAL_FRESHNESS_DAYS: "not json" })).toBe(APPROVAL_FRESHNESS_DAYS.send_email);
+    expect(parseFreshnessOverrides('{"send_email": -1, "x": "y"}')).toEqual({});
+  });
+  it("the effective table names its source per row so the UI never shows a mystery number", () => {
+    const table = freshnessTable({ APPROVAL_FRESHNESS_DAYS: '{"send_sms": 1}' });
+    expect(table.source).toBe("env");
+    expect(table.windows.find((w) => w.actionType === "send_sms")).toEqual({ actionType: "send_sms", days: 1, source: "env" });
+    expect(table.windows.find((w) => w.actionType === "send_email")).toEqual({ actionType: "send_email", days: APPROVAL_FRESHNESS_DAYS.send_email, source: "default" });
+    expect(freshnessTable({}).source).toBe("default");
   });
 });
