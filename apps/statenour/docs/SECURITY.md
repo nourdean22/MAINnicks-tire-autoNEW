@@ -26,7 +26,7 @@ assumptions below reflect that.
 **NextAuth v5-beta.30 with Google OAuth provider + single allowlist email.**
 
 ```
-middleware.ts
+proxy.ts (was middleware.ts)
     │
     ├── public prefixes bypass:
     │     /api/auth, /api/webhooks, /api/telegram, /api/images,
@@ -78,7 +78,7 @@ which carries a stated invariant per entry and is pinned by
 | `/api/webhooks/*` | provider-specific: Stripe signature (all `v1=` candidates, replay window), `x-make-secret`, `x-sync-key` |
 | `/api/inngest` | Inngest signing key |
 | `/api/actions/*`, `/api/mcp` | bridge bearer token; `/api/actions/openapi` is public (it advertises tool names + schemas to the Custom GPT importer — an accepted disclosure, revisit if the GPT is retired) |
-| `/api/images/[id]` | **none** — serves a generated image by unguessable id with `Cache-Control: public`. Load-bearing for chat markdown, /content publish and social posting. The photo-improver stores the operator's own photos through the same path, so "no PII" is no longer strictly true; signed URLs are the planned fix (operator decision). |
+| `/api/images/[id]` | **capability URL** (2026-09-07, D13) — `?exp=&sig=` HMAC (`lib/images/signed-url.ts`, secret `IMAGE_URL_SECRET` → `AUTH_SECRET`). Default `IMAGES_REQUIRE_SIGNATURE` unset: raw ids still serve (chat markdown, /content publish, Meta fetches) and a present-but-invalid signature is refused. Set the flag to `1` to refuse raw ids; every server-side minter goes through `imagePath()` and signs (7-day TTL). Flipping the flag is an operator Railway env edit. |
 | `/api/short/<code>` | none — public redirector; logs a hashed-IP click |
 
 **Rule:** before moving a route into the public prefix list, confirm
@@ -131,7 +131,7 @@ all three paths (v11.0).
 ## CSP + headers
 
 **The CSP lives in exactly one place: `lib/security/csp.ts`, emitted by
-`middleware.ts` with a per-request nonce.** Static headers live in
+`proxy.ts` (the Next 16 name for `middleware.ts`, renamed 2026-09-08; Node runtime) with a per-request nonce.** Static headers live in
 `next.config.ts` `headers()`. Two CSP sources would make the browser
 enforce their intersection and break the nonce model, so never add one to
 `next.config.ts`. What production actually sends (read back 2026-09-07):

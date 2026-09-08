@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat returns to the same low-angle front wheel well rolling over the same rough residential road at dusk and takes one more bump, so a replay picks up mid-impact exactly where the opening starts.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Clunk over bumps: sway bar link vs. ball joint",
-  "campaignKeyword": "CLUNK",
+  "campaignKeyword": "VIBRATION",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "How it clunks narrows it down.",
       "onScreenText": "BUMPS ONLY, OR BUMPS WHILE TURNING?",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, lift and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Low-angle static shot of the same front wheel well rolling over the same rough residential road, the suspension taking one more bump with subtle camera shake synced to the impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

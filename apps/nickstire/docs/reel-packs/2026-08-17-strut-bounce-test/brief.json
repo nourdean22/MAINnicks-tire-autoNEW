@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same workbench clipboard under the same bay light, cleared now, so a replay resumes the identical slow push-in across the identical surface.",
   "topic": "What 'you need struts' actually means (the bounce test)",
-  "campaignKeyword": "STRUT-BOUNCE",
+  "campaignKeyword": "VIBRATION",
   "slateSource": "docs/REEL-SLATE-2026-07-31.md#15",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled task run, 2026-08-17, no live operator present",
@@ -19,6 +20,7 @@
       "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]
     },
     {
+      "onScreenText": "STRUTS CONTROL SETTLING",
       "index": 2,
       "role": "SETUP",
       "window": "0:03-0:09",
@@ -27,6 +29,7 @@
       "stockSearchTerms": ["car strut shock absorber closeup", "suspension coil spring garage"]
     },
     {
+      "onScreenText": "BOUNCING CHEWS TREAD",
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:15",
@@ -35,6 +38,7 @@
       "stockSearchTerms": ["tire tread cupping wear macro", "worn tire uneven wear closeup"]
     },
     {
+      "onScreenText": "PUSH ONE CORNER",
       "index": 4,
       "role": "VALUE_DEMO",
       "window": "0:15-0:21",
@@ -43,11 +47,12 @@
       "stockSearchTerms": ["car suspension bounce speed bump slow motion", "car driving over bump suspension travel"]
     },
     {
+      "onScreenText": "MORE THAN ONE BOUNCE?",
       "index": 5,
       "role": "CTA",
       "window": "0:21-0:27",
       "narration": "More bounce than that is worth checking.",
-      "visualPrompt": "Wide establishing shot of a garage bay exterior, roll-up door open onto a plain brick wall, warm late-afternoon light, static or very slow push-in.",
+      "visualPrompt": "Slow macro push-in on the same clipboard lying flat on the workbench, its spring clip empty now and catching the same soft bay light, garage bay softly lit and out of focus behind it, static camera, shallow depth of field",
       "stockSearchTerms": ["auto repair garage bay exterior"]
     }
   ],

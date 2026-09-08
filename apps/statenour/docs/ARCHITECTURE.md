@@ -128,7 +128,7 @@ bridge is a thin sync + oversight channel.
 ```
                             ┌─────────────────────────┐
                             │   Next.js middleware    │
-                            │ (middleware.ts auth)    │
+                            │ (proxy.ts auth)       │
                             └───────────┬─────────────┘
                                         │
                 ┌───────────────────────┼───────────────────────┐
@@ -180,7 +180,7 @@ cost), here's the full lifecycle:
 User types in /chat page
         │
         ▼  POST /api/ai/chat { messages, conversationId }
- middleware.ts  ← session check (email in AUTH_ALLOWED_EMAIL)
+ proxy.ts       ← session check (email in AUTH_ALLOWED_EMAIL); was middleware.ts until 2026-09-08 (Next 16 rename)
         │
         ▼
  apiHandler wrapper — rate limit + request log

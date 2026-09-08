@@ -1,6 +1,7 @@
 {
+  "loopIdea": "It already returns: the last beat pushes in and ends on the same cluster close-up with the oil icon that beat 1 opens on, so the replay picks up mid-flicker instead of restarting.",
   "topic": "Oil pressure light flickers at idle, then goes off: low oil vs a failing sending unit, and why not to keep driving on it",
-  "campaignKeyword": "OILPRESSURE",
+  "campaignKeyword": "PRESSURE",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-22",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "FLICKERS THEN GOES OFF",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["oil pressure warning light dashboard closeup", "car oil can icon dashboard flicker macro"]
     },
     {
+      "onScreenText": "A FLICKER COUNTS",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["oil pressure gauge needle closeup", "car gauge cluster low pressure macro"]
     },
     {
+      "onScreenText": "CHECK THE OIL LEVEL",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["engine bay oil filler cap open closeup", "oil pressure sending unit engine block macro"]
     },
     {
+      "onScreenText": "DO NOT KEEP DRIVING",
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
@@ -40,6 +45,7 @@
       "stockSearchTerms": ["engine bay orbital shot garage", "car engine closeup pull back shop lighting"]
     },
     {
+      "onScreenText": "WEARS THE BEARINGS",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],

@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The closing beat ends on the same fluid reservoir with the cap turning down under the same single shaft of light the opening framed, so a replay reopens the same cap.",
   "mechanicTruth": "Brake fluid is hygroscopic - it pulls moisture out of the air even in a closed system - and the more water it holds, the lower its boiling point, so the pedal goes soft under repeated hard braking heat. That same water is what corrodes steel brake lines from the inside, and a test strip reads the moisture level.",
   "packId": "2026-08-18-brake-fluid-moisture-test",
   "generatedAt": "2026-08-18",
   "mode": "INTELLIGENCE/SCHEDULED (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "not on any tracked slate file; selected fresh this run against the open-PR + merged-pack backlog (see README §1-2)",
-  "campaignKeyword": "FLUIDCHECK",
+  "campaignKeyword": "BRAKES",
   "hookText": "Your brake fluid is quietly pulling water out of the air. That's not a defect. That's chemistry.",
   "ctaText": "Fifteen seconds with a test strip tells you which one you are. Bring it by — we'll check it free.",
   "durationSeconds": 26,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 9,
       "narration": "Chemistry, not a defect.",
-      "onScreenText": "",
+      "onScreenText": "CHEMISTRY NOT A FAULT",
       "providerScene": "Macro shot of a test strip dipping into a small sample cup of brake fluid, pads on the strip beginning to shift color, soft overhead key light, shallow DOF, static hold then slow tilt, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 9,
       "endSecond": 15,
       "narration": "More water means a lower boiling point, a softer pedal.",
-      "onScreenText": "",
+      "onScreenText": "WATER = SOFTER PEDAL",
       "providerScene": "Close-up comparison of two test strips side by side on a clean workbench, one pale/clean-reading, one visibly shifted toward the high-moisture color band, even top-down light, slow lateral dolly, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 15,
       "endSecond": 20,
       "narration": "It also corrodes the steel lines from the inside.",
-      "onScreenText": "",
+      "onScreenText": "RUSTS LINES INSIDE",
       "providerScene": "Macro shot of a brake line fitting on a workbench, rack-focus from a clean fitting to a second fitting with light surface corrosion, dim garage lighting shifting cooler, slow rack focus pull, texture-forward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 20,
       "endSecond": 26,
       "narration": "A test strip tells you where yours stands.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on the back wall, bare painted block and a clean concrete floor, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "ONE STRIP TELLS YOU",
+      "providerScene": "Extreme macro, the same brake fluid reservoir with its cap turning back down onto the neck, pale amber fluid settling below, single shaft of light catching the surface, shallow depth of field, slow push-in, moody garage-bay lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

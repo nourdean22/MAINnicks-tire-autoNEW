@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The closing beat pulls back out to the same macro of the sidewall bulge in the same studio-lit garage the opening pushed into, landing on that exact frame so a replay resumes the push-in.",
   "mechanicTruth": "A sidewall bulge is where the cords inside the tire tore loose, usually from a curb or pothole hit, so only air pressure is holding that spot out. A sidewall carries no repairable structure the way the tread does, so a patch or plug cannot restore it - the tire gets replaced.",
   "packId": "2026-08-17-sidewall-bulge",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "off-slate (not in REEL-SLATE-2026-07-31.md — same precedent as the 2026-08-15 tread-fingerprint pack)",
-  "campaignKeyword": "SIDEWALL-BULGE",
+  "campaignKeyword": "POTHOLE",
   "hookText": "That bump on your tire's sidewall isn't a warranty problem. It's a blowout waiting to happen.",
   "ctaText": "See a bulge on your sidewall? Send this to them today.",
   "durationSeconds": 28,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "Inner cords tore loose, usually a curb or pothole.",
-      "onScreenText": "",
+      "onScreenText": "CORDS TORE INSIDE",
       "providerScene": "Wide-to-medium shot of a wheel resting near a curb edge or shallow pothole (static prop, no motion vehicle impact depicted), soft overcast daylight, slow lateral dolly, documentary tone, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 15,
       "narration": "No patch or plug fixes a sidewall.",
-      "onScreenText": "",
+      "onScreenText": "NO PATCH NO PLUG",
       "providerScene": "Tire mounted on a shop rack, slow rotating turntable reveal of the sidewall bulge from multiple angles, even overhead shop light, shallow DOF, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 15,
       "endSecond": 21,
       "narration": "It holds air for weeks, then lets go.",
-      "onScreenText": "",
+      "onScreenText": "HOLDS AIR FOR NOW",
       "providerScene": "Wide shot of highway traffic exterior, dusk lighting, slow tracking shot along the roadway shoulder, tension-building tone, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 21,
       "endSecond": 28,
       "narration": "A bulge gets replaced, not repaired.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on the back wall, bare painted block and a clean concrete floor, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "REPLACED NOT REPAIRED",
+      "providerScene": "Extreme macro of the same tire sidewall bulge, camera settling back out to the opening framing, studio-lit garage bay, shallow depth of field, moody teal-and-amber practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

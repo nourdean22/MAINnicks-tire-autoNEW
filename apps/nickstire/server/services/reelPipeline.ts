@@ -602,6 +602,16 @@ export async function enqueueReelJob(
       idempotencyKey,
       queueState: queueStateForReelStatus("queued"),
       productionSlot: episodeContract.productionSlot,
+      // DUE-AT, stamped at enqueue. Migration 0118 added this column and
+      // `reelRecoveryLedger` reads it, but nothing in the repo ever WROTE one -
+      // so every job's intent was null and "was this late?" had nothing to
+      // compare against. It is deliberately NOT `publicationScheduledAt`, which
+      // is stamped at the publish CAS and means "publish STARTED".
+      //
+      // Null is a legitimate value and is left alone: a caller that supplies no
+      // intent (admin one-off, canary, backfill) gets an unscheduled job rather
+      // than a fabricated deadline.
+      ...(episode.publicationIntendedAt ? { publicationIntendedAt: episode.publicationIntendedAt } : {}),
       caption,
       source,
     });

@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat pulls back to the same dashboard framing with cabin air stirring the same dust motes through the same hard shaft of sunlight, so a replay picks up in air that is already moving.",
   "mechanicTruth": "A car carries two air filters - the engine filter feeds the engine, and the cabin filter sits in the airflow path ahead of the vents, so once it packs with dust and grit it restricts that airflow and the vents blow weak even when the AC itself is working.",
   "id": "content-pack-2026-08-17-cabin-air-filter",
-  "campaignKeyword": "AIRFLOW",
+  "campaignKeyword": "WIPERS",
   "archetype": "confused_pair_clarified",
   "motionLenses": ["cabin_interior_heat_haze", "product_teardown_macro"],
   "selectedCaption": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine — that's not your problem. The cabin filter cleans the air coming through your vents, and it's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. Often a ten-minute swap. Worth checking before you blame the AC system.",

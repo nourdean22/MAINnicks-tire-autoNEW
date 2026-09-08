@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same macro framing of glass in its track that it opened on, now moving freely, so a replay reads as the same window caught one moment earlier.",
   "topic": "Power window stuck halfway: regulator cable vs motor diagnosis",
-  "campaignKeyword": "PWRWINDOW",
+  "campaignKeyword": "BATTERY",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "STUCK HALFWAY",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car window stuck halfway closeup", "car door window track macro"]
     },
     {
+      "onScreenText": "PRESS AND LISTEN",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["car window switch closeup interior", "power window control panel macro"]
     },
     {
+      "onScreenText": "HUM POINTS TO CABLE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["car fuse box closeup", "blown fuse macro shop light"]
     },
     {
+      "onScreenText": "SILENCE = FUSE OR MOTOR",
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["car door panel to window track focus pull", "car door interior closeup garage"]
     },
     {
+      "onScreenText": "DO NOT FORCE IT",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
       "narration": "Do not force the glass by hand.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Macro shot of the same door window glass in the same track from the identical angle, the glass now sliding smoothly and seating fully down into the door, shallow depth of field, slow camera push-in, neutral daylight through the glass",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

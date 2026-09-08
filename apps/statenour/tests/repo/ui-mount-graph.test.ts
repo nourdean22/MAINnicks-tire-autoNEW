@@ -100,7 +100,7 @@ function importsOf(file: string): string[] {
 }
 
 const ENTRY_RE = /^app\/(?:.*\/)?(?:page|layout|template|error|global-error|loading|not-found|default|route|manifest|robots|sitemap|icon|apple-icon|opengraph-image)\.tsx?$/;
-const ROOT_ENTRIES = new Set(["middleware.ts", "instrumentation.ts", "instrumentation-client.ts", "auth.ts", "next.config.ts"]);
+const ROOT_ENTRIES = new Set(["proxy.ts", "middleware.ts", "instrumentation.ts", "instrumentation-client.ts", "auth.ts", "next.config.ts"]);
 
 const files = walk(APP_ROOT);
 const byRel = new Map(files.map((f) => [norm(f), f]));

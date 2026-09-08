@@ -1,12 +1,14 @@
 {
+  "loopIdea": "The reel ends on the same under-hood reservoir close-up it opened on, the level now drawing down in identical framing, so the replay lands right back on that full tank.",
   "topic": "Washer fluid won't spray: three checks in order (nozzle, hose, pump)",
-  "campaignKeyword": "WASHERJET",
+  "campaignKeyword": "WIPERS",
   "producedBy": "scheduled-task, no live operator present",
   "producedAt": "2026-08-23",
   "mode": "SCHEDULED/INTELLIGENCE - pack only, no generation/DB/publish call made",
   "totalDurationSec": 22,
   "beats": [
     {
+      "onScreenText": "FULL BUT NO SPRAY",
       "index": 1,
       "role": "HOOK",
       "startSec": 0,
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car washer fluid reservoir closeup", "windshield washer tank under hood"]
     },
     {
+      "onScreenText": "NOZZLE FIRST",
       "index": 2,
       "role": "SETUP",
       "startSec": 4,
@@ -25,6 +28,7 @@
       "stockSearchTerms": ["windshield washer nozzle closeup", "car hood washer jet macro"]
     },
     {
+      "onScreenText": "THEN THE HOSE",
       "index": 3,
       "role": "VALUE",
       "startSec": 9,
@@ -34,6 +38,7 @@
       "stockSearchTerms": ["car washer fluid hose engine bay", "automotive washer line closeup"]
     },
     {
+      "onScreenText": "PUMP LAST",
       "index": 4,
       "role": "VALUE",
       "startSec": 14,
@@ -43,12 +48,13 @@
       "stockSearchTerms": ["washer pump motor reservoir base", "automotive washer pump closeup"]
     },
     {
+      "onScreenText": "CHEAPEST CHECK FIRST",
       "index": 5,
       "role": "CTA",
       "startSec": 18,
       "endSec": 22,
       "narration": "Cheapest check first.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "visualPrompt": "Close-up under the same open hood on the same translucent washer fluid reservoir in identical framing, the fluid level now visibly drawing down with ripples crossing the surface, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

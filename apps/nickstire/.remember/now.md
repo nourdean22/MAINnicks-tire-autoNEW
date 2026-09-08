@@ -22,8 +22,15 @@ record. **Regen on main:** run `34172453611` failed at `git push` (non-ff — #2
 does not rebase); re-dispatched `34173664386` from `622426951` → landed `2336d313d` (337 files). **Tree check, not assumption:**
 Parma snapshot at `f2bcf949d`/`cfdcad9be` = 1 JSON-LD `FAQPage` + WebP og:image; at `2336d313d` = 0 + JPEG. So
 the in-PR regen had NOT made the fixes crawler-visible (the earlier ledger line claiming it had was wrong), and
-a skip-ci-tagged regen commit does not deploy by itself — live still served `cfdcad9be` at 20:51 ET; the #2182 merge
-carries it. **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
+a skip-ci-tagged regen commit DOES deploy on Railway (health showed `2336d313d` by 21:20 ET; the 20:51 probe was
+before its build finished — poll health, never conclude "no deploy" from one early probe). #2182 merged `081f517f7`. **Crawler-visible VERIFIED 21:2x ET on `2336d313d`:** bot-UA GET
+`/parma-auto-repair` → `X-Prerendered: true`, 0 `"@type":"FAQPage"`, 0 `aggregateRating`, og:image `/og-image.jpg`.
+**Security hardening PR (branch `nickstire/security-hardening-2026-09-08`):** hash-based `script-src` in prod (one
+inline loader; 336/336 snapshots share the hash — test walks every file), `cf-connecting-ip` gated by
+`TRUST_CLOUDFLARE_HEADERS` (rotating the header defeated the 10/h form limit — proven through the real limiter),
+`/.well-known/security.txt`. Post-deploy check: DevTools console on `/`, `/tires`, `/book` shows no "Refused to
+execute inline script"; `curl -sI https://nickstire.org/ | grep -i content-security` shows `'sha256-` and no
+`'unsafe-inline'` inside script-src. Rollback without deploy: `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true`. **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
 GitHub skipped EVERY workflow for that push — the token counts anywhere in the head commit message. Never spell it
 out in a commit message or in a PR body a squash merge might copy; pass `--subject`/`--body` to the merge. Verify by a bot-UA **GET** of a city page, never HEAD; bot responses are cached 1 h. `grep -c FAQPage`
 over-counts (chunk names) — count `"@type":"FAQPage"`. Owner item: create the read-only prerender credential.

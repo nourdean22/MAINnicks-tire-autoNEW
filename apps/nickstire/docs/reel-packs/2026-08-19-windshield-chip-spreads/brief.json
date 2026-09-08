@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same rock-chip macro in the same morning glare, the glass now smooth, so a replay resumes on an identical focus pull.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Windshield chip: repair before it spreads into a crack",
-  "campaignKeyword": "CHIPSPREAD",
+  "campaignKeyword": "WIPERS",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "Worth checking while it's still small.",
       "onScreenText": "Check it before it reaches the edge.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, tool cart visible; camera slowly pushes in and racks focus onto a parked car's windshield inside the bay, echoing the opening beat's chip-close-up composition, no people visible",
+      "visual": "Extreme close-up of the same spot in the car windshield, morning sun glare catching the glass, the chip filled and the surface smooth where it sat, static camera with a slow, subtle focus pull onto that spot, blurred dashboard reflection in the background, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

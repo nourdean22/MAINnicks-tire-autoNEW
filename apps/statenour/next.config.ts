@@ -111,7 +111,7 @@ const nextConfig: NextConfig = {
           // Perplexity-User, Google-Agent, meta-externalfetcher, Amzn-User)
           // document that they ignore robots.txt. This header is the second
           // layer on every response, incl. the sign-in page — the only 200 a
-          // crawler ever sees. Auth (middleware.ts) remains the actual
+          // crawler ever sees. Auth (proxy.ts, was middleware.ts) remains the actual
           // access control. tests/repo/private-discovery.test.ts pins it.
           key: "X-Robots-Tag",
           value: "noindex, nofollow, noarchive, noimageindex",
@@ -133,7 +133,7 @@ const nextConfig: NextConfig = {
         // Disable legacy XSS filter — modern browsers don't need it and it can cause issues
         { key: "X-XSS-Protection", value: "0" },
         // ── Content-Security-Policy ──────────────────────────────────────
-        // CSP moved to middleware.ts (audit-2026-06-21) so script-src can use
+        // CSP moved to middleware.ts, now proxy.ts (audit-2026-06-21) so script-src can use
         // a per-request nonce + 'strict-dynamic' in production. It must live in
         // exactly ONE place — a CSP header here AND in middleware would make the
         // browser enforce their intersection and break the nonce model. The

@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The closing beat returns to the same salt-crusted steel brake line under the vehicle the reel opens on, held at the same underside angle so a replay reads as the same look continuing.",
+  "campaignKeyword": "SALT",
   "topic": "road-salt-brake-lines",
   "keyword": "SALT",
   "archetype": "cleveland_survival",
@@ -9,6 +11,8 @@
   "totalDurationSec": 31,
   "beats": [
     {
+      "motion": "slow push-in",
+      "visual": "Low underside angle on a salt-crusted steel brake line running along the frame rail beneath a parked vehicle, chalky white crust drying in patches across the metal, cold daylight raking in from the edge of frame, shallow depth of field, slow push-in, 9:16 vertical framing",
       "index": 1,
       "role": "hook",
       "startSec": 0,
@@ -20,6 +24,8 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro on a short run of that steel brake line where the salt crust has flaked away, orange scale blooming across the outer skin of the tube and pitting down into it, cold raking side light, very shallow depth of field, slow push-in, 9:16 vertical framing",
       "index": 2,
       "role": "symptom",
       "startSec": 3,
@@ -31,6 +37,8 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "low tracking shot",
+      "visual": "Low tracking shot gliding along the underside of a vehicle in deep shadow, the brake line following the frame rail and vanishing behind the fuel tank and a suspension cross member, one cold shaft of daylight cutting across the frame, shallow depth of field, 9:16 vertical framing",
       "index": 3,
       "role": "explanation",
       "startSec": 7,
@@ -42,6 +50,8 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "static hold",
+      "visual": "Tight interior footwell shot on the brake pedal arm, the pedal sinking slowly and softly toward the floor and settling low, dim cabin shadow with cold daylight spilling in from the side, shallow depth of field, static hold, 9:16 vertical framing",
       "index": 4,
       "role": "consequence",
       "startSec": 13,
@@ -53,6 +63,8 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Low underside angle on the same steel brake line as a wide spray of clean water sheets across it, white salt crust breaking loose and running off the metal in chalky rivulets, bright cold daylight catching the spray, slow push-in, 9:16 vertical framing",
       "index": 5,
       "role": "safe_action",
       "startSec": 18,
@@ -64,6 +76,7 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "visual": "Low underside angle on a salt-crusted steel brake line running along the frame beneath a parked vehicle, chalky white crust drying across the metal, cold daylight raking in from the edge of the frame, shallow depth of field, slow push-in, 9:16 vertical framing",
       "index": 6,
       "role": "branded_cta",
       "startSec": 23,

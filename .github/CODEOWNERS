@@ -14,7 +14,7 @@
 *                                               @nourdean22
 
 # ── Security boundary (statenour) ──────────────────────────────────────────────
-/apps/statenour/middleware.ts                   @nourdean22
+/apps/statenour/proxy.ts                        @nourdean22
 /apps/statenour/auth.ts                         @nourdean22
 /apps/statenour/lib/auth-guard.ts               @nourdean22
 /apps/statenour/lib/security/                   @nourdean22

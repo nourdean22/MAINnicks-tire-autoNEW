@@ -1,7 +1,8 @@
 {
+  "loopIdea": "It already closes the seam: the amber cabin lamp that flickers awake out of black in the opening beat fades back into that same black in the final beat on matching macro framing, so a replay lights it up again as one continuous pulse.",
   "mechanicTruth": "Each wheel carries a sealed tire pressure sensor with its own non-replaceable battery, good for roughly five to ten years, so when that battery dies the warning light stays on even though the tires are holding correct pressure - and adding air will not clear it.",
   "id": "content-pack-2026-08-18-tpms-sensor-battery",
-  "campaignKeyword": "TPMS",
+  "campaignKeyword": "PRESSURE",
   "archetype": "myth_vs_reality",
   "motionLenses": ["warning_light_world", "xray_cutaway", "product_ad_macro"],
   "selectedCaption": "Your TPMS light isn't always about air. Sometimes it's a battery you'll never see. Every tire has a small sensor inside the wheel, and that sensor runs on its own sealed battery. After five to ten years, that battery quietly dies. The light comes on. The tires are fine. The sensor isn't. Adding air won't turn it off. Worth checking before you keep adding air for nothing.",

@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same dash cluster close-up it opened on, the fuel needle now sitting steady and high, so a replay cuts straight back into the startup whine.",
   "topic": "Fuel pump whine getting louder over time: a wear signal, not just noise",
-  "campaignKeyword": "FUELPUMP",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-23",
   "durationSec": 22,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "WHINE AT STARTUP",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car fuel gauge low closeup", "dashboard fuel gauge near empty"]
     },
     {
+      "onScreenText": "LOUDER MEANS WEAR",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["car undercarriage fuel tank closeup", "automotive fuel tank exterior shop"]
     },
     {
+      "onScreenText": "WORSE ON LOW FUEL",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 14],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["fuel gauge needle rising", "car dashboard fuel gauge filling"]
     },
     {
+      "onScreenText": "FUEL COOLS THE PUMP",
       "index": 4,
       "role": "VALUE",
       "windowSec": [14, 18],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["car engine bay idling heat shimmer", "automotive engine compartment running"]
     },
     {
+      "onScreenText": "ONE CLUE ONLY",
       "index": 5,
       "role": "CTA",
       "windowSec": [18, 22],
       "narration": "One whine is not a diagnosis.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "visualPrompt": "Close-up of the same dash cluster in the same framing, the fuel needle now sitting steady and high, warm ambient dash glow, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

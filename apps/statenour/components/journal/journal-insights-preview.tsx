@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
-import { Zap, Lightbulb, Target, Check, Loader2, Sparkles } from "lucide-react";
+import { Zap, Lightbulb, Target, Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -175,12 +175,11 @@ export function JournalInsightsPreview() {
   return (
     <section
       aria-label="journal takeaways preview"
-      className="rounded-xl border border-violet-500/20 bg-zinc-950/40 p-4 space-y-3"
+      className="rounded-xl border border-glass bg-zinc-950/40 p-4 space-y-3"
     >
       <header className="flex items-center gap-2">
-        <Sparkles size={13} className="text-violet-400" strokeWidth={2} />
-        <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-violet-300">
-          extracted journal takes
+        <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-fg-tertiary">
+          <span className="text-fg-secondary">NICK ·</span> extracted journal takes
         </h3>
         <Badge variant="outline" className="ml-auto text-[8px] font-mono text-zinc-500 border-zinc-800 bg-zinc-900/30">
           local preview
@@ -281,10 +280,10 @@ function InsightEntry({
 
               {/* Bold Idea */}
               {item.idea && (showAll || primary === "idea") && (
-                <div className="flex items-start gap-2 p-2 rounded-md bg-violet-500/[0.02] border border-violet-500/10">
-                  <Lightbulb size={11} className="text-violet-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/[0.03] border border-amber-500/15">
+                  <Lightbulb size={11} className="text-amber-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase font-mono tracking-wider text-violet-400/80">
+                    <p className="text-[11px] uppercase font-mono tracking-wider text-amber-400/80">
                       bold idea
                     </p>
                     <p className="text-[11.5px] text-zinc-300 leading-relaxed mt-0.5">
@@ -295,7 +294,7 @@ function InsightEntry({
                     item,
                     "idea",
                     item.ideaPromoted,
-                    "bg-violet-500/15 text-violet-300 border border-violet-500/30 hover:bg-violet-500 hover:text-black"
+                    "border border-glass text-fg-secondary hover:bg-gold hover:text-black"
                   )}
                 </div>
               )}

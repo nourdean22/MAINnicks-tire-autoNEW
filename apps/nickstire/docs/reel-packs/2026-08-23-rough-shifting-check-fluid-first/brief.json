@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same shallow-focus macro of the console shifter in park that opened it, so the replay restarts on identical framing as if the next hard shift is about to happen.",
   "topic": "Automatic transmission shifting rough or delayed: check the fluid before assuming it's the solenoid",
-  "campaignKeyword": "SHIFTCHECK",
+  "campaignKeyword": "PRESSURE",
   "runDate": "2026-08-23",
   "mode": "PRODUCTION",
   "durationSeconds": 28,
@@ -11,6 +12,7 @@
   },
   "beats": [
     {
+      "onScreenText": "SHIFTS HARD OR LATE",
       "id": 1,
       "label": "HOOK",
       "window": "0:00-0:04",
@@ -20,6 +22,7 @@
       "stockSearchTerms": ["car gear shifter macro", "automatic transmission console interior", "car interior console close up"]
     },
     {
+      "onScreenText": "CHECK FLUID FIRST",
       "id": 2,
       "label": "SETUP",
       "window": "0:04-0:09",
@@ -29,6 +32,7 @@
       "stockSearchTerms": ["car hood opening engine bay", "engine bay reveal shot", "garage bay overhead light"]
     },
     {
+      "onScreenText": "FLUID SETS PRESSURE",
       "id": 3,
       "label": "VALUE",
       "window": "0:09-0:17",
@@ -38,6 +42,7 @@
       "stockSearchTerms": ["transmission dipstick engine bay", "engine bay macro detail", "car fluid check macro"]
     },
     {
+      "onScreenText": "WARM AND RUNNING",
       "id": 4,
       "label": "VALUE",
       "window": "0:17-0:23",
@@ -47,11 +52,12 @@
       "stockSearchTerms": ["transmission fluid color comparison", "fluid drop on cloth macro", "automotive fluid color test"]
     },
     {
+      "onScreenText": "PINK NOT BROWN",
       "id": 5,
       "label": "CTA",
       "window": "0:23-0:28",
       "narration": "Pink or red, not brown, and at the fill line.",
-      "visualPrompt": "Wide establishing shot of a clean, well-lit tire and auto shop bay, warm inviting color grade, slow static or subtle push-in, organized tools and a lift in the background, no visible faces in focus, photorealistic",
+      "visualPrompt": "Extreme macro shot inside the same car cabin, the same center console gear shifter back in park in identical shallow depth of field, slight ambient handheld micro-motion, moody interior light through a windshield, photorealistic automotive macro cinematography",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchTerms": ["auto repair shop bay wide shot", "clean garage interior wide", "tire shop bay establishing shot"]
     }

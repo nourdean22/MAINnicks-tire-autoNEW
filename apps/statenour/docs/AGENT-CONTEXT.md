@@ -63,7 +63,7 @@ Nour's life, habits, business, and growth strategy.
 | People / Intel | `lib/brain/people-intel.ts` | Power Atlas CRM scoring |
 | Crons | `config/crons.ts` | Single source — verified by `pnpm check:crons` |
 | tRPC API | `lib/trpc/routers/**` | Domain-split (was god-file, now split) |
-| Auth | `auth.ts` + `middleware.ts` | Owner-only routes |
+| Auth | `auth.ts` + `proxy.ts` | Owner-only routes |
 
 ---
 

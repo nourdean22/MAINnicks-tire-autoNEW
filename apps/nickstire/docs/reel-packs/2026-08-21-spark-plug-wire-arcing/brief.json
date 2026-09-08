@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same coil boot in the same black night bay it opened on, so the replay's blue flicker returns to a frame the viewer just left.",
   "topic": "Cracked spark plug wire or coil boot arcing at night: the blue spark misfire clue",
-  "campaignKeyword": "ARCSPARK",
+  "campaignKeyword": "ECHECK",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 26,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "BLUE SPARK AT NIGHT",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["spark plug wire arcing night", "engine bay electrical arc dark"]
     },
     {
+      "onScreenText": "SPARK JUMPS TO BLOCK",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["spark plug wire coil boot engine closeup", "ignition coil boot macro"]
     },
     {
+      "onScreenText": "SPARK NEVER ARRIVES",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["cracked ignition coil boot macro", "spark plug wire crack closeup"]
     },
     {
+      "onScreenText": "MISFIRE OR ROUGH IDLE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 21],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["engine bay night rack focus", "dark engine compartment closeup"]
     },
     {
+      "onScreenText": "ONE CLUE WORTH CHECKING",
       "index": 5,
       "role": "CTA",
       "windowSec": [21, 26],
       "narration": "One clue, worth checking.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Dark engine bay at night, the same spark plug wire boot in the same macro framing, now pressed firmly down onto the plug and dark, a dull sheen of metal in a mostly black frame, slow macro push-in, high contrast",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

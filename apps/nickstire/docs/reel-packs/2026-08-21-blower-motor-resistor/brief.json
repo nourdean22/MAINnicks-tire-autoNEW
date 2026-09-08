@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same tight macro of the fan-speed dial, held at high with air moving past it, so the replay's turn through the speeds reads as the next attempt.",
   "topic": "Blower motor resistor failure: heat or A/C fan stuck on one speed",
-  "campaignKeyword": "FANSPEED",
+  "campaignKeyword": "WIPERS",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "ONLY HIGH WORKS",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car dashboard fan speed dial closeup", "hvac fan control knob macro"]
     },
     {
+      "onScreenText": "RESISTOR NOT FAN",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["blower motor resistor closeup", "hvac resistor module under dash macro"]
     },
     {
+      "onScreenText": "HIGH SKIPS IT",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["blower resistor burnt contact macro", "hvac resistor coil closeup automotive"]
     },
     {
+      "onScreenText": "REST GO QUIET",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["blower motor fan wheel housing closeup", "car hvac blower assembly macro"]
     },
     {
+      "onScreenText": "ONE SPEED LEFT",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
       "narration": "One speed left is the clue.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in, 9:16 vertical framing",
+      "visualPrompt": "Macro shot of the same dashboard fan-speed dial, now resting still at its highest position with a thread of dust lifting off the vent slats beside it, shallow depth of field, neutral cabin lighting, 9:16 vertical framing",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

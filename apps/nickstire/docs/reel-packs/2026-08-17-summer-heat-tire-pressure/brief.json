@@ -1,4 +1,5 @@
 {
+  "loopIdea": "The reel ends on beat 1's tight glare-lit dashboard macro with the amber glow gone dark, so a replay lands on the same framing at the moment it lights up again.",
   "mechanicTruth": "Pressure inside a tire rises and falls with the air temperature inside it, roughly one PSI for every ten degrees Fahrenheit, so a tire measured hot off midday asphalt can read right at spec and still be several PSI low when the same tire is measured cold the next morning.",
   "packId": "2026-08-17-summer-heat-tire-pressure",
   "generatedAt": "2026-08-17",
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 9,
       "narration": "Air gains a PSI per ten degrees.",
-      "onScreenText": "",
+      "onScreenText": "1 PSI PER 10 DEGREES",
       "providerScene": "Macro shot of a tire pressure gauge needle rising, mounted on a tire valve stem in bright midday sun, heat-shimmer visible off dark asphalt in the background, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 9,
       "endSecond": 16,
       "narration": "Hot at noon it reads fine. Cold next morning, low.",
-      "onScreenText": "",
+      "onScreenText": "HOT FULL COLD LOW",
       "providerScene": "Split-feel single shot: same tire valve stem and gauge, warm golden midday light dissolving into cooler blue early-morning light via a slow lighting transition, static camera, time-of-day contrast, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 16,
       "endSecond": 22,
       "narration": "Underinflated on a hot highway is where tires overheat.",
-      "onScreenText": "",
+      "onScreenText": "LOW TIRES RUN HOT",
       "providerScene": "Macro shot of a tire sidewall flexing under load on hot pavement, slow lateral tracking shot alongside a moving wheel well, heat-haze practical effect, motion blur on the road surface, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 22,
       "endSecond": 28,
       "narration": "Check pressure cold, before driving.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, static hold, 9:16 vertical framing",
+      "onScreenText": "CHECK IT COLD",
+      "providerScene": "Extreme macro of the same dashboard face behind the windshield, hot afternoon sunlight glare across it, the amber glow now gone dark, shallow depth of field, slight handheld-style micro-shake, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

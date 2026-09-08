@@ -11,7 +11,8 @@ assumption: the Parma snapshot at `f2bcf949d` and `cfdcad9be` still carried one 
 WebP `og:image`; at `2336d313d` it carries zero and `/og-image.jpg`. The in-PR regen (`8c0be63d5`) predated
 both fixes in the tree, so "regenerated in the PR" had not made them crawler-visible — the earlier draft of this
 document said it had. It reaches the live site with the next Railway deploy that includes `2336d313d`
-(the skip-ci-tagged regen commit did not trigger one on its own; this PR's merge carries it). This PR (release closure) fixes the sales-window cardinality defect, guards the prerender regen
+(the skip-ci-tagged regen commit DID deploy on Railway — `/api/health` reported `2336d313d` by 21:20 ET; the
+20:51 probe recorded in §15 simply preceded its build. One early probe is not evidence of "no deploy"). This PR (release closure) fixes the sales-window cardinality defect, guards the prerender regen
 against production writes, adds the three regression tests an outside review asked for, and corrects the
 research errors listed in §2/§5/§6. §15 is the release record.
 Evidence grades: **VERIFIED** = measured live, read in code, or quoted from a primary vendor page ·
@@ -109,7 +110,7 @@ FCFS everywhere) and several specifics wrong. Corrections that change what engin
 | Report claim | Verdict | Evidence |
 |---|---|---|
 | "Add missing Open Graph and Twitter cards" | **Wrong premise.** Both exist on every page. The defect was the image URL returning 403. | live `curl` of `/` and `/brakes` |
-| "Configure CSP and HSTS as per best practice" | **Already live** (CSP, HSTS preload, COOP, CORP, XFO, nosniff, Referrer-Policy). Real gap was `connect-src` (fixed) and `'unsafe-inline'` (Phase 2, needs nonce injection at serve time). | headers captured 2026-09-07 |
+| "Configure CSP and HSTS as per best practice" | **Already live** (CSP, HSTS preload, COOP, CORP, XFO, nosniff, Referrer-Policy). Real gap was `connect-src` (fixed) and `'unsafe-inline'` in `script-src` — closed 2026-09-08 with sha256 hashes of the single inline loader (no nonce needed: the served HTML is static and identical across all snapshots). | headers captured 2026-09-07; `server/securityHeaders.test.ts` |
 | "Verify LCP, FID, CLS" | **FID was replaced by INP on 2024-03-12.** Thresholds: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1 at p75. | web.dev/articles/vitals |
 | "WCAG 2.2 AA 1.4.11" for target size / focus | **Wrong number.** 1.4.11 is Non-text Contrast (2.1). Target size is 2.5.8 (24×24 CSS px at AA); 44 px is AAA 2.5.5. | w3.org/WAI/standards-guidelines/wcag/new-in-22 |
 | "Consider a PWA shell" / "add install banner icons" | **Already shipped**: service worker (network-first navigations after a 2026-08-01 incident), manifest with 192/512 + maskable icons. | `client/public/sw.js`, `manifest.json` |
@@ -319,11 +320,11 @@ sources cited. Attribution limit: none of these prove causation; they show prese
 | Gate | Current (VERIFIED) | Target | Placement |
 |---|---|---|---|
 | HTTPS + HSTS | 301 http→https; HSTS 2 y, includeSubDomains, preload flag; **not submitted** to hstspreload.org (status unknown) | Fix `www` DNS first (currently NXDOMAIN — customers typing www get nothing), then submit | Owner: DNS + submit |
-| CSP | allowlist + `'unsafe-inline'` (bypassable shape); connect-src fixed here | nonce + `'strict-dynamic'` injected at serve time (GTM propagates the nonce); prerequisite: HTML `no-cache`/short cache (done for SPA path; bot path is 1 h) | Phase 2, with a test that breaks it |
+| CSP | allowlist + `'unsafe-inline'` (bypassable shape); connect-src fixed here | **DONE 2026-09-08** — production `script-src` carries `'sha256-…'` of the one inline loader instead of `'unsafe-inline'` (dev keeps it for Vite HMR); `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true` is the no-deploy fallback. A nonce was not needed: every served HTML document is static and shares one inline script (parity test over all 336 snapshots). Verify after deploy: DevTools console shows no "Refused to execute inline script" on `/`, `/tires`, `/book`. | done · `securityHeaders.test.ts` (control/canary) |
 | Other headers | COOP same-origin, CORP same-site, XFO DENY, nosniff, Referrer strict-origin-when-cross-origin, X-XSS-Protection 0 (correct), Permissions-Policy extended here | keep; no COEP (Maps iframe) | done |
 | Cookie consent | none; **not required under the current facts** — an applicability decision, not a permanent verdict: US-only shop; Ohio has no comprehensive privacy law; CCPA thresholds not met; Google/Meta terms satisfied by disclosure; EDPB treats incidental EU visits as out of scope. **Flips if** the site or its ads target EEA/UK/CH visitors, a state law without a revenue threshold applies, or Google/Meta consent terms change | privacy policy disclosure (done); re-decide on any flip condition | done / conditional |
 | SMS/TCPA | STOP handling exists in `smsGateway.ts`/`sms.ts`; consent records per `SMS-REVENUE-AGENT-OS.md` | audit against the five rules: written consent for marketing; service texts on transaction consent; opt-out within 10 business days (do it instantly), one confirmation text within 5 min, treat STOP as global; quiet hours 8–9 local for marketing; 5-year consent/DNC records; 10DLC brand+campaign registered; any AI-voice outbound call = "artificial voice" needing prior express consent | Phase 2 audit (read-only) |
-| Forms / abuse | zod validation thorough; IP rate limit 10/h per endpoint; rate-limit key prefers `cf-connecting-ip` while Cloudflare proxy is OFF (server header `railway-hikari`) → spoofable; no honeypot/CAPTCHA | key on `req.ip` behind `trust proxy` unless CF is orange-clouded; add a honeypot field to booking/lead/callback; Turnstile only if spam is observed | Phase 2 (protected: lead/booking persistence) |
+| Forms / abuse | zod validation thorough; IP rate limit 10/h per endpoint; rate-limit key preferred `cf-connecting-ip` while Cloudflare proxy is OFF (server header `railway-hikari`) → spoofable (**closed 2026-09-08**: honoured only under `TRUST_CLOUDFLARE_HEADERS=true`; proven through the real form limiter — 12 rotating header values = one bucket = a 429); `x-real-ip` is still honoured and its Railway semantics are unverified; no honeypot/CAPTCHA | verify what Railway sets (`x-forwarded-for` vs `x-real-ip`) with one logged request before touching `TRUST_PROXY`; add a honeypot field to booking/lead/callback; Turnstile only if spam is observed | Phase 2 (protected: lead/booking persistence) |
 | Sessions / CSRF | tRPC + admin MFA freshness gate; server-side permission map fail-closed for mutations | confirm cookie flags (`__Host-`, SameSite) and an Origin check on mutations | VERIFY |
 | Source maps | `sourcemap:false` — nothing leaks; Sentry stack traces are minified | hidden maps uploaded to Sentry with release = git SHA, deleted after upload | Phase 2 |
 | Uptime | Railway health check gates deploys only; no external monitor known | UptimeRobot free (commercial use allowed per 2026-05-26 terms) on `/api/health` at 5 min with phone alert | Owner: 10 minutes |
@@ -470,7 +471,7 @@ tagging break, not a business change).
 | Privacy / Terms | KEEP (+ disclosure fix) | SMS program terms already thorough |
 | Manifest + service worker | KEEP | Network-first navigations; consider a second manifest for admin (low) |
 | Security headers middleware | KEEP (+ connect-src) | Nonce CSP is Phase 2 |
-| Rate limiters | VERIFY | Key trusts `cf-connecting-ip` without Cloudflare in front |
+| Rate limiters | REPAIRED 2026-09-08 + VERIFY | `cf-connecting-ip` now gated by `TRUST_CLOUDFLARE_HEADERS`; `x-real-ip` semantics on Railway still unverified |
 | Forms (booking/lead/callback/careers/qa) | REPAIR (Phase 2) | Honeypot; keep zod |
 | GA4 / Pixel / CAPI wiring | KEEP + VERIFY | Beacons after CSP fix; SPA page_view caller |
 | Admin home (Sales card, Opportunities, Exceptions) | KEEP | Phase 1 work; keep "Billed" until reconciled |
@@ -491,7 +492,7 @@ tagging break, not a business change).
 submitted (after DNS); reconciliation not built (slice 2); recovery ledger has no consumer and no gate
 (slice 5); approval-time veto parity (reel session); legacy `publishReel` (reel session); mobile hero
 lacks address/hours/open-now (Phase 2 design); no external uptime monitor (owner); `llms.txt` hard-coded
-(Phase 2); rate-limit key vs proxy state (Phase 2, verify first); no honeypot (Phase 2).
+(Phase 2); `x-real-ip` vs Railway proxy state (verify first — the `cf-connecting-ip` half closed 2026-09-08); no honeypot (Phase 2).
 
 **NEEDS RUNTIME VERIFICATION:** §11 items 2–12; GA4 beacons after deploy; SPA `page_view` on route change
 (GA4 enhanced measurement may already emit it on history changes — confirm one event per navigation in
@@ -503,7 +504,7 @@ handling against the five rules; live values of the ten side-effect flags (re-ru
 never quote a doc); last confirmed Instagram publish date; Google Reviews API failure rate in Railway
 logs; whether Cloudflare is in front of the origin today.
 
-**OPTIONAL / EXPERIMENTAL:** `security.txt` (RFC 9116, needs a monitored mailbox and an expiry);
+**OPTIONAL / EXPERIMENTAL:** ~~`security.txt`~~ (shipped 2026-09-08 at `/.well-known/security.txt`: contact page + public phone, 180-day Expires from boot — no new mailbox needed; `/security.txt` 301s);
 EEA geofence for tags; second manifest for admin; Spanish pages (no demand data); Turnstile (only if
 spam is observed); IndexNow wiring (Bing-family benefit, no Google); Apple Business / CARFAX / Nextdoor listings (free,
 low effort, unmeasured); a `/drop-off` rename.
@@ -520,7 +521,7 @@ mount before any drawdown is designed; drawdown itself stays operator-gated. Do 
 branch balloon: the public-site fixes in this document's §1 are already on branch
 `claude/nicks-tire-quality-audit-544da2` and must not be re-done. Track everything else in this
 document — public-site design system, local SEO and AI-discovery work, accessibility, security
-(nonce CSP, honeypot, rate-limit key), performance (self-hosted fonts, AVIF, framer-motion off the
+(honeypot, `x-real-ip` trust — the hash CSP and the `cf-connecting-ip` key shipped 2026-09-08), performance (self-hosted fonts, AVIF, framer-motion off the
 critical path), and the social provider benchmark — as Phase 2/3 backlog items with their acceptance
 tests, not as scope for this branch. Report every item in one of five states, separately:
 **implemented · tested · awaiting authorization · deployed · runtime-verified**. Never merge a state up
@@ -573,8 +574,9 @@ deployed, and crawler-visible) and each has silently failed to imply the next. T
 | Deploy | Railway `MAINnicks-tire-auto` SUCCESS on `f2bcf949d`, 20:14; `/api/health` served the new SHA |
 | Live checks | 10 read-only GETs at 20:15 (§11): 404+noindex+no-cache on an unknown path · `/Tires` 301 · home `max-age=300` · `/og-image.jpg` 200 JPEG 1200×630 · sitemap `<lastmod>` 11 (was 100+) · robots clean · `/ai.txt` 301 · CSP carries the four GA4 hosts · `/admin` noindex · bot GET returns `X-Prerendered: true` |
 | Follow-up | PR #2179 (self-audit: `originalUrl` 404, robots literals, parity canary) squash `cfdcad9be`, deployed |
-| Crawler-visible | regen on `main` after #2179: run `34172453611` FAILED at `git push` (non-fast-forward: #2179 landed mid-run — the workflow commits on a stale base and does not rebase); re-dispatched as run `34173664386` from `622426951`, landed as `2336d313d` (337 files) at 00:49 UTC 2026-09-08. **Tree-content check of `prerendered/parma-auto-repair/index.html`:** `f2bcf949d` and `cfdcad9be` → 1 JSON-LD `FAQPage` node, WebP `og:image`; `2336d313d` → 0 nodes, `/og-image.jpg`, 0 `aggregateRating`, 2 `#localbusiness` refs. So the in-PR regen had NOT carried the share-image fix (it predated it in the tree) and the FAQ removal only existed from #2179 — the first draft of this row claimed otherwise. Live at 20:51 ET the site still served `cfdcad9be` (bot GET: WebP + 1 FAQPage), because the skip-ci-tagged regen commit did not deploy on its own; the merge of this PR carries it. Bot responses are cached `max-age=3600` by the prerender middleware. **Trap met while closing this row:** GitHub skips every workflow for a push whose head commit message contains the skip-ci token ANYWHERE — including inside a quoted sentence in the body — so never spell the token out in a commit message or a PR body that a squash merge might copy. |
-| Release closure | this PR: sales windows v2 (7/30 dates), prerender write guard + canary, three regression tests (city schema, footer accessible name, share-image parity), research corrections (§2/§5/§6/§13). |
+| Crawler-visible | regen on `main` after #2179: run `34172453611` FAILED at `git push` (non-fast-forward: #2179 landed mid-run — the workflow commits on a stale base and does not rebase); re-dispatched as run `34173664386` from `622426951`, landed as `2336d313d` (337 files) at 00:49 UTC 2026-09-08. **Tree-content check of `prerendered/parma-auto-repair/index.html`:** `f2bcf949d` and `cfdcad9be` → 1 JSON-LD `FAQPage` node, WebP `og:image`; `2336d313d` → 0 nodes, `/og-image.jpg`, 0 `aggregateRating`, 2 `#localbusiness` refs. So the in-PR regen had NOT carried the share-image fix (it predated it in the tree) and the FAQ removal only existed from #2179 — the first draft of this row claimed otherwise. Live at 20:51 ET the site still served `cfdcad9be` (bot GET: WebP + 1 FAQPage) — the regen commit's Railway build had not finished; by 21:20 ET `/api/health` reported `2336d313d` and a bot-UA GET of `/parma-auto-repair` returned `X-Prerendered: true`, **0** `"@type":"FAQPage"` nodes, **0** `aggregateRating`, `og:image` = `/og-image.jpg`. That is the crawler-visible verification for #2173/#2179. Bot responses are cached `max-age=3600` by the prerender middleware. **Trap met while closing this row:** GitHub skips every workflow for a push whose head commit message contains the skip-ci token ANYWHERE — including inside a quoted sentence in the body — so never spell the token out in a commit message or a PR body that a squash merge might copy. |
+| Release closure | PR #2182: sales windows v2 (7/30 dates), prerender write guard on all three DB-writing public sinks + canaries, three regression tests (city schema, footer accessible name, share-image parity), research corrections (§2/§5/§6/§13). Squash-merged as `081f517f7` 2026-09-08 ~21:15 ET; deploy verification is the health SHA + the §11 GETs, recorded in `.remember/now.md` when done. |
+| Security hardening | follow-up PR (same day): production `script-src` is hash-based (the one inline analytics loader; 336/336 snapshots share its hash, pinned by test), `cf-connecting-ip` honoured only under `TRUST_CLOUDFLARE_HEADERS=true`, `/.well-known/security.txt` (RFC 9116) with a 180-day Expires. Tests: `securityHeaders.test.ts` 8 · `rateLimitEdgeTrust.test.ts` 2 · `securityTxt.test.ts` 5. |
 
 **What "verified" means per row:** Merge = `git log origin/main`; Deploy = Railway deployment status + health
 SHA; Live = GET responses captured by `verify-deploy.sh` (10/10); Crawler-visible = a `[skip ci]` regen commit

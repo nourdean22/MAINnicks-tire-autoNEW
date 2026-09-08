@@ -70,6 +70,11 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
   cookie consent recorded as an applicability decision with flip conditions; SPA `page_view` must be confirmed
   in DebugView before adding an emitter; "you don't pay until you say yes" flagged against the $59.99
   diagnostic fee for owner confirmation.
+- **Security hardening (follow-up PR):** production `script-src` no longer carries `'unsafe-inline'` — the one
+  inline analytics loader is allowed by sha256 hash, computed at boot from the served `index.html` and pinned
+  identical across all 336 prerendered snapshots by test; `cf-connecting-ip` was a client-chosen rate-limit key
+  while Cloudflare is not in front (rotating it defeated the 10/h form limit — proven, then closed behind
+  `TRUST_CLOUDFLARE_HEADERS`); `/.well-known/security.txt` (RFC 9116) added with a 180-day Expires.
 
 ## Open (honest list)
 

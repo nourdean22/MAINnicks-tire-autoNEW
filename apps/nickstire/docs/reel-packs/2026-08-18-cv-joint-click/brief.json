@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The closing beat returns low-angle to the same front wheel turning through the same parking maneuver the opening framed, so a replay rejoins the wheel mid-rotation.",
   "mechanicTruth": "A CV joint has to spin the axle and flex with the steering at the same time, and it stays quiet only while the grease sealed inside its rubber boot stays put; once the boot splits and that grease is gone, the joint clicks under steering load - so the sound shows up in a turn and not going straight.",
   "packId": "2026-08-18-cv-joint-click",
   "generatedAt": "2026-08-18",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "off-slate — REEL-SLATE-2026-07-31.md's 20 items are all already packed except #11 (all-season vs winter tires), which was parked as seasonally premature for mid-August",
-  "campaignKeyword": "CV-CLICK",
+  "campaignKeyword": "VIBRATION",
   "hookText": "That clicking sound when you turn the wheel? That's not nothing.",
   "ctaText": "Hear a click turning corners? Send this to whoever's car makes that sound.",
   "durationSeconds": 27,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "It lets the axle turn and flex at once.",
-      "onScreenText": "",
+      "onScreenText": "TURNS AND FLEXES",
       "providerScene": "Macro shot of a drive axle with intact rubber CV boot, garage bay lighting, slow rotate/reveal on a shop stand, soft key light, shallow DOF, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 15,
       "narration": "The boot cracks, the grease leaks out.",
-      "onScreenText": "",
+      "onScreenText": "TORN BOOT LEAKS",
       "providerScene": "Extreme macro of a torn CV boot with visible dried grease residue and exposed joint, dim garage lighting shifting to harsher practical light, slow push-in on the tear, texture-forward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 15,
       "endSecond": 21,
       "narration": "Then metal grinds on metal.",
-      "onScreenText": "",
+      "onScreenText": "DRY JOINT GRINDS",
       "providerScene": "A removed CV axle laid on a clean shop workbench next to hand tools, top-down shot, even overhead light, slow pull-back, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 21,
       "endSecond": 27,
       "narration": "That noise does not quiet down.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked on the back wall, bare painted block and a clean concrete floor, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "IT ONLY GETS LOUDER",
+      "providerScene": "Low-angle shot of the same front wheel still turning through the parking maneuver, tire and wheel well filling frame, slow-motion feel, overcast daylight, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

@@ -98,7 +98,8 @@ export function PublishTab() {
 
   // Recent generated images for the picker.
   const recentImagesQuery = trpc.operator.socialRecentImages.useQuery();
-  const recentImages: Array<{ id: string; detail: string; createdAt: string }> =
+  // D13 · `url` is server-minted (signed when IMAGES_REQUIRE_SIGNATURE=1).
+  const recentImages: Array<{ id: string; url?: string; detail: string; createdAt: string }> =
     recentImagesQuery.data?.images ?? [];
 
   // Seed the default profile selection once the profiles land (the
@@ -326,15 +327,15 @@ export function PublishTab() {
                     <button
                       key={img.id}
                       type="button"
-                      onClick={() => setImageUrl(`/api/images/${img.id}`)}
+                      onClick={() => setImageUrl(img.url ?? `/api/images/${img.id}`)}
                       className={cn(
                         "h-12 w-12 rounded border overflow-hidden hover:opacity-80 transition-opacity",
-                        imageUrl === `/api/images/${img.id}` ? "border-emerald-500" : "border-white/10",
+                        imageUrl === (img.url ?? `/api/images/${img.id}`) ? "border-emerald-500" : "border-white/10",
                       )}
                       title={img.detail.slice(0, 100)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/images/${img.id}`} alt="" className="h-full w-full object-cover" />
+                      <img src={img.url ?? `/api/images/${img.id}`} alt="" className="h-full w-full object-cover" />
                     </button>
                   ))}
                 </div>

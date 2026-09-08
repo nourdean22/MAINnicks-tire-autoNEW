@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same heater dial and vents beat 1 opened on, fog gone from the glass and warm air stirring the slats, so a replay drops straight back into the cold cabin on the identical push-in.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Heater blows cold, not hot: low coolant vs. stuck thermostat vs. blend door",
-  "campaignKeyword": "NOHEAT",
+  "campaignKeyword": "SALT",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "Three causes. Don't guess.",
       "onScreenText": "THREE CAUSES. THE TIMING TELLS YOU WHICH.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a vehicle's dashboard faintly visible glowing through its windshield as it is pulled into the bay, echoing beat 1's dashboard motif, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Close-up static shot of the same heater dial and dashboard vents, the windshield glass beyond now clear of breath-fog, warm air rippling a loose thread of dust off the vent slats, dial still glowing amber, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

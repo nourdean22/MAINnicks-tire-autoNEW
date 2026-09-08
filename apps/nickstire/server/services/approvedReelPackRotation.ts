@@ -285,6 +285,9 @@ export function buildBriefFromApprovedProductionPack(
     const raw = rawBeats[beat.beatNumber - 1] as Record<string, unknown> | undefined;
     return stringValue(raw?.narration) || stringValue(raw?.vo);
   }).filter(Boolean).join(" ");
+  /** A pack's declared loop plan - how its last frame feeds its first. */
+  const packLoopIdea = stringValue(source.loopIdea);
+  const driverConfusionFallback = stringValue(source.driverConfusion) || stringValue(source.hookText) || "";
   const campaignKeyword = stringValue(source.campaignKeyword) || pack.slug.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-/g, " ");
   const topic = stringValue(source.topic) || pack.topic;
   const sourceNotes = Array.isArray(source.sourceNotes) ? source.sourceNotes : [];
@@ -307,8 +310,45 @@ export function buildBriefFromApprovedProductionPack(
     motionLens: "extreme_macro_push_in",
     objectCharacter: "rust_creeping_villain",
     usefulAbsurdity: stringValue(source.usefulAbsurdity),
-    concepts: [],
-    winningConceptId: null,
+    /**
+     * A reviewed pack IS a selected concept, so the brief carries one - which is
+     * what lets a pack DECLARE its loop plan and have the quality scorer read it
+     * (`calculateReelQualityScore` resolves the loop through
+     * `concepts.find(id === winningConceptId).loopIdea`, so an empty array made
+     * "Loop plan" unreachable for every pack-derived brief no matter how well
+     * the storyboard actually looped).
+     *
+     * THE TOURNAMENT SCORES ARE DELIBERATELY ZERO, and that is not an oversight.
+     * These packs were authored and reviewed directly; no concept tournament
+     * ranked them against rivals. Filling in 57+/60 would invent evidence of a
+     * selection that never happened, so "Winning concept >= 57/60" is left to
+     * fail honestly. It costs 5 of 75 points and caps a pack-derived brief at
+     * 70 - exactly the passing threshold, reachable only on real merit.
+     */
+    concepts: packLoopIdea
+      ? [{
+          id: briefId,
+          hook: stringValue(source.hookText) || driverConfusionFallback,
+          coreFact: stringValue(source.mechanicTruth) || topic,
+          factBucket: "myth_buster" as const,
+          driverEmotion: "",
+          campaignKeyword: campaignKeyword as never,
+          archetype: "tiny_cinematic_story" as const,
+          motionLens: "extreme_macro_push_in" as const,
+          objectCharacter: "rust_creeping_villain" as const,
+          usefulAbsurdity: stringValue(source.usefulAbsurdity),
+          localAngle: stringValue(source.clevelandAngle),
+          beatOutline: storyboardBeats.map((b) => b.onScreenText || b.purpose),
+          loopIdea: packLoopIdea,
+          captionAngle: "",
+          saveShareReason: "",
+          nickFitReason: "",
+          nonGenericReason: "",
+          rejectionRisk: "",
+          scores: { hook: 0, truth: 0, save: 0, local: 0, absurdity: 0, fit: 0 },
+        }]
+      : [],
+    winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
     promptPack: [],
     higgsfieldPromptPack: [],

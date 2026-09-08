@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same instrument-panel close-up it opens on, the needle still near the top of its travel, so the replay continues that same slow push-in rather than starting over.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Smell of gas inside the cabin — what it can mean and what to do right now",
-  "campaignKeyword": "FUELSMELL",
+  "campaignKeyword": "ECHECK",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "When it shows up narrows it down.",
       "onScreenText": "WHEN IT SHOWS UP IS THE CLUE.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Close-up static shot of the same slim needle on the car's instrument panel, resting near the top of its travel, the cabin air clear and still, subtle slow push-in, warm daylight through the windshield, 9:16 vertical framing",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],
