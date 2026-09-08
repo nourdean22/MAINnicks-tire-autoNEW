@@ -44,6 +44,7 @@ import { buildNextMove, type NextMove } from "@/lib/services/next-move";
 import { buildSystemHub } from "@/lib/services/system-hub";
 import { buildTaskRescue } from "@/lib/services/task-rescue";
 import { listPendingActions } from "@/lib/automation/approval-queue";
+import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
 import { listProposed } from "@/lib/services/commitments";
 import { getMit } from "@/lib/services/mit";
@@ -109,7 +110,15 @@ export type JudgmentItem =
       evidence: string | null;
     }
   | { kind: "followup"; id: string; title: string }
-  | { kind: "approvals"; count: number; oldestAgeMin: number | null; href: string };
+  | {
+      kind: "approvals";
+      /** Live — still executable if approved now. */
+      count: number;
+      /** Authorization window passed: listed, not approvable (D12). */
+      expired: number;
+      oldestAgeMin: number | null;
+      href: string;
+    };
 
 export interface BriefJudgmentSection {
   /** Every open item (bounded upstream). The page renders `visibleCap` of
@@ -236,7 +245,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       prisma.approvalRequest.findMany({
         where: { status: "pending_approval" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, createdAt: true },
+        select: { id: true, createdAt: true, expiresAt: true },
       }),
     ),
     // 14-day unresolved window — parity with the bottom ticker's
@@ -320,10 +329,20 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
       })
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0] ?? null;
 
-  const pendingDecisions =
+  // 2026-09-07 (D12) · "23 approvals parked · oldest 330 h" counted expired
+  // authorizations as decisions waiting on the operator. Live = still
+  // executable if approved now; expired = the window passed, needs a
+  // re-request or a dismissal. Both stay visible; only live is "waiting".
+  const nowForExpiry = new Date(nowMs);
+  const expiredDecisions =
     pendingActions === null || approvalRequests === null
       ? null
-      : pendingActions.length + approvalRequests.length;
+      : pendingActions.filter((a) => a.expired).length +
+        approvalRequests.filter((r) => isApprovalRequestExpired(r, nowForExpiry)).length;
+  const pendingDecisions =
+    pendingActions === null || approvalRequests === null || expiredDecisions === null
+      ? null
+      : pendingActions.length + approvalRequests.length - expiredDecisions;
 
   const findingsCount = rescue?.findings.length ?? 0;
 
@@ -339,6 +358,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     doingTask: activeRaw ? { title: activeRaw.title, loopKind: activeRaw.loopKind } : null,
     resumeTask: resumeRaw ? { title: resumeRaw.title, loopKind: resumeRaw.loopKind } : null,
     pendingDecisions,
+    expiredDecisions: expiredDecisions ?? 0,
     findingsCount,
     inboxCount: inboxCount ?? 0,
     criticalFew: nextMove?.criticalFew ?? [],
@@ -363,7 +383,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
 
   // Approvals roll up to ONE row: their verdicts need payload review, which
   // lives at /system/actions — Home states the queue, it does not re-host it.
-  if (pendingDecisions !== null && pendingDecisions > 0) {
+  if (pendingDecisions !== null && (pendingDecisions > 0 || (expiredDecisions ?? 0) > 0)) {
     const oldest = [
       ...(pendingActions ?? []).map((r) => r.createdAt.getTime()),
       ...(approvalRequests ?? []).map((r) => r.createdAt.getTime()),
@@ -371,6 +391,7 @@ export async function buildOperatorBrief(now = new Date()): Promise<OperatorBrie
     judgmentAll.push({
       kind: "approvals",
       count: pendingDecisions,
+      expired: expiredDecisions ?? 0,
       oldestAgeMin: oldest ? Math.round((nowMs - oldest) / 60_000) : null,
       href: "/system/actions",
     });

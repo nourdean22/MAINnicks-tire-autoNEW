@@ -63,7 +63,9 @@ const mkRow = (over: Partial<{ id: string; ruleName: string; createdAt: Date; ap
   result: "pending",
   error: null,
   executedAt: null,
-  createdAt: over.createdAt ?? new Date("2026-05-03T10:00:00Z"),
+  // 2026-09-07 (D12) · a fixed 2026-05-03 fixture is an EXPIRED authorization now
+  // (approve is refused by design) — default to a fresh row, pass createdAt to age one.
+  createdAt: over.createdAt ?? new Date(Date.now() - 60_000),
 });
 
 beforeEach(() => {
@@ -106,7 +108,7 @@ describe("summarizeQueue", () => {
   it("returns zero-state when nothing pending", async () => {
     mockPrisma.autonomousAction.findMany.mockResolvedValueOnce([]);
     const s = await summarizeQueue();
-    expect(s).toEqual({ total: 0, byRule: [], oldestAgeMin: null });
+    expect(s).toEqual({ total: 0, live: 0, expired: 0, byRule: [], oldestAgeMin: null });
   });
 
   it("aggregates byRule counts in descending order", async () => {

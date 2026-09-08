@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { getPolicy, type ApprovalClass } from "@/lib/automation/policy";
+import { actionExpiresAt, expiredApprovalMessage, isActionExpired } from "@/lib/automation/approval-freshness";
 
 const log = rootLogger.withSurface("automation/approval-queue");
 
@@ -52,10 +53,18 @@ export interface PendingActionRow {
   policyId: string | null;
   policyApprovalClass: ApprovalClass | null;
   policyObjective: string | null;
+  /** 2026-09-07 (D12) · when the authorization window closes — derived from the action type. */
+  expiresAt: Date;
+  /** Past its window: still listed, cannot be approved, can be rejected. Never a fabricated decline. */
+  expired: boolean;
 }
 
 export interface QueueSummary {
   total: number;
+  /** Still executable if approved now. */
+  live: number;
+  /** Authorization window passed — need a re-request or a dismissal, not an approve. */
+  expired: number;
   byRule: Array<{ ruleName: string; count: number }>;
   oldestAgeMin: number | null;
 }
@@ -95,6 +104,8 @@ export async function listPendingActions(): Promise<PendingActionRow[]> {
       policyId: p?.id ?? null,
       policyApprovalClass: (p?.approvalClass ?? null) as ApprovalClass | null,
       policyObjective: p?.objective ?? null,
+      expiresAt: actionExpiresAt(r.actionType, r.createdAt),
+      expired: isActionExpired(r),
     };
   });
 }
@@ -103,23 +114,27 @@ export async function listPendingActions(): Promise<PendingActionRow[]> {
 export async function summarizeQueue(): Promise<QueueSummary> {
   const rows = await prisma.autonomousAction.findMany({
     where: { approval: "pending" },
-    select: { ruleName: true, createdAt: true },
+    select: { ruleName: true, actionType: true, createdAt: true },
   });
   if (rows.length === 0) {
-    return { total: 0, byRule: [], oldestAgeMin: null };
+    return { total: 0, live: 0, expired: 0, byRule: [], oldestAgeMin: null };
   }
   const counts = new Map<string, number>();
   let oldestMs = Date.now();
+  let expired = 0;
   for (const r of rows) {
     counts.set(r.ruleName, (counts.get(r.ruleName) ?? 0) + 1);
     const t = r.createdAt.getTime();
     if (t < oldestMs) oldestMs = t;
+    if (isActionExpired(r)) expired += 1;
   }
   const byRule = [...counts.entries()]
     .map(([ruleName, count]) => ({ ruleName, count }))
     .sort((a, b) => b.count - a.count);
   return {
     total: rows.length,
+    live: rows.length - expired,
+    expired,
     byRule,
     oldestAgeMin: Math.round((Date.now() - oldestMs) / 60_000),
   };
@@ -151,6 +166,17 @@ export async function decidePendingAction(
   if (existing.approval !== "pending") {
     throw new ServiceError(
       `action "${id}" is not pending (current: ${existing.approval})`,
+      409,
+    );
+  }
+
+  // 2026-09-07 (D12) · expire authorization, not obligations. An approval
+  // past its freshness window is refused BEFORE any execution or row write:
+  // the payload was raised against state that no longer holds. The row
+  // stays pending and listed as expired; reject remains a human option.
+  if (decision === "approved" && isActionExpired(existing)) {
+    throw new ServiceError(
+      expiredApprovalMessage("action", actionExpiresAt(existing.actionType, existing.createdAt)),
       409,
     );
   }
@@ -265,5 +291,7 @@ function shapeRow(r: {
     policyId: null, // shapeRow doesn't reach into the policy table —
     policyApprovalClass: null, // listPendingActions does that join.
     policyObjective: null,
+    expiresAt: actionExpiresAt(r.actionType, r.createdAt),
+    expired: isActionExpired(r),
   };
 }

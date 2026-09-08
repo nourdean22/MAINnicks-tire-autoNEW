@@ -249,9 +249,14 @@ function JudgmentRow({
         >
           {kindChip}
           <span className="min-w-0 flex-1 text-[13px] leading-snug text-fg">
-            {item.count} deferred action{item.count === 1 ? "" : "s"} await your verdict
+            {item.count > 0
+              ? `${item.count} deferred action${item.count === 1 ? "" : "s"} await your verdict`
+              : "no live approvals"}
             {item.oldestAgeMin != null && item.oldestAgeMin > 60 && (
               <span className="text-fg-tertiary"> · oldest {Math.round(item.oldestAgeMin / 60)}h</span>
+            )}
+            {item.expired > 0 && (
+              <span className="text-fg-tertiary"> · {item.expired} expired — re-request or dismiss</span>
             )}
           </span>
           <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium text-rose-300">
