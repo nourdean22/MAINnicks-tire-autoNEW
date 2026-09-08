@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes tight on the same lens at dusk it opens on, now clear and pulled back to the start of that push-in, so the replay picks the move up on the same piece of plastic.",
   "topic": "Cloudy / yellowed headlights — visibility, not just cosmetics",
-  "campaignKeyword": "HEADLIGHTGLOW",
+  "campaignKeyword": "WIPERS",
   "createdBy": "scheduled-task-run-2026-08-20",
   "mode": "PRODUCTION_PACK_ONLY",
   "liveGenerationCall": false,
@@ -18,6 +19,7 @@
       "fallbackStockSearch": ["cloudy yellow headlight lens closeup", "car headlight dusk parked driveway"]
     },
     {
+      "onScreenText": "CUTS LIGHT IN HALF",
       "index": 2,
       "role": "SETUP",
       "window": "0:04-0:10",
@@ -27,6 +29,7 @@
       "fallbackStockSearch": ["car headlight beam night road", "dim headlight beam comparison"]
     },
     {
+      "onScreenText": "SUN BAKES THE LENS",
       "index": 3,
       "role": "VALUE",
       "window": "0:10-0:17",
@@ -36,6 +39,7 @@
       "fallbackStockSearch": ["oxidized plastic headlight texture macro", "headlight restoration before"]
     },
     {
+      "onScreenText": "LESS ROAD AT NIGHT",
       "index": 4,
       "role": "VALUE",
       "window": "0:17-0:23",
@@ -45,11 +49,12 @@
       "fallbackStockSearch": ["night driving windshield POV road", "dark road headlights ahead"]
     },
     {
+      "onScreenText": "BULB CANNOT FIX HAZE",
       "index": 5,
       "role": "CTA",
       "window": "0:23-0:29",
       "narration": "A new bulb won't clear a hazed lens.",
-      "visualPrompt": "Wide shot of an open auto repair shop garage bay entrance, warm interior lighting against dusk exterior, bare block wall and a rolling tool chest just inside the doorway, no people",
+      "visualPrompt": "Extreme close-up of the same headlight lens on the parked car at dusk, the haze burned off to clear plastic with the dusk sky reflecting crisply across the facets, framing pulled back to where the opening push-in begins",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "fallbackStockSearch": ["auto repair shop garage bay interior open door"]
     }

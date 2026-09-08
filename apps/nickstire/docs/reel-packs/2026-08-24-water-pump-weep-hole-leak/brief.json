@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends back on the same stained grey concrete under the dark engine bay where it opened, one fresh colored drop landing and beading in the same spot, so the replay reads as the next drip falling.",
+  "campaignKeyword": "PRESSURE",
   "topic": "water-pump-weep-hole-leak",
   "title": "Water pump weep hole leak (colored drip under the engine)",
   "mode": "INTELLIGENCE_SCHEDULED",
@@ -89,7 +91,7 @@
       "startSecond": 16,
       "endSecond": 20,
       "purpose": "payoff",
-      "visual": "A dried crusty coolant trail crusted down the pump housing and across the belt edge, chalky pale texture, close macro, dim shop light",
+      "visual": "The same grey concrete beneath the dark engine bay, a fresh bright colored drop landing and beading in the middle of a dried ring left by the earlier drops, oil-stained garage floor, macro, no people",
       "motion": "slow tilt down the trail",
       "onScreenText": "CRUST BEFORE PUDDLE",
       "narration": "A dried crusty trail shows before any puddle."

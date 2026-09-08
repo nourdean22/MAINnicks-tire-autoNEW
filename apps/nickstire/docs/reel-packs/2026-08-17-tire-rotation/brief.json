@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The reel closes on the same low-angle wide under the lift it opened on, the loose wheel now standing upright beside the bare hub, so the replay's push-in picks straight back up on that standing wheel.",
   "mechanicTruth": "Front and rear tires carry different loads and steering forces, so they wear at different rates and in different patterns; swapping their positions every 5,000 to 7,500 miles keeps the wear even across the set.",
   "packId": "2026-08-17-tire-rotation",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #17",
-  "campaignKeyword": "ROTATION",
+  "campaignKeyword": "TREAD",
   "hookText": "Rotation is the cheapest way to make tires last longer.",
   "ctaText": "Check when yours were last rotated.",
   "durationSeconds": 24,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "Front and rear tires wear at different rates.",
-      "onScreenText": "",
+      "onScreenText": "DIFFERENT WEAR RATES",
       "providerScene": "Macro side-by-side comparison of two tire tread faces with visibly different wear patterns, turntable reveal, soft key light, shallow depth of field, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 15,
       "narration": "Moving them evens it out, adding thousands of miles.",
-      "onScreenText": "",
+      "onScreenText": "MOVING EVENS IT OUT",
       "providerScene": "A tire rolling on its own across a shop floor toward a steel tire rack, motion blur on the spinning tread, warm practical shop lighting, low tracking shot at tire height, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 15,
       "endSecond": 20,
       "narration": "Five thousand to seventy-five hundred miles is the window.",
-      "onScreenText": "",
+      "onScreenText": "5000 TO 7500 MILES",
       "providerScene": "Extreme macro of a tire tread depth gauge inserted into a tread groove, needle reading, shallow DOF, soft top light, static hold with subtle focus pull, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 20,
       "endSecond": 24,
       "narration": "Even wear is the whole point.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted block walls, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "EVEN WEAR IS THE POINT",
+      "providerScene": "Wide low-angle shot of the same car still up on the hydraulic lift in the clean garage bay, the loose wheel now standing upright back in its spot beside the bare hub, bright even shop lighting, slow push-in, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

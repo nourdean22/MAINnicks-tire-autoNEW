@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same amber warning lamp pulsing in the dim cabin that it opens on, so a replay picks the pulse up mid-beat instead of restarting.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Dashboard warning-light colors: red vs. amber (and why it changes what you do)",
-  "campaignKeyword": "LIGHTCOLOR",
+  "campaignKeyword": "ECHECK",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "The color tells you how fast to move.",
       "onScreenText": "Color sets the urgency.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a diagnostic scanner screen glowing near the foreground echoing beat 1's glowing-icon close-up, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Extreme close-up of the same illuminated amber dashboard warning lamp, softly pulsing, dim car interior at dusk, shallow depth of field, slow static hold, 9:16 vertical framing",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

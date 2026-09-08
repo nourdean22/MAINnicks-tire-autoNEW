@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same shifter in the same interior framing, now settled into drive and holding still, so a replay drops back onto that shifter an instant before the clunk.",
   "topic": "Worn motor mount: the clunk on acceleration that isn't your suspension",
-  "campaignKeyword": "MOUNTCLUNK",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-22",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "CLUNK WHEN YOU SHIFT",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car gear shifter closeup park to drive", "automatic transmission shifter macro"]
     },
     {
+      "onScreenText": "NOT A BUMP CLUNK",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["engine bay overhead wide shot", "car engine compartment daylight"]
     },
     {
+      "onScreenText": "CRACKED RUBBER MOUNT",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["engine motor mount cracked rubber macro", "torn motor mount closeup"]
     },
     {
+      "onScreenText": "STOPS ENGINE ROCKING",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["engine bay hose wiring harness closeup", "engine compartment focus pull macro"]
     },
     {
+      "onScreenText": "NOT ALWAYS SUSPENSION",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
       "narration": "Worth checking before you blame suspension parts.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Close-up of the same car gear shifter in the same interior framing, now settled into drive and holding steady, soft ambient cabin light, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

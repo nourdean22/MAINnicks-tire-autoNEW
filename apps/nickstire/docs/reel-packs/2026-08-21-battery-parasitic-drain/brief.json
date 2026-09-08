@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same night dashboard and seated key beat 1 opened on, the dials lit rather than dark, so a replay opens right back on that unlit dash.",
   "topic": "Parasitic (phantom) battery drain overnight: your battery might not be the problem",
-  "campaignKeyword": "PARASITIC",
+  "campaignKeyword": "BATTERY",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 28,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "DEAD THIS MORNING",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["dead car dashboard night", "car won't start dark garage"]
     },
     {
+      "onScreenText": "DRAINED OVERNIGHT",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["car battery under hood closeup", "automotive battery terminals clean"]
     },
     {
+      "onScreenText": "SOMETHING STAYS AWAKE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["car fuse box relay closeup", "automotive relay panel macro"]
     },
     {
+      "onScreenText": "NEW BATTERY STILL DIES",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["new car battery box shop counter", "auto parts store battery display"]
     },
     {
+      "onScreenText": "FIND THE DRAIN",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
       "narration": "Find the drain first.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Close-up of the same car dashboard at night, ignition key still seated, the dash dials now lit and holding steady instead of dead, faint dome-light glow, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

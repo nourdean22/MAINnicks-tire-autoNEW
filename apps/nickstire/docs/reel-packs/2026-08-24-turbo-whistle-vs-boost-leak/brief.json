@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same static turbo close-up it opens on, dusk light unchanged, the heat haze now thinned to a faint shimmer, so the replay lands back on the exact part the whistle question started with.",
   "topic": "Turbo whistle vs boost leak hiss: not every turbo sound means the turbo is fine",
-  "campaignKeyword": "BOOSTLEAK",
+  "campaignKeyword": "ECHECK",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-24",
   "durationSec": 22,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "NOT ALWAYS THE TURBO",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["turbocharger engine bay closeup", "car turbo under hood"]
     },
     {
+      "onScreenText": "SMOOTH RISING WHINE",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["car accelerating rear view road", "vehicle accelerating highway rear shot"]
     },
     {
+      "onScreenText": "HISS IS AIR ESCAPING",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 14],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["check engine light dashboard closeup", "car dashboard warning light glowing"]
     },
     {
+      "onScreenText": "COSTS POWER",
       "index": 4,
       "role": "VALUE",
       "windowSec": [14, 18],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["engine bay heat shimmer closeup", "hot engine compartment turbo heat"]
     },
     {
+      "onScreenText": "TWO SOUNDS TWO PROBLEMS",
       "index": 5,
       "role": "CTA",
       "windowSec": [18, 22],
       "narration": "Two sounds, two problems.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "visualPrompt": "Close-up of the same turbocharger in the engine bay, the heat haze above it thinned to a faint shimmer and the hose clamp seated tight against the housing, static camera, dusk ambient lighting",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

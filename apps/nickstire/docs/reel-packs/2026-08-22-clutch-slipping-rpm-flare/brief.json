@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same needle and dark dial face it opened on, so a replay restarts mid-sweep rather than from a cut.",
   "topic": "Clutch slipping in a manual transmission: RPM climbs but the car doesn't speed up",
-  "campaignKeyword": "CLUTCHSLIP",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-22",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "REVS UP NO SPEED",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car tachometer closeup rpm gauge dashboard", "rev counter needle rising car interior"]
     },
     {
+      "onScreenText": "CLUTCH MAY BE SLIPPING",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["manual gear shifter closeup car interior", "stick shift macro no hands"]
     },
     {
+      "onScreenText": "SHOULD GRIP NOT SLIP",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["worn clutch disc closeup workbench", "clutch friction plate macro auto shop"]
     },
     {
+      "onScreenText": "WORN MATERIAL SLIDES",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["empty road through windshield driving pov static", "flat straight road car interior view"]
     },
     {
+      "onScreenText": "WORTH CHECKING EARLY",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 27],
       "narration": "Worth checking before it gets worse.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Extreme close-up of the same slender orange needle against a dark dial face in the identical framing, the needle now settled low and motionless instead of sweeping upward, dim amber cabin glow, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

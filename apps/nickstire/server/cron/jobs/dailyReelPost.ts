@@ -24,6 +24,7 @@ import { shopSettings, reelJobs, reelPublishApprovals } from "../../../drizzle/s
 import { BUSINESS } from "@shared/business";
 import { prepareCleanReelBrief, PreflightExhaustedError } from "../../services/reelDraftPrep";
 import { enqueueReelJob } from "../../services/reelPipeline";
+import { reelPublicationIntentFor } from "@shared/reelPublicationSchedule";
 import { publishToSocial } from "../../services/socialPublish";
 import { publishDisclosureProblem, shouldDiscloseAi } from "@shared/reelDisclosure";
 import { auditPublishBlock, condemnedContentProblem } from "@shared/reelClaimAudit";
@@ -683,6 +684,17 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // the governor's repetition check is not fed a fabricated CTA.
       ctaType: (brief as { ctaType?: "SEND" | "SAVE" | "COMMENT" | "VISIT" | "FOLLOW" | "NONE" }).ctaType ?? "NONE",
       productionSlot: productionSlotForHour(normalizedTargetHour),
+      // DUE-AT for this reel. The approved-pack lane knows its position in the
+      // rotation, so it can say WHEN this one is meant to go out instead of
+      // leaving the intent null and discovering lateness only in hindsight.
+      // The miner lane deliberately gets none: an ad-hoc topic has no queue
+      // position, and a fabricated deadline is worse than an absent one.
+      ...(approvedPack
+        ? {
+            publicationIntendedAt:
+              reelPublicationIntentFor(0, new Date()) ?? undefined,
+          }
+        : {}),
       ...(approvedPack
         ? { approvedProductionPack: (brief as { approvedProductionPack?: import("@shared/episodeContract").ApprovedProductionPackSnapshot }).approvedProductionPack }
         : {}),

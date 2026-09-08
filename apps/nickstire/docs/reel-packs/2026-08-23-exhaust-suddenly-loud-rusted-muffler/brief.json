@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same low-angle tailpipe and rear bumper it opened on, the pipe now quiet, so a replay picks up on that same pipe just before the sound returns.",
   "topic": "Exhaust suddenly got loud: rust hole in the muffler or pipe joint, not engine trouble",
-  "campaignKeyword": "LOUDEXHAUST",
+  "campaignKeyword": "SALT",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-23",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "SUDDENLY LOUDER",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car tailpipe rear bumper closeup", "exhaust pipe car rear low angle"]
     },
     {
+      "onScreenText": "RUST HOLE NOT ENGINE",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["rusted car muffler underbody macro", "exhaust pipe corrosion closeup"]
     },
     {
+      "onScreenText": "ROAD SALT EATS PIPE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["exhaust pipe rust hole macro", "car undercarriage corrosion closeup"]
     },
     {
+      "onScreenText": "LOOK UNDER THE BACK",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["car underbody garage lift wide shot", "rear undercarriage inspection static shot"]
     },
     {
+      "onScreenText": "IT ONLY GETS LOUDER",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
       "narration": "It will not hurt the engine, just get louder.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Low-angle static shot of the same rear bumper and tailpipe on the same driveway, overcast daylight, the pipe now sitting quiet with only faint warm haze curling from it, slow push-in toward the tailpipe",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

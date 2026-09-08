@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same steering wheel framing the hook opens on, the rim dead steady with the brake released, so a replay begins as that same wheel starts to pulse again.",
   "topic": "Steering wheel shakes when you brake: warped rotor vs worn pads",
-  "campaignKeyword": "ROTORSHAKE",
+  "campaignKeyword": "BRAKES",
   "generatedBy": "nickstire-reel-operator skill, scheduled run, no live operator present",
   "generatedAt": "2026-08-19",
   "mode": "PRODUCTION (pack only, no reel-canary call, no render)",
@@ -24,6 +25,8 @@
   },
   "beats": [
     {
+      "motion": "static camera",
+      "visual": "Close-up from the driver seat of a car's steering wheel rim, the rim buzzing in a fast shallow side-to-side pulse under braking, daylight coming through the windshield beyond it, shallow depth of field, static camera, 9:16 vertical framing",
       "beatNumber": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
@@ -34,6 +37,9 @@
       "durationSec": 4
     },
     {
+      "motion": "slow orbit",
+      "visual": "Slow orbit around a bare brake rotor mounted on the hub with the road wheel off, the vented rotor face catching cold overcast light, a faint bluish heat bloom ringing the friction surface, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "COULD BE THE ROTORS",
       "beatNumber": 2,
       "role": "SETUP",
       "window": "0:04-0:10",
@@ -43,6 +49,9 @@
       "durationSec": 6
     },
     {
+      "motion": "static hold",
+      "visual": "Extreme macro side-on into the gap between a slowly turning rotor and the brake pad face, the rotor edge wobbling so a raised high spot swells into the pad, shoves it back, then falls away again each time it comes around, hard raking side light along the friction surface, static hold, 9:16 vertical framing",
+      "onScreenText": "HIGH SPOT PUSHES THE PAD",
       "beatNumber": 3,
       "role": "VALUE",
       "window": "0:10-0:16",
@@ -52,6 +61,9 @@
       "durationSec": 6
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro of a fresh square-edged brake pad seated against a scored, unevenly worn rotor face, the new friction material already burnishing a bright uneven band into the old high spot as the rotor turns, cool workshop light, very shallow depth of field, slow push-in, 9:16 vertical framing",
+      "onScreenText": "SHAKE COMES BACK ANYWAY",
       "beatNumber": 4,
       "role": "VALUE",
       "window": "0:16-0:22",
@@ -61,6 +73,8 @@
       "durationSec": 6
     },
     {
+      "visual": "Close-up from the driver seat of a car's steering wheel rim, held dead steady with the brake released, daylight through the windshield beyond it, shallow depth of field, static camera, 9:16 vertical framing",
+      "onScreenText": "MEASURE THE ROTOR",
       "beatNumber": 5,
       "role": "CTA",
       "window": "0:22-0:27",

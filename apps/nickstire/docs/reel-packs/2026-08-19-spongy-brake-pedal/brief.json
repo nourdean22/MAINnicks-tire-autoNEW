@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel ends back in the driver footwell on the same pedal close-up at dusk, the pedal high and firm, so a replay picks up mid-push-in on the identical framing.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Spongy brake pedal: air in the lines vs. the master cylinder",
-  "campaignKeyword": "SOFTPEDAL",
+  "campaignKeyword": "BRAKES",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 26,
       "narration": "Do not guess on brakes.",
       "onScreenText": "Pedal feel narrows it down.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Close-up static shot of the same car brake pedal from the driver footwell, engine off, parked in the same driveway at dusk, the pedal sitting high and firm at rest, slow creeping camera push-in, moody blue-hour lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

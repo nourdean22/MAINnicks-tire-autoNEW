@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The reel closes on the same dipstick under the same single work light, sliding back into its tube, so a replay's pull-out reads as the second half of one motion.",
   "mechanicTruth": "The 3,000-mile windshield sticker is a shop's own reminder, not a manufacturer specification; the interval that applies to a given car is the one printed in its owner's manual for that engine and oil type. Short cold trips shorten it, steady highway miles stretch it.",
   "packId": "2026-08-17-oil-change-intervals",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #9",
-  "campaignKeyword": "OIL-INTERVAL",
+  "campaignKeyword": "ECHECK",
   "campaignKeywordNote": "descriptive label only — no exact entry in facelessReelStudio.ts CAMPAIGN_KEYWORDS maps to oil/maintenance-interval content; would fail validateCampaignKeyword() if run for real",
   "hookText": "The 3,000-mile oil sticker is a sales tool. It is not an engineering spec.",
   "ctaText": "Check your manual before the next sticker. Not sure what it says? Nick's Tire and Auto — link in bio.",
@@ -31,7 +32,7 @@
       "startSecond": 3,
       "endSecond": 9,
       "narration": "Your manual has the real interval for your oil.",
-      "onScreenText": "",
+      "onScreenText": "CHECK THE MANUAL",
       "providerScene": "Close-up of an owner's manual lying open to a maintenance-schedule page on a car seat, soft interior daylight through the windshield, slow push-in on the printed interval table, shallow depth of field, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -42,7 +43,7 @@
       "startSecond": 9,
       "endSecond": 16,
       "narration": "Usually longer than 3,000.",
-      "onScreenText": "",
+      "onScreenText": "LONGER THAN 3000",
       "providerScene": "Macro shot of fresh amber motor oil pouring in a slow steady stream through a funnel into an engine bay, backlit to show the stream, warm garage lighting, slow tilt following the pour downward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -53,7 +54,7 @@
       "startSecond": 16,
       "endSecond": 22,
       "narration": "Short trips and cold shorten it. Highway miles stretch it.",
-      "onScreenText": "",
+      "onScreenText": "SHORT TRIPS SHORTEN IT",
       "providerScene": "Wide interior shot through a frosted windshield of a car warming up in a driveway at dawn, visible exhaust vapor drifting past the glass, cold blue morning light, static hold with subtle vapor motion, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -64,8 +65,8 @@
       "startSecond": 22,
       "endSecond": 29,
       "narration": "Check the manual, not the windshield.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "NOT THE WINDSHIELD",
+      "providerScene": "Extreme macro of the same oil dipstick sliding back down into its tube, dark engine bay lit by the same single work light, fresh amber oil sheen running along the dipstick blade, slow push-down motion, shallow depth of field, moody amber-and-black garage lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }
