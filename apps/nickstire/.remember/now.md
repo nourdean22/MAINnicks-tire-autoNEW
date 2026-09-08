@@ -1,6 +1,9 @@
 # Session ledger — nickstire
 
-**Updated: 2026-09-08** (release closure on `nickstire/release-closure-2026-09-08` after an outside review of the
+**Updated: 2026-09-08** (CLOSED OUT 07:00 UTC — five PRs merged and live: #2182 `081f517f7` · #2187 `829067f76` ·
+#2190 `3ce3c68dd` · #2192 `0cbe534ed` · #2194 `1a64afd4d`; main CI green; snapshot refresh run 34217365307 from
+`0cbe534ed` was still running. Next session starts from `docs/QUALITY-PROGRAM-2026-09-07.md` "Final state" + §13
+owner items. Earlier the same day: release closure on `nickstire/release-closure-2026-09-08` after an outside review of the
 merged program — see the first section; 2026-09-07 evening — public-site + admin quality program on branch
 `claude/nicks-tire-quality-audit-544da2` · earlier the same day: admin Phase 1 shipped to PR #2163 ·
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
