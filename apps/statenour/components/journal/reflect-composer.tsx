@@ -554,15 +554,16 @@ function GhostCounterQuestionInline() {
   const [dismissed, setDismissed] = useState(false);
   if (!data || dismissed) return null;
   return (
-    <div className="flex items-start gap-2 rounded-md border border-violet-500/25 bg-violet-500/[0.04] px-2.5 py-2 text-[11px]">
-      <Eye size={11} className="mt-0.5 shrink-0 text-violet-400/70" aria-hidden />
+    <div className="flex items-start gap-2 rounded-md border border-glass bg-elevated px-2.5 py-2 text-[12px]">
+      <Eye size={11} className="mt-0.5 shrink-0 text-fg-tertiary" aria-hidden />
       <div className="flex-1 min-w-0">
-        <p className="text-violet-100/90 leading-snug">
+        <p className="text-fg leading-snug">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-tertiary">NICK · </span>
           {data.question}
         </p>
         {data.basis && (
-          <p className="text-[9px] text-violet-300/50 mt-0.5 font-mono truncate">
-            ghost · {data.basis}
+          <p className="text-[11px] text-fg-tertiary mt-0.5 font-mono truncate">
+            from {data.basis}
           </p>
         )}
       </div>
@@ -570,7 +571,7 @@ function GhostCounterQuestionInline() {
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss counter-question"
-        className="shrink-0 text-[var(--text-tertiary)] hover:text-violet-300 transition-colors"
+        className="shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-[var(--text-tertiary)] hover:text-fg transition-colors"
       >
         <XIcon size={11} />
       </button>

@@ -331,7 +331,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/[0.05] px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-violet-300 hover:bg-violet-500/15 transition-colors"
+        className="inline-flex min-h-[44px] items-center gap-1 rounded border border-glass bg-elevated px-2 py-1 text-[11px] font-mono uppercase tracking-wider text-fg-secondary hover:text-fg hover:bg-raised transition-colors"
       >
         <Target size={10} aria-hidden /> predict outcome
       </button>
@@ -344,8 +344,8 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
     return d.toISOString().slice(0, 10);
   })();
   return (
-    <div className="space-y-1.5 rounded-md border border-violet-500/30 bg-violet-500/[0.04] p-2">
-      <p className="text-[9px] font-bold uppercase tracking-wider text-violet-300">
+    <div className="space-y-1.5 rounded-md border border-glass bg-elevated p-2">
+      <p className="text-[11px] font-mono uppercase tracking-wider text-fg-tertiary">
         Predict outcome
       </p>
       <input
@@ -354,7 +354,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="What will happen by the target date?"
-        className="w-full rounded border border-violet-500/30 bg-[var(--bg-void)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
+        className="w-full rounded border border-glass bg-[var(--bg-void)] px-2 py-1 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-gold/60"
         maxLength={500}
       />
       <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           type="date"
           value={date || defaultDate}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded border border-violet-500/30 bg-[var(--bg-void)] px-2 py-1 text-[10px] font-mono text-[var(--text-secondary)]"
+          className="rounded border border-glass bg-[var(--bg-void)] px-2 py-1 text-[11px] font-mono text-[var(--text-secondary)]"
         />
         <button
           type="button"
@@ -379,7 +379,7 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
               toast.error("couldn't save prediction · retry?");
             }
           }}
-          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-violet-200 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="rounded bg-gold px-2.5 py-1 min-h-[36px] text-[11px] font-mono uppercase tracking-wider text-black hover:bg-gold/85 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {mutation.isPending ? "saving…" : "save"}
         </button>

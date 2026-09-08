@@ -58,13 +58,10 @@
   --status-yellow: #F59E0B;
   --status-red: #EF4444;
   --status-blue: #3B82F6;
-  /* v10.0.529.54 · renamed --status-purple → --status-ai to remove the
-     standing invitation to add purple gradients (banned per the
-     operator's anti-AI-slop UI gate). Kept as alias so any inline
-     fallback that still references --status-purple resolves to the
-     same value during a deprecation window. */
-  --status-ai: #A855F7;
-  --status-purple: var(--status-ai);
+  /* 2026-09-08 (program §5.2 / D19) · --status-ai and its --status-purple
+     alias are RETIRED. AI attribution is a mono "NICK ·" mark, not a hue;
+     status uses the severity tiers above. tests/repo/no-violet-ai-accent.test.ts
+     fails if either token, or the violet AI surfaces it fed, comes back. */
   --nour-success: var(--status-green);
   --nour-danger: var(--status-red);
   /* v10.0.529.54 · canonical --danger token so inline
