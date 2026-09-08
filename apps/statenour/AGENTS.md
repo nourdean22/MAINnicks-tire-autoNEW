@@ -7,10 +7,9 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-07 · Backlog drain #2096/#2102/#2103/#2160 — tool-selection
-telemetry migration APPLIED to prod Neon (54 migrations, schema up to date). Before it
-landed, the selection-telemetry writer fail-softed and recorded nothing.
-Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-09-07 · Quality+power wave #2175 (deployed-verified `71e7cf14`) +
+#2177 — every deploy since 09-04 had failed on a dead Dockerfile COPY; fixed, gated, five live
+defects repaired. Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
