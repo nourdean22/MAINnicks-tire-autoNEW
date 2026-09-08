@@ -28,6 +28,7 @@ PASS_THROUGH = "PASS_THROUGH"
 STATES = (DETECTED, ENTERED_ZONE, ARRIVAL_CANDIDATE, CONFIRMED_ARRIVAL, IN_SERVICE, DEPARTING, LEFT, PASS_THROUGH)
 TERMINAL_STATES = frozenset({LEFT, PASS_THROUGH})
 _RANK = {DETECTED: 0, ENTERED_ZONE: 1, ARRIVAL_CANDIDATE: 2, CONFIRMED_ARRIVAL: 3, IN_SERVICE: 4}
+MAX_AGE_CLOSED_CAP = 1000  # sighting ids remembered after a max-age close (see VisitTracker._remember_max_age_closed)
 
 PLATE_NONE = "NONE"
 PLATE_UNREADABLE = "UNREADABLE"
@@ -159,6 +160,7 @@ class Visit:
     candidate_at: Optional[float] = None
     confirmed_at: Optional[float] = None
     left_at: Optional[float] = None
+    continues_visit_id: Optional[str] = None  # the max-age-closed visit this one continues (same Frigate object id)
 
     @property
     def is_terminal(self) -> bool:
@@ -207,6 +209,7 @@ class Emission:
     frigate_start_time: float
     frigate_end_time: Optional[float]
     merged_into: Optional[str] = None
+    continues_visit_id: Optional[str] = None
 
 
 # --------------------------------------------------------------------------- helpers
@@ -318,6 +321,8 @@ class VisitTracker:
         self._by_sighting: Dict[str, str] = {}
         self._closed: List[Visit] = []
         self._force_ended: Dict[str, int] = {}
+        # sighting id -> (visit id, closed at) for max-aged sightings whose visit closed; insertion-ordered, capped
+        self._max_age_closed: Dict[str, Tuple[str, float]] = {}
         self._new_id = id_factory or (lambda: str(uuid.uuid4()))
         self.counters: Dict[str, int] = {
             "split_joins": 0,
@@ -328,6 +333,7 @@ class VisitTracker:
             "plate_conflicts": 0,
             "ignored_unknown_camera": 0,
             "ignored_unknown_object": 0,
+            "max_age_continuations": 0,
         }
 
     # ---- public API
@@ -380,7 +386,8 @@ class VisitTracker:
                 self.counters["ignored_unknown_object"] += 1
                 return self._evaluate_all(at, estimated=False)
             sighting = self._new_sighting(ev.after)
-            visit = self._stitch(sighting, ev.after, at)
+            continues = self._continued_visit(sighting, at)
+            visit = self._stitch(sighting, ev.after, at, continues)
         else:
             visit = self._visits[visit_id]
             sighting = visit.sightings[ev.after.id]
@@ -415,11 +422,18 @@ class VisitTracker:
         return self._evaluate_all(now, estimated=True)
 
     def export_state(self) -> Dict[str, object]:
-        """JSON-able snapshot of open visits for the ledger."""
-        return {"visits": [visit_to_dict(v) for v in self._visits.values()]}
+        """JSON-able snapshot of open visits (plus the max-age continuation map) for the ledger."""
+        return {
+            "visits": [visit_to_dict(v) for v in self._visits.values()],
+            "max_age_closed": [[sid, visit_id, closed_at] for sid, (visit_id, closed_at) in self._max_age_closed.items()],
+        }
 
     def restore_state(self, state: Mapping[str, object]) -> int:
-        """Reload open visits from export_state(); returns the count restored."""
+        """Reload open visits from export_state(); returns the count restored.
+
+        `max_age_closed` ([sighting id, visit id, closed at] rows, oldest first) refills the continuation map
+        so a parked car whose max-age close preceded a restart still continues its old visit.
+        """
         count = 0
         for raw in state.get("visits", []):  # type: ignore[union-attr]
             visit = visit_from_dict(raw)  # type: ignore[arg-type]
@@ -429,6 +443,9 @@ class VisitTracker:
             for sid in visit.sightings:
                 self._by_sighting[sid] = visit.visit_id
             count += 1
+        rows = sorted(state.get("max_age_closed", []), key=lambda row: float(row[2]))  # type: ignore[arg-type,union-attr]
+        for sid, visit_id, closed_at in rows[-MAX_AGE_CLOSED_CAP:]:
+            self._max_age_closed[str(sid)] = (str(visit_id), float(closed_at))
         return count
 
     # ---- sighting lifecycle
@@ -452,8 +469,39 @@ class VisitTracker:
                 sighting.reads.append(PlateRead(text=text, normalized=normalized, score=score, source=source, at=after.frame_time, known_name=known))
         return sighting
 
-    def _stitch(self, sighting: Sighting, after: ObjectSnapshot, at: float) -> Visit:
-        """Ordered identity rules: split-track, plate, topology, else a new visit."""
+    def _continued_visit(self, sighting: Sighting, at: float) -> Optional[str]:
+        """The max-age-closed visit a new sighting with the SAME Frigate object id continues, or None.
+
+        Frigate never sent `end` for the object (the car is still parked): its visit was closed by the leave grace
+        after the max-age force-end, and this update would otherwise mint an unrelated second visitId. The terminal
+        visit is never resurrected; the new visit only carries `continuesVisitId` and never pages at priority high.
+        The entry is consumed, and the sighting is marked max_age_fired so the reopened track is not ended again.
+        """
+        entry = self._max_age_closed.pop(sighting.id, None)
+        if entry is None:
+            return None
+        visit_id, closed_at = entry
+        if at - closed_at > self.policy.max_sighting_seconds:
+            return None
+        sighting.max_age_fired = True
+        return visit_id
+
+    def _remember_max_age_closed(self, visit: Visit) -> None:
+        """Record the max-aged, ended sightings of a visit being closed; TTL maxSightingSeconds, capped."""
+        closed_at = visit.left_at if visit.left_at is not None else visit.last_activity
+        ttl = self.policy.max_sighting_seconds
+        for sid, (_, at) in list(self._max_age_closed.items()):
+            if closed_at - at > ttl:
+                del self._max_age_closed[sid]
+        for sighting in visit.sightings.values():
+            if sighting.max_age_fired and sighting.end_time is not None:
+                self._max_age_closed.pop(sighting.id, None)
+                self._max_age_closed[sighting.id] = (visit.visit_id, closed_at)
+        while len(self._max_age_closed) > MAX_AGE_CLOSED_CAP:
+            del self._max_age_closed[next(iter(self._max_age_closed))]
+
+    def _stitch(self, sighting: Sighting, after: ObjectSnapshot, at: float, continues: Optional[str] = None) -> Visit:
+        """Ordered identity rules: split-track, plate, topology, else a new visit (continuing `continues`)."""
         visit = self._match_split_track(sighting, after)
         if visit is not None:
             self.counters["split_joins"] += 1
@@ -469,12 +517,15 @@ class VisitTracker:
             self.counters["topology_joins"] += 1
             return self._attach(visit, sighting, at)
         self.counters["new_visits"] += 1
+        if continues is not None:
+            self.counters["max_age_continuations"] += 1
         visit = Visit(
             visit_id=self._new_id(),
             created_at=after.start_time,
             last_activity=at,
             primary_camera=sighting.camera,
             last_camera=sighting.camera,
+            continues_visit_id=continues,
         )
         self._visits[visit.visit_id] = visit
         return self._attach(visit, sighting, at)
@@ -755,7 +806,8 @@ class VisitTracker:
         zone = open_zones[0] if open_zones else sighting.last_known_zone
         if zone is None:
             zone = next((s.last_known_zone for s in visit.sightings.values() if s.last_known_zone), None)
-        priority = "high" if state == CONFIRMED_ARRIVAL else "low" if state == PASS_THROUGH else "normal"
+        # a continuation of a max-age-closed visit is the same parked car: never page for it at priority high
+        priority = "high" if state == CONFIRMED_ARRIVAL and not visit.continues_visit_id else "low" if state == PASS_THROUGH else "normal"
         emission = Emission(
             visit_id=visit.visit_id,
             state=state,
@@ -776,17 +828,21 @@ class VisitTracker:
             frigate_start_time=min(s.start_time for s in visit.sightings.values()),
             frigate_end_time=None if visit.open_sightings() else max(s.end_time or 0.0 for s in visit.sightings.values()),
             merged_into=merged_into,
+            continues_visit_id=visit.continues_visit_id,
         )
         if terminal:
             self._close(visit)
         return emission
 
     def _close(self, visit: Visit) -> None:
-        """Forget a terminal visit and its sighting ids; keep it for the ledger."""
+        """Forget a terminal visit and its sighting ids; keep it for the ledger, and remember its max-aged
+        sighting ids so a later update for the same Frigate object continues this visit instead of starting
+        an unrelated one."""
         self._visits.pop(visit.visit_id, None)
         for sid in list(visit.sightings):
             if self._by_sighting.get(sid) == visit.visit_id:
                 del self._by_sighting[sid]
+        self._remember_max_age_closed(visit)
         self._closed.append(visit)
 
 
@@ -813,6 +869,7 @@ def visit_to_dict(visit: Visit) -> Dict[str, object]:
         "candidate_at": visit.candidate_at,
         "confirmed_at": visit.confirmed_at,
         "left_at": visit.left_at,
+        "continues_visit_id": visit.continues_visit_id,
         "sightings": [
             {
                 "id": s.id,
@@ -860,6 +917,7 @@ def visit_from_dict(raw: Mapping[str, object]) -> Visit:
         candidate_at=raw.get("candidate_at"),  # type: ignore[arg-type]
         confirmed_at=raw.get("confirmed_at"),  # type: ignore[arg-type]
         left_at=raw.get("left_at"),  # type: ignore[arg-type]
+        continues_visit_id=raw.get("continues_visit_id"),  # type: ignore[arg-type]
     )
     for s in raw.get("sightings", []):  # type: ignore[union-attr]
         sighting = Sighting(

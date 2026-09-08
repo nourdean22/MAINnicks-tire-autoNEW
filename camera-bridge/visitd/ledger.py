@@ -216,12 +216,38 @@ class Ledger:
                 )
 
     def load_open_visits(self) -> Dict[str, object]:
-        """State dict for VisitTracker.restore_state(): every non-terminal visit."""
+        """State dict for VisitTracker.restore_state(): every non-terminal visit, plus the max-age continuation
+        map recomputed from the terminal visits (`max_age_closed`: [sighting id, visit id, closed at] rows)."""
         with self._lock:
             rows = self._conn.execute(
                 f"SELECT json FROM visits WHERE state NOT IN ({_TERMINAL_PLACEHOLDERS}) ORDER BY created_at", tuple(TERMINAL_STATES)
             ).fetchall()
-        return {"visits": [json.loads(r["json"]) for r in rows]}
+            closed = self._max_age_closed_rows()
+        return {"visits": [json.loads(r["json"]) for r in rows], "max_age_closed": closed}
+
+    def _max_age_closed_rows(self) -> List[List[object]]:
+        """Max-aged, ended sightings of terminal visits closed within maxSightingSeconds of the newest close,
+        oldest first (the tracker's continuation map survives a restart without a second write path)."""
+        ttl = self.policy.max_sighting_seconds
+        if ttl <= 0:
+            return []
+        closed_at = "COALESCE(left_at, last_activity)"
+        newest = self._conn.execute(
+            f"SELECT MAX({closed_at}) FROM visits WHERE state IN ({_TERMINAL_PLACEHOLDERS})", tuple(TERMINAL_STATES)
+        ).fetchone()[0]
+        if newest is None:
+            return []
+        rows = self._conn.execute(
+            f"SELECT visit_id, {closed_at} AS closed_at, json FROM visits"
+            f" WHERE state IN ({_TERMINAL_PLACEHOLDERS}) AND {closed_at} >= ? ORDER BY closed_at, visit_id",
+            (*TERMINAL_STATES, float(newest) - ttl),
+        ).fetchall()
+        out: List[List[object]] = []
+        for r in rows:
+            for s in json.loads(r["json"]).get("sightings", []):
+                if s.get("max_age_fired") and s.get("end_time") is not None:
+                    out.append([str(s["id"]), str(r["visit_id"]), float(r["closed_at"])])
+        return out
 
     def prune_terminal_visits(self, older_than_seconds: float, now: float) -> int:
         """Delete terminal visits closed more than `older_than_seconds` before `now` (frame-time epoch),

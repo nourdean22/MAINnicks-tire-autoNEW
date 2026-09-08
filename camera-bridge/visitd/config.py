@@ -22,6 +22,7 @@ class MqttConfig:
     client_id: str = "visitd"
     keepalive: int = 60
     queue_max: int = 10000
+    inbox_batch_max: int = 500  # most inbox messages one live-loop pass consumes before the periodic work runs
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,7 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
         client_id=str(_get(mqtt_raw, "clientId", "visitd")),
         keepalive=int(_get(mqtt_raw, "keepalive", 60)),
         queue_max=int(_get(mqtt_raw, "queueMax", 10000)),
+        inbox_batch_max=max(1, int(_get(mqtt_raw, "inboxBatchMax", 500))),
     )
     sync_key_env = str(_get(backend_raw, "syncKeyEnv", "STATENOUR_SYNC_KEY"))
     backend = BackendConfig(

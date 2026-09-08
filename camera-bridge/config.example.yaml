@@ -13,6 +13,8 @@ mqtt:
   clientId: visitd
   keepalive: 60
   queueMax: 10000         # bounded inbox between the paho thread and the main thread
+  inboxBatchMax: 500      # most queued messages one live-loop pass consumes before the tick / heartbeat / housekeeping
+                          # run (what was queued at entry, capped); the next pass keeps draining in receipt order
 
 backend:
   baseUrl: https://bdnick.info

@@ -7,7 +7,7 @@ Frigate's MQTT stream into deterministic **visits** and ships idempotent events 
 ```
 SHOP LAN (camera VLAN later)                                              CLOUD
 +-----------+  RTSP   +--------------------+  MQTT (user/pass)  +-------------------+  HTTPS x-sync-key  +--------------------+
-| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.1.1      |------------------->| statenour-web      |
+| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.1.2      |------------------->| statenour-web      |
 | lot       |         |  go2rtc restream   | frigate/events     |  frigate_events   | POST /api/devices/ |  handleVehicleEvent|
 | PoE cam B |-------->|  native LPR        | frigate/tracked_   |  state_machine    |   {id}/events      |  Telegram + push   |
 | sign/LPR  |         |  zones/review/rec  |  object_update     |  ledger (SQLite)  | PATCH /api/devices/|  /system/camera    |
@@ -129,6 +129,11 @@ therefore always `estimated: true`.
 Identity, in order: same-camera track split (<= 10 s, IoU >= 0.5) - plate match to an open visit (hard reject when two
 >= 0.9 reads differ by Levenshtein >= 2) - `topology` hop (`sign -> lot` within 1-90 s) - else a new `visitId` (UUID).
 A visit absorbed by a plate match after it already emitted gets a final `LEFT` with `metadata.mergedIntoVisitId`.
+A visit closed by the grace after a `maxSightingSeconds` force-end is never resurrected: when Frigate updates the
+same object id again (the car never moved) the new `visitId` carries `metadata.continuesVisitId` = the closed one on
+every emission, its `CONFIRMED_ARRIVAL` is priority `normal` instead of `high`, and
+`visitd_tracker_max_age_continuations_total` counts it (map of closed ids: TTL `maxSightingSeconds`, 1000 entries,
+rebuilt from the ledger on restart).
 
 Event: `eventId = sha1(visitId|state|seq)` (cloud dedupes), `timestamp` from `frame_time`, `data.plate.status` in
 NONE / UNREADABLE / CANDIDATE / CONFIRMED, `data.metadata.snapshotRef = events/<sightingId>/snapshot.jpg`
@@ -217,3 +222,10 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 | B | a max-aged track that Frigate kept updating was force-ended again on every later tick; an update gap longer than the leave grace closed the visit and the next update minted a second `visitId` for the same parked car | `maxSightingSeconds` fires once per track (`Sighting.max_age_fired`, persisted); a resurrected track is a real parked car and stays one visit until Frigate ends it; `test_max_age_fires_once_per_track_so_a_resurrected_parked_car_stays_one_visit` |
 | C | under backpressure the live loop processed ONE queued message and then ticked with the current wall clock, so an exit + quick re-entry that were both already queued (received while a heartbeat blocked the loop) split into two visits: the tick emitted LEFT before reading the re-entry | `Pipeline.consume_inbox` drains every queued item in receipt order before the loop ticks; `test_every_queued_message_is_consumed_before_a_tick_so_exit_and_quick_reentry_stay_one_visit` |
 | D | the documented setup copies `config.example.yaml` (`metrics.host: 127.0.0.1`), which inside the container binds only the container's loopback, so the published `127.0.0.1:9090` reached nothing (row 10's manual step was easy to miss) | env `VISITD_METRICS_HOST` overrides `metrics.host`; `docker-compose.yml` sets it to `0.0.0.0` on the visitd service, the file default stays loopback for host runs; `test_env_metrics_host_overrides_the_file` |
+
+### v2.1.2 (review round 4)
+
+| # | Finding | Fix |
+|---|---|---|
+| E | a max-aged track that got no update during the leave grace was closed and its sighting mapping dropped, so the next update for the SAME Frigate object id (still parked, Frigate never sent `end`) minted an unrelated second `visitId` (row B only helped while the update beat the closure) | the tracker remembers max-age-closed sighting ids (TTL `maxSightingSeconds`, 1000 entries, recomputed from the ledger's terminal visits on restart); the terminal visit stays closed, the new visit carries `metadata.continuesVisitId`, its `CONFIRMED_ARRIVAL` is priority `normal`, `visitd_tracker_max_age_continuations_total` counts it; `tests/test_state_machine.py::test_max_age_closed_track_that_updates_again_continues_the_old_visit_without_a_high_alert`, `tests/test_ledger.py::test_max_age_continuation_map_survives_a_restart` |
+| F | `consume_inbox` took messages until the queue was empty, so under sustained ingress it never returned and the tick, heartbeat and housekeeping behind it starved (stationary visits stuck, devices marked OFFLINE while the bridge was busy) | one pass drains what `qsize()` reported once the first item was in hand, capped at `mqtt.inboxBatchMax` (500), then returns so the periodic work runs; the next pass keeps draining in receipt order (row C's guarantee holds for everything queued at entry); `tests/test_main.py::test_consume_inbox_returns_after_the_snapshot_or_the_cap_so_the_periodic_work_runs` |

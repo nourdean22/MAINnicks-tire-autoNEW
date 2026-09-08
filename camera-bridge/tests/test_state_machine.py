@@ -262,6 +262,60 @@ class ForceEndTest(unittest.TestCase):
         self.assertIsNone(t.open_visits()[0].sightings["a"].end_time)
         self.assertEqual(t.counters["new_visits"], 1)
 
+    def test_max_age_closed_track_that_updates_again_continues_the_old_visit_without_a_high_alert(self) -> None:
+        """No update during the grace after the max-age force-end: the visit closes. A later update for the SAME
+        object id (Frigate never sent `end`) must not resurrect it, but must not look like an unrelated car either."""
+        t = tracker(max_sighting_seconds=100.0)
+        t.handle_event(ev("new", "a", T0))
+        t.handle_event(ev("update", "a", T0 + 1.0, ["front_lot"]))
+        t.handle_event(ev("update", "a", T0 + 11.0, ["front_lot"]))
+        t.handle_event(ev("update", "a", T0 + 46.0, ["front_lot"]))
+        self.assertEqual(t.tick(T0 + 100.0), [])  # expiry: DEPARTING, grace running
+        self.assertEqual(t.drain_force_ended(), {"max_age": 1})
+        out = t.tick(T0 + 120.0)  # grace over, no update: closed
+        self.assertEqual(states(out), [LEFT])
+        first = out[0].visit_id
+        self.assertEqual([v.visit_id for v in t.drain_closed()], [first])
+        self.assertEqual(t.open_visits(), [])
+        out = t.handle_event(ev("update", "a", T0 + 130.0, ["front_lot"], start=T0))  # the car is still there
+        self.assertEqual(states(out), [ENTERED_ZONE])
+        second = out[0].visit_id
+        self.assertNotEqual(second, first)  # invariant: a terminal visit is never resurrected
+        self.assertEqual(out[0].continues_visit_id, first)
+        self.assertEqual(out[0].priority, "normal")
+        self.assertEqual(t.counters["max_age_continuations"], 1)
+        self.assertEqual(t.counters["split_joins"], 0)  # rule 1 never stitches into a terminal visit
+        self.assertEqual(t.counters["new_visits"], 2)
+        self.assertEqual([v.visit_id for v in t.open_visits()], [second])
+        self.assertTrue(t.open_visits()[0].sightings["a"].max_age_fired)  # the reopened track is not ended again
+        out = ticks(t, T0 + 130.0, T0 + 240.0)  # the continuation ramps again from its own zone entry
+        self.assertEqual(states(out), [ARRIVAL_CANDIDATE, CONFIRMED_ARRIVAL])
+        self.assertEqual([e.priority for e in out], ["normal", "normal"])  # no high-priority alert for the continuation
+        self.assertEqual({e.continues_visit_id for e in out}, {first})
+        self.assertEqual({e.visit_id for e in out}, {second})
+        self.assertEqual(t.drain_force_ended(), {})  # 110 s past the 100 s limit: no second max-age force-end
+        out = t.handle_event(ev("update", "a", T0 + 245.0, ["front_lot"], start=T0))
+        self.assertEqual(states(out), [CONFIRMED_ARRIVAL])  # the estimated promotion confirmed by a message
+        self.assertFalse(out[0].estimated)
+        self.assertEqual(out[0].priority, "normal")
+        self.assertEqual(out[0].continues_visit_id, first)
+        self.assertEqual(t.counters["max_age_continuations"], 1)
+
+    def test_max_age_closed_map_expires_after_the_ttl_and_is_consumed_once(self) -> None:
+        t = tracker(max_sighting_seconds=100.0)
+        t.handle_event(ev("new", "a", T0))
+        t.handle_event(ev("update", "a", T0 + 1.0, ["front_lot"]))
+        t.handle_event(ev("update", "a", T0 + 11.0, ["front_lot"]))
+        t.tick(T0 + 100.0)
+        self.assertEqual(states(t.tick(T0 + 120.0)), [LEFT])
+        self.assertEqual(t.export_state()["max_age_closed"], [["a", "V1", T0 + 120.0]])
+        out = t.handle_event(ev("update", "a", T0 + 221.0, ["front_lot"], start=T0))  # 101 s after the close: expired
+        self.assertEqual(states(out), [ENTERED_ZONE])
+        self.assertIsNone(out[0].continues_visit_id)
+        self.assertEqual(t.counters["max_age_continuations"], 0)
+        self.assertEqual(t.export_state()["max_age_closed"], [])  # consumed either way
+        self.assertEqual(out[0].priority, "normal")
+
     def test_max_age_zero_disables_expiry(self) -> None:
         t = tracker(max_sighting_seconds=0.0)
         t.handle_event(ev("new", "a", T0))

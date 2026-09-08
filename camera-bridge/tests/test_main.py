@@ -16,7 +16,7 @@ from visitd.cloud_client import CloudClient
 from visitd.config import build_config
 from visitd.contract import event_id
 from visitd.ledger import Ledger
-from visitd.main import Pipeline
+from visitd.main import LiveLoop, Pipeline
 from visitd.metrics import MetricsRegistry
 from visitd.mqtt_client import MqttClient
 from visitd.state_machine import ARRIVAL_CANDIDATE, CONFIRMED_ARRIVAL, DEPARTING, ENTERED_ZONE, LEFT
@@ -34,12 +34,46 @@ def raw(kind: str, oid: str, at: float, zones=(), **kwargs) -> bytes:
     return json.dumps(event_payload(kind, oid, at, zones, **kwargs)).encode("utf-8")
 
 
-def make_pipeline(ledger: Optional[Ledger] = None, **cfg_overrides) -> Pipeline:
+def make_pipeline(ledger: Optional[Ledger] = None, raw: dict = RAW, **cfg_overrides) -> Pipeline:
     """Pipeline on an in-memory ledger with a dry-run cloud client (nothing leaves the process)."""
-    cfg = dataclasses.replace(build_config(RAW, environ={}), **cfg_overrides)
+    cfg = dataclasses.replace(build_config(raw, environ={}), **cfg_overrides)
     ledger = ledger or Ledger(":memory:", outbox_max_depth=cfg.backend.outbox_max_depth, policy=cfg.policy)
     metrics = MetricsRegistry()
     return Pipeline(cfg, ledger, CloudClient(cfg.backend, ledger, metrics, dry_run=True), metrics)
+
+
+class EndlessInbox:
+    """An inbox whose get_nowait never runs dry (sustained ingress); `first` is what the blocking get returns."""
+
+    def __init__(self, first, filler, qsize: int) -> None:
+        self.first = first
+        self.filler = filler
+        self.size = qsize
+        self.taken = 0
+
+    def get(self, timeout: float):
+        return self.first
+
+    def qsize(self) -> int:
+        return self.size
+
+    def get_nowait(self):
+        self.taken += 1
+        return self.filler
+
+
+class FakeCloud:
+    """The two CloudClient calls the live loop makes."""
+
+    def __init__(self) -> None:
+        self.heartbeats = []
+
+    def wake(self) -> None:
+        pass
+
+    def heartbeat(self, cloud_device_id: str, body: dict) -> bool:
+        self.heartbeats.append((cloud_device_id, body["currentState"]["openVisits"]))
+        return True
 
 
 class FrigateAvailableTest(unittest.TestCase):
@@ -228,6 +262,58 @@ class InboxTimingTest(unittest.TestCase):
         self.assertEqual(p.metrics.get("visitd_pipeline_errors_total"), 1)
         self.assertEqual(len(p.tracker.open_visits()), 1)
         self.assertEqual(p.consume_inbox(inbox, timeout=0.0), 0)
+
+    def test_consume_inbox_returns_after_the_snapshot_or_the_cap_so_the_periodic_work_runs(self) -> None:
+        """Sustained ingress: get_nowait never raises Empty. One pass takes the first item plus what was queued
+        behind it (qsize at that moment), never more than mqtt.inboxBatchMax, then the loop's periodic section runs."""
+        first = (EVENTS, raw("new", "a", T0), 1000.0)
+        filler = (AVAILABLE, b"online", 1000.0)  # a repeated LWT is a no-op for the tracker
+        p = make_pipeline()
+        inbox = EndlessInbox(first, filler, qsize=4)
+        self.assertEqual(p.consume_inbox(inbox, timeout=0.0), 5)  # the first item + the 4 queued behind it
+        self.assertEqual(inbox.taken, 4)
+        inbox = EndlessInbox(first, filler, qsize=10 ** 6)
+        self.assertEqual(p.consume_inbox(inbox, timeout=0.0), 500)  # the default cap
+        self.assertEqual(inbox.taken, 499)
+        p = make_pipeline(raw=dict(RAW, mqtt={"inboxBatchMax": 3}))
+        inbox = EndlessInbox(first, filler, qsize=10 ** 6)
+        self.assertEqual(p.consume_inbox(inbox, timeout=0.0), 3)
+        self.assertEqual(inbox.taken, 2)
+        # one live-loop pass over that inbox: the tick, the heartbeat and housekeeping all still execute
+        p.cloud = FakeCloud()
+        now = [1000.0]
+        loop = LiveLoop(p.cfg, p, inbox, mqtt_connected=lambda: True, clock=lambda: now[0], epoch=lambda: T0 + 3600.0)
+        now[0] = 1010.0  # both timers (tick +5 s, first heartbeat +5 s) are due
+        loop.step()
+        self.assertEqual(inbox.taken, 4)  # 2 more, not the whole endless queue
+        self.assertEqual(p.metrics.get("visitd_ticks_total"), 1)
+        self.assertEqual(p.cloud.heartbeats, [("dev-lot", 1)])
+        self.assertEqual(p.next_prune_at, 1010.0 + 3600.0)  # housekeeping ran (first prune is immediate)
+        self.assertEqual((loop.next_tick, loop.next_heartbeat), (1015.0, 1070.0))
+
+
+class MaxAgeContinuationTest(unittest.TestCase):
+    def test_continuation_reaches_the_outbox_with_the_marker_a_normal_priority_and_the_counter(self) -> None:
+        p = make_pipeline(policy=dataclasses.replace(build_config(RAW, environ={}).policy, max_sighting_seconds=100.0))
+        p.process_message(EVENTS, raw("new", "a", T0), 1000.0)
+        p.process_message(EVENTS, raw("update", "a", T0 + 1.0, ["front_lot"]), 1001.0)
+        p.process_message(EVENTS, raw("update", "a", T0 + 46.0, ["front_lot"]), 1046.0)
+        self.assertEqual(p.tick(1100.0), [])  # max-age force-end at T0+100
+        self.assertEqual(states(p.tick(1120.0)), [LEFT])
+        first = p.ledger._conn.execute("SELECT visit_id FROM visits WHERE state = ?", (LEFT,)).fetchone()["visit_id"]
+        out = p.process_message(EVENTS, raw("update", "a", T0 + 130.0, ["front_lot"], start=T0), 1130.0)
+        self.assertEqual(states(out), [ENTERED_ZONE])
+        self.assertNotEqual(out[0].visit_id, first)
+        self.assertEqual(p.metrics.get("visitd_tracker_max_age_continuations_total"), 1)
+        self.assertEqual(p.metrics.get("visitd_tracker_max_age_continuations"), 1)
+        self.assertEqual(states(p.process_message(EVENTS, raw("update", "a", T0 + 175.0, ["front_lot"], start=T0), 1175.0)), [ARRIVAL_CANDIDATE, CONFIRMED_ARRIVAL])
+        rows = p.ledger._conn.execute("SELECT payload FROM outbox WHERE visit_id = ? ORDER BY id", (out[0].visit_id,)).fetchall()
+        payloads = [json.loads(r["payload"]) for r in rows]
+        self.assertEqual([x["data"]["state"] for x in payloads], [ENTERED_ZONE, ARRIVAL_CANDIDATE, CONFIRMED_ARRIVAL])
+        self.assertEqual({x["data"]["metadata"]["continuesVisitId"] for x in payloads}, {first})
+        self.assertEqual([x["data"]["priority"] for x in payloads], ["normal", "normal", "normal"])
+        self.assertEqual(p.metrics.get("visitd_tracker_max_age_continuations_total"), 1)  # counted once, not per step
+        self.assertEqual(p.ledger.count_visits([LEFT]), 1)  # the first visit is still LEFT in the ledger
 
 
 class HousekeepingTest(unittest.TestCase):

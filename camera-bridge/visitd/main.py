@@ -19,7 +19,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import __version__
 from .cloud_client import CloudClient, events_url
@@ -74,6 +74,7 @@ class Pipeline:
         self.frigate_available: Optional[bool] = None
         self.next_prune_at: float = 0.0  # wall (monotonic) time of the next ledger prune; first one runs at once
         self._pending_rows: List[Tuple[str, str, str, Dict[str, object]]] = []  # outbox rows of a step whose commit failed
+        self._continuations_counted = 0  # tracker max_age_continuations already added to the _total counter
         restored = self.tracker.restore_state(ledger.load_open_visits())
         self.metrics.set("visitd_open_visits", len(self.tracker.open_visits()))
         log.info("ledger restored open_visits=%s path=%s", restored, ledger.path)
@@ -85,17 +86,22 @@ class Pipeline:
         return self.process_message(topic, payload, received_at)
 
     def consume_inbox(self, inbox: "queue.Queue[InboxItem]", timeout: float) -> int:
-        """Wait up to `timeout` for the first inbox item, then drain EVERY queued item in receipt order.
+        """Wait up to `timeout` for the first inbox item, then drain what was queued behind it, in receipt order.
 
         The tick that follows estimates frame time from the last message's receipt stamp; it must never run
         ahead of a message that is already queued (an exit followed by a quick re-entry, received while a
-        heartbeat blocked the loop, would otherwise split one visit into two). Returns the items processed.
+        heartbeat blocked the loop, would otherwise split one visit into two). The batch is bounded to what
+        `inbox.qsize()` reports once the first item is in hand, capped at `mqtt.inboxBatchMax`: under sustained
+        ingress a take-until-empty loop never returns and the tick, heartbeat and housekeeping behind it starve
+        (stationary visits cannot advance, devices go OFFLINE while the bridge is busy). Messages still queued
+        when the batch ends are consumed by the next loop pass. Returns the items processed.
         """
         processed = 0
         try:
             item: Optional[InboxItem] = inbox.get(timeout=timeout)
         except queue.Empty:
             return processed
+        budget = min(1 + max(0, inbox.qsize()), self.cfg.mqtt.inbox_batch_max)
         while item is not None:
             processed += 1
             try:
@@ -103,6 +109,8 @@ class Pipeline:
             except Exception:  # keep consuming; one bad message must not kill the bridge
                 self.metrics.inc("visitd_pipeline_errors_total")
                 log.exception("pipeline error topic=%s", item[0])
+            if processed >= budget:
+                break
             try:
                 item = inbox.get_nowait()
             except queue.Empty:
@@ -218,12 +226,16 @@ class Pipeline:
             if row is not None:
                 self.last_event_at = str(row[3]["timestamp"])
             log.info(
-                "transition visit=%s state=%s seq=%s camera=%s zone=%s dwell=%.1f estimated=%s plate=%s queued=%s",
+                "transition visit=%s state=%s seq=%s camera=%s zone=%s dwell=%.1f estimated=%s plate=%s queued=%s continues=%s",
                 emission.visit_id, emission.state, emission.seq, emission.camera, emission.zone, emission.dwell_seconds,
-                emission.estimated, emission.plate.get("status"), status,
+                emission.estimated, emission.plate.get("status"), status, emission.continues_visit_id,
             )
         for visit in closed:
             self.metrics.inc("visitd_visits_closed_total", labels={"state": visit.state})
+        continued = self.tracker.counters["max_age_continuations"] - self._continuations_counted
+        if continued:
+            self._continuations_counted += continued
+            self.metrics.inc("visitd_tracker_max_age_continuations_total", continued)
         for reason, count in self.tracker.drain_force_ended().items():
             self.metrics.inc("visitd_tracker_force_ended_total", count, labels={"reason": reason})
             log.warning("force-ended open sightings count=%s reason=%s (visits depart through the normal grace)", count, reason)
@@ -271,6 +283,56 @@ class Pipeline:
         }
 
 
+class LiveLoop:
+    """One pass of the live loop: a bounded inbox batch, then the periodic work (tick, heartbeat, housekeeping).
+
+    Both clocks are injected so a test can run exactly one pass with an inbox that never empties and prove the
+    periodic section still executes.
+    """
+
+    def __init__(
+        self,
+        cfg: Config,
+        pipeline: Pipeline,
+        inbox: "queue.Queue[InboxItem]",
+        mqtt_connected: Callable[[], bool],
+        clock: Callable[[], float] = time.monotonic,
+        epoch: Callable[[], float] = time.time,
+    ) -> None:
+        self.cfg = cfg
+        self.pipeline = pipeline
+        self.inbox = inbox
+        self.mqtt_connected = mqtt_connected
+        self.clock = clock
+        self.epoch = epoch
+        self.next_tick = clock() + cfg.tick_seconds
+        self.next_heartbeat = clock() + 5.0
+
+    def step(self) -> None:
+        """Consume one inbox batch (waiting until the next timer is due), then run whatever timer is due."""
+        pipeline, metrics = self.pipeline, self.pipeline.metrics
+        timeout = max(0.05, min(self.next_tick, self.next_heartbeat) - self.clock())
+        pipeline.consume_inbox(self.inbox, timeout)  # what was queued, in receipt order, before any tick
+        now = self.clock()
+        if now >= self.next_tick:
+            self.next_tick = now + self.cfg.tick_seconds
+            try:
+                pipeline.tick(now)
+            except Exception:
+                metrics.inc("visitd_pipeline_errors_total")
+                log.exception("tick error")
+        if now >= self.next_heartbeat:
+            self.next_heartbeat = now + self.cfg.backend.heartbeat_seconds
+            body = pipeline.heartbeat_body(self.mqtt_connected())
+            for cam in self.cfg.cameras.values():
+                pipeline.cloud.heartbeat(cam.cloud_device_id, body)
+        try:
+            pipeline.housekeeping(now, self.epoch())
+        except Exception:
+            metrics.inc("visitd_pipeline_errors_total")
+            log.exception("housekeeping error")
+
+
 def run_live(cfg: Config, dry_run: bool) -> int:
     """Live mode: MQTT in, cloud out, until SIGINT/SIGTERM."""
     metrics = REGISTRY
@@ -298,30 +360,10 @@ def run_live(cfg: Config, dry_run: bool) -> int:
         log.error("STATENOUR_SYNC_KEY is not set; events will queue in the outbox until it is")
     cloud.start()
     mqtt.start()
-    next_tick = time.monotonic() + cfg.tick_seconds
-    next_heartbeat = time.monotonic() + 5.0
+    loop = LiveLoop(cfg, pipeline, inbox, lambda: mqtt.connected)
     try:
         while not stop.is_set():
-            timeout = max(0.05, min(next_tick, next_heartbeat) - time.monotonic())
-            pipeline.consume_inbox(inbox, timeout)  # everything queued, in receipt order, before any tick
-            now = time.monotonic()
-            if now >= next_tick:
-                next_tick = now + cfg.tick_seconds
-                try:
-                    pipeline.tick(now)
-                except Exception:
-                    metrics.inc("visitd_pipeline_errors_total")
-                    log.exception("tick error")
-            if now >= next_heartbeat:
-                next_heartbeat = now + cfg.backend.heartbeat_seconds
-                body = pipeline.heartbeat_body(mqtt.connected)
-                for cam in cfg.cameras.values():
-                    cloud.heartbeat(cam.cloud_device_id, body)
-            try:
-                pipeline.housekeeping(now, time.time())
-            except Exception:
-                metrics.inc("visitd_pipeline_errors_total")
-                log.exception("housekeeping error")
+            loop.step()
     finally:
         log.info("visitd stopping")
         mqtt.stop()

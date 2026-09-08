@@ -18,6 +18,8 @@ class BuildConfigTest(unittest.TestCase):
         self.assertEqual(cfg.backend.base_url, "https://bdnick.info")
         self.assertIsNone(cfg.backend.sync_key)
         self.assertEqual(cfg.backend.outbox_max_depth, 5000)
+        self.assertEqual(cfg.mqtt.inbox_batch_max, 500)
+        self.assertEqual(build_config(dict(MINIMAL, mqtt={"inboxBatchMax": 0}), environ={}).mqtt.inbox_batch_max, 1)
         self.assertEqual(cfg.policy.candidate_seconds, 10.0)
         self.assertEqual(cfg.policy.confirm_seconds, 45.0)
         self.assertEqual(cfg.policy.stationary_confirm_seconds, 20.0)

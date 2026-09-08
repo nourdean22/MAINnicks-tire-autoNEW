@@ -50,8 +50,50 @@ class RestartRecoveryTest(unittest.TestCase):
         self.assertEqual(out[0].plate["status"], "CONFIRMED")
         ledger2.save_visits(t2.open_visits() + t2.drain_closed())
         self.assertEqual(ledger2.count_visits([LEFT]), 1)
-        self.assertEqual(ledger2.load_open_visits(), {"visits": []})
+        self.assertEqual(ledger2.load_open_visits(), {"visits": [], "max_age_closed": []})
         ledger2.close()
+
+    def test_max_age_continuation_map_survives_a_restart(self) -> None:
+        policy = VisitPolicy(max_sighting_seconds=100.0)
+        t1 = tracker(max_sighting_seconds=100.0)
+        t1.handle_event(ev("new", "a", T0))
+        t1.handle_event(ev("update", "a", T0 + 1.0, ["front_lot"]))
+        t1.handle_event(ev("update", "a", T0 + 11.0, ["front_lot"]))
+        t1.tick(T0 + 100.0)  # max-age force-end
+        self.assertEqual(states(t1.tick(T0 + 120.0)), [LEFT])  # closed by the grace
+        ledger = Ledger(self.path, policy=policy)
+        ledger.save_visits(t1.open_visits() + t1.drain_closed())
+        ledger.close()
+
+        ledger2 = Ledger(self.path, policy=policy)
+        state = ledger2.load_open_visits()
+        self.assertEqual(state["visits"], [])
+        self.assertEqual(state["max_age_closed"], [["a", "V1", T0 + 120.0]])
+        t2 = tracker(max_sighting_seconds=100.0)  # a fresh id factory: the continuation is still a NEW visit id
+        self.assertEqual(t2.restore_state(state), 0)
+        out = t2.handle_event(ev("update", "a", T0 + 130.0, ["front_lot"], start=T0))
+        self.assertEqual(states(out), [ENTERED_ZONE])
+        self.assertEqual(out[0].continues_visit_id, "V1")
+        self.assertEqual(t2.counters["max_age_continuations"], 1)
+        self.assertEqual(ledger2.count_visits([LEFT]), 1)  # the closed visit stays closed
+        ledger2.close()
+
+    def test_max_age_map_from_the_ledger_is_windowed_to_the_ttl_and_empty_when_expiry_is_off(self) -> None:
+        policy = VisitPolicy(max_sighting_seconds=100.0)
+        t1 = tracker(max_sighting_seconds=100.0)
+        for oid, base in (("old", T0), ("new", T0 + 1000.0)):
+            t1.handle_event(ev("new", oid, base))
+            t1.handle_event(ev("update", oid, base + 1.0, ["front_lot"]))
+            t1.handle_event(ev("update", oid, base + 11.0, ["front_lot"]))
+            t1.tick(base + 100.0)
+            self.assertEqual(states(t1.tick(base + 120.0)), [LEFT])
+        ledger = Ledger(self.path, policy=policy)
+        ledger.save_visits(t1.drain_closed())
+        self.assertEqual(ledger.load_open_visits()["max_age_closed"], [["new", "V2", T0 + 1120.0]])  # "old" is 1000 s stale
+        ledger.close()
+        ledger = Ledger(self.path, policy=VisitPolicy(max_sighting_seconds=0.0))
+        self.assertEqual(ledger.load_open_visits()["max_age_closed"], [])
+        ledger.close()
 
     def test_older_schema_gains_the_new_outbox_columns_on_open(self) -> None:
         import sqlite3

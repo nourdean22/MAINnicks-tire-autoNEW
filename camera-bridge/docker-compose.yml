@@ -51,7 +51,7 @@ services:
     build:
       context: .
       dockerfile: visitd.Dockerfile
-    image: camera-bridge/visitd:2.1.1
+    image: camera-bridge/visitd:2.1.2
     container_name: visitd
     restart: unless-stopped
     ports:
