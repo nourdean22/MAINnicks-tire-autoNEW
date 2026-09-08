@@ -51,6 +51,7 @@ import {
   campaignsRouter,
   callTrackingRouter,
   customerEventsRouter,
+  marketAdminRouter,
   exportRouter,
   costEstimatorRouter,
   emergencyRouter,
@@ -85,7 +86,6 @@ import { vapiRouter } from "./routers/vapi";
 import { revenueOpsRouter } from "./routers/revenueOps";
 import { revenueAttributionRouter } from "./routers/revenueAttribution";
 import { statenourMetricsRouter } from "./routers/statenourMetrics";
-import { marketAdminRouter } from "./routers/admin/market";
 import { instagramStudioRouter } from "./routers/instagramStudio";
 import { closedLoopRouter } from "./routers/closedLoop";
 import { vehicleDataRouter } from "./routers/vehicleData";

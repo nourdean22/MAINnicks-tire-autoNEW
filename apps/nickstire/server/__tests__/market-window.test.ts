@@ -8,7 +8,7 @@
  * shop time and is an inclusive 28-date span.
  */
 import { describe, it, expect } from "vitest";
-import { marketWindow } from "../routers/admin/market";
+import { marketWindow } from "../lib/marketWindow";
 import { getBusinessDateKey } from "../lib/timezoneAssert";
 
 function inclusiveDays(start: string, end: string): number {

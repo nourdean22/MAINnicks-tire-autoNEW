@@ -22,7 +22,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../../_core/trpc";
 import { db } from "../../lib/db-helper";
-import { getBusinessDateKey } from "../../lib/timezoneAssert";
+import { marketWindow } from "../../lib/marketWindow";
 
 const RANGE = z
   .object({
@@ -31,14 +31,6 @@ const RANGE = z
     limit: z.number().int().min(1).max(50).optional(),
   })
   .optional();
-
-/** Inclusive 28-date window ending today, in shop time. */
-export function marketWindow(now: Date = new Date()): { startDate: string; endDate: string } {
-  return {
-    startDate: getBusinessDateKey(new Date(now.getTime() - 27 * 86_400_000)),
-    endDate: getBusinessDateKey(now),
-  };
-}
 
 async function requireStore(): Promise<void> {
   const d = await db();
