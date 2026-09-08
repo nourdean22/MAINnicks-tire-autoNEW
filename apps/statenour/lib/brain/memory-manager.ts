@@ -1,3 +1,4 @@
+import { isOperatorSource } from "./memory-commit-gateway";
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
@@ -306,8 +307,7 @@ export class BrainMemoryManager {
         gateMetadata.review_reason = "unknown category";
       }
     }
-    const operatorTrusted =
-      source === "skill_ingestion" || source === "manual" || source === "user";
+    const operatorTrusted = isOperatorSource(source);
     if (effectiveCategory === "wisdom" && !operatorTrusted) {
       const gate = gateWisdom(content);
       if (!gate.pass) {

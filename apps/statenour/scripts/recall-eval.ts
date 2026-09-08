@@ -24,6 +24,7 @@
  */
 
 import { loadEnvConfig } from "@next/env";
+import { createHash } from "node:crypto";
 import Module from "node:module";
 
 loadEnvConfig(process.cwd());
@@ -78,6 +79,41 @@ async function lexicalRetriever(): Promise<Retriever> {
   };
 }
 
+/**
+ * Wave 0 (2026-09-08) · the FULL chat pipeline as a third lane, scored through the
+ * onRanked observer — the number that actually decides whether a memory influences
+ * an answer. Fast topics, no LLM, the same opts the chat route passes.
+ */
+async function hybridRetriever(): Promise<Retriever> {
+  const { getContextualMemories } = await import("../lib/brain/contextual-recall");
+  return async (query, k) => {
+    let ranked: { key: string }[] = [];
+    await getContextualMemories([query], Math.max(k, 10), { fastTopics: true, onRanked: (rows) => { ranked = rows; } });
+    return ranked.slice(0, k).map((r, i) => ({ key: r.key, score: 1 / (i + 1) }));
+  };
+}
+
+function corpusFingerprint(cases: RecallEvalCase[]): { count: number; sha256: string } {
+  const h = createHash("sha256");
+  for (const c of [...cases].sort((a, b) => a.query.localeCompare(b.query))) h.update(JSON.stringify(c));
+  return { count: cases.length, sha256: h.digest("hex") };
+}
+
+/** Wave 0 · the labelled corpus is gitignored (real operator queries); its fingerprint is not. */
+function checkManifest(cases: RecallEvalCase[]): void {
+  const path = join(process.cwd(), "data", "recall-corpus.manifest.json");
+  const fp = corpusFingerprint(cases);
+  if (process.argv.includes("--write-manifest")) {
+    writeFileSync(path, JSON.stringify({ frozenAt: new Date().toISOString().slice(0, 10), ...fp }, null, 2) + "\n");
+    console.log(`manifest written: ${fp.count} cases, sha256 ${fp.sha256.slice(0, 12)}`);
+    return;
+  }
+  if (!existsSync(path)) { console.log(`corpus manifest absent (${fp.count} cases, sha256 ${fp.sha256.slice(0, 12)}) — run with --write-manifest to freeze it`); return; }
+  const want = JSON.parse(readFileSync(path, "utf8")) as { count: number; sha256: string; frozenAt: string };
+  if (want.sha256 === fp.sha256) console.log(`corpus frozen ✓ (${fp.count} cases, ${want.frozenAt})`);
+  else console.log(`corpus CHANGED vs manifest (${want.frozenAt}: ${want.count} cases → now ${fp.count}) — numbers are not comparable to the baseline`);
+}
+
 function loadCorpus(): { cases: RecallEvalCase[]; syntheticOnly: boolean } {
   const cases: RecallEvalCase[] = [...SEED_CASES];
   const harvested = join(process.cwd(), "eval-datasets", "recall-corpus.json");
@@ -105,15 +141,18 @@ async function main() {
     process.exit(1);
   }
   const { cases, syntheticOnly } = loadCorpus();
+  checkManifest(cases);
   console.log(
     `recall-eval · ${cases.length} cases (${syntheticOnly ? "SYNTHETIC ONLY — run pnpm harvest:evals for real cases; this run proves the harness, not the ranking" : "seed + harvested"}) · k=${K}`,
   );
 
   const vector = await runRecallEval(cases, await vectorRetriever(), K);
   const lexical = await runRecallEval(cases, await lexicalRetriever(), K);
+  const hybrid = await runRecallEval(cases, await hybridRetriever(), K);
 
   console.log(line("vector", vector));
   console.log(line("lexical", lexical));
+  console.log(line("hybrid", hybrid));
 
   const verdict =
     lexical.meanPrecisionAtK > vector.meanPrecisionAtK
@@ -128,7 +167,7 @@ async function main() {
   const outPath = join(outDir, "recall-lane-comparison.json");
   writeFileSync(
     outPath,
-    JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, vector, lexical, verdict }, null, 2),
+    JSON.stringify({ ranAt: new Date().toISOString(), k: K, syntheticOnly, corpus: corpusFingerprint(cases), vector, lexical, hybrid, verdict }, null, 2),
   );
   console.log(`artifact: ${outPath}`);
   process.exit(0);

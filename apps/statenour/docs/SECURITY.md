@@ -300,10 +300,10 @@ doing nothing. The CI job above is this repo's **only** dependency gate.
    `lib/services/google-oauth.ts`). Consolidation pending.
 3. **Rate limit coverage is thin.** `/api/ai/chat` + webhooks +
    Telegram should have active limits.
-4. **Pending-action approval UI missing.** Currently
-   `approval: "pending"` rows sit in `AutonomousAction` with no UI to
-   resolve them — Nick's autonomous path can't exercise sensitive
-   tools. Scheduled for W11.
+4. **Pending-action approval UI — SHIPPED 2026-09-08 (#2195).** `/system/actions` lists the
+   autonomous-action queue with a press-and-hold Approve and an expiry rule; the sink policy
+   (#2198) parks external side effects from a turn that carries fetched content there as
+   `require_owner` rows. The gap this item recorded is closed.
 5. **CronJobLog token leakage risk.** Cron errors may include full
    URL fragments with secrets in path params. Audit scheduled for W13.
 

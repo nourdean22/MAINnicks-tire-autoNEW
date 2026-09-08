@@ -48,6 +48,7 @@ import { scoreMessage } from "@/lib/brain/importance-scorer";
 import {
   evidenceClassForSource,
   type MemoryEvidenceClass,
+  isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
 
 /**
@@ -131,8 +132,8 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
   generated_summary: "summary",
   prediction: "prediction",
   // NOT "unverified" — that asserts a check was run and failed. This class is
-  // the ladder's FALLBACK for any source string it does not recognize, and
-  // real operator-authored writers land here: `source: "operator"`
+  // the ladder's FALLBACK for any source string it does not recognize. Until
+  // 2026-09-08 real operator-authored writers landed here: `source: "operator"`
   // (app/api/relationships/log-outreach, lib/media/media-moment — whose own
   // comment calls that source "load-bearing, not decoration") and `pin:chat` /
   // `pin:manual` from lib/services/pins.ts, since the operator_stated test is
@@ -190,6 +191,9 @@ export function fenceRecallBlock(lines: string[]): string {
 }
 
 export interface RelevantMemory {
+  /** BrainMemory id/key — carried so observers (onRanked) can identify a rendered row. */
+  id?: string;
+  key?: string;
   category: string;
   content: string;
   confidence: number;
@@ -605,6 +609,15 @@ const CHARS_PER_TOKEN_APPROX = 4;
  * the same predicate for the raw-SQL lanes. Change one, change all three --
  * tests/brain/recall-as-of.test.ts pins them together.
  */
+/** What onRanked observes: identity + provenance of each rendered memory, in rank order. */
+export interface RankedRecallRow {
+  id: string;
+  key: string;
+  category: string;
+  source: string;
+  relevance: string;
+}
+
 export type ValidityRow = {
   createdAt: Date;
   validFrom?: Date | null;
@@ -673,6 +686,12 @@ export async function getContextualMemories(
     queryEmbedding?: number[];
     /** U3 · answer as of this instant (see validityWhere). Undefined = now. */
     asOf?: Date;
+    /**
+     * Wave 0 (2026-09-08) · observe the FINAL ranked list before it is rendered.
+     * scripts/recall-eval.ts scores the whole pipeline through this; the chat
+     * route measures lane overlap with memory-recall through it. Never awaited.
+     */
+    onRanked?: (rows: RankedRecallRow[]) => void;
     /**
      * v10.0.529.106 · Wave 81 · pgvector efSearch override. Defaults
      * to the standard ef tuning · pass HIGH_RECALL (80) for high-stakes
@@ -847,11 +866,10 @@ export async function getContextualMemories(
   // decay · auto-distilled wisdoms older than 90d that have low seenCount
   // get progressively dimmer · operator-curated (skill_ingestion / manual)
   // bypass decay entirely (timeless principles).
-  const TRUSTED_SOURCES_NO_DECAY = new Set(["skill_ingestion", "manual", "user"]);
   const now = Date.now();
   const memScores = candidatePool.map((m) => {
     let freshness = 1.0;
-    if (m.category === "wisdom" && !TRUSTED_SOURCES_NO_DECAY.has(m.source)) {
+    if (m.category === "wisdom" && !isOperatorSource(m.source)) {
       const ageDays = Math.max(0, (now - new Date(m.createdAt).getTime()) / 86_400_000);
       const seenCount = m.seenCount ?? 0;
       // Cold wisdom > 90d old gets penalized · 0.5% per day past 90d
@@ -1028,6 +1046,8 @@ export async function getContextualMemories(
     .slice(0, wisdomSlots);
   for (const w of wisdoms) {
     relevant.push({
+      id: w.id,
+      key: w.key,
       category: w.category,
       content: w.content,
       confidence: w.confidence,
@@ -1068,6 +1088,8 @@ export async function getContextualMemories(
   const guaranteedTop3 = topCandidates.slice(0, 3);
   for (const m of guaranteedTop3) {
     relevant.push({
+      id: m.id,
+      key: m.key,
       category: m.category,
       content: m.content,
       confidence: m.confidence,
@@ -1090,6 +1112,8 @@ export async function getContextualMemories(
   const remainingSlots = Math.max(0, directSlots - guaranteedTop3.length);
   for (const m of remaining.slice(0, remainingSlots)) {
     relevant.push({
+      id: m.id,
+      key: m.key,
       category: m.category,
       content: m.content,
       confidence: m.confidence,
@@ -1106,6 +1130,8 @@ export async function getContextualMemories(
       .slice(0, 10 - relevant.length);
     for (const m of padding) {
       relevant.push({
+        id: m.id,
+        key: m.key,
         category: m.category,
         content: m.content,
         confidence: m.confidence,
@@ -1164,6 +1190,22 @@ export async function getContextualMemories(
   const direct = relevant.filter((m) => m.relevance === "direct");
   const supporting = relevant.filter((m) => m.relevance === "supporting");
   const background = relevant.filter((m) => m.relevance === "background");
+
+  if (opts.onRanked) {
+    try {
+      opts.onRanked(
+        [...direct, ...supporting, ...background].map((m) => ({
+          id: m.id ?? "",
+          key: m.key ?? "",
+          category: m.category,
+          source: m.source ?? "system",
+          relevance: m.relevance ?? "background",
+        })),
+      );
+    } catch {
+      // an observer must never cost the turn its memories
+    }
+  }
 
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);

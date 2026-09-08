@@ -67,9 +67,26 @@ export type MemoryDecision =
  * summaries. Unknown sources default to weak_inference — never assume
  * strength.
  */
+/**
+ * Sources the operator personally authored. Until 2026-09-08 the test was
+ * exact equality on three names, so the explicit-save default (`user_save`,
+ * lib/services/brain/save.ts), the pin family (`pin:chat` / `pin:manual`,
+ * lib/services/pins.ts) and the outreach/media writers (`operator`) all fell
+ * to weak_inference: the operator's own statements ranked BELOW a cron's
+ * summary. One predicate now, shared by the evidence ladder, remember()'s
+ * wisdom-gate bypass, recall's freshness decay and consolidation's curated
+ * guard. `auto_pin:*` is machine-made and deliberately NOT here.
+ */
+export const OPERATOR_SOURCE_NAMES = ["user", "manual", "skill_ingestion", "user_save", "operator", "owner"] as const;
+const OPERATOR_SOURCES: ReadonlySet<string> = new Set(OPERATOR_SOURCE_NAMES);
+export function isOperatorSource(source: string): boolean {
+  const s = source.toLowerCase();
+  return OPERATOR_SOURCES.has(s) || s.startsWith("pin:");
+}
+
 export function evidenceClassForSource(source: string): MemoryEvidenceClass {
   const s = source.toLowerCase();
-  if (s === "user" || s === "manual" || s === "skill_ingestion") return "operator_stated";
+  if (isOperatorSource(s)) return "operator_stated";
   if (s.includes("receipt") || s.includes("tool-exec") || s.includes("action")) return "system_receipt";
   if (s.includes("observ") || s.includes("event")) return "direct_observation";
   if (s.includes("external") || s.includes("import") || s.includes("drive")) return "external_source";

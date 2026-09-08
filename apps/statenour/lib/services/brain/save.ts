@@ -34,6 +34,7 @@
  *      never merged or superseded automatically. #2175 review threads.
  */
 
+import { stampAdmission } from "@/lib/brain/memory-admission";
 import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
 import {
@@ -320,7 +321,12 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
   // is NOT a duplicate: keep the new statement (it may be the correction),
   // keep the old one (it may be a distinct fact that merely embeds nearby),
   // link them, and queue the pair for review below.
-  const metadata = near ? { ...(input.metadata ?? {}), nearDuplicateOf: near.id } : (input.metadata ?? null);
+  // 2026-09-08 · the row now says what it is (admission envelope); the identity-first
+  // mechanics above are unchanged. brain-memory-direct-write: identity-first explicit save.
+  const metadata = stampAdmission(
+    near ? { ...(input.metadata ?? {}), nearDuplicateOf: near.id } : (input.metadata ?? {}),
+    { source, memoryKind: "semantic", extractionMethod: "explicit_save", content: trimmed },
+  );
   const row = await prisma.brainMemory.create({
     data: {
       category,

@@ -353,7 +353,6 @@
 > classifier stays deliberately conservative on names (`generateSQL`,
 > `runPython`, `writeCreative` classify as writes), which is the safe direction
 > but means `/system/tools` now counts them as mutating.
-||||||| a1d51cf09
 > ## 2026-09-02 · Langfuse tracing PROVEN live (#2082 + receipt)
 >
 > #2080 shared the tracer provider but its review-round sampler negated the fix: Sentry consults
