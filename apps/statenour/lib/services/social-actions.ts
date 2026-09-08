@@ -1,3 +1,4 @@
+import { imagePath } from "@/lib/images/signed-url";
 /**
  * lib/services/social-actions.ts · misc-pages slice (2026-05-22 ·
  * legacy-modernizer REST→tRPC).
@@ -108,6 +109,8 @@ export async function getSocialSchedule(): Promise<SocialScheduleView> {
 /** Flat recent-image row · AuditEvent projected to scalars. */
 export interface RecentImageRow {
   id: string;
+  /** D13 · server-minted path; signed when the flag is on. */
+  url: string;
   detail: string;
   createdAt: string;
   eventType: string;
@@ -149,6 +152,9 @@ export async function getRecentImages(): Promise<RecentImagesView> {
     ok: true,
     images: rows.map((r) => ({
       id: r.id,
+      // D13 · the server mints the URL (signed when IMAGES_REQUIRE_SIGNATURE=1);
+      // the picker must render this, never rebuild `/api/images/${id}` itself.
+      url: imagePath(r.id),
       detail: r.detail ?? "",
       createdAt: r.createdAt.toISOString(),
       eventType: r.eventType,

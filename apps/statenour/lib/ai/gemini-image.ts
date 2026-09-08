@@ -1,3 +1,4 @@
+import { imagePath } from "@/lib/images/signed-url";
 /**
  * lib/ai/gemini-image.ts
  *
@@ -255,7 +256,7 @@ export async function generateGeminiImage(
     .then((m) =>
       m.embedPhoto({
         photoId: record.id,
-        imageUrl: `/api/images/${record.id}`,
+        imageUrl: imagePath(record.id),
         description: cappedPrompt,
       }),
     )
@@ -266,7 +267,7 @@ export async function generateGeminiImage(
   return {
     base64: b64,
     dataUrl: `data:${mimeType};base64,${b64}`,
-    imageUrl: `/api/images/${record.id}`,
+    imageUrl: imagePath(record.id),
     imageId: record.id,
     prompt: cappedPrompt,
     model: GEMINI_IMAGE_MODEL,
@@ -355,7 +356,7 @@ export async function generateImageOpenRouter(
     .then((m) =>
       m.embedPhoto({
         photoId: record.id,
-        imageUrl: `/api/images/${record.id}`,
+        imageUrl: imagePath(record.id),
         description: cappedPrompt,
       }),
     )
@@ -366,7 +367,7 @@ export async function generateImageOpenRouter(
   return {
     base64: b64,
     dataUrl: `data:${mimeType};base64,${b64}`,
-    imageUrl: `/api/images/${record.id}`,
+    imageUrl: imagePath(record.id),
     imageId: record.id,
     prompt: cappedPrompt,
     model: "google/gemini-3.1-flash-image",
