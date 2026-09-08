@@ -73,6 +73,7 @@ class Pipeline:
         self.last_event_at: Optional[str] = None
         self.frigate_available: Optional[bool] = None
         self.next_prune_at: float = 0.0  # wall (monotonic) time of the next ledger prune; first one runs at once
+        self._pending_rows: List[Tuple[str, str, str, Dict[str, object]]] = []  # outbox rows of a step whose commit failed
         restored = self.tracker.restore_state(ledger.load_open_visits())
         self.metrics.set("visitd_open_visits", len(self.tracker.open_visits()))
         log.info("ledger restored open_visits=%s path=%s", restored, ledger.path)
@@ -82,6 +83,31 @@ class Pipeline:
         thread's monotonic stamp, so a backlog drained late still measures elapsed time from receipt."""
         topic, payload, received_at = item
         return self.process_message(topic, payload, received_at)
+
+    def consume_inbox(self, inbox: "queue.Queue[InboxItem]", timeout: float) -> int:
+        """Wait up to `timeout` for the first inbox item, then drain EVERY queued item in receipt order.
+
+        The tick that follows estimates frame time from the last message's receipt stamp; it must never run
+        ahead of a message that is already queued (an exit followed by a quick re-entry, received while a
+        heartbeat blocked the loop, would otherwise split one visit into two). Returns the items processed.
+        """
+        processed = 0
+        try:
+            item: Optional[InboxItem] = inbox.get(timeout=timeout)
+        except queue.Empty:
+            return processed
+        while item is not None:
+            processed += 1
+            try:
+                self.process_inbox_item(item)
+            except Exception:  # keep consuming; one bad message must not kill the bridge
+                self.metrics.inc("visitd_pipeline_errors_total")
+                log.exception("pipeline error topic=%s", item[0])
+            try:
+                item = inbox.get_nowait()
+            except queue.Empty:
+                item = None
+        return processed
 
     def process_message(self, topic: str, payload: bytes, wall_now: float) -> List[Emission]:
         """Parse one MQTT message and drive the tracker; `wall_now` is the monotonic time the message arrived."""
@@ -160,18 +186,32 @@ class Pipeline:
         return str(payload["eventId"]), cam.cloud_device_id, events_url(self.cfg.backend.base_url, cam.cloud_device_id), payload
 
     def after_step(self, emissions: List[Emission]) -> None:
-        """Persist tracker state and this step's outbox rows in ONE ledger transaction, then wake the cloud worker."""
+        """Persist tracker state and this step's outbox rows in ONE ledger transaction, then wake the cloud worker.
+
+        Closed visits are only drained from the tracker once the commit succeeded; when it fails they stay
+        buffered and the step's rows are held, so the next step re-commits the same visit, seq and eventId
+        instead of leaving a stale open visit in SQLite for the next restart to resurrect.
+        """
         rendered = [(emission, self.render_emission(emission)) for emission in emissions]
-        rows = [row for _, row in rendered if row is not None]
-        closed = self.tracker.drain_closed()
-        statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows)
+        held = self._pending_rows
+        rows = held + [row for _, row in rendered if row is not None]
+        closed = self.tracker.closed_visits()
+        try:
+            statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows)
+        except Exception as exc:
+            self._pending_rows = rows
+            log.error("ledger commit failed error=%s; %s closed visit(s) and %s outbox row(s) retry on the next step", exc, len(closed), len(rows))
+            raise
+        self._pending_rows = []
+        self.tracker.drain_closed()
         if evicted:
             self.metrics.inc("visitd_outbox_dropped_total", evicted)
-        remaining = iter(statuses)
-        for emission, row in rendered:
-            status = next(remaining) if row is not None else "unconfigured"
+        for status in statuses:
             if status == "refused":
                 self.metrics.inc("visitd_outbox_refused_total")
+        remaining = iter(statuses[len(held):])
+        for emission, row in rendered:
+            status = next(remaining) if row is not None else "unconfigured"
             self.metrics.inc("visitd_transitions_total", labels={"state": emission.state})
             if emission.estimated:
                 self.metrics.inc("visitd_tick_promotions_total", labels={"state": emission.state})
@@ -263,16 +303,7 @@ def run_live(cfg: Config, dry_run: bool) -> int:
     try:
         while not stop.is_set():
             timeout = max(0.05, min(next_tick, next_heartbeat) - time.monotonic())
-            try:
-                item: Optional[InboxItem] = inbox.get(timeout=timeout)
-            except queue.Empty:
-                item = None
-            if item is not None:
-                try:
-                    pipeline.process_inbox_item(item)
-                except Exception:  # keep consuming; one bad message must not kill the bridge
-                    metrics.inc("visitd_pipeline_errors_total")
-                    log.exception("pipeline error topic=%s", item[0])
+            pipeline.consume_inbox(inbox, timeout)  # everything queued, in receipt order, before any tick
             now = time.monotonic()
             if now >= next_tick:
                 next_tick = now + cfg.tick_seconds

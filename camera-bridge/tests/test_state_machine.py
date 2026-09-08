@@ -242,6 +242,26 @@ class ForceEndTest(unittest.TestCase):
         self.assertEqual(out[0].frigate_end_time, T0 + 100.0)
         self.assertAlmostEqual(out[0].zone_dwell["front_lot"], 99.0)
 
+    def test_max_age_fires_once_per_track_so_a_resurrected_parked_car_stays_one_visit(self) -> None:
+        """Frigate still updating the object after the max-age force-end means it is a real parked car."""
+        t = tracker(max_sighting_seconds=100.0)
+        t.handle_event(ev("new", "a", T0))
+        t.handle_event(ev("update", "a", T0 + 1.0, ["front_lot"]))
+        t.handle_event(ev("update", "a", T0 + 11.0, ["front_lot"]))
+        t.handle_event(ev("update", "a", T0 + 46.0, ["front_lot"]))
+        self.assertEqual(t.tick(T0 + 100.0), [])  # force-ended by age: DEPARTING, grace running
+        self.assertEqual(t.drain_force_ended(), {"max_age": 1})
+        visit_id = t.open_visits()[0].visit_id
+        self.assertEqual(t.handle_event(ev("update", "a", T0 + 110.0, ["front_lot"])), [])  # 10 s later: resurrected
+        visit = t.open_visits()[0]
+        self.assertEqual(visit.state, CONFIRMED_ARRIVAL)
+        self.assertIsNone(visit.sightings["a"].end_time)
+        self.assertEqual(ticks(t, T0 + 110.0, T0 + 400.0), [])  # well past the grace: no second force-end, no LEFT
+        self.assertEqual(t.drain_force_ended(), {})
+        self.assertEqual([v.visit_id for v in t.open_visits()], [visit_id])
+        self.assertIsNone(t.open_visits()[0].sightings["a"].end_time)
+        self.assertEqual(t.counters["new_visits"], 1)
+
     def test_max_age_zero_disables_expiry(self) -> None:
         t = tracker(max_sighting_seconds=0.0)
         t.handle_event(ev("new", "a", T0))

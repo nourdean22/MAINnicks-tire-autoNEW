@@ -51,17 +51,18 @@ services:
     build:
       context: .
       dockerfile: visitd.Dockerfile
-    image: camera-bridge/visitd:2.1.0
+    image: camera-bridge/visitd:2.1.1
     container_name: visitd
     restart: unless-stopped
     ports:
-      - "127.0.0.1:9090:9090"          # Prometheus text (README section 4 step 5), loopback only on the host. Inside the
-                                       # container set metrics.host: 0.0.0.0 in config.yaml: its loopback is not the host's.
+      - "127.0.0.1:9090:9090"          # Prometheus text (README section 4 step 5), loopback only on the host. The container
+                                       # binds 0.0.0.0 via VISITD_METRICS_HOST below: its own loopback is not the host's.
     env_file:
       - .env                           # STATENOUR_SYNC_KEY, MQTT_USERNAME, MQTT_PASSWORD
     environment:
       - VISITD_CONFIG=/config/config.yaml
       - VISITD_LEDGER=/data/visitd.sqlite
+      - VISITD_METRICS_HOST=0.0.0.0    # overrides metrics.host (127.0.0.1 in config.yaml stays right for host runs)
     volumes:
       - ./config.yaml:/config/config.yaml:ro
       - ./data:/data                   # SQLite ledger + outbox survive restarts and image rebuilds

@@ -39,6 +39,12 @@ class BuildConfigTest(unittest.TestCase):
         self.assertEqual(cfg.backend.base_url, "https://x.test")
         self.assertEqual(cfg.ledger_path, "/data/x.sqlite")
 
+    def test_env_metrics_host_overrides_the_file(self) -> None:
+        raw = dict(MINIMAL, metrics={"host": "127.0.0.1", "port": 9090})
+        self.assertEqual(build_config(raw, environ={}).metrics_host, "127.0.0.1")  # host runs keep loopback
+        self.assertEqual(build_config(raw, environ={"VISITD_METRICS_HOST": "0.0.0.0"}).metrics_host, "0.0.0.0")  # compose
+        self.assertEqual(build_config(raw, environ={"VISITD_METRICS_HOST": ""}).metrics_host, "127.0.0.1")  # empty = unset
+
     def test_topology_and_zone_names(self) -> None:
         raw = {
             "cameras": {

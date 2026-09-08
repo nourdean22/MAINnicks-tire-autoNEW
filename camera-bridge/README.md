@@ -7,7 +7,7 @@ Frigate's MQTT stream into deterministic **visits** and ships idempotent events 
 ```
 SHOP LAN (camera VLAN later)                                              CLOUD
 +-----------+  RTSP   +--------------------+  MQTT (user/pass)  +-------------------+  HTTPS x-sync-key  +--------------------+
-| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.1.0      |------------------->| statenour-web      |
+| PoE cam A |-------->| Frigate 0.17.2     |------------------->| visitd 2.1.1      |------------------->| statenour-web      |
 | lot       |         |  go2rtc restream   | frigate/events     |  frigate_events   | POST /api/devices/ |  handleVehicleEvent|
 | PoE cam B |-------->|  native LPR        | frigate/tracked_   |  state_machine    |   {id}/events      |  Telegram + push   |
 | sign/LPR  |         |  zones/review/rec  |  object_update     |  ledger (SQLite)  | PATCH /api/devices/|  /system/camera    |
@@ -78,7 +78,9 @@ the full VLAN build later.
 2. Same copies as section 3 steps 1-3 (use `cp`); keep `ov` (OpenVINO GPU) and `preset-vaapi`.
 3. `docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d` ; verify `docker compose logs frigate | grep -i openvino`.
 4. Camera VLAN with WAN egress denied; NTP from the router; UPS; Frigate 8971 only via Tailscale ACL.
-5. `curl -s 127.0.0.1:9090/metrics` on the box shows the visitd counters; the cockpit gets them through the heartbeat.
+5. `curl -s 127.0.0.1:9090/metrics` on the box shows the visitd counters (the compose file sets
+   `VISITD_METRICS_HOST=0.0.0.0` inside the container so the loopback-published port reaches it; `metrics.host` in
+   `config.yaml` stays `127.0.0.1` for host runs); the cockpit gets them through the heartbeat.
 
 ## 5. Mosquitto bootstrap (passwords)
 
@@ -206,3 +208,12 @@ it has been silent for 20 min (two missed heartbeats plus one tick) and pages on
 | 9 | `install-windows-service.ps1` interpolated paths into a cmd.exe argument string (`& \| ^ %` unescaped) | generated `visitd-task.cmd` with double-quoted tokens, `%` doubled, newline-bearing paths refused; `-Uninstall` removes it |
 | 10 | `docker-compose.yml` published no visitd port, so section 4 step 5 could not work | `127.0.0.1:9090:9090` on the visitd service (set `metrics.host: 0.0.0.0` in the container's config.yaml) |
 | 11 | a Frigate `end` outside every zone emitted LEFT at once, so rule 1 (split-track stitching within `splitTrackSeconds`) could never fire | `end` -> `DEPARTING`; LEFT / PASS_THROUGH only after the 20 s grace, `estimated: true`; `test_new_track_within_split_window_after_an_end_outside_the_zone_rejoins_the_same_visit` |
+
+### v2.1.1 (review round 3)
+
+| # | Finding | Fix |
+|---|---|---|
+| A | `after_step` drained closed visits from the tracker BEFORE `commit_step`; a failed commit (disk I/O, disk full) rolled the ledger back to the open visit while memory had already forgotten it, so the next restart resurrected a stale visit and the LEFT never reached the cloud | commit first, drain only on success; the closed visits stay buffered (`VisitTracker.closed_visits`) and the step's outbox rows are held, so the next step re-commits the same seq / `eventId`; `log.error` on the failure; `tests/test_main.py::CommitFailureTest` |
+| B | a max-aged track that Frigate kept updating was force-ended again on every later tick; an update gap longer than the leave grace closed the visit and the next update minted a second `visitId` for the same parked car | `maxSightingSeconds` fires once per track (`Sighting.max_age_fired`, persisted); a resurrected track is a real parked car and stays one visit until Frigate ends it; `test_max_age_fires_once_per_track_so_a_resurrected_parked_car_stays_one_visit` |
+| C | under backpressure the live loop processed ONE queued message and then ticked with the current wall clock, so an exit + quick re-entry that were both already queued (received while a heartbeat blocked the loop) split into two visits: the tick emitted LEFT before reading the re-entry | `Pipeline.consume_inbox` drains every queued item in receipt order before the loop ticks; `test_every_queued_message_is_consumed_before_a_tick_so_exit_and_quick_reentry_stay_one_visit` |
+| D | the documented setup copies `config.example.yaml` (`metrics.host: 127.0.0.1`), which inside the container binds only the container's loopback, so the published `127.0.0.1:9090` reached nothing (row 10's manual step was easy to miss) | env `VISITD_METRICS_HOST` overrides `metrics.host`; `docker-compose.yml` sets it to `0.0.0.0` on the visitd service, the file default stays loopback for host runs; `test_env_metrics_host_overrides_the_file` |

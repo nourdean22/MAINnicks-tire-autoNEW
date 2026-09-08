@@ -54,8 +54,10 @@ visit:
   leaveGraceSeconds: 20            # DEPARTING -> LEFT when no zone re-entry within this window
   splitTrackSeconds: 10            # rule 1: new track within N s of an ended track on the same camera
   splitTrackIou: 0.5               # rule 1: box overlap threshold
-  maxSightingSeconds: 43200        # 12 h: an open track older than this is force-ended (Frigate will never `end` it);
-                                   # a Frigate restart (frigate/available offline/online) force-ends every open track at once
+  maxSightingSeconds: 43200        # 12 h: an open track older than this is force-ended (Frigate will never `end` it).
+                                   # Fires ONCE per track: if Frigate keeps updating the object afterwards it is a real
+                                   # parked car, the track reopens and stays one visit until Frigate ends it.
+                                   # A Frigate restart (frigate/available offline/online) force-ends every open track at once
 
 plate:
   reattachMinutes: 30              # rule 2: plate joins an open visit active within this window
@@ -69,7 +71,8 @@ ledger:
                                    # sightings and zone intervals; dead_letter rows go after 7 days. The cloud is canonical.
 
 metrics:
-  host: 127.0.0.1                  # loopback only; scraped into the heartbeat payload
+  host: 127.0.0.1                  # loopback only; scraped into the heartbeat payload. Overridden by env
+                                   # VISITD_METRICS_HOST (docker-compose.yml sets 0.0.0.0 so the published port reaches it)
   port: 9090
 
 frigate:

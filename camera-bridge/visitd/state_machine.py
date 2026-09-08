@@ -122,6 +122,7 @@ class Sighting:
     last_frame_time: float
     end_time: Optional[float] = None
     ended_in_zone: bool = False
+    max_age_fired: bool = False  # max_sighting_seconds force-end fires once per track (see _expire_old_sightings)
     stationary: bool = False
     first_box: Optional[Box] = None
     last_box: Optional[Box] = None
@@ -335,6 +336,10 @@ class VisitTracker:
         """Non-terminal visits."""
         return list(self._visits.values())
 
+    def closed_visits(self) -> List[Visit]:
+        """Visits closed since the last drain, left in place (peek before the ledger commit)."""
+        return list(self._closed)
+
     def drain_closed(self) -> List[Visit]:
         """Visits closed since the last drain (for persistence)."""
         out, self._closed = self._closed, []
@@ -484,14 +489,20 @@ class VisitTracker:
         sighting.last_frame_time = max(sighting.last_frame_time, at)
 
     def _expire_old_sightings(self, at: float) -> None:
-        """Force-end open sightings older than max_sighting_seconds (a track Frigate will never end)."""
+        """Force-end open sightings older than max_sighting_seconds (a track Frigate will never end).
+
+        Once per track: a sighting Frigate keeps updating after the force-end is resurrected by
+        _apply_snapshot and is a real (parked) vehicle, so it stays one visit until Frigate ends it
+        instead of being re-ended on every later tick and split at the next update gap.
+        """
         limit = self.policy.max_sighting_seconds
         if limit <= 0:
             return
         ended = 0
         for visit in list(self._visits.values()):
             for sighting in visit.open_sightings():
-                if at - sighting.start_time >= limit:
+                if not sighting.max_age_fired and at - sighting.start_time >= limit:
+                    sighting.max_age_fired = True
                     self._force_end(sighting, at)
                     ended += 1
         if ended:
@@ -811,6 +822,7 @@ def visit_to_dict(visit: Visit) -> Dict[str, object]:
                 "last_frame_time": s.last_frame_time,
                 "end_time": s.end_time,
                 "ended_in_zone": s.ended_in_zone,
+                "max_age_fired": s.max_age_fired,
                 "stationary": s.stationary,
                 "first_box": list(s.first_box) if s.first_box else None,
                 "last_box": list(s.last_box) if s.last_box else None,
@@ -858,6 +870,7 @@ def visit_from_dict(raw: Mapping[str, object]) -> Visit:
             last_frame_time=float(s["last_frame_time"]),
             end_time=s.get("end_time"),
             ended_in_zone=bool(s.get("ended_in_zone", False)),
+            max_age_fired=bool(s.get("max_age_fired", False)),
             stationary=bool(s.get("stationary", False)),
             first_box=tuple(s["first_box"]) if s.get("first_box") else None,  # type: ignore[arg-type]
             last_box=tuple(s["last_box"]) if s.get("last_box") else None,  # type: ignore[arg-type]
