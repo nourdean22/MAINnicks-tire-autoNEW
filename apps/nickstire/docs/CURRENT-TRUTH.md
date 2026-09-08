@@ -38,14 +38,19 @@ Adjacent contracts that changed in the same PR:
 - **Share image**: `/og-image.jpg` (1200×630) from both index.html and `SEOHead`'s default.
 - **CSP** `connect-src` includes `*.google-analytics.com`, `*.analytics.google.com`, `*.googletagmanager.com`,
   `*.g.doubleclick.net`; Permissions-Policy also denies usb, midi, display-capture, browsing-topics.
-- **Prerendered snapshots** were regenerated in the PR (`8c0be63d5`) and again on main after merge; crawlers read
-  the snapshot, so a schema/meta change is not live for them until a regen commit lands.
+- **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a
+  regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
+  FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
+  the WebP `og:image`. The first snapshot set with the fixes is `2336d313d` (2026-09-08 00:49 UTC; the first
+  post-merge regen failed at `git push`). A `[skip ci]` regen commit does not deploy by itself — the next real
+  merge carries it. Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
 - **The regen is read-only by code, not yet by credential (2026-09-08).** `prerender-refresh.yml` boots this
   server with `PRERENDER_MODE=true` against `DATABASE_URL_PRERENDER_RO || DATABASE_URL` — the read-only secret is
   optional and, until the owner creates it, the run holds the read-write credential. `index.ts` skips crons and
-  queues in that mode, and `POST /api/analytics/conversion` now returns 204 without writing (it inserted a
-  `customer_events` row per rendered page before; canary `server/analyticsPrerenderGuard.test.ts`). Any new
-  public write path must carry the same guard.
+  queues in that mode, and the three DB-writing public sinks — `/api/analytics/conversion`, `/api/track-abandoned`,
+  `/api/uber-code` — now return 204 without writing (the conversion sink inserted a `customer_events` row per
+  rendered page before; control/canary pairs in `server/analyticsPrerenderGuard.test.ts`). Any new public write
+  path must use the same `isPrerenderPass()` guard in `server/routes/analyticsRoutes.ts`.
 - **Billed-sales windows are definition v2 (2026-09-08):** `last_7d` / `last_30d` are exactly 7 / 30 completed
   Eastern days ending yesterday; v1 ran to tomorrow and spanned 8 / 31 dates. `docs/METRICS-CONTRACT.md` has the
   rule; `server/shopSales.test.ts` counts the dates.

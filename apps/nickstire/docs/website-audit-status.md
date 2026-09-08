@@ -58,8 +58,9 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
   across month, year, leap-day and both DST boundaries instead of pinning endpoint literals (the old test
   pinned an eight-day pair and called it seven).
 - **The prerender regen wrote to production.** `PRERENDER_MODE=true` skips crons, but every rendered page still
-  fired `POST /api/analytics/conversion`, which inserted a `customer_events` row. Guarded (204, no write) with
-  a control/canary pair over real HTTP (`server/analyticsPrerenderGuard.test.ts`). Owner item remains: a
+  fired `POST /api/analytics/conversion`, which inserted a `customer_events` row. Guarded (204, no write), and the same guard now covers the other two
+  DB-writing public sinks (`/api/track-abandoned`, `/api/uber-code`), each with a control/canary pair over real
+  HTTP (`server/analyticsPrerenderGuard.test.ts`). Owner item remains: a
   read-only `DATABASE_URL_PRERENDER_RO` so the credential is the second lock.
 - **Regression tests the fixes lacked:** city-page JSON-LD (no FAQPage, no aggregateRating, `#localbusiness`
   references, canary-checked); footer Google-reviews link accessible name equals its visible text; share-image

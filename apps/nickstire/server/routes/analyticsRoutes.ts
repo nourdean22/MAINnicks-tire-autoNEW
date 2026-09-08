@@ -4,6 +4,16 @@ import { createLogger } from "../lib/logger";
 
 const serverLog = createLogger("server");
 
+// 2026-09-08 · the prerender regen boots THIS server (PRERENDER_MODE=true)
+// against the production database and drives every public page through
+// Puppeteer. index.ts skips crons and queues in that mode, but a page load
+// still fires these beacons — the conversion sink wrote a customer_events row
+// per rendered page on every weekly snapshot run. A rendering pass must never
+// be a production write: every DB-writing sink below accepts the beacon and
+// persists nothing. Same literal as index.ts ("true"), on purpose — "1" is
+// not prerender mode anywhere in this server.
+const isPrerenderPass = () => process.env.PRERENDER_MODE === "true";
+
 // ─── Public analytics + telemetry sinks ─────────────────
 // Extracted verbatim from server/_core/index.ts. Four anonymous
 // beacon endpoints (conversion events, abandoned-form tracking, Uber
@@ -28,15 +38,7 @@ export function registerAnalyticsRoutes(app: Express): void {
   //      overlapping names like form_completed.
   app.post("/api/analytics/conversion", express.json({ limit: "8kb" }), async (req, res) => {
     try {
-      // 2026-09-08 · the prerender regen boots THIS server (PRERENDER_MODE=true)
-      // against the production database and drives every public page through
-      // Puppeteer. index.ts already skips crons and queues in that mode, but a
-      // page load still fires this beacon, so every weekly snapshot run wrote
-      // hundreds of synthetic customer_events rows. A rendering pass must never
-      // be a production write: accept the beacon, persist nothing.
-      if (process.env.PRERENDER_MODE === "true") {
-        return res.sendStatus(204);
-      }
+      if (isPrerenderPass()) return res.sendStatus(204);
       const body = req.body as Record<string, unknown> | null;
       if (!body || typeof body !== "object" || typeof body.type !== "string") {
         return res.sendStatus(204);
@@ -88,6 +90,7 @@ export function registerAnalyticsRoutes(app: Express): void {
 
   app.post("/api/track-abandoned", express.json(), async (req, res) => {
     try {
+      if (isPrerenderPass()) return res.sendStatus(204);
       const { name, phone, service, vehicle, step: formStep, formType, sessionId: bodySessionId } = req.body || {};
       // wave-147 — was `if (!name && !phone) return sendStatus(204)`,
       // which silently dropped the majority of step-1 abandonment events
@@ -122,6 +125,7 @@ export function registerAnalyticsRoutes(app: Express): void {
   // bridge endpoint can count Uber-out events.
   app.post("/api/uber-code", express.json({ limit: "2kb" }), async (req, res) => {
     try {
+      if (isPrerenderPass()) return res.sendStatus(204);
       const body = req.body as { code?: string };
       if (!body?.code) return res.sendStatus(204);
       const { db } = await import("../lib/db-helper");

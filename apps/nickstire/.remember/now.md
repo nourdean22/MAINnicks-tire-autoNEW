@@ -19,8 +19,12 @@ program doc). **Wrong:** Grok Imagine resolution-tier pricing (xAI's model page 
 "#2179 still open" (merged); "SEOHead JPEG fix was in the follow-up" (it was inside #2173, `c4105d71e`).
 All three fixes + three regression tests + doc corrections are in this PR; the program doc has a §15 release
 record. **Regen on main:** run `34172453611` failed at `git push` (non-ff — #2179 landed mid-run; the workflow
-does not rebase); re-dispatched `34173664386` from `622426951`. Verify it landed by a bot-UA **GET** of a city
-page (no `FAQPage`, `.jpg` og:image), never HEAD. Owner item: create the read-only prerender credential.
+does not rebase); re-dispatched `34173664386` from `622426951` → landed `2336d313d` (337 files). **Tree check, not assumption:**
+Parma snapshot at `f2bcf949d`/`cfdcad9be` = 1 JSON-LD `FAQPage` + WebP og:image; at `2336d313d` = 0 + JPEG. So
+the in-PR regen had NOT made the fixes crawler-visible (the earlier ledger line claiming it had was wrong), and
+a `[skip ci]` regen commit does not deploy by itself — live still served `cfdcad9be` at 20:51 ET; the #2182 merge
+carries it. Verify by a bot-UA **GET** of a city page, never HEAD; bot responses are cached 1 h. `grep -c FAQPage`
+over-counts (chunk names) — count `"@type":"FAQPage"`. Owner item: create the read-only prerender credential.
 
 ## 2026-09-07 (evening) · quality program — 16 public-site/admin fixes, one document
 
