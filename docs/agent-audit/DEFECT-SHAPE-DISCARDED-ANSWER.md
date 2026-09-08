@@ -82,3 +82,25 @@ specifically:
 **When a system has the right answer available and returns something else
 without erroring, the bug is not in what it returned — it is in what it threw
 away. Look for the discarded value.**
+
+## Sibling shape · the failed read that renders as a confident zero
+
+Where this shape *computes* the right answer and throws it away, its sibling never
+gets an answer at all and renders the absence as a measured value. Same visible
+result: a confident wrong output, no error anywhere.
+
+**`.claude/skills/empty-vs-error/SKILL.md`** (2026-09-08, PR #2203) carries it: a read
+has THREE outcomes — `ERROR`, `UNMEASURED`, and a measured zero — and collapsing the
+first two into the third was the highest-frequency defect shape in the repo (10
+instances on one page in PR #2090, and it survived its own fix twice).
+
+Reference implementations already in the tree:
+`components/brain/judgment-quality-panel.tsx:34` ("state unknown, not empty"),
+`components/brain/contradiction-resolution-panel.tsx:300` (literal `provenance`
+values `"ERROR"` / `"UNMEASURED"` / `"ZERO"`), and
+`lib/observability/fleet-truth.ts:13,190` ("a failed probe is UNKNOWN, never
+healthy"; `ok` requires every capability fresh).
+
+Detection does not generalise to a repo-wide gate: `.catch(() => null)` is 130 files,
+`=> []` and `=> 0` together are 147. Those are house idioms. Scope to the diff, and
+note that `=> null` is usually the *honest* form — null is a legitimate "unknown".

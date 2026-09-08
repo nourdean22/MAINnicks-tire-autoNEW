@@ -82,3 +82,32 @@ is the one-line version, this is the list:
   ran against a checkout 54 commits behind `main`. The number was real; the
   surface was wrong. **A correct measurement of the wrong thing is still a
   silent instrument.**
+
+## The skill that encodes this
+
+**`.claude/skills/positive-control-first/SKILL.md`** (2026-09-08, PR #2203): a new
+test, canary, gate or guard regex is not done until it has been run against the code
+it is meant to catch and the failure recorded.
+
+### Three more instances — 2026-09-08, all in the skills that describe this shape
+
+Recorded because each was authored by someone actively writing about silent
+instruments, and all three were caught by review rather than by their author.
+
+1. **A detector that could not match its own documented data.** `empty-vs-error`
+   shipped `\.catch\(\(\) *=> *(\[\]|0)`, which requires `()` immediately before
+   `=>` — while its own table three lines above said 36 files use
+   `.catch((): never[] => [])`. Measured properly: **147** files match with an
+   annotation allowed, **98** without. A 49-file blind spot, positive-controlled
+   against synthetic input that happened to contain only the forms the author was
+   already thinking of.
+2. **A comment filter that kept comments** — see the producer/consumer doc.
+3. **Three regex arms that could never match anything.** In
+   `canonical-business-truth.test.ts` (PR #2206) the `\b` boundaries were written into
+   the file as literal `0x08` backspace bytes by a non-raw Python string. The live
+   scan is *expected* to match nothing, so no assertion could ever have revealed it.
+   A per-arm canary added minutes earlier caught all three immediately.
+
+**The generalisation:** when the live scan is expected to find nothing, one shared
+fixture leaves N-1 arms unproven. Give every advertised defect shape its own positive
+fixture, and keep a negative fixture for the false positive you are scoped to avoid.
