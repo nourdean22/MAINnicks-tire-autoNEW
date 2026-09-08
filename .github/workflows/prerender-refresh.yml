@@ -99,5 +99,31 @@ jobs:
           else
             git add apps/nickstire/prerendered
             git commit -m "chore: weekly prerender refresh [skip ci]"
-            git push
+            # 2026-09-08 · three of that day's five refreshes died right here with
+            # "! [rejected] main -> main (fetch first)": a sibling PR merged during
+            # the ~20-minute render and a plain push has no idea. The snapshot
+            # commit touches only apps/nickstire/prerendered/, so replaying it on
+            # the fresh tip is conflict-free unless ANOTHER refresh landed — then
+            # the cherry-pick fails and the run says so instead of pushing over it.
+            # cherry-pick (not rebase) because the checkout is shallow: it needs
+            # only this commit's parent, which the clone has. Three attempts cover
+            # a merge that lands between the fetch and the push.
+            SNAPSHOT="$(git rev-parse HEAD)"
+            for attempt in 1 2 3; do
+              git fetch origin main
+              git checkout --detach origin/main
+              if ! git cherry-pick "$SNAPSHOT"; then
+                git cherry-pick --abort || true
+                echo "::error::another refresh changed prerendered/ since this run started; not pushing over it"
+                exit 1
+              fi
+              if git push origin HEAD:main; then
+                echo "pushed on attempt $attempt"
+                exit 0
+              fi
+              echo "push rejected on attempt $attempt — main moved again; retrying"
+              sleep 20
+            done
+            echo "::error::push failed after 3 attempts"
+            exit 1
           fi
