@@ -23,7 +23,7 @@
  */
 
 /** Cleveland. Every boundary in this module is computed in this zone. */
-export const SHOP_TIME_ZONE = "America/New_York";
+const SHOP_TIME_ZONE = "America/New_York";
 
 export interface ReelScheduleLimits {
   /** `autonomyPolicy.limits.maxFeedPostsPerDay`. */
@@ -34,7 +34,7 @@ export interface ReelScheduleLimits {
   firstSlotHourEt: number;
 }
 
-export const DEFAULT_REEL_SCHEDULE_LIMITS: ReelScheduleLimits = {
+const DEFAULT_REEL_SCHEDULE_LIMITS: ReelScheduleLimits = {
   maxFeedPostsPerDay: 2,
   minHoursBetweenFeedPosts: 3,
   // 09:00 ET puts the first post before the morning commute ends and leaves
@@ -43,7 +43,7 @@ export const DEFAULT_REEL_SCHEDULE_LIMITS: ReelScheduleLimits = {
 };
 
 /** The ET wall-clock hours a day's posts are due at, earliest first. */
-export function dailySlotHoursEt(limits: ReelScheduleLimits = DEFAULT_REEL_SCHEDULE_LIMITS): number[] {
+function dailySlotHoursEt(limits: ReelScheduleLimits = DEFAULT_REEL_SCHEDULE_LIMITS): number[] {
   const { maxFeedPostsPerDay, minHoursBetweenFeedPosts, firstSlotHourEt } = limits;
   const slots: number[] = [];
   for (let i = 0; i < Math.max(0, maxFeedPostsPerDay); i++) {
@@ -93,7 +93,7 @@ function shopOffsetMinutes(at: Date): number {
  * keeps a 09:00 slot at 09:00 across both DST transitions instead of drifting
  * to 08:00 or 10:00 for half the year.
  */
-export function etWallClockToInstant(year: number, month1: number, day: number, hourEt: number): Date {
+function etWallClockToInstant(year: number, month1: number, day: number, hourEt: number): Date {
   const naive = Date.UTC(year, month1 - 1, day, hourEt, 0, 0);
   const firstGuess = new Date(naive - shopOffsetMinutes(new Date(naive)) * 60000);
   return new Date(naive - shopOffsetMinutes(firstGuess) * 60000);
@@ -107,7 +107,7 @@ function addEtDays(year: number, month1: number, day: number, n: number): { year
 }
 
 /** The ET calendar date an instant falls on. */
-export function etDateOf(at: Date): { year: number; month1: number; day: number } {
+function etDateOf(at: Date): { year: number; month1: number; day: number } {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" })
       .formatToParts(at)
@@ -117,7 +117,7 @@ export function etDateOf(at: Date): { year: number; month1: number; day: number 
   return { year: Number(parts.year), month1: Number(parts.month), day: Number(parts.day) };
 }
 
-export interface ScheduledReelSlot {
+interface ScheduledReelSlot {
   /** 0-based position in the publication queue. */
   position: number;
   /** Whole days after the start date this lands on. */
@@ -137,7 +137,7 @@ export interface ScheduledReelSlot {
  * Position 0 takes the first slot that is still in the future, so re-running on
  * a later day does not produce intents that were already missed.
  */
-export function planReelPublicationSlots(
+function planReelPublicationSlots(
   count: number,
   startAt: Date,
   limits: ReelScheduleLimits = DEFAULT_REEL_SCHEDULE_LIMITS,
@@ -171,7 +171,15 @@ export function planReelPublicationSlots(
   return out;
 }
 
-/** The due instant for a single position — the enqueue path's entry point. */
+/**
+ * The due instant for a single position — the module's ONLY export.
+ *
+ * Everything above is internal. The orphan gate flagged six exports nothing
+ * outside this file consumed, and it was right: exporting a helper so a test
+ * can reach it makes the test prove something production never asks. The suite
+ * drives this function instead, passing custom limits where it needs to observe
+ * the cadence, which exercises the real path rather than a private corner of it.
+ */
 export function reelPublicationIntentFor(
   position: number,
   startAt: Date,
