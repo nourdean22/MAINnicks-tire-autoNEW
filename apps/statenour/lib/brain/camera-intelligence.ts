@@ -53,7 +53,14 @@ interface DeviceEventRow {
 
 /**
  * Process camera events and extract intelligence.
- * Called by brain-cycle cron.
+ *
+ * NOT SCHEDULED (verified 2026-09-08, ADR-0017 / master-plan C2): no cron
+ * route, Inngest function or fan-out calls this — the "brain-cycle cron" the
+ * previous docstring named does not exist in config/crons.ts. Every alert it
+ * computes (after-hours motion, long customer wait, daily traffic, employee
+ * arrival) is therefore inert until it is wired. Wire it once real vehicle
+ * events exist (Phase 3 of the plan), not before: with zero events every
+ * branch below is a no-op and would only add a Neon wake.
  */
 export async function analyzeCameraData(): Promise<{
   alerts: number;

@@ -7,9 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-08 · Design pass (#2202), chat leftovers (#2204), Brain plan + Wave 0/1 (#2213):
-admission envelope, operator-source truth, direct-writer ratchet, lane-overlap instrument. Tap-target floor in
-the code is 44px (see the plan's §3 note on this file's 48×48 line). Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-09-08 · Camera vision wave 0 (ADR-0017: device-id P0, sentinel cron, plate link); earlier
+today #2202/#2204/#2213 (tap-target floor in code is 44px, not this file's 48×48). Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

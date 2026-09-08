@@ -1,5 +1,56 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-08 · Camera vision wave 0: the arrival pipeline that never received an event · 3 PRs + plan
+>
+> Operator instruction, on-site at the shop: "update whatever you need for the cameras ... the whole nine
+> yards ... research the best ... get the best done." Master plan
+> `docs/research/2026-09-08-camera-vision-MASTER-PLAN.md` + `docs/adr/0017-camera-vision-architecture.md`;
+> three read-only code audits, four web research agents, live LAN probes from the shop Wi-Fi, prod Neon and
+> Railway probes.
+>
+> **Found (receipts in the plan section 2):** the #315 pipeline had received ZERO real events. Every `[id]`
+> device route resolved the cuid while the bridge addresses `platformDeviceId` (`v380-shopsign`), so each
+> POST and heartbeat PATCH answered 404; `device_events` = 2 rows, both the June test device. The edge was
+> pinned to Frigate 0.13.2 with a config that only works on 0.14+ (relative zone coordinates), an `IndexError`
+> on every departure, wall-clock "dwell" that ignores zones, unpinned paho-mqtt, anonymous MQTT. The cameras
+> (`Hw_HsAKQQXG_WIFI_20230421`, Anyka family) expose only TCP 8800/9800: RTSP needs the SD-card `ceshi.ini`
+> unlock (procedure in the plan section 3.3) or PoE replacements for LPR.
+>
+> **#2222 `statenour/camera-arrival-p0` — cloud fixes.** `lib/services/devices.ts` resolves cuid OR
+> platformDeviceId in `[id]/events`, `[id]` and `[id]/command` (the route test was run red on the unfixed
+> routes first, 3 of 5 failing, then green); `vehicle-detection.ts` rewritten: zod contract v2 (`visitId`,
+> `eventId` idempotency), dedupe by visit across Frigate re-ids, quiet hours 20:00-07:00 ET recorded as
+> `alertSuppressedReason`, per-camera+zone cooldown, tagged web-push on the #1740 flood control, plate ->
+> customer link (`vehicle-customer-link.ts`, advisory, `customerRef` on the event); `cameraArrivals` day
+> boundary in ET; the cockpit renders a read failure as a failure, not as zero; `camera.getPlates` reads real
+> plate rows; `analyzeCameraData` docstring tells the truth (no caller); new worker-fired
+> `device-heartbeat-sentinel` cron (every 15 min; silent >20 min -> OFFLINE + one alert per transition;
+> never-reported devices ignored by construction; recovery clears the flag). Tests: 4 files, 24 passed;
+> `check:crons` 7/7; eslint 0. `tsc`: 0 errors in changed files, 7 pre-existing `@sentry/nextjs` resolution
+> errors in this junctioned worktree because the primary checkout predates #2074 (CI is the gate).
+>
+> **#2221 `nickstire/vehicle-lookup-by-plate` — read-only bridge action.** `vehicle_lookup_by_plate` over
+> `memberships.vehiclePlate` (`vehicles` was retired in 0117; `customer_vehicles` has no plate column yet),
+> OCR-confusable variants, today's bookings by phone (ET in SQL); contract v11.10 in both copies. nickstire
+> `tsc` 0, `plate.test.ts` 3 passed.
+>
+> **#2223 `docs/camera-vision-master-plan` — the plan, ADR-0017, eight UPSTREAMS verdicts** (Frigate pinned
+> 0.17.2, V380 protocol bridges REJECT, Ultralytics/BoxMOT REJECT, fast-alpr WATCH, Plate Recognizer WATCH,
+> Coral REJECT for new builds, Hailo WATCH, NVR alternatives REJECT).
+>
+> **#TBD-D `chore/camera-bridge-v2` — edge rewrite** (`camera-bridge/visitd`: deterministic visit state
+> machine on Frigate `frame_time`, SQLite ledger + outbox, Frigate 0.17.2 config, authenticated MQTT, replay
+> harness, stdlib unit tests).
+>
+> **Flagged · NOT fixed:** `analyzeCameraData` still has no scheduler (wire after real events exist);
+> `local-agent/v380_agent.py` still in tree (delete after edge heartbeats are live); the typed visit ledger
+> (plan section 7.2) is Phase 3; `NICK_ARRIVAL_INTELLIGENCE` stays off until gate G3; the primary checkout's
+> `node_modules` lacks `@sentry/nextjs` (refresh the primary, not the app).
+>
+> **Verified by:** vitest on the touched files, `check:crons`, eslint, nickstire and worker `tsc`, CI on every
+> PR, `/api/version` ancestry after merge.
+>
+
 > ## 2026-09-08 · Design pass shipped, chat leftovers shipped, Brain intelligence plan + Wave 0/1 · one session
 >
 > Operator instruction: "continue design pass … then synthesize all of your reports … come up with the

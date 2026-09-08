@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
 import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
+import { scrubExpiredPlates } from "@/lib/services/plate-retention";
 import {
   NEVER_HARD_DELETE_CATEGORIES,
   judgeSweep,
@@ -44,6 +45,11 @@ export const GET = cronHandler(async () => {
     where: { createdAt: { lt: daysAgo(90) } },
   });
   deletedByTable.device_events = deviceEvents.count;
+
+  // DeviceEvent plate text: 30 days unless the plate matched a customer
+  // record (ADR-0017: "plate reads 30 days unless linked"). The row survives
+  // to the 90-day line above for dwell/visit analytics; only the text goes.
+  deletedByTable.device_event_plates_scrubbed = await scrubExpiredPlates();
 
   // NotificationQueue (sent/failed): 30 days
   const notifications = await Promise.resolve({ count: 0 });

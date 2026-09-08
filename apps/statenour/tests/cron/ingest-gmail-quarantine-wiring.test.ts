@@ -83,6 +83,7 @@ vi.mock("@/lib/prisma", () => {
     {
       get: (_t, prop: string) => {
         if (prop === "$queryRaw") return () => Promise.resolve([]);
+        if (prop === "$executeRaw") return () => Promise.resolve(0);
         if (prop === "memoryInboxItem") return memoryInboxItem;
         if (prop === "auditEvent") return auditEvent;
         return generic();
