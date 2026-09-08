@@ -1,6 +1,6 @@
 # Session ledger — nickstire
 
-**Updated:** 2026-09-07, evening (public-site + admin quality program on branch
+**Updated: 2026-09-07** (evening — public-site + admin quality program on branch
 `claude/nicks-tire-quality-audit-544da2` · earlier the same day: admin Phase 1 shipped to PR #2163 ·
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
 routine disabled. Prior arc 2026-09-03 below.)

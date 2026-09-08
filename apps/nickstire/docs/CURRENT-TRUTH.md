@@ -1,11 +1,45 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-08-13 (ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; prior line: 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` on 2026-09-07 (public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Public-site serving contract (2026-09-07, PR #2173 → `f2bcf949d`)
+
+What a request for an extensionless public path gets, decided in ONE place — `server/_core/spaFallback.ts` —
+used by both the Vite dev catch-all and the production catch-all in `server/_core/vite.ts`:
+
+- **Known path** (route registry `shared/routes.ts`, or one segment under a `DYNAMIC_ROUTE_PREFIXES` entry, or
+  `/admin*`, or `NON_REGISTRY_PUBLIC_PATHS`) → 200, registry meta injected, `Cache-Control: public, max-age=300,
+  s-maxage=300, must-revalidate`. This now includes `/` (express.static serves with `index: false`; before, the
+  home page alone carried a 24 h cache).
+- **Unknown path** → **404** with `noindex, nofollow` in the HTML and `X-Robots-Tag`, canonical `/`, `no-cache`.
+  Before: 200 with the home title (a soft 404, measured live).
+- **Case twin of a known path** (`/Tires`) → 301 to the lowercase path, query string kept.
+- `/admin*` → 200 + `X-Robots-Tag: noindex, nofollow` (auth-gated shell).
+- Gate: `scripts/validate-route-registry.mjs` Rule 5 pins App.tsx `:param` routes ↔ `DYNAMIC_ROUTE_PREFIXES`
+  both ways and Rule 0 fails closed if a parser finds nothing; canary `server/routeRegistryValidator.test.ts`.
+  Wiring is tested over real HTTP through an `app.use("*")` mount (`server/spaFallback.test.ts`) — inside a
+  wildcard mount `req.path` is always `/`; only `originalUrl` survives.
+
+Adjacent contracts that changed in the same PR:
+
+- **robots.txt** is built by `server/_core/robots.ts`: `*` allows everything except the private paths; Bytespider
+  and cohere-ai are blocked; `ROBOTS_BLOCK_AI_TRAINING_CRAWLERS=true` additionally blocks GPTBot, ClaudeBot, CCBot,
+  Applebot-Extended, MistralAI-Training (default off). No Crawl-delay, no `?utm_` disallows (canonicals do that).
+- **Sitemaps** carry `<lastmod>` only for DB-published articles (real `updatedAt`); static routes omit it.
+- **`/llms.txt`** is the only machine-readable facts file; `/ai.txt` and `/llms-full.txt` 301 to it (the static
+  copies and the four `*-schema.json` / `business-data.json` files were deleted — they contradicted canon).
+- **Structured data**: one `WebSite` node (index.html); one `LocalBusiness` entity by `@id` — city pages reference
+  it and emit no rating; `aggregateRating` only where reviews are rendered (Home, Reviews).
+- **Share image**: `/og-image.jpg` (1200×630) from both index.html and `SEOHead`'s default.
+- **CSP** `connect-src` includes `*.google-analytics.com`, `*.analytics.google.com`, `*.googletagmanager.com`,
+  `*.g.doubleclick.net`; Permissions-Policy also denies usb, midi, display-capture, browsing-topics.
+- **Prerendered snapshots** were regenerated in the PR (`8c0be63d5`) and again on main after merge; crawlers read
+  the snapshot, so a schema/meta change is not live for them until a regen commit lands.
 
 ## Admin audit wave (2026-09-01/02, PR #2063) — receipts, doors, loud crons
 

@@ -89,11 +89,16 @@ function CityNavbar({ city }: { city: CityData }) {
 // Outputs three JSON-LD blocks:
 //   1. AutoRepair LocalBusiness — a reference to the ONE canonical entity (@id)
 //   2. BreadcrumbList — gives Google a structural trail (rich snippet)
-//   3. FAQPage — Google retired the FAQ rich result for all sites on
-//      2026-05-07 (Search Central changelog); kept because the markup is
-//      harmless and mirrors visible page content, not for a SERP effect
+//   3. Service — "Auto Repair" with the city as areaServed (wave-178)
 //
-// Three separate <script> tags is preferred over @graph; Google parses each
+// A FAQPage block was REMOVED 2026-09-07: its four questions were built here
+// and written into JSON-LD only — nothing on the page rendered them, which is
+// exactly what Google's structured-data policy forbids ("Don't mark up content
+// that is not visible to readers of the page"). Google also retired the FAQ
+// rich result for all sites on 2026-05-07, so the block had no upside left.
+// If a city page ever shows an FAQ, emit the schema from the rendered list.
+//
+// Separate <script> tags are preferred over @graph; Google parses each
 // independently and one failing won't tank the others.
 function CitySchema({ city }: { city: CityData }) {
   // 2026-09-07 · references the ONE canonical LocalBusiness (@id) instead of
@@ -146,46 +151,10 @@ function CitySchema({ city }: { city: CityData }) {
     ],
   };
 
-  // FAQs — answer the most-likely SERP queries for "[city] auto repair":
-  // location/distance, services, pricing, walk-in policy. These appear as
-  // expandable Q&A boxes under the listing in Google search results.
-  const cityFaqs = [
-    {
-      q: `Do you serve ${city.name}?`,
-      a: `Yes — ${city.name} is one of our core service areas. Nick's Tire & Auto is at ${BUSINESS.address.street}, Cleveland OH${city.driveTime ? `, ${city.driveTime} from ${city.name}` : ""}. Walk-ins welcome 7 days a week. Call ${BUSINESS.phone.display}.`,
-    },
-    {
-      q: `What auto repair services do you offer near ${city.name}?`,
-      // Use BUSINESS constants instead of hardcoded values so JSON-LD stays in
-      // sync with the businessSchema's aggregateRating. Hardcoding was creating
-      // a discrepancy Google could detect and use to suppress the rich result.
-      a: `Tires (used from $25, new from $89), brake repair (from $149/axle), oil changes (from $49), wheel alignment, check-engine light, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
-    },
-    {
-      q: `Why do ${city.name} drivers come to Nick's Tire & Auto?`,
-      a: `★${BUSINESS.reviews.rating} stars from ${BUSINESS.reviews.countDisplay} Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest answers, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
-    },
-    {
-      q: `Do I need an appointment, or can I walk in?`,
-      a: `Walk-ins welcome 7 days a week. Most services completed same day. Calling ahead at ${BUSINESS.phone.display} lets us prep parts and minimize your wait, but it's not required.`,
-    },
-  ];
-
-  const faqPageSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: cityFaqs.map((f) => ({
-      "@type": "Question",
-      name: f.q,
-      acceptedAnswer: { "@type": "Answer", text: f.a },
-    })),
-  };
-
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }} />
       {/* wave-178: per-city Service entity so Google can match this
           URL to "[service] [city]" intent queries. Previously CityPage
           only emitted AutoRepair (LocalBusiness) — no Service entity
