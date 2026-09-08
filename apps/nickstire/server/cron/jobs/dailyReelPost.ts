@@ -288,6 +288,19 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "DB not available" };
 
+  // POLICY-RECORDED CONSENT, before anything is selected. When
+  // autonomy_policy.formatPermissions.reel is "auto", every assembled reel with
+  // no live approval gets one through recordReelApproval — same writer, same
+  // binding, same veto — so the drain below (which selects on approval rows)
+  // can carry it. Any other policy value makes this a no-op. Failure here must
+  // not stop the cron: an unapproved reel is simply held, as before.
+  try {
+    const { autoApproveAssembledReels } = await import("../../services/reelAutoApproval");
+    await autoApproveAssembledReels();
+  } catch (err) {
+    log.warn("daily reel: auto-approval pass failed — reels stay held, cron continues", { err: err instanceof Error ? err.message : String(err) });
+  }
+
   const briefId = `autopost-${date}`;
   const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
   const todaysJob = jobs[0];
