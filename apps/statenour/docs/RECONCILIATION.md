@@ -38,7 +38,7 @@
 > 0.17.2, V380 protocol bridges REJECT, Ultralytics/BoxMOT REJECT, fast-alpr WATCH, Plate Recognizer WATCH,
 > Coral REJECT for new builds, Hailo WATCH, NVR alternatives REJECT).
 >
-> **#2225 (`f3a631adc`) `chore/camera-bridge-v2` — edge rewrite; hostile review found 1 P0 + 4 P1, disclosed in the PR body, visitd 2.1.0 follow-up pending** (`camera-bridge/visitd`: deterministic visit state
+> **#2225 (`f3a631adc`) `chore/camera-bridge-v2` — edge rewrite; hostile review found 1 P0 + 4 P1, disclosed in the PR body, fixed in #2227 (`c6d839fee`, visitd 2.1.2, 95 tests)** (`camera-bridge/visitd`: deterministic visit state
 > machine on Frigate `frame_time`, SQLite ledger + outbox, Frigate 0.17.2 config, authenticated MQTT, replay
 > harness, stdlib unit tests).
 >
