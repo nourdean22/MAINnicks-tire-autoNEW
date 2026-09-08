@@ -89,6 +89,15 @@ export interface SentryInitBase {
   tracesSampleRate: number;
   environment?: string;
   release?: string;
+  /**
+   * 2026-09-07 · nickstire and statenour report into the SAME Sentry project
+   * (`statenour/javascript-react`): 112 permission errors a day from the
+   * shop's public PhotoRibbon were counted against this app's error budget.
+   * Until the projects are split (an operator decision), every event from
+   * this app carries `app: statenour` so the two can at least be filtered
+   * apart (`app:statenour` in the issue search).
+   */
+  initialScope: { tags: { app: "statenour" } };
 }
 
 /**
@@ -106,6 +115,7 @@ export function sentryInitOptions(env: Env = process.env): SentryInitBase {
     enabled: Boolean(dsn),
     sendDefaultPii: false,
     tracesSampleRate: 0,
+    initialScope: { tags: { app: "statenour" } },
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
   };

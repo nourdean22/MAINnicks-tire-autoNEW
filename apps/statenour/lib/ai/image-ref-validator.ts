@@ -31,7 +31,8 @@ import { prisma } from "@/lib/prisma";
 const IMAGE_URL_PATTERN = /\/api\/images\/([a-z0-9_-]{8,})/gi;
 // Wider match for the full markdown line so we can swap the entire
 // `![label](url)` block. Captures: 1=alt label, 2=image id.
-const IMAGE_MARKDOWN_PATTERN = /!\[([^\]]*)\]\(\/api\/images\/([a-z0-9_-]{8,})\)/gi;
+// 2026-09-07 (D13) · tolerate a signed `?exp=&sig=` suffix; the id capture is unchanged.
+const IMAGE_MARKDOWN_PATTERN = /!\[([^\]]*)\]\(\/api\/images\/([a-z0-9_-]{8,})(?:\?[^)\s]*)?\)/gi;
 
 export interface ImageValidationResult {
   /** Text with broken `![](url)` blocks replaced by an inline error. */

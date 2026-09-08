@@ -37,6 +37,29 @@ import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-
 
 const STORAGE_KEY = "nour:nick-side-pane:open:v1";
 
+/**
+ * 2026-09-07 · the FAB lane. The toggle below is `position: fixed` at the
+ * bottom-right, so ANY page content that scrolls under that spot collides
+ * with it — live-verified on /journal ("ANSWER NOW") and /missions (the
+ * capture "+") at ~1090 CSS px. A fixed element cannot be scrolled past; the
+ * only honest fix is to reserve the lane it occupies. While a pane is
+ * mounted, `--nick-fab-lane` is set on <html> and (mastery)/layout.tsx's
+ * <main> pads its right edge by it on md+ screens; pages without the pane
+ * (chat, home) pay nothing. Phone widths are NOT changed here — the collision
+ * was not reproducible from the harness at 390 px and reserving 76 px of a
+ * 390 px viewport would be its own regression; verify on the device first.
+ */
+export const NICK_FAB_LANE = "4.75rem";
+export const NICK_FAB_LANE_VAR = "--nick-fab-lane";
+
+/** Pure: reserve the lane on `root` and return the release. Testable without a DOM. */
+export function reserveFabLane(root: {
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}): () => void {
+  root.style.setProperty(NICK_FAB_LANE_VAR, NICK_FAB_LANE);
+  return () => root.style.removeProperty(NICK_FAB_LANE_VAR);
+}
+
 interface NickSidePaneProps {
   /** Page identifier passed to PageNick for context-aware analysis. */
   page: string;
@@ -136,6 +159,9 @@ export function NickSidePane({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, toggle]);
+
+  // Reserve the FAB lane while this pane is mounted (see NICK_FAB_LANE).
+  useEffect(() => reserveFabLane(document.documentElement), []);
 
   return (
     <>

@@ -74,8 +74,12 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("shop-sales");
 
-/** Bump when the transaction set changes, so a stored figure states its rules. */
-export const SALES_DEFINITION_VERSION = "shop-sales-v1-invoice-date-gross";
+/**
+ * Bump when the transaction set changes, so a stored figure states its rules.
+ * v2 (2026-09-08): rolling windows are completed ET days ending yesterday
+ * (7 / 30 dates); v1 ran them to tomorrow exclusive (8 / 31 dates).
+ */
+export const SALES_DEFINITION_VERSION = "shop-sales-v2-invoice-date-gross-completed-days";
 
 export type SalesPeriod = "last_7d" | "last_30d" | "month_to_date" | "prev_month";
 
@@ -157,10 +161,19 @@ export function salesWindow(period: SalesPeriod, now: Date = new Date()): { from
   const tomorrow = addDays(today, 1);
 
   switch (period) {
+    // 2026-09-08 · the rolling windows are COMPLETED Eastern days ending
+    // yesterday: [today-7, today) is exactly 7 dates, [today-30, today) exactly
+    // 30. Until this fix both ran to TOMORROW (exclusive) and so spanned 8 and
+    // 31 dates while their labels said 7 and 30 — caught by an outside review of
+    // the merged code, and pinned by the old test as "a 7-day span" whose own
+    // literals were eight days apart. Today is excluded on purpose: the ALG
+    // mirror runs a day behind, so an "including today" window would always end
+    // on a structurally empty day. month_to_date keeps today (that is what
+    // "to date" means); prev_month is a whole calendar month.
     case "last_7d":
-      return { from: fmt(addDays(today, -7)), to: fmt(tomorrow) };
+      return { from: fmt(addDays(today, -7)), to: fmt(today) };
     case "last_30d":
-      return { from: fmt(addDays(today, -30)), to: fmt(tomorrow) };
+      return { from: fmt(addDays(today, -30)), to: fmt(today) };
     case "month_to_date":
       return { from: fmt(asUTC(y, m, 1)), to: fmt(tomorrow) };
     case "prev_month": {
@@ -243,6 +256,7 @@ export async function paidInvoiceRevenue(period: SalesPeriod): Promise<ShopSales
       },
       reconciledToShopReport: false,
       caveats: [
+        "Rolling windows are completed Eastern days ending yesterday (exactly 7 or 30 dates); month-to-date includes today.",
         "Billed, not collected — invoice date basis. There is no payment-date column.",
         "Gross and tax-inclusive; taxAmount is never subtracted and has written 0 since 2026-05.",
         "paymentStatus is an ALG ticket-lifecycle string: unknown or empty maps to 'paid'.",

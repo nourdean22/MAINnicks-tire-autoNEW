@@ -1,9 +1,32 @@
 # Session ledger — nickstire
 
-**Updated: 2026-09-07** (evening — public-site + admin quality program on branch
+**Updated: 2026-09-08** (release closure on `nickstire/release-closure-2026-09-08` after an outside review of the
+merged program — see the first section; 2026-09-07 evening — public-site + admin quality program on branch
 `claude/nicks-tire-quality-audit-544da2` · earlier the same day: admin Phase 1 shipped to PR #2163 ·
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
 routine disabled. Prior arc 2026-09-03 below.)
+
+## 2026-09-08 · release closure — what an outside review of the MERGED code found
+
+#2173 merged `f2bcf949d` and deployed 20:14 ET (10/10 live GETs); #2179 merged `cfdcad9be`. A second outside
+report reviewed the merged diff and was right about three things and wrong about three. **Right:** (R3) the
+billed-sales rolling windows spanned **8 / 31 dates** — `salesWindow()` ran to *tomorrow* exclusive, and the
+existing test pinned an eight-day literal pair under the name "7-day span" (a pinned literal is not a count);
+(R5) the prerender regen runs against production with `DATABASE_URL_PRERENDER_RO || DATABASE_URL` and the
+conversion beacon wrote a `customer_events` row per rendered page — `PRERENDER_MODE` skipped crons, not this
+route; (R4) the drain's 25-candidate scan can starve, not just skip (handoff to the reel session, in §3 of the
+program doc). **Wrong:** Grok Imagine resolution-tier pricing (xAI's model page lists a single $0.080/s);
+"#2179 still open" (merged); "SEOHead JPEG fix was in the follow-up" (it was inside #2173, `c4105d71e`).
+All three fixes + three regression tests + doc corrections are in this PR; the program doc has a §15 release
+record. **Regen on main:** run `34172453611` failed at `git push` (non-ff — #2179 landed mid-run; the workflow
+does not rebase); re-dispatched `34173664386` from `622426951` → landed `2336d313d` (337 files). **Tree check, not assumption:**
+Parma snapshot at `f2bcf949d`/`cfdcad9be` = 1 JSON-LD `FAQPage` + WebP og:image; at `2336d313d` = 0 + JPEG. So
+the in-PR regen had NOT made the fixes crawler-visible (the earlier ledger line claiming it had was wrong), and
+a skip-ci-tagged regen commit does not deploy by itself — live still served `cfdcad9be` at 20:51 ET; the #2182 merge
+carries it. **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
+GitHub skipped EVERY workflow for that push — the token counts anywhere in the head commit message. Never spell it
+out in a commit message or in a PR body a squash merge might copy; pass `--subject`/`--body` to the merge. Verify by a bot-UA **GET** of a city page, never HEAD; bot responses are cached 1 h. `grep -c FAQPage`
+over-counts (chunk names) — count `"@type":"FAQPage"`. Owner item: create the read-only prerender credential.
 
 ## 2026-09-07 (evening) · quality program — 16 public-site/admin fixes, one document
 

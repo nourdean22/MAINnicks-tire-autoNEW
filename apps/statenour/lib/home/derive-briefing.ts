@@ -53,6 +53,12 @@ export interface BriefingInputs {
   resumeTask: BriefingTask | null;
   /** Approvals awaiting a verdict — null when the reads failed (unknown ≠ 0). */
   pendingDecisions: number | null;
+  /**
+   * 2026-09-07 (D12) · approvals whose authorization window has passed. They
+   * are NOT waiting on a verdict (approve would be refused) — they need a
+   * re-request or a dismissal, so they never claim the decide card alone.
+   */
+  expiredDecisions?: number;
   findingsCount: number;
   inboxCount: number;
   criticalFew: Array<{ title: string; roiScore: number; reason?: string }>;
@@ -121,10 +127,15 @@ export function deriveBriefing(i: BriefingInputs): Briefing {
   // (both approval sources are uncapped findMany — verified, not assumed).
   if (i.pendingDecisions !== null && i.pendingDecisions > 0) {
     const n = i.pendingDecisions;
+    const x = i.expiredDecisions ?? 0;
+    const expiredNote =
+      x > 0
+        ? ` ${x} more ${x === 1 ? "has" : "have"} expired — ${x === 1 ? "it needs" : "they need"} a re-request or a dismissal, not an approve.`
+        : "";
     return {
       status: "decide",
       title: "AWAITING YOUR DECISION",
-      message: `${n} approval${n === 1 ? " is" : "s are"} parked waiting on you. Nothing downstream moves until you decide — that outranks any new target.`,
+      message: `${n} approval${n === 1 ? " is" : "s are"} parked waiting on you. Nothing downstream moves until you decide — that outranks any new target.${expiredNote}`,
       actionType: "decide",
       color: "text-rose-300",
     };

@@ -48,6 +48,16 @@ export interface GatePass {
   //                      counsel = balanced (default behavior) · auto = infer.
   //   actionPermission — read = no mutating tools · draft = stage, don't fire
   //                      irreversible/outward actions · execute = allowed.
+  //
+  //   READ-MODE CONTRACT (decided 2026-09-07, audit D15): "read" means
+  //   NO AUTONOMOUS CHANGES — the model cannot run a mutating tool
+  //   (stripMutatingTools removes them from the request) — while a typed command
+  //   from the operator (`/save …`, "remember that …") is the operator's own
+  //   authority and executes regardless of the mode. It is NOT "read-only": the
+  //   interceptor fast paths are permission-blind by design and only the
+  //   operator's own last message reaches them; quoted or retrieved text is
+  //   never a command. Pinned by tests/security/read-mode-typed-commands.test.ts;
+  //   change the label, this comment and that test together or not at all.
   privateMode: boolean;
   posture: ChatPosture;
   actionPermission: ChatActionPermission;

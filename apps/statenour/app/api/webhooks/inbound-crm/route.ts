@@ -17,15 +17,17 @@ export const dynamic = "force-dynamic";
  */
 export const POST = apiHandler(
   async (req) => {
-    // 1. Verify authorization secret.
-    // Prefer the `x-sync-key` header (secrets in headers aren't captured by
-    // proxy/CDN/access logs the way query strings are). The legacy `?secret=`
-    // path is still accepted transitionally so the live caller doesn't break;
-    // it emits a deprecation warning and should be removed once the caller
-    // sends the header. Compared constant-time regardless of source.
+    // 1. Verify authorization secret — HEADER ONLY.
+    // Secrets in headers aren't captured by proxy/CDN/access logs the way
+    // query strings are. The legacy `?secret=` fallback (kept "transitionally"
+    // since #597, 2026-07-07) was removed 2026-09-07: the retained Railway
+    // runtime log window held ZERO `inbound_crm_*` lines at all, so no caller
+    // was on the query path — and a caller that still is now fails loudly
+    // with `inbound_crm_unauthorized` + `presented_via: "query"` instead of
+    // silently leaking its secret into every access log on the way in.
+    // Compared constant-time. tests/security/inbound-crm-header-secret.test.ts.
     const headerSecret = req.headers.get("x-sync-key");
     const querySecret = new URL(req.url).searchParams.get("secret");
-    const presentedSecret = headerSecret ?? querySecret;
     const expectedSecret = process.env.STATENOUR_SYNC_KEY || process.env.BRIDGE_API_KEY;
 
     // Fail CLOSED: never process an inbound webhook when no secret is configured.
@@ -34,14 +36,14 @@ export const POST = apiHandler(
       log.error("inbound_crm_secret_unconfigured");
       throw new ServiceError("Webhook authentication is not configured.", 503);
     }
-    if (!presentedSecret || !safeEqual(presentedSecret, expectedSecret)) {
-      log.warn("inbound_crm_unauthorized");
-      throw new ServiceError("Unauthorized", 401);
-    }
-    if (!headerSecret && querySecret) {
-      log.warn("inbound_crm_secret_in_query_deprecated", {
-        detail: "Caller sent the secret via ?secret= — migrate to the x-sync-key header; query secrets leak into access logs.",
+    if (!headerSecret || !safeEqual(headerSecret, expectedSecret)) {
+      log.warn("inbound_crm_unauthorized", {
+        presented_via: headerSecret ? "header" : querySecret ? "query" : "none",
+        detail: querySecret && !headerSecret
+          ? "Secret arrived as ?secret= — the query path was retired 2026-09-07; send the x-sync-key header."
+          : undefined,
       });
+      throw new ServiceError("Unauthorized", 401);
     }
 
     let bodyPayload;

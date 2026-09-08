@@ -43,7 +43,12 @@ export interface SystemPulse {
   aiErrorRate1h?: number;
   actionsPending: number;
   actionsFailed24h: number;
+  /** Recently-dark expected devices — the incident number (2026-09-07, D11). */
   devicesOffline: number;
+  /** Dark longer than the recent window — needs a classification, not a new alarm. */
+  devicesOfflineLong?: number;
+  /** Owner-retired; excluded from health and from the total. */
+  devicesRetired?: number;
   devicesTotal: number;
   /** v11.0 · 7d mean Nick-quality score (0-100) · null when no data yet */
   nickQualityAvg7d?: number | null;

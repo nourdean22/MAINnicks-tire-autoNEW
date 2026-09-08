@@ -1390,3 +1390,62 @@ statenour primitives documented (existence re-verified at
 > (Sentry.init claims the global provider; `tracesSampler` is consulted for root spans
 > only). That is a durable technical fact, so per this skill's own "When NOT to use" it
 > belongs in the memory system and the repo docs — both updated — not in the skill queue.
+
+## 2026-09-07 · StateNour quality + power research wave (PR #2175)
+
+### P1 · statenour-verify — "shipped" requires a deploy receipt, and `railway logs --build` lies by default
+- **Trigger (witnessed):** production served `b3bebde` (2026-09-04 12:08Z) while `origin/main`
+  carried #2096, #2160 and #2161; `railway status` showed `statenour-web: Deploy failed (8h43m)`
+  and `statenour-worker: Deploy failed (3d)`. The 09-07 session ledger and RECONCILIATION entry
+  both said "shipped"/"landed" for #2096 and even applied its migration to prod. The skill's
+  "Confirming a merge is DEPLOYED" section exists but is positioned as an optional epilogue.
+  Second half: `railway logs --service statenour-web --build` printed the LAST SUCCESSFUL build
+  (healthcheck succeeded, image created 09-04 12:08Z), so the failure was invisible until
+  `railway deployment list --service statenour-web` gave the FAILED id and
+  `railway logs --service <svc> --build <deployment-id>` showed
+  `COPY apps/statenour/patches … not found`.
+- **Cost:** three days of merged-not-deployed statenour work across two services; a prod
+  migration applied for a writer that was not running; every earlier session's "SHIPPED" line
+  for #2096 is false as written.
+- **Proposed edit:** promote the ancestry check to a hard step before any "shipped" wording:
+  "Step 5: `railway status` (read `Deploy failed` per service) AND
+  `git merge-base --is-ancestor <merge-sha> $(curl -s https://bdnick.info/api/version | jq -r .data.build.commit)`.
+  A merge without both is MERGED, never SHIPPED." Add the trap: "`railway logs --build` without a
+  deployment id shows the latest SUCCESSFUL build; list deployments first and pass the FAILED id."
+- **Confidence:** high (two services, three days, the same ledger line repeated by two sessions)
+- **Status:** proposed
+
+### P2 · plan-gate — check production evidence before the doc checks
+- **Trigger (witnessed):** the pasted 2026-09-07 audit ("Report B") ran its gate against
+  `docs/CURRENT-TRUTH.md`, `BLUEPRINT`, `git log` and memory — the four steps this skill lists —
+  and stated in its own evidence boundary "the deployed SHA … NOT verified". The largest defect in
+  the estate (P1 above) was therefore invisible to it, and would have been invisible to this skill's
+  order of checks too: none of the four steps reads `/api/version` or `railway status`.
+- **Cost:** a 54-section external plan ranked six source findings while production had been
+  undeployable for three days.
+- **Proposed edit:** insert a step 0 before `docs/UPSTREAMS.md`: "Production evidence first —
+  `/api/version` (statenour) or its nickstire equivalent, `railway status`, and the deployment list.
+  A plan gated against docs while prod is broken ranks the wrong things." Mirrors the
+  source-of-truth hierarchy in root `AGENTS.md` (production evidence is rank 1; docs are rank 4–5).
+- **Confidence:** medium (one wave, but the omission is structural in the skill text)
+- **Status:** proposed
+
+### P3 · statenour-verify (Traps) — deleting the last file in a directory a Dockerfile COPYs breaks every build
+- **Trigger (witnessed):** #2096 deleted `apps/statenour/patches/ai@6.0.162.patch`, the only file
+  in that directory. Git does not track empty directories, so `COPY apps/statenour/patches` in BOTH
+  `apps/statenour/Dockerfile` and `apps/worker/Dockerfile` failed with `not found` on every push
+  after 2026-09-04 12:34Z. Nothing in `verify:hard`, lefthook or CI reads a Dockerfile; the first
+  instrument that could fail was the Railway image build, which nobody watches.
+- **Cost:** the P1 outage. Fix shipped as `tests/repo/dockerfile-copy-sources.test.ts` (#2175):
+  every build-context COPY source must be git-tracked, and every declared pnpm patch must be
+  COPYd into every deps stage, canaried on the exact incident shape.
+- **Proposed edit:** add to Traps: "Removing a patch (or the last file of any directory) can
+  delete a directory a Dockerfile COPYs. Run `tests/repo/dockerfile-copy-sources.test.ts` (it is in
+  the suite) and read its message before pushing a change that deletes files under a COPY source."
+- **Confidence:** high (the defect is deterministic and the gate now reproduces it)
+- **Status:** proposed
+
+> **Deliberately NOT proposed:** the scratch-clone push path when shared `node_modules` predate a
+> dependency (`@sentry/nextjs` here) — `statenour-verify` already documents it under "When no
+> statenour toolchain exists"; and the claude-in-chrome `resize_window` / `ctrl+k` limitations —
+> durable tool facts that went to the memory system, not a skill.

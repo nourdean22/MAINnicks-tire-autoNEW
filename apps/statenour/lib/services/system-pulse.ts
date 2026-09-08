@@ -36,7 +36,13 @@ export interface SystemPulseView {
   aiErrorRate1h: number;
   actionsPending: number;
   actionsFailed24h: number;
+  /** Expected devices dark within the recent window — the INCIDENT number (D11). */
   devicesOffline: number;
+  /** Expected devices dark longer than the window — unresolved, needs a classification, not a new alarm. */
+  devicesOfflineLong: number;
+  /** Owner-retired (status RETIRED) — history, excluded from every health count and from the total. */
+  devicesRetired: number;
+  /** Non-retired devices. */
   devicesTotal: number;
   nickQualityAvg7d: number | null;
   nickQualityAvgPrior7d: number | null;
@@ -55,6 +61,45 @@ export interface SystemPulseView {
 // per 30s across ALL consumers (every tab + the FloatingHome orb).
 let cache: { data: SystemPulseView; at: number } | null = null;
 const CACHE_TTL_MS = 30_000;
+
+// ── Device lifecycle (2026-09-07 · program D11) ──────────────────────────
+// "20 devices offline" on Home were cameras last seen 2026-04-14: an April
+// incident re-alarmed every day for five months. Offline is now split by AGE
+// of the last contact, and RETIRED (an owner decision, see
+// /api/devices/retire-stale) leaves every count. Nothing is retired by age
+// here — classification is a decision, health only reports.
+export const DEVICE_RECENT_WINDOW_DAYS = 7;
+const DEVICE_OFFLINE_STATUSES = new Set(["OFFLINE", "ERROR", "UNKNOWN"]);
+export const DEVICE_RETIRED_STATUS = "RETIRED";
+
+export interface DeviceHealth {
+  devicesOffline: number;
+  devicesOfflineLong: number;
+  devicesRetired: number;
+  devicesTotal: number;
+}
+
+export function classifyDevices(
+  rows: ReadonlyArray<{ status: string; lastSeenAt: Date | null; createdAt: Date }>,
+  now: Date = new Date(),
+): DeviceHealth {
+  const edge = now.getTime() - DEVICE_RECENT_WINDOW_DAYS * 86_400_000;
+  const h: DeviceHealth = { devicesOffline: 0, devicesOfflineLong: 0, devicesRetired: 0, devicesTotal: 0 };
+  for (const d of rows) {
+    if (d.status === DEVICE_RETIRED_STATUS) {
+      h.devicesRetired += 1;
+      continue;
+    }
+    h.devicesTotal += 1;
+    if (!DEVICE_OFFLINE_STATUSES.has(d.status)) continue;
+    // Never-seen devices age from their registration, not from a contact
+    // that never happened.
+    const lastContact = (d.lastSeenAt ?? d.createdAt).getTime();
+    if (lastContact > edge) h.devicesOffline += 1;
+    else h.devicesOfflineLong += 1;
+  }
+  return h;
+}
 
 /**
  * Build the system-pulse rollup. Cached 30s. The shape is identical to
@@ -79,7 +124,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
       aiCalls24h: 0, aiFailures24h: 0, aiErrorRate: 0,
       aiCalls1h: 0, aiFailures1h: 0, aiErrorRate1h: 0,
       actionsPending: 0, actionsFailed24h: 0,
-      devicesOffline: 0, devicesTotal: 0,
+      devicesOffline: 0, devicesOfflineLong: 0, devicesRetired: 0, devicesTotal: 0,
       nickQualityAvg7d: null, nickQualityAvgPrior7d: null,
       nickQualityReplies7d: 0, nickQualityDelta: null,
       nickQualityDirection: "unknown",
@@ -168,14 +213,13 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     safeQuery(() => prisma.autonomousAction.count({ where: { approval: "pending" } }), 0, { label: "pulse.actionsPending" }),
     safeQuery(() => prisma.autonomousAction.count({ where: { createdAt: { gte: since24h }, result: "failed" } }), 0, { label: "pulse.actionsFailed" }),
     safeQuery(
-      async () => {
-        const r = await prisma.smartDevice.groupBy({
-          by: ["status"],
-          _count: { id: true },
-        });
-        return r as Array<{ status: string; _count: { id: number } }>;
-      },
-      [] as Array<{ status: string; _count: { id: number } }>,
+      // Per-row read, not a groupBy: classification needs each device's last
+      // contact (D11). The fleet is tens of rows; the 30s cache above bounds it.
+      () =>
+        prisma.smartDevice.findMany({
+          select: { status: true, lastSeenAt: true, createdAt: true },
+        }),
+      [] as Array<{ status: string; lastSeenAt: Date | null; createdAt: Date }>,
       { label: "pulse.devices" },
     ),
   ]);
@@ -304,10 +348,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
   const aiErrorRate1h =
     aiCalls1h >= 3 ? Math.round((aiFailures1h / aiCalls1h) * 100) : 0;
 
-  const devicesOffline = dbDevices
-    .filter((d) => d.status === "OFFLINE" || d.status === "ERROR" || d.status === "UNKNOWN")
-    .reduce((s: number, d) => s + d._count.id, 0);
-  const devicesTotal = dbDevices.reduce((s: number, d) => s + d._count.id, 0);
+  const deviceHealth = classifyDevices(dbDevices, new Date(now));
 
   const result: SystemPulseView = {
     cronFails24h,
@@ -324,8 +365,7 @@ export async function buildSystemPulse(): Promise<SystemPulseView> {
     aiErrorRate1h,
     actionsPending,
     actionsFailed24h,
-    devicesOffline,
-    devicesTotal,
+    ...deviceHealth,
     nickQualityAvg7d,
     nickQualityAvgPrior7d,
     nickQualityDelta,
