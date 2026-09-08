@@ -1,6 +1,19 @@
 # Nick's Tire quality program — public site + /admin
 
 **Written 2026-09-07 against production `61d31ff53` (six PRs past the `195c496dd` the plan recorded).**
+
+**Current state (2026-09-08).** #2173 (16 defects) merged as `f2bcf949d` and deployed 20:14 ET 2026-09-07; the ten
+live GET checks in §11 passed at 20:15 ET. Follow-up #2179 (self-audit: `originalUrl` 404, robots literals,
+route-parity canary) merged as `cfdcad9be`, deployed. Snapshot regeneration from a post-#2179 `main` landed as `2336d313d`
+(run `34173664386`, 00:49 UTC 2026-09-08; the first attempt failed at `git push` because #2179 landed mid-run).
+**That commit is the first crawler-visible snapshot with the fixes** — checked by tree content, not by
+assumption: the Parma snapshot at `f2bcf949d` and `cfdcad9be` still carried one JSON-LD `FAQPage` node and the
+WebP `og:image`; at `2336d313d` it carries zero and `/og-image.jpg`. The in-PR regen (`8c0be63d5`) predated
+both fixes in the tree, so "regenerated in the PR" had not made them crawler-visible — the earlier draft of this
+document said it had. It reaches the live site with the next Railway deploy that includes `2336d313d`
+(the skip-ci-tagged regen commit did not trigger one on its own; this PR's merge carries it). This PR (release closure) fixes the sales-window cardinality defect, guards the prerender regen
+against production writes, adds the three regression tests an outside review asked for, and corrects the
+research errors listed in §2/§5/§6. §15 is the release record.
 Evidence grades: **VERIFIED** = measured live, read in code, or quoted from a primary vendor page ·
 **PLAUSIBLE** = reputable secondary source or inference from a primary · **UNVERIFIED** = nobody has
 checked. Every count carries its denominator (base-rate rule). Nothing here was applied to production;
@@ -8,8 +21,10 @@ this branch ships code, a PR, and a runtime-verification list.
 
 ## 0 · The answer
 
-1. **Phase 1 is roughly 70% shipped, not "on track".** Slice 1 is done and tested. Slice 2 shipped the
-   honest number but **no reconciliation mechanism exists** (`reconciledToShopReport` is a hard-coded
+1. **Phase 1 is three slices done and two partial, not "on track"** (slice 1 DONE · 2 PARTIAL · 3 DONE with one
+   residual · 4 DONE with one gap · 5 PARTIAL; the table in §3 carries the evidence). Slice 1 is done and tested.
+   Slice 2 shipped the honest number — whose rolling windows spanned 8 and 31 dates until 2026-09-08, caught by an
+   outside review — but **no reconciliation mechanism exists** (`reconciledToShopReport` is a hard-coded
    `false` with no code path that flips it). Slice 3 closed two live bypasses and left one disarmed
    (`REEL_LEGACY_PUBLISH_ENABLED`, unset in prod, verified across 410 Railway variables). Slice 4 is
    code-complete with a veto-parity gap. Slice 5 built a read-only ledger with **zero UI consumers** and no
@@ -22,11 +37,13 @@ this branch ships code, a PR, and a runtime-verification list.
    emitted twice on 21 city pages, six contradictory machine-readable "AI fact" files, and a CSP that
    blocks three Google Analytics beacon hosts. **All of those are fixed on this branch** (§1).
 3. **The two research questions with the biggest downstream cost both came back "no":** no cookie
-   banner is legally required for this business, and no major engine reads `llms.txt`/`ai.txt`
+   banner is required for this business under its current facts (US-only; the conditions that would flip
+   the decision are in §6), and no major engine reads `llms.txt`/`ai.txt`
    (Google says so in writing). Do not build either. The Google Business Profile Local Posts API is
    **alive** (docs updated 2026-08-28); the prior "dead since 2024" belief was wrong.
 4. **What decides AI representation for a Cleveland tire shop is off-site**: Google Business Profile
-   for Google surfaces, Yelp for ChatGPT and Perplexity, the website as the first-party bucket. Code can
+   for Google surfaces, Yelp for ChatGPT (and for Perplexity through its own Yelp feed), the website as the
+   first-party bucket. Code can
    only make the site *eligible* and *consistent*; §5 is the ordered list.
 5. **Design: the site is not vibecoded, but it is over-decorated in places and thin on the one thing a
    walk-in shop needs on a phone** — address, hours, open-now above the fold on mobile. §4 gives the
@@ -72,7 +89,7 @@ file mounts the real handler on a wildcard and speaks HTTP to it; mutating it ba
 **through the mount**, never only as a pure function.
 
 **Post-merge self-audit (follow-up PR, same day).** Three more misses, none of them found by a gate:
-(a) `SEOHead` still wrote the 1672×941 WebP storefront as `og:image` on every prerendered page — link-preview
+(a) [fixed inside #2173 itself, commit `c4105d71e` — not in the follow-up PR] `SEOHead` still wrote the 1672×941 WebP storefront as `og:image` on every prerendered page — link-preview
 bots read the snapshot, not index.html, so the 403 fix had only reached human visitors; default now
 `/og-image.jpg` (`c4105d71e`). (b) The 21 city pages emitted a `FAQPage` whose four questions were never
 rendered on the page — invisible markup, which Google's structured-data policy forbids; removed. (c) The footer
@@ -98,9 +115,9 @@ FCFS everywhere) and several specifics wrong. Corrections that change what engin
 | "Consider a PWA shell" / "add install banner icons" | **Already shipped**: service worker (network-first navigations after a 2026-08-01 incident), manifest with 192/512 + maskable icons. | `client/public/sw.js`, `manifest.json` |
 | "Add structured data for reviews/ratings" | **Contrary to Google's doc.** Self-controlled reviews on LocalBusiness are ineligible for stars; the existing site-wide rating was the defect (#7 above). | review-snippet doc, 2026-07-24 |
 | "FAQPage schema on any Q&A content" | **Retired for all sites 2026-05-07**; harmless, not a lever. | Search Central changelog May/June 2026 |
-| "Use IndexNow for AI freshness" | **Bing/Copilot only** (Google is not a participant). The site already serves an IndexNow key file; whether anything submits URLs is UNVERIFIED (grep: only the key handler). | indexnow.org/faq |
+| "Use IndexNow for AI freshness" | **Bing, Amazon, Naver, Seznam, Yandex and Yep** — Google is not a participant (an earlier draft of this row said "Bing only"; corrected 2026-09-08). The site already serves an IndexNow key file; whether anything submits URLs is UNVERIFIED (grep: only the key handler). | indexnow.org/faq |
 | "Fresh GBP posts boost visibility" | **Unsupported as a ranking claim.** Google's local ranking page: relevance, distance, prominence (links, reviews). Posts are fine for customers; don't budget them as SEO. | support.google.com/business/answer/7091 |
-| "Grok Imagine v1.5 ~$0.14/s, ¼ of Veo 3.1" | **Contradicted.** xAI lists $0.080/s (v1.5) and $0.050/s (v1); Veo 3.1 Standard $0.40/s, Fast $0.10–0.12/s, Lite $0.05–0.08/s. | docs.x.ai/developers/pricing · ai.google.dev pricing 2026-09-04 |
+| "Grok Imagine v1.5 ~$0.14/s, ¼ of Veo 3.1" | **Contradicted.** xAI's model page lists a single $0.080/s for v1.5 and $0.050/s for v1 — no per-resolution tiers are published there (re-checked 2026-09-08 after a second outside report asserted tiers); Veo 3.1 Standard $0.40/s, Fast $0.10–0.12/s, Lite $0.05–0.08/s. | docs.x.ai/developers/pricing · ai.google.dev pricing 2026-09-04 |
 | "Seedance 1080p ~$0.49/s" | **UNVERIFIED on any primary page.** BytePlus: Seedance 1.0 Pro ≈ $0.122/s at 1080p; Runway resells Seedance 2 at $0.40/s 1080p. | docs.byteplus.com · docs.dev.runwayml.com |
 | "GPT-image-2 ~$0.10/s" | **Category error** — an image model priced per token ($30 / 1M output tokens; ≈ $0.01–0.13 per image). | developers.openai.com/api/docs/pricing |
 | "LTX-2.5 fine-tune free on a desktop GPU" | Model exists (2026-01-06), community license free under $10M revenue; **inference** at ~12 GB fp8 is documented, **fine-tuning VRAM is not**. The operator's machine has an Intel Arc iGPU — none of it runs locally here. | huggingface.co/Lightricks/LTX-2.5 |
@@ -122,8 +139,8 @@ operator reads the Cloud dashboard billing tab.
 | Slice | Status | What is true in code | Contradiction / gap |
 |---|---|---|---|
 | 1 Decision Inbox retired · neutral `dismissed` · stated-concern provenance · review-recovery recurrence | **DONE** | Home + morning brief both dropped the queue; `dismissed` terminal state without consent side-effects; `captureStatedConcern` requires `heardFrom: "customer"` literal and writes `operator_relayed`; only customer-sourced concerns end a recovery rail; complaint key is `phone10` with `reopenIfTerminal` for a genuinely new complaint. Tests: `neutralDismissal`, `ros083BriefPriorities`, `opportunities-section`. | The plan text "must not key forever by phone" vs. the shipped design, which **does** key by phone and relies on `reopenIfTerminal` to let a new complaint through. The requirement is met; the wording differs. Keep the mechanism, fix the plan wording. |
-| 2 One sales contract · honest availability · through-date · arithmetic · GATED reconciliation | **PARTIAL** | `shopSales.ts` single SQL, ET calendar windows, discriminated union (no `$0` on failure), "Billed", through-date always shown. `METRICS-CONTRACT.md` documents basis and exclusions. | **Reconciliation not built**: `reconciledToShopReport` hard-coded false, no comparator, no operator action. A third revenue implementation (`admin-stats.ts` shopFloor) and a fourth (`masterIntelligence` pacing) still exist; the shopFloor consumer defect is fixed on this branch (#16). |
-| 3 Durable masters · head-of-line repair · close bypasses | **DONE, one residual** | Masters go to S3 (`S3_BUCKET` set, verified 2026-09-07) + `media_assets` checksum; key-based Higgsfield client independent of any login; drain scans 25 candidates and skips rather than pins; canary/live-test routes now pass the approval gate and derive AI disclosure from stored paths. | `publishReel` legacy direct publisher remains, disarmed by `REEL_LEGACY_PUBLISH_ENABLED` (**unset in prod, verified**). Handoff to the reel session: delete it and update `reelPublishSafety.test.ts` + `adminPermissionCoverage.test.ts`. |
+| 2 One sales contract · honest availability · through-date · arithmetic · GATED reconciliation | **PARTIAL** | `shopSales.ts` single SQL, ET calendar windows (rolling windows corrected 2026-09-08 to exactly 7 / 30 completed days ending yesterday — v1 ran to tomorrow and spanned 8 / 31 dates under 7 / 30 labels; the test now counts dates), discriminated union (no `$0` on failure), "Billed", through-date always shown. `METRICS-CONTRACT.md` documents basis and exclusions. | **Reconciliation not built**: `reconciledToShopReport` hard-coded false, no comparator, no operator action. A third revenue implementation (`admin-stats.ts` shopFloor) and a fourth (`masterIntelligence` pacing) still exist; the shopFloor consumer defect is fixed on this branch (#16). |
+| 3 Durable masters · head-of-line repair · close bypasses | **DONE, one residual** | Masters go to S3 (`S3_BUCKET` set, verified 2026-09-07) + `media_assets` checksum; key-based Higgsfield client independent of any login; drain scans 25 candidates and skips rather than pins; canary/live-test routes now pass the approval gate and derive AI disclosure from stored paths. | `publishReel` legacy direct publisher remains, disarmed by `REEL_LEGACY_PUBLISH_ENABLED` (**unset in prod, verified**). Handoff to the reel session: delete it and update `reelPublishSafety.test.ts` + `adminPermissionCoverage.test.ts`. **Second residual (outside review, 2026-09-08):** the drain's 25-candidate scan is a fixed window over the oldest jobs, so 25 consecutive condemned or blocked jobs starve every job behind them — the skip removed *pinning*, not *starvation*. Reel-session handoff: exclude vetoed jobs from the candidate query, or page past skipped ones; add a test that plants 26 blocked jobs ahead of one publishable job and asserts it publishes. |
 | 4 Approval ≠ scheduling intent ≠ delivery authorization · digest binding · 72h TTL | **DONE, one gap** | Caption sha256 + `media_assets.checksumSha256` bound; a stable URL is not proof of unchanged bytes; explicit publish window suppresses the TTL; `publication_intended_at` on the job; 0118 applied and wired (#2164). | Approval write path and queue view veto on job-ID (`auditPublishBlock`) only; the drain additionally vetoes on content similarity (`condemnedContentProblem`). An operator can "approve" a reel the drain will never publish, with no reason shown. Handoff to the reel session. |
 | 5 Durable recovery ledger · reconcile by job ID · GATED Higgsfield drawdown | **PARTIAL** | Read-only ledger reconciles `generation_reservations.action_id = reel_job_<id>`, keeps `providerOps` append-only, reports unknowns honestly. | One cost row per job, not per paid attempt (stated in the module). **Zero client callers** of `instagramAdmin.reelRecoveryLedger`. No spend gate reads it; the only pre-spend gate is `generationLedger.reserve(dailyBudgetUsd)`, which is prior art. Drawdown remains operator-gated and undesigned. |
 
@@ -206,7 +223,11 @@ external award, no invented timelines, no "financing". Sentences end; em-dashes 
 paragraph at most.
 
 Trust language that is **already true and verifiable in canon** (`shared/business.ts`):
-- "Written estimate before any work. You don't pay until you say yes."
+- "Written estimate before any work. Nothing is charged until you approve it." — **owner confirmation needed
+  before this line is used anywhere.** The price list carries a $59.99 diagnostic fee (credited toward the
+  repair); "you don't pay until you say yes" is false if the diagnostic is charged when a customer declines
+  the repair. Ohio Admin. Code 109:4-3-13 requires the written estimate and prior authorization — the first
+  sentence already promises exactly that, and is the safe half.
 - "Open 7 days. Walk in — first come, first served." (one dash, deliberate)
 - "12-month warranty on installed parts, 90 days on labor, in writing."
 - "Same corner on Euclid Ave since 2018."
@@ -251,8 +272,11 @@ should be renamed in a Phase 2 redirect (`/drop-off`, 301 from `/booking`).
    correct the BBB phone, reconnect the API as the profile owner, then submit the Basic API Access form
    (profile verified 60+ days, website listed). No "Walk-ins welcome" attribute is documented — put
    first-come-first-served in the description and do not add a booking link.
-2. **Yelp** is the most-cited source in ChatGPT and Perplexity (Perplexity has a direct Yelp feed).
-   Claim the free page; the Birdeye "Moe's" profile with 1,763 reviews is unclaimed.
+2. **Yelp** is the most-cited source in ChatGPT (BrightLocal, 2026-08-26 — that study covered AI Overviews,
+   AI Mode and ChatGPT, **not** Perplexity; Perplexity's Yelp integration is a separate, documented feed).
+   Claim the free page; the Birdeye "Moe's" profile with 1,763 reviews is unclaimed. **Yelp's content
+   guidelines prohibit soliciting reviews** — claim and maintain the listing, never ask customers for Yelp
+   reviews; the review ask in item 4 is a Google ask only.
 3. **Bing Places** (free; October 2025 relaunch imports from GBP) and **Bing Webmaster Tools** (import
    from Search Console; the AI Performance report shows Copilot citations, grounding queries, Local
    intent). This is the only first-party AI-citation instrument that names the shop.
@@ -274,7 +298,7 @@ should be renamed in a Phase 2 redirect (`/drop-off`, 301 from `/booking`).
    jobs commonly seen from there, a photo, a review from there). Otherwise fold to `/areas-served`.
 
 **PLAUSIBLE (cheap, do after the above):** self-contained one-to-two-sentence answers under H2/H3
-headings (Microsoft's stated preference for AI inclusion); IndexNow submissions on publish (Bing only —
+headings (Microsoft's stated preference for AI inclusion); IndexNow submissions on publish (Bing, Amazon, Naver, Seznam, Yandex, Yep — not Google;
 the key file already exists; wire the POST); CARFAX Car Care listing (free, auto-specific); Apple
 Business (free place card; migrated to the new platform 2026-03).
 
@@ -297,7 +321,7 @@ sources cited. Attribution limit: none of these prove causation; they show prese
 | HTTPS + HSTS | 301 http→https; HSTS 2 y, includeSubDomains, preload flag; **not submitted** to hstspreload.org (status unknown) | Fix `www` DNS first (currently NXDOMAIN — customers typing www get nothing), then submit | Owner: DNS + submit |
 | CSP | allowlist + `'unsafe-inline'` (bypassable shape); connect-src fixed here | nonce + `'strict-dynamic'` injected at serve time (GTM propagates the nonce); prerequisite: HTML `no-cache`/short cache (done for SPA path; bot path is 1 h) | Phase 2, with a test that breaks it |
 | Other headers | COOP same-origin, CORP same-site, XFO DENY, nosniff, Referrer strict-origin-when-cross-origin, X-XSS-Protection 0 (correct), Permissions-Policy extended here | keep; no COEP (Maps iframe) | done |
-| Cookie consent | none; **not legally required** (Ohio has no comprehensive privacy law; CCPA thresholds not met; Google/Meta terms satisfied by disclosure; EDPB: incidental EU visits are out of scope) | privacy policy disclosure (done); optional EEA geofence of tags | done / optional |
+| Cookie consent | none; **not required under the current facts** — an applicability decision, not a permanent verdict: US-only shop; Ohio has no comprehensive privacy law; CCPA thresholds not met; Google/Meta terms satisfied by disclosure; EDPB treats incidental EU visits as out of scope. **Flips if** the site or its ads target EEA/UK/CH visitors, a state law without a revenue threshold applies, or Google/Meta consent terms change | privacy policy disclosure (done); re-decide on any flip condition | done / conditional |
 | SMS/TCPA | STOP handling exists in `smsGateway.ts`/`sms.ts`; consent records per `SMS-REVENUE-AGENT-OS.md` | audit against the five rules: written consent for marketing; service texts on transaction consent; opt-out within 10 business days (do it instantly), one confirmation text within 5 min, treat STOP as global; quiet hours 8–9 local for marketing; 5-year consent/DNC records; 10DLC brand+campaign registered; any AI-voice outbound call = "artificial voice" needing prior express consent | Phase 2 audit (read-only) |
 | Forms / abuse | zod validation thorough; IP rate limit 10/h per endpoint; rate-limit key prefers `cf-connecting-ip` while Cloudflare proxy is OFF (server header `railway-hikari`) → spoofable; no honeypot/CAPTCHA | key on `req.ip` behind `trust proxy` unless CF is orange-clouded; add a honeypot field to booking/lead/callback; Turnstile only if spam is observed | Phase 2 (protected: lead/booking persistence) |
 | Sessions / CSRF | tRPC + admin MFA freshness gate; server-side permission map fail-closed for mutations | confirm cookie flags (`__Host-`, SameSite) and an Origin check on mutations | VERIFY |
@@ -469,7 +493,11 @@ submitted (after DNS); reconciliation not built (slice 2); recovery ledger has n
 lacks address/hours/open-now (Phase 2 design); no external uptime monitor (owner); `llms.txt` hard-coded
 (Phase 2); rate-limit key vs proxy state (Phase 2, verify first); no honeypot (Phase 2).
 
-**NEEDS RUNTIME VERIFICATION:** §11 items 2–12; GA4 beacons after deploy; SPA `page_view` on route change;
+**NEEDS RUNTIME VERIFICATION:** §11 items 2–12; GA4 beacons after deploy; SPA `page_view` on route change
+(GA4 enhanced measurement may already emit it on history changes — confirm one event per navigation in
+DebugView BEFORE adding an emitter, or every route change double-counts); `DATABASE_URL_PRERENDER_RO`
+exists in the workflow secrets with read-only grants (owner action — the workflow silently falls back to
+the read-write `DATABASE_URL`; the analytics write path is now guarded in code, the credential is the second lock);
 IndexNow submitter existence; TiDB backup tier and one restore drill; 10DLC registration status; STOP
 handling against the five rules; live values of the ten side-effect flags (re-run the probe script,
 never quote a doc); last confirmed Instagram publish date; Google Reviews API failure rate in Railway
@@ -477,7 +505,7 @@ logs; whether Cloudflare is in front of the origin today.
 
 **OPTIONAL / EXPERIMENTAL:** `security.txt` (RFC 9116, needs a monitored mailbox and an expiry);
 EEA geofence for tags; second manifest for admin; Spanish pages (no demand data); Turnstile (only if
-spam is observed); IndexNow wiring (Bing-only benefit); Apple Business / CARFAX / Nextdoor listings (free,
+spam is observed); IndexNow wiring (Bing-family benefit, no Google); Apple Business / CARFAX / Nextdoor listings (free,
 low effort, unmeasured); a `/drop-off` rename.
 
 ## SEND THIS TO THE CODING AGENT NOW
@@ -530,3 +558,27 @@ lumalabs.ai/api/pricing · ai.google.dev/gemini-api/docs/veo + pricing · develo
 guide · platform.minimax.io pricing · docs.x.ai/developers/pricing · elevenlabs.io/pricing/api ·
 huggingface.co/Lightricks/LTX-2.5. Studies: BrightLocal 2026-08-26 and 2026-03-10, Yext 2025-10-09,
 Foundation × AirOps Q4 2025, Ahrefs 2025-12-12 and 2026-03-02, Semrush 2026-06-26, SparkToro 2026-06-09.
+
+---
+
+## 15 · Release record
+
+One row per link in the chain, because "shipped" has meant three different things in this repo (merged,
+deployed, and crawler-visible) and each has silently failed to imply the next. Times are ET.
+
+| Step | Evidence |
+|---|---|
+| Source | PR #2173 `nickstire/quality-program`, 16 defects, 7 commits ending `8c0be63d5` (in-PR regen) |
+| Merge | squash `f2bcf949d` on `main`, 2026-09-07 ~20:05 |
+| Deploy | Railway `MAINnicks-tire-auto` SUCCESS on `f2bcf949d`, 20:14; `/api/health` served the new SHA |
+| Live checks | 10 read-only GETs at 20:15 (§11): 404+noindex+no-cache on an unknown path · `/Tires` 301 · home `max-age=300` · `/og-image.jpg` 200 JPEG 1200×630 · sitemap `<lastmod>` 11 (was 100+) · robots clean · `/ai.txt` 301 · CSP carries the four GA4 hosts · `/admin` noindex · bot GET returns `X-Prerendered: true` |
+| Follow-up | PR #2179 (self-audit: `originalUrl` 404, robots literals, parity canary) squash `cfdcad9be`, deployed |
+| Crawler-visible | regen on `main` after #2179: run `34172453611` FAILED at `git push` (non-fast-forward: #2179 landed mid-run — the workflow commits on a stale base and does not rebase); re-dispatched as run `34173664386` from `622426951`, landed as `2336d313d` (337 files) at 00:49 UTC 2026-09-08. **Tree-content check of `prerendered/parma-auto-repair/index.html`:** `f2bcf949d` and `cfdcad9be` → 1 JSON-LD `FAQPage` node, WebP `og:image`; `2336d313d` → 0 nodes, `/og-image.jpg`, 0 `aggregateRating`, 2 `#localbusiness` refs. So the in-PR regen had NOT carried the share-image fix (it predated it in the tree) and the FAQ removal only existed from #2179 — the first draft of this row claimed otherwise. Live at 20:51 ET the site still served `cfdcad9be` (bot GET: WebP + 1 FAQPage), because the skip-ci-tagged regen commit did not deploy on its own; the merge of this PR carries it. Bot responses are cached `max-age=3600` by the prerender middleware. **Trap met while closing this row:** GitHub skips every workflow for a push whose head commit message contains the skip-ci token ANYWHERE — including inside a quoted sentence in the body — so never spell the token out in a commit message or a PR body that a squash merge might copy. |
+| Release closure | this PR: sales windows v2 (7/30 dates), prerender write guard + canary, three regression tests (city schema, footer accessible name, share-image parity), research corrections (§2/§5/§6/§13). |
+
+**What "verified" means per row:** Merge = `git log origin/main`; Deploy = Railway deployment status + health
+SHA; Live = GET responses captured by `verify-deploy.sh` (10/10); Crawler-visible = a `[skip ci]` regen commit
+on `main` whose city-page snapshot has no `FAQPage` and a `.jpg` `og:image` — check with a bot-UA GET, never HEAD.
+
+**Owner-side, not automatable:** create `DATABASE_URL_PRERENDER_RO` (TiDB user with SELECT only) and add it to
+the workflow secrets; until then the regen holds the read-write credential and the code guard is the only lock.

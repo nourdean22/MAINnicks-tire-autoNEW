@@ -50,6 +50,27 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
 | Lighthouse: 5 contrast failures, 6 label-in-name mismatches on hero CTAs (+ the footer review link, follow-up PR) | fixed |
 | Admin Shop Pulse rendered a failed shop-floor read as "$0 · SLOW DAY" | "Shop floor · unknown" state |
 
+## Fixed 2026-09-08 (release closure — outside review of the merged program)
+
+- **Billed-sales rolling windows spanned 8 and 31 dates** under "7 days" / "30 days" labels: `salesWindow()`
+  ran `[today−N, tomorrow)`. Now `[today−N, today)` — exactly N completed Eastern days ending yesterday;
+  month-to-date still includes today. Definition version bumped to v2; `shopSales.test.ts` counts the dates
+  across month, year, leap-day and both DST boundaries instead of pinning endpoint literals (the old test
+  pinned an eight-day pair and called it seven).
+- **The prerender regen wrote to production.** `PRERENDER_MODE=true` skips crons, but every rendered page still
+  fired `POST /api/analytics/conversion`, which inserted a `customer_events` row. Guarded (204, no write), and the same guard now covers the other two
+  DB-writing public sinks (`/api/track-abandoned`, `/api/uber-code`), each with a control/canary pair over real
+  HTTP (`server/analyticsPrerenderGuard.test.ts`). Owner item remains: a
+  read-only `DATABASE_URL_PRERENDER_RO` so the credential is the second lock.
+- **Regression tests the fixes lacked:** city-page JSON-LD (no FAQPage, no aggregateRating, `#localbusiness`
+  references, canary-checked); footer Google-reviews link accessible name equals its visible text; share-image
+  parity across index.html, `SEOHead`'s default and the 1200×630 JPEG on disk.
+- **Research corrections in the program doc:** IndexNow participants (Bing, Amazon, Naver, Seznam, Yandex,
+  Yep — not "Bing only"); the BrightLocal study did not cover Perplexity; Yelp prohibits review solicitation;
+  cookie consent recorded as an applicability decision with flip conditions; SPA `page_view` must be confirmed
+  in DebugView before adding an emitter; "you don't pay until you say yes" flagged against the $59.99
+  diagnostic fee for owner confirmation.
+
 ## Open (honest list)
 
 | Item | Detail | Size |
