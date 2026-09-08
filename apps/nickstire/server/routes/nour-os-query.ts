@@ -406,6 +406,82 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { customers: rows, count: (rows as unknown[]).length };
   },
 
+  // ─── Vehicle lookup by plate (added 2026-09-08 · ADR-0017 camera vision) ──
+  //
+  // The camera edge (camera-bridge/visitd) reads plates; statenour asks here
+  // whether a plate belongs to someone we know, so the arrival alert can say
+  // "Nonstop Nick member Jane, booked today" instead of a bare plate.
+  // READ-ONLY and ADVISORY: staff confirm before anything customer-facing.
+  //
+  // Plate sources TODAY: `memberships.vehiclePlate` only. `vehicles.license_plate`
+  // is gone (0117 retired the dead table) and `customer_vehicles` has no plate
+  // column yet (Phase 3 of the plan adds one with an index). Matching is on
+  // the normalized plate (uppercase alphanumerics) plus single-character
+  // OCR-confusable variants (O/0, I/1, B/8, S/5, Z/2) so a camera read of
+  // "0" for "O" still lands. Today's bookings are joined by the member's
+  // last-10 phone digits, ET-anchored in SQL like `bookings_today`.
+  //
+  // Filters:
+  //   · plate · string · required · the raw camera read ("ABC 1234")
+  //
+  // Returns: { plate, normalized, variants, matches: [{ source, membershipId,
+  //   name, phoneMasked, plate, exact, vehicleDesc, membershipStatus,
+  //   bookingsToday: [{ id, service, vehicle, status, preferredDate }] }],
+  //   count, sources: ["memberships"] }
+  "vehicle_lookup_by_plate": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const { normalizePlate, plateVariants, maskPhone } = await import("../lib/plate");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const raw = String(filters.plate || "");
+    const normalized = normalizePlate(raw);
+    if (normalized.length < 3) return { error: "plate required (3+ alphanumerics)", plate: raw };
+    const variants = plateVariants(normalized);
+    const members = await exec(
+      d,
+      sql`
+        SELECT id, name, phone, vehiclePlate, vehicleDesc, status
+        FROM memberships
+        WHERE UPPER(REGEXP_REPLACE(COALESCE(vehiclePlate, ''), '[^0-9A-Za-z]', ''))
+          IN (${sql.join(variants.map((v) => sql`${v}`), sql`, `)})
+        LIMIT 10
+      `,
+    );
+    const matches: Array<Record<string, unknown>> = [];
+    for (const m of members) {
+      const phone10 = String(m.phone ?? "").replace(/[^0-9]/g, "").slice(-10);
+      const bookingsToday =
+        phone10.length === 10
+          ? await exec(
+              d,
+              sql`
+                SELECT id, service, vehicle, status, preferredDate
+                FROM bookings
+                WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ${phone10}
+                  AND (DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York'))
+                         = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+                       OR preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')))
+                ORDER BY createdAt DESC LIMIT 5
+              `,
+            )
+          : [];
+      const storedPlate = normalizePlate(m.vehiclePlate);
+      matches.push({
+        source: "memberships",
+        membershipId: m.id,
+        name: m.name ?? null,
+        phoneMasked: maskPhone(m.phone),
+        plate: storedPlate,
+        exact: storedPlate === normalized,
+        vehicleDesc: m.vehicleDesc ?? null,
+        membershipStatus: m.status ?? null,
+        bookingsToday,
+      });
+    }
+    return { plate: raw, normalized, variants, matches, count: matches.length, sources: ["memberships"] };
+  },
+
   // ─── Recent active customer IDs (added 2026-05-17 · Wave-200 Phase 6) ──
   //
   // Drives statenour's customer-preferences-recompute Inngest function
