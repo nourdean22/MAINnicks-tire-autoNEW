@@ -22,10 +22,13 @@ export interface SecurityTxtOptions {
   now?: Date;
 }
 
-export const SECURITY_TXT_PATH = "/.well-known/security.txt";
-export const SECURITY_TXT_TTL_DAYS = 180;
+// Module-private on purpose: the knip orphan gate treats an export consumed
+// only by its own test as an orphan (precedent: #2179). The test reads the
+// served body over HTTP and pins these as literals instead.
+const SECURITY_TXT_PATH = "/.well-known/security.txt";
+const SECURITY_TXT_TTL_DAYS = 180;
 
-export function buildSecurityTxt({ siteUrl, contactPhoneHref, now = new Date() }: SecurityTxtOptions): string {
+function buildSecurityTxt({ siteUrl, contactPhoneHref, now = new Date() }: SecurityTxtOptions): string {
   const expires = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + SECURITY_TXT_TTL_DAYS));
   return [
     `Contact: ${siteUrl}/contact`,
@@ -37,8 +40,11 @@ export function buildSecurityTxt({ siteUrl, contactPhoneHref, now = new Date() }
   ].join("\n");
 }
 
-/** Mounts the well-known path plus the legacy `/security.txt` redirect. Registered before the SPA catch-all. */
-export function registerSecurityTxt(app: Express, opts: Omit<SecurityTxtOptions, "now">): void {
+/**
+ * Mounts the well-known path plus the legacy `/security.txt` redirect.
+ * Registered before the SPA catch-all. `now` is for tests; production omits it.
+ */
+export function registerSecurityTxt(app: Express, opts: SecurityTxtOptions): void {
   // Built once per process: the boot time IS the "now" the Expires derives from.
   const body = buildSecurityTxt(opts);
   app.get(SECURITY_TXT_PATH, (_req, res) => {
