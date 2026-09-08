@@ -117,6 +117,16 @@ export async function extractReelFrames(
   const dir = outDir ?? (await fs.mkdtemp(path.join(os.tmpdir(), "rendered-qa-")));
   const frames: ExtractedFrame[] = [];
   const last = beats[beats.length - 1];
+  // CLAMP TO THE RENDERED DURATION. Beat times come from the BRIEF, which may
+  // declare up to REEL_OUTPUT_RULES.maxSeconds (35); the RENDER is
+  // beats × maxClipSeconds (4) + the SAVE freeze (3) — 22–27 s. Live 2026-09-08,
+  // job 1890001: beat 5's declared midpoint (~25 s) lay past a 22 s master, so
+  // ffmpeg wrote nothing, the critic opened a file that did not exist (ENOENT
+  // beat5.jpg), the verdict was recorded "skipped", and the publish door held a
+  // reel with zero findings. A frame request past the end is not a critic
+  // outage; it is a planning error, and it is caught here as one.
+  const durationSec = await probeDurationSec(mp4Path);
+  const clampTs = (t: number) => (durationSec > 0 ? Math.min(Math.max(0.1, t), Math.max(0.1, durationSec - 0.15)) : t);
   const plan: Array<{ label: string; beatNumber: number | null; timestamp: number }> = [
     { label: "first", beatNumber: beats[0]?.beatNumber ?? null, timestamp: 0.1 },
     ...beats.map((b) => ({
@@ -126,7 +136,8 @@ export async function extractReelFrames(
     })),
     { label: "final", beatNumber: last?.beatNumber ?? null, timestamp: Math.max(0.2, (last?.endSecond ?? 1) - 0.2) },
   ];
-  for (const p of plan) {
+  for (const raw of plan) {
+    const p = { ...raw, timestamp: clampTs(raw.timestamp) };
     const file = path.join(dir, `${p.label}.jpg`);
     // `-strict unofficial`: JPEG is a full-range format, and newer ffmpeg's
     // mjpeg encoder REFUSES a limited-range (tv, plain yuv420p) source unless
@@ -139,9 +150,26 @@ export async function extractReelFrames(
     // local run cannot reproduce the failure. This is the remedy ffmpeg itself
     // names; it relaxes only that range check.
     await runFfmpeg(["-ss", String(p.timestamp), "-i", mp4Path, "-frames:v", "1", "-q:v", "3", "-strict", "unofficial", "-y", file]);
+    // ffmpeg exits 0 with NO output when -ss is past the end. Refuse by name
+    // rather than let the critic discover it as ENOENT and report "skipped".
+    const st = await fs.stat(file).catch(() => null);
+    if (!st || st.size === 0) {
+      throw new Error(`FRAME_MISSING: ${p.label} at ${p.timestamp}s produced no frame (master ${durationSec.toFixed(2)}s)`);
+    }
     frames.push({ ...p, path: file });
   }
   return frames;
+}
+
+/** Container duration via ffprobe; 0 when unreadable (clamping then no-ops). */
+async function probeDurationSec(file: string): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]);
+    let out = "";
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.on("error", () => resolve(0));
+    child.on("close", () => { const n = Number(out.trim()); resolve(Number.isFinite(n) && n > 0 ? n : 0); });
+  });
 }
 
 /** One reviewable grid image from the extracted frames. */

@@ -124,6 +124,36 @@ describe.skipIf(!hasFfmpeg)("frame extraction (real ffmpeg, synthesized video)",
   }, 60_000);
 });
 
+describe.skipIf(!hasFfmpeg)("frame timestamps are clamped to the RENDERED duration", () => {
+  // 2026-09-08, job 1890001: the brief declared beats to ~29 s, the master was
+  // 22 s, beat 5's midpoint and the final frame fell past the end, ffmpeg wrote
+  // nothing, and the critic reported ENOENT → "skipped" → publish door held.
+  it("a brief declaring beats past the end still yields every frame, from inside the master", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-clamp-"));
+    const mp4 = path.join(dir, "short.mp4");
+    const mk = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=270x480:d=3:r=30", "-pix_fmt", "yuv420p", "-y", mp4]);
+    expect(mk.status).toBe(0);
+    const beats = [
+      { beatNumber: 1, startSecond: 0, endSecond: 10 },
+      { beatNumber: 2, startSecond: 10, endSecond: 29 }, // midpoint 19.5 s on a 3 s master
+    ];
+    const frames = await extractReelFrames(mp4, beats, dir);
+    expect(frames.map((f) => f.label)).toEqual(["first", "beat1", "beat2", "final"]);
+    for (const f of frames) {
+      expect(f.timestamp).toBeLessThan(3);
+      expect((await fs.stat(f.path)).size).toBeGreaterThan(500);
+    }
+  }, 60_000);
+
+  it("POSITIVE CONTROL: without clamping, a -ss past the end produces no file (the exact prod failure)", () => {
+    const dir = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=64x64:d=1:r=30", "-pix_fmt", "yuv420p", "-y", path.join(os.tmpdir(), "rqa-eof.mp4")]);
+    expect(dir.status).toBe(0);
+    const out = path.join(os.tmpdir(), "rqa-eof.jpg");
+    spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-ss", "25", "-i", path.join(os.tmpdir(), "rqa-eof.mp4"), "-frames:v", "1", "-q:v", "3", "-strict", "unofficial", "-y", out]);
+    expect(spawnSync("node", ["-e", `process.exit(require('fs').existsSync(${JSON.stringify(out)}) && require('fs').statSync(${JSON.stringify(out)}).size > 0 ? 1 : 0)`]).status).toBe(0);
+  }, 30_000);
+});
+
 describe("mjpeg range guard is present in every jpeg-writing ffmpeg call (source canary)", () => {
   const src = readFileSync(path.join(process.cwd(), "server/services/renderedQa.ts"), "utf8");
   // Line-based on purpose: the contact-sheet call carries "[out]" inside its
