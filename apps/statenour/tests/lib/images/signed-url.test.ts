@@ -16,6 +16,7 @@ import {
   imageSignatureRequired,
   signImagePath,
   ensureSignedImagePath,
+  ensureSignedImageUrl,
 } from "@/lib/images/signed-url";
 
 const NOW = Date.parse("2026-09-07T12:00:00Z");
@@ -119,5 +120,28 @@ describe("ensureSignedImagePath (publish-time re-mint)", () => {
     const signed = signImagePath("img_1", { env: ON, now: NOW });
     expect(ensureSignedImagePath(signed, { env: ON, now: NOW })).toBe(signed);
     expect(ensureSignedImagePath("https://cdn.test/x.png", { env: ON })).toBe("https://cdn.test/x.png");
+  });
+});
+
+describe("ensureSignedImageUrl (every persisted shape, review on #2195)", () => {
+  it("absolute same-path raw URL is re-signed with its origin kept", () => {
+    const out = ensureSignedImageUrl("https://bdnick.info/api/images/img_1", { env: ON, now: NOW });
+    expect(out).toMatch(/^https:\/\/bdnick\.info\/api\/images\/img_1\?exp=\d+&sig=[0-9a-f]{32}$/);
+  });
+  it("an expired signed URL (relative or absolute) gets a FRESH signature", () => {
+    const stale = signImagePath("img_1", { env: ON, now: NOW - 30 * 86_400_000, ttlSeconds: 60 });
+    const later = NOW;
+    const fresh = ensureSignedImageUrl(stale, { env: ON, now: later });
+    expect(fresh).not.toBe(stale);
+    const p = parts(fresh);
+    expect(authorizeImageRequest({ ...p, env: ON, now: later }).ok).toBe(true);
+    const abs = ensureSignedImageUrl(`https://bdnick.info${stale}`, { env: ON, now: later });
+    expect(abs.startsWith("https://bdnick.info/api/images/img_1?exp=")).toBe(true);
+    expect(authorizeImageRequest({ ...parts(abs), env: ON, now: later }).ok).toBe(true);
+  });
+  it("non-image URLs and the flag-off default pass through untouched", () => {
+    expect(ensureSignedImageUrl("https://cdn.test/x.png", { env: ON })).toBe("https://cdn.test/x.png");
+    expect(ensureSignedImageUrl("https://bdnick.info/api/images/img_1", { env: OFF })).toBe("https://bdnick.info/api/images/img_1");
+    expect(ensureSignedImageUrl("not a url", { env: ON })).toBe("not a url");
   });
 });

@@ -108,17 +108,39 @@ export function authorizeImageRequest(input: AuthorizeInput): ImageAuth {
   return { ok: true, signed: true, expiresAt: expNum * 1000 };
 }
 
-const RAW_IMAGE_PATH = /^\/api\/images\/([A-Za-z0-9_-]+)$/;
+const IMAGE_ID_PATH = /^\/api\/images\/([A-Za-z0-9_-]+)$/;
 
 /**
- * A stored image path from before the flag (a scheduled post, a saved draft)
- * is a raw id. When signing is required, re-mint it at use time so the
- * publish leg hands Meta a URL it can fetch; anything already signed or
- * absolute passes through unchanged.
+ * Re-mint an image URL immediately before it is handed to a third party.
+ * Handles every persisted shape (review on #2195): a relative raw id, a
+ * relative or ABSOLUTE signed URL (whose signature may have expired since
+ * it was stored), and an absolute raw URL such as
+ * `https://bdnick.info/api/images/<id>` written by an earlier publish. The
+ * origin is kept; the query is replaced by a fresh signature. Anything that
+ * is not an image-id path passes through, and with the flag off nothing
+ * changes at all.
  */
-export function ensureSignedImagePath(path: string, opts: SignOptions = {}): string {
+export function ensureSignedImageUrl(url: string, opts: SignOptions = {}): string {
   const env = opts.env ?? process.env;
-  if (!imageSignatureRequired(env)) return path;
-  const m = RAW_IMAGE_PATH.exec(path);
-  return m ? signImagePath(m[1], { ...opts, env }) : path;
+  if (!imageSignatureRequired(env)) return url;
+  if (url.startsWith("/")) {
+    const q = url.indexOf("?");
+    const path = q >= 0 ? url.slice(0, q) : url;
+    const m = IMAGE_ID_PATH.exec(path);
+    return m ? signImagePath(m[1], { ...opts, env }) : url;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  const m = IMAGE_ID_PATH.exec(parsed.pathname);
+  if (!m) return url;
+  return `${parsed.origin}${signImagePath(m[1], { ...opts, env })}`;
+}
+
+/** @deprecated use ensureSignedImageUrl — kept as an alias for the relative-path callers. */
+export function ensureSignedImagePath(path: string, opts: SignOptions = {}): string {
+  return ensureSignedImageUrl(path, opts);
 }

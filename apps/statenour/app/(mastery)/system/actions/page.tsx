@@ -18,6 +18,7 @@
  *   · last-fired time-ago tick every 30s
  */
 
+import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { useState, useEffect } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -689,19 +690,19 @@ export default function ActionsPage() {
                         type="button"
                         onClick={() => decideAuto.mutate({ id: row.id, decision: "rejected" })}
                         disabled={decideAuto.isPending}
-                        className="min-h-[44px] rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 disabled:opacity-40"
+                        className="min-h-[48px] min-w-[48px] rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 disabled:opacity-40"
                       >
                         Reject
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => decideAuto.mutate({ id: row.id, decision: "approved" })}
+                      {/* Approve REPLAYS the deferred side effect (a message, a write). On the iOS
+                          PWA an accidental tap must not do that: press-and-hold, 48px, in-DOM. */}
+                      <ConfirmHold
+                        label="Approve"
+                        variant="gold"
                         disabled={row.expired || decideAuto.isPending}
-                        title={row.expired ? "Authorization expired — reject it or re-run the rule" : undefined}
-                        className="min-h-[44px] rounded-lg bg-[var(--gold)] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[var(--gold)]/80 disabled:opacity-40"
-                      >
-                        Approve
-                      </button>
+                        onConfirm={() => decideAuto.mutate({ id: row.id, decision: "approved" })}
+                        className="min-h-[48px] min-w-[48px] px-3 text-xs font-semibold"
+                      />
                     </div>
                   </div>
                   {row.policyObjective && (
