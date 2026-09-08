@@ -19,6 +19,19 @@
  * Returns the saved BrainMemory id + the inferred category + a short
  * summary line for the confirmation message. Caller decides whether to
  * surface that summary in chat / a toast / nowhere.
+ *
+ * 2026-09-07 · the write path is ordered so that NOTHING the operator
+ * typed depends on an AI provider being up:
+ *   1. deterministic identity (exact row, then whitespace/case-insensitive
+ *      over the category's recent rows) — the only thing that counts as
+ *      "already saved";
+ *   2. the row is created;
+ *   3. the embedding is optional enrichment — if it fails the row still
+ *      exists and `cron/embed-backfill` indexes it later (it selects
+ *      brain_memories with no vector_embeddings row);
+ *   4. a near-duplicate (similar vector, different statement) is KEPT and
+ *      queued for the operator through the contradiction review flow —
+ *      never merged or superseded automatically. #2175 review threads.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -31,6 +44,7 @@ import {
   VECTOR_DIM_1536,
 } from "@/lib/db/pgvector";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
+import { surfaceNearDuplicate } from "@/lib/brain/contradiction-surfacer";
 
 export type SaveCategory =
   | "decision"
@@ -68,8 +82,8 @@ export interface SaveToBrainInput {
  *   duplicate               — the same statement (whitespace/case-insensitive)
  *                             already exists; its sighting count was bumped
  *   created_near_duplicate  — similar text existed but the wording differs;
- *                             BOTH rows are kept and linked (metadata
- *                             .nearDuplicateOf), never merged automatically
+ *                             BOTH rows are kept, linked (metadata
+ *                             .nearDuplicateOf) and queued for review
  */
 export type SaveOutcome = "created" | "duplicate" | "created_near_duplicate";
 
@@ -81,6 +95,13 @@ export interface SaveToBrainOutput {
   outcome: SaveOutcome;
   /** The pre-existing row this save was measured against, when one was found. */
   relatedId?: string;
+  /**
+   * False when the embedding provider was unavailable: the row exists and
+   * is recalled lexically; vector search reaches it after embed-backfill.
+   */
+  embedded: boolean;
+  /** Contradiction-review row key when a near-duplicate was queued. */
+  reviewKey?: string;
 }
 
 /**
@@ -155,6 +176,124 @@ function buildKey(category: SaveCategory, hint?: string): string {
   return slug ? `${category}_${slug}_${stamp}` : `${category}_${stamp}`;
 }
 
+interface RecentRow {
+  id: string;
+  key: string;
+  content: string;
+  createdAt?: Date | null;
+}
+
+/** The category's 100 most recent live rows — shared by the identity check and the JS cosine fallback. */
+async function loadRecent(category: SaveCategory): Promise<RecentRow[]> {
+  return prisma.brainMemory.findMany({
+    where: { category, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { id: true, key: true, content: true, createdAt: true },
+  });
+}
+
+/**
+ * Deterministic identity — no AI provider in the loop. An exact match
+ * anywhere in the category (indexed lookup), then a whitespace/case-
+ * insensitive match over the recent rows.
+ */
+async function findSameStatement(
+  category: SaveCategory,
+  trimmed: string,
+  recent: RecentRow[],
+): Promise<RecentRow | null> {
+  const exact = await prisma.brainMemory.findFirst({
+    where: { category, deletedAt: null, content: trimmed },
+    select: { id: true, key: true, content: true, createdAt: true },
+  });
+  if (exact) return exact;
+  return recent.find((r) => isSameStatement(r.content, trimmed)) ?? null;
+}
+
+/** The same statement again: bump the sighting, keep the row, and SAY so. */
+async function markDuplicate(row: RecentRow, category: SaveCategory): Promise<SaveToBrainOutput> {
+  const updated = await prisma.brainMemory.update({
+    where: { id: row.id },
+    data: {
+      seenCount: { increment: 1 },
+      lastSeen: new Date(),
+    },
+    select: { seenCount: true },
+  });
+  const seen = typeof updated?.seenCount === "number" ? ` · seen ${updated.seenCount}×` : "";
+  return {
+    id: row.id,
+    category,
+    key: row.key,
+    summary: `Already saved as ${category} · ${previewOf(row.content)}${seen}`,
+    outcome: "duplicate",
+    relatedId: row.id,
+    embedded: true,
+  };
+}
+
+interface NearHit extends RecentRow {
+  similarity: number;
+}
+
+/** Nearest live row in the same category above the similarity floor, or null. Needs a vector. */
+async function findNearDuplicate(
+  category: SaveCategory,
+  vec: number[],
+  recent: RecentRow[],
+): Promise<NearHit | null> {
+  if (await isPgvectorAvailable()) {
+    try {
+      const lit = vectorLiteral(vec);
+      assertSafeVectorLiteral(lit);
+      // Same category, distance < 0.05 (cosine similarity > 0.95).
+      const hits = await prisma.$queryRawUnsafe<
+        Array<{ id: string; key: string; content: string; created_at: Date | null; distance: number }>
+      >(
+        `SELECT bm.id, bm.key, bm.content, bm.created_at,
+                (ve.embedding_vec <=> '${lit}'::vector)::float8 AS distance
+         FROM vector_embeddings ve
+         JOIN brain_memories bm ON ve."sourceId" = bm.id
+         WHERE ve."sourceType" = 'brain_memory'
+           AND bm.category = $1
+           AND bm.deleted_at IS NULL
+           AND ve.embedding_vec IS NOT NULL
+           AND (ve.embedding_vec <=> '${lit}'::vector) < 0.05
+         ORDER BY (ve.embedding_vec <=> '${lit}'::vector) ASC
+         LIMIT 1`,
+        category,
+      );
+      if (hits && hits.length > 0) {
+        const h = hits[0];
+        return { id: h.id, key: h.key, content: h.content, createdAt: h.created_at ?? null, similarity: 1 - h.distance };
+      }
+    } catch (err) {
+      console.warn("[saveToBrain] pgvector similarity check failed, falling back:", err);
+    }
+  }
+
+  // JS cosine fallback over the recent rows' stored vectors.
+  if (recent.length === 0) return null;
+  const embeddings = await prisma.vectorEmbedding.findMany({
+    where: { sourceType: "brain_memory", sourceId: { in: recent.map((m) => m.id) } },
+    select: { sourceId: true, embedding: true },
+  });
+  let best: NearHit | null = null;
+  for (const emb of embeddings) {
+    try {
+      const sim = cosineSimilarity(vec, JSON.parse(emb.embedding) as number[]);
+      if (sim > 0.95 && (!best || sim > best.similarity)) {
+        const row = recent.find((m) => m.id === emb.sourceId);
+        if (row) best = { ...row, similarity: sim };
+      }
+    } catch {
+      // malformed stored vector — skip
+    }
+  }
+  return best;
+}
+
 export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainOutput> {
   const trimmed = input.content.trim();
   if (trimmed.length < 3) {
@@ -165,117 +304,23 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
   const confidence = typeof input.confidence === "number" ? input.confidence : 0.85;
   const source = input.source ?? "user_save";
 
-  // Get embedding for duplicate checking
+  // 1 · Identity first, deterministically. No provider can bypass this.
+  const recent = await loadRecent(category);
+  const same = await findSameStatement(category, trimmed, recent);
+  if (same) return markDuplicate(same, category);
+
+  // 2 · The near-duplicate RELATIONSHIP needs a vector; the save does not.
   const vec = await getEmbedding(trimmed).catch(() => [] as number[]);
-  
-  let duplicateId: string | null = null;
-  let duplicateKey: string | null = null;
-  let duplicateContent: string | null = null;
+  const near = vec.length > 0 ? await findNearDuplicate(category, vec, recent) : null;
+  // A vector hit that is the same statement (older than the recent window,
+  // or case-shifted past the exact lookup) is still a duplicate.
+  if (near && isSameStatement(near.content, trimmed)) return markDuplicate(near, category);
 
-  if (vec && vec.length > 0) {
-    if (await isPgvectorAvailable()) {
-      try {
-        const lit = vectorLiteral(vec);
-        assertSafeVectorLiteral(lit);
-        // Query pgvector for duplicate in same category (distance < 0.05)
-        const duplicates = await prisma.$queryRawUnsafe<Array<{ id: string; key: string; content: string; distance: number }>>(
-          `SELECT bm.id, bm.key, bm.content,
-                  (ve.embedding_vec <=> '${lit}'::vector)::float8 AS distance
-           FROM vector_embeddings ve
-           JOIN brain_memories bm ON ve."sourceId" = bm.id
-           WHERE ve."sourceType" = 'brain_memory'
-             AND bm.category = $1
-             AND bm.deleted_at IS NULL
-             AND ve.embedding_vec IS NOT NULL
-             AND (ve.embedding_vec <=> '${lit}'::vector) < 0.05
-           ORDER BY (ve.embedding_vec <=> '${lit}'::vector) ASC
-           LIMIT 1`,
-          category,
-        );
-        if (duplicates && duplicates.length > 0) {
-          duplicateId = duplicates[0].id;
-          duplicateKey = duplicates[0].key;
-          duplicateContent = duplicates[0].content;
-        }
-      } catch (err) {
-        console.warn("[saveToBrain] pgvector similarity check failed, falling back:", err);
-      }
-    }
-
-    // JS Cosine Fallback if pgvector is off or duplicate not found via pgvector
-    if (!duplicateId) {
-      // Fetch last 100 BrainMemory rows of same category
-      const lastMemories = await prisma.brainMemory.findMany({
-        where: { category, deletedAt: null },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-        select: { id: true, key: true, content: true },
-      });
-      if (lastMemories.length > 0) {
-        const memoryIds = lastMemories.map((m) => m.id);
-        const embeddings = await prisma.vectorEmbedding.findMany({
-          where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
-          select: { sourceId: true, embedding: true },
-        });
-
-        let maxSimilarity = -1;
-        let bestMatch: typeof lastMemories[number] | null = null;
-
-        for (const emb of embeddings) {
-          try {
-            const otherVec = JSON.parse(emb.embedding) as number[];
-            const sim = cosineSimilarity(vec, otherVec);
-            if (sim > 0.95 && sim > maxSimilarity) {
-              maxSimilarity = sim;
-              bestMatch = lastMemories.find((m) => m.id === emb.sourceId) || null;
-            }
-          } catch {
-            // skip malformed
-          }
-        }
-
-        if (bestMatch) {
-          duplicateId = bestMatch.id;
-          duplicateKey = bestMatch.key;
-          duplicateContent = bestMatch.content;
-        }
-      }
-    }
-  }
-
-  if (duplicateId && duplicateKey && duplicateContent && isSameStatement(duplicateContent, trimmed)) {
-    // The same statement again: bump the sighting, keep the row, and SAY so.
-    const updated = await prisma.brainMemory.update({
-      where: { id: duplicateId },
-      data: {
-        seenCount: { increment: 1 },
-        lastSeen: new Date(),
-      },
-      select: { seenCount: true },
-    });
-    const seen = typeof updated?.seenCount === "number" ? ` · seen ${updated.seenCount}×` : "";
-    const summary = `Already saved as ${category} · ${previewOf(duplicateContent)}${seen}`;
-
-    return {
-      id: duplicateId,
-      category,
-      key: duplicateKey,
-      summary,
-      outcome: "duplicate",
-      relatedId: duplicateId,
-    };
-  }
-
-  // Similar text with different wording is NOT a duplicate. Keep the new
-  // statement (it may be the correction), keep the old one (it may be a
-  // distinct fact that merely embeds nearby), and link them so the Brain
-  // review surface can merge or supersede deliberately.
-  const nearDuplicateId = duplicateId && duplicateContent ? duplicateId : null;
-  const metadata = nearDuplicateId
-    ? { ...(input.metadata ?? {}), nearDuplicateOf: nearDuplicateId }
-    : (input.metadata ?? null);
-
-  // Create new BrainMemory and write VectorEmbedding row
+  // 3 · Persist the operator's statement. Similar text with different wording
+  // is NOT a duplicate: keep the new statement (it may be the correction),
+  // keep the old one (it may be a distinct fact that merely embeds nearby),
+  // link them, and queue the pair for review below.
+  const metadata = near ? { ...(input.metadata ?? {}), nearDuplicateOf: near.id } : (input.metadata ?? null);
   const row = await prisma.brainMemory.create({
     data: {
       category,
@@ -288,8 +333,10 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     select: { id: true },
   });
 
-  // Write VectorEmbedding row if we have the embedding
-  if (vec && vec.length > 0) {
+  // 4 · Optional enrichment: the vector. A failure here never fails the save;
+  // cron/embed-backfill picks up rows with no vector_embeddings row.
+  let embedded = false;
+  if (vec.length > 0) {
     try {
       const createdEmbedding = await prisma.vectorEmbedding.create({
         data: {
@@ -299,8 +346,7 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
           embedding: JSON.stringify(vec),
         },
       });
-
-      // Dual write pgvector column
+      embedded = true;
       if (await isPgvectorAvailable()) {
         const lit = vectorLiteral(vec);
         await prisma.$executeRawUnsafe(
@@ -313,8 +359,8 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
             `UPDATE vector_embeddings SET embedding_vec_1536 = '${lit1536}'::vector(${VECTOR_DIM_1536}) WHERE id = $1`,
             createdEmbedding.id,
           );
-        } catch (err1536) {
-          // ignore
+        } catch {
+          // the 1536 mirror column is best-effort
         }
       }
     } catch (err) {
@@ -322,19 +368,40 @@ export async function saveToBrain(input: SaveToBrainInput): Promise<SaveToBrainO
     }
   }
 
-  // Build a short summary line for the caller to display. When a similar
-  // memory exists the confirmation names it, so the operator can see what
-  // the new statement sits next to instead of discovering both in recall.
-  const summary = nearDuplicateId && duplicateContent
-    ? `Saved as ${category} · ${previewOf(trimmed)} · similar memory kept: ${previewOf(duplicateContent, 60)}`
-    : `Saved as ${category} · ${previewOf(trimmed)}`;
+  // 5 · Queue the near-duplicate pair for the operator. Same storage and
+  // panel as every other contradiction; resolving it writes the supersession
+  // columns recall filters on. Loud on failure, never blocking.
+  let reviewKey: string | undefined;
+  if (near) {
+    try {
+      reviewKey = await surfaceNearDuplicate({
+        newMemoryId: row.id,
+        oldMemoryId: near.id,
+        newContent: trimmed,
+        oldContent: near.content,
+        similarity: near.similarity,
+        oldCreatedAt: near.createdAt ?? null,
+      });
+    } catch (err) {
+      console.warn("[saveToBrain] near-duplicate review enqueue failed:", err);
+    }
+  }
+
+  const parts = [`Saved as ${category} · ${previewOf(trimmed)}`];
+  if (near) {
+    parts.push(`similar memory kept: ${previewOf(near.content, 60)}`);
+    parts.push(reviewKey ? "queued for review" : "review enqueue failed");
+  }
+  if (vec.length === 0) parts.push("search index pending");
 
   return {
     id: row.id,
     category,
     key,
-    summary,
-    outcome: nearDuplicateId ? "created_near_duplicate" : "created",
-    ...(nearDuplicateId ? { relatedId: nearDuplicateId } : {}),
+    summary: parts.join(" · "),
+    outcome: near ? "created_near_duplicate" : "created",
+    ...(near ? { relatedId: near.id } : {}),
+    embedded,
+    ...(reviewKey ? { reviewKey } : {}),
   };
 }

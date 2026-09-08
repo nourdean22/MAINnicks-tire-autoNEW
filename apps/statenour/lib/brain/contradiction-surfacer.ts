@@ -68,7 +68,16 @@ export interface Contradiction {
   new_memory_id: string;        // BrainMemory.id of the fresh row
   old_memory_id: string;        // BrainMemory.id of the prior row
   similarity: number;           // 0-1
-  signal: "negation" | "reversal" | "antonym" | "compound";
+  /**
+   * "near_duplicate" (2026-09-07): an explicit `/save` whose text embeds
+   * within cosine 0.95 of an existing memory in the same category but is NOT
+   * the same statement — a changed amount, date, negation or entity. Nothing
+   * decides which one is current automatically; the pair is queued here so
+   * the operator resolves it through the same panel as every other
+   * contradiction, and `resolveContradiction` writes the supersession
+   * columns recall already filters on.
+   */
+  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
   new_excerpt: string;
   old_excerpt: string;
   days_apart: number;
@@ -78,8 +87,52 @@ export interface Contradiction {
   resolved_at?: string | null;
 }
 
-function buildContradictionKey(newId: string, oldId: string): string {
+export function buildContradictionKey(newId: string, oldId: string): string {
   return createHash("sha1").update(`${newId}::${oldId}`).digest("hex").slice(0, 16);
+}
+
+/**
+ * Queue a near-duplicate pair for operator review, through the SAME storage
+ * contract as detected contradictions (BrainMemory category="contradiction",
+ * key = sha1(newId::oldId)). Idempotent: saving the same pair twice updates
+ * the one row. Throws on storage failure — the caller decides how loud.
+ * Returns the row key, which is what the resolution panel deep-links on.
+ */
+export async function surfaceNearDuplicate(input: {
+  newMemoryId: string;
+  oldMemoryId: string;
+  newContent: string;
+  oldContent: string;
+  similarity: number;
+  oldCreatedAt?: Date | null;
+}): Promise<string> {
+  const key = buildContradictionKey(input.newMemoryId, input.oldMemoryId);
+  const daysApart = input.oldCreatedAt
+    ? Math.max(0, Math.round((Date.now() - input.oldCreatedAt.getTime()) / 86400_000))
+    : 0;
+  const row: Contradiction = {
+    new_memory_id: input.newMemoryId,
+    old_memory_id: input.oldMemoryId,
+    similarity: input.similarity,
+    signal: "near_duplicate",
+    new_excerpt: input.newContent.slice(0, 180),
+    old_excerpt: input.oldContent.slice(0, 180),
+    days_apart: daysApart,
+    surfaced_at: new Date().toISOString(),
+    status: "unresolved",
+  };
+  await prisma.brainMemory.upsert({
+    where: { category_key: { category: BRAIN_CATEGORIES.CONTRADICTION, key } },
+    create: {
+      category: BRAIN_CATEGORIES.CONTRADICTION,
+      key,
+      content: JSON.stringify(row),
+      confidence: input.similarity,
+      source: "user_save_near_duplicate",
+    },
+    update: { content: JSON.stringify(row), lastSeen: new Date() },
+  });
+  return key;
 }
 
 function containsAny(text: string, tokens: string[]): boolean {
@@ -419,7 +472,14 @@ export async function resolveContradiction(
   const { invalidateNudgeCache } = await import("@/lib/brain/cross-system-nudge");
   invalidateNudgeCache();
 
-  // Deprecate whichever memory lost
+  // Deprecate whichever memory lost.
+  //
+  // 2026-09-07 · the loser is now SUPERSEDED, not merely demoted. Every
+  // recall lane (contextual-recall, cold-memory, the brain tools) filters
+  // `supersededById: null AND (validUntil IS NULL OR validUntil > now)`, so
+  // writing those two columns is what actually removes the losing statement
+  // from current answers; a confidence floor of 0.1 only made it lose ties.
+  // The row stays — dated questions and the review history still see it.
   if (status === "current_wins") {
     await prisma.brainMemory
       .update({
@@ -428,6 +488,8 @@ export async function resolveContradiction(
           confidence: 0.1,
           source: "deprecated_by_resolution",
           lastSeen: new Date(),
+          supersededById: parsed.new_memory_id,
+          validUntil: new Date(),
         },
       })
       .catch(() => {});
@@ -439,6 +501,8 @@ export async function resolveContradiction(
           confidence: 0.1,
           source: "deprecated_by_resolution",
           lastSeen: new Date(),
+          supersededById: parsed.old_memory_id,
+          validUntil: new Date(),
         },
       })
       .catch(() => {});

@@ -35,7 +35,7 @@ export interface ContradictionRow {
   newExcerpt: string;
   oldExcerpt: string;
   daysApart: number;
-  signal: "negation" | "reversal" | "antonym" | "compound";
+  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
   similarity: number;
   status: ContradictionStatus;
   resolutionNote: string | null;
