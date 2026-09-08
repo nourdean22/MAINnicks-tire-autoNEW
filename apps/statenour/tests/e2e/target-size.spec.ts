@@ -74,16 +74,21 @@ function focusProbe() {
     const b = el.getBoundingClientRect();
     if (b.width <= 1 || b.height <= 1 || b.top <= window.innerHeight) return false;
     const bottomAbs = b.bottom + window.scrollY;
-    return bottomAbs + 10 <= docHeight; // room to park it 10px above the viewport bottom
+    // room to park it 10px above the viewport bottom AND to lift it a full chrome height
+    // afterwards — a control in the page's last 120px cannot be lifted by scrolling (the lane
+    // padding is what keeps it clear there) and would only measure the layout, not the handler.
+    return bottomAbs + 10 + 120 <= docHeight;
   });
   if (!target) return { skipped: "no control below the fold" as const };
   const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
   const b0 = target.getBoundingClientRect();
   window.scrollTo(0, b0.bottom + window.scrollY - window.innerHeight + 10);
   const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10: under the chrome
+  const scrollBefore = window.scrollY;
   target.focus({ preventScroll: false });
   const lifted = target.getBoundingClientRect().bottom;
-  return { chromeTop, parkedBottom, lifted, label };
+  const maxScroll = docHeight - window.innerHeight;
+  return { chromeTop, parkedBottom, lifted, label, scrollBefore, scrollAfter: window.scrollY, maxScroll, focused: document.activeElement === target };
 }
 
 async function open(page: import("@playwright/test").Page, path: string) {
@@ -114,7 +119,10 @@ test("a control focused under the bottom chrome is lifted clear of it (2.4.11) �
     if ("skipped" in r) continue;
     exercised += 1;
     expect(r.parkedBottom, `${path}: the probe could not park "${r.label}" under the chrome (known positive)`).toBeGreaterThan(r.chromeTop);
-    expect(r.lifted, `${path}: focused "${r.label}" stays under the bottom chrome (chrome top ${Math.round(r.chromeTop)})`).toBeLessThanOrEqual(r.chromeTop + 1);
+    expect(
+      r.lifted,
+      `${path}: focused "${r.label}" stays under the bottom chrome (chrome top ${Math.round(r.chromeTop)}, parked ${Math.round(r.parkedBottom)} → ${Math.round(r.lifted)}; scrollY ${Math.round(r.scrollBefore)} → ${Math.round(r.scrollAfter)} of max ${Math.round(r.maxScroll)}; focused=${r.focused})`,
+    ).toBeLessThanOrEqual(r.chromeTop + 1);
   }
   expect(exercised, "no page had a control below the fold — the probe exercised nothing").toBeGreaterThan(0);
 });
