@@ -128,7 +128,17 @@ export async function extractReelFrames(
   ];
   for (const p of plan) {
     const file = path.join(dir, `${p.label}.jpg`);
-    await runFfmpeg(["-ss", String(p.timestamp), "-i", mp4Path, "-frames:v", "1", "-q:v", "3", "-y", file]);
+    // `-strict unofficial`: JPEG is a full-range format, and newer ffmpeg's
+    // mjpeg encoder REFUSES a limited-range (tv, plain yuv420p) source unless
+    // told to — "Non full-range YUV is non-standard, set strict_std_compliance
+    // to at most unofficial". The assembled masters are ordinary limited-range
+    // H.264, so on 2026-09-08 every frame extraction in the container died with
+    // exit 234, rendered QA reported "unavailable", and the publish door held
+    // the reel — a tool-version quirk masquerading as missing quality evidence.
+    // Older ffmpeg (the Windows dev build) accepts it silently, which is why a
+    // local run cannot reproduce the failure. This is the remedy ffmpeg itself
+    // names; it relaxes only that range check.
+    await runFfmpeg(["-ss", String(p.timestamp), "-i", mp4Path, "-frames:v", "1", "-q:v", "3", "-strict", "unofficial", "-y", file]);
     frames.push({ ...p, path: file });
   }
   return frames;
@@ -156,7 +166,7 @@ export async function buildContactSheet(frames: ExtractedFrame[], outPath: strin
   ]).catch(async () => {
     // xstack layouts assume uniform heights; fall back to simple hstack rows
     // failure here must not kill QA — the per-frame jpegs still exist.
-    await runFfmpeg([...inputs, "-filter_complex", `${frames.map((_, i) => `[${i}:v]scale=270:480[v${i}]`).join(";")};${frames.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${frames.length}[out]`, "-map", "[out]", "-frames:v", "1", "-q:v", "3", "-y", outPath]);
+    await runFfmpeg([...inputs, "-filter_complex", `${frames.map((_, i) => `[${i}:v]scale=270:480[v${i}]`).join(";")};${frames.map((_, i) => `[v${i}]`).join("")}hstack=inputs=${frames.length}[out]`, "-map", "[out]", "-frames:v", "1", "-q:v", "3", "-strict", "unofficial", "-y", outPath]);
   });
   void rows;
   return outPath;
