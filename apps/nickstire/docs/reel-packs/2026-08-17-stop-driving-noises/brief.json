@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The closing beat sits back in the same driver's-seat view at dusk on the same steering wheel and dashboard through the same windshield, so a replay resumes inside the same cabin mid-drive.",
   "mechanicTruth": "Whether a noise tracks engine speed or wheel speed tells you which system it lives in: a knock that rises and falls with the throttle stays in step with the engine even in neutral, while a rhythmic clunk that changes only with road speed comes from the rotating wheel end and goes quiet the moment the car stops rolling.",
   "packId": "2026-08-17-stop-driving-noises",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #19",
-  "campaignKeyword": "STOP-NOISE",
+  "campaignKeyword": "BRAKES",
   "hookText": "Most car noises can wait. These three cannot.",
   "ctaText": "Send this to someone who just said their car's making a weird noise.",
   "durationSeconds": 28,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "Grinding when you brake. Knocking that rises with the engine.",
-      "onScreenText": "",
+      "onScreenText": "GRINDING ON BRAKES",
       "providerScene": "Extreme macro of a brake caliper gripping a rotor mid-rotation, dim garage bay lighting, slow push-in, shallow depth of field, texture-forward metal surfaces, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 14,
       "narration": "A rhythmic clunk that tracks wheel speed, not engine speed.",
-      "onScreenText": "",
+      "onScreenText": "CLUNK PER WHEEL TURN",
       "providerScene": "Macro shot of a front suspension strut and control-arm assembly on a shop lift, slow lateral dolly tracking along the assembly toward the wheel hub, even workshop practical lighting, mechanical texture-forward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 14,
       "endSecond": 21,
       "narration": "Each gets pricier every mile you drive.",
-      "onScreenText": "",
+      "onScreenText": "MILES ADD COST",
       "providerScene": "Close-up push-in on a damaged metal part resting on a shop workbench under harsh inspection light, slow pull-back revealing two more visibly worn parts scattered nearby to imply cascading damage, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 21,
       "endSecond": 28,
       "narration": "Grinding, knocking, clunking. Worth checking.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "THREE WORTH CHECKING",
+      "providerScene": "Interior view from the driver's seat at dusk, the same steering wheel and dashboard filling frame, dusk light through the windshield, the wheel still and the cabin settled, slow subtle handheld sway, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

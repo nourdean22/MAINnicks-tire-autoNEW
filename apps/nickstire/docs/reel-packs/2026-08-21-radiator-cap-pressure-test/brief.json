@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same cap seated on the same reservoir it opened on with the push-in matched, so a replay picks that move up already underway.",
   "topic": "Radiator cap pressure test: coolant loss with no visible leak",
-  "campaignKeyword": "RADCAP",
+  "campaignKeyword": "PRESSURE",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 28,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "COOLANT DOWN NO PUDDLE",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["radiator cap closeup", "coolant reservoir cap macro"]
     },
     {
+      "onScreenText": "CHECK THE CAP FIRST",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["radiator cap seal closeup", "radiator cap rubber gasket macro"]
     },
     {
+      "onScreenText": "THE CAP HOLDS PRESSURE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["radiator cap pressure valve spring macro", "cooling system pressure cap mechanism"]
     },
     {
+      "onScreenText": "WORN SEAL BOILS OFF",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["radiator overflow reservoir low coolant level", "coolant reservoir line closeup"]
     },
     {
+      "onScreenText": "LOOKS NEW STILL FAILS",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
       "narration": "A cap can look new and still not hold pressure.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Macro shot of the same radiator cap seated on the coolant reservoir from the identical angle, the rubber seal pressed flat and the neck around it dry, slow push-in, neutral garage lighting, condensation beading on nearby metal",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

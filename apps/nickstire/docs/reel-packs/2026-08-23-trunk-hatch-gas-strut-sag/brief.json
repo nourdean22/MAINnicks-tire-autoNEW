@@ -1,11 +1,13 @@
 {
+  "loopIdea": "It already returns: the final beat holds the same side-view framing and lens as the opening shot of the raised lid, only now steady instead of sinking, so a replay picks up mid-motion as that same lid starts to drift back down.",
   "topic": "Trunk or hatch won't stay up: worn gas struts, not the latch",
-  "campaignKeyword": "STRUTSAG",
+  "campaignKeyword": "PRESSURE",
   "mode": "PRODUCTION (pack only, no live reel-canary call)",
   "durationSeconds": 28,
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "HATCH SINKS DOWN",
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
@@ -14,6 +16,7 @@
       "stockSearchTerms": ["car trunk open side view strut", "hatchback liftgate open closeup"]
     },
     {
+      "onScreenText": "STRUTS NOT LATCH",
       "index": 2,
       "role": "SETUP",
       "window": "0:04-0:09",
@@ -22,6 +25,7 @@
       "stockSearchTerms": ["gas strut cylinder closeup", "hatch lift support rod macro"]
     },
     {
+      "onScreenText": "SEALS LEAK PRESSURE",
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:18",
@@ -30,6 +34,7 @@
       "stockSearchTerms": ["gas strut seal leak macro", "lift support cylinder wear closeup"]
     },
     {
+      "onScreenText": "WATCH FOR DRIFT",
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
@@ -38,6 +43,7 @@
       "stockSearchTerms": ["trunk lid sagging closeup", "hatch drifting down macro"]
     },
     {
+      "onScreenText": "THEY WEAR IN PAIRS",
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:28",

@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same dashboard vent close-up it opened on, the louvers now moving clear dry air in the same static framing, so a replay picks up on that same vent mid-drift.",
   "topic": "Sweet smell from the vents: a leaking heater core, not spilled juice in the console",
-  "campaignKeyword": "SWEETSMELL",
+  "campaignKeyword": "WIPERS",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-23",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "SWEET AIR FROM VENTS",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["car dashboard air vent closeup", "car interior vent mist macro"]
     },
     {
+      "onScreenText": "COOLANT NOT JUICE",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["foggy windshield interior closeup", "car windshield condensation static shot"]
     },
     {
+      "onScreenText": "COOLANT WARMS THE AIR",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["heater core closeup workbench", "small radiator core cracked macro"]
     },
     {
+      "onScreenText": "FOG INSIDE IS A CLUE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["car interior fogged windshield wide shot", "dashboard heater controls glow closeup"]
     },
     {
+      "onScreenText": "LOSING COOLANT",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 27],
       "narration": "You may be losing coolant.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "visualPrompt": "Close-up of the same car dashboard air vent in the same static framing, clear dry air now moving through the louvers with the mist gone, soft interior ambient light",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

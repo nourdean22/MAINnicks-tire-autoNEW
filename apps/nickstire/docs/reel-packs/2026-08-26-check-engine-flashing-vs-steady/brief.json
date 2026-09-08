@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends on the same bare amber lamp over the dark engine bay that it opens on, now burning steady instead of pulsing, so the cut back to the flashing lamp reads as one light changing rhythm.",
+  "campaignKeyword": "ECHECK",
   "topic": "check-engine-flashing-vs-steady",
   "title": "A flashing check engine light is not the same warning as a steady one",
   "producedBy": "scheduled-task",
@@ -53,7 +55,7 @@
       "startSecond": 16,
       "endSecond": 20,
       "purpose": "save",
-      "visual": "Wide shop bay interior, a car parked beside an empty lift, tools racked in shadow, bay door open to daylight, static hold, 9:16 vertical framing",
+      "visual": "The same bare amber trouble lamp hanging on its hook over the dark engine bay, now burning steady and unbroken instead of pulsing, deep shadows, shallow depth of field, 9:16 vertical framing",
       "motion": "static hold",
       "onScreenText": "Steady, check soon",
       "narration": "Steady is different, worth checking soon."

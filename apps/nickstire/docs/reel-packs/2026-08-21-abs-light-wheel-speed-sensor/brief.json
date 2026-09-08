@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes back inside the same dim dusk cabin on the same instrument cluster macro with the amber lamp gone dark, so a replay resumes that push-in mid-move.",
   "topic": "ABS light on, brakes still feel normal: what it means and when to worry",
-  "campaignKeyword": "ABSLIGHT",
+  "campaignKeyword": "BRAKES",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 27,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "ABS LIGHT ONLY",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["ABS warning light dashboard closeup", "car instrument cluster ABS icon macro"]
     },
     {
+      "onScreenText": "ONLY ON HARD STOPS",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["brake pedal closeup car interior", "foot near brake pedal static shot"]
     },
     {
+      "onScreenText": "SALT ON THE SENSOR",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["wheel speed sensor hub closeup", "ABS sensor tone ring macro rust"]
     },
     {
+      "onScreenText": "TRACTION CONTROL OFF",
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 22],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["car wheel brake rotor garage focus pull", "parked car wheel closeup shop"]
     },
     {
+      "onScreenText": "THE CODE NAMES IT",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
       "narration": "The stored code names the sensor.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight, slow push-in that ends on a close-up of a dashboard cluster with the ABS icon fading to off, mirroring beat 1's opening frame",
+      "visualPrompt": "Macro shot of the same instrument cluster in the same dim dusk cabin, the small amber lamp now dark and the face quiet, shallow depth of field, slow push-in",
       "stockSearchTerms": ["auto repair shop garage bay interior open door", "dashboard warning light fading off closeup"]
     }
   ],

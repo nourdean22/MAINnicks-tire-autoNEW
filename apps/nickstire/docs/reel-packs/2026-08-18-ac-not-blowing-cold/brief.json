@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The closing beat returns to the same dashboard vent macro in the same warm afternoon light through the windshield, cold air now curling off the louvers, so a replay resumes on identical framing and the push-in reads as continuous.",
+  "campaignKeyword": "PRESSURE",
   "topic": "AC blowing warm, not cold",
   "createdAt": "2026-08-18",
   "mode": "PRODUCTION",
@@ -17,6 +19,7 @@
       "stockSearchFallback": ["car dashboard AC vent close up", "hand adjusting car AC dial"]
     },
     {
+      "onScreenText": "THREE USUAL CAUSES",
       "index": 2,
       "role": "SETUP",
       "window": "0:03-0:09",
@@ -26,6 +29,7 @@
       "stockSearchFallback": ["car engine bay AC compressor", "serpentine belt pulley closeup"]
     },
     {
+      "onScreenText": "CABIN FILTER COUNTS",
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:16",
@@ -35,6 +39,7 @@
       "stockSearchFallback": ["AC service port gauge macro", "car refrigerant gauge closeup"]
     },
     {
+      "onScreenText": "IT CANNOT BURN OFF",
       "index": 4,
       "role": "VALUE",
       "window": "0:16-0:22",
@@ -44,11 +49,12 @@
       "stockSearchFallback": ["AC compressor clutch engine bay slow motion"]
     },
     {
+      "onScreenText": "DO NOT GUESS",
       "index": 5,
       "role": "CTA",
       "window": "0:22-0:28",
       "narration": "The cause decides the fix. Do not guess.",
-      "visualPrompt": "Wide shot of a garage service bay entrance, warm inviting light, slow dolly out.",
+      "visualPrompt": "Close-up macro of the same car dashboard air vent, louvers angled open with a faint cold mist curling off the plastic edges, warm afternoon light through the windshield, shallow depth of field, slow push-in matching the opening framing",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "stockSearchFallback": ["auto repair garage bay wide shot", "car service bay interior"]
     }

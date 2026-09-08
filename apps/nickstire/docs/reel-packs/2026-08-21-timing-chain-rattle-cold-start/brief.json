@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends on the same cold engine front cover it opens on, still cold and now quiet, so a replay drops straight back into the same first turn of the key.",
+  "campaignKeyword": "VIBRATION",
   "title": "That rattle when you first start your car? Don't ignore it.",
   "topic": "timing-chain-rattle-cold-start",
   "date": "2026-08-21",
@@ -15,6 +17,9 @@
   "negativePromptStanding": "human face, person, hands, gloves, arms, talking head, low-res, blurry, extra fingers, plastic glow, oversaturated AI look, warped engine parts",
   "beats": [
     {
+      "motion": "static camera with a slow push-in",
+      "visual": "Macro on the front timing cover of a cold engine in dim early morning garage light, the metal beaded with damp, the whole cover shivering into a quick hard buzz as the engine catches, static camera with a slow push-in, 9:16 vertical framing",
+      "onScreenText": "RATTLE ON COLD START",
       "beat": 1,
       "name": "Hook",
       "startSec": 0,
@@ -24,6 +29,9 @@
       "physicalAction": "key turning + gauge needle sweep"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Macro on that same cold timing cover as the shiver settles, damp beads shrinking and steaming off the casting in thin wisps as heat works into the metal, the surface going still, dim garage light warming slightly, slow push-in, 9:16 vertical framing",
+      "onScreenText": "FADES AS IT WARMS",
       "beat": 2,
       "name": "Setup",
       "startSec": 3,
@@ -33,6 +41,9 @@
       "physicalAction": "chain-slack vibration animation"
     },
     {
+      "motion": "static hold",
+      "visual": "Extreme macro inside an engine front case on a timing chain wrapped over its sprocket, the slack run of the chain slapping loose against a scuffed plastic guide, the guide face worn into a shiny grooved channel, hard tight light from one side, shallow depth of field, static hold, 9:16 vertical framing",
+      "onScreenText": "CHAIN OR GUIDES",
       "beat": 3,
       "name": "Explanation",
       "startSec": 8,
@@ -42,6 +53,9 @@
       "physicalAction": "tensioner arm extending, rattle animation damping out"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro of cold engine oil creeping down the sloped face of a cylinder head casting in a thick slow rope, clinging and barely moving across the machined metal, cold blue morning light from the side, very shallow depth of field, slow push-in, 9:16 vertical framing",
+      "onScreenText": "COLD OIL IS THICK",
       "beat": 4,
       "name": "Consequence",
       "startSec": 15,
@@ -51,6 +65,9 @@
       "physicalAction": "gauge needle climb + frost-melt time-lapse"
     },
     {
+      "motion": "slow orbit",
+      "visual": "Slow orbit around the front of a cold engine bay, the timing cover, the accessory belt and the pulleys drifting through frame one after another in soft focus, cold blue morning light, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "ONE CLUE NOT A VERDICT",
       "beat": 5,
       "name": "Safe action",
       "startSec": 21,
@@ -60,6 +77,8 @@
       "physicalAction": "light-beam sweep + rack-focus"
     },
     {
+      "visual": "Macro shot of the same cold engine front timing cover in dim early morning garage light, the metal still cold and beaded with damp, now sitting quiet and motionless, static camera with a slow push-in",
+      "onScreenText": "WORTH CHECKING",
       "beat": 6,
       "name": "Branded CTA",
       "startSec": 26,

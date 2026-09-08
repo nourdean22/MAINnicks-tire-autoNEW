@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same steering wheel horn pad close-up it opens on, in the same soft interior light, the pad now settled flush and silent, so the replay begins on that same quiet press.",
   "topic": "Horn suddenly stops working: fuse, relay, or clockspring, in that order",
-  "campaignKeyword": "HORNOUT",
+  "campaignKeyword": "BATTERY",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-24",
   "durationSec": 20,
@@ -8,6 +9,7 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "PRESS AND NOTHING",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 3],
@@ -16,6 +18,7 @@
       "stockSearchTerms": ["steering wheel horn button closeup", "car steering wheel center emblem"]
     },
     {
+      "onScreenText": "FUSE RELAY CLOCKSPRING",
       "index": 2,
       "role": "SETUP",
       "windowSec": [3, 8],
@@ -24,6 +27,7 @@
       "stockSearchTerms": ["car fuse box closeup", "automotive fuse panel diagnostic"]
     },
     {
+      "onScreenText": "COILED RIBBON INSIDE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [8, 13],
@@ -32,6 +36,7 @@
       "stockSearchTerms": ["steering column clockspring closeup", "car steering wheel removed ribbon cable"]
     },
     {
+      "onScreenText": "TURNS WEAR THE RIBBON",
       "index": 4,
       "role": "VALUE",
       "windowSec": [13, 17],
@@ -40,11 +45,12 @@
       "stockSearchTerms": ["worn ribbon cable closeup", "steering column component wear"]
     },
     {
+      "onScreenText": "CHECK THE FUSE FIRST",
       "index": 5,
       "role": "CTA",
       "windowSec": [17, 20],
       "narration": "Check the fuse first.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "visualPrompt": "Close-up of the same steering wheel horn pad, the pad now sitting flush and completely still after being pressed, fine dust settled along the wheel rim, static camera, soft interior light, nothing else moving",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

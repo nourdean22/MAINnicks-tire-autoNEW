@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel closes on the same static wide of the dusk parking lot it opened on, both cars now with headlights lit as the blue-hour light drops further, so a replay cuts straight back into that composition.",
+  "campaignKeyword": "WIPERS",
   "topic": "auto-headlights-wont-turn-on-dusk",
   "title": "Automatic headlights don't turn on at dusk — here's what's actually failing",
   "generatedAt": "2026-09-07T00:00:00Z",
@@ -64,7 +66,7 @@
       "index": 6,
       "startSec": 18,
       "endSec": 21,
-      "visualPrompt": "Static closing shot: warm tungsten glow filling an empty shop bay at night, roll-up door open to the street, clean concrete floor, ambient motion only.",
+      "visualPrompt": "Dusk parking lot, static wide shot: the same two cars parked side by side, both now with headlights lit and throwing pools across the asphalt, ambient blue-hour light falling further.",
       "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
       "vo": "Worth checking before buying new bulbs."
     }

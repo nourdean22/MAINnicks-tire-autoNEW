@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same low-angle undercarriage framing at dusk it opened on, the shield now flush and the haze thinning, so a replay resumes on a matching frame and the rattle reads as continuous.",
   "topic": "Metallic rattle under the car on acceleration — loose/rusted heat shield",
-  "campaignKeyword": "RATTLE",
+  "campaignKeyword": "VIBRATION",
   "durationSeconds": 30,
   "mode": "PRODUCTION",
   "generatedBy": "nickstire-reel-operator skill, scheduled/unattended run, pack-only (no live render)",
@@ -16,6 +17,7 @@
       "audioNote": "silence under narration, no SFX yet"
     },
     {
+      "onScreenText": "LOUDER WITH SPEED?",
       "index": 2,
       "role": "SETUP",
       "window": "0:05-0:11",
@@ -24,6 +26,7 @@
       "audioNote": "faint metallic rattle SFX under narration, low volume"
     },
     {
+      "onScreenText": "USUALLY THE HEAT SHIELD",
       "index": 3,
       "role": "VALUE",
       "window": "0:11-0:18",
@@ -32,6 +35,7 @@
       "audioNote": "faint metallic rattle SFX continues, slightly louder on 'rattles against the pipe'"
     },
     {
+      "onScreenText": "RUST WEARS IT THROUGH",
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
@@ -40,11 +44,12 @@
       "audioNote": "rattle SFX fades out into silence by end of beat"
     },
     {
+      "onScreenText": "ONE LOOK UNDERNEATH",
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:30",
       "narration": "One look underneath settles it.",
-      "visualPrompt": "Interior of an auto repair shop garage bay, empty lift with clean tools, open bay door, warm inviting light, bare block wall and rolling tool chests softly out of focus behind the lift, no people",
+      "visualPrompt": "Low-angle static shot under the same parked car at dusk, exhaust pipe and undercarriage in frame, the heat shield now sitting flush and still against the pipe, heat haze thinning as the metal cools, cinematic garage lighting, shallow depth of field, no people visible",
       "audioNote": "no rattle SFX, warm ambient garage room-tone only",
       "endFreezeSeconds": 3,
       "endFreezeNote": "hold this frame + CTA text card for 3s after narration ends (SAVE-prompt convention, matches render-integrity gate's beats+3s duration contract)"

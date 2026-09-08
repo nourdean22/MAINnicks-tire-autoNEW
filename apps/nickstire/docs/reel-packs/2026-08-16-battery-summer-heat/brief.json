@@ -1,4 +1,5 @@
 {
+  "loopIdea": "The closing beat puts the same battery back on the same sun-baked asphalt with the heat shimmer rising off it again, so a replay lands on the opening setting and framing rather than a bench.",
   "mechanicTruth": "Heat, not cold, does most of the damage to a lead-acid battery: high underhood temperatures speed up evaporation and plate corrosion, so capacity drops through the warm months. The first cold morning only exposes the loss, because cold thickens the oil and leaves less usable capacity, which shows up as a slow crank.",
   "id": "content-pack-2026-08-16-battery-summer-heat",
   "campaignKeyword": "BATTERY",
@@ -53,7 +54,7 @@
       "startSecond": 16,
       "endSecond": 20,
       "purpose": "payoff",
-      "visual": "A clean battery centered on a scarred steel shop bench under one work lamp, dark seamless background, smooth blank casing, no people",
+      "visual": "The same car battery back on the sun-baked asphalt in hard summer light, its top wiped clear of grit, heat shimmer rising off the black casing again, smooth blank casing, no faces",
       "motion": "slow turntable rotation",
       "onScreenText": "SLOW CRANK = CLUE",
       "narration": "Slow crank, worth checking."

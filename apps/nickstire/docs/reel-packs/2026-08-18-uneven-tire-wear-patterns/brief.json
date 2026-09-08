@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The closing beat holds the same slow orbit around the same tread circumference the opening rotates through, worn even now, so a replay picks the rotation back up mid-turn.",
   "mechanicTruth": "Uneven tread wear has a shape that points at a cause: wear concentrated down the center tracks with too much air, wear on both outer edges with too little, wear on one edge or a feathered saw-tooth edge with alignment, and evenly spaced scalloped dips (cupping) with a worn shock or strut.",
   "packId": "2026-08-18-uneven-tire-wear-patterns",
   "generatedAt": "2026-08-18",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "not on apps/nickstire/docs/REEL-SLATE-2026-07-31.md — new concept, adjacent to but distinct from the slate's existing tread-depth (penny test) and alignment-pull items; see README §2",
-  "campaignKeyword": "WEARSHAPE",
+  "campaignKeyword": "TREAD",
   "hookText": "Your tire wear has a shape — and that shape can point to what's wrong.",
   "ctaText": "Send this to someone whose tires look uneven.",
   "durationSeconds": 27,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "Worn down the center often means too much air.",
-      "onScreenText": "",
+      "onScreenText": "TOO MUCH AIR",
       "providerScene": "Split macro comparison of two tire treads mounted on a rotation stand, no hands, even studio lighting, slow lateral pan from a center-worn tread to an edge-worn tread, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 14,
       "narration": "Worn on both edges, too little.",
-      "onScreenText": "",
+      "onScreenText": "BOTH EDGES = LOW AIR",
       "providerScene": "Extreme macro of a feathered, saw-tooth tread wear pattern, raking side light exaggerating the texture, slow push-in, shallow depth of field, moody garage-bay backdrop, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 14,
       "endSecond": 20,
       "narration": "One edge, or feathered, points at alignment.",
-      "onScreenText": "",
+      "onScreenText": "FEATHERED = ALIGNMENT",
       "providerScene": "Macro shot of a tire tread showing cupping (scalloped dip wear), camera slowly orbiting the tire surface, dramatic rim light catching the shadow inside each scallop, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 20,
       "endSecond": 27,
       "narration": "Scalloped dips point at a shock or strut.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a garage bay interior, an alignment rack with bare steel ramps in the background, bay door partly open to daylight, plain block walls and a swept concrete floor, warm late-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "SCALLOPED = SHOCKS",
+      "providerScene": "Extreme macro low-angle of the same tire tread, camera still orbiting the circumference, the wear band now running even and unbroken in silhouette against the same dramatic raking side light, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

@@ -1,4 +1,5 @@
 {
+  "loopIdea": "The closing beat sits centered on the same compact spare seated in the same trunk well under the same cool overhead light, so the opening push-in continues on the same wheel.",
   "mechanicTruth": "A compact spare is a narrower wheel with shallow tread and no wear indicator, and most are rated for roughly 50 miles at speeds under 50 mph, so it is built to reach a shop rather than to replace a full-size tire.",
   "packId": "2026-08-17-spare-tire-mileage",
   "generatedAt": "2026-08-17",
@@ -64,7 +65,7 @@
       "endSecond": 20,
       "narration": "It gets you to the shop.",
       "onScreenText": "SEND TO SOMEONE ON A SPARE",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, centered static framing echoing beat 1's composition, bare painted cinderblock walls and a plain metal roll-up door, warm end-of-day light, static hold, 9:16 vertical framing",
+      "providerScene": "Compact space-saver spare tire alone in the same trunk well, centered composition from the same slightly elevated angle, wheel settled back into place, cool overhead trunk-light practical lighting, shallow depth of field, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

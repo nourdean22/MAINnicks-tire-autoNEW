@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The reel closes on the same suspended dipstick over the same white cloth it opens on, a fresh bead gathering at the tip, so the replay's catch of the light continues off the drop the last frame held.",
   "mechanicTruth": "Automatic transmission fluid starts out bright red and clear, and heat oxidizes it over time, so a brown or black drop with a burnt smell on the dipstick shows the fluid has broken down - it says something changed, not what caused it.",
   "packId": "2026-08-17-transmission-fluid-color-test",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "none — topic selected fresh against a PR-title + directory duplication survey, not from REEL-SLATE-2026-07-31.md",
-  "campaignKeyword": "TRANS-FLUID",
+  "campaignKeyword": "VIBRATION",
   "hookText": "Pull your transmission dipstick. This ten-second look is worth checking.",
   "ctaText": "Send this to someone who hasn't checked theirs in years.",
   "durationSeconds": 27,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 8,
       "narration": "Bright red and clear usually means it is working.",
-      "onScreenText": "",
+      "onScreenText": "BRIGHT RED IS NORMAL",
       "providerScene": "Close-up of a single fluid droplet on white cloth, vivid translucent red, soft diffused key light, slow rack focus, texture-forward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 8,
       "endSecond": 14,
       "narration": "Brown, black, or burnt-smelling can point to fluid breaking down.",
-      "onScreenText": "",
+      "onScreenText": "DARK OR BURNT SMELL",
       "providerScene": "Side-by-side macro comparison of two fluid swatches on white cloth — one bright red, one dark brown/black — even overhead light, slow lateral pan across the two swatches, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 14,
       "endSecond": 20,
       "narration": "That is one clue. Do not guess.",
-      "onScreenText": "",
+      "onScreenText": "ONE CLUE ONLY",
       "providerScene": "Macro shot of a transmission pan and underside components in a garage bay, dim practical lighting shifting to a harsher amber tone, slow dolly across metal surfaces, texture-forward, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 20,
       "endSecond": 27,
       "narration": "Color says something changed, not what.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted block walls, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "SOMETHING CHANGED",
+      "providerScene": "Extreme macro of the same dipstick suspended just above the same white inspection cloth, a fresh bead of bright red fluid gathering at the tip and catching the light, shallow depth of field, slow push-in, warm garage practical lighting, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

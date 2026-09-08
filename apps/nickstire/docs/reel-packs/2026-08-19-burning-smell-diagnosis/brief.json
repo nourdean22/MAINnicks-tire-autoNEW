@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat returns to the same first-person view through the windshield with the road still moving ahead, so a replay continues the drive instead of restarting it.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "That smell while driving: coolant vs rubber vs electrical",
-  "campaignKeyword": "SMELLCHECK",
+  "campaignKeyword": "BATTERY",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "The smell narrows it to one system.",
       "onScreenText": "EACH SMELL POINTS AT A DIFFERENT SYSTEM.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "visual": "First-person driving view over the same dashboard with the road running ahead through the windshield, daylight, slow steady forward motion, subtle camera handheld sway, the air over the dash clear now, no people visible in frame",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

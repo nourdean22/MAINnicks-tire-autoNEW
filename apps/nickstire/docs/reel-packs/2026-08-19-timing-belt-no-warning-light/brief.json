@@ -1,7 +1,8 @@
 {
+  "loopIdea": "It already loops: the final beat pulls back from the exact dark unlit cluster macro that beat 1 pushed into, so the replay lands on the same framing at the same scale and reads as one continuous push and pull rather than a restart.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Timing belt: the maintenance item with no warning light",
-  "campaignKeyword": "NOLIGHT",
+  "campaignKeyword": "ECHECK",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [

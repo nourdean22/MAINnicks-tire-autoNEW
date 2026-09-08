@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel closes on the same rain-streaked windshield at dusk it opens on, the blade parked at the bottom of its travel with the smear still across the glass, so the replay reads as that blade starting its next stroke.",
+  "campaignKeyword": "WIPERS",
   "topic": "wiper-blade-check",
   "date": "2026-08-17",
   "mode": "INTELLIGENCE/PRODUCTION",
@@ -8,6 +10,8 @@
   "aspectRatio": "9:16",
   "beats": [
     {
+      "motion": "static hold",
+      "visual": "Close-to-medium shot of a rain-streaked car windshield at dusk, the wiper blade lifting off its parked position at the bottom of the glass and starting its stroke upward, dragging a smeared arc of water that never clears, moody blue-grey light, static hold, 9:16 vertical framing",
       "index": 1,
       "role": "hook",
       "startSec": 0,
@@ -19,6 +23,9 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro along the rubber edge of a wiper blade lifted clear of the glass, the strip stiff and split with a chalky grey bloom across its surface, raking side light skimming the whole length of it, very shallow depth of field, slow push-in, 9:16 vertical framing",
+      "onScreenText": "RUBBER GOES HARD",
       "index": 2,
       "role": "support",
       "startSec": 4,
@@ -29,6 +36,9 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "slow tracking move following the blade",
+      "visual": "Low side-on macro of a wiper blade mid-stroke across wet glass, the rubber lip buckling and skipping so it leaves a run of hard stuttered bands of water behind it, cool dusk light coming through the pane, slow tracking move following the blade, 9:16 vertical framing",
+      "onScreenText": "CHATTER IS THE EDGE",
       "index": 3,
       "role": "support",
       "startSec": 9,
@@ -39,6 +49,9 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "static hold",
+      "visual": "Overhead shot down onto a wiper blade resting on baking dry windshield glass in harsh midday sun, heat shimmer rising off the cowl, the rubber edge slumped and dulled where it presses the pane, hard overhead light, static hold, 9:16 vertical framing",
+      "onScreenText": "SIX MONTHS TO A YEAR",
       "index": 4,
       "role": "support",
       "startSec": 14,
@@ -49,6 +62,9 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro straight onto the working edge of a wiper blade resting against the glass, a single hairline split running across the rubber while the rest of the edge is rounded to a glazed shine instead of a sharp corner, tight raking light, very shallow depth of field, slow push-in, 9:16 vertical framing",
+      "onScreenText": "GLAZED OR CRACKED",
       "index": 5,
       "role": "cta_lead_in",
       "startSec": 19,
@@ -59,12 +75,13 @@
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
     {
+      "onScreenText": "EASY TO FORGET",
       "index": 6,
       "role": "save_freeze",
       "startSec": 27,
       "endSec": 30,
       "vo": "Cheap to fix, easy to forget until it rains.",
-      "visual": "Macro of a wiper blade lying still against dry windshield glass, its rubber edge glazed and rounded, soft directional light, static hold, 9:16 vertical framing",
+      "visual": "Close-to-medium shot of rain streaking down the same car windshield at dusk, the wiper blade parked at the bottom of the glass with the smear it dragged still lying across the pane, moody blue-grey lighting, static hold, 9:16 vertical framing",
       "isFreezeFrame": true
     }
   ],

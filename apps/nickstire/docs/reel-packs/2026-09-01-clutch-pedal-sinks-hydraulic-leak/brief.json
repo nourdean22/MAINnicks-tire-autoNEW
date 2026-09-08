@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same close-up of the clutch pedal in the driver footwell it opened on, the pedal now riding high and firm, at the start of the same creeping push-in, so a replay resumes the creep toward the pedal.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Clutch pedal sinking to the floor: leak in the line, or the clutch itself?",
-  "campaignKeyword": "CLUTCHLEAK",
+  "campaignKeyword": "BRAKES",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-09-01, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "Do not guess before buying one.",
       "onScreenText": "Free check. Link in bio.",
-      "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
+      "visual": "Close-up of the same manual-transmission clutch pedal in the driver footwell, the pedal now sitting high and firm at the top of its travel, dim interior lighting, static camera with a slow creeping push-in",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

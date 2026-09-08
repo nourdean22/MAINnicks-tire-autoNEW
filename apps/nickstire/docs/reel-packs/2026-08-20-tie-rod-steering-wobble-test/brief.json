@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes at floor level on the same front tire beat 1 opened on, now sitting square, so a replay carries the same creeping push-in straight through.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "The 10-second wheel wobble test: tie rod end play vs. wheel bearing play",
-  "campaignKeyword": "WOBBLE",
+  "campaignKeyword": "VIBRATION",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "Do not guess.",
       "onScreenText": "Which way it rocks tells you which part.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, a wheel/tire faintly visible on a lift in the background echoing beat 1's tire close-up, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Static close-up shot of the same front tire and wheel on the clean garage floor, now sitting square with the tread settled straight, dim daylight through the bay door, slow creeping camera push-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

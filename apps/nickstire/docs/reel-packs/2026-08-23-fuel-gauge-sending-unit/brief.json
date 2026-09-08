@@ -1,11 +1,13 @@
 {
+  "loopIdea": "The reel ends on the same macro dash cluster it opened on, the fuel needle now resting steady in identical framing, so a replay lands straight back on that needle sitting low.",
   "topic": "Fuel gauge reads wrong or bounces around: the sending unit, not the tank",
-  "campaignKeyword": "GAUGEFLOAT",
+  "campaignKeyword": "BATTERY",
   "mode": "PRODUCTION (pack only, no live reel-canary call)",
   "durationSeconds": 29,
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "EMPTY AFTER A FILL",
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:04",
@@ -14,6 +16,7 @@
       "stockSearchTerms": ["car fuel gauge dashboard closeup", "dashboard needle empty macro"]
     },
     {
+      "onScreenText": "SENDER NOT TANK",
       "index": 2,
       "role": "SETUP",
       "window": "0:04-0:09",
@@ -22,6 +25,7 @@
       "stockSearchTerms": ["fuel sending unit float arm", "fuel pump module resistor strip"]
     },
     {
+      "onScreenText": "CONTACTS WEAR",
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:18",
@@ -30,6 +34,7 @@
       "stockSearchTerms": ["fuel sender resistor wear closeup", "fuel float arm mechanism macro"]
     },
     {
+      "onScreenText": "JUMPS OVER BUMPS",
       "index": 4,
       "role": "VALUE",
       "window": "0:18-0:24",
@@ -38,11 +43,12 @@
       "stockSearchTerms": ["fuel needle flutter dashboard", "car gauge cluster vibration macro"]
     },
     {
+      "onScreenText": "WORTH CHECKING",
       "index": 5,
       "role": "CTA",
       "window": "0:24-0:29",
       "narration": "Worth checking before you guess.",
-      "visualPrompt": "Wide, warm-lit shot of a shop garage bay entrance, clean and inviting, static locked shot with subtle ambient depth-of-field breathing, no faces or logos",
+      "visualPrompt": "Macro shot of the same backlit dash cluster in identical framing, the fuel needle now resting steady well above the bottom stop, subtle backlight glow, shallow depth of field, slow push-in",
       "stockSearchTerms": ["auto repair shop garage bay wide", "tire shop entrance warm light"]
     }
   ],

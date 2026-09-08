@@ -1,10 +1,11 @@
 {
+  "loopIdea": "The reel closes on the same slow-motion macro of the pothole rim it opens on, the tire just clear and the kicked-up dust settling back in, so the replay's impact lands again on that same edge of asphalt.",
   "mechanicTruth": "A pothole loads the wheel and suspension hard enough to bend a rim, shift the alignment, or bruise a sidewall from the inside, so the sign is usually new pulling, new shaking, or a slow leak days later rather than anything visible on a walk-around.",
   "packId": "2026-08-17-pothole-damage",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #10",
-  "campaignKeyword": "POTHOLE-CHECK",
+  "campaignKeyword": "POTHOLE",
   "hookText": "The pothole that did not flatten your tire may still have cost you.",
   "ctaText": "Hit a bad one lately? Send this to someone who did.",
   "durationSeconds": 29,
@@ -30,7 +31,7 @@
       "startSecond": 3,
       "endSecond": 10,
       "narration": "Impact can bend a wheel, pull alignment, bruise a sidewall.",
-      "onScreenText": "",
+      "onScreenText": "IT CAN BEND A WHEEL",
       "providerScene": "Macro close-up of a bent wheel rim resting on a shop stand beside an alignment rack laser line, cool shop lighting, slow push-in, texture-forward metal detail, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -41,7 +42,7 @@
       "startSecond": 10,
       "endSecond": 17,
       "narration": "New pulling, new shaking, or a leak days later.",
-      "onScreenText": "",
+      "onScreenText": "NEW PULL OR SHAKE",
       "providerScene": "Extreme macro of a tire sidewall bulge, rubber texture stretched and distorted, raking side light to emphasize the deformity, slow rotate, moody garage lighting, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -52,7 +53,7 @@
       "startSecond": 17,
       "endSecond": 23,
       "narration": "None of it shows on a walk-around.",
-      "onScreenText": "",
+      "onScreenText": "A WALK AROUND MISSES IT",
       "providerScene": "Interior POV from the driver's seat, road ahead through the windshield, subtle handheld camera vibration, daylight, no visible driver hands or face, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -63,8 +64,8 @@
       "startSecond": 23,
       "endSecond": 29,
       "narration": "It shows on the road.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, bare painted block walls, warm end-of-day light, static hold, 9:16 vertical framing",
+      "onScreenText": "IT SHOWS ON THE ROAD",
+      "providerScene": "Extreme slow-motion macro of the same pothole edge, the tire now rolled just clear of the rim and the kicked-up dust and small debris settling back into the hole, asphalt texture, harsh midday sun, shallow depth of field, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat sits back on the same dusk instrument cluster in the same driveway with the engine still off and the camera still creeping in, so a replay reads as one unbroken push-in.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Car won't start: battery vs. starter vs. alternator",
-  "campaignKeyword": "NOSTART",
+  "campaignKeyword": "BATTERY",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -52,7 +53,7 @@
       "endSecond": 28,
       "narration": "Three parts, three bills. Don't guess.",
       "onScreenText": "All three are testable - don't guess.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "visual": "Close-up static shot of the same dashboard instrument cluster at dusk in the driveway, engine still off, the small amber lamps behind the dark plastic dimming down, slow creeping camera push-in, moody blue-hour lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],
