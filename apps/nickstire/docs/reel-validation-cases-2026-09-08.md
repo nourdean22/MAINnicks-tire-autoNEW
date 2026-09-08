@@ -20,7 +20,7 @@ Verified by reading the tests, not by assuming from filenames.
 | 1 | Evidence warning | `preflightEpisode` returns `allowed` with the finding in `warnings` when `requireClaimEvidence` is off | `shared/episodeContract.test.ts:111` · `server/episodeClaims.test.ts:78` | **COVERED** |
 | 2 | Wording drift | `QUALIFIER_DROPPED` block code | `episodeClaims.test.ts` · `episodeContract.test.ts` | **COVERED** |
 | 3 | Wrong scope (source is for another tire/vehicle class) | none — applicability is a judgement | — | **NOT-CODE** |
-| 4 | Attractive mechanical error | `renderedQa` vision critic | `renderedQa` suites (aesthetic/mechanical split not asserted) | **PARTIAL** |
+| 4 | Attractive mechanical error | `RENDERED_DEFECT_CODES` — mechanical codes are `block`, aesthetic are `warn`; any block forces repair | `renderedQa.test.ts` · `postQaOrchestrator.test.ts` · `repairRouter.test.ts` · `criticPanel.test.ts` | **COVERED** (corrected — first draft wrongly called this partial) |
 | 5 | Generation timeout, provider charged | terminal → `needs_regen`, never silent stock; slot released | `reelStockFallbackDead.test.ts` · `reelReservationRelease.test.ts` | **COVERED** |
 | 6 | Last daily slot, two workers | publish CAS `WHERE id=? AND status='assembled'` + `claimed !== 1` | `reelExactlyOncePublish.test.ts` (**added by this change**) | **GAP CLOSED** |
 | 7 | Historical promotion / stale entitlement | none — balance is read live, entitlement is not modelled | — | **GAP** |
@@ -53,21 +53,68 @@ authority gate or exercised a pure helper; nothing reached the publish region.
 cannot fail is not a check, and a mis-bounded source slice passes vacuously — the defect
 `reelPublishWindowWiring.test.ts` records having shipped twice.
 
-## Open gaps, stated rather than papered over
+## Open gaps — REVISED 2026-09-08 after reading the code
 
-- **Case 7 — entitlement is not modelled.** Balance is read live, but there is no representation of
-  *what the account is entitled to*, so a stale promotion cannot be distinguished from a live one in
-  code. Mitigated only by the operator-gated spend path.
-- **Case 4 / 11 — aesthetic and mechanical verdicts are not separated.** `renderedQa` returns one
-  critic verdict; the validation notes ask that an attractive render with wrong tire geometry be
-  refused on the mechanical axis alone. Not currently expressible.
-- **No music-rights ledger and no alt-text / non-speech-audio gate.** Both are publication
-  requirements in the source notes; neither exists anywhere in `server/` or `shared/`.
-- **`REEL_REQUIRE_CLAIM_EVIDENCE` is unset in production**, so `NO_CLAIMS`, `ENTAILMENT_MISSING` and
-  `CLAIM_WITHOUT_EVIDENCE` are warnings. **Do not turn it on to "fix" this**: `episodeContract.ts`
-  records a measured 2026-08-01 dry run over 12 real briefs — 12/12 blocked, 11 on
-  `CLAIM_WITHOUT_EVIDENCE` — because the generator cites sources the curated registry does not
-  contain. It is a registry-coverage gap; enforcing it today halts all reel production.
+The first version of this section listed four gaps. **Two of them were wrong.** They were recorded
+from assumption rather than from reading the implementation, which is the same failure this document
+exists to prevent, pointed inward. Corrected below, with the evidence.
+
+### NOT A GAP — aesthetic vs mechanical verdicts ARE separated (was listed as open)
+
+`renderedQa.ts:35` defines `RENDERED_DEFECT_CODES`, a closed vocabulary **classed by severity**:
+
+- **Mechanical / factual → `block`:** `MALFORMED_GEOMETRY` ("physically impossible automotive
+  part"), `SUBJECT_CONTINUITY`, `DAMAGE_LOCATION_DRIFT`, `ENVIRONMENT_DRIFT`, `HUMAN_PRESENT`,
+  `NARRATOR_EMBODIED`, `GENERATED_TEXT_ARTIFACT`
+- **Aesthetic → `warn`:** `LIGHTING_DRIFT`, `PALETTE_DRIFT`, `WEAK_COMPOSITION`,
+  `CAPTION_OBSTRUCTION`
+
+*"any `block` finding => decision repair"* — there is no averaging, so a beautifully lit render with
+wrong tread geometry is refused on the mechanical axis alone. That is exactly the validation notes'
+"attractive mechanical error" case, already implemented, and referenced by four test files
+(`renderedQa` · `postQaOrchestrator` · `repairRouter` · `criticPanel`). `qaState: "unavailable"`
+additionally stops a non-evaluation from reading as an approval.
+
+### NOT A GAP TO BUILD — music rights
+
+There is **no music or audio-bed path in the pipeline at all**: zero references to `musicBed`,
+`musicUrl`, `audioUrl` or `soundtrack` across `shared/`, `reelAssembly.ts` and `reelPipeline.ts`.
+The packs state it explicitly — *"musicBed: none — deliberately omitted."* Voiceover exists
+(`reelVoice`); a music bed does not.
+
+Building a rights ledger now would be infrastructure for a feature that does not exist. The correct
+form of this control is a **fail-closed guard at the point music would enter the assembly audio
+graph**, added *with* that feature and not before. Recorded so it cannot be added silently.
+
+### REAL — entitlement is not modelled (Case 7)
+
+Balance is read live, but nothing represents *what the account is entitled to*, so a stale
+promotion cannot be told from a live one in code. The cheap correct fix is not an entitlement model
+but a **freshness assertion**: refuse a billable action on a balance read older than N minutes.
+Mitigated today only by the operator-gated spend path.
+
+### REAL BUT LIKELY UNBUILDABLE AS STATED — alt text (Case: accessibility)
+
+No `alt_text` is sent on the publish container — confirmed, zero references in `metaSocial.ts` /
+`socialPublish.ts`. But Instagram's alt-text parameter applies to IMAGE containers, not REELS, so
+"add alt text to the reel" may have no supported destination. Reel accessibility here comes from
+burned-in captions, which the pipeline already produces. **Verify against current platform docs
+before building anything**; do not add an unsupported parameter.
+
+### STANDING — `REEL_REQUIRE_CLAIM_EVIDENCE` is unset in production
+
+`NO_CLAIMS`, `ENTAILMENT_MISSING` and `CLAIM_WITHOUT_EVIDENCE` are warnings. **Do not turn it on to
+"fix" this**: `episodeContract.ts` records a measured 2026-08-01 dry run over 12 real briefs —
+12/12 blocked, 11 on `CLAIM_WITHOUT_EVIDENCE` — because the generator cites sources the curated
+registry does not contain. It is a registry-coverage gap; enforcing it today halts all reel
+production.
+
+### The lesson worth keeping
+
+Of four recorded gaps, **one was already implemented, one should not be built, one was misframed,
+and one is real.** A gap register decays exactly like any other claim, and an invented gap costs as
+much as a missed one — it buys speculative work. Re-read the code before building against an entry
+in this table.
 
 ## Standing caution from the source notes
 
