@@ -34,7 +34,8 @@ function Unknown({ what }: { what: string }) {
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
-const pct = (n: number | null) => (n == null ? "unknown" : `${(n * 100).toFixed(1)}%`);
+// GSC helpers return CTR already in percentage units (2.5 === 2.5%); never multiply again.
+const pct = (n: number | null) => (n == null ? "unknown" : `${n.toFixed(1)}%`);
 const int = (n: number | null) => (n == null ? "unknown" : n.toLocaleString());
 const fixed = (n: number | null) => (n == null ? "unknown" : n.toFixed(1));
 const rows = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
