@@ -87,9 +87,10 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
   yes" as a fee-safety fix; **reverted** — it is the canonical Repair Haiku (brand-voice kernel, SMS, voice, 100+
   pages) and the diagnostic fee is itself quoted in writing before it is charged. Any change to that promise is the
   owner's, made in `shared/voice.ts`.
-- **Still open (seen in the same screenshots):** on an 812px phone the `NotificationBar` toast and the two floating
-  buttons sit over the hero's third intent card; the strip makes phone + address independent of that chrome, but
-  the overlap itself is a NotificationBar offset/timing fix for a later PR.
+- **Promo toast over the hero on phones (follow-up PR):** `NotificationBar` rendered from the first frame at a fixed
+  84px above the mobile CTA bar, i.e. on top of the hero's "Talk to a human" card at 375×812. On phones it now
+  waits until the visitor scrolls past 60% of the first screen (control/canary test); desktop unchanged. Still
+  open: the emergency + chat floating buttons overlap the cards' right edge while the shop is closed.
 
 ## Open (honest list)
 

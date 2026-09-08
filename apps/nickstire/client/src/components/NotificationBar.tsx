@@ -395,6 +395,28 @@ export default function NotificationBar() {
     }
   }, []);
 
+  // 2026-09-08 · on a phone the card is fixed 84px above the mobile CTA bar,
+  // which at 375×812 lands on the hero's third intent card ("Talk to a human"
+  // — the one with the phone number) the moment the page loads. Hold it until
+  // the visitor has scrolled past most of the first screen. Desktop, and the
+  // prerender pass (desktop viewport), are unchanged: the card shows at once.
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const phone =
+      typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1023px)").matches;
+    if (!phone) {
+      setPastHero(true);
+      return;
+    }
+    const check = () => {
+      if (window.scrollY > window.innerHeight * 0.6) setPastHero(true);
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, []);
+
   // Auto-rotate every 8 seconds
   useEffect(() => {
     if (activeNotifications.length <= 1) return;
@@ -410,7 +432,7 @@ export default function NotificationBar() {
     localStorage.setItem("nicks-notif-dismissed", Date.now().toString());
   }, []);
 
-  if (isSuppressedRoute || dismissed || activeNotifications.length === 0) return null;
+  if (isSuppressedRoute || dismissed || !pastHero || activeNotifications.length === 0) return null;
 
   const current = activeNotifications[currentIndex % activeNotifications.length];
 

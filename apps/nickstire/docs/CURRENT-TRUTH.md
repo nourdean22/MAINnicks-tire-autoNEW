@@ -75,8 +75,10 @@ What every `PageLayout` page shows at scroll-top, and why it changed:
   "you don't pay until you say yes" (prescribed by the brand-voice kernel in `shared/voice.ts`, repeated in SMS,
   voice and 100+ pages); a same-day pass paraphrased it and was reverted — the $59.99 diagnostic is itself on the
   written quote before it is charged, so the promise holds.
-- **Known, not fixed here:** on an 812px phone `NotificationBar`'s toast (fixed above the mobile CTA bar) and the
-  two floating buttons overlap the hero's third intent card; the strip now carries phone + address regardless.
+- **`NotificationBar` on a phone waits for the first screen** (2026-09-08): fixed 84px above the mobile CTA bar it
+  covered the hero's "Talk to a human" card from the first frame; it now renders only after a scroll past 60% of
+  the viewport on `(max-width: 1023px)`. Desktop and the prerender pass (desktop viewport) are unchanged. The two
+  floating buttons (emergency, chat) still sit on the cards' right edge when the shop is closed — known.
 - **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a
   regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
   FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
