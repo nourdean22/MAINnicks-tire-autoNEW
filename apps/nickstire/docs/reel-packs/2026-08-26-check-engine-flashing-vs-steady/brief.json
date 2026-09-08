@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends on the same bare amber lamp over the dark engine bay that it opens on, now burning steady instead of pulsing, so the cut back to the flashing lamp reads as one light changing rhythm.",
+  "campaignKeyword": "ECHECK",
   "topic": "check-engine-flashing-vs-steady",
   "title": "A flashing check engine light is not the same warning as a steady one",
   "producedBy": "scheduled-task",
@@ -9,60 +11,54 @@
   "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
-      "index": 1,
-      "start": 0,
-      "end": 3,
-      "role": "hook",
-      "narration": "Is your check engine light flashing... or just staying on?",
-      "visualPrompt": "Close-up dashboard instrument cluster at night, check engine light icon blinking on/off in a dark cabin, shallow depth of field, subtle camera drift in."
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "A bare amber trouble lamp hanging on its hook over a dark engine bay, pulsing on and off in a fast rhythm, deep shadows, shallow depth of field, 9:16 vertical framing",
+      "motion": "slow drift in, lamp swaying slightly",
+      "onScreenText": "Flashing or steady",
+      "narration": "Check engine light flashing, or steady?"
     },
     {
-      "index": 2,
-      "start": 3,
-      "end": 7,
-      "role": "symptom",
-      "narration": "That blink is not the same warning as a steady light.",
-      "visualPrompt": "Same dashboard, check engine light now steady/solid (no blink), slow push-in, contrast lighting to visually separate from beat 1."
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Macro across a scaled exhaust manifold in a dim engine bay, faint heat shimmer over the metal, an ignition coil seated on the valve cover behind it, orange rim light, 9:16 vertical framing",
+      "motion": "slow pan across the manifold",
+      "onScreenText": "Raw fuel",
+      "narration": "Flashing usually means a misfire dumping raw fuel."
     },
     {
-      "index": 3,
-      "start": 7,
-      "end": 13,
-      "role": "explanation",
-      "narration": "A flashing light usually means an active misfire — the engine is dumping unburned fuel into a red-hot catalytic converter.",
-      "visualPrompt": "Engine bay, close macro shot of exhaust manifold glowing faint heat-shimmer, slow pan across metal surface, practical orange/red rim light."
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "clue",
+      "visual": "Under-car shot of the catalytic converter housing, blued and heat scorched steel, haze rising off the shell, 9:16 vertical framing",
+      "motion": "tilt up from the tailpipe along the exhaust",
+      "onScreenText": "Converter cooks",
+      "narration": "That raw fuel can cook the catalytic converter."
     },
     {
-      "index": 4,
-      "start": 13,
-      "end": 18,
-      "role": "consequence",
-      "narration": "Keep driving on that, and you're not looking at a cheap fix anymore — a damaged converter is one of the most expensive parts under your car.",
-      "visualPrompt": "Catalytic converter cutaway or exhaust underbody shot, camera tilts up from tailpipe along the exhaust line, muted industrial color grade."
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "payoff",
+      "visual": "Low tracking shot of a tire rolling off asphalt onto a gravel shoulder, dust settling as it comes to rest, late daylight, 9:16 vertical framing",
+      "motion": "tracking shot slowing to a stop",
+      "onScreenText": "Ease off the gas",
+      "narration": "Ease off the gas and skip the highway."
     },
     {
-      "index": 5,
-      "start": 18,
-      "end": 23,
-      "role": "safe_action_flashing",
-      "narration": "If it's flashing: ease off the gas, avoid highway speed, and get it looked at today.",
-      "visualPrompt": "Speedometer needle easing down from higher speed to lower speed, close macro, subtle motion blur on the needle only."
-    },
-    {
-      "index": 6,
-      "start": 23,
-      "end": 27,
-      "role": "safe_action_steady_contrast",
-      "narration": "A steady light is different — it's worth checking soon, but it's not an emergency.",
-      "visualPrompt": "Wide shop bay establishing shot, vehicle on a lift or parked in a bay, calm even lighting, static-to-slow-dolly."
-    },
-    {
-      "index": 7,
-      "start": 27,
-      "end": 31,
-      "role": "cta",
-      "narration": "One clue, two very different next steps. Not sure which you're looking at? Stop by and we'll take a look.",
-      "visualPrompt": "Nick's Tire & Auto branded shop-front or bay signage plate (existing brand asset, do not generate new logo), gentle push-in, held final frame for 3s SAVE freeze."
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "save",
+      "visual": "The same bare amber trouble lamp hanging on its hook over the dark engine bay, now burning steady and unbroken instead of pulsing, deep shadows, shallow depth of field, 9:16 vertical framing",
+      "motion": "static hold",
+      "onScreenText": "Steady, check soon",
+      "narration": "Steady is different, worth checking soon."
     }
   ],
   "claimSafety": {

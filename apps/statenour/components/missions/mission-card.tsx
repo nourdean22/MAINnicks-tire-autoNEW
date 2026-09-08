@@ -326,7 +326,7 @@ export function MissionCard({
               aria-label={`move mission ${mission.title} up`}
               title="move up"
               className={cn(
-                "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
+                "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                 canMoveUp
                   ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
                   : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
@@ -348,7 +348,7 @@ export function MissionCard({
               aria-label={`move mission ${mission.title} down`}
               title="move down"
               className={cn(
-                "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
+                "inline-flex h-11 w-11 items-center justify-center transition-transform active:scale-95",
                 canMoveDown
                   ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
                   : "text-[var(--text-tertiary)]/30 cursor-not-allowed",

@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel closes on the same close-up of the clutch pedal in the driver footwell it opened on, the pedal now riding high and firm, at the start of the same creeping push-in, so a replay resumes the creep toward the pedal.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Clutch pedal sinking to the floor: leak in the line, or the clutch itself?",
-  "campaignKeyword": "CLUTCHLEAK",
+  "campaignKeyword": "BRAKES",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-09-01, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -10,7 +11,7 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Clutch pedal feels loose, or sinks to the floor? One clue, more than one cause.",
+      "narration": "Clutch pedal sinking to the floor?",
       "onScreenText": "Clutch pedal feels loose or sinks?",
       "visual": "Close-up of a manual-transmission car's clutch pedal in the driver footwell, static camera with slow creeping push-in, dim interior lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -20,7 +21,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Pedal feels spongy but the clutch still grabs? That can point to air or a small leak in the line.",
+      "narration": "Spongy but still grabbing points to air in the line.",
       "onScreenText": "Spongy, but clutch still grabs?",
       "visual": "Macro shot of a clutch master cylinder and hydraulic line in the engine bay near the firewall, shallow focus, subtle handheld drift, cool engine-bay light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +31,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Pedal sinks all the way and stays down? That may indicate a bigger fluid leak, not the clutch itself.",
+      "narration": "Sinking and staying down points at fluid, not the clutch.",
       "onScreenText": "Pedal sinks and stays down?",
       "visual": "Close-up of a clutch pedal slowly sinking toward the floor under light pressure, subtle slow-motion feel via gradual camera drift, dim garage lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +41,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Fluid spot near the firewall? Worth checking before you pay for a clutch you might not need.",
+      "narration": "Look for a wet spot near the firewall.",
       "onScreenText": "Fluid spot near the firewall?",
       "visual": "Close-up of a small fluid drip or wet spot on the engine-bay firewall/floor near the clutch master cylinder, slow slide across the surface, moody blue-hour garage light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,9 +51,9 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess with a soft pedal. Nick's Tire and Auto checks it free — link in bio.",
+      "narration": "Do not guess before buying one.",
       "onScreenText": "Free check. Link in bio.",
-      "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
+      "visual": "Close-up of the same manual-transmission clutch pedal in the driver footwell, the pedal now sitting high and firm at the top of its travel, dim interior lighting, static camera with a slow creeping push-in",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

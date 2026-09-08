@@ -25,6 +25,8 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
+import { logger as rootLogger } from "@/lib/logger";
 import {
   listPins,
   createPin,
@@ -34,6 +36,43 @@ import {
   PinContentRequiredError,
   PinContentTooLongError,
 } from "@/lib/services/pins";
+
+const log = rootLogger.withSurface("api/brain/pinned");
+
+/**
+ * 2026-09-07 · anonymous requests used to hit `requireSession()` OUTSIDE the
+ * handler's try/catch, so the ServiceError it throws escaped as an unhandled
+ * 500 — live-probed: `GET /api/brain/pinned` answered 500 and minted a Sentry
+ * issue per probe, while every sibling under the session-exempt `/api/brain`
+ * prefix answered 401.
+ *
+ * Every throw still DENIES — nothing reaches the pin service without a
+ * session — but the status tells the truth (#2175 review): a missing or
+ * invalid session is 401; the guard's own "authentication is unavailable"
+ * (production without auth credentials) stays 503 so an outage is not
+ * misread as an expired login; anything unexpected is a sanitized 500 with
+ * one structured log line. Pinned by
+ * tests/security/brain-pinned-anonymous.test.ts. The name keeps the
+ * `requireSession` idiom scripts/check-sensitive-get-auth.ts scans each
+ * handler body for.
+ */
+async function requireSessionGuard(req: NextRequest): Promise<NextResponse | null> {
+  try {
+    await requireSession(req);
+    return null;
+  } catch (err) {
+    if (err instanceof ServiceError && err.status === 401) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    if (err instanceof ServiceError && err.status === 503) {
+      return NextResponse.json({ error: "authentication unavailable" }, { status: 503 });
+    }
+    log.error("session_check_failed", {
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json({ error: "session check failed" }, { status: 500 });
+  }
+}
 
 interface PinCreateBody {
   content?: string;
@@ -49,7 +88,8 @@ interface PinPatchBody {
 }
 
 export async function GET(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionGuard(req);
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const withStats = url.searchParams.get("withStats") === "1";
@@ -66,7 +106,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionGuard(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as PinCreateBody;
     return NextResponse.json(
@@ -94,7 +135,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionGuard(req);
+  if (denied) return denied;
   try {
     const body = (await req.json()) as PinPatchBody;
     if (!body.id) {
@@ -126,7 +168,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  await requireSession(req);
+  const denied = await requireSessionGuard(req);
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");

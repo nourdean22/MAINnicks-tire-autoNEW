@@ -22,6 +22,7 @@
  * Drift between legacy REST and tRPC structurally impossible.
  */
 
+import { resumeRecordSchema } from "@/lib/missions/resume-record";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
@@ -515,10 +516,17 @@ export const taskRouter = router({
    * kind "parked" payload.note; the deck hero surfaces the note on resume.
    */
   park: operatorProcedure
-    .input(z.object({ id: z.string().min(1).max(64), note: z.string().max(500) }))
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        note: z.string().max(500),
+        // U5 (2026-09-07) · optional structured resume record.
+        record: resumeRecordSchema.optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       try {
-        return await parkTask(input.id, input.note);
+        return await parkTask(input.id, input.note, input.record);
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({

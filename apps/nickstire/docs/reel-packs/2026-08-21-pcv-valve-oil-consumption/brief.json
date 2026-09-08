@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same clean floor under the same parked car it opened on, so the replay's slow dolly-in continues the move the last one was already making.",
   "topic": "Stuck PCV valve burning oil with no puddle: the leak that isn't a leak",
-  "campaignKeyword": "PCVVALVE",
+  "campaignKeyword": "ECHECK",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 28,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "OIL DOWN NO PUDDLE",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "You keep topping off oil, but there's never a puddle underneath the car.",
+      "narration": "You keep adding oil, but nothing hits the ground.",
       "visualPrompt": "Wide low-angle shot of clean concrete garage floor under a parked car, no stains visible, slow dolly-in, neutral daylight",
       "stockSearchTerms": ["clean garage floor under car", "concrete floor no oil stain car"]
     },
     {
+      "onScreenText": "STUCK PCV VALVE",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 10],
-      "narration": "That's not always a leak. A stuck PCV valve can burn oil internally, nothing ever hits the ground.",
+      "narration": "A stuck PCV valve can burn oil inside the engine.",
       "visualPrompt": "Macro shot of a small plastic PCV valve seated in a valve cover grommet, engine bay ambient light, static camera, shallow depth of field",
       "stockSearchTerms": ["PCV valve engine bay closeup", "valve cover grommet macro"]
     },
     {
+      "onScreenText": "OIL IN THE INTAKE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [10, 17],
-      "narration": "A hissing or whistling sound at idle is one clue. Oil pooling inside the air intake hose is another.",
+      "narration": "Oil in the intake hose is one clue.",
       "visualPrompt": "Extreme close-up rack focus from an idling engine bay to an open air intake hose interior showing a faint oily sheen, slow orbital move, dim garage light",
       "stockSearchTerms": ["air intake hose interior oily residue macro", "engine bay idling closeup"]
     },
     {
+      "onScreenText": "HISS AT IDLE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "Left unchecked, it can point to sludge buildup and a rougher idle over time, not just wasted oil.",
+      "narration": "A hiss at idle is another.",
       "visualPrompt": "Extreme macro of dark sludge texture inside a valve cover opening, slow push-in, warm practical shop lighting",
       "stockSearchTerms": ["engine sludge buildup macro", "valve cover interior sludge closeup"]
     },
     {
+      "onScreenText": "IT BURNS INSTEAD",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Worth checking. Stop by and we'll take a look at your PCV system, free with an oil change.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "No puddle, and the oil still goes somewhere.",
+      "visualPrompt": "Wide low-angle shot of the same concrete garage floor under the same parked car, the patch beneath the engine dry and unmarked with only a faint film of dust, slow dolly-in, neutral daylight",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

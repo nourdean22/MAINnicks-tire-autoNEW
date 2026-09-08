@@ -34,7 +34,8 @@ import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
 import { COMMAND_PALETTE_OPEN_EVENT } from "@/components/command-palette";
 import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
-import { Search, NotebookPen, ArrowRight, Clock } from "lucide-react";
+import { Search, NotebookPen, ArrowRight, Clock, Brain } from "lucide-react";
+import { NICK_PANE_OPEN_EVENT, NICK_PANE_MOUNTED_ATTR } from "@/components/mastery/nick-side-pane";
 
 const SECTIONS: { key: NavSection; label: string; ordinal: string }[] = [
   { key: "capture", label: "Capture", ordinal: "01" },
@@ -52,6 +53,11 @@ function isActiveHref(pathname: string, href: string): boolean {
 export function MoreSheet() {
   const open = useMoreSheetStore((s) => s.open);
   const close = useMoreSheetStore((s) => s.closeSheet);
+  // D10 · a page that mounts the NICK pane announces it on <html>. Read at render
+  // while open: the sheet only mounts client-side after a tap, so there is no
+  // hydration mismatch and no setState-in-effect.
+  const hasNickPane =
+    open && typeof document !== "undefined" && document.documentElement.dataset[NICK_PANE_MOUNTED_ATTR] === "1";
   // `mounted` trails `open` by one exit-animation frame — this is what
   // makes closing symmetric with opening instead of an instant unmount.
   const [mounted, setMounted] = useState(false);
@@ -133,6 +139,21 @@ export function MoreSheet() {
               ⌘K
             </kbd>
           </button>
+          {/* 2026-09-08 (D10) · on phones the NICK pill is not rendered (it covered
+              controls at 390 px); a page that mounts the pane gets this row instead. */}
+          {hasNickPane && (
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new Event(NICK_PANE_OPEN_EVENT));
+                close();
+              }}
+              className="mt-2 flex w-full min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)]/40 px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)] md:hidden"
+            >
+              <Brain size={16} className="shrink-0" />
+              <span className="text-sm">Ask Nick about this page</span>
+            </button>
+          )}
         </div>
 
         {/* Smart-now + Recent + Capture */}

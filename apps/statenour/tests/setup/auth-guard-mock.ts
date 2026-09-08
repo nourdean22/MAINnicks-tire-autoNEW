@@ -15,6 +15,26 @@
  */
 
 import { vi } from "vitest";
+import { timingSafeEqual } from "node:crypto";
+
+/**
+ * 2026-09-07 · `safeEqual` is the ONE export of auth-guard that carries no
+ * next-auth dependency, and every header/bearer-secret route calls it
+ * (inbound-crm, health/summary, prompt-cache-flush, bridge-auth). Without it
+ * here, any route test that reached a secret compare got `safeEqual is not a
+ * function` → a 500 from apiHandler → and a test asserting "not 401" passed
+ * on a crash. Mirrors lib/auth-guard.ts exactly: constant-time, length-safe.
+ */
+function safeEqual(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 vi.mock("@/lib/auth-guard", () => ({
   requireSession: vi.fn().mockResolvedValue({
@@ -24,6 +44,7 @@ vi.mock("@/lib/auth-guard", () => ({
   }),
   requireCronAuth: vi.fn(),
   requireSyncAuth: vi.fn(),
+  safeEqual,
 }));
 
 // 2026-08-11 · cost-firewall default-off IN THE TEST SUITE ONLY: the

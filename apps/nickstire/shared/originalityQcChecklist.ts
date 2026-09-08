@@ -25,7 +25,7 @@
  * real check built — reported "unknown", not faked as a pass.
  */
 import type { EntailmentVerdict } from "./claimEntailment";
-import { validateMutedFirstClarity, type StoryboardBeat } from "../client/src/lib/facelessReelStudio";
+import { REEL_OUTPUT_RULES, validateMutedFirstClarity, type StoryboardBeat } from "../client/src/lib/facelessReelStudio";
 
 export type QcStatus = "pass" | "fail" | "unknown" | "structural";
 
@@ -49,7 +49,7 @@ export interface OriginalityQcInput {
   caption?: string;
   totalDurationSeconds: number | null;
   /** Post-merge self-review (2026-08-13): the brief bundles "format/length
-   *  checks (15-22s, 9:16, muted-first readable)" as ONE line item, and the
+   *  checks (the declared duration band, 9:16, muted-first readable)" as ONE line item, and the
    *  original version of this checklist only implemented the duration
    *  sub-check — 9:16 and muted-first were enforced elsewhere in the
    *  pipeline but never surfaced in this "one canonical readout." Passing
@@ -62,9 +62,16 @@ const SAVE_SHARE_LANGUAGE = /\b(send this|share this|tag someone|forward this|se
 
 /** The brief's declared target — informational only. The real production
  *  gate is reelAssembly.ts's 3-90s bound, a business decision this
- *  measurement tool does not have the authority to override. */
-const TARGET_DURATION_MIN_S = 15;
-const TARGET_DURATION_MAX_S = 22;
+ *  measurement tool does not have the authority to override.
+ *
+ *  SOURCED, NOT COPIED (2026-09-07). These were a second hardcoded 15/22 pair,
+ *  unlinked from REEL_OUTPUT_RULES and pinned as 22-is-a-pass by this file's own
+ *  tests — so when the operator raised the ceiling to 35s, this checklist would
+ *  have gone on reporting every 25-35s pack as off-target, forever, with its
+ *  tests green. A literal duplicated across files is a cache with no
+ *  invalidation; the fix is to have one owner, not two agreeing numbers. */
+const TARGET_DURATION_MIN_S = REEL_OUTPUT_RULES.minSeconds;
+const TARGET_DURATION_MAX_S = REEL_OUTPUT_RULES.maxSeconds;
 
 export function evaluateOriginalityQc(input: OriginalityQcInput): { checks: QcCheck[]; passCount: number; failCount: number } {
   const checks: QcCheck[] = [];
@@ -165,7 +172,7 @@ export function evaluateOriginalityQc(input: OriginalityQcInput): { checks: QcCh
 
   checks.push({
     id: "format_length",
-    label: "Format/length (15-22s target)",
+    label: `Format/length (${TARGET_DURATION_MIN_S}-${TARGET_DURATION_MAX_S}s target)`,
     status:
       input.totalDurationSeconds === null
         ? "unknown"

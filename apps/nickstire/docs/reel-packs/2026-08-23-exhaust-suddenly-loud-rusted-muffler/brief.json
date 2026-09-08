@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same low-angle tailpipe and rear bumper it opened on, the pipe now quiet, so a replay picks up on that same pipe just before the sound returns.",
   "topic": "Exhaust suddenly got loud: rust hole in the muffler or pipe joint, not engine trouble",
-  "campaignKeyword": "LOUDEXHAUST",
+  "campaignKeyword": "SALT",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-23",
   "durationSec": 27,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "SUDDENLY LOUDER",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "If your car suddenly sounds louder than it used to, it's probably not the engine.",
+      "narration": "Exhaust suddenly louder? Usually not the engine.",
       "visualPrompt": "Low-angle static shot of a car's rear bumper and tailpipe on a driveway, overcast daylight, slow push-in toward the tailpipe",
       "stockSearchTerms": ["car tailpipe rear bumper closeup", "exhaust pipe car rear low angle"]
     },
     {
+      "onScreenText": "RUST HOLE NOT ENGINE",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "It's almost always a rust hole in the muffler or a pipe joint that's let go.",
+      "narration": "More often a rust hole in the muffler or joint.",
       "visualPrompt": "Macro shot of a rusted exhaust muffler underbody, visible corrosion texture, static camera, dim garage light",
       "stockSearchTerms": ["rusted car muffler underbody macro", "exhaust pipe corrosion closeup"]
     },
     {
+      "onScreenText": "ROAD SALT EATS PIPE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "Exhaust pipes sit low and wet, and road salt eats through the metal from the outside in. One small perforation and the sound escapes before the muffler can quiet it.",
+      "narration": "Pipes sit low and wet, and road salt eats through.",
       "visualPrompt": "Extreme macro of a small rust-through perforation on an exhaust pipe surface, slow orbital camera move, cool dim garage light, water droplets visible nearby",
       "stockSearchTerms": ["exhaust pipe rust hole macro", "car undercarriage corrosion closeup"]
     },
     {
+      "onScreenText": "LOOK UNDER THE BACK",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
-      "narration": "Quick check: look under the rear of the car for a rust-colored hole, or a joint where two pipes have pulled apart.",
+      "narration": "Look under the back for rust.",
       "visualPrompt": "Static wide-to-medium shot from ground level looking up at a car's rear underbody in a well-lit garage, no hands or people visible",
       "stockSearchTerms": ["car underbody garage lift wide shot", "rear undercarriage inspection static shot"]
     },
     {
+      "onScreenText": "IT ONLY GETS LOUDER",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Driving on it won't hurt the engine, but it will keep getting louder. Nick's Tire and Auto checks the exhaust free with any inspection.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "It will not hurt the engine, just get louder.",
+      "visualPrompt": "Low-angle static shot of the same rear bumper and tailpipe on the same driveway, overcast daylight, the pipe now sitting quiet with only faint warm haze curling from it, slow push-in toward the tailpipe",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

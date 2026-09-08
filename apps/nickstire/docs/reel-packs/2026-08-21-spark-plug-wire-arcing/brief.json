@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same coil boot in the same black night bay it opened on, so the replay's blue flicker returns to a frame the viewer just left.",
   "topic": "Cracked spark plug wire or coil boot arcing at night: the blue spark misfire clue",
-  "campaignKeyword": "ARCSPARK",
+  "campaignKeyword": "ECHECK",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 26,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "BLUE SPARK AT NIGHT",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Your engine bay is sparking blue in the dark and you didn't even know it.",
+      "narration": "Pop the hood at night and look for blue flicker.",
       "visualPrompt": "Dark engine bay at night, a faint blue-white electrical spark arcing off a spark plug wire boot, slow macro push-in, high contrast, mostly black frame",
       "stockSearchTerms": ["spark plug wire arcing night", "engine bay electrical arc dark"]
     },
     {
+      "onScreenText": "SPARK JUMPS TO BLOCK",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "A cracked spark plug wire or coil boot lets voltage jump to the block instead of the plug.",
+      "narration": "A cracked wire or coil boot lets voltage jump to the block.",
       "visualPrompt": "Close-up of an engine block with spark plug wires and coil boots visible, static camera, dim garage lighting, slight blue arc flicker at one boot",
       "stockSearchTerms": ["spark plug wire coil boot engine closeup", "ignition coil boot macro"]
     },
     {
+      "onScreenText": "SPARK NEVER ARRIVES",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 16],
-      "narration": "That's lost voltage the cylinder never gets, which shows up as a misfire, a rough idle, or a check-engine light.",
+      "narration": "Voltage the cylinder never gets.",
       "visualPrompt": "Extreme macro of a cracked rubber coil boot with a hairline split, slow orbital camera move, dim garage light, subtle spark flicker",
       "stockSearchTerms": ["cracked ignition coil boot macro", "spark plug wire crack closeup"]
     },
     {
+      "onScreenText": "MISFIRE OR ROUGH IDLE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [16, 21],
-      "narration": "Pop the hood at night and look for a flicker near the plugs -- that flicker is the clue, not the problem itself.",
+      "narration": "It can show up as a misfire or rough idle.",
       "visualPrompt": "Wide-to-macro rack focus from a full dark engine bay to a single glowing arc point near a coil boot, neutral shop lighting fading to dark",
       "stockSearchTerms": ["engine bay night rack focus", "dark engine compartment closeup"]
     },
     {
+      "onScreenText": "ONE CLUE WORTH CHECKING",
       "index": 5,
       "role": "CTA",
       "windowSec": [21, 26],
-      "narration": "Nick's Tire and Auto checks plug wires and coils free with any diagnostic visit. Link in bio.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "One clue, worth checking.",
+      "visualPrompt": "Dark engine bay at night, the same spark plug wire boot in the same macro framing, now pressed firmly down onto the plug and dark, a dull sheen of metal in a mostly black frame, slow macro push-in, high contrast",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

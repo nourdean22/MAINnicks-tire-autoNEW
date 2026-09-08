@@ -28,6 +28,31 @@
  * an unverified claim is not a clean claim.
  */
 
+import { jaccardSimilarity, normalizeForComparison } from "./reelOriginality";
+
+/**
+ * DELIBERATELY HIGHER than the originality gate's 0.5, because the two gates
+ * want opposite things from a near-match.
+ *
+ * Originality compares against PUBLISHED reels, where something merely similar
+ * is already a problem - Instagram demotes it. This compares against CONDEMNED
+ * ones, where a similar script is the CURE: the prescribed fix for a false
+ * claim is to rewrite that claim and keep the rest of the reel. A threshold
+ * tuned for "too alike to post" would refuse the repair.
+ *
+ * Measured 2026-09-07 against the real scripts:
+ *   verbatim regeneration (1830002, 1830003)  1.00
+ *   corrected rewrite, claim removed          0.31 - 0.48
+ *   unrelated script                          0.00 - 0.19
+ *
+ * At 0.5 the corrected control-arm rewrite scored 0.48 and cleared by 0.02 - a
+ * margin that says nothing about correctness. 0.75 sits in the empty band
+ * between the highest legitimate rewrite and a copy, so this catches wholesale
+ * reuse and leaves repair alone. Precision against the actual false claim is
+ * `condemnedPhrases`' job, not this one's.
+ */
+export const CONDEMNED_CONTENT_THRESHOLD = 0.75;
+
 export type ReelClaimVerdict =
   /** Every surface checked, every claim sourced. May publish once approved. */
   | "clean"
@@ -52,6 +77,30 @@ export interface ReelClaimAuditEntry {
   defects: Array<{ surface: "voiceover" | "onscreen_text" | "caption" | "asset"; detail: string }>;
   /** Claims cleared, each with where it was verified. */
   cleared: Array<{ claim: string; source: string; tier: "regulator" | "trade" | "first_party" }>;
+  /**
+   * The exact text this audit condemned - REQUIRED when a defect lives on a
+   * text surface, forbidden when the only defects are on the asset.
+   *
+   * Held here in git rather than read back from `reel_jobs` on demand so the
+   * content check CANNOT fail open. The originality gate loads its corpus from
+   * the database and documents why it tolerates an unreadable one; that
+   * reasoning does not transfer. An unreadable corpus is not evidence that a
+   * reel is a duplicate, but it is also not evidence that a false claim about
+   * Ohio law has been removed. These strings are historical and immutable, so
+   * there is nothing to read back.
+   */
+  condemnedText?: { voiceover: string; onScreenText: string };
+  /**
+   * The specific false claims, in plain English. Matched after normalisation,
+   * so write them naturally - `normalizeForComparison` strips the punctuation
+   * from both sides ("it's" and "it is" both reduce toward "it s" / "it is",
+   * which is exactly why a raw `includes` on the source spelling missed them).
+   *
+   * These exist because `condemnedText` alone only catches a VERBATIM
+   * regeneration. A reworded script carrying the same false claim is the case
+   * that matters, and similarity would let it through.
+   */
+  condemnedPhrases?: readonly string[];
 }
 
 /**
@@ -104,6 +153,17 @@ export const REEL_CLAIM_AUDIT: Readonly<Record<number, ReelClaimAuditEntry>> = {
         tier: "regulator",
       },
     ],
+    condemnedText: {
+      voiceover:
+        "That amber light? It's not a diagnosis. It's a smoke alarm. Your car's computer found something off, often emissions. In Ohio, that light means you'll fail E-Check. Don't guess. Let us scan it and find the real cause.",
+      onScreenText:
+        "That amber light? It's not a diagnosis. It's a smoke alarm. In Ohio, that light = fail E-Check. Don't guess. We'll find the real cause.",
+    },
+    // Contraction-free cores ON PURPOSE. "you'll" normalises to "you ll" and
+    // "you will" stays "you will", so a phrase spanning that word matches only
+    // the spelling it was written in. Each phrase below is the part of the
+    // claim that survives rewording: the statewide scope, not the verb.
+    condemnedPhrases: ["in ohio that light"],
   },
 
   1740002: {
@@ -161,6 +221,13 @@ export const REEL_CLAIM_AUDIT: Readonly<Record<number, ReelClaimAuditEntry>> = {
         tier: "regulator",
       },
     ],
+    condemnedText: {
+      voiceover:
+        "That clunk over bumps isn't just a noise. It's your lower control arm telling you the bushing is torn. One bad pothole can start it. Wait, and it'll chew up your tire and pull you off the road. Don't let a clunk become a crisis. DM us the word CLUNK and we'll take a look.",
+      onScreenText:
+        "This is the sound your car makes before it pulls. One Cleveland pothole. That's all it takes. That clunk is the bushing crying for help. Wait, and it eats your tire. Then your alignment. Then your confidence. Don't wait for the clunk to become a pull. DM 'CLUNK' to stop guessing.",
+    },
+    condemnedPhrases: ["pull you off the road"],
   },
 
   1770001: {
@@ -258,6 +325,17 @@ export const REEL_CLAIM_AUDIT: Readonly<Record<number, ReelClaimAuditEntry>> = {
         tier: "regulator",
       },
     ],
+    condemnedText: {
+      voiceover:
+        "That little Check Engine light isn't just a suggestion. In Ohio, it's an automatic fail for your E-Check. Many drivers don't realize it, but even a minor sensor issue can keep you off the road. Get it diagnosed early to save yourself the hassle.",
+      onScreenText:
+        "Check Engine light on? Automatic E-Check FAILED. Ignoring it costs time & money. Get it diagnosed early. Pass your Ohio E-Check.",
+    },
+    condemnedPhrases: [
+      "automatic fail for your e check",
+      "automatic e check failed",
+      "keep you off the road",
+    ],
   },
 };
 
@@ -285,4 +363,89 @@ export function condemnedJobIds(): number[] {
     .filter((e) => CONDEMNED.includes(e.verdict))
     .map((e) => e.jobId)
     .sort((a, b) => a - b);
+}
+
+/** Defect surfaces that live in the SCRIPT, as opposed to the rendered file. */
+const TEXT_SURFACES: ReadonlySet<string> = new Set(["voiceover", "onscreen_text", "caption"]);
+
+/**
+ * Entries whose CONTENT is condemned - not merely the job.
+ *
+ * The distinction is load-bearing and is why this cannot simply block every
+ * condemned script. Of the five condemned entries, two (1710001, 1770001) are
+ * condemned for the ASSET alone: 1770001's summary reads "claims are accurate
+ * and genuinely useful" and its only defect is an ffmpeg encoder failure.
+ * Re-rendering that script is the PRESCRIBED CURE, so a gate that blocked it
+ * would forbid the fix and leave a correct, NHTSA-sourced reel unpublishable
+ * forever.
+ */
+export function textCondemnedEntries(): ReelClaimAuditEntry[] {
+  return Object.values(REEL_CLAIM_AUDIT).filter(
+    (e) => CONDEMNED.includes(e.verdict) && e.defects.some((d) => TEXT_SURFACES.has(d.surface)),
+  );
+}
+
+/** A reel about to be rendered or published, reduced to its text surfaces. */
+export interface ClaimContentCandidate {
+  voiceover?: string | null;
+  onScreenText?: string | null;
+}
+
+/**
+ * Why this SCRIPT must not be rendered or published, or null when it is new.
+ *
+ * WHAT THIS EXISTS FOR. `auditPublishBlock` is keyed by job id. On 2026-08-30
+ * three condemned jobs were regenerated as 1830001-1830003, and every one of
+ * the new rows reproduced its antecedent's script VERBATIM - measured, not
+ * estimated: voiceover and on-screen similarity 1.00 against 1770001, 1740004
+ * and 1770005 respectively. Because the veto is keyed by id and the ids were
+ * new, `auditPublishBlock` returned null for all three. Job 1830003 carried
+ * "In Ohio, it's an automatic fail for your E-Check" - a claim about state law
+ * that is false in 81 of Ohio's 88 counties - with nothing left to stop it but
+ * an operator noticing.
+ *
+ * The audit condemned a SCRIPT. Keying its veto to a row let the script escape
+ * by being copied. This closes that by asking the question the audit was
+ * actually answering.
+ *
+ * TWO MATCHERS, because they fail in opposite directions. Similarity catches a
+ * wholesale regeneration but is defeated by rewording; a phrase catches the
+ * claim itself but only where the wording survives. Neither alone is enough,
+ * and 1830002/1830003 happen to trip both.
+ */
+export function condemnedContentProblem(candidate: ClaimContentCandidate): string | null {
+  const vo = normalizeForComparison(candidate.voiceover);
+  const ost = normalizeForComparison(candidate.onScreenText);
+  if (!vo && !ost) return null;
+  const haystack = `${vo} ${ost}`;
+
+  for (const entry of textCondemnedEntries()) {
+    for (const phrase of entry.condemnedPhrases ?? []) {
+      const needle = normalizeForComparison(phrase);
+      if (needle && haystack.includes(needle)) {
+        const defect = entry.defects.find((d) => TEXT_SURFACES.has(d.surface));
+        return (
+          `this script repeats a claim condemned in reel job ${entry.jobId} ("${phrase}"). ` +
+          (defect ? `${defect.detail} ` : "") +
+          "The audit condemned the script, not the row, so regenerating it under a new job id does not clear it."
+        );
+      }
+    }
+
+    const t = entry.condemnedText;
+    if (!t) continue;
+    const voScore = jaccardSimilarity(vo, t.voiceover);
+    const ostScore = jaccardSimilarity(ost, t.onScreenText);
+    const score = Math.max(voScore, ostScore);
+    if (score >= CONDEMNED_CONTENT_THRESHOLD) {
+      const surface = voScore >= ostScore ? "voiceover" : "on-screen text";
+      return (
+        `this script reproduces condemned reel job ${entry.jobId} ` +
+        `(${surface} similarity ${score.toFixed(2)}, threshold ${CONDEMNED_CONTENT_THRESHOLD}). ` +
+        `${entry.summary} Regenerating a condemned script under a new job id does not clear it.`
+      );
+    }
+  }
+
+  return null;
 }

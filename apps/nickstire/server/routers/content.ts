@@ -2519,11 +2519,44 @@ export const contentAdminRouter = router({
         let pubResult: any = { success: false, error: "Dry run" };
         let permalink: string | null = null;
         if (!input?.dryRun) {
+          // ── HUMAN CONSENT + AI DISCLOSURE (2026-09-07) ──
+          //
+          // This path publishes to the SAME live Instagram account as the
+          // autonomous cron, and it had NO approval gate, no claim audit, no
+          // originality check — and it passed no `isAiGenerated`, so
+          // metaSocial omitted the `is_ai_generated` field entirely and posted
+          // AI-generated video to a live audience UNDISCLOSED. "Live test" is a
+          // description of intent, not a different audience: the followers are
+          // real and the post is real.
+          //
+          // Consent first, and it is not overridable here for the same reason
+          // it is not overridable on the canary route.
+          const testCaption = finalJob.caption || bestBrief.selectedCaption || "";
+          const { reelApprovalProblem } = await import("../services/reelApproval");
+          const approvalProblem = await reelApprovalProblem({
+            jobId,
+            caption: testCaption,
+            videoUrl: finalJob.mp4Url,
+          });
+          if (approvalProblem) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `Refusing to publish: no live human approval for this exact caption and asset [${approvalProblem.code}] ${approvalProblem.reason}. Approve the job first, or run with dryRun.`,
+            });
+          }
+
+          // Disclosure derives from the STORED CLIP PATHS, not from a caller
+          // flag — the same provider-independent derivation the cron uses, so
+          // this door cannot post undisclosed by omission.
+          const { shouldDiscloseAi } = await import("@shared/reelDisclosure");
+          const isAiGenerated = shouldDiscloseAi(finalJob.clipUrlsJson, testCaption);
+
           log.info(`Publishing to Instagram: ${finalJob.mp4Url}`);
           pubResult = await publishToSocial({
             platforms: ["instagram"],
             videoUrl: finalJob.mp4Url,
-            caption: finalJob.caption || bestBrief.selectedCaption || "",
+            caption: testCaption,
+            isAiGenerated,
           });
           if (pubResult.igPostId) {
             permalink = await getInstagramPermalink(pubResult.igPostId);

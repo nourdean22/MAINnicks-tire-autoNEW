@@ -12,8 +12,20 @@
 import type { Express, Request, Response } from "express";
 import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
+import { maskPlate } from "../lib/plate";
 
 const log = createLogger("nour-os-query");
+
+/**
+ * Every call's filters are logged at info level in the route below. Keys that
+ * carry a customer-linked identifier are masked first: `lint:pii` cannot see
+ * log output (AGENTS.md section 5), so the redaction has to live here. Add a
+ * key when a new action takes one.
+ */
+function redactFilters(filters: Record<string, unknown>): Record<string, unknown> {
+  if (!("plate" in filters)) return filters;
+  return { ...filters, plate: maskPlate(filters.plate) };
+}
 
 // v1.7 audit fix · was using `provided !== syncKey` non-timing-safe.
 // Sibling routes use timingSafeEqual via safeCompare; this one was the
@@ -107,7 +119,9 @@ interface QueryRequest {
 
 type QueryHandler = (filters: Record<string, unknown>) => Promise<unknown>;
 
-const QUERY_HANDLERS: Record<string, QueryHandler> = {
+// 2026-09-08 · exported: server/routers/admin/market.ts serves `master_report` from
+// this same map, so the shop admin and StateNour's Nick read ONE report.
+export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   // ─── Decision inbox (S2, 2026-07-28) ─────────────────────────────
   // Card-friendly top-N from the opportunity queue — the same
   // due-aware/consented/SQL-ranked read the admin panel uses, so the
@@ -157,8 +171,9 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const opportunityId = String(filters.opportunityId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(opportunityId)) return { error: "opportunityId (uuid) required" };
     const { listOpportunities } = await import("../services/opportunityQueue");
-    const rows = await listOpportunities({ limit: 500 });
-    const opp = rows.find((r) => r.id === opportunityId);
+    const { items, queryable } = await listOpportunities({ limit: 500 });
+    if (!queryable) return { error: "opportunity queue unreadable — this is UNKNOWN, not empty" };
+    const opp = items.find((r) => r.id === opportunityId);
     if (!opp) return { error: "opportunity not found" };
     const { draftOpportunityOutreach } = await import("../services/opportunityDraft");
     const draft = await draftOpportunityOutreach(opp);
@@ -401,6 +416,98 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       ORDER BY totalSpent DESC LIMIT 20
     `);
     return { customers: rows, count: (rows as unknown[]).length };
+  },
+
+  // ─── Vehicle lookup by plate (added 2026-09-08 · ADR-0017 camera vision) ──
+  //
+  // The camera edge (camera-bridge/visitd) reads plates; statenour asks here
+  // whether a plate belongs to someone we know, so the arrival alert can say
+  // "Nonstop Nick member Jane, booked today" instead of a bare plate.
+  // READ-ONLY and ADVISORY: staff confirm before anything customer-facing.
+  //
+  // Plate sources TODAY: `memberships.vehiclePlate` only. `vehicles.license_plate`
+  // is gone (0117 retired the dead table) and `customer_vehicles` has no plate
+  // column yet (Phase 3 of the plan adds one with an index). Matching is on
+  // the normalized plate (uppercase alphanumerics) plus single-character
+  // OCR-confusable variants (O/0, I/1, B/8, S/5, Z/2) so a camera read of
+  // "0" for "O" still lands. `bookingsToday` is joined by the member's
+  // last-10 phone digits and uses the ARRIVAL-LOAD definition
+  // (client/src/pages/admin/today/ArrivalLoadStrip.tsx bookingsForDate):
+  // preferredDate = the ET date AND status new/confirmed. Not the dashboard's
+  // `bookings_today`, which also counts rows merely CREATED today and every
+  // status - a future-dated booking made this morning, or a cancelled one,
+  // must not read as "booked today" on an arrival alert.
+  //
+  // Filters:
+  //   · plate · string · required · the raw camera read ("ABC 1234")
+  //
+  // Returns: { plate, normalized, variants, matches: [{ source, membershipId,
+  //   name, phoneMasked, plate, exact, vehicleDesc, membershipStatus,
+  //   bookingsToday: [{ id, status, preferredDate, linkage,
+  //                     service?, vehicle? (phone+name rows only) }] }],
+  //   count, sources: ["memberships"] }
+  "vehicle_lookup_by_plate": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const { normalizePlate, plateVariants, maskPhone, bookingLinkage } = await import("../lib/plate");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const raw = String(filters.plate || "");
+    const normalized = normalizePlate(raw);
+    if (normalized.length < 3) return { error: "plate required (3+ alphanumerics)", plate: raw };
+    const variants = plateVariants(normalized);
+    const members = await exec(
+      d,
+      sql`
+        SELECT id, name, phone, vehiclePlate, vehicleDesc, status
+        FROM memberships
+        WHERE UPPER(REGEXP_REPLACE(COALESCE(vehiclePlate, ''), '[^0-9A-Za-z]', ''))
+          IN (${sql.join(variants.map((v) => sql`${v}`), sql`, `)})
+        LIMIT 10
+      `,
+    );
+    const matches: Array<Record<string, unknown>> = [];
+    for (const m of members) {
+      const phone10 = String(m.phone ?? "").replace(/[^0-9]/g, "").slice(-10);
+      const bookingRows =
+        phone10.length === 10
+          ? await exec(
+              d,
+              sql`
+                SELECT id, name, service, vehicle, status, preferredDate
+                FROM bookings
+                WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ${phone10}
+                  AND preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+                  AND status IN ('new', 'confirmed')
+                ORDER BY createdAt DESC LIMIT 5
+              `,
+            )
+          : [];
+      // A phone is not a person: a shared household/business (or recycled)
+      // number attaches every booking on it. Only a name agreement upgrades a
+      // row to "phone+name"; a "phone_only" row keeps id/status/date and
+      // DROPS service and vehicle so another customer's history never rides
+      // along on the plate match.
+      const bookingsToday = bookingRows.map((b) => {
+        const linkage = bookingLinkage(m.name, b.name);
+        return linkage === "phone+name"
+          ? { id: b.id, service: b.service, vehicle: b.vehicle, status: b.status, preferredDate: b.preferredDate, linkage }
+          : { id: b.id, status: b.status, preferredDate: b.preferredDate, linkage };
+      });
+      const storedPlate = normalizePlate(m.vehiclePlate);
+      matches.push({
+        source: "memberships",
+        membershipId: m.id,
+        name: m.name ?? null,
+        phoneMasked: maskPhone(m.phone),
+        plate: storedPlate,
+        exact: storedPlate === normalized,
+        vehicleDesc: m.vehicleDesc ?? null,
+        membershipStatus: m.status ?? null,
+        bookingsToday,
+      });
+    }
+    return { plate: raw, normalized, variants, matches, count: matches.length, sources: ["memberships"] };
   },
 
   // ─── Recent active customer IDs (added 2026-05-17 · Wave-200 Phase 6) ──
@@ -1617,6 +1724,13 @@ export function registerNourOsQueryRoute(app: Express): void {
     if (!query) {
       return res.status(400).json({ error: "Missing query field", available: Object.keys(QUERY_HANDLERS) });
     }
+    // `filters` is optional but, when present, must be a plain object: a
+    // truthy primitive would let the handler run and then throw inside the
+    // logger's redaction, turning a valid query into a 500.
+    if (filters !== undefined && filters !== null && (typeof filters !== "object" || Array.isArray(filters))) {
+      return res.status(400).json({ error: "filters must be an object" });
+    }
+    const safeFilters = (filters ?? {}) as Record<string, unknown>;
 
     const handler = QUERY_HANDLERS[query];
     if (!handler) {
@@ -1624,8 +1738,8 @@ export function registerNourOsQueryRoute(app: Express): void {
     }
 
     try {
-      const result = await handler(filters || {});
-      log.info(`Query: ${query}`, { filters });
+      const result = await handler(safeFilters);
+      log.info(`Query: ${query}`, { filters: redactFilters(safeFilters) });
       return res.json({ query, timestamp: new Date().toISOString(), data: result });
     } catch (err) {
       log.error(`Query failed: ${query}`, { error: err instanceof Error ? err.message : String(err) });

@@ -324,6 +324,16 @@ export interface EpisodeDeclaration {
   episodeId?: string;
   idempotencyKey?: string;
   productionSlot?: ProductionSlot;
+  /**
+   * DUE-AT for this episode - what `reel_jobs.publication_intended_at` records.
+   *
+   * Optional on purpose. Null is a legitimate state meaning "no deadline
+   * declared" (an admin one-off, a canary, a backfill), and the enqueue path
+   * leaves the column alone rather than inventing one. Distinct from
+   * `publicationScheduledAt`, which is stamped at the publish CAS and means
+   * "publish STARTED" - see shared/reelPublicationSchedule.ts.
+   */
+  publicationIntendedAt?: Date;
   approvedProductionPack?: ApprovedProductionPackSnapshot;
   claims?: EpisodeClaim[];
   evidence?: EpisodeEvidence[];

@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same dash cluster close-up it opened on, the fuel needle now sitting steady and high, so a replay cuts straight back into the startup whine.",
   "topic": "Fuel pump whine getting louder over time: a wear signal, not just noise",
-  "campaignKeyword": "FUELPUMP",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-23",
   "durationSec": 22,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "WHINE AT STARTUP",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "That whine under the back of your car when you start it up isn't just noise.",
+      "narration": "That whine from the back at startup is the fuel pump.",
       "visualPrompt": "Close-up of a car dashboard fuel gauge, needle sitting low near E, warm ambient dash glow, static camera",
       "stockSearchTerms": ["car fuel gauge low closeup", "dashboard fuel gauge near empty"]
     },
     {
+      "onScreenText": "LOUDER MEANS WEAR",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "A fuel pump normally hums steady. When it gets louder or changes pitch, that's wear talking.",
+      "narration": "A pump hums steady. Louder or higher pitched is wear.",
       "visualPrompt": "Exterior close-up under the rear of a car near the fuel tank area, cool workshop lighting, slow push-in, no visible people",
       "stockSearchTerms": ["car undercarriage fuel tank closeup", "automotive fuel tank exterior shop"]
     },
     {
+      "onScreenText": "WORSE ON LOW FUEL",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 14],
-      "narration": "Running low on gas makes it worse - the pump can overheat without fuel around it to cool down.",
+      "narration": "Running low on gas makes it worse.",
       "visualPrompt": "Close-up of a dashboard fuel gauge needle moving from low toward full, ambient light, static camera - visual callback to beat 1",
       "stockSearchTerms": ["fuel gauge needle rising", "car dashboard fuel gauge filling"]
     },
     {
+      "onScreenText": "FUEL COOLS THE PUMP",
       "index": 4,
       "role": "VALUE",
       "windowSec": [14, 18],
-      "narration": "Ignore it long enough, and it can fail without warning, not just get louder.",
+      "narration": "Fuel around the pump is what cools it.",
       "visualPrompt": "Wide shot of a car engine bay at idle, subtle heat shimmer above the engine, static camera, cool ambient light",
       "stockSearchTerms": ["car engine bay idling heat shimmer", "automotive engine compartment running"]
     },
     {
+      "onScreenText": "ONE CLUE ONLY",
       "index": 5,
       "role": "CTA",
       "windowSec": [18, 22],
-      "narration": "One whine isn't a diagnosis. Stop by and we'll check it before it leaves you stranded.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "narration": "One whine is not a diagnosis.",
+      "visualPrompt": "Close-up of the same dash cluster in the same framing, the fuel needle now sitting steady and high, warm ambient dash glow, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

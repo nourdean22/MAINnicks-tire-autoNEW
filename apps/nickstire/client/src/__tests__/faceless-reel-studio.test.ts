@@ -202,7 +202,7 @@ describe("structure validators", () => {
     expect(validateBeatCount(gappy).ok).toBe(false);
   });
 
-  it("enforces the 15-22 second band", () => {
+  it("enforces the declared duration band, whatever it currently is", () => {
     expect(validateReelLengthTarget(sample().storyboardBeats).ok).toBe(true);
     const short = structuredClone(sample().storyboardBeats).map((b) => ({ ...b, startSecond: b.startSecond / 2, endSecond: b.endSecond / 2 }));
     expect(validateReelLengthTarget(short).ok).toBe(false);
@@ -261,7 +261,13 @@ describe("prompt engine", () => {
   it("voiceover is a HARD requirement (three straight briefs shipped silent while it was optional)", () => {
     const p = buildFacelessReelSystemPrompt({ mode: "asset_prep", factBucket: "myth_buster" });
     expect(p).toContain("voiceoverScript is REQUIRED and must not be empty");
-    expect(p).toContain("38-48 words");
+    // The fixed 38-48 range is GONE (review P2 on #2171): it conflicted with the
+    // preflight gate, which budgets against the RENDERED video. A 4-beat reel's
+    // budget is below the old 38-word minimum, so the contract demanded
+    // something no legal 4-beat brief could satisfy. The prompt now states a
+    // per-beat-count budget instead.
+    expect(p).toContain("WORD BUDGET IS A FUNCTION OF YOUR BEAT COUNT");
+    expect(p).toMatch(/- \d+ beats -> \d+s of video -> \d+ words/);
     expect(p).not.toContain("optional VO");
   });
 
@@ -294,7 +300,13 @@ describe("prompt engine", () => {
       expect(p, `missing ${section}`).toContain(section);
     }
     expect(p).toContain("FACELESS");
-    expect(p).toContain("15-22 seconds");
+    // Derived, not a literal. This read "15-22 seconds" and broke the moment the
+    // operator raised the ceiling to 35s — a test failing for a reason unrelated
+    // to its subject (it checks that the prompt HAS a format contract, not what
+    // the band happens to be this quarter).
+    expect(p).toContain(
+      `${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds} seconds total`,
+    );
   });
 
   it("threads proprietary evidence when provided", () => {
@@ -592,7 +604,13 @@ describe("builders", () => {
     }
     // Timing speaks the renderer truth per beat: 4s source, trim to storyboard
     // length, action completes before the settle window (trim - min(0.6, 20%)).
-    for (const p of pack) expect(p.prompt).toContain("Generate a four-second source clip");
+    // Derived. This pinned the ENGLISH WORD "four-second" while the trim it
+    // describes was a separate literal — so the prompt could ask for one length
+    // and the assembler clamp to another with nothing to catch it. Both now come
+    // from REEL_OUTPUT_RULES.maxClipSeconds.
+    for (const p of pack) {
+      expect(p.prompt).toContain(`Generate a ${REEL_OUTPUT_RULES.maxClipSeconds}-second source clip`);
+    }
     const beats = sample().storyboardBeats;
     pack.forEach((p, i) => {
       const trim = Math.min(4, Math.max(0.8, beats[i].endSecond - beats[i].startSecond));

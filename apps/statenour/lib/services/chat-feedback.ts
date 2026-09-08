@@ -24,6 +24,7 @@
  *   · unresolved id  → MessageFeedbackNotFoundError (route 404)
  */
 
+import { sendLangfuseScore } from "@/lib/observability/langfuse-scores";
 import { prisma } from "@/lib/prisma";
 
 /** Thrown when the score isn't -1 / 0 / 1 / null. Route → 400. */
@@ -139,6 +140,10 @@ export async function recordMessageFeedback(
       traceId: typeof usage.traceId === "string" ? usage.traceId : null,
       at: new Date().toISOString(),
     };
+
+    // U6 (2026-09-08) · the same verdict reaches Langfuse as a score on the
+    // turn's trace, so prompt/model quality can be asked THERE. Fire-and-forget.
+    void sendLangfuseScore({ traceId: payload.traceId, name: "operator_thumb", value: nextScore, comment: reason ?? undefined });
 
     // Brain memory · today's contextual recall reads this.
     void prisma.brainMemory

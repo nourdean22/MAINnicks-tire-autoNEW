@@ -100,7 +100,11 @@ export default function MasteryLayout({
             button"). Nothing padded the TOP (only the bottom chrome was safe-area
             aware). pt-[env(safe-area-inset-top)] pushes content clear of the
             status bar; it resolves to 0 where there's no inset (e.g. desktop). */}
-        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)]">
+        {/* md:pr-[var(--nick-fab-lane,0px)] · 2026-09-07 · pages that mount
+            NickSidePane set --nick-fab-lane on <html> so content never scrolls
+            under the fixed FAB at the bottom-right (the ANSWER NOW / capture "+"
+            collisions). 0px everywhere else. See components/mastery/nick-side-pane.tsx. */}
+        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)]">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and

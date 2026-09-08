@@ -1,4 +1,5 @@
 {
+  "loopIdea": "The reel closes by pulling back to the identical dark dashboard framing it opens on, only with the small indicator lights now lit, so a replay drops into that same composition with them unlit and reads as one continuous cycle of them filling in.",
   "id": "manual-2026-08-20-echeck-readiness-monitors",
   "createdAt": "2026-08-20",
   "status": "needs_review",
@@ -62,7 +63,7 @@
       "endSecond": 3,
       "visual": "Dark car dashboard interior at night, all indicator lights unlit, calm and still",
       "motion": "Slow static hold, no camera movement",
-      "onScreenText": "NO LIGHT. NO WORRIES... RIGHT?",
+      "onScreenText": "E-CHECK FAILS CARS WITH THE LIGHT OFF.",
       "purpose": "Hook — the familiar false-safe moment",
       "audioCue": "Low ambient engine idle hum",
       "safeZoneNotes": "Text centered, clear of top ~250px and bottom ~200px IG UI zones"

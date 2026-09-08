@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { promises as fs, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -93,6 +93,83 @@ describe.skipIf(!hasFfmpeg)("frame extraction (real ffmpeg, synthesized video)",
     expect(b1).not.toBe(b2);
     expect(b2).not.toBe(b3);
   }, 60_000);
+
+  // 2026-09-08: the container's (newer) ffmpeg mjpeg encoder REFUSES a
+  // limited-range yuv420p master — "Non full-range YUV is non-standard" — unless
+  // `-strict unofficial`; every extraction died with exit 234, rendered QA read
+  // "unavailable", and the publish door held the reel. An older ffmpeg accepts
+  // it silently, so a behavioural run cannot reproduce the failure everywhere.
+  // Therefore two checks: the behavioural one (limited-range master, explicit
+  // tv range, must extract) and a source canary that discriminates on every
+  // ffmpeg by asserting the flag is present in BOTH jpeg-writing calls.
+  it("extracts frames from an explicitly LIMITED-RANGE master (the shape the container refused)", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-tvrange-"));
+    const mp4 = path.join(dir, "tvrange.mp4");
+    const mk = spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error",
+      "-f", "lavfi", "-i", "color=c=red:s=270x480:d=1:r=30",
+      "-f", "lavfi", "-i", "color=c=blue:s=270x480:d=1:r=30",
+      "-filter_complex", "[0:v][1:v]concat=n=2:v=1[out]",
+      "-map", "[out]", "-pix_fmt", "yuv420p", "-color_range", "tv", "-y", mp4,
+    ]);
+    expect(mk.status).toBe(0);
+    const beats = [
+      { beatNumber: 1, startSecond: 0, endSecond: 1 },
+      { beatNumber: 2, startSecond: 1, endSecond: 2 },
+    ];
+    const frames = await extractReelFrames(mp4, beats, dir);
+    expect(frames.map((f) => f.label)).toEqual(["first", "beat1", "beat2", "final"]);
+    const sizes = await Promise.all(frames.map(async (f) => (await fs.stat(f.path)).size));
+    for (const s of sizes) expect(s).toBeGreaterThan(500);
+  }, 60_000);
+});
+
+describe.skipIf(!hasFfmpeg)("frame timestamps are clamped to the RENDERED duration", () => {
+  // 2026-09-08, job 1890001: the brief declared beats to ~29 s, the master was
+  // 22 s, beat 5's midpoint and the final frame fell past the end, ffmpeg wrote
+  // nothing, and the critic reported ENOENT → "skipped" → publish door held.
+  it("a brief declaring beats past the end still yields every frame, from inside the master", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-clamp-"));
+    const mp4 = path.join(dir, "short.mp4");
+    const mk = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=270x480:d=3:r=30", "-pix_fmt", "yuv420p", "-y", mp4]);
+    expect(mk.status).toBe(0);
+    const beats = [
+      { beatNumber: 1, startSecond: 0, endSecond: 10 },
+      { beatNumber: 2, startSecond: 10, endSecond: 29 }, // midpoint 19.5 s on a 3 s master
+    ];
+    const frames = await extractReelFrames(mp4, beats, dir);
+    expect(frames.map((f) => f.label)).toEqual(["first", "beat1", "beat2", "final"]);
+    for (const f of frames) {
+      expect(f.timestamp).toBeLessThan(3);
+      expect((await fs.stat(f.path)).size).toBeGreaterThan(500);
+    }
+  }, 60_000);
+
+  it("POSITIVE CONTROL: without clamping, a -ss past the end produces no file (the exact prod failure)", () => {
+    const dir = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=64x64:d=1:r=30", "-pix_fmt", "yuv420p", "-y", path.join(os.tmpdir(), "rqa-eof.mp4")]);
+    expect(dir.status).toBe(0);
+    const out = path.join(os.tmpdir(), "rqa-eof.jpg");
+    spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-ss", "25", "-i", path.join(os.tmpdir(), "rqa-eof.mp4"), "-frames:v", "1", "-q:v", "3", "-strict", "unofficial", "-y", out]);
+    expect(spawnSync("node", ["-e", `process.exit(require('fs').existsSync(${JSON.stringify(out)}) && require('fs').statSync(${JSON.stringify(out)}).size > 0 ? 1 : 0)`]).status).toBe(0);
+  }, 30_000);
+});
+
+describe("mjpeg range guard is present in every jpeg-writing ffmpeg call (source canary)", () => {
+  const src = readFileSync(path.join(process.cwd(), "server/services/renderedQa.ts"), "utf8");
+  // Line-based on purpose: the contact-sheet call carries "[out]" inside its
+  // filter string, which defeats any bracket-balanced regex.
+  const jpegCalls = (s: string) => s.split("\n").filter((l) => l.includes("runFfmpeg(") && l.includes('"-q:v", "3"'));
+  it("both jpeg calls pass -strict unofficial", () => {
+    const calls = jpegCalls(src);
+    expect(calls.length, "expected the frame-extraction and contact-sheet calls").toBe(2);
+    for (const c of calls) expect(c).toMatch(/"-strict", "unofficial"/);
+  });
+  it("PLANTED CANARY: removing the flag from either call is caught", () => {
+    const broken = src.replace('"-strict", "unofficial", "-y", file', '"-y", file');
+    expect(broken).not.toBe(src);
+    const calls = jpegCalls(broken);
+    expect(calls.some((c) => !/"-strict", "unofficial"/.test(c))).toBe(true);
+  });
 });
 
 describe("evaluateRenderedReel (mocked vision seam)", () => {

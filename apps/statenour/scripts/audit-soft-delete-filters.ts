@@ -76,6 +76,12 @@ interface Finding {
  */
 const ALLOWLIST: Array<{ file: string; contains: string; reason: string }> = [
   {
+    file: "lib/services/brain-wisdom.ts",
+    contains: "_sum: { seenCount: true }",
+    reason:
+      "buildWisdomFeed's aggregate and its findMany share ONE `where` const that carries `deletedAt: null` (declared just above the Promise.all) so the corpus count can never drift from the page it truncates. The filter is present; this scanner only sees literal where-clauses. Verified 2026-09-07.",
+  },
+  {
     file: "lib/services/system-pages.ts",
     contains: "modelCounts",
     reason:

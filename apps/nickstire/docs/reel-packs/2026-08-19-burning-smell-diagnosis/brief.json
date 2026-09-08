@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat returns to the same first-person view through the windshield with the road still moving ahead, so a replay continues the drive instead of restarting it.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "That smell while driving: coolant vs rubber vs electrical",
-  "campaignKeyword": "SMELLCHECK",
+  "campaignKeyword": "BATTERY",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -10,8 +11,8 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "That smell while you're driving? It's telling you something specific.",
-      "onScreenText": "That smell while driving? It's telling you something.",
+      "narration": "That smell while driving is one clue.",
+      "onScreenText": "That sweet smell is coolant.",
       "visual": "First-person driving POV, dashboard and road ahead through windshield, daylight, slow steady forward motion, subtle camera handheld sway, no people visible in frame (hands/steering wheel excluded per negative prompt)",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -20,7 +21,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Sweet, syrupy smell? That can point to a coolant leak.",
+      "narration": "Sweet and syrupy? Can point to a coolant leak.",
       "onScreenText": "Sweet, syrupy smell?",
       "visual": "Close-up of a car engine bay coolant reservoir with faint steam or vapor rising, shallow focus, slow camera push-in, warm engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +31,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Burning rubber smell? That may indicate a belt or hose rubbing somewhere it shouldn't.",
+      "narration": "Burning rubber? May indicate a belt or hose rubbing.",
       "onScreenText": "Burning rubber smell?",
       "visual": "Macro close-up of a serpentine belt running around a pulley in an engine bay, subtle motion blur implying rotation, dim garage lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +41,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Hot electrical or burning plastic smell? Worth checking right away — that's not one to guess on.",
+      "narration": "Hot plastic or electrical? Worth checking right away.",
       "onScreenText": "Hot electrical or burning plastic?",
       "visual": "Close-up of a car's engine-bay wiring harness or fuse box, static camera with subtle vibration, dim lighting with a single work-light glow, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,9 +51,9 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Guessing costs you a tow. Nick's Tire and Auto will sniff it out, free. Link in bio.",
-      "onScreenText": "We'll sniff it out free. Link in bio.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, diagnostic equipment and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "narration": "The smell narrows it to one system.",
+      "onScreenText": "EACH SMELL POINTS AT A DIFFERENT SYSTEM.",
+      "visual": "First-person driving view over the same dashboard with the road running ahead through the windshield, daylight, slow steady forward motion, subtle camera handheld sway, the air over the dash clear now, no people visible in frame",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

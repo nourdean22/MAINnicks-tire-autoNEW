@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel closes on the same overhead macro of the driveway concrete it opened on, the amber puddle now gone and only a dried ring left, so a replay drops straight back onto the same slab of pavement as it fills again.",
+  "campaignKeyword": "ALIGNMENT",
   "topic": "power-steering-fluid-leak-color",
   "producedBy": "scheduled-task",
   "generatedAt": "2026-08-28",
@@ -18,62 +20,54 @@
   "cta": "Notice a puddle like that? Stop by and we'll take a look.",
   "beats": [
     {
-      "index": 1,
-      "label": "hook",
-      "startSeconds": 0,
-      "endSeconds": 3,
-      "vo": "That puddle under your car? The color tells you everything.",
-      "prompt": "Extreme close-up of a small reddish-amber fluid puddle on dry gray asphalt in daylight, shallow depth of field, camera slowly pushes in, photorealistic, automotive documentary style, no people, no text."
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "Overhead macro of a spreading puddle of thin amber fluid on grey driveway concrete under the front of a parked car, morning light catching the sheen, 9:16 vertical framing",
+      "motion": "slow push-in on the spreading edge",
+      "onScreenText": "Read the puddle",
+      "narration": "That puddle? Color tells you a lot."
     },
     {
-      "index": 2,
-      "label": "setup",
-      "startSeconds": 3,
-      "endSeconds": 8,
-      "vo": "Dark and oily — that's engine oil. Green or orange and slippery — coolant. But light amber, almost pinkish red, and thin? That one's easy to miss.",
-      "prompt": "Three small distinct fluid puddles on concrete garage floor side by side — one dark brown/black, one bright green, one light amber-pink — overhead shot, soft natural light, macro detail on liquid sheen, photorealistic, no people, no text."
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Three separate drips beaded on the same grey concrete slab, one dark and oily, one bright green, one pale amber, hard top light, shallow depth of field, 9:16 vertical framing",
+      "motion": "slow slide across the three drips",
+      "onScreenText": "Oil or coolant?",
+      "narration": "Dark and oily is oil, green is coolant."
     },
     {
-      "index": 3,
-      "label": "reveal",
-      "startSeconds": 8,
-      "endSeconds": 16,
-      "vo": "That's power steering fluid. It's thinner than oil, lighter in color, and it usually shows up near the front wheels or under the engine — right where the steering rack lives.",
-      "prompt": "Close-up under the hood of a car, steering rack and fluid reservoir area, a small drip of light amber fluid forming and falling, engine bay detail, photorealistic, documentary lighting, no people, no text."
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "clue",
+      "visual": "Extreme macro of pale amber fluid running down a rubber hose and beading at the low point, almost pink in the light, road film and grit around it, 9:16 vertical framing",
+      "motion": "macro hold, single drop forming and falling",
+      "onScreenText": "Amber and thin",
+      "narration": "Thin, light amber, almost pink, is power steering fluid."
     },
     {
-      "index": 4,
-      "label": "why-it-matters",
-      "startSeconds": 16,
-      "endSeconds": 24,
-      "vo": "Low fluid can mean heavier steering, a whine when you turn, or in some cars, losing power assist altogether. It's one clue — not a guess.",
-      "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text.",
-      "note": "Swapped from a steering-wheel/hands shot to a reservoir-cap insert to stay clear of the standing negative prompt's hands exclusion."
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "payoff",
+      "visual": "Under-car close shot along the steering rack between the front wheels, wet film glistening on the rack boot and the line fittings, work light from below, 9:16 vertical framing",
+      "motion": "slow pan along the rack",
+      "onScreenText": "Front, by the rack",
+      "narration": "It pools near the front wheels by the rack."
     },
     {
-      "index": 5,
-      "label": "what-to-do",
-      "startSeconds": 24,
-      "endSeconds": 30,
-      "vo": "Don't top it off and hope. A leak means fluid's going somewhere — worth having it looked at before it gets worse.",
-      "prompt": "Close-up of a power steering fluid reservoir cap being lifted, fluid level line visible against a translucent reservoir wall, engine bay background softly blurred, photorealistic, no people, no text."
-    },
-    {
-      "index": 6,
-      "label": "cta",
-      "startSeconds": 30,
-      "endSeconds": 33,
-      "vo": "Notice a puddle like that? Stop by and we'll take a look.",
-      "prompt": "Wide shot of a tidy automotive repair shop bay door, daylight, clean and professional, no signage text legible, no people, photorealistic."
-    },
-    {
-      "index": 7,
-      "label": "save-freeze",
-      "startSeconds": 33,
-      "endSeconds": 36,
-      "vo": null,
-      "prompt": "Reuse final frame of beat 2 (three-puddle comparison grid) as a static freeze; no new generation.",
-      "overlayText": "SAVE THIS"
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "save",
+      "visual": "Overhead macro of the same grey driveway concrete under the front of the parked car, the amber puddle gone and only a faint dried ring left on the pavement, morning light catching the dry surface, static hold, 9:16 vertical framing",
+      "motion": "static hold",
+      "onScreenText": "Not just a top up",
+      "narration": "Topping it off is not the fix."
     }
   ],
   "claimSafety": {

@@ -796,7 +796,7 @@ export default function TireFinder() {
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
       <Breadcrumbs items={[{ label: "Tires" }]} />
-      <LocalBusinessSchema includeServices />
+      <LocalBusinessSchema />
       {/* wave-181.13 · Product schema with priceRange (audit "easy
           schema win"). Unlocks Google's Product rich-result eligibility
           for tire-shopping queries. lowPrice 40 = used tire minimum,

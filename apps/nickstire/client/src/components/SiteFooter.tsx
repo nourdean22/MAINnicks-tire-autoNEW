@@ -108,7 +108,7 @@ export default function SiteFooter() {
               <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed max-w-[240px]">
                 {BUSINESS.taglines.meme} Honest auto repair for Cleveland since 2018.
               </p>
-              <p className="mt-3 text-foreground/30 text-[13px] leading-relaxed">
+              <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed">
                 {BUSINESS.address.full}
               </p>
               <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("footer-brand")} className="block mt-1 text-foreground/60 hover:text-foreground/90 text-[13px] transition-colors duration-200">
@@ -290,7 +290,6 @@ export default function SiteFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F] hover:border-[#FDB913]/30 hover:bg-[#FDB913]/[0.02] transition-all"
-                aria-label={`4.9★ · ${BUSINESS.reviews.countDisplay} Google reviews`}
               >
                 <div className="flex items-center gap-1 mb-1.5 text-[#FDB913]">
                   <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
@@ -355,10 +354,10 @@ export default function SiteFooter() {
 
           {/* ─── BOTTOM BAR ─── */}
           <div className="mt-10 pt-6 border-t border-[#2A2A2A] flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-foreground/20 text-[12px]">
+            <p className="text-foreground/55 text-[12px]">
               &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
             </p>
-            <p className="text-foreground/20 text-[12px]">
+            <p className="text-foreground/55 text-[12px]">
               Honest auto repair for Cleveland since 2018
             </p>
           </div>

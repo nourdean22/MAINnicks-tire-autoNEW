@@ -31,6 +31,67 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
 | Checkout copy contradiction ("No charge until we confirm" vs Pay Now) | PR #42/#46 lineage |
 | Phone consistency (216) 862-0005 | `BUSINESS.phone` shared constant |
 
+## Fixed 2026-09-07 (PR #2173 → `f2bcf949d`, program doc `QUALITY-PROGRAM-2026-09-07.md`)
+
+| Item | Evidence |
+|---|---|
+| Soft 404: unknown URL answered 200 with the home title + `index, follow` | `server/_core/spaFallback.ts`; 24 tests incl. real-HTTP wiring |
+| Home HTML cached 24 h (express.static served `/` as a file; every other route was 5 min) | `index: false` in `server/_core/vite.ts` |
+| `og:image` on a CloudFront PNG returning 403; SEOHead default was a 1672×941 WebP | `/og-image.jpg` 1200×630 from both places |
+| Sitemap `lastmod` = today on every URL | omitted for static routes; real `updatedAt` for DB articles |
+| `ai.txt`, `llms-full.txt`, `business-data.json`, 3 `*-schema.json` orphaned + contradicting canon (city "Euclid", oil $39/$69) | deleted; the two txt paths 301 → `/llms.txt` |
+| 21 city pages minted a distinct rated entity with `aggregateRating` twice per page | canonical `@id` reference, no rating |
+| Two `WebSite` nodes on `/` | one, in index.html |
+| CSP `connect-src` blocked three GA4 beacon hosts (probed in real Chrome) | Google's documented wildcards added |
+| Privacy policy never named Meta | sections 5 + 8 rewritten |
+| robots.txt `Crawl-delay: 1` + `?utm_` disallows | `server/_core/robots.ts` + operator switch for training crawlers |
+| Manifest "Book Now" on an FCFS shop, "1685+ reviews", "#1" | rewritten |
+| /emissions meta description 168 > 165 chars | trimmed (163) |
+| Lighthouse: 5 contrast failures, 6 label-in-name mismatches on hero CTAs (+ the footer review link, follow-up PR) | fixed |
+| Admin Shop Pulse rendered a failed shop-floor read as "$0 · SLOW DAY" | "Shop floor · unknown" state |
+
+## Fixed 2026-09-08 (release closure — outside review of the merged program)
+
+- **Billed-sales rolling windows spanned 8 and 31 dates** under "7 days" / "30 days" labels: `salesWindow()`
+  ran `[today−N, tomorrow)`. Now `[today−N, today)` — exactly N completed Eastern days ending yesterday;
+  month-to-date still includes today. Definition version bumped to v2; `shopSales.test.ts` counts the dates
+  across month, year, leap-day and both DST boundaries instead of pinning endpoint literals (the old test
+  pinned an eight-day pair and called it seven).
+- **The prerender regen wrote to production.** `PRERENDER_MODE=true` skips crons, but every rendered page still
+  fired `POST /api/analytics/conversion`, which inserted a `customer_events` row. Guarded (204, no write), and the same guard now covers the other two
+  DB-writing public sinks (`/api/track-abandoned`, `/api/uber-code`), each with a control/canary pair over real
+  HTTP (`server/analyticsPrerenderGuard.test.ts`). Owner item remains: a
+  read-only `DATABASE_URL_PRERENDER_RO` so the credential is the second lock.
+- **Regression tests the fixes lacked:** city-page JSON-LD (no FAQPage, no aggregateRating, `#localbusiness`
+  references, canary-checked); footer Google-reviews link accessible name equals its visible text; share-image
+  parity across index.html, `SEOHead`'s default and the 1200×630 JPEG on disk.
+- **Research corrections in the program doc:** IndexNow participants (Bing, Amazon, Naver, Seznam, Yandex,
+  Yep — not "Bing only"); the BrightLocal study did not cover Perplexity; Yelp prohibits review solicitation;
+  cookie consent recorded as an applicability decision with flip conditions; SPA `page_view` must be confirmed
+  in DebugView before adding an emitter; "you don't pay until you say yes" flagged against the $59.99
+  diagnostic fee for owner confirmation.
+- **Security hardening (follow-up PR):** production `script-src` no longer carries `'unsafe-inline'` — the one
+  inline analytics loader is allowed by sha256 hash, computed at boot from the served `index.html` and pinned
+  identical across all 336 prerendered snapshots by test; `cf-connecting-ip` was a client-chosen rate-limit key
+  while Cloudflare is not in front (rotating it defeated the 10/h form limit — proven, then closed behind
+  `TRUST_CLOUDFLARE_HEADERS`); `/.well-known/security.txt` (RFC 9116) added with a 180-day Expires.
+- **Mobile page top (follow-up PR):** the "StickyTrustBar" was never visible — static at y=0 under the fixed nav
+  cluster (membership band when open, red closed-banner when closed; measured with `elementFromPoint`) — and a
+  phone showed no address or phone number above the fold. Replaced by `ShopStrip` inside the fixed cluster
+  (open/closed + "Closes 6 PM"/"Opens tomorrow 8 AM", address → directions, `tel:`, rating); the membership band
+  is desktop-only now; the fixed red closed-banner (which also pushed the nav down 56px for a 37px strip) is gone,
+  its Emergency button moved into the strip and reaches the same form through a window event. `shopHours` was the
+  visitor's local clock with a second hard-coded schedule — now Eastern time from `BUSINESS.hours.structured`.
+- **Service pages:** a written-estimate ticket after the pricing tiers (the page's own tiers, verbatim; approval
+  line; Ohio repair-rule sentence). A same-day pass paraphrased the AEO default's "you don't pay until you say
+  yes" as a fee-safety fix; **reverted** — it is the canonical Repair Haiku (brand-voice kernel, SMS, voice, 100+
+  pages) and the diagnostic fee is itself quoted in writing before it is charged. Any change to that promise is the
+  owner's, made in `shared/voice.ts`.
+- **Promo toast over the hero on phones (follow-up PR):** `NotificationBar` rendered from the first frame at a fixed
+  84px above the mobile CTA bar, i.e. on top of the hero's "Talk to a human" card at 375×812. On phones it now
+  waits until the visitor scrolls past 60% of the first screen (control/canary test); desktop unchanged. Still
+  open: the emergency + chat floating buttons overlap the cards' right edge while the shop is closed.
+
 ## Open (honest list)
 
 | Item | Detail | Size |
@@ -40,9 +101,8 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
 | GBP access chain | API project quota=0 (access form) + token granted by nourdean22 which manages zero businesses (re-Connect as moeseuclid@gmail.com). Blocks gbp.performance, the map-pack scoreboard, and review ingest verification. | operator |
 | Tire-silo consolidation | GATED: read the hub→silo link test ≈ 2026-09-16 (decision rule in war-room artifact §11). Do not 301 anything before that read. | decision + M PR |
 | Sitewide title unification (PR-3) | prerender overwrites desc/og unconditionally from registry but <title> only on a default-list match — /tires, /brakes, /financing SEOHead titles still diverge from registry og:title. Needs its own protected-core PR + validator rule. | M PR |
-| llms.txt canon derivation | dynamic handler verified canon-correct 2026-08-19 but hardcoded (drift risk); derive from BUSINESS + routes. llms-full.txt is static + hand-maintained. | S-M PR |
+| llms.txt canon derivation | dynamic handler verified canon-correct 2026-08-19 but hardcoded (drift risk); derive from BUSINESS + routes. (llms-full.txt + ai.txt were RETIRED 2026-09-07 — they had drifted from canon; `/llms.txt` is the only facts file now.) | S-M PR |
 | /tires search size duplication | input self-concatenates → cache miss → silent catalog fallback (live QA 2026-06-10). In `TireFinder.tsx` — owned by open PR #43's author; do not collide | small fix in #43's domain |
-| /emissions meta description 168 > 165 chars | route validator advisory warn | one line |
 | Off-palette hardcoded hex | DiagnosePage, SharePage, TrackJob, WomensSafety | hygiene PR |
 | Chrome pages without PageLayout | TrackJob, Booking, CustomerPortal, Landing — possibly intentional | owner call |
 | Google Reviews API / Place ID reliability | code exists (`server/google-reviews.ts`); prod failure rate unverified — check Railway logs for `[GoogleReviews] Failed to fetch` | verify then fix |

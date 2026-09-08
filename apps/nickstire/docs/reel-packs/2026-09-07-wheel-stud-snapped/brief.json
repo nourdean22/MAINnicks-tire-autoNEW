@@ -1,4 +1,7 @@
 {
+  "loopIdea": "The reel closes on the identical rim macro it opened on, same harsh directional shop light and slow push-in, with the empty lug seat now filled by a seated nut, so a replay lands back on the same wheel.",
+  "campaignKeyword": "VIBRATION",
+  "mechanicTruth": "A wheel is held on by the clamping force of all its studs together, so when one shears the remaining studs carry its share unevenly; that is why a lug nut that keeps working loose after being torqued can point to a broken stud rather than a bad nut.",
   "mode": "INTELLIGENCE",
   "date": "2026-09-07",
   "slug": "wheel-stud-snapped",
@@ -48,10 +51,10 @@
       "voiceover": "Caught early, a snapped stud is a quick fix — worth checking before it gets worse."
     },
     {
-      "index": "SAVE",
+      "index": 6,
       "startSec": 18,
       "endSec": 21,
-      "visualPrompt": "Static end card: shop exterior/sign or logo card, warm lighting, no motion required beyond ambient.",
+      "visualPrompt": "Macro, shallow depth of field: the same wheel rim close-up under the same harsh directional shop light, the once empty lug seat now filled by a lug nut seated flush against the rim face, static camera with a slow push-in.",
       "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
       "voiceover": "Nick's Tire and Auto — stop by and we'll take a look."
     }

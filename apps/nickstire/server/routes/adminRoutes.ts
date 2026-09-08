@@ -259,6 +259,39 @@ export function registerAdminRoutes(app: Express): void {
         if (job.status !== "assembled") { res.status(409).json({ error: `job not assembled (status=${job.status})` }); return; }
         if (!job.mp4Url) { res.status(409).json({ error: "job has no mp4Url" }); return; }
 
+        // ── HUMAN CONSENT: NOT FORCEABLE (2026-09-07) ──
+        //
+        // This door published to the live Instagram account without ever
+        // calling reelApprovalProblem. The cron has that gate; this route —
+        // which posts to the SAME account — did not, so `reel-canary` was a
+        // complete bypass of the approval system, and `force=true` additionally
+        // overrode the quality gate AND the stock guard inside it.
+        //
+        // The approval gate is checked BEFORE the quality gate and is
+        // deliberately NOT force-overridable. The distinction is what `force`
+        // legitimately means: an operator may override a QUALITY OPINION about
+        // their own reel, because that is their judgement to make. They may not
+        // override the record of WHO CONSENTED to publish these exact caption
+        // bytes and this exact asset — the approval binds to content precisely
+        // so an edit cannot ride on an old yes, and a flag that skipped it would
+        // make the whole ledger decorative.
+        const captionForApproval = typeof job.caption === "string" ? job.caption : "";
+        if (!captionForApproval.trim()) {
+          res.status(409).json({ error: "job has no caption — nothing to approve or publish" });
+          return;
+        }
+        const { reelApprovalProblem } = await import("../services/reelApproval");
+        const approvalProblem = await reelApprovalProblem({ jobId, caption: captionForApproval, videoUrl: job.mp4Url });
+        if (approvalProblem) {
+          res.status(412).json({
+            error: "no live human approval for this exact caption and asset",
+            code: approvalProblem.code,
+            reason: approvalProblem.reason,
+            hint: "approve this job first (instagramAdmin.approveReelPublish). force=true does NOT override consent.",
+          });
+          return;
+        }
+
         // M11 gate ENFORCED at publish via the CONSOLIDATED gate (same one the
         // autonomous doors use). Refuse a real non-"proceed" gate unless the
         // operator explicitly forces. QA-unavailable is allowed (g.allowed=true).

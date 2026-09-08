@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same cap seated on the same reservoir it opened on with the push-in matched, so a replay picks that move up already underway.",
   "topic": "Radiator cap pressure test: coolant loss with no visible leak",
-  "campaignKeyword": "RADCAP",
+  "campaignKeyword": "PRESSURE",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-21",
   "durationSec": 28,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "COOLANT DOWN NO PUDDLE",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Coolant keeps disappearing and there's no puddle anywhere under the car.",
+      "narration": "Coolant keeps disappearing with no puddle under the car.",
       "visualPrompt": "Macro shot of a radiator cap on top of a coolant reservoir, slow push-in, neutral garage lighting, condensation beading on nearby metal",
       "stockSearchTerms": ["radiator cap closeup", "coolant reservoir cap macro"]
     },
     {
+      "onScreenText": "CHECK THE CAP FIRST",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "It might not be a hose or a gasket. Check the radiator cap first.",
+      "narration": "Check the radiator cap first.",
       "visualPrompt": "Extreme close-up of a radiator cap being lifted slightly to reveal the rubber pressure seal underneath, static camera, soft daylight",
       "stockSearchTerms": ["radiator cap seal closeup", "radiator cap rubber gasket macro"]
     },
     {
+      "onScreenText": "THE CAP HOLDS PRESSURE",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "The cap holds pressure in the system. A worn seal or a weak spring lets coolant boil off past the overflow before you ever see a drop on the ground.",
+      "narration": "The cap holds pressure in the system.",
       "visualPrompt": "Macro of a radiator cap's spring-loaded pressure valve mechanism, slow orbital camera move highlighting the spring and rubber seal, dim garage light",
       "stockSearchTerms": ["radiator cap pressure valve spring macro", "cooling system pressure cap mechanism"]
     },
     {
+      "onScreenText": "WORN SEAL BOILS OFF",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "A cap that won't hold pressure can look brand new and still be the reason you keep topping off.",
+      "narration": "A worn seal lets coolant boil off past the overflow.",
       "visualPrompt": "Rack focus from a clean, new-looking radiator cap in the foreground to an overflow reservoir with a low coolant line in the background, neutral shop lighting",
       "stockSearchTerms": ["radiator overflow reservoir low coolant level", "coolant reservoir line closeup"]
     },
     {
+      "onScreenText": "LOOKS NEW STILL FAILS",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Nick's Tire and Auto pressure-tests your cooling system free with any inspection. Link in bio.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "A cap can look new and still not hold pressure.",
+      "visualPrompt": "Macro shot of the same radiator cap seated on the coolant reservoir from the identical angle, the rubber seal pressed flat and the neck around it dry, slow push-in, neutral garage lighting, condensation beading on nearby metal",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

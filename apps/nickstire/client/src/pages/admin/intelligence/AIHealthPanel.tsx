@@ -33,11 +33,21 @@ export function AIHealthPanel() {
   }
 
   const { score, topAlert, topOpportunity, topRisk, scoreBreakdown, failures } = report.summary;
+  // `scoreReliable` is optional here so an older cached report still renders.
+  const scoreReliable = report.summary.scoreReliable !== false;
+  const enginesFailed = report.summary.enginesFailed ?? 0;
+  const enginesTotal = report.summary.enginesTotal ?? 0;
 
   // Determine score color
   let scoreColor = "text-emerald-400";
   if (score < 50) scoreColor = "text-red-400";
   else if (score < 70) scoreColor = "text-yellow-400";
+  // An unreliable score is not a LOW score. The scale starts at a baseline of
+  // 50 and each block is `if (engine)`, so a dead engine is absent from the
+  // total rather than penalised — a total outage still renders 50/100, which
+  // is amber-to-green on this scale and reads as "fine". Colour must not
+  // imply health that was never measured.
+  if (!scoreReliable) scoreColor = "text-amber-400";
 
   return (
     <div className="stat-card p-0 overflow-hidden border-indigo-500/20">
@@ -48,10 +58,22 @@ export function AIHealthPanel() {
             <h2 className="text-sm font-black text-indigo-400 tracking-wide uppercase">AI Health & Opportunities</h2>
           </div>
           <div className="text-right">
-            <div className={`text-3xl font-black ${scoreColor}`}>{Math.round(score)}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Health Score</div>
+            <div className={`text-3xl font-black ${scoreColor}`}>{scoreReliable ? Math.round(score) : "—"}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              {scoreReliable ? "Health Score" : "Score unavailable"}
+            </div>
           </div>
         </div>
+
+        {/* An outage is stated where the number would be, not hidden on a
+            collapsed accordion label. UNKNOWN, never a reassuring 50. */}
+        {!scoreReliable && (
+          <div role="alert" className="mb-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+            <strong>{enginesFailed} of {enginesTotal} intelligence engines failed.</strong>{" "}
+            The health score is UNKNOWN, not average — it starts at a baseline of 50 and a dead
+            engine is simply absent from it, so a number here would describe silence.
+          </div>
+        )}
 
         <div className="space-y-3 mt-4">
           <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">

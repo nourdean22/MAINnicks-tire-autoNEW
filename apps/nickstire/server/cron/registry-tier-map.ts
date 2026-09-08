@@ -239,37 +239,25 @@ export interface ManualTriggerStagedJob {
 }
 
 export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
-  {
-    name: "reel-pipeline",
-    why:
-      "NOT staged for flakiness - staged because the only Higgsfield lane funded by the " +
-      "operator's paid subscription requires a human browser login. Verified on his account " +
-      "2026-08-29: consumer/Ultra holds 1,934.62 credits and is what the CLI session lane spends; " +
-      "Higgsfield Cloud API (Authorization: Key ID:SECRET) is a SEPARATE paid product holding ZERO " +
-      "credits, with no payment method and 0 API calls lifetime despite 2 keys already existing. " +
-      "The Ultra subscription does not fund the API lane, so the API keys are not an escape hatch - " +
-      "provisioning them would authenticate cleanly and then fail at generation on a zero balance. " +
-      "The session lane needs `higgsfield auth login` in a browser, which no cron can do, so " +
-      "generation becomes a human-triggered batch instead of an unattended job that dies between logins.",
-    promote:
-      "the LEDGER fact changes, not the failure rate: either Higgsfield Cloud API credits are " +
-      "purchased and HIGGSFIELD_API_KEY_ID/SECRET are set (higgsfieldStudio prefers that lane " +
-      "automatically when configured), or Higgsfield ships a non-interactive credential for the " +
-      "consumer ledger. Promoting because 'it looks stable now' re-creates a cron that dies " +
-      "silently the next time the refresh token is revoked.",
-  },
-  {
-    name: "higgsfield-session-keepalive",
-    why:
-      "exists only to rotate the CLI session token before reel-pipeline renders. With generation " +
-      "staged there is nothing to keep alive between batches, and left on schedule it re-fails every " +
-      "15 minutes against the same dead session - 296 failed runs in 72h measured 2026-08-29, which " +
-      "is half of the ~50 Telegram alerts delivered in three days. Staging one of this pair without " +
-      "the other is the half-done shape review caught on PR #1830.",
-    promote:
-      "promote together with reel-pipeline and never before it - a keepalive for a job that does not " +
-      "run is pure alert noise pointed at a session nothing is using.",
-  },
+  // reel-pipeline WAS here. Promoted 2026-09-07 and removed together with its
+  // `enabled: false`, as this file's own instruction requires — but NOT because
+  // the ledger fact changed. The CLI session is still dead and the MCP is still
+  // OAuth-only (both re-verified that day). It is promoted because the gate
+  // moved from a human's attention to the credential itself: `requiresEnv:
+  // "HIGGSFIELD_API_KEY_ID"` keeps it dormant, logging a legible skip, until the
+  // non-interactive lane is funded — and live the moment it is, with no deploy.
+  // A staged job needs a human to notice; a requiresEnv job does not.
+  // higgsfield-session-keepalive WAS here (staged 2026-08-29, "decoupled" 2026-09-07).
+  // Promoted 2026-09-08 and removed together with its `enabled: false`, as this
+  // file requires. Its entry rested on "reel-pipeline is gated on
+  // HIGGSFIELD_API_KEY_ID, so there is no unattended session to keep alive" —
+  // that gate was removed in #2170 and production ran the CLI session lane
+  // unattended the whole time: the 2026-08-30 failures read "Higgsfield CLI
+  // exited ... Session expired", and nothing rendered for nine days. The
+  // keepalive is the only in-process refresher of that session. Its failure
+  // mode is loud (the handler throws), so the observer alerts instead of the
+  // outage going unnoticed — which is the entire reason to have it scheduled.
+  // Pinned by higgsfieldKeepalivePromoted.test.ts.
   {
     name: "campaign-resume",
     why:

@@ -18,6 +18,7 @@
  */
 
 import { brainTools } from "@/lib/ai/tools/brain";
+import { sinkPolicyGate } from "@/lib/tools/sink-policy";
 import { tasksTools } from "@/lib/ai/tools/tasks";
 import { businessTools } from "@/lib/ai/tools/business";
 import { contentTools } from "@/lib/ai/tools/content";
@@ -140,6 +141,11 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
       // gets the violated constraint and a single-retry instruction, and
       // tool-telemetry still counts the failure via the `error` key.
       execute: async (args: any, options?: unknown) => {
+        // U4 sink policy (review on #2198): in a turn tainted by external content an
+        // external side effect is queued for a human here, at the boundary every
+        // catalog tool crosses -- guardian-wrapped or not.
+        const refused = await sinkPolicyGate(name, args);
+        if (refused) return refused;
         let res: any;
         const budgetMs = TOOL_TIME_BUDGET_MS[name] ?? DEFAULT_TOOL_TIMEOUT_MS;
         let timer: ReturnType<typeof setTimeout> | undefined;

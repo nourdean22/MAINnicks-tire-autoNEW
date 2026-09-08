@@ -231,14 +231,14 @@ render-time gate is `BLOCKED`, not silently omitted:
 
 **Primary caption:**
 
-> Your battery's real age isn't on the dashboard — it's stamped on the case.
+> Your battery's real age isn't on the dashboard - it's stamped on the case.
 >
 > Look for a sticker with a letter and a number: the letter is the month,
 > the number is the year it was made. Three to five years is the normal
 > lifespan, no matter what a charge gauge says. A weak battery usually
-> won't warn you — it just quits on the coldest morning.
+> won't warn you - it just quits on the coldest morning.
 >
-> We'll test it free while you wait.
+> A quick load test tells you where it actually stands.
 >
 > #cartips #batterylife #clevelandohio #tireshop
 

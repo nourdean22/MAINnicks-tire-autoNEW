@@ -19,17 +19,20 @@
     <meta name="google-site-verification" content="tAYYpz7iMFT9aJNrmPbGYBn3SWpgVn7ENQgohyVvvbw" />
 
     <!-- Open Graph / Facebook — updated 2026-04-24 to match 'Cleveland Tough'
-         brand positioning. SVG OG card (/og-image.svg) is a server-side
-         generated fallback; external PNG still primary for broader compat. -->
+         brand positioning. -->
     <meta property="og:type" content="website" />
     <!-- 2026-05-06 audit fix · OG/Twitter title + description rewritten
-         to match FCFS positioning. og:image still on the legacy
-         CloudFront PNG; action item: ship a new STOREFRONT_HERO + "Pull
-         Up for Tires. Drop Off for Repairs." overlay card. -->
+         to match FCFS positioning.
+         2026-09-07 · og:image moved on-domain. The legacy CloudFront PNG had
+         started answering HTTP 403 (measured live), so every shared link
+         rendered with NO image. /og-image.jpg is the real storefront photo
+         (photos/shop-exterior-hero-wide-sign-bays.webp) cropped to 1200x630
+         JPEG — same-origin, no third-party bucket to expire. -->
     <meta property="og:url" content="https://nickstire.org/" />
     <meta property="og:title" content="Pull Up for Tires. Drop Off for Repairs. | Nick's Tire & Auto Cleveland" />
     <meta property="og:description" content="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $25, most sizes $40-80 installed. Walk in 7 days. Written estimate before any wrench moves. Payment programs available." />
-    <meta property="og:image" content="https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png" />
+    <meta property="og:image" content="https://nickstire.org/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Nick's Tire & Auto on Euclid Ave Cleveland — pull up for tires, drop off for repairs" />
@@ -40,7 +43,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Pull Up for Tires. Drop Off for Repairs." />
     <meta name="twitter:description" content="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $25, most sizes $40-80 installed. Walk in 7 days. (216) 862-0005." />
-    <meta name="twitter:image" content="https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png" />
+    <meta name="twitter:image" content="https://nickstire.org/og-image.jpg" />
     <meta name="twitter:image:alt" content="Nick's Tire & Auto Euclid Ave Cleveland — pull up, drop off, no appointments" />
 
     <!-- Favicon — SVG takes precedence in modern browsers, PNG fallback for legacy -->
@@ -87,12 +90,17 @@
          renders its OWN FAQPage schema scoped to that page's questions. The
          shop-wide FAQ now lives only on the dedicated /faq route. -->
 
-    <!-- Structured Data: WebSite with SearchAction -->
+    <!-- Structured Data: WebSite with SearchAction. This is the ONLY WebSite
+         node on the site (Home.tsx used to emit a second, conflicting one —
+         removed 2026-09-07). /tires?size= is a real, working query param
+         (TireFinderV2 reads it). Google retired the sitelinks-searchbox rich
+         result in Nov 2024, so the SearchAction is harmless, not a lever. -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
       "name": "Nick's Tire & Auto",
+      "alternateName": ["Nicks Tire", "Nick's Tire", "Nicks Tires", "Nicks Tire and Auto"],
       "url": "https://nickstire.org",
       "potentialAction": {
         "@type": "SearchAction",

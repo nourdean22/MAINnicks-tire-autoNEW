@@ -196,7 +196,7 @@ function MissionsPageInner() {
 
   return (
     <MissionDispatchProvider actions={actions}>
-      <div className="mx-auto w-full max-w-5xl space-y-4">
+      <div className="mx-auto w-full max-w-5xl space-y-4 xl:max-w-[1360px]">
         {!executionModeActive && (
           <PageHeader
             eyebrow="Execution Deck"
@@ -252,7 +252,9 @@ function MissionsPageInner() {
             </div>
           )
         ) : (
-          <>
+          // Section 5.4 (2026-09-08): deck on the left, waiting + evidence as a rail at >=1280px.
+          <div className="space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start xl:gap-8 xl:space-y-0" data-missions-layout="deck">
+          <div className="min-w-0 space-y-4" data-missions-column="deck">
             {/* Pass the real promise — a `void` wrapper here made the modal
                 clear its text + close while the create was still in flight,
                 losing the capture on failure. */}
@@ -303,7 +305,7 @@ function MissionsPageInner() {
                   <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">capture</span>
                 </h2>
                 <span className="hidden text-[10px] font-mono text-[var(--text-tertiary)] sm:block">
-                  lands in decide, never in today
+                  Captured items go to Decide. Nothing is scheduled for today.
                 </span>
               </div>
               <div className="mt-3">
@@ -420,6 +422,8 @@ function MissionsPageInner() {
             {/* 7 · RHYTHMS */}
             {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={(id) => void actions.handleCompleteTask(id)} />}
 
+          </div>
+          <aside aria-label="waiting and evidence" data-missions-column="context" className="space-y-4 xl:sticky xl:top-4">
             {/* 8 · WAITING */}
             {deck && (
               <DeckWaiting
@@ -444,7 +448,8 @@ function MissionsPageInner() {
                 unmeasured this pass: {deck.unmeasured.join(" · ")}
               </p>
             )}
-          </>
+          </aside>
+          </div>
         )}
 
         <MissionModalsManager missions={missions} />

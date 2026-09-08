@@ -114,13 +114,23 @@ export async function requestReservation(req: ReservationRequest): Promise<{ res
       .where(and(inArray(ctx.table.status, ["reserved", "consumed"]), gte(ctx.table.createdAt, since)));
     const all: ResRow[] = Array.isArray(allRaw) ? (allRaw as ResRow[]) : [];
     if (all.some((r: ResRow) => r.topic && norm(r.topic) === topicN)) codes.push("REPEAT_TOPIC");
+    // REPEATS ARE MEASURED AGAINST THE PUBLISH WINDOW, NOT THE CREATION TIME.
+    // These compared `r.createdAt` to `now`, which is only right when a
+    // reservation is created the day it publishes — true for the daily cron,
+    // false the moment reels are scheduled ahead. Live 2026-09-08: six
+    // pre-rendered reels reserved for six different days were refused
+    // REPEAT_CTA because they were all CREATED within one hour. "Same CTA
+    // within 72h" means 72h of the audience's feed, so the window is the
+    // right clock; for a same-day reservation the two clocks agree.
+    const anchor = req.windowStart.getTime();
+    const landsAt = (r: ResRow) => new Date(r.windowStart ?? r.createdAt).getTime();
     if (req.cta) {
-      const ctaSince = now.getTime() - REPEAT_LOOKBACK.ctaHours * 3600_000;
-      if (all.some((r: ResRow) => r.cta && r.cta === req.cta && new Date(r.createdAt).getTime() > ctaSince)) codes.push("REPEAT_CTA");
+      const ctaWindowMs = REPEAT_LOOKBACK.ctaHours * 3600_000;
+      if (all.some((r: ResRow) => r.cta && r.cta === req.cta && Math.abs(landsAt(r) - anchor) < ctaWindowMs)) codes.push("REPEAT_CTA");
     }
     if (req.territory) {
-      const terrSince = now.getTime() - REPEAT_LOOKBACK.territoryHours * 3600_000;
-      if (all.some((r: ResRow) => r.territory && r.territory === req.territory && new Date(r.createdAt).getTime() > terrSince)) codes.push("REPEAT_TERRITORY");
+      const terrWindowMs = REPEAT_LOOKBACK.territoryHours * 3600_000;
+      if (all.some((r: ResRow) => r.territory && r.territory === req.territory && Math.abs(landsAt(r) - anchor) < terrWindowMs)) codes.push("REPEAT_TERRITORY");
     }
   }
 

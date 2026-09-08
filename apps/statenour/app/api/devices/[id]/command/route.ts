@@ -1,17 +1,26 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
+import { resolveDevice } from "@/lib/services/devices";
 
 export const dynamic = "force-dynamic";
+
+// 2026-09-08 · ADR-0017 / master-plan C1. `:id` is the cuid OR the bridge's
+// `platformDeviceId`. GET used to return `{commands: [], count: 0}` for an
+// unknown device — the same silent-zero shape as the P0, one layer quieter.
 
 /**
  * GET /api/devices/:id/command — Get pending commands for a device (local agent polls this)
  */
 export const GET = apiHandler(async (_req, { params }) => {
   const { id } = await params!;
+  const device = await resolveDevice(id);
+  if (!device) {
+    throw new ServiceError("Device not found", 404);
+  }
 
   const commands = await prisma.deviceCommand.findMany({
-    where: { deviceId: id, status: "pending" },
+    where: { deviceId: device.id, status: "pending" },
     orderBy: { createdAt: "asc" },
   });
 
@@ -25,7 +34,7 @@ export const GET = apiHandler(async (_req, { params }) => {
 export const POST = apiHandler(async (req, { params }) => {
   const { id } = await params!;
 
-  const device = await prisma.smartDevice.findUnique({ where: { id } });
+  const device = await resolveDevice(id);
   if (!device) {
     throw new ServiceError("Device not found", 404);
   }
@@ -34,7 +43,7 @@ export const POST = apiHandler(async (req, { params }) => {
 
   const cmd = await prisma.deviceCommand.create({
     data: {
-      deviceId: id,
+      deviceId: device.id,
       command: body.command,
       params: body.params || null,
       status: "pending",

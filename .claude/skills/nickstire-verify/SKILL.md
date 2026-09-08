@@ -210,3 +210,30 @@ After a successful push:
    nickstire redeploy only; `apps/statenour/**` triggers statenour.
    A test-only file under `apps/nickstire/` still triggers a redeploy
    (bundle is identical, but container restarts).
+
+## Verifying a user-facing copy change
+
+Source-grep is necessary and not sufficient. Both halves failed once on
+2026-09-03 (fixed in #2099):
+
+1. **Sweep case-insensitively.** A grep for `"new ownership"` missed the
+   capitalized `"New ownership"` in a hero intro and it shipped. Use
+   `grep -ri`, always.
+2. **Confirm the rendered page in REAL Chrome, not the in-app browser.**
+   The in-app browser blocks the site's fonts, so it is not a fair visual
+   check — the miss above was only caught by loading the live page in
+   real Chrome.
+3. **Source and served HTML can disagree.** #2094's indexing was silently
+   defeated because 10 of 12 routes served STALE prerender snapshots with
+   the old `noindex`. The drift-catcher
+   `client/src/__tests__/prerender-indexability-consistency.test.ts`
+   (#2098) now proves the `indexed` flag, `routes.ts`, `SITEMAP_ROUTES`
+   and the prerender snapshot robots all agree — run it after any
+   indexability or copy change that a crawler reads.
+
+**Business-truth claims are operator-owned facts.** `shared/business.ts`
+is canonical and `client/src/__tests__/canonical-business-truth.test.ts`
+enforces agreement with it. Never assert tenure, ownership, review count
+or rating from code inference — Nick's is the SAME owner who renamed
+Moe's Tire & Auto (owner-confirmed 2026-09-03), so "new ownership" and
+"run by Moe" are both false.

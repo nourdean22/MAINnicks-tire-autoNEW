@@ -1,3 +1,5 @@
+import { ensureSignedImageUrl } from "@/lib/images/signed-url";
+import { imagePath } from "@/lib/images/signed-url";
 /**
  * lib/services/social-actions.ts · misc-pages slice (2026-05-22 ·
  * legacy-modernizer REST→tRPC).
@@ -108,6 +110,8 @@ export async function getSocialSchedule(): Promise<SocialScheduleView> {
 /** Flat recent-image row · AuditEvent projected to scalars. */
 export interface RecentImageRow {
   id: string;
+  /** D13 · server-minted path; signed when the flag is on. */
+  url: string;
   detail: string;
   createdAt: string;
   eventType: string;
@@ -149,6 +153,9 @@ export async function getRecentImages(): Promise<RecentImagesView> {
     ok: true,
     images: rows.map((r) => ({
       id: r.id,
+      // D13 · the server mints the URL (signed when IMAGES_REQUIRE_SIGNATURE=1);
+      // the picker must render this, never rebuild `/api/images/${id}` itself.
+      url: imagePath(r.id),
       detail: r.detail ?? "",
       createdAt: r.createdAt.toISOString(),
       eventType: r.eventType,
@@ -168,9 +175,13 @@ function resolveImageUrl(
   imageUrl: string | undefined,
   requestHost: string | undefined,
 ): { url: string | undefined; unresolved: boolean } {
-  if (!imageUrl || !imageUrl.startsWith("/")) {
-    return { url: imageUrl, unresolved: false };
+  // D13 · re-mint right before dispatch: relative or absolute, raw or expired-signed —
+  // a persisted queue row from before the flag still hands Meta a URL it can fetch.
+  const fresh = imageUrl ? ensureSignedImageUrl(imageUrl) : imageUrl;
+  if (!fresh || !fresh.startsWith("/")) {
+    return { url: fresh, unresolved: false };
   }
+  const path = fresh;
   const host =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     (requestHost ? `https://${requestHost}` : "");
@@ -178,8 +189,8 @@ function resolveImageUrl(
     return { url: undefined, unresolved: true };
   }
   const url = host.startsWith("http")
-    ? `${host}${imageUrl}`
-    : `https://${host}${imageUrl}`;
+    ? `${host}${path}`
+    : `https://${host}${path}`;
   return { url, unresolved: false };
 }
 

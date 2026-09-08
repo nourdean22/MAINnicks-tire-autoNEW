@@ -14,6 +14,7 @@ import path from "path";
 import { createLogger } from "../lib/logger";
 import { askProblem, askLeakageProblem, renderAskText, resolveReelAsk, type ReelAsk } from "@shared/reelAsk";
 import { declaredTextSurfaces, undeclaredTextProblem } from "@shared/reelTextSurfaces";
+import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("services:reel-assembly");
 
@@ -49,13 +50,24 @@ export interface ReelSegment {
   fontSize: number;
 }
 
-/** seedance clips render at ~4s — never trim a beat longer than its source clip. */
-export const MAX_CLIP_SECONDS = 4;
+/**
+ * seedance clips render at ~4s — never trim a beat longer than its source clip.
+ *
+ * RE-EXPORTED, NOT REDECLARED (2026-09-07). This was a second literal `4` living here
+ * while `REEL_OUTPUT_RULES` described the storyboard band elsewhere, so nothing tied
+ * the ACCEPTED duration to the RENDERABLE one. Raising `maxSeconds` 22 -> 35 made that
+ * gap load-bearing: a brief may now declare 35s, but this is still what reaches the
+ * screen, and `briefToSegments` clamps to it. One definition, imported.
+ */
+export const MAX_CLIP_SECONDS: number = REEL_OUTPUT_RULES.maxClipSeconds;
 const MIN_BEAT_SECONDS = 0.8;
 const DEFAULT_BEAT_SECONDS = 3;
 /** Phase 3.1 save-payload: hold the final frame this long. The overlay text is
- *  no longer built here — it comes from the declared ask (shared/reelAsk.ts). */
-export const SAVE_FREEZE_SECONDS = 3;
+ *  no longer built here — it comes from the declared ask (shared/reelAsk.ts).
+ *
+ *  Re-exported, not redeclared: the preflight voiceover gate has to budget
+ *  against `beats + this`, because that is what the voice track is trimmed to. */
+export const SAVE_FREEZE_SECONDS: number = REEL_OUTPUT_RULES.saveFreezeSeconds;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 

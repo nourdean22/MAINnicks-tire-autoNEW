@@ -14,10 +14,15 @@
  * deleted without updating one of these lists fails here, not in a brief
  * three days later.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// 2026-09-07 · next.config wraps itself in withSentryConfig. This gate is
+// about redirects, not Sentry, and on a checkout whose node_modules predate
+// @sentry/nextjs the real import cannot resolve — the wrapper is identity here.
+vi.mock("@sentry/nextjs/config", () => ({ withSentryConfig: (config: unknown) => config }));
+vi.mock("@next/bundle-analyzer", () => ({ default: () => (config: unknown) => config }));
 import nextConfig from "../../next.config";
 import { IMPORTANT_PAGES } from "@/lib/brain/page-intelligence";
 import { HREF_BY_DOMAIN } from "@/lib/services/chat-lane-check";

@@ -28,6 +28,10 @@
  * DB calls, no closures, fully testable by mocking the dynamic imports.
  */
 
+import { getFlag } from "@/lib/feature-flags";
+import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
+import { buildEvidencePack } from "@/lib/brain/evidence-pack";
+import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { fenceContent, truncateFenced } from "@/lib/ai/tool-result-fencing";
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
@@ -85,6 +89,12 @@ export interface BuildBrainContextOutput {
   deeperContextCount: number;
   deeperContextTypes: string[];
   recalledHits?: any[];
+  /** Wave 0 (2026-09-08) · per-turn overlap between the two recall lanes (lib/brain/lane-overlap.ts). */
+  laneOverlap?: LaneOverlap;
+  /** Wave 3 (2026-09-08) · the deterministic query plan this turn ran under (lib/brain/query-plan.ts). */
+  queryPlan?: QueryPlan;
+  /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived. */
+  evidencePack?: { candidates: number; items: number };
   detectedContradictions?: any[];
 }
 
@@ -135,6 +145,13 @@ export async function buildBrainContext(
   let contextBlocksFired: ContextBlocksFired = { ...EMPTY_FIRED };
   let finalContextMemories: string | null = null;
   let recalledHits: any[] = [];
+  let contextualRankedIds: string[] = [];
+  let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
+  let laneOverlap: LaneOverlap | undefined;
+  let evidencePack: { candidates: number; items: number } | undefined;
+  const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
+  // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
+  const queryPlan = planQuery(userContent, { recentTurns: (messages as Array<{ content?: unknown }>).slice(-4).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean) });
   let detectedContradictions: any[] = [];
 
   try {
@@ -286,7 +303,11 @@ export async function buildBrainContext(
             contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5, {
               queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
               fastTopics: true,
-              
+              asOf: queryPlan.asOf,
+              onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
+                contextualRankedIds = rows.map((r) => r.id);
+                contextualRankedRows = rows;
+              },
             }),
             3000,
             null,
@@ -400,6 +421,13 @@ export async function buildBrainContext(
     // We pass the already-computed userEmbedding from the parallel
     // prefetch — zero extra embedding calls. Reranker has its own
     // graceful fallback (returns blocks as-is) when embedding fails.
+    let evidencePackBlock = "";
+    if (arbiterOn) {
+      const pack = buildEvidencePack((hybridRecallReport?.hits ?? []) as never[], contextualRankedRows, { limit: mode === "deep" ? 14 : 10 });
+      evidencePackBlock = pack.block;
+      evidencePack = { candidates: pack.candidates, items: pack.items.length };
+      console.info("[brain-context] evidence_pack", JSON.stringify(evidencePack));
+    }
     const rawBlocks = [
       { name: "recall", content: recallBlock },
       { name: "skills", content: skillsBlock },
@@ -426,9 +454,15 @@ export async function buildBrainContext(
       // instruction), THEN slice through truncateFenced. maxChars is lifted on
       // the fence because the slice below is the real budget.
       { name: "Cross-Session Thread", content: threadContext ? `# CROSS-SESSION THREAD\n${truncateFenced(fenceContent("crossSessionThread", "cross_session", threadContext, { maxChars: 20_000 }), 1000)}` : "", critical: true },
-      { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${truncateFenced(contextMemories, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
+      // Wave 2 (2026-09-08) · NICK_RECALL_ARBITER: one evidence pack across both lanes replaces the
+      // two overlapping blocks below; off = byte-identical to before (the lanes render separately).
+      ...(arbiterOn && evidencePackBlock
+        ? [{ name: "Evidence Pack", content: `# EVIDENCE PACK\n${evidencePackBlock}`, critical: true }]
+        : [
+            { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${truncateFenced(contextMemories, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
+            { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "" },
+          ]),
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
-      { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
       { name: "Strategic Lens", content: strategicLensBlock || "", critical: true },
@@ -509,6 +543,17 @@ export async function buildBrainContext(
     // client contract. Raw hits are { memoryId, knnDistance, content, category }
     // but the sidebar reads { id, similarity, content, category } — so hits
     // rendered as "NaN% Match" with a missing React key. Map once here.
+    // Wave 0 (2026-09-08) · how much of the contextual lane's evidence the hybrid lane already
+    // carried this turn. Logged, not acted on: the arbiter that dedupes across lanes is Wave 2
+    // and this is the number it must beat.
+    if (contextualRankedIds.length > 0 || (hybridRecallReport?.hits?.length ?? 0) > 0) {
+      laneOverlap = computeLaneOverlap(
+        contextualRankedIds,
+        (hybridRecallReport?.hits ?? []).map((h: any) => String(h.id ?? h.memoryId ?? "")).filter(Boolean),
+      );
+      console.info("[brain-context] recall_lane_overlap", JSON.stringify(laneOverlap));
+      console.info("[brain-context] query_plan", JSON.stringify({ classes: queryPlan.classes, asOf: queryPlan.asOf?.toISOString() ?? null, exactTerms: queryPlan.exactTerms, subQueries: queryPlan.subQueries.length }));
+    }
     if (hybridRecallReport) {
       recalledHits = (hybridRecallReport.hits ?? []).map((h: any) => ({
         id: h.id ?? h.memoryId,
@@ -581,6 +626,9 @@ export async function buildBrainContext(
     deeperContextCount,
     deeperContextTypes,
     recalledHits,
+    laneOverlap,
+    queryPlan,
+    evidencePack,
     detectedContradictions,
   };
 }

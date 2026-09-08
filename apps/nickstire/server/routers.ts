@@ -51,6 +51,7 @@ import {
   campaignsRouter,
   callTrackingRouter,
   customerEventsRouter,
+  marketAdminRouter,
   exportRouter,
   costEstimatorRouter,
   emergencyRouter,
@@ -128,6 +129,8 @@ export const appRouter = router({
   quoteGuard: quoteGuardRouter,
   smsOps: smsOpsRouter,
   statenourMetrics: statenourMetricsRouter,
+  /** 2026-09-08 · Search Console + master report, moved here from StateNour /market. */
+  market: marketAdminRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
 

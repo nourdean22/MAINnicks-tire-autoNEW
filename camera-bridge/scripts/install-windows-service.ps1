@@ -1,43 +1,120 @@
-# PowerShell script to register the Camera Bridge as a Windows background task starting on system startup.
-# Requires Administrator privileges.
+<#
+.SYNOPSIS
+    Register visitd as a Windows Scheduled Task (auto-start, auto-restart) for the replay lab on the laptop.
+.DESCRIPTION
+    Default: runs as the CURRENT user at logon (least privilege, E13). -RunAsSystem opts into NT AUTHORITY\SYSTEM
+    at startup (needs an elevated shell). The task runs a generated wrapper (visitd-task.cmd in the camera-bridge
+    root: `python -m visitd.main --config <config>` with stdout/stderr appended to logs\visitd.log). Paths go
+    into the wrapper as quoted cmd.exe tokens, never interpolated into an argument string. Production is the
+    Linux mini-PC under Docker Compose; this script exists for the Windows validation lab only.
+.EXAMPLE
+    powershell -File scripts/install-windows-service.ps1
+    powershell -File scripts/install-windows-service.ps1 -RunAsSystem
+    powershell -File scripts/install-windows-service.ps1 -Uninstall
+#>
+[CmdletBinding()]
+param(
+    [switch]$RunAsSystem,
+    [switch]$Uninstall,
+    [switch]$DryRun,
+    [string]$TaskName = "NicksTireVisitd",
+    [string]$PythonPath = "",
+    [string]$ConfigPath = ""
+)
 
-$ScriptPath = Join-Path (Get-Item .).FullName "bridge\bridge.py"
-$WorkingDir = Join-Path (Get-Item .).FullName "bridge"
-$LogPath = Join-Path (Get-Item .).FullName "bridge.log"
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$logDir = Join-Path $root "logs"
+$logFile = Join-Path $logDir "visitd.log"
+$wrapper = Join-Path $root "visitd-task.cmd"
+if (-not $ConfigPath) { $ConfigPath = Join-Path $root "config.yaml" }
 
-Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "Registering Camera Bridge Windows Task" -ForegroundColor Cyan
-Write-Host "=========================================" -ForegroundColor Cyan
-
-# 1. Check Admin Privileges
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Error "This script must be run as Administrator! Re-launch PowerShell as Administrator."
-    Exit
+
+if ($Uninstall) {
+    $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($null -eq $existing) { Write-Host "Task '$TaskName' is not registered."; exit 0 }
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    if (Test-Path $wrapper) { Remove-Item -Path $wrapper -Force }
+    Write-Host "Task '$TaskName' removed." -ForegroundColor Green
+    exit 0
 }
 
-# 2. Check Python installation
-$pythonCheck = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCheck) {
-    Write-Error "python command not found in environment PATH! Install Python and add it to system PATH."
-    Exit
+if ($RunAsSystem -and -not $isAdmin) { throw "-RunAsSystem needs an elevated PowerShell." }
+
+# 1. Python (>= 3.12) - explicit path, then PATH, then the py launcher.
+function Resolve-Python {
+    if ($PythonPath) { return $PythonPath }
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $py = Get-Command py -ErrorAction SilentlyContinue
+    if ($py) {
+        $resolved = & py -3 -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $resolved) { return $resolved.Trim() }
+    }
+    throw "python not found. Install Python 3.12+ and add it to PATH, or pass -PythonPath."
 }
+$python = Resolve-Python
+$version = (& $python -c "import sys; print('%d.%d' % sys.version_info[:2])").Trim()
+if ([version]$version -lt [version]"3.12") { throw "Python $version at $python is too old; visitd needs 3.12+." }
 
-# 3. Create Task parameters
-$TaskName = "NicksTireArrivalIntelligenceBridge"
-$Action = New-ScheduledTaskAction -Execute "python.exe" -Argument "$ScriptPath" -WorkingDirectory "$WorkingDir"
-$Trigger = New-ScheduledTaskTrigger -AtStartup
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+# 2. Dependencies and config.
+& $python -c "import paho.mqtt, yaml, requests, dotenv" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw "Missing dependencies. Run: `"$python`" -m pip install -r `"$(Join-Path $root 'requirements.txt')`""
+}
+if (-not (Test-Path $ConfigPath)) {
+    throw "Config not found: $ConfigPath (copy config.example.yaml to config.yaml and edit it)."
+}
+if (-not (Test-Path (Join-Path $root ".env"))) {
+    Write-Host "WARNING: no .env next to docker-compose.yml; STATENOUR_SYNC_KEY / MQTT_* must come from the environment." -ForegroundColor DarkYellow
+}
+if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
 
-# 4. Register Task
-Write-Host "Registering task '$TaskName' to run at system startup..." -ForegroundColor Yellow
-$registered = Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -User "NT AUTHORITY\SYSTEM" -RunLevel Highest -Force -ErrorAction SilentlyContinue
-
-if ($registered) {
-    Write-Host "[SUCCESS] Task successfully registered!" -ForegroundColor Green
-    Write-Host "The bridge will start automatically on boot." -ForegroundColor Gray
-    Write-Host "To start the bridge now, run:" -ForegroundColor Gray
-    Write-Host "  Start-ScheduledTask -TaskName $TaskName" -ForegroundColor Cyan
+# 3. Task definition. cmd.exe carries the log redirection; Task Scheduler itself cannot capture stdout.
+#    The command line lives in a generated wrapper .cmd: every path is one double-quoted token (embedded quotes
+#    doubled, % doubled so batch expansion cannot fire) so & | ^ % ( ) in a path are never parsed as operators.
+function ConvertTo-CmdToken([string]$Path) {
+    if ($Path -match "[`r`n]") { throw "Path contains a newline and cannot be passed to cmd.exe: $Path" }
+    return '"' + (($Path -replace '"', '""') -replace '%', '%%') + '"'
+}
+$wrapperCommand = (ConvertTo-CmdToken $python) + " -m visitd.main --config " + (ConvertTo-CmdToken $ConfigPath) +
+    " >> " + (ConvertTo-CmdToken $logFile) + " 2>&1"
+$wrapperLines = @(
+    "@echo off",
+    "rem generated by scripts\install-windows-service.ps1 - re-run the installer instead of editing",
+    $wrapperCommand
+)
+$action = New-ScheduledTaskAction -Execute $wrapper -WorkingDirectory $root
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+    -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+if ($RunAsSystem) {
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    $who = "NT AUTHORITY\SYSTEM (at startup)"
 } else {
-    Write-Error "Failed to register scheduled task."
+    $user = "$env:USERDOMAIN\$env:USERNAME"
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+    $who = "$user (at logon, limited rights)"
 }
+
+Write-Host "Task      : $TaskName" -ForegroundColor Cyan
+Write-Host "Runs as   : $who"
+Write-Host "Python    : $python ($version)"
+Write-Host "Config    : $ConfigPath"
+Write-Host "Workdir   : $root"
+Write-Host "Log       : $logFile"
+Write-Host "Wrapper   : $wrapper"
+Write-Host "Command   : $wrapperCommand"
+if ($DryRun) { Write-Host "Dry run - nothing registered, wrapper not written." -ForegroundColor DarkYellow; exit 0 }
+
+Set-Content -Path $wrapper -Value $wrapperLines -Encoding oem
+try {
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+} catch {
+    throw "Register-ScheduledTask failed: $($_.Exception.Message). If access was denied, re-run from an elevated PowerShell."
+}
+Write-Host "[OK] registered. Start now with:  Start-ScheduledTask -TaskName $TaskName" -ForegroundColor Green
+Write-Host "     status: Get-ScheduledTask -TaskName $TaskName | Get-ScheduledTaskInfo ; tail the log with Get-Content -Wait `"$logFile`"" -ForegroundColor Gray

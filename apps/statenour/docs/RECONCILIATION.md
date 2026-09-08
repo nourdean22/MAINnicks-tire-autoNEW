@@ -1,5 +1,369 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-08 · Camera vision wave 0: the arrival pipeline that never received an event · 3 PRs + plan
+>
+> Operator instruction, on-site at the shop: "update whatever you need for the cameras ... the whole nine
+> yards ... research the best ... get the best done." Master plan
+> `docs/research/2026-09-08-camera-vision-MASTER-PLAN.md` + `docs/adr/0017-camera-vision-architecture.md`;
+> three read-only code audits, four web research agents, live LAN probes from the shop Wi-Fi, prod Neon and
+> Railway probes.
+>
+> **Found (receipts in the plan section 2):** the #315 pipeline had received ZERO real events. Every `[id]`
+> device route resolved the cuid while the bridge addresses `platformDeviceId` (`v380-shopsign`), so each
+> POST and heartbeat PATCH answered 404; `device_events` = 2 rows, both the June test device. The edge was
+> pinned to Frigate 0.13.2 with a config that only works on 0.14+ (relative zone coordinates), an `IndexError`
+> on every departure, wall-clock "dwell" that ignores zones, unpinned paho-mqtt, anonymous MQTT. The cameras
+> (`Hw_HsAKQQXG_WIFI_20230421`, Anyka family) expose only TCP 8800/9800: RTSP needs the SD-card `ceshi.ini`
+> unlock (procedure in the plan section 3.3) or PoE replacements for LPR.
+>
+> **#2222 `statenour/camera-arrival-p0` — cloud fixes.** `lib/services/devices.ts` resolves cuid OR
+> platformDeviceId in `[id]/events`, `[id]` and `[id]/command` (the route test was run red on the unfixed
+> routes first, 3 of 5 failing, then green); `vehicle-detection.ts` rewritten: zod contract v2 (`visitId`,
+> `eventId` idempotency), dedupe by visit across Frigate re-ids, quiet hours 20:00-07:00 ET recorded as
+> `alertSuppressedReason`, per-camera+zone cooldown, tagged web-push on the #1740 flood control, plate ->
+> customer link (`vehicle-customer-link.ts`, advisory, `customerRef` on the event); `cameraArrivals` day
+> boundary in ET; the cockpit renders a read failure as a failure, not as zero; `camera.getPlates` reads real
+> plate rows; `analyzeCameraData` docstring tells the truth (no caller); new worker-fired
+> `device-heartbeat-sentinel` cron (every 15 min; silent >20 min -> OFFLINE + one alert per transition;
+> never-reported devices ignored by construction; recovery clears the flag). Tests: 4 files, 24 passed;
+> `check:crons` 7/7; eslint 0. `tsc`: 0 errors in changed files, 7 pre-existing `@sentry/nextjs` resolution
+> errors in this junctioned worktree because the primary checkout predates #2074 (CI is the gate).
+>
+> **#2221 `nickstire/vehicle-lookup-by-plate` — read-only bridge action.** `vehicle_lookup_by_plate` over
+> `memberships.vehiclePlate` (`vehicles` was retired in 0117; `customer_vehicles` has no plate column yet),
+> OCR-confusable variants, today's bookings by phone (ET in SQL); contract v11.10 in both copies. nickstire
+> `tsc` 0, `plate.test.ts` 3 passed.
+>
+> **#2223 `docs/camera-vision-master-plan` — the plan, ADR-0017, eight UPSTREAMS verdicts** (Frigate pinned
+> 0.17.2, V380 protocol bridges REJECT, Ultralytics/BoxMOT REJECT, fast-alpr WATCH, Plate Recognizer WATCH,
+> Coral REJECT for new builds, Hailo WATCH, NVR alternatives REJECT).
+>
+> **#2225 (`f3a631adc`) `chore/camera-bridge-v2` — edge rewrite; hostile review found 1 P0 + 4 P1, disclosed in the PR body, fixed in #2227 (`c6d839fee`, visitd 2.1.2, 95 tests)** (`camera-bridge/visitd`: deterministic visit state
+> machine on Frigate `frame_time`, SQLite ledger + outbox, Frigate 0.17.2 config, authenticated MQTT, replay
+> harness, stdlib unit tests).
+>
+> **Flagged · NOT fixed:** `analyzeCameraData` still has no scheduler (wire after real events exist);
+> `local-agent/v380_agent.py` still in tree (delete after edge heartbeats are live); the typed visit ledger
+> (plan section 7.2) is Phase 3; `NICK_ARRIVAL_INTELLIGENCE` stays off until gate G3; the primary checkout's
+> `node_modules` lacks `@sentry/nextjs` (refresh the primary, not the app).
+>
+> **Verified by:** vitest on the touched files, `check:crons`, eslint, nickstire and worker `tsc`, CI on every
+> PR, `/api/version` ancestry after merge.
+>
+
+> ## 2026-09-08 · Design pass shipped, chat leftovers shipped, Brain intelligence plan + Wave 0/1 · one session
+>
+> Operator instruction: "continue design pass … then synthesize all of your reports … come up with the
+> best plan and … multitask and get the fixing as well … do it all in one big merge". Same scratch-clone →
+> CI → `/api/version` ancestry loop as the wave below; every PR merged only on fully green with zero
+> unresolved Codex threads.
+>
+> **#2202 `PR head d237929f1` — design pass, program §5.3 / 5.4 / 5.8.** PageHeader is a row with a hairline
+> divider on 16 pages (was a nested glass card with a drop shadow and a fade-in entrance); `.neural-glass`
+> loses `backdrop-filter` (overlays keep it). Home and Missions earn a second column at ≥1280px — the queue
+> left, a sticky context rail right (horizon + change line; waiting + evidence); DOM order unchanged below.
+> Mobile: the house floor is **44px** (176 of 182 Missions controls already measured exactly 44; AGENTS.md's
+> "48×48" line is a doc/convention reconciliation for the operator, not absorbed) — horizon rows, Accept /
+> Dismiss, send, Morning brief, mission move buttons, the capability badge, the state pill and the empty-deck
+> CTA were raised; the pulse ticker is exempted explicitly as bottom-chrome geometry. `html` gets
+> `scroll-padding-bottom: var(--bottom-chrome-h)`. Instruments (CI e2e): `desktop-density.spec.ts` (rail
+> beside the queue at 1460px AND below it at 1090px) and `target-size.spec.ts` (44px floor at 390px on
+> `/`, `/missions`, `/chat`; a focus probe that PARKS a control under the chrome and proves scroll padding
+> lifts it — Chrome centres an off-screen control on focus, which had made the first version vacuous).
+> Four Codex threads fixed. The composer-with-soft-keyboard check still needs the operator's phone.
+>
+> **#2204 `9f879de113bf` — chat leftovers, §5.5 / 5.10.** The header badge names health (`ready` /
+> `tools limited` / `chat degraded` — a degraded stream never reads as a tool outage), not a tool count;
+> the shop-flavoured starter left with `/market`, its slot is "What needs my judgment"; the repeated wrench
+> is gone. One Codex thread fixed.
+>
+> **#2213 `this PR, head 8b7d7f113` — Brain intelligence plan + Wave 0/1.** The plan
+> (`docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md`) synthesises a live code map,
+> the settled-decision history, a fresh external evidence dossier, two read-only production probes and the
+> operator's pasted plan (checked claim by claim: largely right; temporal recall is code-live and DATA-EMPTY,
+> query transformation is ABSENT not partial). **Measured today:** 0 of 40,889 live memories carry a validity
+> window or supersession pointer; 2,460 of 12,924 live personal rows (19%) have no embedding; 45% of live rows
+> are graph edges stored as memories; 107 files write BrainMemory directly; `data-cleanup` cron paused since
+> 09-01. **Wave 1 shipped:** one operator-source predicate (`user_save`, `pin:*`, `operator`, `owner` were
+> weak_inference) used by the evidence ladder, remember()'s wisdom gate, recall decay and consolidation's
+> curated guard; `lib/brain/memory-admission.ts` (envelope: memoryKind · evidenceClass · extractionMethod ·
+> derivedFrom · evidenceRefs · contentHash; a derived memory is capped at generated_summary); explicit `/save`
+> and pins stamped; a direct-writer ratchet (107 frozen, declared-bypass marker, positive control).
+> **Wave 0 shipped:** `onRanked` on the full recall pipeline, a third `hybrid` lane in `pnpm eval:recall`, a
+> corpus fingerprint manifest, per-turn `recall_lane_overlap` between the two lanes that feed one prompt.
+> Register: six UPSTREAMS verdicts (ColBERT REJECT/WATCH, Lakebase Search WATCH, LongMemEval taxonomy
+> ADOPT-AS-BENCHMARK, MiniCheck WATCH, RAGAS/DeepEval PATTERN, Anthropic tool search NATIVE). Docs corrected:
+> stray conflict marker in this file, CURRENT-TRUTH's supersession line, SECURITY's approval-UI gap.
+>
+> **Outside git, done:** Sentry project split — `nickstire` project created in org `statenour` through the
+> operator's Chrome session, `SENTRY_DSN` set on `MAINnicks-tire-auto`, container redeployed (uptime reset).
+>
+> **Operator-run / decisions:** embedding backfill of the 2,460 unembedded rows (plan §6.2, a production
+> write) · supersession flip after its shadow week (§6.3) · re-enable or keep paused `data-cleanup` · AGENTS.md
+> 44 vs 48px line · HSTS preload submission · the phone composer check.
+>
+> **Verified by:** CI on every PR, Codex threads resolved, `/api/version` ancestry after each merge.
+>
+
+> ## 2026-09-08 · Backlog wave: cost truth, approvals you can find, /market moved, sink policy, playbooks · Phase 2–3 shipped
+>
+> Operator instruction: "keep going with the backlog, U6 cost truth next and do the railway work.
+> move market, approval freshness check it i cant find it, for the rest use the best recommended
+> options … all phases." Same scratch-clone → CI → `/api/version` ancestry loop as the wave below.
+>
+> **#2193 `008afcf20` — cost truth (U6).** 47 of 54 `aiChat` callers never wrote a ledger row and
+> provider.ts / track.ts priced from two tables. `lib/ai/pricing.ts` is the one rate table; `aiChat`
+> records every completed call itself (provider, tokens, duration, conversationId, the cost it
+> computed; `opts.tracked=false` opts out); a lane past its daily cap (`ai.laneBudgetCents` JSON
+> setting or `AI_LANE_BUDGET_CENTS_JSON`) returns the "none" sentinel BEFORE any provider call;
+> `/system/ai-cost` shows lanes; a thumb posts a NUMERIC score on the turn's traceId to Langfuse;
+> `scripts/langfuse-register-models.ts` registers the model prices (run with `railway run`).
+>
+> **#2196 `e2d4ea2d2f14` — nickstire: Market admin section + public ribbon counts (D14).** Search
+> Console summary / top queries / top pages / master report at `/admin/market` (Reach group, owner +
+> manager, `market.*` → `marketing.manage`); the report comes from the bridge's exported
+> `QUERY_HANDLERS.master_report`, so Nick and the page read one report; an unavailable store is
+> SERVICE_UNAVAILABLE ("unknown, not zero"); the window is an inclusive 28-date span in shop time.
+> D14: the PUBLIC PhotoRibbon called an admin-only procedure (401 per visitor, 112 Sentry events in
+> 23 h); `topRibbonPhotosPublic` is public, cached 5 min, src + count only. Five Codex review threads
+> fixed and resolved; `.completion/evidence.json` walkthrough rewritten for the diff.
+>
+> **#2195 `26b4b382eb2b` — approvals you can find, /market moved, HSTS preload-ready, image-flag
+> prerequisites.** `APPROVAL_FRESHNESS_DAYS` env override + `systemAutomation.approvalWindows` +
+> an "approval windows" card on `/system/actions`; the autonomous-action queue had NO UI since the
+> legacy ApprovalsPage went (Home counted it, nothing listed it) — it is listed now, Approve is a
+> press-and-hold at 48px and refused on expired rows. `/market` deleted (page, tabs, bridge shell,
+> nav, palette probe, `operator.businessDashboard`) → redirect to `nickstire.org/admin/market`.
+> Images: a raw id under the flag serves WITH a session; `ensureSignedImageUrl` re-mints relative
+> and absolute, raw or expired-signed URLs right before Meta gets them. HSTS
+> `max-age=63072000; includeSubDomains; preload`.
+>
+> **#2198 `bfccff82c636` — as-of recall (U3), sink policy (U4), playbooks (U7), §5 copy + phone type
+> floor.** `validityWhere(asOf?)` is the one validity window every recall lane reads; `searchMemories`
+> takes `asOf` (what was believed then, corrections included, nothing saved after). An
+> external_web / external_doc fence taints the TURN (turn context, not a model-declared flag); the
+> guardian reads it; the policy engine escalates any external side effect in a tainted turn to
+> require_owner. Three intent playbooks (reflect / execute / publish) attach a bundle under telemetry
+> tier 7 with an operating note; publish is draft-only. Copy: "Captured items go to Decide. Nothing
+> is scheduled for today." · "What is saved, where it came from, and what is inferred." Phone type
+> floor: 9→11 px, 10→12 px below md through one media block in base.css. Review on #2198 (three Codex threads, fixed in the same PR): the sink
+> policy now also gates the canonical `nourTools` boundary (`lib/tools/sink-policy.ts`: a pending
+> require_owner ApprovalRequest plus a refusal the model cannot argue past; guardian replay falls
+> back to the nourTools key), historical recall selects the validity INTERVAL that covers the
+> instant and does not consult supersession (`isVisibleAsOf` / `validitySql` are the same predicate
+> for loaded rows and raw SQL), and `asOf` reaches the lexical and KNN lanes.
+>
+> **Outside git, done:** Neon `production` branch PROTECTED (Neon MCP) · `Railway: IMAGES_REQUIRE_SIGNATURE=1 set on statenour-web and verified on the redeployed container (raw image id without a session -> 401, a signed URL passes auth, a bogus signature -> 403; prod holds no generated_image audit rows today - the orchestrator GC removes them after 90 days - so the probe used a synthetic id)` ·
+> `Langfuse model prices registered (5/5) by scripts/langfuse-register-models.ts under railway run, keys never printed`.
+>
+> **Blocked on the operator:** Sentry project split — the Sentry MCP's execute tool rejected every
+> argument shape for team lookup/creation; one-liner: create project `nickstire` in org `statenour`,
+> then `railway variables --set "SENTRY_DSN=<dsn>" --service MAINnicks-tire-auto`. HSTS preload
+> submission at hstspreload.org (header is live; the list is hard to leave).
+>
+> **Not started (design pass, needs screenshots):** §5.3 surfaces, §5.4 second column at ≥1280 px,
+> §5.8 mobile target audit. §5.9 headings were already `role="heading"` — no change needed.
+>
+> **Verified by:** CI on every PR (node + e2e + gates, Codex review threads resolved), `/api/version`
+> ancestry after each merge, worker `/health`, nickstire `/api/health` uptime reset.
+>
+
+> ## 2026-09-08 · Quality + power program, Phases 1–2 shipped · deploy observer proven both ways
+>
+> Continuation of the 2026-09-07 wave below (program doc
+> `docs/research/2026-09-07-statenour-quality-power-program.md`). Every slice went out from a
+> hookless sparse scratch clone (the harness worktree's shared `node_modules` predate
+> `@sentry/nextjs`, so a local pre-push build is impossible); CI was the gate, `/api/version`
+> ancestry the deploy receipt.
+>
+> **#2180 `b531b203f` — observability contracts (D10 lane, D15, D16, D17).** Deploy-drift
+> observer as a GitHub workflow (every 30 min + dispatch, `simulate=stale|worker-down`
+> canaries), `inbound-crm` header-only secret with a named-deprecation warning, the read-mode
+> contract pinned (typed `/save` still writes, model-selected mutating tools stripped), the
+> NICK FAB lane on md+, Sentry `app:statenour` tag. **Runtime-verified:** `/api/version` =
+> `b531b203f`. The observer's first plain run failed with exit 141 — `awk … exit` closed the
+> pipe under `pipefail` — fixed in **#2186 `87e5d3bfe`**; after it, plain dispatch
+> 34176742882 PASSED and `simulate=stale` 34176744413 FAILED as designed. The instrument fires,
+> and it also passes: both halves are on record.
+>
+> **#2181 `e4e88d5d1` — expire authorization, not obligations (D12) + device lifecycle (D11).**
+> `lib/automation/approval-freshness.ts` is the one predicate both queues consult (autonomous
+> actions derive a window from the action type — messages 3 d, SMS/pricing 2 d, records 7 d;
+> approval requests use their own `expiresAt`, written by every requester and read by nobody
+> before this). Approve on an expired row → 409 BEFORE any execution or write; reject stays a
+> human decision; nothing is deleted or recorded as a decline (the program's "auto-decline
+> receipts" wording was deliberately not implemented). Home counts live approvals as waiting,
+> names expired ones as "re-request or dismiss", the PWA badge counts live only, `/system/actions`
+> disables Approve on an expired request and says why. Devices: `classifyDevices` (7-day window)
+> splits `devicesOffline` (recent incident) from `devicesOfflineLong` (needs a classification) and
+> excludes `RETIRED`; `retire-stale` marks RETIRED instead of hard-deleting device + events +
+> commands. **Runtime-verified** (ancestor of `b531b203f`).
+>
+> **#2183 `989345d28` — capability URLs for `/api/images/[id]` (D13), flag-off byte-identical.**
+> `lib/images/signed-url.ts` (`imagePath` is the ONE minter; `authorizeImageRequest` pure);
+> `IMAGES_REQUIRE_SIGNATURE` unset = raw ids still serve and a PRESENT-but-invalid signature is
+> refused; `=1` = raw ids refused before any DB read. Minters routed (gemini-image ×4,
+> `getRecentImages.url`, publish picker, photo-improver); the ghost validator and history stripper
+> tolerate the signed suffix. **Runtime-verified:** `/api/version` = `989345d28`. The flip is an
+> operator Railway env edit; pre-deploy scheduled-post image URLs are raw ids and would be refused
+> under the flag — re-mint from `/content` first.
+>
+> **#2185 `851b597e7` — resume record (U5) + the D10 instrument + Brain nav parity.** Park writes a
+> structured record (intended outcome · last verified step · evidence links · open question · next
+> physical action) onto the same `parked` TaskEvent; the deck renders it with "parked N d ago · a
+> memory aid, not a plan". `tests/e2e/floating-collision.spec.ts` asserts no floating fixed element
+> covers a control on /journal, /missions, /chat, /brain at 390/768/1090/1460 px — **its first run
+> was red on real collisions** (the NICK pill over "Pin new" on /brain and "Ask Nick for
+> Recommendations" on /missions at 390 px; intruding on the content column at 768 px): below md the
+> pill is no longer rendered and the More sheet carries "Ask Nick about this page"; the md+ lane
+> is 7rem. `nav-items.ts` lists all nine Brain tabs, pinned to the page by
+> `tests/repo/brain-nav-tabs.test.ts`.
+>
+> **#2188 `d3a760d68` — `middleware.ts → proxy.ts` (D18).** Next 16 rename, Node runtime; body
+> unchanged; the boundary test imports `@/proxy`; docs, CODEOWNERS and next.config comments follow.
+>
+> **#2189 `66b79cc17` — retire the violet AI accent (§5.2 / D19).** AI attribution is a mono "NICK ·"
+> mark; `--status-ai` + `--status-purple` deleted; journal insights preview, counter-question and
+> predict-outcome control neutral/gold; gate `tests/repo/no-violet-ai-accent.test.ts`.
+>
+> **Operator decisions still open:** flip `IMAGES_REQUIRE_SIGNATURE`; approval windows (defaults
+> in `approval-freshness.ts`); `/market` + shop-flavoured starters MOVE/RETIRE; Sentry project split;
+> HSTS preload; Neon `production` branch protection.
+>
+> **Verified 2026-09-08 by:** CI on every PR (node + e2e + gates), `/api/version` ancestry after
+> each merge, worker `/health`, and the deploy-drift observer's own pass/fail pair.
+>
+
+> ## 2026-09-07 · Quality + power research wave · every deploy since 09-04 had been failing · 2 code ships + 1 docs ship
+>
+> A deep-research pass on bdnick.info (live surfaces through the operator's Chrome, Railway,
+> Sentry, the repo at `9cc0c0ac2`, three primary-source research agents, and plan-gates of two
+> pasted external audits) found that **production had been stuck on `b3bebde` since 2026-09-04
+> 12:08Z**. `railway status` read `statenour-web: Deploy failed` and `statenour-worker: Deploy
+> failed`; the failed deployment's build log ended with `COPY apps/statenour/patches …
+> "/apps/statenour/patches": not found`. #2096 had deleted `apps/statenour/patches/ai@6.0.162.patch`,
+> the only file in that directory; git drops empty directories, so BOTH Dockerfiles failed at the
+> deps stage on every push after 12:34Z that day. The entry below says #2096 "lands" and its
+> migration was applied to prod — the migration IS applied; the writer that needs it was not
+> deployed until this wave. Merged and deployed are different claims; both are recorded here.
+> Program doc: `docs/research/2026-09-07-statenour-quality-power-program.md` (13 sections + SEND
+> block; artifact "StateNour Quality & Power Program").
+>
+> **#2175 `71e7cf14` — fix · statenour · unblock every deploy since 09-04, and repair five
+> verified live defects** (21 files, +863/−97, every fix with a test). Merged by the operator
+> 21:58:41Z while the `node` CI rerun was still running (it went green 22:02:05Z — recorded
+> honestly). **Deployed + runtime-verified 23:54Z:** `/api/version` = `71e7cf14…`, deployment
+> `1f6a003b`, process up since 22:02:50Z; worker `/health` ok; X-Robots-Tag live; anonymous
+> `/api/brain/pinned` → 401; `sw.js` v11; sign-in `noindex` meta.
+> - Both Dockerfiles drop the dead COPY. `tests/repo/dockerfile-copy-sources.test.ts` asserts every
+>   build-context COPY source is git-tracked and every declared pnpm patch is COPYd into every deps
+>   stage, canaried on the exact incident shape.
+> - `/api/brain/pinned` anonymous → 401, not 500 (`requireSession` had run outside the try/catch
+>   under a session-exempt prefix; each probe minted a Sentry issue). `check:get-auth` 179/179.
+> - `--font-mono` / `--font-sans` bridged into `@theme`: Geist Mono had NEVER rendered
+>   (`document.fonts` "GeistMono: unloaded" while the woff2 downloaded on every cold load).
+> - `/save` no longer discards a changed amount/date/negation that embeds within cosine 0.95 of an
+>   older memory: only a whitespace/case-identical statement is a duplicate; similar-but-different
+>   text is saved and linked, both rows kept, chat headline honest.
+> - `public/sw.js` caches same-origin `/_next/static/` only (was: any asset extension, any origin);
+>   `CACHE_NAME` v11. journal-brief prompt headings are plain words (the live panel had quoted
+>   "ACTIVE_THREADS is empty"). `X-Robots-Tag: noindex` on every response + sign-in robots
+>   metadata. Lint baseline re-snapshotted after #2090's react-hooks regression; soft-delete
+>   allowlist for `brain-wisdom.ts` with the reason; SECURITY.md's CSP section rewritten to what
+>   production serves (nonce + strict-dynamic) — it had described the Vercel-era policy since June.
+>
+> **#2177 (follow-up, open at the time of this entry) — fix · statenour · close the /save
+> correction loop and tell the truth about auth outages.** Both Codex threads on #2175 and the
+> third pasted audit were right: the pinned guard preserves the auth-guard's own 503 (an outage is
+> not an expired login) and returns a sanitized 500 for anything else; `/save` identity is decided
+> BEFORE any embedding call (exact row, then normalized match over recent rows), an embedding
+> outage still saves the text (`embedded: false`, embed-backfill indexes later); a near-duplicate
+> pair is queued into the EXISTING contradiction review (`BrainMemory` category `contradiction`,
+> key sha1(newId::oldId), signal `near_duplicate`); and `resolveContradiction` now writes
+> `supersededById` + `validUntil` on the loser — the columns every recall lane already filters on.
+> The program's earlier line "no code reads the new columns" was WRONG (contextual-recall,
+> cold-memory and the brain tools do, with the correct null-or-future rule). Plus
+> `.github/workflows/docker-context-gate.yml`: builds the real deps stage of both Dockerfiles on
+> every Dockerfile/patch/lockfile/manifest change, with an in-line canary. Full suite before push:
+> 708 files / 7,482 tests, exit 0.
+>
+> **Receipts and the toolchain trap.** The shared `node_modules` predate `@sentry/nextjs` (#2074),
+> so in every junctioned worktree `typecheck` shows TS2307 phantoms, tests importing `next.config`
+> fail to LOAD, and the pre-push build cannot run — both PRs were pushed from a hookless sparse
+> scratch clone (`git clone --no-checkout --filter=blob:none` + `sparse-checkout set --cone`), the
+> path `statenour-verify` documents; CI was the gate. #2175's first `node` run failed one suite
+> (`command-registry.test.ts`, "PrismaClient is not a constructor" at module load — a turbo
+> concurrency window; passes in isolation) and passed on rerun.
+>
+> **Flagged · NOT fixed (operator decisions or next slices — program §2/§13):**
+> - Nothing detects a failed deploy: an INDEPENDENT observer comparing each service with its expected
+>   release (not an in-worker cron; not every main commit) is the next slice.
+> - 20 "offline devices" on Home are cameras last seen 2026-04-14; classify by intended lifecycle,
+>   never retire by age alone. 23 approvals, oldest 330 h: expire AUTHORIZATION, never fabricate a
+>   decline; the obligation stays visible.
+> - `/api/images/[id]` serves generated AND photo-improver (the operator's own) photos anonymously
+>   with `Cache-Control: public`; consumers: chat markdown, /content publish, social-actions,
+>   photo-improver — signed URLs need operator authorization.
+> - Neon (metadata read by the third audit): PITR history 6 h, daily snapshots 30 d, weekly 35 d,
+>   6 snapshots, `production` branch NOT protected, org MFA not required — restore drill with
+>   outbound effects disabled + branch protection are operator decisions.
+> - nickstire's PUBLIC PhotoRibbon calls `adminProcedure customerEvents.topRibbonPhotos` → 112
+>   permission errors/day landing in StateNour's Sentry project (both apps share
+>   `statenour/javascript-react`) — task chip spawned; project split is an operator call.
+> - NICK floating button overlaps "ANSWER NOW" (/journal) and the capture "+" (/missions) at
+>   ~1090 CSS px; inbound-crm still accepts `?secret=`; `middleware.ts` is deprecated in Next 16
+>   (proxy.ts); read mode strips model tools but typed `/save` still writes — choose and label one
+>   contract. `/market`, "Check Business Dashboard" and shop-flavoured chat starters are the same
+>   class as the deleted `/business` — operator decision (R7 precedent). Phone-width capture was
+>   impossible from the harness (window resize refused); the design direction is desktop-verified.
+
+> ## 2026-09-07 · Backlog drain + tool-selection telemetry lands in the DB · 4 ships
+>
+> A prior session opened four statenour PRs and ran out of usage before merging any
+> of them; a parallel Codex session ran out too. This wave drained that queue, then
+> applied the migration the telemetry had been silently waiting on. Nothing here was
+> new feature work - it was finishing work already written and unlanded.
+>
+> **#2096 `08bef3cb` - Agent OS research program + tool selection telemetry.** 43
+> files, +5,317. `ai` was pinned 113 releases back by a local patch upstream had
+> already fixed better (a locally-captured const rather than `this.activeResponse`,
+> closing a concurrent-clear race the patch still had), so the patch was deleted
+> rather than rebased. Adds per-turn recording of which of 181 tools were OFFERED -
+> candidate count before truncation, which tier supplied each pick, which fell off
+> the budget cliff, and whether tier 5 no-opped on a cold embedding cache. Opt-in on
+> `opts.turnId`, fire-and-forget, fail-soft but NOT silent (`getSelectionTelemetryHealth()`
+> distinguishes an empty table from a broken recorder - the "failed read rendering as
+> a confident zero" shape the /brain audit found ten times).
+>
+> **#2102 `2a7f1eca` - heal from the authoritative cron window.**
+>
+> **#2103 `b3bebdeb` - expose unavailable health reads.**
+>
+> **#2160 `5b3ef319` - promote the parked ALTER into `prisma/migrations/`.** A file
+> move, no SQL change. `20260903190000_tool_selection_semantic_tier_state` was parked
+> in `migrations-pending/` while `20260903120000_tool_selection_telemetry` (which
+> CREATEs the table it ALTERs) already sat in the live folder. Promoting it let ONE
+> `prisma migrate deploy` apply it in timestamp order and record it properly, instead
+> of a hand-paste that leaves `_prisma_migrations` blind - the failure this file's own
+> migrations-pending README records from 2026-07-29, where hand-inserted rows for
+> names with no `migrations/<name>/` dir turned `migrate status` red.
+>
+> **Migration APPLIED 2026-09-07** via `railway run --service statenour-web -- pnpm release:db`.
+> Receipt: `Database schema is up to date!`, 54 migrations, against
+> `ep-quiet-wave-am320eo1-pooler`. Only ONE migration was outstanding -
+> `20260903120000` was already applied and recorded before the wave, so the earlier
+> claim that "both are pending" was wrong. **The tool-selection telemetry writer now
+> has its table; before this it fail-softed and recorded nothing.**
+>
+> **Flagged · NOT fixed**
+> - **Token usage and cost are still 0** (carried from the 2026-09-02 observability
+>   arc). The provider reported no usage, so cost attribution remains UNPROVEN.
+> - **AI SDK v7 not adopted** (stable at 7.0.91) - ESM-only + Node 22 floor +
+>   cumulative `usage` needs its own spike.
+> - **`MEMORY.md` is 20.6 KB against a 24.4 KB read limit** and the hook is asking for
+>   compaction to <17.1 KB. Not done: it is concurrently edited by sibling sessions and
+>   wants a dedicated pass, not a drive-by edit.
+
 > ## 2026-09-02 - Self-audit of the deep-research fixes + delete-first pass
 >
 > The #2081 wave fixed seven verified defects. An adversarial re-read of that
@@ -94,7 +458,6 @@
 > classifier stays deliberately conservative on names (`generateSQL`,
 > `runPython`, `writeCreative` classify as writes), which is the safe direction
 > but means `/system/tools` now counts them as mutating.
-||||||| a1d51cf09
 > ## 2026-09-02 · Langfuse tracing PROVEN live (#2082 + receipt)
 >
 > #2080 shared the tracer provider but its review-round sampler negated the fix: Sentry consults
@@ -1969,7 +2332,7 @@
 
 > **Pending merge (2026-06-19):** All five PRs below now merged. Detail: [`docs/sessions/2026-06-19.md`](sessions/2026-06-19.md). New work tracked below.
 
-> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-09-02 (Audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
+> **Deep-disconnect audit (2026-06-21):** PR #266 (WP-1 AI Provider Registry), #267 (drop 13 dead models + 1 enum), branch `cleanup/drop-prisma-models` → merged to `main`. All verified in `**Last verified:** 2026-09-08 (Design pass #2202 + chat leftovers #2204 + Brain plan/Wave 0-1 #2213 SHIPPED; prior: Backlog wave SHIPPED + DEPLOYED-VERIFIED - #2193/#2195/#2196/#2198: cost truth (aiChat is the ledger choke point, one price table, lane stops, Langfuse scores + model prices), approvals visible (windows + the deferred-automation list), /market moved to nickstire /admin/market, image-flag prerequisites, HSTS preload-ready, as-of recall, untrusted-content sink policy, intent playbooks, phone type floor; Neon production branch protected; prior: Quality+power Phases 1-2 SHIPPED + DEPLOYED-VERIFIED - #2180/#2181/#2183/#2185/#2186/#2188/#2189: deploy observer proven both ways (plain PASS, stale canary FAIL), approvals expire (authorization not obligations), devices classified + retire marks RETIRED, signed image URLs flag-off, resume record on park, D10 instrument red-then-fixed, proxy.ts, violet AI accent retired; prior: Quality+power wave #2175 DEPLOYED-VERIFIED `71e7cf14` + #2177 follow-up - every web+worker deploy since 09-04 had failed on a dead Dockerfile COPY, fixed + gated; prior: Backlog drain + tool-selection telemetry migration APPLIED - #2096/#2102/#2103/#2160, `Database schema is up to date!` 54 migrations; prior: Audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849; manual-fire lane #1747 + combined brief push #1755 wave; prior: cron-healer recursion wave #1735 + memory-loop wave — compiler resurrected from the merge grinder, memory receipts, backfill studio, temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass, Neon compute + cron-truth pass — the READ-ONLY quota lock was measured WRITABLE again ~16:30 ET via an operator-approved live probe); detail in the top entries
 
 > ## 2026-08-18 (sixteenth wave) · persona measurement arc — GATE-2026-08-14 fully executed · 13 PRs
 >
@@ -2497,7 +2860,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-09-02 (Observability arc #2080/#2082/#2083 - Sentry.init was claiming the global OpenTelemetry provider and silently killing Langfuse; both vendors now share one provider, roots are sampled, only AI SDK spans are exported, and tracing is PROVEN live by a planted trace read back. Earlier that day: audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-09-08 (Design pass #2202 + chat leftovers #2204 + Brain plan/Wave 0-1 #2213 SHIPPED; prior: Backlog wave SHIPPED + DEPLOYED-VERIFIED - #2193/#2195/#2196/#2198: cost truth (aiChat is the ledger choke point, one price table, lane stops, Langfuse scores + model prices), approvals visible (windows + the deferred-automation list), /market moved to nickstire /admin/market, image-flag prerequisites, HSTS preload-ready, as-of recall, untrusted-content sink policy, intent playbooks, phone type floor; Neon production branch protected; prior: Quality+power Phases 1-2 SHIPPED + DEPLOYED-VERIFIED - #2180/#2181/#2183/#2185/#2186/#2188/#2189: deploy observer proven both ways (plain PASS, stale canary FAIL), approvals expire (authorization not obligations), devices classified + retire marks RETIRED, signed image URLs flag-off, resume record on park, D10 instrument red-then-fixed, proxy.ts, violet AI accent retired; prior: Quality+power wave #2175 DEPLOYED-VERIFIED `71e7cf14` + #2177 follow-up - every web+worker deploy since 09-04 had failed on a dead Dockerfile COPY, fixed + gated; prior: Backlog drain + tool-selection telemetry migration APPLIED - #2096/#2102/#2103/#2160, `Database schema is up to date!` 54 migrations; prior: Observability arc #2080/#2082/#2083 - Sentry.init was claiming the global OpenTelemetry provider and silently killing Langfuse; both vendors now share one provider, roots are sampled, only AI SDK spans are exported, and tracing is PROVEN live by a planted trace read back. Earlier that day: audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.

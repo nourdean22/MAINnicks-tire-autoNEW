@@ -8,9 +8,9 @@ import { trackPhoneClick } from "@/components/SEO";
 import { Phone, Menu, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
-import { useBusinessHours } from "@/hooks/useBusinessHours";
 import BrandMark from "@/components/BrandMark";
 import NonstopNickTopBar from "@/components/NonstopNickTopBar";
+import ShopStrip from "@/components/ShopStrip";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 // Tires sits FIRST — highest customer intent. Without this entry, tire-
@@ -31,9 +31,9 @@ const NAV_LINKS = [
 export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isOpen } = useBusinessHours();
-  const hasEmergencyBanner = !isOpen;
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // 2026-09-08 · the fixed red "Closed · re-opens" banner that used to push
+  // this nav down 56px is gone; the closed state lives in ShopStrip below.
 
   // Focus trap + Escape + initial focus + focus restoration for the mobile
   // menu — same contract every other overlay gets via useFocusTrap.
@@ -59,9 +59,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
 
   return (
     <nav
-      className={`fixed left-0 right-0 z-50 transition-all duration-500 ${
-        hasEmergencyBanner ? "top-[56px] sm:top-[48px]" : "top-0"
-      } ${
+      className={`fixed left-0 right-0 z-50 top-0 transition-all duration-500 ${
         scrolled
           ? "bg-[oklch(0.06_0.004_260/0.92)] backdrop-blur-2xl shadow-[0_1px_0_oklch(0.17_0.004_260/0.5)]"
           : "bg-transparent"
@@ -70,10 +68,15 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
       {/* Membership band lives INSIDE the fixed nav cluster (2026-07-04
           overlap fix — see NonstopNickTopBar header). Collapses once the
           page scrolls so the persistent strip is only ever the navbar.
-          Hidden while the emergency closed-banner is up: that banner
-          already offsets the nav by 56px and stacking three strips is
-          exactly what the original LCP note forbids. */}
-      {!hasEmergencyBanner && <NonstopNickTopBar collapsed={scrolled} />}
+          2026-09-08 · desktop only: on a phone the band spent the top of
+          the fold on a $7.99/mo promo while the shop's address, phone and
+          open state were not on screen at all. Those now ride the ShopStrip
+          below the nav row on every breakpoint; the band keeps its desktop
+          slot. Both collapse while the mobile menu is open so the menu
+          panel (fixed from 60px) never starts under them. */}
+      <div className="hidden lg:block">
+        <NonstopNickTopBar collapsed={scrolled || mobileOpen} />
+      </div>
       <div className="container flex items-center justify-between h-[60px]">
         {/* ─── BRAND MARK + WORDMARK ─── */}
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -137,6 +140,10 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         </button>
       </div>
 
+      {/* Shop facts strip — open/closed + until, address, phone, rating.
+          Under the nav row so the brand mark stays first on a phone. */}
+      <ShopStrip collapsed={scrolled || mobileOpen} />
+
       {/* ─── MOBILE MENU ─── */}
       <AnimatePresence>
         {mobileOpen && (
@@ -157,7 +164,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
                This is `lg:hidden`, i.e. it renders ONLY on phones, and it is on the
                PUBLIC site, so the cost landed on every customer opening the menu.
                backdrop-blur-2xl was also the heaviest tier in the codebase. */
-            className={`lg:hidden fixed inset-0 ${hasEmergencyBanner ? "top-[116px] sm:top-[108px]" : "top-[60px]"} bg-[oklch(0.06_0.004_260/0.98)] z-40`}
+            className="lg:hidden fixed inset-0 top-[60px] bg-[oklch(0.06_0.004_260/0.98)] z-40"
           >
             <div className="container py-10 flex flex-col gap-1">
               {/* aria-modal="true" makes everything outside this panel inert

@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel closes at the same wheel-level framing of the front tire that it opens on, still mid crawl through the same slow tight turn on dry pavement, so the replay continues that one turn instead of starting a new one.",
+  "campaignKeyword": "VIBRATION",
   "topic": "4wd-awd-driveline-bind-tight-turns",
   "title": "4WD/AWD binds or chatters in tight turns on dry pavement (transfer case fluid, not tires)",
   "mode": "SCHEDULED",
@@ -45,54 +47,71 @@
   "aspectRatio": "9:16",
   "beats": [
     {
+      "motion": "Static hold at wheel height as the tire crawls across frame",
+      "visual": "Low wheel-level shot of a front tire crawling through a slow tight turn on sunlit dry pavement, the tread blocks intact and evenly worn while the sidewall bulges and the contact patch scrubs sideways against the asphalt with every inch of travel, shallow depth of field on the tread shoulder, camera held static at curb height, 9:16 vertical framing",
+      "onScreenText": "NOT THE TIRES",
       "index": 1,
       "role": "hook",
       "startSec": 0,
       "endSec": 3,
       "shot": "Close-up on an SUV's transfer case housing between the front and rear driveshafts, sunlight, subtle idle vibration",
       "prompt": "macro close up shot of a car transfer case housing between the front and rear driveshafts on the underside of an SUV, sunlight catching the metal casing, subtle engine idle vibration, shallow depth of field, photorealistic",
-      "vo": "Your 4WD or AWD binding up in tight turns? That's probably not your tires."
+      "vo": "4WD binding in tight turns is probably not the tires."
     },
     {
+      "motion": "Static hold, the tire stuttering through frame",
+      "visual": "Extreme low macro on the contact patch where the front tire meets warm dry asphalt, the tread shoulder loading and then letting go in a stutter so the whole sidewall shudders and a fine puff of grit lifts each time the rubber skips, raking late-afternoon side light across the pavement grain, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "HOP ON DRY PAVEMENT",
       "index": 2,
       "startSec": 3,
       "endSec": 8,
       "shot": "Bird's-eye drone shot of an SUV tracing a tight, complete circle in an empty parking lot at full lock",
       "prompt": "bird's eye drone style shot of an SUV slowly tracing a tight complete circle in an empty parking lot at full steering lock, tire contact patches visibly scrubbing sideways against dry pavement, photorealistic",
-      "vo": "A shudder, hop, or binding feeling in a slow, tight turn — usually noticed in a parking lot or driveway on dry pavement."
+      "vo": "A shudder or hop in a slow turn on dry pavement."
     },
     {
+      "motion": "Slow push-in from the crossmember toward the housing",
+      "visual": "Underbody shot looking straight up at the ribbed cast housing of the transfer case bolted behind the transmission, its front and rear output yokes turning slowly with the driveshafts, a hard work light raking across baked road grime and the cast texture of the housing, deep shadow beyond the crossmember, 9:16 vertical framing",
+      "onScreenText": "TRANSFER CASE CLUE",
       "index": 3,
       "startSec": 8,
       "endSec": 14,
       "shot": "Object-only cutaway of a transfer case gear-and-chain assembly, front and rear output shafts rotating at slightly different speeds",
       "prompt": "object only technical cutaway of an open car transfer case gear and chain assembly, front and rear output shafts rotating at slightly different speeds, clean diagrammatic lighting, slow orbiting camera move, no text or labels, photorealistic",
-      "vo": "That points to your transfer case or center differential — the part that lets all four wheels travel different paths in a turn."
+      "vo": "That can point to the transfer case or center differential."
     },
     {
+      "motion": "Slow overhead drift following the turn",
+      "visual": "Overhead shot straight down on a dusty lot as one side of the vehicle crawls through a tight turn, the front tire scribing a tight arc into the dust while the rear tire behind it cuts a wider shallower arc that never lands on the same line, both curved tracks left clean and separate on the surface, soft overcast light, 9:16 vertical framing",
+      "onScreenText": "DIFFERENT DISTANCES",
       "index": 4,
       "startSec": 14,
       "endSec": 20,
       "shot": "Two dishes side by side, clean amber gear oil vs. dark metal-flecked gear oil, slow rack-focus",
       "prompt": "close up comparison of two shallow dishes side by side under even studio light, one holding clean amber gear oil, the other holding dark metal fleck flecked gear oil, slow rack focus between them, no hands present, photorealistic",
-      "vo": "Old or low transfer case fluid can make that binding worse, and pushing through it again and again wears the drivetrain faster."
+      "vo": "It lets the wheels travel different distances in a turn."
     },
     {
+      "motion": "Slow push-in onto the lip of the port",
+      "visual": "Extreme macro on the open fill port on the side of the transfer case housing, a thin near-black thread of aged gear oil creeping over the lip and dragging slowly down the ribbed casting, its surface dull and heavy where fresh fluid would run bright and thin, hard raking side light picking out the grain of the metal, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "LOW FLUID BINDS MORE",
       "index": 5,
       "startSec": 20,
       "endSec": 26,
       "shot": "Shop inspection light sweeping across a transfer case fill-plug bolt with a faint oil weep line",
       "prompt": "a shop inspection light on a stand sweeps its beam across a car transfer case housing fill plug bolt, threads and a faint oil weep line visible under the light, no hands present, slow rack focus, photorealistic",
-      "vo": "One clue is not a diagnosis — worth having the transfer case fluid checked before a tight parking lot turn becomes a bigger repair."
+      "vo": "Old or low fluid makes the bind worse."
     },
     {
+      "visual": "Low wheel-level shot of a front tire crawling through a slow tight turn on dry pavement, tread scrubbing and chirping sideways against the surface, sunlit lot, static camera, no people",
+      "onScreenText": "WORTH CHECKING",
       "index": 6,
       "role": "cta_save_freeze",
       "startSec": 26,
       "endSec": 34,
       "shot": "Exterior establishing shot of the shop bay, tire stack in foreground, logo signage visible; static hold for the final 3s end card",
       "prompt": "exterior establishing shot of an automotive shop bay, tire stack in foreground, late afternoon light, logo signage visible and legible, camera holds steady, photorealistic",
-      "vo": "Stop by and we'll take a look — Nick's Tire and Auto, on Euclid Avenue."
+      "vo": "Worth checking."
     }
   ],
   "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",

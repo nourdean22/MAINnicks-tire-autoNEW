@@ -43,7 +43,114 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-08-18-power-steering-whine",
   "2026-08-19-wont-start-battery-starter-alternator",
 
+  // ── Approved 2026-09-07 on explicit operator instruction ──────────────
+  // "all 132 packs do need to be in rotation ... I do not know why they are
+  // just being off put to the side."
+  //
+  // 67 packs, every one verified through buildBriefFromApprovedProductionPack
+  // — the SAME builder production uses, which normalises both brief schemas
+  // (`beats` and `storyboardBeats`) and returns null below 4 beats or with no
+  // caption. A first pass read `storyboardBeats` by hand and called 113 packs
+  // unusable and 30 others clean; both numbers were artefacts of reading the
+  // wrong key, and the "clean" half was absent-evidence-as-pass. Gate through
+  // the real builder or do not gate.
+  //
+  // Each also cleared the claim gate and the originality gate against the live
+  // 144-item published corpus. Of the 164 packs carrying a brief.json: 99
+  // clean (32 already listed above + these 67), 1 repost
+  // (2026-08-20-tire-sidewall-numbers, on-screen text 1.00 — deliberately NOT
+  // added), 0 condemned, 64 rejected by the builder itself.
+  //
+  // APPENDED, NEVER REORDERED. The rotation cursor is an INDEX into this
+  // array, so inserting or sorting would silently move the daily topic to a
+  // different pack. The operator set that cursor to 2 by hand today; it still
+  // means 2026-08-17-balance-vs-alignment.
+  //
+  // Safe to be this long ONLY because a terminally-refused pack now advances
+  // the cursor past itself (089823177). Before that, one bad pack in a
+  // 99-entry rotation jammed it as completely as one in a 32-entry rotation.
+  "2026-08-14-penny-test",
+  "2026-08-16-battery-summer-heat",
+  "2026-08-16-squealing-vs-grinding-brakes",
+  "2026-08-19-burning-smell-diagnosis",
+  "2026-08-19-clunk-over-bumps-sway-bar-ball-joint",
+  "2026-08-19-engine-overheating-first-60-seconds",
+  "2026-08-19-heat-shield-rattle",
+  "2026-08-19-spongy-brake-pedal",
+  "2026-08-19-timing-belt-no-warning-light",
+  "2026-08-19-warped-rotor-brake-shake",
+  "2026-08-19-windshield-chip-spreads",
+  "2026-08-20-awd-one-new-tire",
+  "2026-08-20-battery-terminal-corrosion",
+  "2026-08-20-caliper-sticking-hot-wheel",
+  "2026-08-20-cloudy-headlights",
+  "2026-08-20-dashboard-light-colors",
+  "2026-08-20-echeck-readiness-monitors",
+  "2026-08-20-fuel-smell-in-cabin",
+  "2026-08-20-heater-not-blowing-hot",
+  "2026-08-20-idle-shake-spark-plug-motor-mount",
+  "2026-08-20-oil-dipstick-color-check",
+  "2026-08-20-radiator-fan-idle-overheat",
+  "2026-08-20-slow-leak-soap-test",
+  "2026-08-20-tie-rod-steering-wobble-test",
+  "2026-08-21-abs-light-wheel-speed-sensor",
+  "2026-08-21-battery-parasitic-drain",
+  "2026-08-21-blower-motor-resistor",
+  "2026-08-21-key-fob-dead-battery-no-start",
+  "2026-08-21-pcv-valve-oil-consumption",
+  "2026-08-21-power-window-stuck-halfway",
+  "2026-08-21-radiator-cap-pressure-test",
+  "2026-08-21-spark-plug-wire-arcing",
+  "2026-08-21-timing-chain-rattle-cold-start",
+  "2026-08-21-valve-stem-dry-rot",
+  "2026-08-22-clutch-slipping-rpm-flare",
+  "2026-08-22-hard-brake-pedal-vacuum-booster",
+  "2026-08-22-motor-mount-clunk-acceleration",
+  "2026-08-22-oil-pressure-light-flicker-idle",
+  "2026-08-23-door-lock-actuator-stripped-gear",
+  "2026-08-23-exhaust-suddenly-loud-rusted-muffler",
+  "2026-08-23-fuel-gauge-sending-unit",
+  "2026-08-23-fuel-pump-whine",
+  "2026-08-23-rough-shifting-check-fluid-first",
+  "2026-08-23-sunroof-drain-clog-water-leak",
+  "2026-08-23-sweet-smell-heater-core-coolant-leak",
+  "2026-08-23-trunk-hatch-gas-strut-sag",
+  "2026-08-23-washer-fluid-wont-spray",
+  "2026-08-24-head-gasket-white-smoke-milky-oil",
+  "2026-08-24-horn-wont-work",
+  "2026-08-24-turbo-whistle-vs-boost-leak",
+  "2026-08-24-water-pump-weep-hole-leak",
+  "2026-08-25-4wd-transfer-case-bind-tight-turns",
+  "2026-08-25-collapsing-radiator-hose",
+  "2026-08-25-misfire-shudder-coil-vs-plug",
+  "2026-08-25-torque-converter-shudder-40-45mph",
+  "2026-08-26-check-engine-flashing-vs-steady",
+  "2026-08-26-exhaust-hanger-rattle-over-bumps",
+  "2026-08-28-new-brake-squeak-bed-in",
+  "2026-08-28-power-steering-fluid-leak-color",
+  "2026-09-01-clutch-pedal-sinks-hydraulic-leak",
+  "2026-09-04-back-to-school-carpool-check",
+  "2026-09-04-fall-car-care-checklist",
+  "2026-09-04-trunk-release-not-working",
+  "2026-09-05-battery-date-code",
+  "2026-09-06-sealed-transmission-no-dipstick-check",
+  "2026-09-07-auto-headlights-wont-turn-on-dusk",
+  "2026-09-07-wheel-stud-snapped",
 ] as const;
+
+/**
+ * Packs deliberately kept OUT of the rotation, each with the reason.
+ *
+ * This exists so "not in rotation" can never again mean "nobody looked".
+ * `reelPackRotationCoverage.test.ts` fails when a pack on disk is accepted by
+ * `buildBriefFromApprovedProductionPack` and appears in neither list — which is
+ * how 67 usable packs sat unreachable while new ones kept being written.
+ */
+export const ROTATION_EXCLUDED: Readonly<Record<string, string>> = {
+  "2026-08-20-tire-sidewall-numbers":
+    "Repost: on-screen text scores 1.00 against an already-published post. The originality gate " +
+    "would refuse it at the publish door anyway; keeping it out of the rotation saves the render.",
+};
 
 export interface ApprovedReelPack {
   slug: (typeof APPROVED_REEL_PACK_SLUGS)[number];
@@ -178,6 +285,9 @@ export function buildBriefFromApprovedProductionPack(
     const raw = rawBeats[beat.beatNumber - 1] as Record<string, unknown> | undefined;
     return stringValue(raw?.narration) || stringValue(raw?.vo);
   }).filter(Boolean).join(" ");
+  /** A pack's declared loop plan - how its last frame feeds its first. */
+  const packLoopIdea = stringValue(source.loopIdea);
+  const driverConfusionFallback = stringValue(source.driverConfusion) || stringValue(source.hookText) || "";
   const campaignKeyword = stringValue(source.campaignKeyword) || pack.slug.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-/g, " ");
   const topic = stringValue(source.topic) || pack.topic;
   const sourceNotes = Array.isArray(source.sourceNotes) ? source.sourceNotes : [];
@@ -200,8 +310,45 @@ export function buildBriefFromApprovedProductionPack(
     motionLens: "extreme_macro_push_in",
     objectCharacter: "rust_creeping_villain",
     usefulAbsurdity: stringValue(source.usefulAbsurdity),
-    concepts: [],
-    winningConceptId: null,
+    /**
+     * A reviewed pack IS a selected concept, so the brief carries one - which is
+     * what lets a pack DECLARE its loop plan and have the quality scorer read it
+     * (`calculateReelQualityScore` resolves the loop through
+     * `concepts.find(id === winningConceptId).loopIdea`, so an empty array made
+     * "Loop plan" unreachable for every pack-derived brief no matter how well
+     * the storyboard actually looped).
+     *
+     * THE TOURNAMENT SCORES ARE DELIBERATELY ZERO, and that is not an oversight.
+     * These packs were authored and reviewed directly; no concept tournament
+     * ranked them against rivals. Filling in 57+/60 would invent evidence of a
+     * selection that never happened, so "Winning concept >= 57/60" is left to
+     * fail honestly. It costs 5 of 75 points and caps a pack-derived brief at
+     * 70 - exactly the passing threshold, reachable only on real merit.
+     */
+    concepts: packLoopIdea
+      ? [{
+          id: briefId,
+          hook: stringValue(source.hookText) || driverConfusionFallback,
+          coreFact: stringValue(source.mechanicTruth) || topic,
+          factBucket: "myth_buster" as const,
+          driverEmotion: "",
+          campaignKeyword: campaignKeyword as never,
+          archetype: "tiny_cinematic_story" as const,
+          motionLens: "extreme_macro_push_in" as const,
+          objectCharacter: "rust_creeping_villain" as const,
+          usefulAbsurdity: stringValue(source.usefulAbsurdity),
+          localAngle: stringValue(source.clevelandAngle),
+          beatOutline: storyboardBeats.map((b) => b.onScreenText || b.purpose),
+          loopIdea: packLoopIdea,
+          captionAngle: "",
+          saveShareReason: "",
+          nickFitReason: "",
+          nonGenericReason: "",
+          rejectionRisk: "",
+          scores: { hook: 0, truth: 0, save: 0, local: 0, absurdity: 0, fit: 0 },
+        }]
+      : [],
+    winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
     promptPack: [],
     higgsfieldPromptPack: [],
@@ -244,4 +391,123 @@ export function parseApprovedPackRotationIndex(value: string | null): number | n
 /** A missing cursor is the first pack; a malformed cursor is never guessed. */
 export function resolveApprovedPackRotationIndex(value: string | null): number | null {
   return value === null ? 0 : parseApprovedPackRotationIndex(value);
+}
+
+/**
+ * Where the rotation should point after a reel from `jobPackSlug` was
+ * TERMINALLY refused — or null to hold.
+ *
+ * Pure and exported so the decision can be exercised directly. The first
+ * version of this lived inline in dailyReelPost and was covered only by tests
+ * that matched source text, which stay green if the write never persists or the
+ * helper returns early. AGENTS.md is explicit that a control must assert
+ * BEHAVIOUR, not presence.
+ */
+export function nextRotationIndexAfterRefusal(
+  jobPackSlug: string | null | undefined,
+  currentIndex: number | null,
+  packSlugAtCurrentIndex: string | null | undefined,
+): number | null {
+  // A miner- or manifest-sourced job has no rotation slot to advance.
+  if (!jobPackSlug) return null;
+  // An exhausted or malformed cursor is never guessed at — the miner is
+  // authority there, and parseApprovedPackRotationIndex already refused it.
+  if (currentIndex === null) return null;
+  // The cursor moved while this reel rendered. Advancing now would skip an
+  // untouched pack, so hold — same posture as the success path.
+  if (packSlugAtCurrentIndex !== jobPackSlug) return null;
+  return currentIndex + 1;
+}
+
+/**
+ * Advance the rotation past a pack whose reel was terminally refused.
+ *
+ * THE DEADLOCK THIS BREAKS. `setApprovedPackProgress` in dailyReelPost is the
+ * only other writer of this cursor and is called exclusively inside the
+ * successful-publish branch, so the rotation advanced only when a reel actually
+ * reached Instagram. When every candidate is refused the cursor freezes, the
+ * next day regenerates the SAME pack's topic, the new reel duplicates the last
+ * attempt, originality refuses it as a repost, and nothing publishes — which
+ * holds the cursor. Measured in production 2026-09-07: frozen at index 1
+ * (`2026-08-16-check-engine-light`) since the last successful post on
+ * 2026-08-29, with the held queue being that one topic attempted repeatedly.
+ *
+ * A ROTATION, NOT A DISCARD: the pack keeps its slot and comes back around
+ * after the others, by which time the published corpus has moved.
+ *
+ * It writes ONLY the index. `setApprovedPackProgress` also stamps
+ * `reel_autopost_last_date`, the one-post-per-day guard; stamping that here
+ * would spend the day's slot on a reel that never posted.
+ *
+ * Returns the new index, or null when it held (and why is logged).
+ */
+export async function advanceRotationPastRefusedPack(input: {
+  /** Log-only. Absent when the refusal happened BEFORE a job row existed —
+   *  an approved pack blocked at enqueue preflight never gets an id, and the
+   *  rotation must still move or that pack jams every later pulse. */
+  jobId?: number | null;
+  jobPackSlug: string | null | undefined;
+  reason: string;
+}): Promise<number | null> {
+  const { createLogger } = await import("../lib/logger");
+  const log = createLogger("services:approved-pack-rotation");
+
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return null;
+
+  const { shopSettings } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const rows = await d
+    .select({ value: shopSettings.value })
+    .from(shopSettings)
+    .where(eq(shopSettings.key, "reel_approved_pack_rotation_index"))
+    .limit(1);
+  const currentIndex = resolveApprovedPackRotationIndex(rows.length ? String(rows[0].value) : null);
+  const next = nextRotationIndexAfterRefusal(
+    input.jobPackSlug,
+    currentIndex,
+    currentIndex === null ? null : approvedReelPackAt(currentIndex)?.slug,
+  );
+
+  if (next === null) {
+    if (input.jobPackSlug) {
+      log.warn("rotation NOT advanced past a refused reel", {
+        jobId: input.jobId, slug: input.jobPackSlug, currentIndex, reason: input.reason,
+      });
+    }
+    return null;
+  }
+
+  await d
+    .insert(shopSettings)
+    .values({
+      key: "reel_approved_pack_rotation_index",
+      value: String(next),
+      label: "Approved Reel-pack rotation — next pack index",
+      category: "general",
+      updatedBy: "system",
+    })
+    .onDuplicateKeyUpdate({ set: { value: String(next), updatedBy: "system" } });
+
+  log.warn("approved-pack rotation ADVANCED past a terminally refused reel", {
+    jobId: input.jobId, slug: input.jobPackSlug, from: currentIndex, to: next, reason: input.reason,
+  });
+  return next;
+}
+
+/**
+ * Load a pack and build its brief in one call, by slug.
+ *
+ * Exists for `reelPackRotationCoverage.test.ts`, which must ask exactly what
+ * production asks — "can the real builder turn this directory into a brief?" —
+ * rather than re-deriving that judgement. A hand-rolled version of this check
+ * read the wrong beat key on 2026-09-07 and misclassified 143 of 164 packs in
+ * both directions.
+ */
+export function buildApprovedPackBriefForTest(slug: string): Record<string, unknown> | null {
+  const snapshot = loadApprovedProductionPack(slug);
+  if (!snapshot) return null;
+  return buildBriefFromApprovedProductionPack({ slug: slug as ApprovedReelPack["slug"], topic: "" }, snapshot, "coverage-probe");
 }

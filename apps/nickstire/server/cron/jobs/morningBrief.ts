@@ -18,62 +18,38 @@ import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:morning-brief");
 
 /**
- * ROS-083 · the TOP DECISIONS block, and why it is a named function.
+ * ROS-083 · RESOLVED BY REMOVAL, 2026-09-07. Read this before adding any block
+ * that ranks work for the operator.
  *
- * It used to be built inline and left as "" whenever the opportunity queue came
- * back empty — which collapsed THREE different states into one: the queue was
- * read and is genuinely clear, the queue could not be consulted (no database
- * handle, or migration 0099 unapplied so revenue_opportunities does not exist),
- * and the read threw.
+ * ROS-083 fixed a real defect: the TOP DECISIONS block used to be left as ""
+ * when the opportunity queue came back empty, collapsing three states into one
+ * (read-and-clear · unconsultable · threw). Because the FORMAT RULES mandated a
+ * "Top 3 priorities" section, an absent block made the LLM write the operator's
+ * priorities FROM SCRATCH out of whatever else was in the data blob and send
+ * them to Telegram looking exactly like a queue-backed list.
  *
- * An absent block does not read as "nothing to decide" to the model. The FORMAT
- * RULES in the system prompt mandate a "Top 3 priorities" section, so with no
- * block the LLM writes the operator's priorities for the day FROM SCRATCH, out
- * of whatever else happens to be in the data blob — and sends them to Telegram
- * every morning, indistinguishable from a real queue-backed list.
+ * Its fix was to make the block always present and always self-describing, and
+ * to keep the priorities section — on the reasoning that "removing the section
+ * would also 'fix' the invention, by removing the most useful part of the brief".
  *
- * So the block is now ALWAYS present and always says which of the three states
- * produced it. The exceptions block further down this same file already does
- * exactly this ("waiting-customer count UNKNOWN (read failed ...)"); this is
- * that idiom, not a new one.
+ * That reasoning assumed the opportunity queue SHOULD lead the operator's day.
+ * On 2026-09-07 the operator decided the opposite: a queue that leads the day
+ * manufactures obligations on a healthy day, and the Decision Inbox was retired
+ * from the admin home for exactly that reason. Leaving the block here would have
+ * moved the same obligation from a page he can ignore to a push he cannot.
  *
- * Extracted so the three branches can be asserted directly — the surrounding
- * function is ~400 lines of sequential reads and cannot be exercised in a unit
- * test, which is the reason this went unnoticed.
+ * THE INVARIANT SURVIVES, AND IT IS THE POINT: the model must never emit
+ * priorities that look queue-backed but are invented. ROS-083 satisfied it by
+ * constraining the mandate; this satisfies it by deleting the mandate. Both the
+ * block and the "Top 3 priorities" FORMAT RULE had to go together — removing
+ * only the block would have re-created the original defect exactly.
+ *
+ * The brief is now a REPORT (what happened, what genuinely needs attention via
+ * the exceptions block) and not a WORK ASSIGNMENT. `topDecisions()` itself is
+ * untouched and still serves the staff Follow-ups tab.
+ *
+ * Asserted by server/ros083BriefPriorities.test.ts, which now pins the absence.
  */
-export const DECISIONS_UNAVAILABLE_READ_FAILED =
-  "\nTOP DECISIONS: UNAVAILABLE — reading the opportunity queue FAILED. This is NOT the same as an empty queue.";
-
-export function buildDecisionsBlock(top: {
-  decisions: Array<{
-    urgency: string;
-    recommendedAction: string;
-    reason: string;
-    dataQuality: string;
-    attempts: number;
-    factors: { valueDollars: number };
-  }>;
-  excludedNoConsent: number;
-  excludedSnoozed: number;
-  totalLive: number;
-  queryable: boolean;
-}): string {
-  if (!top.queryable) {
-    return "\nTOP DECISIONS: UNAVAILABLE — the opportunity queue could not be consulted (no database handle, or revenue_opportunities is missing). This is NOT the same as an empty queue.";
-  }
-  if (top.decisions.length === 0) {
-    return `\nTOP DECISIONS: none — the opportunity queue was read successfully and holds no actionable decisions right now (${top.totalLive} live, ${top.excludedNoConsent} excluded for no contact consent, ${top.excludedSnoozed} snoozed).`;
-  }
-  let block = "\nTOP DECISIONS (opportunity queue — lead with these, verbatim):";
-  top.decisions.forEach((dec, i) => {
-    const value = dec.factors.valueDollars > 0 ? `$${dec.factors.valueDollars.toLocaleString()}` : "value unknown";
-    block += `\n${i + 1}. [${dec.urgency.toUpperCase()}] ${dec.recommendedAction} — ${value} · ${dec.reason} (evidence: ${dec.dataQuality}, attempts: ${dec.attempts})`;
-  });
-  if (top.excludedNoConsent > 0) {
-    block += `\n(${top.excludedNoConsent} opportunities excluded — no contact consent)`;
-  }
-  return block;
-}
 
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
   const { sendTelegram } = await import("../../services/telegram");
@@ -245,30 +221,16 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
       enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
     } catch (e) { log.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
 
-    // ─── Owner Decision Inbox: top 5 from the opportunity queue ────
-    // Wave 4: evidence-backed decision cards lead the brief.
+    // ─── Owner Decision Inbox: RETIRED from this brief, 2026-09-07 ────
+    // The opportunity queue no longer leads the operator's morning. See the
+    // ROS-083 note at the top of this file: the block AND the "Top 3 priorities"
+    // FORMAT RULE were removed together, deliberately, because removing only one
+    // of them re-creates the original invent-priorities-from-scratch defect.
     //
-    // ROS-083 · this block used to collapse THREE different states into the
-    // same empty string: the queue was read and is genuinely clear, the queue
-    // could not be consulted (no DB, or migration 0099 unapplied), and the read
-    // threw. An absent block does not mean "nothing to decide" to the model —
-    // the FORMAT RULES below mandate a "Top 3 priorities" section, so with no
-    // block the LLM writes the operator's priorities for the day FROM SCRATCH,
-    // out of whatever else happens to be in the data blob. Every morning, in
-    // Telegram, indistinguishable from a real queue-backed list.
-    //
-    // So the block is now always present and always says which of the three it
-    // is. The exceptions block twenty lines below already does exactly this
-    // ("waiting-customer count UNKNOWN (read failed ...)"); this is the same
-    // idiom, not a new one.
-    let decisionsBlock: string;
-    try {
-      const { topDecisions } = await import("../../services/opportunityQueue");
-      decisionsBlock = buildDecisionsBlock(await topDecisions(5));
-    } catch (e) {
-      log.warn("[morningBrief] opportunity queue load failed:", e);
-      decisionsBlock = DECISIONS_UNAVAILABLE_READ_FAILED;
-    }
+    // `topDecisions()` is untouched and still backs the staff Follow-ups tab.
+    // Do NOT re-add a ranked work block here under another name — the exceptions
+    // block below is the sanctioned channel for things that genuinely need Nick,
+    // and it is sourced, bounded and honest about unknowns.
 
     // ─── Exception brief (Autopilot Wave 2) — what needs Nick, not a feed ──
     // Only real, load-bearing exceptions: waiting customers past SLA, blocked
@@ -441,9 +403,9 @@ ${personalBlock ? personalBlock.slice(0, 600) : "Nour is the CEO/owner-operator.
 FORMAT RULES:
 - Use Telegram-friendly formatting (no markdown, use emoji sparingly)
 - Keep it under 2000 characters total
-- Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → Top 3 priorities → Personal check-in → Motivational closer
+- Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → What needs attention (ONLY from the EXCEPTIONS block) → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
-- A TOP DECISIONS block is ALWAYS present and says one of three things. If it LISTS decisions, those ARE the top priorities — put them first, keep each recommended action verbatim, and never invent decisions beyond them. If it says "none", the queue was read and is genuinely clear: say so in one short line and draw the remaining priorities only from data that IS present. If it says "UNAVAILABLE", the queue could not be read: write "Priority queue unavailable this morning — these are not queue-backed" as the first line of the Top 3 priorities section, and do NOT present anything as a ranked or evidence-backed priority. Never fill an unavailable queue with priorities you inferred.
+- This brief REPORTS; it does not assign work. Do NOT write a ranked priority list, a "Top 3", a to-do list, or any list of things Nour should do today. The only things you may present as needing attention are the ones the EXCEPTIONS block explicitly names, phrased as what they are, and if that block is empty or reports a value as UNKNOWN you say so plainly and move on. NEVER infer, rank, or invent a priority from the surrounding numbers — an invented priority is indistinguishable from an evidence-backed one once it reaches Telegram, and a quiet day is allowed to be quiet.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
 - Reference a SPECIFIC customer by name if there's a follow-up opportunity.
@@ -456,7 +418,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${exceptionsBlock}${decisionsBlock}${promisesBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n${exceptionsBlock}${promisesBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -483,7 +445,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ~$${trailingDailyPace.toLocaleString()}/day pace
 
 PIPELINE: ${pendingLeadsCount} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
-${exceptionsBlock}${decisionsBlock}
+${exceptionsBlock}
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 ${masterBlock}

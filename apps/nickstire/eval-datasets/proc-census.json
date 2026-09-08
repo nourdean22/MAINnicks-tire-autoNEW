@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-04T16:38:01.790Z",
-  "count": 706,
+  "generatedAt": "2026-09-07T14:07:56.613Z",
+  "count": 708,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -425,6 +425,7 @@
     "query.controlCenter.getYesterday",
     "query.controlCenter.moneySummary",
     "query.controlCenter.recentAdminLogins",
+    "query.controlCenter.shopSales",
     "query.controlCenter.smsConsentAudit",
     "query.controlCenter.todayPulse",
     "query.controlCenter.topMoneyMoves",
@@ -527,6 +528,7 @@
     "query.instagramAdmin.getSwipeFileCorrelations",
     "query.instagramAdmin.listReelPatterns",
     "query.instagramAdmin.reelPublishQueue",
+    "query.instagramAdmin.reelRecoveryLedger",
     "query.instagramStudio.board",
     "query.instagramStudio.diagnostics",
     "query.instagramStudio.list",

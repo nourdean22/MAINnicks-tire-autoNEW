@@ -1,0 +1,81 @@
+# visitd configuration. Copy to config.yaml (mounted at /config/config.yaml in Docker).
+# Every key is shown with its default. Secrets come from the environment (.env), never from this file.
+
+logLevel: INFO            # DEBUG|INFO|WARNING|ERROR
+tickSeconds: 5            # timer evaluation cadence for stationary objects that send no MQTT updates
+
+mqtt:
+  host: mqtt              # compose service name; "127.0.0.1" when running visitd outside Docker
+  port: 1883
+  username: null          # overridden by env MQTT_USERNAME
+  password: null          # overridden by env MQTT_PASSWORD (never put it here)
+  topicPrefix: frigate    # must match frigate/config.yml mqtt.topic_prefix
+  clientId: visitd
+  keepalive: 60
+  queueMax: 10000         # bounded inbox between the paho thread and the main thread
+  inboxBatchMax: 500      # most queued messages one live-loop pass consumes before the tick / heartbeat / housekeeping
+                          # run (what was queued at entry, capped); the next pass keeps draining in receipt order
+
+backend:
+  baseUrl: https://bdnick.info
+  syncKeyEnv: STATENOUR_SYNC_KEY   # name of the env var holding the x-sync-key value
+  timeoutSeconds: 8
+  heartbeatSeconds: 60             # PATCH /api/devices/{cloudDeviceId} cadence
+  retryMinSeconds: 1               # exponential backoff floor for cloud POST retries
+  retryMaxSeconds: 60              # backoff ceiling
+  outboxMaxDepth: 5000             # oldest events are dropped (and counted) beyond this depth
+  outboxMaxAttempts: 40            # HTTP error responses (5xx/429) for ONE event before it is parked in the
+                                   # ledger's dead_letter table; transport failures (WAN down) never count
+
+# Frigate camera name -> cloud device (statenour SmartDevice.platformDeviceId) + zone roles.
+cameras:
+  lot:
+    cloudDeviceId: v380-shopinside  # replace with the PoE camera's platformDeviceId once created in statenour
+    displayName: Front Lot
+    arrivalZones: [front_lot, entrance_lane]
+    bayZones: []
+    zoneNames:
+      front_lot: Front Lot
+      entrance_lane: Entrance Lane
+  sign:
+    cloudDeviceId: v380-shopsign
+    displayName: Shop Sign
+    arrivalZones: [bay_entrance]
+    bayZones: []                    # Phase 2: [bay_1, bay_2] on the bay cameras
+    zoneNames:
+      bay_entrance: Bay Entrance
+
+# Cross-camera stitching (rule 3): a visit that left `from` may continue on `to` within the window.
+topology:
+  - { from: sign, to: lot, minSeconds: 1, maxSeconds: 90 }
+
+visit:
+  candidateSeconds: 10             # arrival-zone dwell for ARRIVAL_CANDIDATE (or stationary in zone)
+  confirmSeconds: 45               # dwell for CONFIRMED_ARRIVAL
+  stationaryConfirmSeconds: 20     # dwell for CONFIRMED_ARRIVAL when Frigate reports stationary
+  leaveGraceSeconds: 20            # DEPARTING -> LEFT when no zone re-entry within this window
+  splitTrackSeconds: 10            # rule 1: new track within N s of an ended track on the same camera
+  splitTrackIou: 0.5               # rule 1: box overlap threshold
+  maxSightingSeconds: 43200        # 12 h: an open track older than this is force-ended (Frigate will never `end` it).
+                                   # Fires ONCE per track: if Frigate keeps updating the object afterwards it is a real
+                                   # parked car, the track reopens and stays one visit until Frigate ends it.
+                                   # A Frigate restart (frigate/available offline/online) force-ends every open track at once
+
+plate:
+  reattachMinutes: 30              # rule 2: plate joins an open visit active within this window
+  confirmScore: 0.9                # CONFIRMED needs >= 2 agreeing reads at this score...
+  singleReadConfirmScore: 0.95     # ...or one read at this score (known_plates count as 1.0)
+  candidateScore: 0.7              # CANDIDATE threshold; below it reads are UNREADABLE
+
+ledger:
+  path: ./data/visitd.sqlite       # overridden by env VISITD_LEDGER (Docker: /data/visitd.sqlite)
+  retentionDays: 90                # terminal visits (LEFT/PASS_THROUGH) older than this are pruned hourly with their
+                                   # sightings and zone intervals; dead_letter rows go after 7 days. The cloud is canonical.
+
+metrics:
+  host: 127.0.0.1                  # loopback only; scraped into the heartbeat payload. Overridden by env
+                                   # VISITD_METRICS_HOST (docker-compose.yml sets 0.0.0.0 so the published port reaches it)
+  port: 9090
+
+frigate:
+  version: "0.17.2"                # reported in event metadata and heartbeats

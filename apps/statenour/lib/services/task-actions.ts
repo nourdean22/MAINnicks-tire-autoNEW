@@ -27,6 +27,7 @@
  *     drift.
  */
 
+import { normalizeResumeRecord, type ResumeRecordInput } from "@/lib/missions/resume-record";
 import { prisma } from "@/lib/prisma";
 import { stopTimer, accumulate } from "@/lib/services/task-timer";
 import { OutcomeRating } from "@prisma/client";
@@ -771,7 +772,11 @@ export async function startTask(id: string): Promise<StartTaskResult> {
 // reads the latest note back on resume — attention-residue literature
 // says this ~1-minute note is what makes the next block start clean.
 
-export async function parkTask(id: string, note: string): Promise<StartTaskResult> {
+export async function parkTask(
+  id: string,
+  note: string,
+  record?: ResumeRecordInput | null,
+): Promise<StartTaskResult> {
   const task = await prisma.task.findUnique({
     where: { id },
     select: { id: true, status: true, startedAt: true, lastTouchedAt: true },
@@ -797,7 +802,13 @@ export async function parkTask(id: string, note: string): Promise<StartTaskResul
     taskId: id,
     kind: "parked",
     source: "service:task-actions.parkTask",
-    payload: { note: note.trim().slice(0, 500) },
+    // U5 (2026-09-07) · the structured resume record rides the same event;
+    // null when the operator filled nothing, so legacy readers see only `note`.
+    payload: {
+      note: note.trim().slice(0, 500),
+      record: normalizeResumeRecord(record),
+      parkedAt: now.toISOString(),
+    },
   });
 
   return { ok: true, task: updated };

@@ -51,6 +51,8 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "conversion.recentActivity",
   "conversion.shopCapacity",
   "customerEvents.log",
+  // 2026-09-08 (D14) · the public PhotoRibbon reads photo src + view count, no customer data; 5-min cache.
+  "customerEvents.topRibbonPhotosPublic",
   "reviewRequests.trackClick",
   "shareCards.get",
   "shareCards.trackShare",

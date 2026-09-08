@@ -3360,6 +3360,18 @@ export const reelJobs = mysqlTable("reel_jobs", {
   productionSlot: varchar("production_slot", { length: 16 }),
   productionReadyAt: timestamp("production_ready_at"),
   publicationScheduledAt: timestamp("publication_scheduled_at"),
+  /**
+   * Scheduling INTENT — "due to publish at T" (0118, applied 2026-09-07).
+   *
+   * Deliberately NOT the same field as `publicationScheduledAt` above, which is
+   * stamped at the publish CAS in dailyReelPost and therefore means "publish
+   * STARTED". Overloading that one would have made "intended" and "began"
+   * indistinguishable after the fact.
+   *
+   * An approval's window says ALLOWED DURING; this says DUE AT. Intent lives on
+   * the job because a job has one intent while approvals may be superseded.
+   */
+  publicationIntendedAt: timestamp("publication_intended_at"),
   /** JSON array of re-hosted source clip URLs, one per storyboard beat. */
   clipUrlsJson: text("clipUrlsJson"),
   voUrl: varchar("voUrl", { length: 1000 }),
@@ -3407,6 +3419,28 @@ export const reelPublishApprovals = mysqlTable("reel_publish_approvals", {
   revokedBy: varchar("revoked_by", { length: 100 }),
   note: varchar("note", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  /**
+   * DELIVERY ELIGIBILITY (0118, applied 2026-09-07). Declared only AFTER the
+   * DDL was applied and reconciled — findLiveApproval reads with a bare
+   * `db.select()`, so declaring a column production lacks makes that query name
+   * a missing column, and it is wrapped in a catch returning null where null
+   * means "not approved". The failure would have been invisible: every reel
+   * silently held.
+   *
+   * When a window is present it GOVERNS and the rolling 72h `expiresAt` does not
+   * apply — an explicit "publish between these dates" is a stronger, more
+   * specific authorization than a freshness default. Both NULL on every
+   * pre-0118 row, so behaviour is unchanged until a window is actually set.
+   */
+  publishWindowStart: timestamp("publish_window_start"),
+  publishWindowEnd: timestamp("publish_window_end"),
+  /**
+   * sha256 of the asset BYTES as approved. `storagePut` writes to a
+   * deterministic key (`reels/reel-<jobId>.mp4`), so a re-render or a selective
+   * beat repair yields the SAME url with different content — the videoUrl
+   * equality check passes while publishing a video nobody approved.
+   */
+  assetSha256: varchar("asset_sha256", { length: 64 }),
 }, (table) => [
   index("idx_reel_approvals_job").on(table.reelJobId, table.revokedAt),
 ]);

@@ -1238,6 +1238,25 @@ export const controlCenterRouter = router({
   }),
 
   /**
+   * shopSales — the ONE sales read, with its definition and its exclusions.
+   *
+   * The 2026-09-01 audit counted 19 revenue surfaces over at least 11 separate
+   * implementations of "paid invoice revenue for a period". This procedure is
+   * the single one the owner's home uses; the definition, the caveats and the
+   * size of what was excluded travel WITH the number so it can be reconciled to
+   * an ALG/ShopDriver report rather than merely believed.
+   *
+   * Returns a discriminated union — on failure there is no numeric field to
+   * render, so an unreadable period cannot become $0.
+   */
+  shopSales: adminProcedure
+    .input(z.object({ period: z.enum(["last_7d", "last_30d", "month_to_date", "prev_month"]).default("last_7d") }).optional())
+    .query(async ({ input }) => {
+      const { paidInvoiceRevenue } = await import("../services/shopSales");
+      return paidInvoiceRevenue(input?.period ?? "last_7d");
+    }),
+
+  /**
    * todayPulse — the Today surface, built ONLY on tables that carry real rows.
    *
    * WHY THIS EXISTS

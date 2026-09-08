@@ -37,16 +37,22 @@ const mem = (source: string, seenCount = 1) => ({
 
 describe("provenancePrefix", () => {
   it("never calls an unrecognized source 'unverified'", () => {
-    // The regression, stated as a test. "operator" and "pin:*" are real
-    // writers that the ladder does not classify.
-    for (const source of ["operator", "pin:chat", "pin:manual", "auto_pin:blindspot"]) {
+    // A machine-made pin is still unclassified; it must not read as a failed check.
+    for (const source of ["auto_pin:blindspot", "some_new_cron"]) {
       expect(evidenceClassForSource(source)).toBe("weak_inference");
       expect(provenancePrefix(mem(source))).not.toContain("unverified");
     }
   });
 
   it("admits ignorance instead — 'unclassified'", () => {
-    expect(provenancePrefix(mem("operator"))).toContain("unclassified");
+    expect(provenancePrefix(mem("auto_pin:blindspot"))).toContain("unclassified");
+  });
+
+  it("the operator's own writers read as 'you stated' (2026-09-08: user_save, operator, pin:*)", () => {
+    for (const source of ["operator", "pin:chat", "pin:manual", "user_save"]) {
+      expect(evidenceClassForSource(source)).toBe("operator_stated");
+      expect(provenancePrefix(mem(source))).toContain("you stated");
+    }
   });
 
   it("labels a genuinely operator-stated source as such", () => {

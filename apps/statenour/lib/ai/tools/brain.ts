@@ -10,6 +10,7 @@
  * all 7 domain files. Catalog source of truth: lib/ai/tools/catalog.ts.
  */
 
+import { validitySql, validityWhere } from "@/lib/brain/contextual-recall";
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -295,8 +296,14 @@ export const brainTools = {
       category: z.string().optional().describe("Filter by category: insight, pattern, preference, lesson, fact"),
       minConfidence: z.number().min(0).max(1).default(0.3).describe("Minimum confidence threshold"),
       limit: z.number().min(1).max(50).default(10).describe("How many to return. MAXIMUM 50 - a larger value is rejected."),
+      asOf: z
+        .string()
+        .optional()
+        .describe("ISO date. Answer AS OF that date: what was believed then, including beliefs corrected since, and nothing saved after it. Omit for current truth."),
     }),
-    execute: async ({ query, category, minConfidence, limit }) => {
+    execute: async ({ query, category, minConfidence, limit, asOf }) => {
+      // U3 (2026-09-08) · as-of recall. A garbage date falls back to now.
+      const asOfDate = asOf && Number.isFinite(Date.parse(asOf)) ? new Date(asOf) : undefined;
       // Lexical pre-match via Postgres FTS (stemmed + multi-word) on content,
       // reusing the brain_memories_content_fts_idx GIN index. The prior matcher
       // was `content ILIKE '%query%'` only -- brittle: it missed plurals and
@@ -316,14 +323,14 @@ export const brainTools = {
                -- BDN-310 supersession honored (2026-08-19 round-2): the
                -- ask-Nick-directly lane must not resurface a belief the
                -- operator explicitly superseded.
-               AND superseded_by_id IS NULL
-               AND (valid_until IS NULL OR valid_until > NOW())
+               AND ${validitySql("", asOfDate ? "$4" : null)}
                AND to_tsvector('english', content) @@ websearch_to_tsquery('english', $2)
              ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
              LIMIT $3`,
             minConfidence,
             _ftsSearchQuery,
             limit * 2,
+            ...(asOfDate ? [asOfDate] : []),
           );
           ftsIds = rows.map((r) => r.id);
         } catch (err) {
@@ -337,7 +344,7 @@ export const brainTools = {
       // plus the caller's confidence floor and optional category filter.
       const eligible: any[] = [
         { confidence: { gte: minConfidence } },
-        { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
+        validityWhere(asOfDate),
       ];
       if (category) eligible.push({ category });
 

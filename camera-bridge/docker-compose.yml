@@ -1,48 +1,78 @@
-version: "3.9"
+# camera-bridge v2: Mosquitto (auth) + Frigate 0.17.2 + visitd.
+# Default profile runs on Docker Desktop / WSL2 (CPU detector, no device mounts).
+# Linux production adds the iGPU:  docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d
+# Bootstrap first (see README "Mosquitto bootstrap"): mosquitto/passwd must exist before `up`.
 
 services:
-  # MQTT Broker (Eclipse Mosquitto)
-  # Essential for Frigate to publish object detection event payloads
   mqtt:
-    image: eclipse-mosquitto:2
+    image: eclipse-mosquitto:2.0
     container_name: camera_mqtt
     restart: unless-stopped
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "127.0.0.1:1883:1883"          # loopback only; containers reach it as mqtt:1883 on the compose network
     volumes:
-      - mqtt_config:/mosquitto/config
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
       - mqtt_data:/mosquitto/data
       - mqtt_log:/mosquitto/log
-    # Allow anonymous access for simple local setup; secure in prod if needed
-    command: ["/usr/sbin/mosquitto", "-c", "/mosquitto-no-auth.conf"]
+    # No env_file here on purpose: the broker needs no secrets beyond the passwd file.
 
-  # Frigate NVR (Local Object Detection Engine)
   frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.17.2   # pin; never `stable` (flips to 0.18 on release)
     container_name: frigate
-    privileged: true # needed for hardware acceleration / USB coral access
     restart: unless-stopped
-    image: ghcr.io/blakeblackshear/frigate:0.13.2
-    shm_size: "128mb" # minimum shm size for 1080p camera stream
-    devices:
-      # Optional: GPU hardware acceleration templates (Uncomment depending on host GPU)
-      # - /dev/dri/renderD128:/dev/dri/renderD128 # Intel VAAPI
-      # - /dev/dxg:/dev/dxg # Windows WSL2 NVIDIA/DirectX
-      - /dev/bus/usb:/dev/bus/usb # Coral USB Accelerator
+    shm_size: "256mb"                  # 2 x 1280x720 detect streams + LPR headroom
+    stop_grace_period: 30s
+    # Linux iGPU (VAAPI / OpenVINO GPU) lives in docker-compose.linux.yml:
+    # devices:
+    #   - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./frigate/config.yml:/config/config.yml
+      - ./frigate/config:/config       # mount the DIRECTORY (0.13+): Frigate writes frigate.db and model cache next to config.yml
       - ./storage/media:/media/frigate
+      - ./fixtures:/media/fixtures:ro  # looped MP4 for the `replay` camera (scripts/replay-fixture.ps1)
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
     ports:
-      - "5000:5000" # Web UI / HTTP API
-      - "8554:8554" # RTSP rebroadcast stream (optional)
-      - "8555:8555" # WebRTC stream
+      - "127.0.0.1:5000:5000"          # unauthenticated API: loopback only (visitd never needs it; humans use 8971)
+      - "8971:8971"                    # authenticated UI (JWT); expose over Tailscale ACL, never port-forward
+      - "127.0.0.1:8554:8554"          # go2rtc RTSP restream is unauthenticated: loopback only (Frigate reads it there)
+      - "127.0.0.1:8555:8555/tcp"      # WebRTC, same rule; the 8971 UI falls back to MSE over Tailscale.
+      - "127.0.0.1:8555:8555/udp"      # Rebind to the LAN only for a deliberate VLC/WebRTC check, then revert.
     environment:
-      - FRIGATE_MQTT_PASSWORD=
+      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}
+      - FRIGATE_MQTT_PASSWORD=${FRIGATE_MQTT_PASSWORD}
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_started
+
+  visitd:
+    build:
+      context: .
+      dockerfile: visitd.Dockerfile
+    image: camera-bridge/visitd:2.1.2
+    container_name: visitd
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"          # Prometheus text (README section 4 step 5), loopback only on the host. The container
+                                       # binds 0.0.0.0 via VISITD_METRICS_HOST below: its own loopback is not the host's.
+    env_file:
+      - .env                           # STATENOUR_SYNC_KEY, MQTT_USERNAME, MQTT_PASSWORD
+    environment:
+      - VISITD_CONFIG=/config/config.yaml
+      - VISITD_LEDGER=/data/visitd.sqlite
+      - VISITD_METRICS_HOST=0.0.0.0    # overrides metrics.host (127.0.0.1 in config.yaml stays right for host runs)
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ./data:/data                   # SQLite ledger + outbox survive restarts and image rebuilds
+    # network_mode: host is not supported on Docker Desktop; visitd reaches the broker as `mqtt` on the compose network.
+    depends_on:
+      mqtt:
+        condition: service_started
+      frigate:
+        condition: service_started
 
 volumes:
-  mqtt_config:
   mqtt_data:
   mqtt_log:

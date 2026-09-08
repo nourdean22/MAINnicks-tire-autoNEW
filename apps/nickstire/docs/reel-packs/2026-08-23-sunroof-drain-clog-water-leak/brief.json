@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends back in the same dim headliner corner and shallow focus it opened on, the fabric now dry and the stain faded, so the replay flows straight back into the swelling droplet.",
+  "campaignKeyword": "WIPERS",
   "topic": "sunroof-drain-clog-water-leak",
   "runMode": "INTELLIGENCE_SCHEDULED",
   "generatedBy": "scheduled-task",
@@ -13,60 +15,54 @@
   "standingNegativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
-      "index": 1,
-      "role": "hook",
-      "startSec": 0,
-      "endSec": 4,
-      "vo": "Water dripping from your headliner after it rains? Might not be a roof leak.",
-      "prompt": "macro slow motion water droplet forming and falling from a car headliner seam onto a fabric car seat, interior car cabin, soft window light, shallow depth of field, cinematic, photorealistic"
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "A water droplet swelling and falling from the fabric headliner corner inside a dim car cabin, a dark damp stain spreading through the fabric, shallow focus, no people",
+      "motion": "macro hold, droplet falls",
+      "onScreenText": "ROOF DRIP",
+      "narration": "Water dripping from the headliner after rain?"
     },
     {
-      "index": 2,
-      "role": "context",
-      "startSec": 4,
-      "endSec": 9,
-      "vo": "Most sunroofs have four drain tubes that carry rainwater down through the pillars.",
-      "prompt": "close up exterior shot of car sunroof glass panel, rain droplets beading and running toward the front corner drain channel, wet reflective glass, overcast daylight, photorealistic"
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "Cutaway of a sunroof tray channel with a thin rubber drain tube running down inside the pillar, clean water tracing through the tube, cool workshop lighting",
+      "motion": "slow tilt down the pillar",
+      "onScreenText": "FOUR DRAIN TUBES",
+      "narration": "Sunroofs drain through four tubes in the pillars."
     },
     {
-      "index": 3,
-      "role": "mechanism",
-      "startSec": 9,
-      "endSec": 14,
-      "vo": "Leaves and dirt can clog one, so water backs up instead of draining out.",
-      "prompt": "extreme close up of a narrow plastic drain tube opening inside a car door pillar, partially clogged with small leaf debris and dirt, water pooling against the blockage, macro detail, photorealistic"
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "Macro at the mouth of a drain tube packed with wet leaf litter and pine needle mush, water pooling and backing up in the tray around it",
+      "motion": "slow push-in on the clog",
+      "onScreenText": "LEAVES CLOG IT",
+      "narration": "Leaves pack one shut and water backs up."
     },
     {
-      "index": 4,
-      "role": "symptom",
-      "startSec": 14,
-      "endSec": 19,
-      "vo": "That backup finds the easiest way in — usually the headliner or a rear pillar.",
-      "prompt": "interior car cabin, water beading and dripping from a headliner corner trim piece onto a car seat cushion, a small dark water spot spreading on the carpet below, moody interior lighting, photorealistic"
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "clue",
+      "visual": "Rain beading and running down the glass above, then the headliner fabric below going dark with damp at one corner, flat grey daylight",
+      "motion": "rack focus glass to fabric",
+      "onScreenText": "ONLY AFTER RAIN",
+      "narration": "One clue is it only happens after rain."
     },
     {
-      "index": 5,
-      "role": "diagnostic_clue",
-      "startSec": 19,
-      "endSec": 24,
-      "vo": "One clue: it usually only happens after rain or a car wash — not all the time.",
-      "prompt": "close up of a small flexible plastic pick tool clearing leaf debris from a car drain tube opening with no hands or human figures visible, water then flowing freely through the cleared tube, macro detail, photorealistic"
-    },
-    {
-      "index": 6,
-      "role": "resolution",
-      "startSec": 24,
-      "endSec": 27,
-      "vo": "Worth checking before you assume it's a full roof leak.",
-      "prompt": "wide shot of a clean dry car sunroof track and headliner interior, cut to water flowing clearly out of a drain tube exit under the vehicle rocker panel onto pavement, photorealistic, cinematic"
-    },
-    {
-      "index": 7,
-      "role": "cta_save_freeze",
-      "startSec": 27,
-      "endSec": 33,
-      "vo": "Stop by and we'll take a look.",
-      "prompt": "wide static shot of a clean automotive service bay interior, bright even lighting, no visible signage, logos, or text, photorealistic, held static frame"
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "The same dim headliner corner inside the car cabin in identical shallow focus, the fabric now dry and the dark stain faded to a pale outline, one last bead of water clinging at the corner and holding",
+      "motion": "slow push-in on the open end",
+      "onScreenText": "DRAIN, NOT SEAL",
+      "narration": "Clearing a drain beats chasing a roof seal."
     }
   ],
   "claimSafety": {

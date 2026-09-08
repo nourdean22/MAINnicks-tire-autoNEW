@@ -85,7 +85,39 @@ export const STUDIO_BRAND = {
 export const REEL_OUTPUT_RULES = {
   reelsPerRun: 1,
   minSeconds: 15,
-  maxSeconds: 22,
+  /**
+   * ACCEPTANCE ceiling for the storyboard, raised 22 -> 35 on 2026-09-07 by operator
+   * decision: 95 of the 99 rotating packs are authored at 25-35s and were being refused
+   * by `validateReelLengthTarget` alone.
+   *
+   * IT IS NOT A RENDER CAPABILITY. `maxClipSeconds` below is what the pipeline can
+   * actually put on screen, and it is the smaller number. A storyboard may DECLARE 35s;
+   * assembly still clamps every beat to a real clip, so the finished video is
+   * `beats x maxClipSeconds + SAVE freeze`. Budget narration against THAT, never this.
+   */
+  maxSeconds: 35,
+  /**
+   * Longest real footage one beat can carry — provider clips render at ~4s, and
+   * `briefToSegments` clamps to it (`reelAssembly.ts`, which imports this value so the
+   * two cannot drift; `reelRenderBudget.test.ts` asserts the import).
+   *
+   * Padding a beat past its source clip does not buy motion, it FREEZES the last frame:
+   * the 2026-07-17 incident shipped a 25s container holding 72 unique frames — "one
+   * image the whole time".
+   */
+  maxClipSeconds: 4,
+  /**
+   * The finished frame is held this long after the last beat (the SAVE card).
+   *
+   * It is part of the VIDEO: `reelAssembly` computes `videoTotal = beats +
+   * saveFreezeSeconds` and trims the voice track to THAT, so narration may run
+   * into the freeze without being cut. Talking over the end card is a CREATIVE
+   * problem (the contract says narration should land before it); being cut off
+   * mid-sentence is a RENDER problem. Those are different thresholds, three
+   * seconds apart, and conflating them made the first draft of the voiceover
+   * gate refuse every pack in the rotation.
+   */
+  saveFreezeSeconds: 3,
   resolution: "1080x1920",
   codec: "H.264 MP4",
   pixelFormat: "yuv420p",
@@ -363,6 +395,11 @@ export interface SourceNote {
 export const PROOF_SOURCE_FAMILIES = [
   "AAA",
   "NHTSA",
+  // U.S. Tire Manufacturers Association — the industry's own repair standard
+  // (tread-only, 1/4-inch limit, demount-and-inspect, plug+patch). Added
+  // 2026-09-08 after its page passed the registry's extractor test; backed by
+  // the `ustma_tire_repair` record in server/services/evidenceResolver.ts.
+  "USTMA",
   "Tire Rack",
   "Consumer Reports",
   "Bridgestone education",
@@ -802,6 +839,117 @@ export function validateSourceGrounding(brief: Pick<ReelBrief, "sourceNotes" | "
   return { ok: true };
 }
 
+/** Conversational narration rate the voiceover contract is written against.
+ *  Module-internal: reached through `runReelPreflight`, never imported directly. */
+const SPOKEN_WORDS_PER_SECOND = 2.2;
+
+/**
+ * What the SYNTHESIZER actually does to that rate, mirrored from
+ * `server/services/reelVoice.ts` — review P2 on #2171.
+ *
+ * A word count alone under-estimates the finished audio twice over: the Google
+ * request sets `speakingRate: 0.97` (3% slower than nominal), and
+ * `buildReelSsml` splits on sentence punctuation and joins with
+ * `<break time="350ms"/>`, so an N-sentence script carries N-1 programmed
+ * pauses that no word count can see. A gate that ignored both would approve
+ * narration that assembly still truncates — passing while failing at exactly
+ * the thing it exists to prevent.
+ */
+const TTS_SPEAKING_RATE = 0.97;
+const TTS_SENTENCE_BREAK_SECONDS = 0.35;
+
+/** Sentence count as the SSML builder counts it — same split, same filter. */
+function narrationSentenceCount(script: string): number {
+  return script
+    .split(/(?<=[.!?])\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean).length;
+}
+
+/** Estimated finished-audio seconds, pauses and speaking rate included. */
+function estimatedNarrationSeconds(script: string, words: number): number {
+  const speech = words / SPOKEN_WORDS_PER_SECOND / TTS_SPEAKING_RATE;
+  const pauses = Math.max(0, narrationSentenceCount(script) - 1) * TTS_SENTENCE_BREAK_SECONDS;
+  return speech + pauses;
+}
+
+/**
+ * Seconds of finished video a storyboard will actually produce.
+ *
+ * NOT `max(endSecond)`. Assembly clamps every beat to one provider clip
+ * (`briefToSegments` -> `maxClipSeconds`), so the declared duration and the
+ * rendered one diverge as soon as a beat is authored longer than a clip. The
+ * SAVE freeze is excluded deliberately: narration must land BEFORE it.
+ */
+function renderableVideoSeconds(beats: StoryboardBeat[]): number {
+  return Number(
+    beats
+      .reduce((total, b) => {
+        const raw = Number(b.endSecond) - Number(b.startSecond);
+        const dur = Number.isFinite(raw) && raw > 0 ? raw : 0;
+        return total + Math.min(dur, REEL_OUTPUT_RULES.maxClipSeconds);
+      }, 0)
+      .toFixed(2),
+  );
+}
+
+/**
+ * The voiceover must fit the video that will actually be RENDERED.
+ *
+ * This gate exists because raising `maxSeconds` 22 -> 35 admitted 30 packs, and
+ * 29 of them carry more narration than their own render can play. The ffmpeg
+ * graph forces the voice track to exactly the video length
+ * (`atrim=0:${videoTotal}` + `apad=whole_dur=${videoTotal}`), so an over-long
+ * script is not slowed or squeezed — it is CUT, mid-sentence, taking the payoff
+ * with it. Measured worst case in the rotation: 121 words (~55s of speech) in a
+ * 27s video, so more than half the script never plays.
+ *
+ * Nothing caught this before. The length gate read the DECLARED duration, the
+ * quality scorer scored the brief, and the render-integrity gate compares the
+ * output against the CLAMPED segments — so it agrees with the truncated result
+ * and passes. The defect was only ever visible in the finished artifact.
+ *
+ * Fails closed: an unreadable/absent script is not a violation (a deliberately
+ * silent reel is legal), but a script that cannot fit is.
+ */
+function validateVoiceoverFitsRender(
+  brief: Pick<ReelBrief, "voiceoverScript" | "storyboardBeats">,
+): { ok: boolean; reason?: string } {
+  const script = String(brief.voiceoverScript ?? "").trim();
+  const words = script.split(/\s+/).filter(Boolean).length;
+  if (words === 0) return { ok: true };
+  const spokenSeconds = estimatedNarrationSeconds(script, words);
+  const videoSeconds = renderableVideoSeconds(brief.storyboardBeats ?? []);
+  if (videoSeconds <= 0) return { ok: true }; // beat-count gate owns that failure
+  // BUDGET AGAINST THE WHOLE VIDEO, freeze included. reelAssembly trims the
+  // voice track to `videoTotal = beats + saveFreezeSeconds`, so narration that
+  // runs into the SAVE card is not cut — it just talks over the end card, which
+  // is a creative note rather than a render defect. The first draft of this gate
+  // budgeted against the beats alone and consequently refused all 99 packs in
+  // the rotation: it was measuring the creative threshold and reporting it as
+  // truncation. Three seconds, and it inverted the verdict on every pack.
+  const audibleSeconds = videoSeconds + REEL_OUTPUT_RULES.saveFreezeSeconds;
+  if (spokenSeconds <= audibleSeconds) return { ok: true };
+  // Invert the same model for the advice, so the number handed back actually
+  // fits: subtract the programmed pauses this script will carry, then convert
+  // the remaining seconds back to words at the synthesized rate.
+  const pauses = Math.max(0, narrationSentenceCount(script) - 1) * TTS_SENTENCE_BREAK_SECONDS;
+  const budget = Math.max(
+    0,
+    Math.floor((audibleSeconds - pauses) * SPOKEN_WORDS_PER_SECOND * TTS_SPEAKING_RATE),
+  );
+  return {
+    ok: false,
+    reason:
+      `Voiceover is ${words} words (~${spokenSeconds.toFixed(1)}s synthesized, including ` +
+      `${pauses.toFixed(2)}s of sentence breaks at the configured rate) but the reel is only ` +
+      `${audibleSeconds.toFixed(1)}s long (${videoSeconds.toFixed(1)}s of beats plus the ` +
+      `${REEL_OUTPUT_RULES.saveFreezeSeconds}s SAVE card) — the voice track is hard-trimmed to ` +
+      `the video, so ${(spokenSeconds - audibleSeconds).toFixed(1)}s would be cut off ` +
+      `mid-sentence. Trim to ${budget} words or fewer.`,
+  };
+}
+
 /**
  * Attests that THIS pure module performs no external calls (no network, storage,
  * or process execution). It does NOT attest about consumers: the Studio page and
@@ -974,6 +1122,14 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   // block, so an ungrounded brief costs one LLM call, not a render.
   const grounding = validateSourceGrounding(brief);
   if (!grounding.ok) push("truth", "block", grounding.reason ?? "no verified proof source for the mechanic truth");
+
+  // Production: the voiceover must fit the video that will actually RENDER, not
+  // the duration the storyboard declares. BLOCKS, for the same reason grounding
+  // does — this is a pre-spend gate, and a reel whose narration gets cut in half
+  // is a defect the render would inherit, not an advisory. See
+  // validateVoiceoverFitsRender for why nothing downstream catches it.
+  const voFit = validateVoiceoverFitsRender(brief);
+  if (!voFit.ok) push("production", "block", voFit.reason ?? "voiceover is longer than the rendered video");
 
   // Production + truth: claim safety, faceless, in-frame-text (over the design)
   for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);
@@ -1335,7 +1491,7 @@ export function buildHiggsfieldReelPromptPack(brief: ReelBrief): HiggsfieldBeatP
     return {
       beatNumber: b.beatNumber,
       prompt: [
-        `Vertical 9:16 cinematic clip. Generate a four-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
+        `Vertical 9:16 cinematic clip. Generate a ${REEL_OUTPUT_RULES.maxClipSeconds}-second source clip; the final edit uses only the first ${trimDurationSec.toFixed(1)} seconds.`,
         `Subject: ${providerScene.scene}`,
         `Character energy: ${character.label} - ${character.essence}`,
         // Motion is a provider-facing field too — run it through the SAME

@@ -283,6 +283,28 @@ export const CANONICAL_METRICS: readonly CanonicalMetric[] = Object.freeze([
     evidence: "modeled",
     use: "planning-only",
   },
+  {
+    /**
+     * 2026-09-07. The owner-home sales figure, implemented once in
+     * server/services/shopSales.ts. NOT ROI-safe and deliberately not named
+     * "Total Sales": it is billed-not-collected, gross, tax-inclusive, and has
+     * never been compared to the shop's own ALG/ShopDriver report.
+     */
+    name: "Billed sales",
+    section: "revenue",
+    definition:
+      "Paid invoices by invoice date in the window, SUM(totalAmount) in integer cents, Eastern calendar boundaries",
+    evidence: "verified",
+    use: "executive-only",
+    limitations: [
+      "Billed, not collected — there is no payment-date column on invoices",
+      "Gross and tax-inclusive; taxAmount is never subtracted and has written 0 since 2026-05",
+      "paymentStatus is an ALG ticket-lifecycle string: unknown or empty maps to 'paid'",
+      "Partial invoices excluded entirely — no amountPaid/amountDue column exists",
+      "Refunds excluded, not netted; there is no void status",
+      "NOT reconciled to the shop's authoritative report — internally consistent only",
+    ],
+  },
 
   // ─── GSC ─────────────────────────────────────────────────────────────────
   {

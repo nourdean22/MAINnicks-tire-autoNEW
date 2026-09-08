@@ -249,9 +249,14 @@ function JudgmentRow({
         >
           {kindChip}
           <span className="min-w-0 flex-1 text-[13px] leading-snug text-fg">
-            {item.count} deferred action{item.count === 1 ? "" : "s"} await your verdict
+            {item.count > 0
+              ? `${item.count} deferred action${item.count === 1 ? "" : "s"} await your verdict`
+              : "no live approvals"}
             {item.oldestAgeMin != null && item.oldestAgeMin > 60 && (
               <span className="text-fg-tertiary"> · oldest {Math.round(item.oldestAgeMin / 60)}h</span>
+            )}
+            {item.expired > 0 && (
+              <span className="text-fg-tertiary"> · {item.expired} expired — re-request or dismiss</span>
             )}
           </span>
           <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium text-rose-300">
@@ -305,7 +310,7 @@ function JudgmentRow({
             disabled={busy}
             onClick={() => onCommitmentVerdict(item.id, "accept")}
             title="Accept — goes on the books as active"
-            className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 transition-colors duration-150 hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 transition-colors duration-150 hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
           >
             <Check className="h-3 w-3" /> Accept
           </button>
@@ -315,7 +320,7 @@ function JudgmentRow({
             onClick={() => onCommitmentVerdict(item.id, "dismiss")}
             aria-label="Dismiss proposal — remembered, never re-proposed"
             title="Dismiss — remembered, never re-proposed"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex size-11 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-rose-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -345,7 +350,7 @@ function JudgmentRow({
           onClick={() => onFollowupVerdict(item.id, "dismiss")}
           aria-label="Dismiss follow-up"
           title="Dismiss follow-up"
-          className="inline-flex size-9 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex size-11 items-center justify-center rounded-md border border-edge text-fg-tertiary transition-colors duration-150 hover:text-fg disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Check className="h-3.5 w-3.5" />
         </button>

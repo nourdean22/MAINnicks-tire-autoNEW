@@ -10,7 +10,6 @@ import {
   Send,
   Target,
   Image as ImageIcon,
-  Radar,
   Users,
   Link2,
   GraduationCap,
@@ -66,15 +65,26 @@ export const NAV: NavEntry[] = [
   // ── EXECUTE ──
   { href: "/content", label: "Content", icon: Send, section: "execute",
     tabs: [{ key: "drafts", label: "Drafts" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
-  { href: "/market", label: "Market", icon: Radar, section: "execute",
-    tabs: [{ key: "search", label: "SEO" }, { key: "radar", label: "Radar" }] },
   { href: "/learn",          label: "Learn",          icon: GraduationCap,  section: "execute", flatRow: true },
   { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
   { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },
 
   // ── REFLECT ──
+  // 2026-09-07 (program §5.11) · the More-sheet listed 4 of Brain's 9 tabs.
+  // Order and labels mirror app/(mastery)/brain/page.tsx; pinned by
+  // tests/repo/brain-nav-tabs.test.ts so the two cannot drift apart again.
   { href: "/brain", label: "Brain", icon: Brain, section: "reflect",
-    tabs: [{ key: "memory", label: "Memory" }, { key: "board", label: "Board" }, { key: "wisdom", label: "Wisdom" }, { key: "reason", label: "Reason" }] },
+    tabs: [
+      { key: "graph", label: "Map" },
+      { key: "discover", label: "Discover" },
+      { key: "review", label: "Review" },
+      { key: "memory", label: "Memory" },
+      { key: "wisdom", label: "Wisdom" },
+      { key: "board", label: "Board" },
+      { key: "reason", label: "Reason" },
+      { key: "continuity", label: "Changed" },
+      { key: "health", label: "Health" },
+    ] },
   { href: "/people", label: "People", icon: Users, section: "reflect", flatRow: true },
 
   // ── OPERATE ── (/system owns its own hub grid of sub-surfaces)

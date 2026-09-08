@@ -35,6 +35,7 @@
  * containment holds.
  */
 
+import { updateTurnContext } from "@/lib/agent/turn-context";
 import { logError } from "@/lib/utils/error-log";
 
 const FENCE_TYPES = {
@@ -83,6 +84,12 @@ export function fenceContent(
     /<\/?tool_data[^>]*>/gi,
     "[fence-tag-stripped]",
   );
+
+  // U4 (2026-09-08) · external content entered this turn: taint it so the
+  // guardian routes any external side effect to a human (no-op outside a turn).
+  if (source === "external_web" || source === "external_doc") {
+    updateTurnContext({ untrustedInput: true });
+  }
 
   // v10.0.529.12 · run the injection classifier on the SANITIZED
   // content (after closing-tag strip) so we don't false-positive on

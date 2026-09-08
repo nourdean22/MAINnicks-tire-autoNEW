@@ -105,36 +105,69 @@ export const customerEventsRouter = router({
       days: z.number().min(1).max(180).default(30),
       limit: z.number().min(1).max(50).default(20),
     }).optional())
+    .query(async ({ input }) => topRibbonPhotosQuery(input?.days ?? 30, input?.limit ?? 20)),
+
+  /**
+   * 2026-09-08 (D14) · the PUBLIC PhotoRibbon called the admin procedure
+   * above: every visitor got a 401, adaptive sort never ran, and each miss
+   * landed in Sentry (112 events in 23 h). This is the same aggregate —
+   * photo src + view count, no customer data — behind a public procedure
+   * with a 5-minute in-process cache so a traffic spike is one query.
+   */
+  topRibbonPhotosPublic: publicProcedure
+    .input(z.object({
+      days: z.number().min(1).max(180).default(30),
+      limit: z.number().min(1).max(50).default(50),
+    }).optional())
     .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return [];
-      const { customerEvents } = await import("../../../drizzle/schema");
       const days = input?.days ?? 30;
-      const limit = input?.limit ?? 20;
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const { sql, and, eq, gte } = await import("drizzle-orm");
-
-      // Pull JSON.src from eventData. MySQL's JSON_EXTRACT works here
-      // because we typed the column as `json`. Drizzle's runtime helper
-      // is overkill — raw sql is fine and indexable on (eventName,
-      // createdAt) which is the access pattern.
-      const rows = await d
-        .select({
-          src: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`,
-          count: sql<number>`COUNT(*)`,
-        })
-        .from(customerEvents)
-        .where(and(
-          eq(customerEvents.eventName, "ribbon_photo_view"),
-          gte(customerEvents.createdAt, since),
-        ))
-        .groupBy(sql`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`)
-        .orderBy(sql`COUNT(*) DESC`)
-        .limit(limit);
-
-      return rows.map((r: typeof rows[number]) => ({
-        src: r.src,
-        count: Number(r.count),
-      }));
+      const limit = input?.limit ?? 50;
+      const key = `${days}:${limit}`;
+      const hit = ribbonCache.get(key);
+      if (hit && Date.now() - hit.at < RIBBON_CACHE_MS) return hit.rows;
+      const rows = await topRibbonPhotosQuery(days, limit);
+      ribbonCache.set(key, { at: Date.now(), rows });
+      return rows;
     }),
 });
+
+const RIBBON_CACHE_MS = 5 * 60_000;
+const ribbonCache = new Map<string, { at: number; rows: Array<{ src: string; count: number }> }>();
+
+async function topRibbonPhotosQuery(days: number, limit: number): Promise<Array<{ src: string; count: number }>> {
+  const d = await db();
+  if (!d) return [];
+  const { customerEvents } = await import("../../../drizzle/schema");
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const { sql, and, eq, gte } = await import("drizzle-orm");
+
+  // ONE fragment for SELECT and GROUP BY, with the column UNQUALIFIED. Drizzle renders a
+  // column reference as `eventData` in the select list but `customer_events`.`eventData`
+  // inside groupBy(), and TiDB's only_full_group_by compares the two expressions textually:
+  // "Expression #1 of SELECT list is not in GROUP BY clause" on every public ribbon read
+  // (Sentry NICKSTIRE-1, 17 events in 30 min on 2026-09-08; proven read-only against prod:
+  // the qualified form fails, this form returns rows). Fixes NICKSTIRE-1.
+  const srcExpr = sql`JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.src'))`;
+  // Pull JSON.src from eventData. MySQL's JSON_EXTRACT works here
+  // because we typed the column as `json`. Drizzle's runtime helper
+  // is overkill — raw sql is fine and indexable on (eventName,
+  // createdAt) which is the access pattern.
+  const rows = await d
+    .select({
+      src: sql<string>`${srcExpr}`,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(customerEvents)
+    .where(and(
+      eq(customerEvents.eventName, "ribbon_photo_view"),
+      gte(customerEvents.createdAt, since),
+    ))
+    .groupBy(srcExpr)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(limit);
+
+  return rows.map((r: typeof rows[number]) => ({
+    src: r.src,
+    count: Number(r.count),
+  }));
+}

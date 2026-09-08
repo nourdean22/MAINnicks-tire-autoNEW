@@ -58,7 +58,13 @@ export function registerJob(
   enabled = true
 ): void {
   registeredJobs.set(name, { name, intervalMs, handler, enabled });
-  log.info(`Cron job registered: ${name} (every ${Math.round(intervalMs / 60000)}min, ${enabled ? "enabled" : "disabled"})`);
+  // LEGACY REGISTRY ONLY. This line used to read "Cron job registered: X
+  // (every Nmin, enabled)" and was read, on 2026-09-08, as proof that a job
+  // was scheduled — it is not. `enabled` here is this function's own parameter
+  // default; scheduling is owned entirely by the tiered scheduler, which
+  // honours its own `enabled: false` (cron/scheduler.ts). A job can print
+  // "enabled" here and never run. Say so in the line itself.
+  log.info(`Cron job registered in LEGACY registry (manual-run lookup only, NOT scheduled here — tiers own scheduling): ${name} (every ${Math.round(intervalMs / 60000)}min, legacy flag=${enabled ? "enabled" : "disabled"})`);
 }
 
 /** Start all registered jobs */
@@ -112,14 +118,17 @@ let _lockTableMissingLogged = false;
  * concurrent processes. If locked_until is in the past, the UPDATE branch
  * steals; otherwise the row is untouched.
  */
-export async function acquireCronLock(jobName: string): Promise<LockResult> {
+export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_MS): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) return { status: "fallback", reason: "db-null" };
 
   const newToken = randomUUID() as LockToken;
-  const ttlSeconds = Math.ceil(LOCK_TTL_MS / 1000);
+  // `ttlMs` lets a long-budget job (TierJob.timeoutMs) hold its lock for 2x
+  // its own budget instead of the 10-min default, so a zombie past a 14-min
+  // race cannot be double-fired by the next pulse.
+  const ttlSeconds = Math.ceil(Math.max(ttlMs, LOCK_TTL_MS) / 1000);
 
   try {
     // Atomic acquire-or-steal-if-expired in a single statement.

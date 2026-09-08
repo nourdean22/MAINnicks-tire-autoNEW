@@ -26,8 +26,11 @@ RUN corepack enable
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/pnpm-lock.yaml ./
 
-# Copy patches/ so the pnpm.patchedDependencies entries can apply
-COPY apps/statenour/patches ./apps/statenour/patches
+# Copy patches/ so the pnpm.patchedDependencies entries can apply.
+# Only directories that exist in git may be listed here: git drops an empty
+# directory, and a COPY of a missing path fails the whole build (2026-09-04
+# to 2026-09-07 every statenour-web + worker deploy failed on the deleted
+# apps/statenour/patches/). tests/repo/dockerfile-copy-sources.test.ts gates it.
 COPY apps/nickstire/patches ./apps/nickstire/patches
 
 RUN pnpm install --frozen-lockfile --filter @statenour/worker...

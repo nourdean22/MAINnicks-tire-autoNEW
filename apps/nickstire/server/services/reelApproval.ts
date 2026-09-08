@@ -66,6 +66,12 @@ export async function findLiveApproval(jobId: number): Promise<ReelApprovalRecor
       approvedAt: row.approvedAt,
       expiresAt: row.expiresAt ?? null,
       revokedAt: row.revokedAt ?? null,
+      // 0118, applied 2026-09-07. NULL on every pre-0118 row, and the gate
+      // treats absent-window as "use the rolling TTL", so reading them changes
+      // no existing decision.
+      publishWindowStart: row.publishWindowStart ?? null,
+      publishWindowEnd: row.publishWindowEnd ?? null,
+      assetSha256: row.assetSha256 ?? null,
     };
   } catch {
     // Missing table, dead pool, driver error. All mean "cannot prove consent".
@@ -85,12 +91,18 @@ export async function reelApprovalProblem(args: {
   caption: string;
   videoUrl: string;
 }): Promise<ApprovalProblem | null> {
+  const approval = await findLiveApproval(args.jobId);
+  // Only look up the digest when the approval actually binds to one. An
+  // approval with no digest skips the check entirely (pre-0118 rows), so
+  // querying media_assets for every gate evaluation would be a read per pulse
+  // for a value nothing consumes.
+  const assetSha256 = approval?.assetSha256 ? await loadAssetDigest(args.videoUrl) : null;
   const candidate: ReelPublishCandidate = {
     jobId: args.jobId,
     captionFingerprint: captionFingerprint(args.caption),
     videoUrl: args.videoUrl,
+    assetSha256,
   };
-  const approval = await findLiveApproval(args.jobId);
   return approvalProblem(candidate, approval);
 }
 
@@ -123,7 +135,11 @@ export class ReelApprovalWriteError extends Error {
       | "job_has_no_caption"
       | "content_vetoed"
       | "stale_review"
-      | "no_approver",
+      | "no_approver"
+      // 0118 · a publishing window that cannot authorize anything is refused at
+      // the tap rather than written as a row that can only ever block.
+      | "window_inverted"
+      | "window_already_passed",
     message: string,
   ) {
     super(message);
@@ -191,7 +207,26 @@ export async function recordReelApproval(args: {
   expectedCaptionSha: string;
   expectedVideoUrl: string;
   note?: string;
-}): Promise<{ approvalId: string; expiresAt: Date; captionSha: string; videoUrl: string }> {
+  /**
+   * DELIVERY ELIGIBILITY (0118). Optional and absent by default — omitting both
+   * reproduces the previous behaviour exactly: the rolling 72h TTL governs.
+   *
+   * Supplying them is the operator saying "publish it between these dates",
+   * which is a STRONGER authorization than a freshness default and therefore
+   * suppresses the TTL. It is only meaningful when the human was shown those
+   * dates, which is why this is an explicit argument and never a default.
+   */
+  publishWindowStart?: Date | null;
+  publishWindowEnd?: Date | null;
+}): Promise<{
+  approvalId: string;
+  expiresAt: Date;
+  captionSha: string;
+  videoUrl: string;
+  publishWindowStart: Date | null;
+  publishWindowEnd: Date | null;
+  assetSha256: string | null;
+}> {
   const approvedBy = (args.approvedBy ?? "").trim();
   if (!approvedBy) {
     // The gate rejects an unattributed row (APPROVAL_BLOCK.anonymous). Refusing
@@ -264,6 +299,32 @@ export async function recordReelApproval(args: {
   // yes authorizes for 72h and then a stale approval must not fire unattended.
   const expiresAt = new Date(Date.now() + REEL_APPROVAL_TTL_HOURS * 3600_000);
 
+  // A window must be ordered, or it authorizes nothing and blocks forever with
+  // a confusing reason. Refuse at the tap rather than writing a dead row.
+  const windowStart = args.publishWindowStart ?? null;
+  const windowEnd = args.publishWindowEnd ?? null;
+  if (windowStart && windowEnd && windowStart.getTime() > windowEnd.getTime()) {
+    throw new ReelApprovalWriteError(
+      "window_inverted",
+      `The publishing window starts (${windowStart.toISOString()}) after it ends (${windowEnd.toISOString()}).`,
+    );
+  }
+  if (windowEnd && windowEnd.getTime() <= Date.now()) {
+    throw new ReelApprovalWriteError(
+      "window_already_passed",
+      `The publishing window ended ${windowEnd.toISOString()}, which is in the past. An approval that can never fire is not an approval.`,
+    );
+  }
+
+  // BIND TO THE BYTES, not just their name. `storagePut` writes to a
+  // deterministic key, so a re-render or a beat repair produces the SAME url
+  // with different content and the videoUrl check alone would wave it through.
+  // Best-effort: media_assets registration is a tolerant seam (reelAssembly
+  // swallows its failure), so a master can legitimately exist with no digest.
+  // A NULL here means "not bound to bytes" and the gate skips the check —
+  // exactly how it treats pre-0118 rows. It must never mean "bound to nothing".
+  const assetSha256 = await loadAssetDigest(subject.videoUrl);
+
   // SUPERSEDE + INSERT AS ONE UNIT.
   //
   // Supersede, don't accumulate: re-approving after a caption fix would leave
@@ -292,10 +353,57 @@ export async function recordReelApproval(args: {
       approvedBy: approvedBy.slice(0, 100),
       expiresAt,
       note: args.note?.trim() ? args.note.trim().slice(0, 500) : null,
+      publishWindowStart: windowStart,
+      publishWindowEnd: windowEnd,
+      assetSha256,
     });
   });
 
-  return { approvalId, expiresAt, captionSha: subject.captionSha, videoUrl: subject.videoUrl };
+  return {
+    approvalId,
+    expiresAt,
+    captionSha: subject.captionSha,
+    videoUrl: subject.videoUrl,
+    publishWindowStart: windowStart,
+    publishWindowEnd: windowEnd,
+    assetSha256,
+  };
+}
+
+/**
+ * sha256 of the rendered asset, from `media_assets`, or null.
+ *
+ * NULL IS A LEGITIMATE ANSWER, not a failure to paper over. `reelAssembly`
+ * registers the master through `mediaRegistry.registerProducedAsset` on a
+ * TOLERANT seam — a registration failure is logged and swallowed — so a real
+ * master can exist with no registry row. Returning null makes the approval
+ * URL-bound, which is exactly what every pre-0118 approval is, rather than
+ * blocking a job over bookkeeping.
+ *
+ * What it must NEVER do is invent a digest, which is why every failure path
+ * returns null instead of a computed-from-somewhere-else value.
+ */
+async function loadAssetDigest(videoUrl: string): Promise<string | null> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return null;
+    const { mediaAssets } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    // Projected select, NOT a bare select(): this reads a table whose column set
+    // is not what this change is about, and a projection cannot break when that
+    // table gains a column ahead of its own hand-applied DDL.
+    const [row] = await d
+      .select({ sha256: mediaAssets.checksumSha256 })
+      .from(mediaAssets)
+      .where(eq(mediaAssets.runtimeUrl, videoUrl))
+      .orderBy(desc(mediaAssets.createdAt))
+      .limit(1);
+    const sha = row?.sha256;
+    return typeof sha === "string" && /^[0-9a-f]{64}$/i.test(sha) ? sha.toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** One row of the autonomous publish queue, as an operator needs to see it. */

@@ -5035,6 +5035,61 @@
       "file": "apps/statenour/package.json",
       "symbol": "graphify:sync",
       "reason": "UNINVOKED, KNOWN. Nothing in the repo runs it; the scheduled sync is scripts/graphify-obsidian-sync.ps1. Its child scripts (graphify:manifest, graphify:ingest) are the only importers of the graphify adapter, so that whole chain is alive only if a human types this command. Reconcile or delete."
+    },
+    {
+      "file": "apps/nickstire/server/services/shopSales.ts",
+      "symbol": "salesWindow",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The window arithmetic is where every 'revenue for a period' defect in this repo has actually lived — a UTC CURDATE() on an Eastern shop (already tomorrow in Cleveland from 20:00 ET), a Monday-based WEEKDAY() paired with a Sunday-based JS loop, a per-transacting-day average multiplied by 30 calendar days. The SUM is trivial; the boundaries are the risk. Exported so server/shopSales.test.ts can assert them directly against a fixed clock, including the 20:00-ET case and the year-crossing prev_month. Its only runtime caller is paidInvoiceRevenue in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/shopSales.ts",
+      "symbol": "SALES_DEFINITION_VERSION",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The version string is stamped onto every ShopSales payload so a stored or screenshotted figure states which transaction-set rules produced it. Exported so the test can assert the version actually names its basis (invoice-date) rather than being an opaque counter — a version nobody can decode is not provenance. Consumed at runtime inside paidInvoiceRevenue in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/declinedRecoverySequence.ts",
+      "symbol": "RECOVERY_CLOSED_SIGNALS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and it became export-only on 2026-09-07 by design. declinedWorkRecovery used to import this list and test membership itself, which is precisely how an OPERATOR-sourced concern ended a real customer's recovery sequence — the halt read WHAT was said and never WHO said it. The membership test now lives inside isCustomerClosedSignal(), which checks provenance first, and that is the only thing callers may use. The list stays exported so server/neutralDismissal.test.ts can assert every closed signal round-trips through the provenance guard; re-importing it at a call site would reintroduce the defect."
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "textCondemnedEntries",
+      "reason": "Exported for the same reason condemnedJobIds is: a report and the gate must not be able to disagree about WHICH entries condemn a script rather than a file. It is also the subject of the coverage test that asserts every text-condemned entry actually carries its condemned text - a gate over a hand-maintained table is only as wide as its data, and that test is what stops a new condemned entry being added with the payload forgotten."
+    },
+    {
+      "file": "apps/nickstire/shared/reelClaimAudit.ts",
+      "symbol": "CONDEMNED_CONTENT_THRESHOLD",
+      "reason": "Exported so the test can assert it equals the originality gate threshold instead of a second hand-tuned number. Both are 0.5 because both were measured over the same corpus - the account own reel scripts, where genuinely different reels peaked at 0.35 and real duplicates score 1.00."
+    },
+    {
+      "file": "apps/nickstire/shared/contentTopicMiner.ts",
+      "symbol": "isScriptableTopic",
+      "reason": "CI on #2167 flagged this as a new orphan: it is consumed inside mineTopicCandidates in the same module, plus the test that proves it rejects bare enum labels. Exported for the same reason condemnedJobIds and ORIGINALITY_BLOCK_THRESHOLD already are - the rule it encodes (a lifted SERVICE_CATEGORIES value is never a reel topic) is the subject of its own assertions, and a floor nobody can test is a floor nobody can trust. Production evidence for it: reel job 1830003 stored topic is literally Engine."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "nextRotationIndexAfterRefusal",
+      "reason": "The pure half of the rotation advance, split out and exported specifically so the decision can be EXERCISED rather than matched in source text. Review on #2167 flagged the original inline version as untestable - a source-matching test stays green if the write never persists. Its only production caller is advanceRotationPastRefusedPack in the same module; the export exists for the behaviour tests that AGENTS.md requires."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "ROTATION_EXCLUDED",
+      "reason": "A POLICY RECORD whose enforcement is the gate, not a runtime read - and that is deliberate, so say it plainly rather than let the reason imply a consumer that does not exist. Nothing reads it at request time; reelPackRotationCoverage.test.ts reads it to decide whether a pack absent from the rotation was EXCLUDED ON PURPOSE or merely forgotten. Those two states were previously indistinguishable, which is how 67 usable packs sat unreachable while new ones kept being written. Deleting this export does not break production - it deletes the distinction, and the gate goes with it."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "buildApprovedPackBriefForTest",
+      "reason": "Exists so the coverage gate asks EXACTLY what production asks - can the real builder turn this pack directory into a brief - instead of re-deriving that judgement. A hand-rolled version of this check read the wrong beat key on 2026-09-07 and misclassified 143 of 164 packs in BOTH directions, including calling 30 packs clean when the gate simply had nothing to read. Its production caller is buildBriefFromApprovedProductionPack, which it wraps; the export is the seam that keeps the test honest."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelInventoryLink.ts",
+      "symbol": "inventoryBriefJson",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The slim-then-refuse step for the social_content_inventory.brief_json mirror (a 65,535-byte TEXT column): it strips the immutable production-pack snapshot and both prompt packs, then REFUSES by name (INVENTORY_BRIEF_TOO_LARGE) instead of letting MySQL truncate a blob that would parse as nothing. Its only runtime caller is ensureReelDraftForJob in this module, which reelPipeline.ts (assembly writeback), mp4Ingest.ts and routers/content.ts import - so it fires on every assembled reel and is not vacuous. Exported so server/reelInventoryBriefSize.test.ts can drive the seam directly with the live 2026-09-08 shape (a 95,351-byte brief that hit ER_DATA_TOO_LONG) and pin both directions: slim-fits and refuse-by-name. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Landed in #2215; that PR CI run was the first red of this gate and every PR after inherited it. WIRING PINNED (Codex P2 on #2224, real): baselining alone left the call site unobserved, so the same test file now drives the real created branch of ensureReelDraftForJob through a fake drizzle client - the row that reaches .values() must carry the slimmed brief, and an unslimmable brief must refuse before any row is written, with an updated-branch control. Mutation-proven: bypassing the serializer at the insert fails exactly those two (a 90,729-byte row written; no refusal), 7/7 with it restored."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelInventoryLink.ts",
+      "symbol": "INVENTORY_BRIEF_MAX_BYTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, paired with inventoryBriefJson. The 65,535-byte capacity of the brief_json TEXT column, consumed at runtime by inventoryBriefJson in this module. Exported so the seam test POSITIVE CONTROL can assert the unslimmed fixture really exceeds the column before asserting the slimmed one fits; without it the slim-fits assertion would pass vacuously on any small fixture, and a second hand-typed 65535 in the test would be a copy that drifts silently if the column type ever changes. Same #2215 origin as inventoryBriefJson."
     }
   ]
 }

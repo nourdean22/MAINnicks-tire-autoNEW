@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
   brainMemory: {
     create: vi.fn(),
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
   },
   vectorEmbedding: {
     create: vi.fn(),
@@ -125,18 +127,23 @@ describe("saveToBrain", () => {
     expect(mocks.executeRawUnsafe).toHaveBeenCalled();
   });
 
-  it("detects duplicates using pgvector and updates seenCount", async () => {
+  it("detects an identical statement via pgvector and updates seenCount", async () => {
+    // 2026-09-07 · this case used to save DIFFERENT text ("I decided to
+    // launch…") and expect it to be swallowed by the similar row — which was
+    // the defect, not the contract. Only the same statement is a duplicate;
+    // see brain-save-dedupe.test.ts for the divergent-text cases.
     mocks.queryRawUnsafe.mockResolvedValue([
       { id: "bm-existing", key: "decision_existing", content: "Existing decision content", distance: 0.02 }
     ]);
 
     const result = await saveToBrain({
-      content: "I decided to launch the Cleveland tire promotion in May",
+      content: "existing DECISION content",
     });
 
     expect(result.id).toBe("bm-existing");
     expect(result.key).toBe("decision_existing");
-    expect(result.summary).toContain("Existing decision content");
+    expect(result.outcome).toBe("duplicate");
+    expect(result.summary).toContain("Already saved as decision · Existing decision content");
     expect(mocks.brainMemory.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "bm-existing" },
@@ -229,12 +236,15 @@ describe("saveToBrain", () => {
       { sourceId: "bm-fallback", embedding: JSON.stringify([0.1, 0.2, 0.3]) }
     ]);
 
+    // Same statement as the fallback row (case differs) — the JS path must
+    // reach the identical-statement verdict exactly like the pgvector path.
     const result = await saveToBrain({
-      content: "I decided to launch the Cleveland tire promotion in May",
+      content: "fallback DECISION content",
     });
 
     expect(result.id).toBe("bm-fallback");
     expect(result.key).toBe("decision_fallback");
+    expect(result.outcome).toBe("duplicate");
     expect(mocks.brainMemory.update).toHaveBeenCalled();
     expect(mocks.brainMemory.create).not.toHaveBeenCalled();
   });

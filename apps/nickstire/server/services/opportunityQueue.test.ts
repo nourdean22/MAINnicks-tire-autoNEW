@@ -27,11 +27,25 @@ import {
 } from "./opportunityQueue";
 
 describe("state machine · roadmap Wave-4 vocabulary", () => {
-  it("uses exactly the roadmap's 12 states", () => {
+  /**
+   * 2026-09-07 · 12 -> 13. `dismissed` was added by operator decision when the
+   * Decision Inbox was retired from the admin home.
+   *
+   * This pin is deliberately exact, so extending the vocabulary has to be a
+   * decision rather than a drift. The reason for THIS extension: hiding an
+   * irrelevant row previously required asserting something false — `lost`
+   * (claims a sale was lost), `do_not_contact` (zeroes consent for the whole
+   * phone number, permanently), or a concern chip (claims the customer spoke).
+   * `dismissed` says only what is true: a human looked and judged it not
+   * actionable. Its neutrality is asserted in server/neutralDismissal.test.ts.
+   *
+   * `duplicate` remains in the vocabulary and remains unwritten by any code.
+   */
+  it("uses exactly the roadmap's 12 states, plus `dismissed`", () => {
     expect([...OPPORTUNITY_STATES].sort()).toEqual([
-      "arrived", "assigned", "attempted", "contacted", "do_not_contact",
-      "duplicate", "lost", "new", "no_response", "scheduled",
-      "walk_in_expected", "won",
+      "arrived", "assigned", "attempted", "contacted", "dismissed",
+      "do_not_contact", "duplicate", "lost", "new", "no_response",
+      "scheduled", "walk_in_expected", "won",
     ].sort());
   });
 

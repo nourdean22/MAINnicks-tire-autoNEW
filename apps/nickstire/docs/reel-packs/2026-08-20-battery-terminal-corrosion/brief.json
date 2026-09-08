@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The reel ends on the same terminal-post macro it opened on, the metal now clean, so a replay starts on that same slow push-in and the powder appears to creep back.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Battery terminal corrosion: clean it, or does it mean the battery's leaking?",
-  "campaignKeyword": "CORRODE",
+  "campaignKeyword": "BATTERY",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-20, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -10,8 +11,8 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Green or white powder on your battery? One clue, more than one cause.",
-      "onScreenText": "Powder on your battery terminals?",
+      "narration": "White or green powder on your battery?",
+      "onScreenText": "Green powder isn't always the battery.",
       "visual": "Extreme close-up of a car battery's terminal posts under the hood, subtle green/white crust visible on metal, static camera with slow creeping push-in, dim engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -20,7 +21,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Light dusting, terminal still tight? That can point to normal corrosion — clean it.",
+      "narration": "Light dusting, terminal tight? Just clean it.",
       "onScreenText": "Light dusting, terminal still tight?",
       "visual": "Macro shot of a lightly corroded battery terminal clamp, shallow focus, subtle handheld drift, cool engine-bay light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +31,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Terminal loose under the powder? That may indicate a bad connection, not the battery.",
+      "narration": "Loose under the powder? That can point to the connection.",
       "onScreenText": "Terminal loose under the buildup?",
       "visual": "Close-up of a battery terminal clamp with a slight gap/wobble implied by subtle camera vibration, dim garage lighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +41,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Heavy buildup that's back in days? Worth checking for a leaking battery cell.",
+      "narration": "Back within days? Worth checking for a leaking cell.",
       "onScreenText": "Heavy buildup, back within days?",
       "visual": "Close-up of heavy white/green crust encrusting a battery terminal and case top, slow slide across the surface, moody blue-hour garage light, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,9 +51,9 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess with corrosion. Nick's Tire and Auto checks it free — link in bio.",
-      "onScreenText": "Free battery check. Link in bio.",
-      "visual": "Wide static shot of an auto repair shop garage bay interior, open bay door, warm inviting light, no people visible",
+      "narration": "Clean it once. Watch if it returns.",
+      "onScreenText": "CLEAN IT ONCE. SEE IF IT COMES BACK.",
+      "visual": "Extreme close-up of the same car battery terminal posts under the hood, the green and white crust gone and the metal bare and bright, static camera with slow creeping push-in, dim engine-bay lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

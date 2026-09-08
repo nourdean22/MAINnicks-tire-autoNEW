@@ -273,13 +273,13 @@ pending an actual render — not `PASS`, and not silently omitted:
 > valve stem.
 >
 > Rubber valve stems dry out and crack after 3-5 years. Look for cracks,
-> splits, or a stem that feels soft near the base — that's a slow leak
+> splits, or a stem that feels soft near the base - that's a slow leak
 > hiding in plain sight.
 >
 > A cracked stem can point to a tire older than you think.
 >
-> We check every valve stem free with a tire inspection. Send this to
-> someone whose tire keeps losing air.
+> We check every valve stem at no charge with a tire inspection. Send
+> this to someone whose tire keeps losing air.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

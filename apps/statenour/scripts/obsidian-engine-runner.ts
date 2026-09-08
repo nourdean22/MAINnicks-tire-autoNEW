@@ -2,6 +2,7 @@
  * Headless Obsidian Engine CLI Runner & Watch Daemon — Statenour OS.
  */
 import "dotenv/config";
+import dotenv from "dotenv";
 import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -16,6 +17,17 @@ import type {
   ObsidianEngineStepResults,
 } from "../lib/obsidian/types";
 
+// This checkout keeps its real .env at the MONOREPO ROOT; apps/statenour/.env is
+// absent (some worktrees do carry one, which is why this is a fallback and not a
+// replacement). `dotenv/config` reads only <cwd>/.env, and pnpm runs this script
+// with cwd=apps/statenour, so it loaded nothing and every brain command died on
+// the DATABASE_URL guard below -- silently skipping the weekly vault ->
+// brain_memories ingest in scripts/graphify-obsidian-sync.ps1. dotenv never
+// overrides an already-set key, so a real environment variable still wins, and a
+// future apps/statenour/.env (loaded above) still wins over the root. Must run
+// before getObsidianEngineConfig(), which reads OBSIDIAN_* at call time.
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+
 const args = process.argv.slice(2);
 const command = args[0] || "sync";
 const extraArgs = args.slice(1);
@@ -29,7 +41,7 @@ let statusWriteQueue: Promise<void> = Promise.resolve();
 
 if (BRAIN_COMMANDS.has(command) && !process.env.DATABASE_URL) {
   console.error(
-    `\nobsidian:${command} needs DATABASE_URL. Run from a checkout with apps/statenour/.env ` +
+    `\nobsidian:${command} needs DATABASE_URL. Run from a checkout with a repo-root .env ` +
       "or export DATABASE_URL before starting the engine.\n",
   );
   process.exit(1);

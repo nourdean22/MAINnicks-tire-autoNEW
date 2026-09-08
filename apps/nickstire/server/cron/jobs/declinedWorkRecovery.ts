@@ -36,8 +36,8 @@ import {
   variantKey,
   allowedTouches,
   statedConcernFromDb,
-  RECOVERY_CLOSED_SIGNALS,
-  type ObservedDeclineSignal,
+  isCustomerClosedSignal,
+  CUSTOMER_SOURCED_CONCERN,
 } from "../../services/declinedRecoverySequence";
 import { createHash } from "node:crypto";
 
@@ -218,6 +218,10 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       recoveryProfile: algEstimates.recoveryProfile,
       // Recovery 2.0 (0100): evidence routing + holdout measurement
       statedConcern: algEstimates.statedConcern,
+      // WHO said it. Selected 2026-09-07 — the closed-signal halt below used to
+      // read only WHAT was said, so an operator-sourced inference halted this
+      // customer-facing sequence as if the customer had stated it.
+      statedConcernSource: algEstimates.statedConcernSource,
       recoveryHoldout: algEstimates.recoveryHoldout,
     })
     .from(algEstimates)
@@ -419,13 +423,17 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       }
 
       // ── Recovery 2.0 · closed signals END recovery for the estimate ──
-      // The customer told us the outcome (fixed elsewhere / sold the car /
+      // The CUSTOMER told us the outcome (fixed elsewhere / sold the car /
       // not interested) — continuing to text would be texting past a
       // stated answer.
-      if (
-        est.statedConcern &&
-        RECOVERY_CLOSED_SIGNALS.includes(est.statedConcern as ObservedDeclineSignal)
-      ) {
+      //
+      // 2026-09-07: this now checks WHO said it, not only WHAT was said. It
+      // previously read `stated_concern` alone, so an operator clicking a
+      // "Fixed elsewhere" chip to hide an admin card silently ended a real
+      // customer's recovery sequence under a comment claiming the customer
+      // had spoken. Only a customer-sourced signal closes a customer-facing
+      // rail; an operator inference is triage evidence, not a statement.
+      if (isCustomerClosedSignal(est.statedConcern, est.statedConcernSource)) {
         skippedClosed++;
         continue;
       }
@@ -478,7 +486,18 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       type ProfileCode = "P0" | "P1" | "P2" | "P3";
       // Recovery 2.0: a stated concern is EVIDENCE and beats any sticky
       // legacy assignment — recompute the track whenever one exists.
-      const observedConcern = statedConcernFromDb(est.statedConcern);
+      //
+      // 2026-09-07 · provenance-gated, for the same reason as the closed-signal
+      // halt above. This module's own header states P1/P2/P3 fire "ONLY when the
+      // caller passes `statedConcern` sourced from something the customer
+      // actually said". Routing off an OPERATOR inference would send that
+      // customer a price-track message asserting they raised cost — the
+      // falsification arriving in the customer's own inbox rather than in a
+      // column. Unsourced or operator-sourced concerns fall through to P0
+      // ("objection unknown → don't pretend"), which is the honest default.
+      const observedConcern = CUSTOMER_SOURCED_CONCERN.includes(est.statedConcernSource ?? "")
+        ? statedConcernFromDb(est.statedConcern)
+        : null;
       let profile: ProfileCode = (est.recoveryProfile as ProfileCode | null) ?? null as unknown as ProfileCode;
       if (observedConcern) {
         const evidenceProfile = pickProfile({

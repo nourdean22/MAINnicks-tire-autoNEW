@@ -368,13 +368,13 @@ export default function PhotoImproverPage() {
           </a>
           <div className="flex gap-1 flex-wrap mt-3">
             <Link
-              href={`/content?tab=publish&imageUrl=${encodeURIComponent(`/api/images/${data.rebrandedImageId}`)}`}
+              href={`/content?tab=publish&imageUrl=${encodeURIComponent(data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`)}`}
               className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200 hover:bg-violet-500/15 inline-flex items-center gap-1"
             >
               <Send className="h-3 w-3" /> publish
             </Link>
             <Link
-              href={`/chat?prompt=${encodeURIComponent(`Caption this image at /api/images/${data.rebrandedImageId} for Instagram. Use Nick's Tire voice + Cleveland tags + CTA.`)}`}
+              href={`/chat?prompt=${encodeURIComponent(`Caption this image at ${data.rebrandedImageUrl ?? `/api/images/${data.rebrandedImageId}`} for Instagram. Use Nick's Tire voice + Cleveland tags + CTA.`)}`}
               className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200 hover:bg-emerald-500/15 inline-flex items-center gap-1"
             >
               <ImageIcon className="h-3 w-3" /> caption

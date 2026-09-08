@@ -263,15 +263,14 @@ pending an actual render — not `PASS`, and not silently omitted:
 >
 > A lower radiator hose can collapse from the inside as the water pump
 > pulls coolant through it, once the rubber's inner lining has broken
-> down with age — and that's exactly why it's fine at idle and overheats
+> down with age - and that's exactly why it's fine at idle and overheats
 > once the pump's working harder at speed.
 >
 > With the engine cold, squeeze the lower hose. It should have some give.
 > If it's already caved in or feels mushy, that's your hose.
 >
-> A collapsed hose is a simple fix. We check your cooling system free
-> before we talk about anything bigger. Send this to someone whose car
-> runs hot on the highway.
+> A collapsed hose is a simple fix. The cooling system is part of a
+> free check, and that is where to start before anything bigger.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #coolingsystem
 

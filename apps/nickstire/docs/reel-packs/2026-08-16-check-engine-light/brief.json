@@ -1,9 +1,11 @@
 {
+  "loopIdea": "The closing beat lands back on the same amber warning lamp at frame center on the same cluster the opening macro held, so a replay reopens on the same glow and push-in.",
+  "mechanicTruth": "A steady check engine light is a stored fault to have read soon; a flashing one means a misfire is happening right now, sending unburned fuel into the exhaust where it can overheat the catalytic converter.",
   "packId": "2026-08-16-check-engine-light",
   "generatedAt": "2026-08-16",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
   "slateSource": "apps/nickstire/docs/REEL-SLATE-2026-07-31.md item #7",
-  "campaignKeyword": "CEL-FLASH",
+  "campaignKeyword": "ECHECK",
   "hookText": "Solid and flashing mean completely different things.",
   "ctaText": "Save this. The difference is thousands of dollars. Nick's Tire and Auto — link in bio.",
   "ctaTypeNote": "SAVE, taken verbatim from the slate's already brand-voice-linted caption — see README §2 for the tension against the slate's own corrected SEND-preferred objective, which was not applied item-by-item.",
@@ -19,7 +21,7 @@
       "startSecond": 0,
       "endSecond": 3,
       "narration": "Solid and flashing mean completely different things.",
-      "onScreenText": "",
+      "onScreenText": "A flashing check engine light means stop.",
       "providerScene": "Macro shot of a car instrument cluster, check-engine warning icon glowing amber at frame center, shallow depth of field, subtle idle-engine vibration, dim cabin ambient light, cinematic automotive commercial look, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -30,7 +32,7 @@
       "startSecond": 3,
       "endSecond": 7,
       "narration": "Solid means get it looked at soon.",
-      "onScreenText": "",
+      "onScreenText": "SOLID = LOOK SOON",
       "providerScene": "Extreme macro on the same check-engine icon, steady non-blinking amber glow, static hold, soft key light reflecting off the gauge glass, calm mood, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -40,8 +42,8 @@
       "intent": "VALUE",
       "startSecond": 7,
       "endSecond": 16,
-      "narration": "Flashing means stop driving. It usually points to a misfire that can destroy the catalytic converter —",
-      "onScreenText": "",
+      "narration": "Flashing means stop driving. That can point to a misfire.",
+      "onScreenText": "FLASHING = STOP",
       "providerScene": "Extreme macro on the same check-engine icon now strobing rapidly, color grade shifts warmer and more urgent (amber toward red), slight handheld camera shake for urgency, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -51,8 +53,8 @@
       "intent": "VALUE",
       "startSecond": 16,
       "endSecond": 21,
-      "narration": "one of the most expensive parts on the car.",
-      "onScreenText": "",
+      "narration": "Misfires can wreck the catalytic converter, an expensive part.",
+      "onScreenText": "CONVERTER TAKES THE HIT",
       "providerScene": "Engine bay under-hood shot, exhaust manifold and catalytic converter housing visible, heat-shimmer haze, dramatic red-orange practical lighting, slow lateral dolly across the component, texture-forward macro detail, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -62,9 +64,9 @@
       "intent": "CTA",
       "startSecond": 21,
       "endSecond": 27,
-      "narration": "Save this. The difference is thousands of dollars. Nick's Tire and Auto — link in bio.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door partially open to daylight, tools racked in the background, no readable signage or branding in frame, warm end-of-day light, static hold, 9:16 vertical framing",
+      "narration": "Solid means soon. Flashing means stop.",
+      "onScreenText": "SOLID VS FLASHING",
+      "providerScene": "Macro of the same instrument cluster with the amber warning lamp at frame center settling from a strobe into a steady glow, shallow depth of field, dim cabin ambient light, cinematic automotive commercial look, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

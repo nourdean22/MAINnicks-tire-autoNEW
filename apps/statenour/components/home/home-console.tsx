@@ -49,7 +49,8 @@ export function HomeConsole() {
   const refreshFailed = briefQ.isError && !!brief;
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col px-4 pb-10 sm:px-6">
+    <div className="mx-auto w-full max-w-[720px] px-4 pb-10 sm:px-6 xl:grid xl:max-w-[1180px] xl:grid-cols-[minmax(0,720px)_minmax(300px,1fr)] xl:items-start xl:gap-x-12">
+      <div className="flex min-w-0 flex-col" data-home-column="queue">
       <BriefStateLine
         state={brief?.state ?? null}
         loading={briefQ.isLoading}
@@ -91,9 +92,18 @@ export function HomeConsole() {
 
       <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
 
-      <HorizonLine horizon={brief?.horizon ?? null} />
+      </div>
 
-      <ChangeLine />
+      {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail
+          beside the queue; below that width they keep today's order under it. */}
+      <aside
+        aria-label="context"
+        data-home-column="context"
+        className="xl:sticky xl:top-6 xl:border-l xl:border-edge xl:pl-8"
+      >
+        <HorizonLine horizon={brief?.horizon ?? null} />
+        <ChangeLine />
+      </aside>
     </div>
   );
 }

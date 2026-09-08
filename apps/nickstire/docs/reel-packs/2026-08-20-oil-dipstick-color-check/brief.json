@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same dipstick back in its tube under the same macro framing, so the opening pull on replay reads as the very next motion of one continuous check.",
   "topic": "Oil dipstick color check: amber vs black-gritty vs milky",
-  "campaignKeyword": "OILCHECK",
+  "campaignKeyword": "ECHECK",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-20",
   "durationSec": 28,
@@ -11,40 +12,45 @@
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Pull your dipstick. The color is telling you something.",
+      "onScreenText": "AMBER. BLACK. MILKY. ONLY ONE IS FINE.",
+      "narration": "Pull the dipstick and read the color.",
       "visualPrompt": "Macro shot of a dipstick being pulled from a car engine, oil droplet catching light, engine bay softly blurred in background, shallow depth of field, cinematic garage lighting",
       "stockSearchTerms": ["dipstick pulled from car engine closeup", "checking engine oil hood open"]
     },
     {
+      "onScreenText": "AMBER IS NORMAL",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 10],
-      "narration": "Honey to dark amber? That's normal - worth checking again next month.",
+      "narration": "Honey to dark amber is normal.",
       "visualPrompt": "Macro close-up of dipstick tip, clean honey-to-amber colored oil clearly visible on the tip, shallow depth of field, neutral garage lighting",
       "stockSearchTerms": ["engine oil dipstick amber closeup macro", "car oil dipstick tip clean"]
     },
     {
+      "onScreenText": "OLD OIL GOES BLACK",
       "index": 3,
       "role": "VALUE",
       "windowSec": [10, 17],
-      "narration": "Black and gritty? That can point to an overdue oil change.",
+      "narration": "Black and gritty can point to an overdue change.",
       "visualPrompt": "Macro close-up of dipstick tip, dark black gritty oil with visible texture, dim garage lighting, slight push-in camera move",
       "stockSearchTerms": ["dark dirty engine oil dipstick macro", "old motor oil closeup texture"]
     },
     {
+      "onScreenText": "MILKY IS A COOLANT CLUE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 23],
-      "narration": "Milky or foamy? That may indicate coolant in the oil - stop driving and get it looked at.",
+      "narration": "Milky or foamy may indicate coolant in the oil. Stop driving.",
       "visualPrompt": "Macro close-up of dipstick tip, pale milky beige foamy oil, unusual coloring clearly visible, close-up, dim engine bay light",
       "stockSearchTerms": ["milky oil dipstick closeup", "engine bay macro dim garage light"]
     },
     {
+      "onScreenText": "ONE PULL TELLS YOU",
       "index": 5,
       "role": "CTA",
       "windowSec": [23, 28],
-      "narration": "Thirty seconds under the hood can save you thousands. Nick's Tire and Auto checks it free. Link in bio.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "One pull of the dipstick sorts all three.",
+      "visualPrompt": "Macro shot of the same dipstick seated back down into its tube on the engine, a clean amber film still clinging to the blade edge, engine bay softly blurred behind, shallow depth of field, cinematic garage lighting",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

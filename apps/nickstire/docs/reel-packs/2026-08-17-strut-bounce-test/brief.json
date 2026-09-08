@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same workbench clipboard under the same bay light, cleared now, so a replay resumes the identical slow push-in across the identical surface.",
   "topic": "What 'you need struts' actually means (the bounce test)",
-  "campaignKeyword": "STRUT-BOUNCE",
+  "campaignKeyword": "VIBRATION",
   "slateSource": "docs/REEL-SLATE-2026-07-31.md#15",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled task run, 2026-08-17, no live operator present",
@@ -13,40 +14,45 @@
       "index": 1,
       "role": "HOOK",
       "window": "0:00-0:03",
-      "narration": "\"Time for struts.\" You hear it a lot. It's explained almost never.",
+      "onScreenText": "Your car gets one bounce. That's it.",
+      "narration": "You hear \"time for struts.\" Nobody explains it.",
       "visualPrompt": "Slow macro push-in on a mechanic's paper estimate/clipboard on a workbench, the word STRUT-related line item visible but out of sharp focus, garage bay softly lit in the background. Static camera, shallow depth of field.",
       "stockSearchTerms": ["mechanic garage clipboard estimate closeup", "auto shop invoice pen closeup"]
     },
     {
+      "onScreenText": "STRUTS CONTROL SETTLING",
       "index": 2,
       "role": "SETUP",
       "window": "0:03-0:09",
-      "narration": "Struts control how your car settles after a bump. Worn ones keep bouncing.",
+      "narration": "Struts control how a car settles after bumps.",
       "visualPrompt": "Macro shot of a strut/shock absorber assembly and coil spring on a vehicle lift, slow orbit or slight push-in, garage bay lighting, metallic surfaces catching light.",
       "stockSearchTerms": ["car strut shock absorber closeup", "suspension coil spring garage"]
     },
     {
+      "onScreenText": "BOUNCING CHEWS TREAD",
       "index": 3,
       "role": "VALUE",
       "window": "0:09-0:15",
-      "narration": "That bounce can point to longer stopping distance and chewed-up tread — even when the ride feels normal.",
+      "narration": "Worn ones keep bouncing, chewing tread.",
       "visualPrompt": "Macro shot of a tire tread showing cupped/scalloped uneven wear pattern, slow pan across the tread surface, natural daylight in a shop bay.",
       "stockSearchTerms": ["tire tread cupping wear macro", "worn tire uneven wear closeup"]
     },
     {
+      "onScreenText": "PUSH ONE CORNER",
       "index": 4,
       "role": "VALUE_DEMO",
       "window": "0:15-0:21",
-      "narration": "The test: push down hard on one corner. It should rebound once, then settle. More bounce than that is worth checking.",
+      "narration": "Push hard on one corner: it should rebound once, then settle.",
       "visualPrompt": "Static low-angle shot of a car's front corner from outside the vehicle as it rolls over a speed bump in a parking lot, suspension compressing then rebounding once and settling. No hands, no driver visible in frame — exterior body-and-wheel-well view only.",
       "stockSearchTerms": ["car suspension bounce speed bump slow motion", "car driving over bump suspension travel"]
     },
     {
+      "onScreenText": "MORE THAN ONE BOUNCE?",
       "index": 5,
       "role": "CTA",
       "window": "0:21-0:27",
-      "narration": "Try it in your driveway. Not sure what you felt? Nick's Tire and Auto — link in bio.",
-      "visualPrompt": "Wide establishing shot of the shop's garage bay exterior/signage area, warm late-afternoon light, static or very slow push-in.",
+      "narration": "More bounce than that is worth checking.",
+      "visualPrompt": "Slow macro push-in on the same clipboard lying flat on the workbench, its spring clip empty now and catching the same soft bay light, garage bay softly lit and out of focus behind it, static camera, shallow depth of field",
       "stockSearchTerms": ["auto repair garage bay exterior"]
     }
   ],

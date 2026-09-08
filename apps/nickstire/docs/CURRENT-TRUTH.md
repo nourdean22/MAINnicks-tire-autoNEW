@@ -1,11 +1,101 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` on 2026-08-13 (ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; prior line: 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Public-site serving contract (2026-09-07, PR #2173 → `f2bcf949d`)
+
+What a request for an extensionless public path gets, decided in ONE place — `server/_core/spaFallback.ts` —
+used by both the Vite dev catch-all and the production catch-all in `server/_core/vite.ts`:
+
+- **Known path** (route registry `shared/routes.ts`, or one segment under a `DYNAMIC_ROUTE_PREFIXES` entry, or
+  `/admin*`, or `NON_REGISTRY_PUBLIC_PATHS`) → 200, registry meta injected, `Cache-Control: public, max-age=300,
+  s-maxage=300, must-revalidate`. This now includes `/` (express.static serves with `index: false`; before, the
+  home page alone carried a 24 h cache).
+- **Unknown path** → **404** with `noindex, nofollow` in the HTML and `X-Robots-Tag`, canonical `/`, `no-cache`.
+  Before: 200 with the home title (a soft 404, measured live).
+- **Case twin of a known path** (`/Tires`) → 301 to the lowercase path, query string kept.
+- `/admin*` → 200 + `X-Robots-Tag: noindex, nofollow` (auth-gated shell).
+- Gate: `scripts/validate-route-registry.mjs` Rule 5 pins App.tsx `:param` routes ↔ `DYNAMIC_ROUTE_PREFIXES`
+  both ways and Rule 0 fails closed if a parser finds nothing; canary `server/routeRegistryValidator.test.ts`.
+  Wiring is tested over real HTTP through an `app.use("*")` mount (`server/spaFallback.test.ts`) — inside a
+  wildcard mount `req.path` is always `/`; only `originalUrl` survives.
+
+Adjacent contracts that changed in the same PR:
+
+- **robots.txt** is built by `server/_core/robots.ts`: `*` allows everything except the private paths; Bytespider
+  and cohere-ai are blocked; `ROBOTS_BLOCK_AI_TRAINING_CRAWLERS=true` additionally blocks GPTBot, ClaudeBot, CCBot,
+  Applebot-Extended, MistralAI-Training (default off). No Crawl-delay, no `?utm_` disallows (canonicals do that).
+- **Sitemaps** carry `<lastmod>` only for DB-published articles (real `updatedAt`); static routes omit it.
+- **`/llms.txt`** is the only machine-readable facts file; `/ai.txt` and `/llms-full.txt` 301 to it (the static
+  copies and the four `*-schema.json` / `business-data.json` files were deleted — they contradicted canon).
+- **Structured data**: one `WebSite` node (index.html); one `LocalBusiness` entity by `@id` — city pages reference
+  it and emit no rating; `aggregateRating` only where reviews are rendered (Home, Reviews).
+- **Share image**: `/og-image.jpg` (1200×630) from both index.html and `SEOHead`'s default.
+- **CSP** `connect-src` includes `*.google-analytics.com`, `*.analytics.google.com`, `*.googletagmanager.com`,
+  `*.g.doubleclick.net`; Permissions-Policy also denies usb, midi, display-capture, browsing-topics.
+- **CSP `script-src` is hash-based in production (2026-09-08):** at boot `server/_core/index.ts` hashes the
+  executable inline scripts of the built `index.html` next to the server bundle and `securityHeaders.ts` emits
+  `'sha256-…'` instead of `'unsafe-inline'` (`style-src` keeps it). There is exactly one such script — the
+  analytics loader — and all 336 prerendered snapshots carry the same bytes (`server/securityHeaders.test.ts`
+  checks every file). Dev (`NODE_ENV=development`) keeps `'unsafe-inline'` for Vite HMR;
+  `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true` restores it in production without a deploy. A new inline script must be
+  added to `client/index.html` (then it is hashed automatically) — never injected at serve time.
+- **Rate-limit client identity (2026-09-08):** `cf-connecting-ip` is honoured only when
+  `TRUST_CLOUDFLARE_HEADERS=true` (Cloudflare is NOT in front today: `server: railway`, no `cf-ray`); otherwise
+  the key is `x-real-ip` → `req.ip` as before. What Railway actually sets (`x-forwarded-for` / `x-real-ip`) is
+  unverified — confirm with one logged request before changing `TRUST_PROXY`.
+- **`/.well-known/security.txt`** (RFC 9116) is served by `server/_core/securityTxt.ts`: contact page + public
+  phone, `Expires` = boot time + 180 days, `Canonical`; `/security.txt` 301s to it.
+
+## Page-top contract (2026-09-08, mobile shop strip)
+
+What every `PageLayout` page shows at scroll-top, and why it changed:
+
+- **`SiteNavbar` is the only fixed cluster** (`top-0`, z-50): desktop = membership band (44px, `hidden lg:block`)
+  + nav row (60px) + `ShopStrip` (36px); phone = nav row (60px) + `ShopStrip` (~64px, two rows). Band and strip
+  collapse on scroll and while the mobile menu is open, so the persistent chrome is the 60px row. Hero top
+  margins that clear it: Home `mt-36 sm:mt-48 lg:mt-48`; `FocusedServicePage` hero `pt-32 lg:pt-36`.
+- **`ShopStrip`** (`client/src/components/ShopStrip.tsx`) = open/closed + "Closes 6 PM" / "Opens tomorrow 8 AM",
+  address (→ Google Maps directions), phone (`tel:`, tracked as `shop_strip`), rating with the live Google count
+  (canon fallback). Closed state adds an **Emergency** button that dispatches `nickstire:emergency-request` on
+  `window`; `EmergencyMode` listens and opens its existing form. Every value is canon or live.
+- **Deleted:** `StickyTrustBar` (static at y=0 under the fixed cluster — measured with `elementFromPoint`, it was
+  never visible in either shop state) and `EmergencyMode`'s fixed red top banner (37px at z-60 that covered the
+  trust bar and pushed the nav down 56px). The floating emergency button and the form are unchanged.
+- **Clock:** `client/src/lib/shopHours.ts` is America/New_York and derives the schedule from
+  `BUSINESS.hours.structured` (it used to be the visitor's local clock with a second hard-coded schedule).
+  `useBusinessHours` still exists for `EmergencyMode`; both read the same canon.
+- **Service pages:** `FocusedServicePage` renders a **written-estimate ticket** after the pricing tiers (the page's
+  own tiers, verbatim; "You approve it. Then we start."; Ohio repair-rule line). The AEO default keeps the canonical Repair Haiku
+  "you don't pay until you say yes" (prescribed by the brand-voice kernel in `shared/voice.ts`, repeated in SMS,
+  voice and 100+ pages); a same-day pass paraphrased it and was reverted — the $59.99 diagnostic is itself on the
+  written quote before it is charged, so the promise holds.
+- **`NotificationBar` on a phone waits for the first screen** (2026-09-08): fixed 84px above the mobile CTA bar it
+  covered the hero's "Talk to a human" card from the first frame; it now renders only after a scroll past 60% of
+  the viewport on `(max-width: 1023px)`. Desktop and the prerender pass (desktop viewport) are unchanged. The two
+  floating buttons (emergency, chat) still sit on the cards' right edge when the shop is closed — known.
+- **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a
+  regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
+  FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
+  the WebP `og:image`. The first snapshot set with the fixes is `2336d313d` (2026-09-08 00:49 UTC; the first
+  post-merge regen failed at `git push`). A skip-ci-tagged regen commit still deploys on Railway — only GitHub Actions
+  honour the token; `2336d313d` reached `/api/health` about 30 minutes after its push, so poll health rather than
+  concluding from one early probe (and never spell the token out in a commit message: GitHub honours it anywhere). Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
+- **The regen is read-only by code, not yet by credential (2026-09-08).** `prerender-refresh.yml` boots this
+  server with `PRERENDER_MODE=true` against `DATABASE_URL_PRERENDER_RO || DATABASE_URL` — the read-only secret is
+  optional and, until the owner creates it, the run holds the read-write credential. `index.ts` skips crons and
+  queues in that mode, and the three DB-writing public sinks — `/api/analytics/conversion`, `/api/track-abandoned`,
+  `/api/uber-code` — now return 204 without writing (the conversion sink inserted a `customer_events` row per
+  rendered page before; control/canary pairs in `server/analyticsPrerenderGuard.test.ts`). Any new public write
+  path must use the same `isPrerenderPass()` guard in `server/routes/analyticsRoutes.ts`.
+- **Billed-sales windows are definition v2 (2026-09-08):** `last_7d` / `last_30d` are exactly 7 / 30 completed
+  Eastern days ending yesterday; v1 ran to tomorrow and spanned 8 / 31 dates. `docs/METRICS-CONTRACT.md` has the
+  rule; `server/shopSales.test.ts` counts the dates.
 
 ## Admin audit wave (2026-09-01/02, PR #2063) — receipts, doors, loud crons
 

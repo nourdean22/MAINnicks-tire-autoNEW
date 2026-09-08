@@ -29,7 +29,6 @@ import { tracedAiChat } from "@/lib/ai/traced-aichat";
 // operator-tuned style so block titles + framing inherit voice tells.
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
-import { trackGeneration } from "@/lib/ai/track";
 import { recallIndustryIntel } from "@/lib/automotive/industry-monitor";
 import { requireSession } from "@/lib/auth-guard";
 import { checkAiRateLimit } from "@/lib/rate-limit";
@@ -223,13 +222,9 @@ export async function POST(req: Request) {
     );
   }
 
+  // U6 (2026-09-08) · aiChat records this call itself (feature = the traced label); the
+  // manual row here double-counted it and carried no tokens or cost.
   const durationMs = Date.now() - t0;
-  void trackGeneration({
-    feature: "plan_day",
-    model: result.model,
-    durationMs,
-    status: "complete",
-  });
 
   // Strip code fences + parse
   const cleaned = result.content

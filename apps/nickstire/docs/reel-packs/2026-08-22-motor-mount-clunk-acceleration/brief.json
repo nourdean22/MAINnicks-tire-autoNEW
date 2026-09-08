@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel closes on the same shifter in the same interior framing, now settled into drive and holding still, so a replay drops back onto that shifter an instant before the clunk.",
   "topic": "Worn motor mount: the clunk on acceleration that isn't your suspension",
-  "campaignKeyword": "MOUNTCLUNK",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md section 1)",
   "generatedAt": "2026-08-22",
   "durationSec": 27,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "CLUNK WHEN YOU SHIFT",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "You hit the gas, or shift into drive, and you feel a clunk from underneath.",
+      "narration": "Shift into drive, and you feel a clunk underneath.",
       "visualPrompt": "Close-up of a car gear shifter moving from park to drive, static camera, soft interior ambient light, no hand visible on the shifter",
       "stockSearchTerms": ["car gear shifter closeup park to drive", "automatic transmission shifter macro"]
     },
     {
+      "onScreenText": "NOT A BUMP CLUNK",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "That's different from a clunk over a bump. This one shows up when the engine torques.",
+      "narration": "Not a bump clunk. It comes when the engine torques.",
       "visualPrompt": "Wide shot of an engine bay from above, slow push-in toward the engine block, neutral daylight, static mounting points visible at the edges of frame",
       "stockSearchTerms": ["engine bay overhead wide shot", "car engine compartment daylight"]
     },
     {
+      "onScreenText": "CRACKED RUBBER MOUNT",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 17],
-      "narration": "A clunk like that can mean a worn motor mount, the rubber that keeps your engine from rocking under load.",
+      "narration": "That can point to a worn motor mount.",
       "visualPrompt": "Extreme macro of an engine mount with a visibly cracked and separated rubber isolator between the metal brackets, slow orbital camera move, dim garage light",
       "stockSearchTerms": ["engine motor mount cracked rubber macro", "torn motor mount closeup"]
     },
     {
+      "onScreenText": "STOPS ENGINE ROCKING",
       "index": 4,
       "role": "VALUE",
       "windowSec": [17, 22],
-      "narration": "A torn or collapsed mount can also let the engine shift enough to rub or strain a hose or wire nearby.",
+      "narration": "That rubber keeps the engine from rocking.",
       "visualPrompt": "Rack focus from the damaged motor mount in the foreground to a nearby hose and wiring harness in the background, dim garage lighting, slow focus pull",
       "stockSearchTerms": ["engine bay hose wiring harness closeup", "engine compartment focus pull macro"]
     },
     {
+      "onScreenText": "NOT ALWAYS SUSPENSION",
       "index": 5,
       "role": "CTA",
       "windowSec": [22, 27],
-      "narration": "Nick's Tire and Auto checks engine mounts free with any diagnostic visit. Link in bio.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm inviting daylight streaming in",
+      "narration": "Worth checking before you blame suspension parts.",
+      "visualPrompt": "Close-up of the same car gear shifter in the same interior framing, now settled into drive and holding steady, soft ambient cabin light, static camera",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

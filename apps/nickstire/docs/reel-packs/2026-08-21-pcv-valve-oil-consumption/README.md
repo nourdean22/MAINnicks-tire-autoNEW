@@ -267,15 +267,15 @@ pending an actual render — not `PASS`, and not silently omitted:
 > You keep topping off oil, but there's never a puddle under the car.
 > That's not always a leak.
 >
-> A stuck PCV valve can burn oil internally — nothing ever hits the ground.
+> A stuck PCV valve can burn oil internally - nothing ever hits the ground.
 > A hissing or whistling sound at idle is one clue. Oil pooling inside the
 > air intake hose is another.
 >
 > Left unchecked, it can point to sludge buildup and a rougher idle over
-> time — not just wasted oil.
+> time - not just wasted oil.
 >
-> Worth checking. We'll take a look at your PCV system free with an oil
-> change. Send this to someone who's always topping off oil.
+> Worth checking the PCV system at the next oil change - that tells you
+> whether the oil is leaking out or burning off inside.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

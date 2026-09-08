@@ -12,6 +12,7 @@
  * the old separately-fixed ticker).
  */
 
+import { focusClearanceDelta, scrollClear } from "@/lib/ui/focus-clearance";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -64,6 +65,22 @@ export function BottomTabBar() {
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  // Section 5.8 / WCAG 2.4.11 (2026-09-08): a control focused while it sits under this fixed
+  // chrome is scrolled clear of it. Chromium does not scroll a focused control that is already
+  // inside the viewport, so scroll-padding-bottom (base.css) covers scrollIntoView callers but
+  // not keyboard focus — measured on /journal in CI before this handler existed.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target;
+      const chrome = chromeRef.current;
+      if (!(el instanceof HTMLElement) || !chrome || chrome.contains(el)) return;
+      const delta = focusClearanceDelta(el.getBoundingClientRect(), chrome.getBoundingClientRect().top, window.innerHeight);
+      if (delta > 0) scrollClear(el, delta);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
   }, []);
 
   return (

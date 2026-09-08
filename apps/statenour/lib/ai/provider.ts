@@ -25,6 +25,9 @@
  * ──────────────────────────────────────────────────────────────
  */
 
+import { checkLaneBudget } from "@/lib/ai/budget";
+import { trackGeneration } from "@/lib/ai/track";
+import { estimateCostUsd } from "@/lib/ai/pricing";
 import { langfuseTelemetry, type LangfuseTelemetryInput } from "@/lib/observability/langfuse";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -1090,30 +1093,8 @@ export interface AiResponse {
  *  are local/cheap so set near-zero; OpenAI + Anthropic use rough
  *  averages of their flagship models since we don't know which sub-
  *  model the call actually routed to. */
-const PROVIDER_RATES_PER_1M_TOKENS: Record<
-  string,
-  { input: number; output: number }
-> = {
-  ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
-  gemini: { input: 0.075, output: 0.30 }, // Gemini 2.5/3.5 Flash rates
-  openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
-  anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
-  openrouter: { input: 0.15, output: 0.60 }, // OpenRouter Gemini 2.5 rates
-  none: { input: 0.0, output: 0.0 },
-};
-
-function estimateCostUsd(
-  provider: string,
-  inputTokens?: number,
-  outputTokens?: number,
-): number | undefined {
-  if (inputTokens == null && outputTokens == null) return undefined;
-  const rate = PROVIDER_RATES_PER_1M_TOKENS[provider];
-  if (!rate) return undefined;
-  const inUsd = ((inputTokens ?? 0) / 1_000_000) * rate.input;
-  const outUsd = ((outputTokens ?? 0) / 1_000_000) * rate.output;
-  return Math.round((inUsd + outUsd) * 10000) / 10000; // round to $0.0001
-}
+// U6 (2026-09-08) · the rate table and estimateCostUsd moved to lib/ai/pricing.ts
+// so track.ts, the reasoning engine and Langfuse price from ONE source.
 
 /**
  * v10.0.212 · classify a thrown error into a small set of buckets so
@@ -1141,7 +1122,14 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
 export async function aiChat(
   messages: AiMessage[],
   taskType: TaskType = "reason",
-  opts: { signal?: AbortSignal; budgetNearingLimit?: boolean; allowMetered?: boolean; telemetry?: Partial<LangfuseTelemetryInput> } = {},
+  opts: {
+    signal?: AbortSignal;
+    budgetNearingLimit?: boolean;
+    allowMetered?: boolean;
+    telemetry?: Partial<LangfuseTelemetryInput>;
+    /** U6 · every completed call is recorded in AiGeneration unless the caller records it itself. */
+    tracked?: boolean;
+  } = {},
 ): Promise<AiResponse> {
   // L.1 · external AbortSignal support · when caller passes a signal,
   // every per-provider attempt combines the external + per-attempt
@@ -1150,6 +1138,18 @@ export async function aiChat(
   // letting the LLM call complete and discarding the result. Closes
   // the orphan-promise spend leak noted in H.6.1.
   const externalSignal = opts.signal;
+
+  // U6 (2026-09-08) · a lane (feature) past its daily cap is a deterministic
+  // stop: no provider is called, the caller gets the "none" sentinel it
+  // already knows how to read. A lane with no cap never stops here.
+  const laneFeature = opts.telemetry?.functionId ?? `ai:${taskType}`;
+  if (opts.tracked !== false) {
+    const lane = await checkLaneBudget(laneFeature).catch(() => null);
+    if (lane?.over) {
+      log.warn("lane_budget_exhausted", { lane: laneFeature, spentCents: lane.spentCents, capCents: lane.capCents });
+      return { content: "", provider: "none", model: `lane-budget-exhausted:${laneFeature}` };
+    }
+  }
   const systemMessages = messages.filter((m) => m.role === "system");
   const nonSystemMessages = messages.filter((m) => m.role !== "system");
   const systemPrompt = systemMessages.map((m) => m.content).join("\n\n") || undefined;
@@ -1442,6 +1442,20 @@ export async function aiChat(
         usage?.inputTokens,
         usage?.outputTokens,
       );
+      // U6 (2026-09-08) · the ledger write lives HERE, once, for every caller.
+      // 47 of 54 aiChat callers never recorded a row before this.
+      if (opts.tracked !== false) {
+        void trackGeneration({
+          feature: laneFeature,
+          model: resolvedModelId,
+          provider: entry.name,
+          promptTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          durationMs: Date.now() - attemptStart,
+          conversationId: opts.telemetry?.sessionId,
+          costUsd,
+        });
+      }
       return {
         content: cleaned,
         provider: entry.name,

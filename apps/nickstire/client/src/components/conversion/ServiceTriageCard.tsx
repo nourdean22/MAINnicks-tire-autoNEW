@@ -42,7 +42,9 @@ const TONES = {
     border: "border-red-500/30",
     bg: "bg-red-500/[0.04]",
     accent: "text-red-400",
-    btn: "bg-red-500 text-white hover:bg-red-600",
+    // red-600 on white = 4.8:1 (red-500 measured 3.8:1 in Lighthouse, below the
+    // 4.5:1 AA floor for this 12px bold label).
+    btn: "bg-red-600 text-white hover:bg-red-700",
   },
   warning: {
     border: "border-amber-500/30",

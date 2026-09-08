@@ -4,6 +4,7 @@ import path from "path";
 import os from "os";
 import { createLogger } from "../lib/logger";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
+import { REEL_OUTPUT_RULES } from "../../client/src/lib/facelessReelStudio";
 
 const log = createLogger("services:higgsfield-studio");
 
@@ -498,7 +499,10 @@ export function buildSeedanceArgs(prompt: string, opts: { startImageUrl?: string
     "generate", "create", "seedance1_5",
     "--prompt", prompt,
     "--aspect_ratio", "9:16",
-    "--duration", "4",
+    // Derived, not a literal: this is the request that MAKES the clip whose
+    // length reelAssembly then clamps to. A bare "4" here meant the documented
+    // cap and the actual ask could drift apart silently.
+    "--duration", String(REEL_OUTPUT_RULES.maxClipSeconds),
     "--resolution", "1080p",
   ];
   // --start-image needs an IMAGE. Reject anything that is not an image URL

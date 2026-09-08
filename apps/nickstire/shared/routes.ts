@@ -370,7 +370,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.9,
     changefreq: "monthly",
     title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. Walk in 7 days, pass same-day. Call (216) 862-0005.",
+    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. Walk in 7 days, pass same-day. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1300,6 +1300,7 @@ const EXCLUDED_PAGES: RouteEntry[] = [
   { path: "/admin", priority: 0, changefreq: "monthly", title: "Admin Dashboard", description: "", group: "utility", sitemap: false, prerender: false },
   { path: "/admin/ig-studio", priority: 0, changefreq: "monthly", title: "IG Carousel Studio", description: "", group: "utility", sitemap: false, prerender: false },
   { path: "/admin/reel-studio", priority: 0, changefreq: "monthly", title: "Reel Studio", description: "", group: "utility", sitemap: false, prerender: false },
+  { path: "/admin/market", priority: 0, changefreq: "monthly", title: "Market", description: "", group: "utility", sitemap: false, prerender: false },
   { path: "/lp/brakes", priority: 0, changefreq: "monthly", title: "Brake Repair Special — Nick's Tire & Auto", description: "Limited time brake repair special at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
   { path: "/lp/tires", priority: 0, changefreq: "monthly", title: "Tire Sale — Nick's Tire & Auto", description: "Limited time tire sale at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
   { path: "/lp/diagnostics", priority: 0, changefreq: "monthly", title: "Diagnostics Special — Nick's Tire & Auto", description: "Limited time diagnostics special at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
@@ -1364,6 +1365,31 @@ export const PRERENDER_ROUTES = ALL_ROUTES.filter(r => r.prerender);
 export function getRouteByPath(path: string): RouteEntry | undefined {
   return ALL_ROUTES.find(r => r.path === path);
 }
+
+/**
+ * Prefixes of the wouter `:param` routes in client/src/App.tsx. They cannot be
+ * registry entries (no fixed path), but the server needs to know they are real
+ * pages: server/_core/spaFallback.ts answers 404 for any extensionless path that
+ * is neither registered nor under one of these prefixes, so /blog/<slug> keeps
+ * answering 200 while /this-does-not-exist stops pretending to be the home page.
+ * scripts/validate-route-registry.mjs asserts App.tsx and this list agree in
+ * both directions.
+ */
+export const DYNAMIC_ROUTE_PREFIXES = [
+  "/blog/",
+  "/guides/",
+  "/tires/",
+  "/inspection/",
+  "/share/",
+] as const;
+
+/**
+ * App.tsx routes that are deliberately NOT registry entries — no SEO meta, never
+ * in a sitemap, never prerendered — but real pages the server must not 404.
+ * Same list the validator exempts from its "every App.tsx route is registered"
+ * rule; keeping it here means the server and the validator cannot disagree.
+ */
+export const NON_REGISTRY_PUBLIC_PATHS = ["/404", "/track"] as const;
 
 /**
  * Blog slugs to include in sitemap + prerender list.

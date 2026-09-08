@@ -1,7 +1,8 @@
 {
+  "loopIdea": "The closing beat returns to the same low-angle front wheel well rolling over the same rough residential road at dusk and takes one more bump, so a replay picks up mid-impact exactly where the opening starts.",
   "_note": "Machine-readable version of README.md. Field shapes loosely follow client/src/lib/facelessReelStudio.ts's ReelBrief type but this object was hand-authored by a scheduled pack-only run with no live server — it is NOT the output of calculateReelQualityScore() or any real reel-canary call. Treat 'selfEstimatedQualityScore' as a manual approximation of that function's rubric, not its result.",
   "topic": "Clunk over bumps: sway bar link vs. ball joint",
-  "campaignKeyword": "CLUNK",
+  "campaignKeyword": "VIBRATION",
   "mode": "PRODUCTION",
   "generatedBy": "scheduled faceless-video run, 2026-08-19, no live server/DB/credentials available",
   "storyboardBeats": [
@@ -10,8 +11,8 @@
       "label": "HOOK",
       "startSecond": 0,
       "endSecond": 4,
-      "narration": "Hear a clunk every time you hit a bump? The way it happens is one clue to why.",
-      "onScreenText": "Clunk every time you hit a bump?",
+      "narration": "Hear a clunk over bumps?",
+      "onScreenText": "SAME CLUNK. TWO DIFFERENT PARTS.",
       "visual": "Low-angle static shot of a car's front wheel well driving over a rough residential road, subtle camera shake synced to a bump impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     },
@@ -20,7 +21,7 @@
       "label": "SETUP",
       "startSecond": 4,
       "endSecond": 10,
-      "narration": "Clunk on rough roads, but steering feels normal? That can point to a sway bar link.",
+      "narration": "Rough road, steering normal? Can point to a sway bar link.",
       "onScreenText": "Clunk on bumps, steering feels fine?",
       "visual": "Close-up of a sway bar link component under the front bumper area, static camera with a single subtle mechanical vibration pulse, garage underlighting, macro lens look, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -30,7 +31,7 @@
       "label": "VALUE",
       "startSecond": 10,
       "endSecond": 16,
-      "narration": "Clunk when you turn AND hit a bump at the same time? That may indicate a ball joint.",
+      "narration": "Clunk in a turn over a bump? May indicate a ball joint.",
       "onScreenText": "Clunk while turning AND bumping?",
       "visual": "Close-up of a front lower control arm and ball joint area in shallow focus, slow creeping camera push-in, workshop underlighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -40,7 +41,7 @@
       "label": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Left alone, worn suspension parts are worth checking before a long trip.",
+      "narration": "Worth checking before a long trip.",
       "onScreenText": "Worth checking before a road trip.",
       "visual": "Wide shot of a car raised on a shop lift, focus on the front suspension assembly, warm garage light, slow dolly-in, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
@@ -50,9 +51,9 @@
       "label": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Don't guess — Nick's Tire and Auto checks your full suspension free. Link in bio.",
-      "onScreenText": "Free suspension check. Link in bio.",
-      "visual": "Wide shot of an auto repair shop garage bay interior, bay door open to daylight, lift and tool cart visible, warm inviting lighting, slow push-in, no people visible",
+      "narration": "How it clunks narrows it down.",
+      "onScreenText": "BUMPS ONLY, OR BUMPS WHILE TURNING?",
+      "visual": "Low-angle static shot of the same front wheel well rolling over the same rough residential road, the suspension taking one more bump with subtle camera shake synced to the impact, dusk lighting, no people visible",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
   ],

@@ -100,8 +100,16 @@ export async function handleSlashSave(
     console.log(
       `[ai/chat] /save fast path: ${result.id} category=${result.category}`,
     );
+    // 2026-09-07 · the headline must match what saveToBrain DID. It used to
+    // print "Saved" on the branch that discarded the new statement.
+    const headline =
+      result.outcome === "duplicate"
+        ? `**Already saved** — category=\`${result.category}\``
+        : result.outcome === "created_near_duplicate"
+          ? `**Saved** (a similar memory exists — both kept) — category=\`${result.category}\``
+          : `**Saved** — category=\`${result.category}\``;
     const confirmationLines = [
-      `**Saved** — category=\`${result.category}\``,
+      headline,
       `Key: \`${result.key}\``,
       ``,
       result.summary,

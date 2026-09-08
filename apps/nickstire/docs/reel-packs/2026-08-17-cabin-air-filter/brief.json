@@ -1,67 +1,63 @@
 {
+  "loopIdea": "The closing beat pulls back to the same dashboard framing with cabin air stirring the same dust motes through the same hard shaft of sunlight, so a replay picks up in air that is already moving.",
+  "mechanicTruth": "A car carries two air filters - the engine filter feeds the engine, and the cabin filter sits in the airflow path ahead of the vents, so once it packs with dust and grit it restricts that airflow and the vents blow weak even when the AC itself is working.",
   "id": "content-pack-2026-08-17-cabin-air-filter",
-  "campaignKeyword": "AIRFLOW",
+  "campaignKeyword": "WIPERS",
   "archetype": "confused_pair_clarified",
   "motionLenses": ["cabin_interior_heat_haze", "product_teardown_macro"],
   "selectedCaption": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine — that's not your problem. The cabin filter cleans the air coming through your vents, and it's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. Often a ten-minute swap. Worth checking before you blame the AC system.",
   "hashtags": ["#cartips", "#carmaintenance", "#clevelandohio", "#euclidohio"],
-  "voiceoverScript": "Vents on full blast and it's still not cold? Your car has two air filters, and only one ever gets blamed. The engine filter protects the engine. That one's not your problem. The cabin filter cleans the air coming through your vents — and this one's usually caked. A clogged filter chokes the airflow, so even good AC feels weak. It's often a ten-minute swap, commonly right behind the glovebox. Worth checking before you blame the AC system. Save this if your vents lost their punch. Stop by and we'll take a look, no charge. Nick's Tire & Auto, 17625 Euclid Avenue, Cleveland.",
+  "voiceoverScript": "Your car has two air filters, only one cleans your air. The engine filter protects the engine. The cabin filter catches dust before the vents. Packed with grime, it chokes airflow. Weak vent air is one clue worth checking.",
   "storyboardBeats": [
     {
       "beatNumber": 1,
       "startSecond": 0,
-      "endSecond": 2,
-      "onScreenText": null,
-      "visual": "Car interior world, dashboard AC vents blasting visible heat-haze shimmer instead of cool air, sunlight glare through the windshield, no faces, no legible text baked into the shot"
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "Dashboard vents with the fan on full, dust motes swirling through a hard shaft of sunlight, cabin trim and windshield glare, shallow depth of field",
+      "motion": "slow push-in on the vent slats",
+      "onScreenText": "TWO AIR FILTERS",
+      "narration": "Your car has two air filters, only one cleans your air."
     },
     {
       "beatNumber": 2,
-      "startSecond": 2,
-      "endSecond": 5,
-      "onScreenText": "TWO FILTERS. ONE JOB EACH.",
-      "visual": "Split-screen forms: engine bay silhouette on one side, cabin/vent silhouette on the other, a filter icon glowing in each"
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "mechanism",
+      "visual": "A dry pleated engine air filter lifted out of its black airbox and set on a shop bench, folds pale and clean of dust under soft directional light",
+      "motion": "slow lift and settle",
+      "onScreenText": "ENGINE SIDE",
+      "narration": "The engine filter protects the engine."
     },
     {
       "beatNumber": 3,
-      "startSecond": 5,
-      "endSecond": 10,
-      "onScreenText": "ENGINE FILTER — PROTECTS THE ENGINE",
-      "visual": "Macro teardown: a clean engine air filter held up, then set aside — pleated paper, dry, dust-free"
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "clue",
+      "visual": "A cabin filter matted with grey dust, leaf fragments and road grit laid beside a bright clean replacement on the same bench",
+      "motion": "slow slide of the dirty filter alongside the clean one",
+      "onScreenText": "CABIN SIDE",
+      "narration": "The cabin filter catches dust before the vents."
     },
     {
       "beatNumber": 4,
-      "startSecond": 10,
-      "endSecond": 15,
-      "onScreenText": "CABIN FILTER — CLEANS YOUR AIR",
-      "visual": "Macro teardown: a visibly caked, dust-and-debris-packed cabin filter pulled out, side by side with a clean replacement"
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "mechanism",
+      "visual": "Macro on two filter pleats backlit on the bench, the packed one blocking almost all the glow while the clean one lets light pour through",
+      "motion": "light source drifts behind the pleats",
+      "onScreenText": "CLOGGED = LESS AIR",
+      "narration": "Packed with grime, it chokes airflow."
     },
     {
       "beatNumber": 5,
-      "startSecond": 15,
+      "startSecond": 16,
       "endSecond": 20,
-      "onScreenText": "CLOGGED = LESS AIRFLOW",
-      "visual": "Cutaway-style diagram: air trying to push through the clogged filter, visibly restricted, then the same air flowing freely through the clean one"
-    },
-    {
-      "beatNumber": 6,
-      "startSecond": 20,
-      "endSecond": 25,
-      "onScreenText": "OFTEN A 10-MINUTE SWAP",
-      "visual": "Product-ad macro: hands-free framing on a filter slot behind a glovebox-style panel, clean filter sliding into place (shop-shot route may use a gloved hand instead — see §4)"
-    },
-    {
-      "beatNumber": 7,
-      "startSecond": 25,
-      "endSecond": 30,
-      "onScreenText": "WORTH CHECKING.",
-      "visual": "Back to the car-interior world from beat 1, vents now blowing clean cool air (heat-haze gone) — mirrors beat 1's framing for a loop seam"
-    },
-    {
-      "beatNumber": 8,
-      "startSecond": 30,
-      "endSecond": 33,
-      "onScreenText": "Save this if your vents lost their punch. Stop by and we'll take a look, no charge. Nick's Tire & Auto · 17625 Euclid Ave, Cleveland · (216) 862-0005",
-      "visual": "Static hold on the CTA card, silent ambient tone only"
+      "purpose": "payoff",
+      "visual": "A clean pleated filter sliding into its slot behind a dropped glovebox panel, the panel swinging closed on its own, cabin air stirring the dust motes again",
+      "motion": "slide-in, then slow pull-back to the beat-one framing",
+      "onScreenText": "WORTH CHECKING",
+      "narration": "Weak vent air is one clue worth checking."
     }
   ],
   "qualityEstimate": {

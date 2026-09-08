@@ -104,6 +104,19 @@ const nextConfig: NextConfig = {
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         {
+          // 2026-09-07 · a private, owner-only app is never indexable.
+          // robots.txt already says `Disallow: /`, but Google documents that
+          // a robots-blocked URL can still be listed by URL alone when linked
+          // from elsewhere, and the user-triggered AI fetchers (ChatGPT-User,
+          // Perplexity-User, Google-Agent, meta-externalfetcher, Amzn-User)
+          // document that they ignore robots.txt. This header is the second
+          // layer on every response, incl. the sign-in page — the only 200 a
+          // crawler ever sees. Auth (proxy.ts, was middleware.ts) remains the actual
+          // access control. tests/repo/private-discovery.test.ts pins it.
+          key: "X-Robots-Tag",
+          value: "noindex, nofollow, noarchive, noimageindex",
+        },
+        {
           // microphone=(self) · Voice mode (Talk to Nick) uses getUserMedia
           // for the OpenAI Realtime session. An empty allowlist `()` blocks
           // the mic for EVERY origin including self, so the browser rejected
@@ -115,12 +128,15 @@ const nextConfig: NextConfig = {
         },
         {
           key: "Strict-Transport-Security",
-          value: "max-age=31536000; includeSubDomains",
+          // 2026-09-08 · preload-ready (2 years, subdomains, preload). Submitting
+          // bdnick.info at hstspreload.org is the operator's call — that list is
+          // hard to leave; the header itself is reversible.
+          value: "max-age=63072000; includeSubDomains; preload",
         },
         // Disable legacy XSS filter — modern browsers don't need it and it can cause issues
         { key: "X-XSS-Protection", value: "0" },
         // ── Content-Security-Policy ──────────────────────────────────────
-        // CSP moved to middleware.ts (audit-2026-06-21) so script-src can use
+        // CSP moved to middleware.ts, now proxy.ts (audit-2026-06-21) so script-src can use
         // a per-request nonce + 'strict-dynamic' in production. It must live in
         // exactly ONE place — a CSP header here AND in middleware would make the
         // browser enforce their intersection and break the nonce model. The
@@ -203,6 +219,9 @@ const nextConfig: NextConfig = {
     // The page tolerates it instead — lib/stats/resolve-tab.ts falls back to
     // the first tab for any unknown value (#2069 review).
     { source: "/business", destination: "/stats", permanent: false },
+    // /market MOVED to Nick's Tire admin (operator verdict 2026-09-08, program §5.11):
+    // shop analytics live with the shop. tests/repo/market-moved.test.ts pins it.
+    { source: "/market", destination: "https://nickstire.org/admin/market", permanent: false },
     // Brain consolidation: 4 sub-pages folded into /brain hub.
     { source: "/brain/health", destination: "/brain?tab=health", permanent: false },
     { source: "/brain/identity-trajectory", destination: "/brain", permanent: false },

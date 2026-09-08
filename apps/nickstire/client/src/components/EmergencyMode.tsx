@@ -4,7 +4,7 @@
  * Features emergency request form and floating action button
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AlertTriangle, Phone, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { BUSINESS } from "@shared/business";
+import { EMERGENCY_REQUEST_EVENT } from "@/components/ShopStrip";
 
 interface EmergencyFormData {
   name: string;
@@ -23,9 +24,18 @@ interface EmergencyFormData {
 }
 
 export function EmergencyMode() {
-  const { isOpen, nextOpenTime } = useBusinessHours();
+  const { isOpen, nextOpenTime } = useBusinessHours(); // nextOpenTime: modal copy below
   const [location] = useLocation();
   const [showForm, setShowForm] = useState(false);
+
+  // 2026-09-08 · the closed-state entry point moved into ShopStrip (inside the
+  // fixed nav cluster, visible above the fold); its Emergency button reaches
+  // this form through a window event, so the two components stay decoupled.
+  useEffect(() => {
+    const open = () => setShowForm(true);
+    window.addEventListener(EMERGENCY_REQUEST_EVENT, open);
+    return () => window.removeEventListener(EMERGENCY_REQUEST_EVENT, open);
+  }, []);
   const [formData, setFormData] = useState<EmergencyFormData>({
     name: "",
     phone: "",
@@ -105,33 +115,11 @@ export function EmergencyMode() {
 
   return (
     <>
-      {/* Closed-banner — slim, single-line, non-intrusive.
-          Was a 90px tall block taking the entire top of the page above
-          the hero (ate brand real estate). Now: compact 36-40px strip
-          with truncated copy and a small CTA pill so the hero can
-          breathe. On mobile, only the headline + button render. */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-0 left-0 right-0 z-[60] bg-red-950/95 border-b border-red-500/40 backdrop-blur-md"
-      >
-        <div className="container flex items-center justify-between gap-3 py-1.5 px-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden />
-            <p className="text-[12px] sm:text-[13px] text-red-100 truncate">
-              <span className="font-bold tracking-wide">Closed</span>
-              <span className="hidden sm:inline text-red-300/80"> · re-opens {nextOpenTime} · file an emergency request to be first in line</span>
-              <span className="sm:hidden text-red-300/80"> · re-opens {nextOpenTime}</span>
-            </p>
-          </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="shrink-0 rounded bg-red-500 hover:bg-red-400 text-white text-[11px] font-bold tracking-wider px-2.5 py-1 transition-colors"
-          >
-            EMERGENCY
-          </button>
-        </div>
-      </motion.div>
+      {/* The fixed red closed-banner that used to sit here (top-0, z-60) was
+          removed 2026-09-08: it covered the static trust bar pixel for pixel
+          and pushed the nav down 56px for a 37px strip. The closed state and
+          the Emergency entry point are ShopStrip's job now; this component
+          keeps the form and the floating button. */}
 
       {/* Emergency Modal Form */}
       <AnimatePresence>

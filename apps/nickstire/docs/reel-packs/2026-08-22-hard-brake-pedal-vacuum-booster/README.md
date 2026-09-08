@@ -274,7 +274,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 **Primary caption (SEND-oriented):**
 
 > Your brake pedal suddenly feels like a rock and there's no warning light
-> on. That's usually not the brakes themselves — it's the vacuum booster
+> on. That's usually not the brakes themselves - it's the vacuum booster
 > losing its assist.
 >
 > The booster uses engine vacuum to multiply your leg force. A cracked hose
@@ -285,8 +285,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > and start the car. It should drop slightly if the booster's working.
 >
 > If it doesn't, don't wait on it. We check the booster and vacuum lines
-> free with a brake inspection. Send this to someone whose pedal suddenly
-> feels different.
+> at no charge with a brake inspection.
+> suddenly feels different.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #brakesafety
 

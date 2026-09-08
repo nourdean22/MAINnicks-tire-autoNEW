@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["stn", "dev"],
       "port": 3001
+    },
+    {
+      "name": "nickstire-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/nickstire", "exec", "vite", "preview", "--port", "4173", "--strictPort"],
+      "port": 4173
     }
   ]
 }

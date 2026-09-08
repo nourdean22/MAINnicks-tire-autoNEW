@@ -1,3 +1,4 @@
+import type { ResumeRecordInput } from "@/lib/missions/resume-record";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
@@ -225,10 +226,10 @@ export function useMissionActions({ tasks, missions }: MissionActionsParams) {
   // Execution Deck (2026-09-01) · park a DOING task with a resume note.
   // The note rides a TaskEvent (kind "parked"); the deck hero replays it.
   const handleParkTask = useCallback(
-    async (id: string, note: string) => {
+    async (id: string, note: string, record?: ResumeRecordInput) => {
       try {
-        telemetry.event("parkTask", { taskId: id, hasNote: note.trim().length > 0 });
-        await parkTaskMut.mutateAsync({ id, note });
+        telemetry.event("parkTask", { taskId: id, hasNote: note.trim().length > 0, hasRecord: !!record });
+        await parkTaskMut.mutateAsync({ id, note, record });
         await refetchAll();
         toast.success("Parked — the note is waiting for you on resume.");
       } catch (err) {

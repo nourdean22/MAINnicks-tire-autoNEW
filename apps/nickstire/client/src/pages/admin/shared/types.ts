@@ -21,7 +21,14 @@ export type AdminSection =
   | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
-  | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals";
+  | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals"
+  | "opportunities" | "market";
+// 2026-09-07 · `opportunities` added. The opportunity queue used to render as the
+// owner's Decision Inbox on the admin home, where the top 5 "LEAD the day".
+// The operator retired it — a queue that leads the day manufactures obligations
+// on a healthy day. The service and its rows are good, so the data moved to a
+// staff worklist instead of being deleted. This is the first UI consumer of
+// `opportunityQueue.list`, which had no mount anywhere in the repo.
 // 2026-07-19 · `instagram` promoted OUT of growth. It was the 7th pill inside the
 // Growth section, three navigation levels from the front door (Growth > Instagram
 // > Actions), while being the surface that autonomously spends money and posts to

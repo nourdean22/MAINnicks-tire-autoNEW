@@ -257,6 +257,8 @@ function Router() {
             {/* Admin dashboard */}
             <Route path={"/admin"} component={Admin} />
             <Route path={"/admin/content"}>{() => <Redirect to="/admin?tab=content" />}</Route>
+            {/* 2026-09-08 · Market moved here from StateNour /market; StateNour redirects to this URL. */}
+            <Route path={"/admin/market"}>{() => <Redirect to="/admin?tab=market" />}</Route>
             {/* 2026-07-11 · was ?tab=instagram — not a registry id OR alias,
                 so both studio buttons landed on Overview. The Instagram
                 studio lives at growth → inner tab "instagram". */}

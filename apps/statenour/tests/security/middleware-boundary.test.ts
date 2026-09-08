@@ -35,7 +35,9 @@ import { isPublic, isStaticFile } from "@/lib/security/route-policy";
 // IS the handler and `req.auth` is simply absent (no session).
 vi.mock("@/auth", () => ({ auth: (handler: unknown) => handler }));
 
-import middleware, { config as middlewareConfig } from "@/middleware";
+// D18 (2026-09-08) · the file is proxy.ts now; the test keeps its name because
+// its SUBJECT (the auth boundary) did not change.
+import middleware, { config as middlewareConfig } from "@/proxy";
 
 // Next compiles `config.matcher` with its bundled path-to-regexp. Use THAT
 // copy, with the options Next passes, so this test exercises the matcher the

@@ -237,6 +237,30 @@ export interface ReelJobBrief {
     audioCue?: string;
     /** Higgsfield API request already submitted; resume polling, never resubmit. */
     higgsfieldRequestId?: string;
+    /**
+     * APPEND-ONLY history of every provider operation this beat ever submitted.
+     *
+     * `higgsfieldRequestId` and `veoOperationName` above are ACTIVE handles:
+     * their presence means "a request is outstanding, reconcile it rather than
+     * buying a duplicate", and they are deleted the moment the beat resolves.
+     * That is correct for resume semantics and fatal for accounting — the
+     * identifier for work we PAID FOR was destroyed on the happy path (:898)
+     * and on terminal remote failure (:860), so there was no way to ask "for
+     * job N, what did we pay for, and might any of it still be live remotely".
+     *
+     * A recovery ledger cannot be reconstructed from rows that were deleted, so
+     * the handle is copied here BEFORE the active one is cleared. This changes
+     * no resume behaviour: nothing reads `providerOps` to decide whether to
+     * resubmit, and the active-handle fields are unchanged.
+     */
+    providerOps?: Array<{
+      provider: "higgsfield" | "veo";
+      /** The provider's own operation/request id — the paid handle. */
+      opId: string;
+      /** ISO timestamp of when this outcome was recorded. */
+      at: string;
+      outcome: "succeeded" | "failed" | "abandoned";
+    }>;
   }>;
   promptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
   higgsfieldPromptPack?: Array<{ beatNumber: number; prompt: string; negativePrompt?: string }>;
@@ -258,6 +282,32 @@ export interface ReelJobBrief {
  * missing operator-applied migration must stop before reservations or paid
  * work, rather than silently creating a legacy row that has no identity.
  */
+/**
+ * Copy a provider handle into the beat's append-only history before the active
+ * handle is cleared.
+ *
+ * Call this immediately BEFORE `delete beat.higgsfieldRequestId` (or the veo
+ * equivalent). The active field means "outstanding, reconcile me"; this one
+ * means "we submitted this, and here is how it ended". Losing the second is how
+ * a paid request became unaccountable.
+ *
+ * Deliberately tolerant: a malformed or missing id is skipped rather than
+ * throwing, because this is bookkeeping on the generation path and must never
+ * be the reason a clip fails. Bounded at 50 entries per beat so a pathological
+ * retry loop cannot grow `payload` (MEDIUMTEXT) without limit.
+ */
+function recordProviderOp(
+  beat: { providerOps?: Array<{ provider: "higgsfield" | "veo"; opId: string; at: string; outcome: "succeeded" | "failed" | "abandoned" }> },
+  provider: "higgsfield" | "veo",
+  opId: string | undefined | null,
+  outcome: "succeeded" | "failed" | "abandoned",
+): void {
+  if (typeof opId !== "string" || !opId.trim()) return;
+  if (!Array.isArray(beat.providerOps)) beat.providerOps = [];
+  if (beat.providerOps.length >= 50) return;
+  beat.providerOps.push({ provider, opId, at: new Date().toISOString(), outcome });
+}
+
 async function assertEpisodeQueueSchemaReady(d: any): Promise<void> {
   if (typeof d.execute !== "function") {
     throw new Error("REEL_EPISODE_SCHEMA_NOT_APPLIED: database adapter cannot verify migration 0113; enqueue fail closed");
@@ -316,6 +366,23 @@ async function findReelJobByIdempotency(d: any, reelJobs: any, idempotencyKey: s
  * job, so every later stage derives from one stored artifact instead of
  * re-deriving from a bag of optional fields.
  */
+/**
+ * Preflight refused this brief BEFORE any spend or persistence.
+ *
+ * Typed rather than a bare Error because a caller has to be able to tell this
+ * apart from a provider outage or a DB fault: this one is a verdict about the
+ * CONTENT and retrying it unchanged can never succeed, while the others are
+ * transient and must stay loud. `dailyReelPost` relies on that distinction to
+ * advance the pack rotation instead of retrying the same pack forever — see
+ * the deadlock note there.
+ */
+export class ReelPreflightBlockedError extends Error {
+  constructor(public readonly blocking: string[]) {
+    super(`Reel preflight blocked (${blocking.length}): ${blocking.join("; ")}`);
+    this.name = "ReelPreflightBlockedError";
+  }
+}
+
 export async function enqueueReelJob(
   brief: ReelJobBrief,
   source: "admin" | "cron",
@@ -347,6 +414,34 @@ export async function enqueueReelJob(
         briefId: brief.id, had: tags.length, cap: HASHTAG_CAP, dropped: tags.slice(HASHTAG_CAP),
       });
       brief.hashtags = tags.slice(0, HASHTAG_CAP);
+    }
+  }
+
+  // CONDEMNED-SCRIPT CHECK — here because this is BEFORE the spend boundary.
+  //
+  // The claim audit's veto is keyed by job id, so a condemned script escapes it
+  // simply by being regenerated into a new row. That is not hypothetical: on
+  // 2026-08-30, jobs 1830001-1830003 were created as replacements for three
+  // condemned jobs and reproduced their scripts VERBATIM (voiceover and
+  // on-screen similarity 1.00, measured against production payloads
+  // 2026-09-07). Two of the three carried the false claims that condemned their
+  // antecedents — including "In Ohio, it's an automatic fail for your E-Check",
+  // which is false in 81 of Ohio's 88 counties.
+  //
+  // Blocking at the publish door alone would be too late in the only sense that
+  // costs money: the clips would already have been generated and paid for. A
+  // condemned script must never reach the renderer.
+  {
+    const { condemnedContentProblem } = await import("../../shared/reelClaimAudit");
+    const condemned = condemnedContentProblem({
+      voiceover: brief.voiceoverScript,
+      onScreenText: (brief.storyboardBeats ?? []).map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+    });
+    if (condemned) {
+      log.error("condemned script BLOCKED at enqueue — no clips generated, no spend reserved", {
+        briefId: brief.id, source, reason: condemned,
+      });
+      throw new Error(`REEL_SCRIPT_CONDEMNED: ${condemned}`);
     }
   }
 
@@ -400,7 +495,7 @@ export async function enqueueReelJob(
     const pre = runReelPreflight(brief as never);
     if (pre.status === "block") {
       log.warn("reel preflight BLOCKED enqueue — no spend reserved", { blocking: pre.blocking });
-      throw new Error(`Reel preflight blocked (${pre.blocking.length}): ${pre.blocking.map((f) => f.message).join("; ")}`);
+      throw new ReelPreflightBlockedError(pre.blocking.map((f) => f.message));
     }
   }
 
@@ -450,11 +545,23 @@ export async function enqueueReelJob(
   {
     const { requestReservation } = await import("./contentGovernor");
     const now = new Date();
+    // RESERVE THE SLOT ON THE DAY THE REEL IS MEANT TO PUBLISH, not the day it
+    // was enqueued. `publicationIntendedAt` (0118) is the job's DUE-AT; before
+    // this, every reservation was dated `now`, so scheduling eight days of
+    // reels in one sitting stacked eight same-CTA reservations onto one day
+    // and the governor refused the sixth as REPEAT_CTA (2026-09-08, live).
+    // The cap, spacing and repeat rules are all evaluated relative to
+    // windowStart, so a dated window makes them apply to the right day. A job
+    // with no intent behaves exactly as before.
+    const windowStart =
+      episode.publicationIntendedAt instanceof Date && !Number.isNaN(episode.publicationIntendedAt.getTime())
+        ? new Date(Math.max(episode.publicationIntendedAt.getTime(), now.getTime()))
+        : now;
     const reservation = await requestReservation({
       platform: "instagram",
       format: "reel",
-      windowStart: now,
-      windowEnd: new Date(now.getTime() + 24 * 3600_000),
+      windowStart,
+      windowEnd: new Date(windowStart.getTime() + 24 * 3600_000),
       topic: brief.topic,
       // The real CTA when the brief carries one. Falls back to the keyword only
       // so pre-existing briefs keep reserving rather than silently losing their
@@ -507,6 +614,16 @@ export async function enqueueReelJob(
       idempotencyKey,
       queueState: queueStateForReelStatus("queued"),
       productionSlot: episodeContract.productionSlot,
+      // DUE-AT, stamped at enqueue. Migration 0118 added this column and
+      // `reelRecoveryLedger` reads it, but nothing in the repo ever WROTE one -
+      // so every job's intent was null and "was this late?" had nothing to
+      // compare against. It is deliberately NOT `publicationScheduledAt`, which
+      // is stamped at the publish CAS and means "publish STARTED".
+      //
+      // Null is a legitimate value and is left alone: a caller that supplies no
+      // intent (admin one-off, canary, backfill) gets an unscheduled job rather
+      // than a fabricated deadline.
+      ...(episode.publicationIntendedAt ? { publicationIntendedAt: episode.publicationIntendedAt } : {}),
       caption,
       source,
     });
@@ -653,8 +770,30 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
   // never block a working provider on a blind spot.
   const preflightProvider = await selectReelVideoProvider();
   if (preflightProvider === "higgsfield") {
+    // THE SESSION CHECK GATES THE SESSION LANE, NOT THE API LANE.
+    //
+    // Review P1 on #2170, verified: higgsfieldStudio.generateReelClipVideo
+    // PREFERS the key-based Cloud API whenever getHiggsfieldApiCredentials()
+    // resolves ("PURCHASED, setting the two env vars switches lanes with no
+    // caller change"). This preflight ran before that choice and aborted on a
+    // dead BROWSER SESSION regardless — so with API credentials configured and
+    // the session expired, which is precisely the configuration the API lane
+    // exists to rescue, generation still refused to start.
+    //
+    // That made the documented remedy inert: buying Cloud API credits and
+    // setting HIGGSFIELD_API_KEY_ID/_SECRET would not have unblocked a single
+    // render while the CLI session stayed dead, and nothing said why.
+    //
+    // So: skip the session preflight when the API lane is configured, and let
+    // generateReelClipVideo pick. A dead session is only disqualifying when the
+    // session is the ONLY lane available.
+    const { getHiggsfieldApiCredentials } = await import("./higgsfieldApiClient");
+    const apiLaneConfigured = Boolean(await getHiggsfieldApiCredentials());
     const { higgsfieldSessionHealth } = await import("./higgsfieldStudio");
-    const health = await higgsfieldSessionHealth();
+    const health = apiLaneConfigured ? { healthy: null as boolean | null, reason: null as string | null, checkedAt: null as Date | null } : await higgsfieldSessionHealth();
+    if (apiLaneConfigured) {
+      log.info("reel generation preflight: higgsfield API lane configured — CLI session health is not disqualifying", {});
+    }
     if (health.healthy === false) {
       log.error("reel generation preflight: higgsfield session is dead — aborting the batch before claiming a job", {
         reason: health.reason,
@@ -857,6 +996,10 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
               // submitted error remains attached so the next pulse reconciles
               // the same paid request rather than buying a duplicate.
               if (reconcileErr instanceof HiggsfieldApiSubmittedError && /generation (failed|cancelled|canceled)/i.test(reconcileErr.message)) {
+                // History BEFORE the active handle is cleared: this request was
+                // submitted and may have billed, and the ledger needs to know it
+                // existed even though it produced nothing.
+                recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "failed");
                 delete beat.higgsfieldRequestId;
                 await d.update(reelJobs).set({ payload: JSON.stringify(brief), updatedAt: new Date() }).where(eq(reelJobs.id, job.id));
               }
@@ -895,6 +1038,9 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
           throw genErr;
         }
         clipUrls[i] = finalClipUrl;
+        // Same reason as the failure path above — a SUCCEEDED request is the one
+        // we definitely paid for, and its id was the field being deleted.
+        recordProviderOp(beat, "higgsfield", beat.higgsfieldRequestId, "succeeded");
         delete beat.higgsfieldRequestId;
         await d.update(reelJobs)
           .set({ clipUrlsJson: JSON.stringify(clipUrls), payload: JSON.stringify(brief), updatedAt: new Date() })
@@ -937,6 +1083,11 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
             throw pollErr;
           }
           log.warn("existing Veo op failed (provider error) — submitting a fresh request", { jobId: job.id, beat: beat.beatNumber, err: pollErr });
+          // Abandoned, but it WAS submitted and may have billed. Record it
+          // before the handle is dropped, or the resubmit below makes the first
+          // op invisible and the job looks like it cost one request when it
+          // cost two.
+          recordProviderOp(beat, "veo", opName, "abandoned");
           opName = undefined;
         }
       }
@@ -961,11 +1112,13 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       
       // Save clip URL at the specific beat index
       clipUrls[i] = finalClipUrl;
+      recordProviderOp(beat, "veo", opName, "succeeded");
 
       // Heartbeat: bump updatedAt and progressive clipUrlsJson in the DB immediately after each success
       await d.update(reelJobs)
         .set({ 
           clipUrlsJson: JSON.stringify(clipUrls),
+          payload: JSON.stringify(brief),
           updatedAt: new Date() 
         })
         .where(eq(reelJobs.id, job.id));
@@ -1157,6 +1310,30 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     const brief = JSON.parse(job.payload) as ReelAssemblyBrief;
     const clipUrls = JSON.parse(job.clipUrlsJson ?? "[]") as string[];
     if (!Array.isArray(clipUrls) || !clipUrls.length) throw new Error("no clipUrls on assets_ready job");
+
+    // ── Durable storage is a precondition for ASSEMBLY, not just generation ──
+    //
+    // 2026-09-07. The generation stage asserts this at :750, but Higgsfield jobs
+    // skip that assert entirely (:749 — it returns its own CDN URL, so there is
+    // nothing of ours to lose yet). Assembly is where OUR artifact is created,
+    // and it had no precondition at all: `assembleReel` calls `storagePut`, and
+    // with S3_BUCKET unset storage.ts falls through to a 24h PRESIGNED url over
+    // `data/generated/` on the container's ephemeral disk. A redeploy takes the
+    // master with it.
+    //
+    // That is not hypothetical. reelRecoverability.ts records it measured:
+    // "every one of those jobs' mp4Url returns 404 ... a restart takes the
+    // master with it." The publish door then refuses the presigned URL
+    // (socialPublish.assertPermanentPublicMediaUrl), so the reel is not
+    // published either — the work is spent, the approval is spent, and the
+    // artifact is gone.
+    //
+    // Verified against production 2026-09-07: S3_BUCKET and S3_ENDPOINT are
+    // both set, so this assert is a NO-OP in prod today and exists to stop the
+    // configuration regressing silently. Failing here — before ffmpeg, before
+    // the DB write — is the cheapest possible place to find out.
+    const { assertDurableStorageForGeneration } = await import("../storage");
+    assertDurableStorageForGeneration(`reel job ${job.id} assembly`);
 
     const { assembleReel } = await import("./reelAssembly");
     const { mp4Url, durationSec } = await assembleReel(brief, clipUrls, job.id);

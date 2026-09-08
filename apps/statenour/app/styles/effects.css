@@ -683,8 +683,8 @@ body::after {
 /* Neural glass card — upgraded glass with neon edge glow */
 .neural-glass {
   background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6));
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
+  /* Section 5.3 (2026-09-08): no backdrop-filter on in-page cards -- it is a compositing cost on
+     iOS for no visible gain over the void. Overlays (.neural-glass-modal, sheets) keep theirs. */
   border: 1px solid rgba(253, 185, 19, 0.08);
   border-radius: 16px;
   padding: 1.25rem;
@@ -1036,10 +1036,7 @@ body::after {
   color: var(--status-blue);
   text-shadow: 0 0 8px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.15);
 }
-.neon-purple {
-  color: var(--status-purple);
-  text-shadow: 0 0 8px rgba(168, 85, 247, 0.4), 0 0 20px rgba(168, 85, 247, 0.15);
-}
+/* .neon-purple retired 2026-09-08 (D19) — the AI accent is a mono mark, not a glow. */
 
 /* HUD readout text — mono with subtle glow */
 .hud-text {
@@ -1275,9 +1272,10 @@ body::after {
   border: 1px solid rgba(253, 185, 19, 0.2);
 }
 .operator-badge-ai {
-  background: rgba(168, 85, 247, 0.1);
-  color: var(--status-purple);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  /* 2026-09-08 (D19) · the AI badge reads as a neutral mono mark, not a violet pill. */
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
 }
 
 /* System log entry — for telemetry display */
@@ -1868,14 +1866,14 @@ select.pwa-select:focus {
   inset: -1px;
   z-index: -1;
   border-radius: inherit;
-  background: linear-gradient(135deg, var(--gold) 0%, var(--status-ai) 100%);
+  background: linear-gradient(135deg, var(--gold) 0%, transparent 100%);
   opacity: 0.08;
   transition: opacity 0.25s ease;
 }
 
 .user-bubble-premium:hover {
   border-color: rgba(253, 185, 19, 0.25);
-  box-shadow: 0 4px 20px rgba(253, 185, 19, 0.05), 0 0 10px rgba(168, 85, 247, 0.03);
+  box-shadow: 0 4px 20px rgba(253, 185, 19, 0.05);
 }
 
 .user-bubble-premium:hover::before {

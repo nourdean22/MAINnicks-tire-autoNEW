@@ -42,6 +42,9 @@ RULES:
   · Direct and strategic. NO therapy voice, NO flattery, NO "you got this".
   · Name threads/goals verbatim from the signals · never invent data.
   · If a signal block is empty, say what's missing — don't fabricate around it.
+  · Write for a person, not a parser: never echo a signal block's heading
+    (e.g. "Active threads") as if it were a variable name. Say "no thread
+    is active", not "Active threads is empty".
   · Return ONLY the 4 lines.`;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -139,23 +142,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
 
     signalBlock = [
-      `ACTIVE_THREADS (${activeThreads.length}):`,
+      // 2026-09-07 · headings are plain words on purpose. The model quoted the
+      // old SCREAMING_SNAKE labels back to the operator verbatim ("ACTIVE_THREADS
+      // is empty" on the live /journal panel) — an internal identifier leaking
+      // into the one paragraph the operator reads each morning.
+      `Active threads (${activeThreads.length}):`,
       threadLines.join("\n") || "  (none)",
       "",
-      `ACTIVE_GOALS (${goals.length}):`,
+      `Active goals (${goals.length}):`,
       goalLines.join("\n") || "  (none)",
       "",
-      `ACTIVE_MISSIONS (${missions.length}):`,
+      `Active missions (${missions.length}):`,
       missionLines.join("\n") || "  (none)",
       "",
-      `DRIFT: ${drift ? `${drift.overallScore.toFixed(1)}/10${drift.topConcern ? ` · top concern: ${drift.topConcern}` : ""}` : "(unavailable)"}`,
+      `Drift: ${drift ? `${drift.overallScore.toFixed(1)}/10${drift.topConcern ? ` · top concern: ${drift.topConcern}` : ""}` : "(unavailable)"}`,
       "",
-      `RECENT_ENTRY_SUMMARIES (last 7d):`,
+      `Recent entry summaries (last 7 days):`,
       entryLines.join("\n") || "  (none)",
       "",
-      `REFLECTIONS_7D: ${reflectionCount}`,
-      `BRAIN_DUMPS_7D: ${dumpCount}`,
-      `FOURTEEN_DAY_WINDOW: ${fourteenDaysAgo.toISOString().slice(0, 10)}`,
+      `Reflections in the last 7 days: ${reflectionCount}`,
+      `Brain dumps in the last 7 days: ${dumpCount}`,
+      `Fourteen-day window starts: ${fourteenDaysAgo.toISOString().slice(0, 10)}`,
     ].join("\n");
   } catch (err) {
     log.warn("signal_gather_failed", {

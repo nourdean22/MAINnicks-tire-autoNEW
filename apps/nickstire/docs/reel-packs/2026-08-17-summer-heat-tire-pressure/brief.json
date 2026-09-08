@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel ends on beat 1's tight glare-lit dashboard macro with the amber glow gone dark, so a replay lands on the same framing at the moment it lights up again.",
+  "mechanicTruth": "Pressure inside a tire rises and falls with the air temperature inside it, roughly one PSI for every ten degrees Fahrenheit, so a tire measured hot off midday asphalt can read right at spec and still be several PSI low when the same tire is measured cold the next morning.",
   "packId": "2026-08-17-summer-heat-tire-pressure",
   "generatedAt": "2026-08-17",
   "mode": "PRODUCTION (pack only) — scheduled/unattended run, no reel-canary call made",
@@ -17,8 +19,8 @@
       "intent": "HOOK",
       "startSecond": 0,
       "endSecond": 3,
-      "narration": "That tire light in August might be heat, not a warning.",
-      "onScreenText": "",
+      "narration": "In August, that tire light is often heat.",
+      "onScreenText": "Heat makes a low tire read full.",
       "providerScene": "Extreme macro, dashboard TPMS warning icon glowing amber, shallow depth of field, slight handheld-style micro-shake, hot afternoon sunlight glare through a windshield, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -28,8 +30,8 @@
       "intent": "SETUP",
       "startSecond": 3,
       "endSecond": 9,
-      "narration": "Air expands with heat — about 1 PSI for every 10 degrees. Drive on hot asphalt and your reading climbs.",
-      "onScreenText": "",
+      "narration": "Air gains a PSI per ten degrees.",
+      "onScreenText": "1 PSI PER 10 DEGREES",
       "providerScene": "Macro shot of a tire pressure gauge needle rising, mounted on a tire valve stem in bright midday sun, heat-shimmer visible off dark asphalt in the background, slow push-in, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -39,8 +41,8 @@
       "intent": "VALUE",
       "startSecond": 9,
       "endSecond": 16,
-      "narration": "Check it hot midday and it looks fine. Check it again cold the next morning, and it can read several PSI low.",
-      "onScreenText": "",
+      "narration": "Hot at noon it reads fine. Cold next morning, low.",
+      "onScreenText": "HOT FULL COLD LOW",
       "providerScene": "Split-feel single shot: same tire valve stem and gauge, warm golden midday light dissolving into cooler blue early-morning light via a slow lighting transition, static camera, time-of-day contrast, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -50,8 +52,8 @@
       "intent": "VALUE",
       "startSecond": 16,
       "endSecond": 22,
-      "narration": "Underinflated on a hot highway is exactly when a tire is most likely to overheat.",
-      "onScreenText": "",
+      "narration": "Underinflated on a hot highway is where tires overheat.",
+      "onScreenText": "LOW TIRES RUN HOT",
       "providerScene": "Macro shot of a tire sidewall flexing under load on hot pavement, slow lateral tracking shot alongside a moving wheel well, heat-haze practical effect, motion blur on the road surface, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
@@ -61,9 +63,9 @@
       "intent": "CTA",
       "startSecond": 22,
       "endSecond": 28,
-      "narration": "Check pressure cold, before you drive. Or stop by and we'll take a look. Nick's Tire and Auto — link in bio.",
-      "onScreenText": "",
-      "providerScene": "Wide shot of a tire shop garage bay interior, bay door open to bright summer daylight, tools racked in the background, no readable signage or branding in frame, static hold, 9:16 vertical framing",
+      "narration": "Check pressure cold, before driving.",
+      "onScreenText": "CHECK IT COLD",
+      "providerScene": "Extreme macro of the same dashboard face behind the windshield, hot afternoon sunlight glare across it, the amber glow now gone dark, shallow depth of field, slight handheld-style micro-shake, cinematic automotive commercial look, 9:16 vertical framing",
       "sceneStatus": "clean",
       "negativePromptOverride": null
     }

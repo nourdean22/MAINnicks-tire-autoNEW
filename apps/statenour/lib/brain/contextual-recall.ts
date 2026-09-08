@@ -11,6 +11,7 @@
  * + 0.15 × category importance
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 // v10.0.64 · AgentTrace coverage. getEmbedding kept direct (its own
@@ -47,6 +48,7 @@ import { scoreMessage } from "@/lib/brain/importance-scorer";
 import {
   evidenceClassForSource,
   type MemoryEvidenceClass,
+  isOperatorSource,
 } from "@/lib/brain/memory-commit-gateway";
 
 /**
@@ -130,8 +132,8 @@ const EVIDENCE_LABEL: Record<MemoryEvidenceClass, string> = {
   generated_summary: "summary",
   prediction: "prediction",
   // NOT "unverified" — that asserts a check was run and failed. This class is
-  // the ladder's FALLBACK for any source string it does not recognize, and
-  // real operator-authored writers land here: `source: "operator"`
+  // the ladder's FALLBACK for any source string it does not recognize. Until
+  // 2026-09-08 real operator-authored writers landed here: `source: "operator"`
   // (app/api/relationships/log-outreach, lib/media/media-moment — whose own
   // comment calls that source "load-bearing, not decoration") and `pin:chat` /
   // `pin:manual` from lib/services/pins.ts, since the operator_stated test is
@@ -189,6 +191,9 @@ export function fenceRecallBlock(lines: string[]): string {
 }
 
 export interface RelevantMemory {
+  /** BrainMemory id/key — carried so observers (onRanked) can identify a rendered row. */
+  id?: string;
+  key?: string;
   category: string;
   content: string;
   confidence: number;
@@ -461,7 +466,7 @@ export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number
   ]);
 }
 
-export async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
+export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
   if (!tsQueryText) return [];
   try {
@@ -485,13 +490,13 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
-         AND bm.superseded_by_id IS NULL
-         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND ${validitySql("bm", asOf ? "$2" : null)}
          AND to_tsvector('english', bm.content)
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
        LIMIT ${limit}`,
       tsQueryText,
+      ...(asOf ? [asOf] : []),
       );
     });
   } catch (err) {
@@ -524,7 +529,7 @@ export async function getLexicalMatches(topics: string[], limit = 50): Promise<L
 // queryEmbedding, so this costs one indexed KNN query and zero embedding
 // calls. Best-effort like the lexical lane: any failure returns [].
 
-async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRow[]> {
+async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   try {
     const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
     const lit = vectorLiteral(padded);
@@ -547,11 +552,11 @@ async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRo
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
          AND bm.confidence >= 0.3
-         AND bm.superseded_by_id IS NULL
-         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND ${validitySql("bm", asOf ? "$2" : null)}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
        LIMIT ${limit}`,
       lit,
+      ...(asOf ? [asOf] : []),
     );
   } catch (err) {
     console.warn(
@@ -586,6 +591,86 @@ async function getKnnPoolRows(queryVec: number[], limit = 50): Promise<LexicalRo
 const DEFAULT_TOKEN_BUDGET = 4000;
 const CHARS_PER_TOKEN_APPROX = 4;
 
+/**
+ * U3 (2026-09-08, review on #2198) · the validity window of a belief, at an
+ * instant. Every recall lane and the searchMemories tool read this one helper.
+ *
+ * Current mode (no `asOf`): a belief is live when nothing supersedes it and
+ * its validUntil is unset or still ahead of now (BDN-310).
+ *
+ * Historical mode (`asOf`): "what was believed THEN". Supersession is a fact
+ * about now, so it is NOT consulted -- the belief that was live on that date
+ * is the answer even though a later correction replaced it. A row is visible
+ * when its interval covers the instant: it started on or before `asOf`
+ * (validFrom, else createdAt) and had not ended (validUntil unset or after
+ * `asOf`). A row saved after `asOf` with no earlier validFrom is out.
+ *
+ * `isVisibleAsOf` is the same predicate over a loaded row; `validitySql` is
+ * the same predicate for the raw-SQL lanes. Change one, change all three --
+ * tests/brain/recall-as-of.test.ts pins them together.
+ */
+/** What onRanked observes: identity + provenance of each rendered memory, in rank order. */
+export interface RankedRecallRow {
+  id: string;
+  key: string;
+  category: string;
+  source: string;
+  relevance: string;
+  /** The rendered text (already truncated by the lane); the arbiter dedupes on it. */
+  content: string;
+  seenCount?: number;
+  confidence?: number;
+}
+
+export type ValidityRow = {
+  createdAt: Date;
+  validFrom?: Date | null;
+  validUntil?: Date | null;
+  supersededById?: string | null;
+};
+
+export function validityWhere(asOf?: Date): Prisma.BrainMemoryWhereInput {
+  if (!asOf) {
+    const at = new Date();
+    return { supersededById: null, OR: [{ validUntil: null }, { validUntil: { gt: at } }] };
+  }
+  return {
+    AND: [
+      { OR: [{ validFrom: { lte: asOf } }, { validFrom: null, createdAt: { lte: asOf } }] },
+      { OR: [{ validUntil: null }, { validUntil: { gt: asOf } }] },
+    ],
+  };
+}
+
+export function isVisibleAsOf(row: ValidityRow, asOf?: Date): boolean {
+  if (!asOf) {
+    if (row.supersededById) return false;
+    return !row.validUntil || row.validUntil.getTime() > Date.now();
+  }
+  const t = asOf.getTime();
+  const started = row.validFrom ? row.validFrom.getTime() <= t : row.createdAt.getTime() <= t;
+  const ended = !!row.validUntil && row.validUntil.getTime() <= t;
+  return started && !ended;
+}
+
+/**
+ * Raw-SQL twin of validityWhere. `alias` prefixes the columns ("bm"), "" for
+ * an unaliased table. `asOfParam` is the positional parameter that carries
+ * `asOf` ("$2"); null = current mode (NOW(), no parameter referenced -- so
+ * the caller must add the parameter to the argument list ONLY in as-of mode).
+ */
+export function validitySql(alias: string, asOfParam: string | null): string {
+  const p = alias ? `${alias}.` : "";
+  if (!asOfParam) {
+    return `${p}superseded_by_id IS NULL AND (${p}valid_until IS NULL OR ${p}valid_until > NOW())`;
+  }
+  return (
+    `((${p}valid_from IS NOT NULL AND ${p}valid_from <= ${asOfParam}) OR ` +
+    `(${p}valid_from IS NULL AND ${p}created_at <= ${asOfParam})) AND ` +
+    `(${p}valid_until IS NULL OR ${p}valid_until > ${asOfParam})`
+  );
+}
+
 export async function getContextualMemories(
   recentMessages: string[],
   maxMemories: number = 20,
@@ -603,6 +688,14 @@ export async function getContextualMemories(
      * the canonical pipeline.
      */
     queryEmbedding?: number[];
+    /** U3 · answer as of this instant (see validityWhere). Undefined = now. */
+    asOf?: Date;
+    /**
+     * Wave 0 (2026-09-08) · observe the FINAL ranked list before it is rendered.
+     * scripts/recall-eval.ts scores the whole pipeline through this; the chat
+     * route measures lane overlap with memory-recall through it. Never awaited.
+     */
+    onRanked?: (rows: RankedRecallRow[]) => void;
     /**
      * v10.0.529.106 · Wave 81 · pgvector efSearch override. Defaults
      * to the standard ef tuning · pass HIGH_RECALL (80) for high-stakes
@@ -685,8 +778,7 @@ export async function getContextualMemories(
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19): superseded or
       // expired-validity beliefs leave the recall pool.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(opts.asOf),
     },
     orderBy: { confidence: "desc" },
     take: 300,
@@ -714,7 +806,7 @@ export async function getContextualMemories(
   // not already in allMemories into the candidate pool. Best-effort: on any
   // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
   const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
-  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics)))
+  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)))
     .filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
   const lexicalRankById = new Map<string, number>();
@@ -723,7 +815,7 @@ export async function getContextualMemories(
   // embedding (the chat hot path) — other callers keep today's pool shape.
   const knnRows =
     opts.queryEmbedding && opts.queryEmbedding.length > 0
-      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!))).filter(
+      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))).filter(
           (r) => !excludeSet.has(r.category),
         )
       : [];
@@ -778,11 +870,10 @@ export async function getContextualMemories(
   // decay · auto-distilled wisdoms older than 90d that have low seenCount
   // get progressively dimmer · operator-curated (skill_ingestion / manual)
   // bypass decay entirely (timeless principles).
-  const TRUSTED_SOURCES_NO_DECAY = new Set(["skill_ingestion", "manual", "user"]);
   const now = Date.now();
   const memScores = candidatePool.map((m) => {
     let freshness = 1.0;
-    if (m.category === "wisdom" && !TRUSTED_SOURCES_NO_DECAY.has(m.source)) {
+    if (m.category === "wisdom" && !isOperatorSource(m.source)) {
       const ageDays = Math.max(0, (now - new Date(m.createdAt).getTime()) / 86_400_000);
       const seenCount = m.seenCount ?? 0;
       // Cold wisdom > 90d old gets penalized · 0.5% per day past 90d
@@ -959,6 +1050,8 @@ export async function getContextualMemories(
     .slice(0, wisdomSlots);
   for (const w of wisdoms) {
     relevant.push({
+      id: w.id,
+      key: w.key,
       category: w.category,
       content: w.content,
       confidence: w.confidence,
@@ -999,6 +1092,8 @@ export async function getContextualMemories(
   const guaranteedTop3 = topCandidates.slice(0, 3);
   for (const m of guaranteedTop3) {
     relevant.push({
+      id: m.id,
+      key: m.key,
       category: m.category,
       content: m.content,
       confidence: m.confidence,
@@ -1021,6 +1116,8 @@ export async function getContextualMemories(
   const remainingSlots = Math.max(0, directSlots - guaranteedTop3.length);
   for (const m of remaining.slice(0, remainingSlots)) {
     relevant.push({
+      id: m.id,
+      key: m.key,
       category: m.category,
       content: m.content,
       confidence: m.confidence,
@@ -1037,6 +1134,8 @@ export async function getContextualMemories(
       .slice(0, 10 - relevant.length);
     for (const m of padding) {
       relevant.push({
+        id: m.id,
+        key: m.key,
         category: m.category,
         content: m.content,
         confidence: m.confidence,
@@ -1096,6 +1195,25 @@ export async function getContextualMemories(
   const supporting = relevant.filter((m) => m.relevance === "supporting");
   const background = relevant.filter((m) => m.relevance === "background");
 
+  if (opts.onRanked) {
+    try {
+      opts.onRanked(
+        [...direct, ...supporting, ...background].map((m) => ({
+          id: m.id ?? "",
+          key: m.key ?? "",
+          category: m.category,
+          source: m.source ?? "system",
+          relevance: m.relevance ?? "background",
+          content: m.content,
+          seenCount: m.seenCount,
+          confidence: m.confidence,
+        })),
+      );
+    } catch {
+      // an observer must never cost the turn its memories
+    }
+  }
+
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);
     for (const m of direct) {
@@ -1124,7 +1242,7 @@ export async function getContextualMemories(
     .slice(0, 2)
     .map((m) => m.id);
   await timed("graph", () =>
-    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content))),
+    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content)), opts.asOf),
   );
 
   // ── Cross-source semantic pull ──
@@ -1406,6 +1524,7 @@ async function appendGraphContext(
   lines: string[],
   anchorMemoryIds: string[],
   alreadyIncluded: Set<string>,
+  asOf?: Date,
 ): Promise<void> {
   if (anchorMemoryIds.length === 0) return;
   try {
@@ -1435,8 +1554,7 @@ async function appendGraphContext(
       where: {
         id: { in: top.map(([id]) => id) },
         deletedAt: null,
-        supersededById: null,
-        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        ...validityWhere(asOf),
       },
       select: { id: true, category: true, content: true },
     });
@@ -1543,8 +1661,7 @@ async function getFallbackMemories(max: number): Promise<string> {
       category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       // BDN-310 supersession honored (2026-08-19) — same guard as the
       // primary path; the fallback must not resurrect a superseded belief.
-      supersededById: null,
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      ...validityWhere(),
     },
     orderBy: { confidence: "desc" },
     take: max,

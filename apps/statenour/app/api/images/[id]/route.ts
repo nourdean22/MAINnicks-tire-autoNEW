@@ -1,16 +1,44 @@
 /**
  * GET /api/images/[id] — Serve a generated image by ID.
  * Images are stored as base64 in AuditEvent payload.
+ *
+ * 2026-09-07 (program D13) · capability URLs. `?exp=&sig=` is verified by
+ * lib/images/signed-url.ts; with IMAGES_REQUIRE_SIGNATURE=1 a raw id is
+ * refused (401). Flag off keeps raw access (chat markdown, /content
+ * publish, Meta fetches) byte-identical — but a PRESENT and invalid
+ * signature is always refused, so a tampered link never degrades to public.
  */
 
+import { requireSession } from "@/lib/auth-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { authorizeImageRequest } from "@/lib/images/signed-url";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  const auth = authorizeImageRequest({
+    id,
+    exp: req.nextUrl.searchParams.get("exp"),
+    sig: req.nextUrl.searchParams.get("sig"),
+  });
+  if (!auth.ok) {
+    // Flag on + raw id: the operator's own browser (chat history, the publish
+    // picker) still has a session; third parties (Meta, a shared link) do not
+    // and must present a signature. So a raw id passes with a valid session.
+    if (auth.status === 401) {
+      try {
+        await requireSession(req);
+      } catch {
+        return NextResponse.json({ error: auth.reason }, { status: 401 });
+      }
+    } else {
+      return NextResponse.json({ error: auth.reason }, { status: auth.status });
+    }
+  }
 
   const record = await prisma.auditEvent.findUnique({
     where: { id },
@@ -30,10 +58,16 @@ export async function GET(
 
   const buffer = Buffer.from(base64, "base64");
 
+  // A signed link must not be cached past its own expiry.
+  const expiresAt = auth.ok ? auth.expiresAt : null;
+  const maxAge = expiresAt
+    ? Math.max(0, Math.min(86_400, Math.floor((expiresAt - Date.now()) / 1000)))
+    : 86_400;
+
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=86400",
+      "Cache-Control": `public, max-age=${maxAge}`,
       "Content-Length": String(buffer.length),
     },
   });

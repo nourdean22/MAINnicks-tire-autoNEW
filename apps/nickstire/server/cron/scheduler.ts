@@ -84,6 +84,22 @@ interface TieredJob {
   requiresFlag?: string | string[];
   /** Skip if disabled */
   enabled?: boolean;
+  /**
+   * Per-job wall-clock budget for the timeout race below. Default 4 min —
+   * sized for SMS/sync jobs. A job that legitimately runs longer (the reel
+   * pipeline renders 5 clips at ~90s each, ~11 min measured 2026-09-08) MUST
+   * set this, or every pulse is logged `failed: timeout` while the handler
+   * keeps running as a zombie, the observer alerts on a healthy job, and the
+   * lock is held to its TTL for nothing. The cross-dyno lock TTL is derived
+   * from this value (2x) so the double-fire guard stays coherent. Keep it
+   * under the tier interval.
+   */
+  timeoutMs?: number;
+}
+
+const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
+function jobTimeoutMs(job: { timeoutMs?: number }): number {
+  return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
 }
 
 interface Tier {
@@ -396,7 +412,7 @@ async function runTier(tier: Tier): Promise<void> {
     //   held-by-other → another dyno owns it · skip this tick + log
     //   fallback      → cron_locks unavailable · proceed under in-memory
     //                   `tier.running` mutex only (no double-release)
-    const lockResult = await acquireCronLock(job.name);
+    const lockResult = await acquireCronLock(job.name, jobTimeoutMs(job) * 2);
     if (lockResult.status === "held-by-other") {
       skipped++;
       logTierJob(job.name, "skipped", 0, 0, "cross-dyno lock held by another process").catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
@@ -427,7 +443,7 @@ async function runTier(tier: Tier): Promise<void> {
       const result = await Promise.race([
         job.handler(),
         new Promise<never>((_, reject) => {
-          jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, 4 * 60 * 1000);
+          jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, jobTimeoutMs(job));
         }),
       ]) as { recordsProcessed?: number; details?: string };
       completed++;
@@ -785,8 +801,28 @@ function buildTiers(): void {
         // browser click re-creates a cron that dies silently between logins.
         // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
         // cronControlPlane.test.ts fails if they disagree.
+        //
+        // ─── 2026-09-08 · PROMOTED. The staging premise did not survive prod ──
+        //
+        // The ledger fact above is unchanged: the CLI lane is still the only
+        // funded lane and still needs a human device-login. What changed is the
+        // reading of what this job is FOR. It does not log in; it keeps an
+        // already-valid session alive by forcing the ~90-minute refresh so the
+        // rotated pair is persisted from INSIDE this process. Staging it on
+        // 2026-08-29 removed that; on 2026-08-30 the next renders failed with
+        // "Higgsfield CLI exited with code 2 ... Session expired", and for nine
+        // days no reel was generated. reel-pipeline runs the CLI lane unattended
+        // — its `requiresEnv: HIGGSFIELD_API_KEY_ID` was removed in #2170 — so
+        // "nothing for it to keep alive" was false the whole time.
+        //
+        // "Dies silently between logins" is already handled one screen down:
+        // an invalid session THROWS, status='failed' is recorded, and
+        // cron-failure-observer alerts on two consecutive failures. It is loud
+        // now. The 296-failures-in-72h noise the staging cites was a dead
+        // session left unfixed, not a broken job; the fix for that is the
+        // alert, not silence. higgsfieldKeepalivePromoted.test.ts pins both
+        // the promotion and the loud-failure shape.
         name: "higgsfield-session-keepalive",
-        enabled: false,
         handler: async () => {
           const { getHiggsfieldCredentialsJson, getHiggsfieldAccountHealth } = await import("../services/higgsfieldStudio");
           if (!(await getHiggsfieldCredentialsJson())) return { recordsProcessed: 0, details: "no higgsfield creds — skip" };
@@ -1063,27 +1099,80 @@ function buildTiers(): void {
         // operator authenticates, fires this job manually, and a block of the
         // paid credits is spent inside that window.
         //
-        // `enabled: false` stops the SCHEDULER ONLY - same semantics as the
-        // 2026-08-25 staging above. Fire via POST /api/admin/run-staged-cron.
+        // PROMOTED 2026-09-07, and the promotion is CONDITIONAL BY CONSTRUCTION
+        // rather than by anyone's attention.
         //
-        // Promotion requires the ledger fact to change, not the flakiness to
-        // improve. Deleting this flag while the session lane still needs a
-        // browser click re-creates a cron that dies silently between logins.
-        // Remove this flag and the MANUAL_TRIGGER_STAGED entry TOGETHER;
-        // cronControlPlane.test.ts fails if they disagree.
+        // The staging above was correct and its reasoning is unchanged: the CLI
+        // session lane needs a browser login no cron can perform, and it is
+        // dead again right now (probed 2026-09-07: HIGGSFIELD_CREDENTIALS_JSON
+        // is SET in prod and returns `credsValid:false — Session expired`). The
+        // MCP is not an escape hatch either — re-verified upstream the same day,
+        // ten days after the UPSTREAMS REJECT row: the hosted server is
+        // OAuth-only ("no API keys live in your config"), the self-hosted
+        // variant authenticates by Clerk BROWSER SESSION token, and Higgsfield's
+        // own headless guidance points non-conversational pipelines at the
+        // CLI/API tokens instead. The reopen trigger has NOT fired.
+        //
+        // What changed is WHO decides. `enabled: false` meant a human had to
+        // notice the ledger fact had changed and ship a deploy to act on it —
+        // and the previous promote note asked for exactly that vigilance.
+        // Vigilance is what failed here for eleven days. So the flag is now the
+        // CREDENTIAL ITSELF: the handler asks the provider modules whether the
+        // ACTIVE lane is credentialed and skips generation with a legible
+        // cron_log reason when it is not. The moment that lane is funded and
+        // configured the job generates, with no second deploy and no session.
+        //
+        // NO requiresEnv HERE, DELIBERATELY. Review P2 on #2170: an env-name
+        // list cannot express what these providers actually accept. Veo takes
+        // GEMINI_API_KEY *or* GOOGLE_AI_API_KEY *or* GOOGLE_GENAI_API_KEY *or* a
+        // GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY pair (veoStudio.ts:55-58), and
+        // Higgsfield's API resolver also reads DB-backed app_secret_kv rows that
+        // no env list can name at all. A subset list false-NEGATIVES: it would
+        // hold this cron dormant while a provider was genuinely credentialed,
+        // which is the same silent-stall this promotion exists to end, wearing
+        // the opposite sign.
+        //
+        // The credential gate lives in the handler instead, where it calls the
+        // REAL resolvers via reelProviderCredentialsPresent() on the ACTIVE
+        // provider. One definition of "credentialed", owned by the module that
+        // knows — not a second copy in a scheduler flag that drifts from it.
+        //
+        // HIGGSFIELD_CREDENTIALS_JSON must never become that gate. It is the
+        // browser-session credential, it is SET in production right now, and it
+        // probes `credsValid:false — Session expired`. A presence-only check on
+        // it would gate OPEN on a dead credential — the failure this staging
+        // existed to prevent (296 failed runs in 72h, half of ~50 Telegram
+        // alerts in three days). The handler's resolver check is about whether
+        // the lane WORKS, not whether a variable is set; that difference is the
+        // whole point.
+        //
+        // `higgsfield-session-keepalive` STAYS STAGED and is now decoupled: it
+        // rotates the CLI session token, and this job no longer runs on the CLI
+        // lane unattended, so there is nothing for it to keep alive. Its
+        // "promote together with reel-pipeline, never before it" note referred
+        // to the CLI pairing and no longer applies in that direction.
         name: "reel-pipeline",
-        enabled: false,
+        // Explicit, not omitted. `enabled` only disables on === false, so this
+        // is a behavioural no-op — it is here as the receipt of the promotion
+        // from `enabled: false`, which is what the staging above described.
+        enabled: true,
         // requiresFlag (not requiresEnv): the stages compare against the
         // exact string "true", so the gate must too — otherwise the cron
         // runs and silently no-ops. See the requiresFlag docstring.
         requiresFlag: "REEL_GENERATION_ENABLED",
+        // Measured 2026-09-08 on prod: one gen job = 5 Higgsfield clips at
+        // ~90 s each = ~11 min. Under the 4-min default every pulse logged
+        // `failed: timeout`, cron-failure-observer paged on a healthy pipeline,
+        // and the lock was held to TTL. 14 min < the 15-min pulse interval.
+        timeoutMs: 14 * 60 * 1000,
         handler: async () => {
-          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs } = await import(
+          const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs,
+                  selectReelVideoProvider, reelProviderCredentialsPresent } = await import(
             "../services/reelPipeline"
           );
           // Settle each stage independently: a pre-try DB rejection in the gen
           // stage must not skip assembly this pulse (the job simply retries on the
-          // next pulse). Both stages share the same one-job-per-pulse cadence.
+          // next pulse).
           type StageResult = { processed: boolean; jobId?: number; status?: string; error?: string };
           const settle = (p: Promise<StageResult>): Promise<StageResult> =>
             p.catch((e) => ({ processed: true, status: "error", error: e instanceof Error ? e.message : String(e) }));
@@ -1092,18 +1181,59 @@ function buildTiers(): void {
           const recovered = await recoverStuckReelJobs()
             .then((r) => r.recovered)
             .catch(() => 0);
-          const gen = await settle(processNextReelJob());
+          // ASSEMBLY RUNS BEFORE GENERATION, up to three jobs per pulse. Assembly
+          // is ~1 min of ffmpeg over clips that already exist; generation is
+          // ~11 min of paid rendering. When gen ran first, every finished-clip
+          // job waited a full gen behind it (three assets_ready jobs sat with
+          // attempts=0 across two pulses on 2026-09-08). Finished work ships
+          // first; the loop stops at the first "nothing to assemble".
+          const ASSEMBLY_PER_PULSE = 3;
+          const asms: StageResult[] = [];
+          for (let i = 0; i < ASSEMBLY_PER_PULSE; i++) {
+            const a = await settle(processNextAssemblyJob());
+            if (!a.processed) break;
+            asms.push(a);
+          }
+          // GENERATION IS GUARDED BY THE *ACTIVE* PROVIDER, not by requiresEnv.
+          //
+          // Self-audit catch before merge, 2026-09-07. The requiresEnv gate on
+          // this job asks only "is SOME non-interactive lane credentialed", and
+          // GEMINI_API_KEY is set in production, so it OPENS. But
+          // selectReelVideoProvider returns an explicit REEL_VIDEO_PROVIDER pin
+          // UNCONDITIONALLY, before any credential check ("the pin still wins -
+          // that is its job"), and prod pins `higgsfield`, whose session
+          // credential probes credsValid:false. Promoting on requiresEnv alone
+          // would therefore have generated into a DEAD provider every 15
+          // minutes - the exact failure this job was staged to prevent, and the
+          // one that produced 296 failed runs in 72h. A gate on the union of
+          // possible lanes is not a gate on the lane that will be used.
+          //
+          // ASSEMBLY IS DELIBERATELY LEFT UNGUARDED below. It downloads
+          // already-rendered clips, generates the voiceover and runs ffmpeg; it
+          // never calls a video provider. Gating it here would strand every job
+          // whose clips already exist - which is the path an externally
+          // rendered clip takes to become a finished reel.
+          const activeProvider = await selectReelVideoProvider();
+          const generationReady = await reelProviderCredentialsPresent(activeProvider);
+          const gen = generationReady
+            ? await settle(processNextReelJob())
+            : { processed: false, status: `generation skipped: REEL_VIDEO_PROVIDER=${activeProvider} has no credentials present` };
+          if (!generationReady) {
+            log.warn("reel-pipeline: generation stage skipped, assembly still running", {
+              provider: activeProvider,
+              hint: "point REEL_VIDEO_PROVIDER at a credentialed lane, or load that provider's credentials",
+            });
+          }
           const { processNextRepairJob } = await import("../services/selectiveRepair");
           const rep = await settle(processNextRepairJob());
-          const asm = await settle(processNextAssemblyJob());
           const details = [
             recovered ? `recovered ${recovered}` : null,
+            ...asms.map((a) => `assemble ${a.jobId ?? "?"}: ${a.status}`),
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
-            asm.processed ? `assemble ${asm.jobId ?? "?"}: ${asm.status}` : null,
             rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
           const result = {
-            recordsProcessed: recovered + (gen.processed ? 1 : 0) + (asm.processed ? 1 : 0) + (rep.processed ? 1 : 0),
+            recordsProcessed: recovered + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
           // Assembly/repair have already run above — this re-throws AFTER them,
@@ -2817,7 +2947,7 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
       // path and can race against the scheduler-fired run of the same
       // job. Without the lock the operator pressing "Run Now" while the
       // tier was mid-firing the same job → double-fire.
-      const lockResult = await acquireCronLock(job.name);
+      const lockResult = await acquireCronLock(job.name, jobTimeoutMs(job) * 2);
       if (lockResult.status === "held-by-other") {
         return { status: "skipped", details: "manual run skipped — cross-dyno lock held by another process" };
       }

@@ -1,0 +1,126 @@
+name: Deploy drift (statenour)
+
+# An observer that does NOT live inside the thing it watches. From 2026-09-04
+# 12:34Z to 2026-09-07 every statenour-web + statenour-worker deploy failed on
+# a dead Dockerfile COPY and nothing noticed for three days: production kept
+# serving b3bebde while three merges sat on main and the session ledger said
+# "shipped". A cron inside the worker would have shared the worker's failure.
+#
+# This runs on GitHub's schedule, reads only PUBLIC surfaces, and compares each
+# service with its EXPECTED release:
+#   · web: `/api/version` commit must be an ANCESTOR of the newest main commit
+#     that touched something the web image is built from, once that commit is
+#     older than the grace window (Railway builds take ~5 min; a merge from two
+#     minutes ago is not drift);
+#   · worker: `/health` must answer ok with a running scheduler.
+# An unrelated nickstire or docs-only merge does not count as drift for
+# statenour, and a deliberately older release is a state to explain, not an
+# outage — set the `expected_sha` input to that commit to silence it.
+#
+# The notification channel is GitHub itself: a failed scheduled run emails the
+# repository owner. No app secret is needed and nothing here can be silenced by
+# the app being down. Canary (root AGENTS.md "Ship the canary"): dispatch with
+# `simulate=stale` and the run MUST fail — that proves the failure path exists.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      simulate:
+        description: "Canary: 'stale' forces the drift branch, 'worker-down' the worker branch"
+        required: false
+        default: ""
+      expected_sha:
+        description: "An approved older release (full SHA) — silences drift while production runs it"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-drift
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WEB_VERSION_URL: https://bdnick.info/api/version
+      WORKER_HEALTH_URL: https://statenour-worker-production.up.railway.app/health
+      GRACE_MINUTES: "25"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read what production actually serves
+        id: live
+        run: |
+          set -euo pipefail
+          body="$(curl -sS --max-time 20 "$WEB_VERSION_URL" || true)"
+          sha="$(printf '%s' "$body" | sed -n 's/.*"commit":"\([0-9a-f]\{40\}\)".*/\1/p')"
+          if [ -z "$sha" ]; then
+            echo "::error::web /api/version did not return a 40-char commit — body: ${body:0:300}"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "web serves $sha"
+
+      - name: Resolve the expected release
+        id: expected
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.expected_sha }}" ]; then
+            echo "sha=${{ github.event.inputs.expected_sha }}" >> "$GITHUB_OUTPUT"
+            echo "expected release pinned by operator input"
+            exit 0
+          fi
+          # Newest commit on main, older than the grace window, that touched what
+          # the statenour-web image is built from.
+          cutoff="$(date -u -d "-${GRACE_MINUTES} minutes" +%s)"
+          # awk must CONSUME the whole stream: an early `exit` closes the pipe,
+          # git log dies with SIGPIPE, and under `pipefail` the step reports
+          # exit 141 instead of a verdict (run 34175670920, 2026-09-08).
+          sha="$(git log origin/main --format='%H %ct' -- apps/statenour packages pnpm-lock.yaml pnpm-workspace.yaml package.json apps/statenour/Dockerfile \
+                 | awk -v c="$cutoff" '!found && $2 <= c { print $1; found = 1 }')"
+          if [ -z "$sha" ]; then
+            echo "::warning::no statenour-affecting commit older than ${GRACE_MINUTES} min on main — nothing to compare"
+            sha="none"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "expected release: $sha"
+
+      - name: Compare by ancestry, never equality
+        run: |
+          set -euo pipefail
+          live="${{ steps.live.outputs.sha }}"
+          expected="${{ steps.expected.outputs.sha }}"
+          if [ "${{ github.event.inputs.simulate }}" = "stale" ]; then
+            echo "::error::CANARY simulate=stale — treating production as stale on purpose"
+            exit 1
+          fi
+          if [ "$expected" = "none" ]; then exit 0; fi
+          if git merge-base --is-ancestor "$expected" "$live"; then
+            echo "OK: expected $expected is an ancestor of live $live"
+          else
+            echo "::error::DRIFT: production serves $live, but $expected (statenour-affecting, older than ${GRACE_MINUTES} min) is not deployed. Check Railway → statenour-web deployments; if this release was rolled back on purpose, re-run with expected_sha."
+            exit 1
+          fi
+
+      - name: Worker liveness
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.simulate }}" = "worker-down" ]; then
+            echo "::error::CANARY simulate=worker-down — treating the worker as down on purpose"
+            exit 1
+          fi
+          body="$(curl -sS --max-time 20 "$WORKER_HEALTH_URL" || true)"
+          if printf '%s' "$body" | grep -q '"ok":true' && printf '%s' "$body" | grep -q '"scheduler":"running"'; then
+            echo "worker ok: ${body:0:200}"
+          else
+            echo "::error::WORKER: /health did not report ok + scheduler running — body: ${body:0:300}"
+            exit 1
+          fi

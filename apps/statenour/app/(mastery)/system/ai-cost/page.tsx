@@ -27,6 +27,7 @@ import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { trpc } from "@/lib/trpc/client";
+import { LaneBudgets } from "@/components/system/lane-budgets";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/lib/trpc/root";
 
@@ -276,6 +277,9 @@ export default function AiCostPage() {
           <TrendBars trend={feed.trend} />
         </Panel>
       )}
+
+      {/* U6 · per-lane spend vs cap (deterministic stops) */}
+      <LaneBudgets />
 
       {/* Breakdowns */}
       {feed && active && (

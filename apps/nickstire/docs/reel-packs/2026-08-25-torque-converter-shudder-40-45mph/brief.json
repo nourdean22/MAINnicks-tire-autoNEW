@@ -1,6 +1,7 @@
 {
+  "loopIdea": "The reel ends on the same locked-off dash close-up it opens on, everything holding rock steady in the same daylight interior, so the replay resumes at the same cruising speed the shudder question was asked at.",
   "topic": "Torque converter lockup shudder at 40-45mph: not your tires, not a misfire",
-  "campaignKeyword": "TCSHUDDER",
+  "campaignKeyword": "VIBRATION",
   "generatedBy": "scheduled-task session, no live pipeline call (see README.md §1)",
   "generatedAt": "2026-08-25",
   "durationSec": 22,
@@ -8,43 +9,48 @@
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "onScreenText": "SHUDDER AROUND 45",
       "index": 1,
       "role": "HOOK",
       "windowSec": [0, 4],
-      "narration": "Feel a light shudder right around 40 to 45 miles an hour that goes away if you speed up or slow down? That's not your tires.",
+      "narration": "Light shudder right around forty-five, gone if you speed up?",
       "visualPrompt": "Close-up of a car speedometer needle holding steady around 40-45mph on a dashboard gauge cluster, static camera, daylight interior",
       "stockSearchTerms": ["car speedometer closeup 40mph", "dashboard gauge cluster speed needle"]
     },
     {
+      "onScreenText": "CONVERTER LOCKS UP",
       "index": 2,
       "role": "SETUP",
       "windowSec": [4, 9],
-      "narration": "At that speed, your transmission locks a clutch inside the torque converter to save fuel. When that clutch slips, you feel a shudder instead of a smooth lockup.",
+      "narration": "Your transmission locks a clutch inside the torque converter.",
       "visualPrompt": "Wide shot of a sedan cruising smoothly on a suburban road at moderate steady speed, gentle motion blur on the wheels, no visible driver",
       "stockSearchTerms": ["car cruising suburban road wide shot", "sedan driving steady speed road"]
     },
     {
+      "onScreenText": "SLIP INSTEAD OF LOCK",
       "index": 3,
       "role": "VALUE",
       "windowSec": [9, 14],
-      "narration": "Drivers often blame a misfire or bad tires, because it only shows up in that one narrow speed window.",
+      "narration": "When that clutch slips, you feel a shudder instead of smooth lockup.",
       "visualPrompt": "Close-up of the underside of a vehicle on a lift in a repair bay, transmission housing visible, static camera, workshop lighting",
       "stockSearchTerms": ["car on lift underside transmission closeup", "vehicle hoist garage undercarriage"]
     },
     {
+      "onScreenText": "NOT TIRES NOT MISFIRE",
       "index": 4,
       "role": "VALUE",
       "windowSec": [14, 18],
-      "narration": "Left alone, that slipping clutch builds heat and wears down your transmission fluid faster than normal.",
+      "narration": "Not your tires, not a misfire.",
       "visualPrompt": "Close-up of amber transmission fluid pooled in a metal drain pan, static camera, workshop lighting",
       "stockSearchTerms": ["transmission fluid drain pan closeup", "amber fluid metal pan garage"]
     },
     {
+      "onScreenText": "WORTH CHECKING",
       "index": 5,
       "role": "CTA",
       "windowSec": [18, 22],
-      "narration": "One shudder doesn't confirm a diagnosis. Stop by and we'll check your transmission properly.",
-      "visualPrompt": "Wide shot of a clean auto repair shop garage bay, open bay door, warm daylight streaming in",
+      "narration": "One clue, worth checking.",
+      "visualPrompt": "Close-up of the same dark dashboard cluster face behind the steering wheel rim, its clear lens holding a rock steady reflection with nothing wavering, static camera, daylight interior, empty cabin",
       "stockSearchTerms": ["auto repair shop garage bay interior open door"]
     }
   ],

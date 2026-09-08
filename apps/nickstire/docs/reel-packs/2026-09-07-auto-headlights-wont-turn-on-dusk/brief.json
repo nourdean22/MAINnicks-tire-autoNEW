@@ -1,4 +1,6 @@
 {
+  "loopIdea": "The reel closes on the same static wide of the dusk parking lot it opened on, both cars now with headlights lit as the blue-hour light drops further, so a replay cuts straight back into that composition.",
+  "campaignKeyword": "WIPERS",
   "topic": "auto-headlights-wont-turn-on-dusk",
   "title": "Automatic headlights don't turn on at dusk — here's what's actually failing",
   "generatedAt": "2026-09-07T00:00:00Z",
@@ -22,7 +24,7 @@
       "visualPrompt": "Dusk parking lot, static wide shot: two cars parked side by side, one with headlights lit, one completely dark, ambient blue-hour light falling fast. No hands, no face.",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "onScreenText": "Your headlights are set to 'auto' — and they're still not turning on?",
-      "vo": "Headlights set to 'auto,' and they're still not coming on at dusk?"
+      "vo": "Headlights on auto, still dark at dusk?"
     },
     {
       "index": 2,
@@ -31,7 +33,7 @@
       "visualPrompt": "Macro, rack focus: a dashboard headlight switch dial resting on the 'AUTO' position, soft interior glow, static camera.",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "onScreenText": "Before you blame the bulb — 'auto' relies on a light sensor, not the bulb itself.",
-      "vo": "Before you blame the bulb — 'auto' mode runs off a light sensor, not the bulb itself."
+      "vo": "Auto mode runs off a light sensor, not the bulb."
     },
     {
       "index": 3,
@@ -40,7 +42,7 @@
       "visualPrompt": "Macro on a small sensor housing near the base of the windshield/dash top, shallow depth of field, slow push-in.",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "onScreenText": "That sensor (or a stuck relay behind it) is what tells the car it's dark out.",
-      "vo": "A dead sensor, or a stuck relay behind it, is what tells your car it's dark outside."
+      "vo": "A stuck relay can sit behind that sensor too."
     },
     {
       "index": 4,
@@ -49,7 +51,7 @@
       "visualPrompt": "Interior macro, rack focus from the headlight switch dial turning past 'AUTO' toward 'ON,' static camera, no hand visible — dial framed alone.",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "onScreenText": "Fastest safe check: switch to 'ON' manually. Lights work? It's the sensor, not the bulb.",
-      "vo": "Fastest safe check: flip the switch to 'ON' manually. If they light up, it's the sensor — not the bulb."
+      "vo": "Flip the switch to ON by hand."
     },
     {
       "index": 5,
@@ -58,15 +60,15 @@
       "visualPrompt": "Wide shot: car exterior at dusk, headlights now lit, engine bay hood open in the background at a shop bay (prop framing only, no hand in frame).",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
       "onScreenText": "A dead sensor or relay is a quick diagnosis — not a guessing game.",
-      "vo": "A dead sensor or relay is a quick diagnosis — not a guessing game."
+      "vo": "If they light up, that points at the sensor, not bulbs."
     },
     {
-      "index": "SAVE",
+      "index": 6,
       "startSec": 18,
       "endSec": 21,
-      "visualPrompt": "Static end card: shop exterior/sign or logo card, warm lighting, no motion required beyond ambient.",
+      "visualPrompt": "Dusk parking lot, static wide shot: the same two cars parked side by side, both now with headlights lit and throwing pools across the asphalt, ambient blue-hour light falling further.",
       "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
-      "vo": "Nick's Tire and Auto — stop by and we'll take a look."
+      "vo": "Worth checking before buying new bulbs."
     }
   ],
   "businessFactsUsed": ["legal.entity"],

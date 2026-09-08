@@ -88,7 +88,6 @@ import { buildCommandCenterState } from "@/lib/ai/context/command-center-state";
 import { getFinancialSnapshots } from "@/lib/services/financial-snapshot";
 import {
   getRevenueStats,
-  getDashboardSummary,
 } from "@/lib/services/business-intel";
 import { getContentHistory } from "@/lib/services/content-history";
 import {
@@ -828,19 +827,6 @@ export const operatorRouter = router({
     )
     .query(async ({ input }) => getRevenueStats(input?.period ?? "month")),
 
-  /**
-   * scattered-components slice (2026-05-22) · owner-only · the business
-   * dashboard summary (month revenue · customer counts · review stats ·
-   * jobs today · per-card bridge health). Replaces GET
-   * /api/analytics/dashboard · delegates to the SAME
-   * `business-intel.getDashboardSummary` the REST route also calls ·
-   * drift impossible. The CommandPalette "Check Lead Pipeline" probe
-   * reads this. Every field is a flat scalar / nested-scalar object ·
-   * no Prisma Json reaches the AppRouter · no TS2589 firewall needed.
-   */
-  businessDashboard: operatorProcedure.query(async () =>
-    getDashboardSummary(),
-  ),
 
   // ──────────────── Misc pages · /social (2026-05-22) ────────────────
 

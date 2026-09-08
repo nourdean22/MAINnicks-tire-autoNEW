@@ -254,9 +254,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > Quick check: fog on the inside of the windshield with that sweet smell,
 > especially with the heat on, is the classic sign.
 >
-> Don't ignore it — it can also mean you're losing coolant. We check the
-> heater core and coolant system free with any inspection. Send this to
-> someone whose car smells sweet inside.
+> Don't ignore it - it can also mean you're losing coolant. The heater
+> core and coolant system are both part of a free check.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair
 

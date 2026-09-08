@@ -1,4 +1,7 @@
 {
+  "loopIdea": "The reel holds the same low framing behind the tailpipe that the hook opens on, the last vapor thinning out of frame, so a replay's first puff rises into the space the freeze left empty.",
+  "campaignKeyword": "ECHECK",
+  "mechanicTruth": "Exhaust smoke color tracks what is burning along with the fuel: blue-gray points to oil getting past valve seals or rings, thick white that stays after the engine is warm points to coolant reaching the combustion chamber, and black points to an over-rich fuel mixture. Color narrows the list; it does not confirm the cause.",
   "concept": "exhaust-smoke-color",
   "title": "What your exhaust smoke color is telling you",
   "createdDate": "2026-08-17",
@@ -10,41 +13,55 @@
   "negativePromptStanding": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
   "beats": [
     {
+      "motion": "static hold",
+      "visual": "Low static shot from just behind a car's tailpipe at idle, the first puff of vapor rising out of the pipe mouth into the empty air above it, cold morning light, dark asphalt below, shallow depth of field, static hold, 9:16 vertical framing",
       "index": 1,
       "label": "hook",
       "startSec": 0.0,
       "endSec": 3.0,
+      "onScreenText": "Blue smoke is oil. White is coolant.",
       "vo": "Exhaust smoke color is a clue.",
       "prompt": "Close-up static shot of a car exhaust tailpipe at idle in a dim shop bay, faint haze in the air, shallow depth of field, realistic automotive documentary lighting, no visible smoke yet"
     },
     {
+      "motion": "slow push-in",
+      "visual": "Extreme macro on the mouth of a warm tailpipe, a thin blue-gray haze curling out across the oily black soot ring coating the inner wall of the pipe, raking side light picking up the wet sheen on the metal, very shallow depth of field, slow push-in, 9:16 vertical framing",
+      "onScreenText": "BLUE POINTS TO OIL",
       "index": 2,
       "label": "blue-smoke",
       "startSec": 3.0,
       "endSec": 11.0,
-      "vo": "Blue-gray smoke usually points to oil getting into the engine and burning off — often worn valve seals or piston rings.",
+      "vo": "Blue-gray usually points to oil burning off - often valve seals or rings.",
       "prompt": "Close-up slow-motion shot of thick blue-gray smoke puffing rhythmically from a car exhaust pipe against dark wet asphalt, cool overcast light, realistic vapor texture, shallow depth of field",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },
     {
+      "motion": "low tracking shot",
+      "visual": "Low tracking shot alongside the rear of an idling car in cold morning air, a thick white plume boiling steadily out of the tailpipe and hanging low over the asphalt instead of thinning, condensate beading and running off the pipe lip, flat overcast blue-grey light, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "WHITE AFTER WARM UP",
       "index": 3,
       "label": "white-smoke",
       "startSec": 11.0,
       "endSec": 19.0,
-      "vo": "Thick white smoke that doesn't clear after warm-up can point to coolant getting into the engine — that one shouldn't wait.",
+      "vo": "Thick white that stays after warm-up can point to coolant getting in.",
       "prompt": "Close-up shot of thick white smoke billowing continuously from a car exhaust pipe in cold shop-bay air, dense opaque vapor, moody fluorescent garage lighting, realistic texture",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },
     {
+      "motion": "static hold",
+      "visual": "Extreme macro of a tailpipe rim caked in dry black soot, loose carbon dust standing on the metal edge and lifting away as a dark sooty puff crosses the frame, hard raking side light from low in the frame, static hold, 9:16 vertical framing",
+      "onScreenText": "BLACK POINTS TO RICH",
       "index": 4,
       "label": "black-smoke-cta",
       "startSec": 19.0,
       "endSec": 27.0,
-      "vo": "Black smoke usually means the engine's running rich, burning more fuel than it should — worth having someone check, not a guess.",
+      "vo": "Black usually means running rich. Color narrows it down; it does not diagnose.",
       "prompt": "Close-up shot of black sooty smoke puffing from an exhaust pipe during hard acceleration on a city street, gritty high-contrast look, slight handheld drift, realistic exhaust soot texture",
       "claimEvidenceStatus": "UNKNOWN_AGAINST_REPO_EVIDENCE_STORE"
     },
     {
+      "visual": "Low static shot from just behind a car's tailpipe at idle, the last thin wisp of vapor curling up and thinning out of the top of frame, cool morning air, dark asphalt below, shallow depth of field, 9:16 vertical framing",
+      "onScreenText": "COLOR IS ONE CLUE",
       "index": 5,
       "label": "save-freeze",
       "startSec": 27.0,
