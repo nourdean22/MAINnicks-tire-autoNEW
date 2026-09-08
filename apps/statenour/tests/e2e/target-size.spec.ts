@@ -63,23 +63,37 @@ function focusProbe() {
   if (chrome.length === 0) return { skipped: "no bottom chrome" as const };
   const chromeTop = Math.min(...chrome.map((el) => el.getBoundingClientRect().top));
   window.scrollTo(0, 0);
+  const docHeight = root.scrollHeight;
   const sel = "a[href],button,input,select,textarea";
+  // The WCAG 2.4.11 case: a control that is fully inside the viewport but UNDER the
+  // fixed chrome. Chrome (the browser) centres a control that is entirely off-screen
+  // when it is focused, which would pass with or without scroll padding — so the
+  // probe first scrolls the control to sit 10px above the viewport bottom (visible to
+  // the browser, hidden behind the chrome to the person), then focuses it.
   const target = Array.from(document.querySelectorAll<HTMLElement>(sel)).find((el) => {
     if (el.closest('[data-target-audit="exempt"]') || getComputedStyle(el).position === "fixed") return false;
     const b = el.getBoundingClientRect();
-    return b.width > 1 && b.height > 1 && b.top > window.innerHeight;
+    if (b.width <= 1 || b.height <= 1 || b.top <= window.innerHeight) return false;
+    const bottomAbs = b.bottom + window.scrollY;
+    return bottomAbs + 10 <= docHeight; // room to park it 10px above the viewport bottom
   });
   if (!target) return { skipped: "no control below the fold" as const };
   const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
-  target.focus();
+  const park = () => {
+    const b = target.getBoundingClientRect();
+    window.scrollTo(0, b.bottom + window.scrollY - window.innerHeight + 10);
+  };
+  park();
+  const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10, i.e. under the chrome
+  target.focus({ preventScroll: false });
   const withPadding = target.getBoundingClientRect().bottom;
   target.blur();
-  window.scrollTo(0, 0);
   root.style.scrollPaddingBottom = "0px";
-  target.focus();
+  park();
+  target.focus({ preventScroll: false });
   const withoutPadding = target.getBoundingClientRect().bottom;
   root.style.scrollPaddingBottom = "";
-  return { chromeTop, withPadding, withoutPadding, label };
+  return { chromeTop, parkedBottom, withPadding, withoutPadding, label };
 }
 
 async function open(page: import("@playwright/test").Page, path: string) {
@@ -109,8 +123,9 @@ test("focus scrolls a below-the-fold control clear of the bottom chrome — and 
     const r = await page.evaluate(focusProbe);
     if ("skipped" in r) continue;
     exercised += 1;
-    expect(r.withPadding, `${path}: focused "${r.label}" ends under the bottom chrome (chrome top ${Math.round(r.chromeTop)})`).toBeLessThanOrEqual(r.chromeTop + 1);
-    expect(r.withoutPadding, `${path}: negative control — without scroll padding "${r.label}" should land under the chrome`).toBeGreaterThan(r.chromeTop);
+    expect(r.parkedBottom, `${path}: the probe could not park "${r.label}" under the chrome`).toBeGreaterThan(r.chromeTop);
+    expect(r.withPadding, `${path}: focused "${r.label}" stays under the bottom chrome (chrome top ${Math.round(r.chromeTop)})`).toBeLessThanOrEqual(r.chromeTop + 1);
+    expect(r.withoutPadding, `${path}: negative control — without scroll padding "${r.label}" should stay under the chrome`).toBeGreaterThan(r.chromeTop);
   }
   expect(exercised, "no page had a control below the fold — the probe exercised nothing").toBeGreaterThan(0);
 });
