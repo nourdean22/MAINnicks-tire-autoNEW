@@ -271,8 +271,12 @@ change. Triage before fixing:
   like success and leaves the work uncommitted. **Check `git log` after
   any commit whose hook output looks odd.**
 - ⚠ **`echo $?` after `cmd | head` captures head's status, not the
-  command's.** A subagent reported a false-green typecheck this way. Use
-  `${PIPESTATUS[0]}`, or run the command unpiped.
+  command's.** A subagent reported a false-green typecheck this way.
+  **Do not pipe a gate you intend to read the exit code of** — run it
+  unpiped and read the summary line. `${PIPESTATUS[0]}` recovers it in
+  Bash only; this repo's primary shell is PowerShell, where that array
+  does not exist and `$LASTEXITCODE` after a pipeline is likewise the LAST
+  command's. Unpiped is the portable answer.
 - **Check the CI database version, not just prod.** CI is
   `pgvector/pgvector:pg16`, prod is PG17 — `IS JSON OBJECT` needs PG16+.
   Both fine here, but the gap is real and untested by default.

@@ -49,8 +49,13 @@ author's own comment about the problem**. Source-text searches match
 prose. Filter comments before believing a hit:
 
 ```bash
-git grep -n "X-Escalation" -- . | grep -vE '^\S+:[0-9]+: *(//|\*|#)'
+git grep -n "X-Escalation" -- . | grep -vE '^[^:]+:[0-9]+: *(//|/\*|\*|\{/\*|#)'
 ```
+
+The alternation must cover **block and JSX comments too** — `/* ... */` and
+`{/* ... */}`. A filter that knows only `//`, `*` and `#` keeps exactly the
+comment-only hits it exists to drop; positive-control it on all five forms
+before trusting a "no consumer" verdict.
 
 The repo has precedent for this rule in code:
 `apps/nickstire/client/src/__tests__/canonical-business-truth.test.ts`

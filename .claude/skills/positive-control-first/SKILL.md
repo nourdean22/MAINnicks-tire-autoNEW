@@ -48,11 +48,14 @@ on the real one.
 The control must assert something that is *true*, not merely something
 that is *present*. Live example on `main`:
 `apps/nickstire/client/src/__tests__/canonical-business-truth.test.ts`
-asserts `"the new-ownership statement is still on the site"` — but the
+asserted `"the new-ownership statement is still on the site"` — but the
 owner confirmed 2026-09-03 that Nick's is the **same owner** who renamed
-Moe's, so the invariant is false, and the control is green only because
-`/new ownership/i` matches an unrelated consumer-advice sentence in
-`shared/guides.ts` and a **comment** in `shared/voice.ts`. See
+Moe's, so the invariant was false. It stayed green on **exactly one** line:
+an unrelated consumer-advice sentence in `shared/guides.ts` about shops in
+general. (A comment in `shared/voice.ts` repeats the retired phrase but was
+never counted — that scanner already strips comment lines before building
+`LINES`, which is the remedy, not the bug. An earlier draft of this skill
+named it as a second cause; that was wrong.) Fixed in #2206. See
 `empty-vs-error` — "when a test resists a correct fix, read the test as a
 finding."
 

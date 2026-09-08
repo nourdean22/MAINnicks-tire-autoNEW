@@ -1569,3 +1569,30 @@ statenour primitives documented (existence re-verified at
   hostile pass ran here and missed all four.
 - **Confidence:** high (all four independently verified; fixes positive-controlled)
 - **Status:** applied in the same PR
+
+### P8 · second review round on the same PR found four MORE, also 4/4
+- **Trigger (witnessed):** after the P7 fixes were pushed, a re-requested review of
+  `eaee66122` filed four further P2s, all verified true: (1) `prior-art-grep` scoped the env
+  search to three `.env.example` templates — but `apps/worker` has **no template** and
+  consumes its variables directly in source, so the skill reported "Prior art: none" for
+  configuration already running in production; (2) the comment-filtering grep recommended in
+  BOTH new skills knew only `//`, `*` and `#`, so it **kept** `/* ... */` and `{/* ... */}`
+  hits — the exact comment-only false positive it was written to prevent (positive-controlled:
+  old filter keeps 2 of 5 comment forms, new filter keeps 0); (3) `positive-control-first`
+  still named the `shared/voice.ts` comment as a cause of the false green **after** P6 had
+  already been corrected — the correction was applied to this queue and not to the skill;
+  (4) `statenour-verify` recommended `${PIPESTATUS[0]}`, which is Bash-only, in a
+  PowerShell-primary repo.
+- **Cost:** none — caught pre-merge, again. Finding (3) is the notable one: a correction that
+  landed in one artifact and not in the other, in the same session, by the author who wrote
+  both.
+- **Running total:** the automated reviewer is **10/10 across this session's two PRs** and
+  three review rounds, and 4/4 on the prior wave. Every round found real defects in work its
+  author had already declared finished and hostile-passed. The standing rule stands and should
+  be read as stronger than "one more pass": **rounds keep paying until a round comes back
+  empty.**
+- **Proposed edit:** none new — this is `positive-control-first` applied to the instruments
+  the skills themselves ship. Worth noting in `session-observer`: a correction is not applied
+  until it is applied everywhere the claim appears; grep the claim, not the file.
+- **Confidence:** high (all four verified; fixes positive-controlled)
+- **Status:** applied in the same PR

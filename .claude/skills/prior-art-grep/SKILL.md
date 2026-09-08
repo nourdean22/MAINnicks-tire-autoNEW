@@ -31,13 +31,21 @@ git grep -n  "mysqlTable(" -- apps/nickstire/drizzle/schema.ts    # nickstire = 
 git grep -rn "<candidate-name>" -- apps/statenour/lib/ai
 # cron manifest
 git grep -rn "<candidate-name>" -- apps/statenour/config apps/nickstire/server
-# feature flags / env — there is NO root .env.example
-git grep -n "<CANDIDATE_ENV>" -- apps/statenour/.env.example apps/nickstire/.env.example camera-bridge/bridge/.env.example
+# feature flags / env — search the whole repo, NOT just templates
+git grep -n "<CANDIDATE_ENV>"
 ```
 
 ⚠ **`pgTable(` returns nothing for nickstire** — all 146 declarations in
 `apps/nickstire/drizzle/schema.ts` are `mysqlTable`, because nickstire is
 TiDB. A Postgres-shaped search there is a guaranteed false "no prior art".
+
+⚠ **Do not scope the env search to `.env.example` files.** There is no root
+template, and `apps/worker` has **none at all** while consuming variables
+directly in source (`apps/worker/src/scheduler.ts`, `apps/worker/src/index.ts`).
+A template-only search reports "Prior art: none" for variables already running
+in production. Search the repo, then check the three real templates
+(`apps/statenour/`, `apps/nickstire/`, `camera-bridge/bridge/`) to see whether
+the variable is *documented* as well as used.
 
 ⚠ **`git grep` exits 1 for an unmatched PATHSPEC exactly as it does for a
 genuine no-match.** A typo'd or non-existent path therefore reads as
@@ -68,8 +76,10 @@ in this repo:
   NOT contain, read the whole structure by its delimiters —
   `sed -n '/const typeMap/,/};/p'`, never `sed -n '140,165p'`. A window
   that clips a map's head manufactures a false "no such mapping".
-- **Comments.** Filter them before believing a hit
-  (`grep -vE '^\S+:[0-9]+: *(//|\*|#)'`); see `assert-the-consumer`.
+- **Comments.** Filter them before believing a hit, covering block and JSX
+  forms as well: `grep -vE '^[^:]+:[0-9]+: *(//|/\*|\*|\{/\*|#)'`. An
+  alternation missing `/*` and `{/*` keeps the very hits it should drop.
+  See `assert-the-consumer`.
 
 ## Confidence
 
