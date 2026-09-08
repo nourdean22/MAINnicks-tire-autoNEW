@@ -102,6 +102,46 @@ describe("requestReservation", () => {
     ).rejects.toThrow(/REPEAT_TOPIC/);
   });
 
+  // ── REPEATS ARE MEASURED AGAINST THE PUBLISH WINDOW, NOT CREATION TIME ──
+  // Live 2026-09-08: six pre-rendered reels reserved for six different days
+  // were refused REPEAT_CTA because all six were CREATED within one hour. The
+  // rule means "same CTA within 72h of the audience's feed", so the window is
+  // the clock. Both directions are pinned: a distant window is allowed, and a
+  // near window is still refused — a check that cannot fail is not a check.
+  it("allows the same CTA when the publish windows are days apart, even if created minutes apart", async () => {
+    const reservations = [{ ...inWindow(0), topic: "coolant color", cta: "SAVE", createdAt: new Date() }];
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
+    vi.resetModules();
+    const { requestReservation } = await import("./services/contentGovernor");
+    const res = await requestReservation({
+      platform: "instagram",
+      format: "reel",
+      windowStart: new Date(Date.now() + 5 * 24 * 3600_000),
+      windowEnd: new Date(Date.now() + 5 * 24 * 3600_000 + 3600_000),
+      topic: "cabin air filter",
+      cta: "SAVE",
+    });
+    expect(res?.reservationId).toMatch(/^resv_/);
+  });
+
+  it("PLANTED CANARY: the same CTA within 72h of the window is still refused", async () => {
+    const reservations = [{ ...inWindow(0), topic: "coolant color", cta: "SAVE", createdAt: new Date(Date.now() - 10 * 24 * 3600_000) }];
+    vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(fakeGovernorDb(reservations)) }));
+    vi.resetModules();
+    const { requestReservation } = await import("./services/contentGovernor");
+    await expect(
+      requestReservation({
+        platform: "instagram",
+        format: "reel",
+        // created ten days apart, but landing 6h apart — that is the repeat
+        windowStart: new Date(Date.now() + 6 * 3600_000),
+        windowEnd: new Date(Date.now() + 7 * 3600_000),
+        topic: "cabin air filter",
+        cta: "SAVE",
+      }),
+    ).rejects.toThrow(/REPEAT_CTA/);
+  });
+
   it("returns null loudly when the reservations table is unavailable", async () => {
     vi.doMock("./db", () => ({ getDb: vi.fn().mockResolvedValue(null) }));
     vi.resetModules();

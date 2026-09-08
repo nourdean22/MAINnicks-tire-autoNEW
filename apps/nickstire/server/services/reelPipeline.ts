@@ -545,11 +545,23 @@ export async function enqueueReelJob(
   {
     const { requestReservation } = await import("./contentGovernor");
     const now = new Date();
+    // RESERVE THE SLOT ON THE DAY THE REEL IS MEANT TO PUBLISH, not the day it
+    // was enqueued. `publicationIntendedAt` (0118) is the job's DUE-AT; before
+    // this, every reservation was dated `now`, so scheduling eight days of
+    // reels in one sitting stacked eight same-CTA reservations onto one day
+    // and the governor refused the sixth as REPEAT_CTA (2026-09-08, live).
+    // The cap, spacing and repeat rules are all evaluated relative to
+    // windowStart, so a dated window makes them apply to the right day. A job
+    // with no intent behaves exactly as before.
+    const windowStart =
+      episode.publicationIntendedAt instanceof Date && !Number.isNaN(episode.publicationIntendedAt.getTime())
+        ? new Date(Math.max(episode.publicationIntendedAt.getTime(), now.getTime()))
+        : now;
     const reservation = await requestReservation({
       platform: "instagram",
       format: "reel",
-      windowStart: now,
-      windowEnd: new Date(now.getTime() + 24 * 3600_000),
+      windowStart,
+      windowEnd: new Date(windowStart.getTime() + 24 * 3600_000),
       topic: brief.topic,
       // The real CTA when the brief carries one. Falls back to the keyword only
       // so pre-existing briefs keep reserving rather than silently losing their
