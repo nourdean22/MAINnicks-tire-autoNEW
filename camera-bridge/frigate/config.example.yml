@@ -1,69 +1,152 @@
-# Frigate Example Configuration
-# Copy this to config.yml and fill in the camera connection parameters.
+# Frigate 0.17.2 configuration for Nick's Tire & Auto (plan section 9).
+# Copy to frigate/config/config.yml. {FRIGATE_*} placeholders are substituted by Frigate from the container env.
+# Zone polygons are PLACEHOLDERS: draw them in the Frigate UI (Settings -> Zones), paste the relative coordinates here.
 
 mqtt:
+  enabled: true
   host: mqtt
   port: 1883
-  # client_id, user, password if needed
+  user: frigate
+  password: "{FRIGATE_MQTT_PASSWORD}"
+  topic_prefix: frigate
+  client_id: frigate
+
+go2rtc:
+  streams:
+    lot: ["rtsp://frigate:{FRIGATE_RTSP_PASSWORD}@192.168.30.11:554/h264Preview_01_main"]    # camera A (lot overview), main
+    lot_sub: ["rtsp://frigate:{FRIGATE_RTSP_PASSWORD}@192.168.30.11:554/h264Preview_01_sub"]
+    sign: ["rtsp://frigate:{FRIGATE_RTSP_PASSWORD}@192.168.30.12:554/cam/realmonitor?channel=1&subtype=0"]   # camera B (LPR), Dahua-OEM path
+    sign_sub: ["rtsp://frigate:{FRIGATE_RTSP_PASSWORD}@192.168.30.12:554/cam/realmonitor?channel=1&subtype=1"]
 
 detectors:
-  # Default to CPU. Change to "coral" if a Google Coral Accelerator USB is plugged in.
+  # Linux mini-PC (production): OpenVINO on the iGPU (device: NPU on Core Ultra).
   ov:
-    type: cpu
+    type: openvino
+    device: GPU
+  # Docker Desktop / WSL2 validation lab: comment `ov` out and use the CPU detector instead.
+  # cpu1:
+  #   type: cpu
+  #   num_threads: 3
+
+model:
+  width: 300
+  height: 300
+  input_tensor: nhwc
+  input_pixel_format: bgr
+  path: /openvino-model/ssdlite_mobilenet_v2.xml
+  labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+ffmpeg:
+  # Linux only (VAAPI on /dev/dri from docker-compose.linux.yml). Remove this key on WSL2 / Docker Desktop.
+  hwaccel_args: preset-vaapi
+
+detect:
+  enabled: true                     # 0.16+ defaults to false; keep explicit
+  fps: 5
+  stationary:
+    interval: 50
+    threshold: 50                   # ~10 s at 5 fps; no max_frames -> parked cars keep one id
+
+objects:
+  track: [car, truck, motorcycle, bus, person]
+  filters:
+    car:        { min_area: 4000, threshold: 0.7 }
+    truck:      { min_area: 6000, threshold: 0.7 }
+    motorcycle: { min_area: 1500, threshold: 0.7 }
+    person:     { min_area: 1200, threshold: 0.75 }
+
+audio:
+  enabled: false                    # plan 14.2: never record audio
+
+lpr:
+  enabled: true
+  device: CPU
+  model_size: small
+  detection_threshold: 0.7
+  recognition_threshold: 0.9
+  min_area: 2000
+  min_plate_length: 5
+  match_distance: 1
+  # scoring hint only: Ohio standard is ABC 1234; out-of-state / vanity plates will not match
+  format: "^[A-Z0-9]{5,8}$"
+  known_plates:
+    Shop Truck: ["ABC1234"]
+
+record:
+  enabled: true
+  continuous: { days: 0 }
+  motion: { days: 3 }
+  alerts:     { pre_capture: 10, post_capture: 10, retain: { days: 30, mode: motion } }
+  detections: { pre_capture: 5,  post_capture: 5,  retain: { days: 14, mode: motion } }
+
+snapshots:
+  enabled: true
+  bounding_box: false
+  timestamp: false
+  retain: { default: 30 }
+
+review:
+  alerts:     { labels: [car, truck, motorcycle], required_zones: [front_lot, bay_entrance] }
+  detections: { labels: [person] }
+
+semantic_search:
+  enabled: false                    # Phase 3 on the mini-PC (8 GB RAM minimum)
+
+face_recognition:
+  enabled: false                    # plan 14.2: no face recognition on customers
 
 cameras:
-  # The outside camera facing the front parking lot and driveway
-  outside_v380:
+  lot:
+    enabled: true
     ffmpeg:
       inputs:
-        # Replace credentials and IP with shop camera details verified via test-rtsp.ps1
-        - path: rtsp://admin:password@192.168.0.155:554/live/ch00_0
-          roles:
-            - detect
-            - rtmp
-    detect:
-      enabled: true
-      width: 1920
-      height: 1080
-      fps: 5
-    
-    # Restrict alerts to vehicle types to prevent wind/shadow noise
-    objects:
-      track:
-        - car
-        - truck
-        - motorcycle
-        - bus
-      filters:
-        car:
-          min_area: 5000
-          max_area: 500000
-          threshold: 0.65
-        truck:
-          min_area: 8000
-          threshold: 0.65
-
-    # Enforce zone rules so we only alert when cars pull up in the main shop zone
+        - path: rtsp://127.0.0.1:8554/lot_sub
+          roles: [detect]
+        - path: rtsp://127.0.0.1:8554/lot
+          roles: [record]
+    detect: { width: 1280, height: 720 }
     zones:
-      front_lot:
-        # Coordinate polygon encompassing the main driveway / shop sign zone.
-        # Define visually using the Frigate coordinate assistant in the Web UI.
-        coordinates: 0.12,0.85,0.45,0.42,0.88,0.43,0.95,0.92
-        objects:
-          - car
-          - truck
-          - motorcycle
+      front_lot:                    # placeholder polygon - draw in the Frigate UI, then paste here
+        coordinates: "0.02,0.55,0.98,0.55,0.98,0.98,0.02,0.98"
+        inertia: 3
+        loitering_time: 0
+        objects: [car, truck, motorcycle]
+      entrance_lane:
+        coordinates: "0.35,0.30,0.65,0.30,0.80,0.60,0.20,0.60"
+        inertia: 2
+        objects: [car, truck, motorcycle]
+    motion:
+      mask: []                      # mask the timestamp overlay + the public road once cameras are mounted
 
-    # Snapshots are required to capture the frame for ALPR / License Plate OCR processing
-    snapshots:
-      enabled: true
-      clean_png: false
-      timestamp: true
-      bounding_box: true
-      retain:
-        default: 7 # Clean up snapshots automatically after 7 days
+  sign:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/sign
+          roles: [detect, record]   # the PLATE camera detects on its MAIN stream: at plan 10's minimum geometry a
+                                    # 1280-wide sub-stream halves a 100 px plate to ~1,250 px^2, under lpr.min_area 2000
+    detect: { width: 2560, height: 1440, fps: 5 }   # = this camera's main-stream size; lower fps before shrinking the frame
+    lpr: { enabled: true, enhancement: 2 }     # camera-level keys: enabled / min_area / enhancement only
+    # dedicated LPR camera later: `type: lpr` + objects.track [license_plate] (Frigate 0.16+ dedicated-LPR mode)
+    zones:
+      bay_entrance:
+        coordinates: "0.30,0.40,0.70,0.40,0.85,0.95,0.15,0.95"
+        inertia: 2
+        objects: [car, truck, motorcycle]
 
-    # Disable continuous recording to prevent clogging the local mini-PC disk.
-    # We only save snapshots of confirmed vehicle arrival events.
-    record:
-      enabled: false
+  # Replay validation (no live camera): drop an MP4 into ./fixtures (see scripts/replay-fixture.ps1),
+  # uncomment, and add `replay` to visitd config.yaml cameras with the same zone names.
+  # replay:
+  #   enabled: true
+  #   ffmpeg:
+  #     inputs:
+  #       - path: /media/fixtures/sign.mp4
+  #         input_args: -re -stream_loop -1 -fflags +genpts
+  #         roles: [detect]
+  #   detect: { width: 1280, height: 720 }
+  #   record: { enabled: false }
+  #   zones:
+  #     bay_entrance:
+  #       coordinates: "0.30,0.40,0.70,0.40,0.85,0.95,0.15,0.95"
+  #       inertia: 2
+  #       objects: [car, truck, motorcycle]

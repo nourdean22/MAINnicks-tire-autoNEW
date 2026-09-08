@@ -1,0 +1,10 @@
+# Linux production overlay (mini-PC with Intel iGPU / Core Ultra):
+#   docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d
+# Adds the render node for VAAPI decode + OpenVINO GPU inference. Nothing here works on Docker Desktop.
+services:
+  frigate:
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    # Core Ultra NPU (optional, OpenVINO device: NPU):
+    # devices:
+    #   - /dev/accel/accel0:/dev/accel/accel0
