@@ -42,8 +42,8 @@ Adjacent contracts that changed in the same PR:
   regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
   FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
   the WebP `og:image`. The first snapshot set with the fixes is `2336d313d` (2026-09-08 00:49 UTC; the first
-  post-merge regen failed at `git push`). A `[skip ci]` regen commit does not deploy by itself — the next real
-  merge carries it. Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
+  post-merge regen failed at `git push`). A skip-ci-tagged regen commit does not deploy by itself — the next real
+  merge carries it (and never spell that token out in a commit message: GitHub honours it anywhere in the text). Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
 - **The regen is read-only by code, not yet by credential (2026-09-08).** `prerender-refresh.yml` boots this
   server with `PRERENDER_MODE=true` against `DATABASE_URL_PRERENDER_RO || DATABASE_URL` — the read-only secret is
   optional and, until the owner creates it, the run holds the read-write credential. `index.ts` skips crons and
