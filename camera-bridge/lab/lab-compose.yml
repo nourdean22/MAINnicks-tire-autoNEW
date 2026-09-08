@@ -1,4 +1,6 @@
 # Lab-only compose: broker + visitd, no Frigate (no camera on this laptop). Throwaway secrets inline on purpose.
+# Paths are relative to THIS file's directory (camera-bridge/lab), which is how Compose resolves them:
+#   docker compose -f lab/lab-compose.yml up -d --build   (from camera-bridge/)
 services:
   mqtt:
     image: eclipse-mosquitto:2.0
@@ -9,7 +11,7 @@ services:
       - "127.0.0.1:1883:1883"
   visitd:
     build:
-      context: .
+      context: ..
       dockerfile: visitd.Dockerfile
     image: camera-bridge/visitd:lab
     container_name: lab-visitd
@@ -25,8 +27,8 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
-      - ./config.yaml:/config/config.yaml:ro
-      - ./tests/fixtures:/lab/fixtures:ro
+      - ../config.yaml:/config/config.yaml:ro
+      - ../tests/fixtures:/lab/fixtures:ro
       - ./lab_publish.py:/lab/lab_publish.py:ro
       - lab-visitd-data:/data
 volumes:
