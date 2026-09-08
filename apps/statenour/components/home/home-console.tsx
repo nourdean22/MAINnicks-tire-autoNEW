@@ -99,7 +99,7 @@ export function HomeConsole() {
       <aside
         aria-label="context"
         data-home-column="context"
-        className="xl:sticky xl:top-6 xl:border-l xl:border-[var(--border-default)] xl:pl-8"
+        className="xl:sticky xl:top-6 xl:border-l xl:border-edge xl:pl-8"
       >
         <HorizonLine horizon={brief?.horizon ?? null} />
         <ChangeLine />

@@ -47,7 +47,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
       </p>
       <ul className="mt-2 space-y-1">
         {horizon.slots.map((slot) => (
-          <li key={slot.scope} className="flex min-h-[36px] items-baseline gap-3">
+          <li key={slot.scope} className="flex min-h-[44px] items-center gap-3">
             <span className="w-12 shrink-0 font-mono text-[10px] uppercase tracking-wider text-fg-tertiary">
               {SCOPE_LABEL[slot.scope] ?? slot.scope}
             </span>
@@ -56,7 +56,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
                 serializers. */}
             <Link
               href={slot.href}
-              className="min-w-0 truncate py-0.5 text-[13px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="block min-w-0 truncate py-3 text-[13px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               {slot.label}
             </Link>
