@@ -93,11 +93,13 @@ describe("FocusedServicePage · written-estimate ticket", () => {
     expect(ticket.getByRole("link", { name: /call \(216\) 862-0005/i }).getAttribute("href")).toBe("tel:+12168620005");
   });
 
-  it("AEO answer: no 'until you say yes'; every charge is on a written estimate you approve first", async () => {
+  it("AEO answer keeps the canonical Repair Haiku (brand-voice kernel), not a paraphrase", async () => {
+    // shared/voice.ts prescribes "you don't pay until you say yes"; SMS, voice
+    // and 100+ pages repeat it. A paraphrase here was a brand inconsistency.
     const { default: FocusedServicePage } = await import("../components/FocusedServicePage");
     const { container } = render(React.createElement(FocusedServicePage, { config }));
     const text = container.textContent ?? "";
-    expect(text).not.toMatch(/until you say yes/i);
-    expect(text).toMatch(/every charge is on a written estimate you approve first/i);
+    expect(text).toMatch(/you don't pay until you say yes/i);
+    expect(text).not.toMatch(/every charge is on a written estimate you approve first/i);
   });
 });

@@ -71,9 +71,10 @@ What every `PageLayout` page shows at scroll-top, and why it changed:
   `BUSINESS.hours.structured` (it used to be the visitor's local clock with a second hard-coded schedule).
   `useBusinessHours` still exists for `EmergencyMode`; both read the same canon.
 - **Service pages:** `FocusedServicePage` renders a **written-estimate ticket** after the pricing tiers (the page's
-  own tiers, verbatim; "You approve it. Then we start."; Ohio repair-rule line). The AEO sentence now says "every
-  charge is on a written estimate you approve first" — "you don't pay until you say yes" was false for pages
-  whose diagnostic carries a fee.
+  own tiers, verbatim; "You approve it. Then we start."; Ohio repair-rule line). The AEO default keeps the canonical Repair Haiku
+  "you don't pay until you say yes" (prescribed by the brand-voice kernel in `shared/voice.ts`, repeated in SMS,
+  voice and 100+ pages); a same-day pass paraphrased it and was reverted — the $59.99 diagnostic is itself on the
+  written quote before it is charged, so the promise holds.
 - **Known, not fixed here:** on an 812px phone `NotificationBar`'s toast (fixed above the mobile CTA bar) and the
   two floating buttons overlap the hero's third intent card; the strip now carries phone + address regardless.
 - **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a

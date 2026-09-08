@@ -83,8 +83,10 @@ merged commits or live QA this session; "open" = nobody fixed it yet.
   its Emergency button moved into the strip and reaches the same form through a window event. `shopHours` was the
   visitor's local clock with a second hard-coded schedule — now Eastern time from `BUSINESS.hours.structured`.
 - **Service pages:** a written-estimate ticket after the pricing tiers (the page's own tiers, verbatim; approval
-  line; Ohio repair-rule sentence). The AEO answer said "you don't pay until you say yes", false on any page whose
-  diagnostic carries a fee; it now says every charge is on a written estimate you approve first.
+  line; Ohio repair-rule sentence). A same-day pass paraphrased the AEO default's "you don't pay until you say
+  yes" as a fee-safety fix; **reverted** — it is the canonical Repair Haiku (brand-voice kernel, SMS, voice, 100+
+  pages) and the diagnostic fee is itself quoted in writing before it is charged. Any change to that promise is the
+  owner's, made in `shared/voice.ts`.
 - **Still open (seen in the same screenshots):** on an 812px phone the `NotificationBar` toast and the two floating
   buttons sit over the hero's third intent card; the strip makes phone + address independent of that chrome, but
   the overlap itself is a NotificationBar offset/timing fix for a later PR.
