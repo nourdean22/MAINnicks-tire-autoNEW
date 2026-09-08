@@ -3,10 +3,19 @@ import type { Request } from "express";
 
 const clientIp = (req: Request): string => {
   // Extract real IP behind Cloudflare/Railway. Cloudflare guarantees cf-connecting-ip
-  // cannot be spoofed *if* the traffic passed through CF. 
-  let raw = (req.headers["cf-connecting-ip"] as string) || 
-            (req.headers["x-real-ip"] as string) || 
-            req.ip || 
+  // cannot be spoofed *if* the traffic passed through CF.
+  //
+  // 2026-09-08 · and ONLY if it did. Production answers with `server: railway`
+  // and no cf-ray — Cloudflare is not in front — so until now any client could
+  // send its own `cf-connecting-ip`, and a fresh value per request was a fresh
+  // rate-limit bucket per request: the limiter was optional for anyone who
+  // read this file. The header is honoured only when the operator states that
+  // Cloudflare is the edge (TRUST_CLOUDFLARE_HEADERS=true); otherwise it is
+  // ignored, whatever it says.
+  const cloudflareInFront = process.env.TRUST_CLOUDFLARE_HEADERS === "true";
+  let raw = (cloudflareInFront ? (req.headers["cf-connecting-ip"] as string) : "") ||
+            (req.headers["x-real-ip"] as string) ||
+            req.ip ||
             "unknown";
             
   // Prevent spoofing via comma-separated header injection

@@ -38,12 +38,26 @@ Adjacent contracts that changed in the same PR:
 - **Share image**: `/og-image.jpg` (1200×630) from both index.html and `SEOHead`'s default.
 - **CSP** `connect-src` includes `*.google-analytics.com`, `*.analytics.google.com`, `*.googletagmanager.com`,
   `*.g.doubleclick.net`; Permissions-Policy also denies usb, midi, display-capture, browsing-topics.
+- **CSP `script-src` is hash-based in production (2026-09-08):** at boot `server/_core/index.ts` hashes the
+  executable inline scripts of the built `index.html` next to the server bundle and `securityHeaders.ts` emits
+  `'sha256-…'` instead of `'unsafe-inline'` (`style-src` keeps it). There is exactly one such script — the
+  analytics loader — and all 336 prerendered snapshots carry the same bytes (`server/securityHeaders.test.ts`
+  checks every file). Dev (`NODE_ENV=development`) keeps `'unsafe-inline'` for Vite HMR;
+  `CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true` restores it in production without a deploy. A new inline script must be
+  added to `client/index.html` (then it is hashed automatically) — never injected at serve time.
+- **Rate-limit client identity (2026-09-08):** `cf-connecting-ip` is honoured only when
+  `TRUST_CLOUDFLARE_HEADERS=true` (Cloudflare is NOT in front today: `server: railway`, no `cf-ray`); otherwise
+  the key is `x-real-ip` → `req.ip` as before. What Railway actually sets (`x-forwarded-for` / `x-real-ip`) is
+  unverified — confirm with one logged request before changing `TRUST_PROXY`.
+- **`/.well-known/security.txt`** (RFC 9116) is served by `server/_core/securityTxt.ts`: contact page + public
+  phone, `Expires` = boot time + 180 days, `Canonical`; `/security.txt` 301s to it.
 - **Prerendered snapshots**: crawlers read the snapshot, so a schema/meta change is not live for them until a
   regen commit lands AND deploys. The in-PR regen (`8c0be63d5`) predated the share-image fix in the tree and the
   FAQ removal came in #2179, so the snapshots at `f2bcf949d` / `cfdcad9be` still carried one `FAQPage` node and
   the WebP `og:image`. The first snapshot set with the fixes is `2336d313d` (2026-09-08 00:49 UTC; the first
-  post-merge regen failed at `git push`). A skip-ci-tagged regen commit does not deploy by itself — the next real
-  merge carries it (and never spell that token out in a commit message: GitHub honours it anywhere in the text). Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
+  post-merge regen failed at `git push`). A skip-ci-tagged regen commit still deploys on Railway — only GitHub Actions
+  honour the token; `2336d313d` reached `/api/health` about 30 minutes after its push, so poll health rather than
+  concluding from one early probe (and never spell the token out in a commit message: GitHub honours it anywhere). Verify with a bot-UA **GET** (HEAD bypasses the middleware); bot responses are cached 1 h.
 - **The regen is read-only by code, not yet by credential (2026-09-08).** `prerender-refresh.yml` boots this
   server with `PRERENDER_MODE=true` against `DATABASE_URL_PRERENDER_RO || DATABASE_URL` — the read-only secret is
   optional and, until the owner creates it, the run holds the read-write credential. `index.ts` skips crons and
