@@ -279,6 +279,23 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
   const { date, hour } = etNow();
 
+  // POLICY-RECORDED CONSENT, on EVERY tick — before the already-posted-today
+  // return, not after it. When autonomy_policy.formatPermissions.reel is
+  // "auto", every assembled reel with no live approval gets one through
+  // recordReelApproval — same writer, same binding, same veto — so the drain
+  // below (which selects on approval rows) can carry it. Running it ahead of
+  // the daily short-circuit means a reel assembled at 15:00 is approved at
+  // 16:00, not at tomorrow's first tick (2026-09-08: the first live tick after
+  // #2217 returned "already posted today" and left 1890003 unapproved for
+  // 20 hours). Any other policy value makes this a no-op. Failure here must
+  // not stop the cron: an unapproved reel is simply held, as before.
+  try {
+    const { autoApproveAssembledReels } = await import("../../services/reelAutoApproval");
+    await autoApproveAssembledReels();
+  } catch (err) {
+    log.warn("daily reel: auto-approval pass failed — reels stay held, cron continues", { err: err instanceof Error ? err.message : String(err) });
+  }
+
   const lastDate = await getKv("reel_autopost_last_date");
   if (lastDate === date) {
     return { recordsProcessed: 0, details: `already posted today (${date})` };
@@ -287,19 +304,6 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "DB not available" };
-
-  // POLICY-RECORDED CONSENT, before anything is selected. When
-  // autonomy_policy.formatPermissions.reel is "auto", every assembled reel with
-  // no live approval gets one through recordReelApproval — same writer, same
-  // binding, same veto — so the drain below (which selects on approval rows)
-  // can carry it. Any other policy value makes this a no-op. Failure here must
-  // not stop the cron: an unapproved reel is simply held, as before.
-  try {
-    const { autoApproveAssembledReels } = await import("../../services/reelAutoApproval");
-    await autoApproveAssembledReels();
-  } catch (err) {
-    log.warn("daily reel: auto-approval pass failed — reels stay held, cron continues", { err: err instanceof Error ? err.message : String(err) });
-  }
 
   const briefId = `autopost-${date}`;
   const jobs = await d.select().from(reelJobs).where(eq(reelJobs.briefId, briefId)).limit(1);
