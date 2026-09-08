@@ -1,19 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
+import { resolveDevice } from "@/lib/services/devices";
 
 export const dynamic = "force-dynamic";
+
+// 2026-09-08 · ADR-0017 / master-plan C1. `:id` is the cuid OR the bridge's
+// `platformDeviceId` ("v380-shopsign"). Every write below uses the resolved
+// cuid. Before this, the documented ingest URL 404'd on every call.
 
 /**
  * GET /api/devices/:id/events — Get events for a device
  */
 export const GET = apiHandler(async (req, { params }) => {
   const { id } = await params!;
+  const device = await resolveDevice(id);
+  if (!device) {
+    throw new ServiceError("Device not found", 404);
+  }
   const { searchParams } = new URL(req.url);
   const limit = parseInt(searchParams.get("limit") || "50");
   const event = searchParams.get("event");
 
-  const where: Record<string, unknown> = { deviceId: id };
+  const where: Record<string, unknown> = { deviceId: device.id };
   if (event) where.event = event;
 
   const events = await prisma.deviceEvent.findMany({
@@ -32,8 +41,8 @@ export const GET = apiHandler(async (req, { params }) => {
 export const POST = apiHandler(async (req, { params }) => {
   const { id } = await params!;
 
-  // Verify device exists
-  const device = await prisma.smartDevice.findUnique({ where: { id } });
+  // Verify device exists (cuid or platformDeviceId)
+  const device = await resolveDevice(id);
   if (!device) {
     throw new ServiceError("Device not found", 404);
   }
@@ -49,7 +58,7 @@ export const POST = apiHandler(async (req, { params }) => {
   if (otherEvents.length > 0) {
     const created = await prisma.deviceEvent.createMany({
       data: otherEvents.map((e: { event: string; data?: unknown; source?: string; timestamp?: string }) => ({
-        deviceId: id,
+        deviceId: device.id,
         event: e.event,
         data: e.data || null,
         source: e.source || "local",
@@ -62,16 +71,16 @@ export const POST = apiHandler(async (req, { params }) => {
   if (vehicleEvents.length > 0) {
     const { handleVehicleEvent } = await import("@/lib/services/vehicle-detection");
     for (const e of vehicleEvents) {
-      await handleVehicleEvent(id, e);
+      await handleVehicleEvent(device.id, e);
       syncedCount++;
     }
   }
 
   // Update device lastSeenAt
   await prisma.smartDevice.update({
-    where: { id },
+    where: { id: device.id },
     data: { lastSeenAt: new Date(), status: "ONLINE" },
   });
 
-  return { synced: syncedCount };
+  return { synced: syncedCount, deviceId: device.id };
 }, { auth: "sync" });

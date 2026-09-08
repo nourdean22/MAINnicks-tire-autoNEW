@@ -1,19 +1,159 @@
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getFlag } from "@/lib/feature-flags";
 import { sendTelegramWithButtons, editTelegramMessage, InlineButton } from "@/lib/services/telegram";
+import { sendPush } from "@/lib/notifications/push";
+import { linkVisitToCustomer } from "@/lib/services/vehicle-customer-link";
+import { hourET } from "@/lib/utils/datetime";
+import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("services/vehicle-detection");
 
 /**
- * Handle incoming vehicle detection events.
- * Performs database log creation, deduplication, cooldown check, and alerts.
+ * Vehicle-arrival ingest · rewritten 2026-09-08 (ADR-0017, master-plan C7/C9).
+ *
+ * What changed and why:
+ *  · The payload is validated (zod, permissive) — the edge contract v2 adds
+ *    `eventId` (idempotency), `visitId` (the business identity minted by the
+ *    edge; Frigate track ids fragment on occlusion) and `zoneDwell`. v1
+ *    payloads (trackId only) still work.
+ *  · Dedupe keys on `visitId` first (12 h window — a car in service is one
+ *    visit), then `trackId` (10 min, v1 behaviour).
+ *  · A repeated `eventId` is a retry: returns the stored row, alerts nothing.
+ *  · Quiet hours (20:00-07:00 ET) suppress arrival alerts; the suppression is
+ *    written into the event (`alertSuppressedReason`) so the cockpit can see
+ *    the silence. After-hours security alerts belong to camera-intelligence,
+ *    not to the arrival lane.
+ *  · Cooldown is per camera + zone (was zone only, which crushed a second
+ *    camera), and a web-push with tag `arrival:<visit>` rides the existing
+ *    PR #1740 flood control next to the Telegram edit-in-place message.
+ *  · Nothing here is an LLM: every field is copied or computed.
  */
-export async function handleVehicleEvent(deviceId: string, payload: any): Promise<string> {
-  const eventName = payload.event || "vehicle_detected";
-  const data = payload.data || {};
-  const source = payload.source || "local";
-  const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
+
+const PlateSchema = z
+  .object({
+    status: z.string().optional(),
+    text: z.string().optional(),
+    normalizedText: z.string().optional(),
+    state: z.string().optional(),
+    confidence: z.number().optional(),
+    provider: z.string().optional(),
+    reads: z.number().optional(),
+    knownName: z.string().optional(),
+  })
+  .passthrough();
+
+const DataSchema = z
+  .object({
+    cameraId: z.string().optional(),
+    cameraName: z.string().optional(),
+    visitId: z.string().optional(),
+    sightingId: z.string().optional(),
+    trackId: z.string().nullable().optional(),
+    zone: z.string().optional(),
+    zoneName: z.string().optional(),
+    state: z.string().optional(),
+    priority: z.string().optional(),
+    label: z.string().optional(),
+    confidence: z.number().optional(),
+    dwellSeconds: z.number().optional(),
+    zoneDwell: z.record(z.string(), z.number()).optional(),
+    stationary: z.boolean().optional(),
+    estimated: z.boolean().optional(),
+    plate: PlateSchema.optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
+export const VehicleEventSchema = z
+  .object({
+    schemaVersion: z.number().optional(),
+    event: z.string().optional(),
+    eventId: z.string().optional(),
+    source: z.string().optional(),
+    timestamp: z.string().optional(),
+    data: DataSchema.optional(),
+  })
+  .passthrough();
+
+export type VehicleEventPayload = z.infer<typeof VehicleEventSchema>;
+
+/** Edge + cockpit state vocabulary. Unknown states are stored but logged. */
+export const VEHICLE_STATES = [
+  "DETECTED",
+  "ENTERED_ZONE",
+  "ARRIVAL_CANDIDATE",
+  "CONFIRMED_ARRIVAL",
+  "IN_SERVICE",
+  "DEPARTING",
+  "LEFT",
+  "PASS_THROUGH",
+  "ACKNOWLEDGED",
+  "FALSE_POSITIVE",
+] as const;
+
+/** States that page the operator. */
+const ALERT_STATES = new Set(["CONFIRMED_ARRIVAL", "ENTERED_ZONE"]);
+
+export const QUIET_HOURS = { startHourET: 20, endHourET: 7 } as const;
+const COOLDOWN_SECONDS = 120;
+const VISIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+const TRACK_WINDOW_MS = 10 * 60 * 1000;
+const EVENT_ID_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Pure: 20:00-07:00 ET is quiet. Exported for the tests. */
+export function isQuietHoursET(hour: number): boolean {
+  return hour >= QUIET_HOURS.startHourET || hour < QUIET_HOURS.endHourET;
+}
+
+const COCKPIT_URL = "https://bdnick.info/system/camera";
+
+type PlateShape = { status?: string; text?: string; normalizedText?: string } | undefined;
+
+/**
+ * A CONFIRMED_ARRIVAL with a readable plate asks nickstire who it is
+ * (advisory, fire-and-forget, idempotent per event via `customerRef`).
+ */
+function maybeLinkCustomer(args: {
+  eventId: string;
+  state: string;
+  plate: PlateShape;
+  existingData: Record<string, unknown>;
+  telegramMessageId: string | null;
+  alertText?: string;
+  buttons: InlineButton[][];
+}): void {
+  if (args.state !== "CONFIRMED_ARRIVAL") return;
+  const plateText = args.plate?.normalizedText || args.plate?.text;
+  if (!plateText) return;
+  if (args.plate?.status === "NONE" || args.plate?.status === "UNREADABLE") return;
+  if (args.existingData.customerRef) return;
+  void linkVisitToCustomer({
+    eventId: args.eventId,
+    plate: plateText,
+    telegramMessageId: args.telegramMessageId,
+    alertText: args.alertText,
+    buttons: args.buttons,
+  }).catch(() => undefined);
+}
+
+/**
+ * Handle one incoming vehicle event for an already-resolved device (cuid).
+ * Returns the DeviceEvent id (existing row on update / duplicate).
+ */
+export async function handleVehicleEvent(deviceId: string, payload: unknown): Promise<string> {
+  const parsed = VehicleEventSchema.safeParse(payload);
+  if (!parsed.success) {
+    log.warn("vehicle_event_invalid", { deviceId, issues: parsed.error.issues.slice(0, 5) });
+    throw new ServiceError("Invalid vehicle event payload", 400, parsed.error.flatten());
+  }
+  const event = parsed.data;
+  const eventName = event.event || "vehicle_detected";
+  const data = event.data ?? {};
+  const source = event.source || "local";
+  const timestamp = event.timestamp ? new Date(event.timestamp) : new Date();
 
   // Test panel events bypass the feature flag to allow verification tests
   const isEnabled = (getFlag("NICK_ARRIVAL_INTELLIGENCE")?.isOn ?? false) || source === "test-panel";
@@ -21,160 +161,214 @@ export async function handleVehicleEvent(deviceId: string, payload: any): Promis
     log.info("arrival_intel_disabled", { deviceId });
   }
 
-  // Extract fields
   const zone = data.zone || "unknown";
   const zoneName = data.zoneName || zone;
   const state = data.state || "DETECTED";
   const label = data.label || "vehicle";
-  const confidence = data.confidence || 0;
-  const dwellSeconds = data.dwellSeconds || 0;
-  const trackId = data.trackId || null;
+  const confidence = data.confidence ?? 0;
+  const dwellSeconds = data.dwellSeconds ?? 0;
+  const trackId = data.trackId ?? null;
+  const visitId = data.visitId ?? null;
+  const visitKey = visitId ?? trackId;
+  const cameraId = data.cameraId ?? null;
   const cameraName = data.cameraName || "Unknown Camera";
-  
-  const plate = data.plate || {};
-  const plateText = plate.text || "";
-  const plateStatus = plate.status || "NONE";
-  const plateConfidence = plate.confidence || 0;
-  const plateState = plate.state || "";
+  const plate = data.plate ?? {};
 
-  log.info("processing_vehicle_event", { deviceId, trackId, state, zone, plateText });
+  if (!(VEHICLE_STATES as readonly string[]).includes(state)) {
+    log.warn("vehicle_event_unknown_state", { deviceId, state });
+  }
 
-  // 1. Check if we have an existing event for this track in the last 10 minutes
+  log.info("processing_vehicle_event", { deviceId, visitId, trackId, state, zone, plateText: plate.text ?? "" });
+
+  // 0. Idempotency: a repeated eventId is a retry from the edge outbox.
+  if (event.eventId) {
+    const duplicate = await prisma.deviceEvent.findFirst({
+      where: {
+        deviceId,
+        event: eventName,
+        createdAt: { gte: new Date(Date.now() - EVENT_ID_WINDOW_MS) },
+        data: { path: ["eventId"], equals: event.eventId },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (duplicate) {
+      log.info("duplicate_event_ignored", { deviceId, eventId: event.eventId, existing: duplicate.id });
+      return duplicate.id;
+    }
+  }
+
+  // 1. Existing row for this visit (v2) or track (v1)?
   let existingEvent = null;
-  if (trackId) {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  if (visitId) {
     existingEvent = await prisma.deviceEvent.findFirst({
       where: {
         deviceId,
-        event: "vehicle_detected",
-        createdAt: { gte: tenMinutesAgo },
-        data: {
-          path: ["trackId"],
-          equals: trackId,
-        },
+        event: eventName,
+        createdAt: { gte: new Date(Date.now() - VISIT_WINDOW_MS) },
+        data: { path: ["visitId"], equals: visitId },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+  if (!existingEvent && trackId) {
+    existingEvent = await prisma.deviceEvent.findFirst({
+      where: {
+        deviceId,
+        event: eventName,
+        createdAt: { gte: new Date(Date.now() - TRACK_WINDOW_MS) },
+        data: { path: ["trackId"], equals: trackId },
       },
       orderBy: { createdAt: "desc" },
     });
   }
 
-  // Generate clean Telegram HTML copy
-  const formatAlertText = (currentState: string, currentDwell: number, currentPlate: any) => {
+  const formatAlertText = (currentState: string, currentDwell: number, currentPlate: typeof plate) => {
     let plateLine = "NONE";
     if (currentPlate && currentPlate.status && currentPlate.status !== "NONE") {
+      const known = currentPlate.knownName ? ` ${currentPlate.knownName}` : "";
       const stateStr = currentPlate.state ? ` (${currentPlate.state})` : "";
       const textStr = currentPlate.text ? ` <b>${currentPlate.text}</b>` : "";
-      plateLine = `${currentPlate.status}${textStr}${stateStr} [conf: ${Math.round((currentPlate.confidence || 0) * 100)}%]`;
+      plateLine = `${currentPlate.status}${textStr}${known}${stateStr} [conf: ${Math.round((currentPlate.confidence || 0) * 100)}%]`;
     }
-
     const urgencyIcon = currentState === "CONFIRMED_ARRIVAL" ? "🚨" : "🚗";
-    return `${urgencyIcon} <b>Vehicle Arrival Intelligence</b>\n\n` +
+    const visitLine = visitKey ? `<b>Visit:</b> ${String(visitKey).slice(0, 12)}\n` : "";
+    return (
+      `${urgencyIcon} <b>Vehicle Arrival Intelligence</b>\n\n` +
       `<b>Camera:</b> ${cameraName}\n` +
       `<b>Zone:</b> ${zoneName}\n` +
       `<b>Type:</b> ${label} (${Math.round(confidence * 100)}%)\n` +
-      `<b>State:</b> ${currentState}\n` +
-      `<b>Dwell:</b> ${currentDwell}s\n` +
-      `<b>Plate:</b> ${plateLine}\n\n` +
-      `<i>Time: ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}</i>`;
+      `<b>State:</b> ${currentState}${data.estimated ? " (estimated)" : ""}\n` +
+      `<b>Dwell:</b> ${Math.round(currentDwell)}s\n` +
+      `<b>Plate:</b> ${plateLine}\n` +
+      visitLine +
+      `\n<i>Time: ${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })}</i>`
+    );
   };
 
-  const buttons: InlineButton[][] = [
-    [
-      {
-        text: "📹 Open Camera Panel",
-        url: "https://bdnick.info/system/camera",
-      },
-    ],
-  ];
+  const buttons: InlineButton[][] = [[{ text: "📹 Open Camera Panel", url: COCKPIT_URL }]];
 
   if (existingEvent) {
-    log.info("updating_existing_event", { eventId: existingEvent.id });
-    
-    // Merge data
-    const existingData = (existingEvent.data as any) || {};
+    log.info("updating_existing_event", { eventId: existingEvent.id, state });
+
+    const existingData = (existingEvent.data as Record<string, unknown> | null) || {};
     const updatedData = {
       ...existingData,
       ...data,
+      eventId: event.eventId ?? existingData.eventId ?? null,
       // preserve telegramMessageId
       telegramMessageId: existingData.telegramMessageId,
     };
 
-    // Update event in DB
     await prisma.deviceEvent.update({
       where: { id: existingEvent.id },
-      data: {
-        data: updatedData,
-        timestamp,
-      },
+      data: { data: updatedData as Prisma.InputJsonObject, timestamp },
     });
 
-    // Check if we have an active Telegram message to update
     const telegramMessageId = existingData.telegramMessageId;
+    const updatedText = formatAlertText(state, dwellSeconds, plate);
     if (telegramMessageId && isEnabled) {
-      // Edit the existing Telegram message with updated info
-      const text = formatAlertText(state, dwellSeconds, plate);
       log.info("editing_telegram_alert", { telegramMessageId, state });
-      await editTelegramMessage(Number(telegramMessageId), text, undefined, buttons).catch((err) => {
+      await editTelegramMessage(Number(telegramMessageId), updatedText, undefined, buttons).catch((err) => {
         log.error("failed_to_edit_telegram", { error: err.message });
       });
     }
-    
+
+    maybeLinkCustomer({
+      eventId: existingEvent.id,
+      state,
+      plate,
+      existingData,
+      telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
+      alertText: isEnabled ? updatedText : undefined,
+      buttons,
+    });
+
     return existingEvent.id;
   }
 
-  // 2. Check for cooldown/debounce if we are creating a new event alert
-  const cooldownSeconds = 120;
-  const cooldownLimit = new Date(Date.now() - cooldownSeconds * 1000);
-  
+  // 2. Cooldown per camera + zone (a second camera must not be crushed by
+  //    the first one's window).
+  const cooldownLimit = new Date(Date.now() - COOLDOWN_SECONDS * 1000);
   const recentAlert = await prisma.deviceEvent.findFirst({
     where: {
       deviceId,
-      event: "vehicle_detected",
+      event: eventName,
       createdAt: { gte: cooldownLimit },
-      data: {
-        path: ["zone"],
-        equals: zone,
-      },
+      AND: [
+        { data: { path: ["zone"], equals: zone } },
+        ...(cameraId ? [{ data: { path: ["cameraId"], equals: cameraId } }] : []),
+      ],
     },
     orderBy: { createdAt: "desc" },
   });
+  const isCooldownActive =
+    !!recentAlert && (!recentAlert.data || !!(recentAlert.data as Record<string, unknown>).telegramMessageId);
 
-  const isCooldownActive = !!recentAlert && (!recentAlert.data || (recentAlert.data as any).telegramMessageId);
+  // 3. Quiet hours: arrivals do not page at night. The suppression is recorded.
+  const quiet = isQuietHoursET(hourET());
 
   let telegramMessageId: number | null = null;
+  let alertSuppressedReason: string | null = null;
+  let sentAlertText: string | undefined;
+  const wantsAlert = ALERT_STATES.has(state);
 
-  // Only send Telegram alert if we are not in cooldown, and state is CONFIRMED_ARRIVAL or ENTERED_ZONE
-  const shouldAlert = isEnabled && !isCooldownActive && (state === "CONFIRMED_ARRIVAL" || state === "ENTERED_ZONE");
+  if (!isEnabled) alertSuppressedReason = "flag_off";
+  else if (!wantsAlert) alertSuppressedReason = "state";
+  else if (isCooldownActive) alertSuppressedReason = "cooldown";
+  else if (quiet) alertSuppressedReason = "quiet_hours";
 
-  if (shouldAlert) {
+  if (alertSuppressedReason === null) {
     const text = formatAlertText(state, dwellSeconds, plate);
-    log.info("sending_new_telegram_alert", { deviceId, zone, state });
-    const res: any = await sendTelegramWithButtons(text, buttons).catch((err) => {
+    sentAlertText = text;
+    log.info("sending_new_telegram_alert", { deviceId, cameraId, zone, state });
+    const res = (await sendTelegramWithButtons(text, buttons).catch((err) => {
       log.error("failed_to_send_telegram", { error: err.message });
       return { ok: false };
-    });
-    
+    })) as { ok: boolean; messageId?: number };
+
     if (res.ok && res.messageId) {
       telegramMessageId = res.messageId;
       log.info("telegram_alert_sent", { messageId: telegramMessageId });
     }
+
+    // Web push next to Telegram. Tagged per visit so PR #1740 flood control
+    // applies; a failure here never fails the ingest.
+    try {
+      await sendPush({
+        title: state === "CONFIRMED_ARRIVAL" ? "Vehicle arrived" : "Vehicle entering lot",
+        body: `${cameraName} · ${zoneName}${plate.text ? ` · ${plate.text}` : ""}`,
+        level: state === "CONFIRMED_ARRIVAL" ? "high" : "medium",
+        tag: `arrival:${visitKey ?? `${cameraId ?? deviceId}:${zone}`}`,
+        url: COCKPIT_URL,
+        data: { deviceId, visitId, trackId, state },
+      });
+    } catch (err) {
+      log.warn("arrival_push_failed", { error: err instanceof Error ? err.message : String(err) });
+    }
   } else {
-    log.info("telegram_alert_skipped", { isCooldownActive, state, isEnabled });
+    log.info("telegram_alert_skipped", { reason: alertSuppressedReason, state, isEnabled, isCooldownActive, quiet });
   }
 
-  // Save/Create event in DB
   const eventData = {
     ...data,
+    eventId: event.eventId ?? null,
+    schemaVersion: event.schemaVersion ?? 1,
     telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
+    alertSuppressedReason,
   };
 
   const newEvent = await prisma.deviceEvent.create({
-    data: {
-      deviceId,
-      event: eventName,
-      data: eventData,
-      source,
-      timestamp,
-    },
+    data: { deviceId, event: eventName, data: eventData as Prisma.InputJsonObject, source, timestamp },
+  });
+
+  maybeLinkCustomer({
+    eventId: newEvent.id,
+    state,
+    plate,
+    existingData: {},
+    telegramMessageId: telegramMessageId ? String(telegramMessageId) : null,
+    alertText: sentAlertText,
+    buttons,
   });
 
   return newEvent.id;

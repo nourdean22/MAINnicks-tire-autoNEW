@@ -63,18 +63,60 @@ export async function handleCameraGetAlerts(_params: ActionParams, type: string)
   };
 }
 
-export async function handleCameraGetPlates(_params: ActionParams, type: string): Promise<ActionResult> {
-  // v10.0.59 · ALPR (license-plate recognition) not yet wired
-  // into the deviceEvent pipeline. Returns empty + redirect
-  // message; future v11+ work will add a `vehicle_detected`
-  // event subtype with a `plate` field in the payload.
+export async function handleCameraGetPlates(params: ActionParams, type: string): Promise<ActionResult> {
+  // 2026-09-08 · ADR-0017 / master-plan C6. This used to return
+  // `count: 0` unconditionally with a note that ALPR "is not wired" —
+  // while `vehicle_detected` events have carried `data.plate` since
+  // PR #315 and the cockpit has a plate-correction UI. A chat tool that
+  // asserts zero regardless of the DB is a lie to the operator.
+  //
+  // Reads the last `days` (1-30, default 7) of vehicle_detected events and
+  // returns every plate read. A failed read is reported as a failure, never
+  // as an empty list (empty-vs-error).
+  const days = Math.min(30, Math.max(1, Number(params.days ?? 7) || 7));
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  let rows: Array<{ id: string; deviceId: string; timestamp: Date; data: unknown }> | null = null;
+  try {
+    rows = await prisma.deviceEvent.findMany({
+      where: { event: "vehicle_detected", timestamp: { gte: since } },
+      orderBy: { timestamp: "desc" },
+      take: 500,
+      select: { id: true, deviceId: true, timestamp: true, data: true },
+    });
+  } catch (err) {
+    return {
+      action: type,
+      success: false,
+      error: `plate read failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  const plates = rows.flatMap((r) => {
+    const d = (r.data ?? {}) as Record<string, unknown>;
+    const p = d.plate as Record<string, unknown> | undefined;
+    if (!p || typeof p.text !== "string" || !p.text) return [];
+    return [
+      {
+        eventId: r.id,
+        deviceId: r.deviceId,
+        at: r.timestamp.toISOString(),
+        text: p.text,
+        normalizedText: typeof p.normalizedText === "string" ? p.normalizedText : null,
+        status: typeof p.status === "string" ? p.status : "CANDIDATE",
+        confidence: typeof p.confidence === "number" ? p.confidence : null,
+        state: typeof d.state === "string" ? d.state : null,
+        visitId: (d.visitId as string | undefined) ?? (d.trackId as string | undefined) ?? null,
+      },
+    ];
+  });
   return {
     action: type,
     success: true,
     result: {
-      count: 0,
-      plates: [],
-      note: "ALPR pipeline not yet wired — vehicle_detected events lack plate metadata.",
+      days,
+      eventsScanned: rows.length,
+      count: plates.length,
+      plates: plates.slice(0, 100),
+      note: rows.length === 0 ? `no vehicle_detected events in the last ${days} day(s)` : undefined,
     },
   };
 }

@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.9 (2026-07-09)
+# Nickstire Query Contract — v11.10 (2026-09-08)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -507,6 +507,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `revenue_today` | none | Today's revenue (ET-anchored) |
 | `send_opportunity_sms` | `opportunityId: uuid, body: string, idempotencyKey: string (8-64, [A-Za-z0-9._-]), approvedBy: string` | `{ ok, sent, duplicate, queued?, error? }` — the ONE bounded customer-texting ACTION. See §8 for the mandatory approval contract. Added Autopilot Wave 2, 2026-07-29 |
 | `shop_pulse` | none | Live snapshot via nickIntelligence |
+| `vehicle_lookup_by_plate` | `plate: string` (raw camera read, 3+ alphanumerics) | `{ plate, normalized, variants, matches: [{ source: "memberships", membershipId, name, phoneMasked, plate, exact, vehicleDesc, membershipStatus, bookingsToday: [{ id, service, vehicle, status, preferredDate }] }], count, sources }` — READ-ONLY, ADVISORY. Normalized match plus single-character OCR-confusable variants (O/0, I/1, B/8, S/5, Z/2). Source today is `memberships.vehiclePlate` only (`vehicles` was retired in 0117; `customer_vehicles` gains a plate column in a later wave). Consumer: statenour `lib/services/vehicle-customer-link.ts` after a CONFIRMED_ARRIVAL. Added 2026-09-08, ADR-0017 |
 | `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
 
 ### master_report shape (added v11.5, 2026-05-24)
@@ -709,6 +710,13 @@ retry-after-timeout) reports as SUCCESS/"already sent", never as failure.
   flag + this endpoint's own `dryRun` default) sit on top of nickstire's
   per-phone daily cap/cooldown/opt-out inside `sendSms()` — see the
   endpoint's own doc comment for the full safety chain.
+- **v11.10** (2026-09-08) — `vehicle_lookup_by_plate` action added
+  (ADR-0017 camera vision). Read-only, advisory: the camera edge reads a
+  plate, statenour asks whether it belongs to a Nonstop Nick member and
+  whether that member has a booking today, and appends one line to the
+  arrival alert. Matching is on the normalized plate plus OCR-confusable
+  variants; the only plate source today is `memberships.vehiclePlate`.
+  No write lane, no customer-facing side effect.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

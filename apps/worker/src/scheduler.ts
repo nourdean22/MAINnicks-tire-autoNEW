@@ -155,6 +155,15 @@ const HIGH_FREQ_JOBS: JobDef[] = [
     schedule: "0 13 * * *",
     description: "Daily 13:00 UTC · out-of-band Inngest scheduler liveness (reads heartbeat self-row age)",
   },
+  {
+    // 2026-09-08 · ADR-0017. The camera bridge PATCHes a heartbeat per camera
+    // every 60 s; this tick asks statenour to flip devices silent >20 min to
+    // OFFLINE and page once per transition. Rides the same 15-min cadence as
+    // the drains so it never becomes the fastest Neon-waking writer (#1696).
+    name: "device-heartbeat-sentinel",
+    schedule: "*/15 * * * *",
+    description: "Every 15 min · camera/bridge heartbeat silence -> OFFLINE + one alert per transition (ADR-0017)",
+  },
 ];
 
 /**

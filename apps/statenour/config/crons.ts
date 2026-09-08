@@ -105,6 +105,16 @@ export const CRONS: CronDef[] = [
       "Who watches the watcher: fired by the WORKER's node-cron (not Inngest, not the mega) an hour after cron-heartbeat's slot. Reads the heartbeat self-row age; stale/absent → P0 Telegram with the re-sync runbook. Exists because the 2026-07-28 function-set drift killed the watchdog together with everything it watched.",
   },
   {
+    name: "device-heartbeat-sentinel",
+    schedule: "*/15 * * * *",
+    mode: "active",
+    category: "device",
+    worker: true,
+    addedAt: "2026-09-08",
+    description:
+      "Every 15 min, worker-fired (the Neon-wake cadence #1696 settled on): CAMERA/bridge devices that reported at least once and have been silent >20 min flip ONLINE->OFFLINE with ONE Telegram + tagged push per transition; devices that never reported are ignored by construction (heartbeat birth-registry rule, #1737); a device that resumes heartbeats is cleared with a low 'back online' push. Exists because the June 2026 camera-bridge shipped with no silence detection and the April local agent died unnoticed for months (ADR-0017).",
+  },
+  {
     name: "operator-morning-brief",
     schedule: "0 10 * * *",
     mode: "active",
