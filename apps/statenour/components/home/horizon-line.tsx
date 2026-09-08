@@ -56,7 +56,7 @@ export function HorizonLine({ horizon }: { horizon: BriefHorizonSection | null }
                 serializers. */}
             <Link
               href={slot.href}
-              className="min-w-0 truncate text-[13px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="min-w-0 truncate py-0.5 text-[13px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               {slot.label}
             </Link>

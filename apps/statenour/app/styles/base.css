@@ -7,6 +7,9 @@ html {
   min-height: 100%;
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* Section 5.8 / WCAG 2.4.11 (2026-09-08): a focused control scrolled into view lands above
+     the fixed bottom chrome, never under it. */
+  scroll-padding-bottom: var(--bottom-chrome-h, 6rem);
 }
 
 body {
