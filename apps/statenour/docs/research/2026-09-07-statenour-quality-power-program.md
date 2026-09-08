@@ -46,7 +46,7 @@
 
 ## 2. VERIFIED CURRENT DEFECTS
 
-**Status 2026-09-08.** D10 lane #2180 + phone docking #2185 (instrument: `tests/e2e/floating-collision.spec.ts`) · D11 #2181 · D12 #2181 (no fabricated declines) · D13 #2183 (flag-off; the flip is the operator's) · D15 #2180 · D16 #2180 + #2186 (pass/fail pair on record) · D17 #2180 · D18 #2188 · D19 (journal + token) #2189 · U5 #2185 · §5.11 #2185. Open: D14 (nickstire), U3 remainder, U4, U6, U7, §5 items 1/3/4/8/9/10.
+**Status 2026-09-08 (end of day).** D10 #2180 + #2185 · D11 #2181 · D12 #2181 · D13 #2183 + #2195 (flag prerequisites; the flip is Railway env) · D14 #2196 · D15 #2180 · D16 #2180 + #2186 · D17 #2180 · D18 #2188 · D19 #2189 · U3 #2177 + #2198 · U4 #2198 · U5 #2185 · U6 #2193 (+ Langfuse model prices registered) · U7 #2198 · §5.1/5.10/5.11 #2198 + #2185 · §5.2 #2189 · /market MOVED (#2195 + #2196) · Neon branch protected. Open: Sentry split (operator), HSTS preload submission (operator), §5.3/5.4/5.8 design pass.
 
 Fields: evidence · confidence · surface · impact · action · acceptance · dependencies · placement. **FIXED** = in PR #2175 `statenour/bdnick-quality-program-p1` (https://github.com/nourdean22/MAINnicks-tire-autoNEW/pull/2175 — implemented + tested; deployment and runtime verification recorded in RECONCILIATION once merged).
 
