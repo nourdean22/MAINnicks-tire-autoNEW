@@ -19,6 +19,6 @@ describe("computeLaneOverlap", () => {
     expect(src).toMatch(/onRanked: \(rows/);
     expect(src).toMatch(/computeLaneOverlap\(/);
     expect(src).toMatch(/recall_lane_overlap/);
-    expect(src).toMatch(/laneOverlap,\n\s*detectedContradictions/);
+    expect(src).toMatch(/\n\s*laneOverlap,\n/); // returned on the brain-context result
   });
 });

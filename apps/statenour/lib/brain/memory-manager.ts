@@ -502,6 +502,11 @@ export class BrainMemoryManager {
           ? computeExpiresAt(effectiveCategory)
           : new Date(Date.now() + 24 * 60 * 60 * 1000),
         metadata: { ...(metadata ?? {}), ...gateMetadata } as any,
+        // Brain plan Wave 2 (2026-09-08): every new row starts its validity interval. The
+        // as-of recall (validityWhere) reads valid_from/valid_until, and the 2026-09-08 prod
+        // probe found 0 of 40,889 rows carrying either — the temporal machinery was data-empty.
+        // valid_until stays null until a correction or a gateway supersede stamps it.
+        validFrom: new Date(),
       },
     });
 
