@@ -28,7 +28,7 @@ Evidence classes: **A** verified current code at the pinned SHA · **B** verifie
 4. **The cameras are the hard blocker; the answer is unlock-if-cheap, replace-for-LPR.** Live probe from the shop LAN at 11:5x ET: both V380 units answer ping and expose only TCP 8800/9800; 554 (RTSP), 8899 (ONVIF), 80/8080 all closed; no ONVIF WS-Discovery responders (C). The app's firmware page (12:09 ET, both cameras) reads `Hw_HsAKQQXG_WIFI_20230421` / `AppKN_VACL4_V1.5.3.0_20250611` (B): the `HsAK` family is the Anyka generation, for which the SD-card `ceshi.ini` unlock is documented to open 554/8899 without any firmware change (D, section 3) - the port fingerprint alone had over-classified them as Xiongmai. Try the unlock on ONE camera (30 minutes, reversible); it yields an unauthenticated RTSP stream good enough for the lot-overview lane and the replay fixture, not for LPR. Two standards-compliant PoE cameras cost $55-130 each (D) and remain the LPR and long-term answer.
 5. **Frigate track IDs are not visit IDs and the current dwell is semantically wrong.** Frigate's tracker (Norfair, position-only, no appearance re-ID) splits a car into a new id after >5 s of occlusion and stops updating stationary objects; the bridge measures `time.time() - first_seen` per track and ignores zones (A/D). Section 6 defines a deterministic visit state machine keyed on zone intervals from Frigate `frame_time`, with plate-first identity stitching. No LLM anywhere in the truth path.
 6. **Target stack (all MIT/Apache/BSD, offline, $0 software):** Frigate 0.17.2 with go2rtc, native LPR (YOLOv9 + PaddleOCR), zones with `loitering_time`, review items; a rewritten Python edge service (`visitd`) with a SQLite ledger and outbox; statenour Neon as the canonical visit ledger; nickstire reached read-only through the existing `nour-os/query` bridge for plate -> customer -> booking; Telegram + the existing push flood-control for alerts; a Linux mini-PC (N150, ~$190) as the edge box, not the Windows laptop (D).
-7. **Costs:** Good $825-1,125 · Better $1,730-2,130 · Best $2,130-2,630 all-in including cabling and an edge box (D, section 17). Fastest path to real data: one $55-130 PoE camera + a $15 injector this week, the full VLAN build later.
+7. **Costs:** Good $825-1,125 · Better $1,730-2,130 · Best $2,130-2,630 all-in including cabling and an edge box; the Axis P1475-LE LPR option adds ~$495 (Best ~$2,625-3,125) (D, section 17). Fastest path to real data: one $55-130 PoE camera + a $15 injector this week, the full VLAN build later.
 8. **Legal (Ohio):** silent video of the lot and bays is lawful; never restrooms/changing areas (ORC 2907.08); audio is one-party consent (ORC 2933.52) but disable it anyway; no Ohio statute restricts private ALPR; plate-to-owner lookups are barred by DPPA/ORC 4501.27; retention 30-90 days, plates <=30 days unless tied to a customer record; no face recognition on customers (D, section 14).
 
 ---
@@ -239,7 +239,7 @@ Placement of responsibilities (H, grounded in A3):
 | Visit truth (state machine, dwell, identity stitching) | `visitd` on the edge box, persisted in SQLite, replicated to the cloud | must keep working when the WAN is down; deterministic; unit-testable without a camera |
 | Canonical visit ledger, alerts, cockpit, AI summaries | statenour Neon | the incumbent (UPSTREAMS row 58); Postgres + pgvector for later re-ID embeddings; Telegram and push flood-control already live |
 | Customer/booking/bay linkage | nickstire, read through the bridge | business data stays in the business system; no statenour->nickstire write lane exists and none is created (UPSTREAMS rows 87/88) |
-| Worker app | untouched | camera traffic never needed it (no-DB rule) |
+| Worker app | fires the `device-heartbeat-sentinel` tick every 15 min (`apps/worker/src/scheduler.ts` HIGH_FREQ_JOBS entry, shipped in #2222) | the worker is the only scheduler in this system and holds no DB client, so it dispatches the HTTP route and the route does the work (`config/crons.ts` worker rule); camera traffic itself never touches it |
 
 Deployment topology: Frigate + Mosquitto + visitd on one Linux mini-PC at the shop (Docker Compose, `restart: unless-stopped`, UPS); Frigate UI on 8971 reachable only via Tailscale ACL; 5000 bound to loopback for visitd; camera VLAN with WAN egress denied; NTP from the router. Until the mini-PC arrives, the same compose runs on this laptop under Docker Desktop with the CPU detector for validation only.
 
@@ -396,7 +396,7 @@ Plus `vehicle_identities` (plate_normalized unique, first/last seen, visit_count
 | `app/(mastery)/system/camera/page.tsx` | explicit error state; "no data" vs "read failed" |
 | `lib/ai/agent-actions/camera-actions.ts` | `getPlates` reads `DeviceEvent.data.plate` |
 | `lib/brain/camera-intelligence.ts` | docstring truth: `analyzeCameraData` is not scheduled |
-| `config/crons.ts` + `app/api/cron/device-heartbeat-sentinel/route.ts` (new) | 5-min sentinel, transition-only alerts, `check:crons` compliant |
+| `config/crons.ts` + `app/api/cron/device-heartbeat-sentinel/route.ts` (new) + `apps/worker/src/scheduler.ts` HIGH_FREQ_JOBS | 15-min sentinel, worker-fired (the #1696 Neon-wake cadence - a 5-min tick keeps the compute awake), transition-only alerts, `check:crons` compliant |
 | `tests/api/devices-platform-id.test.ts` (new), `tests/services/vehicle-detection.test.ts`, `tests/services/device-heartbeat-sentinel.test.ts` (new) | route-level positive control for C1; quiet-hours and idempotency cases; sentinel transition + never-seen exclusion |
 | `docs/RECONCILIATION.md` | wave entry (statenour-wave-reconcile) |
 
@@ -538,11 +538,9 @@ cameras:
     enabled: true
     ffmpeg:
       inputs:
-        - path: rtsp://127.0.0.1:8554/sign_sub
-          roles: [detect]
         - path: rtsp://127.0.0.1:8554/sign
-          roles: [record]
-    detect: { width: 1280, height: 720 }
+          roles: [detect, record]     # the plate camera detects on its MAIN stream (see the LPR geometry note)
+    detect: { width: 2560, height: 1440, fps: 5 }   # = the main stream's size; never a sub-stream on the LPR camera
     lpr: { enabled: true, enhancement: 2 }     # camera-level: only enabled/min_area/enhancement
     zones:
       bay_entrance:
@@ -550,6 +548,8 @@ cameras:
         inertia: 2
         objects: [car, truck, motorcycle]
 ```
+
+LPR geometry (D): Frigate runs plate detection on the frames of the `detect` role, so the plate camera's detect input must be its full-resolution stream. At the section-10 minimum geometry (a plate >= 100 px wide on the 2560-px main stream) a 1280-wide sub-stream halves the plate to ~50x25 px, about 1,250 px^2, below the global `lpr.min_area: 2000` - the plate would be rejected before recognition and gate G4 would fail for configuration, not for camera geometry. Keep `detect` at the main stream's size and lower `fps` (5 -> 3) if the N150 iGPU exceeds 40 ms per inference; never shrink the frame. The `lot` camera keeps its sub-stream: it does no LPR. When the dedicated LPR camera arrives, switch that camera to Frigate's dedicated-LPR mode (`type: lpr`, `objects.track: [license_plate]`, 0.16+ docs) so the plate detector runs on the whole frame instead of inside vehicle boxes.
 
 Notes (D): `frigate/events` keeps the `new/update/end` shape in 0.17.2; LPR results surface as `sub_label` (known plate) or `recognized_license_plate` + `_score`, and on `frigate/tracked_object_update` `{type: "lpr", id, plate, score}`; `GET /api/events/{id}/snapshot.jpg` is unchanged through 0.17.2 but 0.18 stops writing `.jpg` to disk - read snapshots only through the API. Pin `0.17.2`, never `stable` (it flips to 0.18 on release). Back up `/config/frigate.db` before every upgrade; the 0.14 migration is one-way.
 
@@ -667,7 +667,7 @@ Zone drawing procedure: mount camera -> Frigate UI zone editor -> copy relative 
 | Line | Good | Better | Best |
 |---|---|---|---|
 | Lot overview cam | Annke C800 $54.99 or Reolink RLC-810A $99.99 | Reolink CX810 $129.99 | EmpireTech B54IR-ZE-S3 (Dahua 5442 class) $289.99 |
-| LPR cam | none yet | EmpireTech B54IR-Z4E-S3 8-32 mm $314.99 | B52IR-Z12E-S2 $304.99 or Axis P1475-LE ~$800 |
+| LPR cam | none yet | EmpireTech B54IR-Z4E-S3 8-32 mm $314.99 | B52IR-Z12E-S2 $304.99 (Axis P1475-LE ~$800 is a +$495 option outside the total - see the note) |
 | Bay cams | Annke C800 $54.99 | Amcrest IP8M-T2599EW-AI-V3 $99.99 | 2x Amcrest $199.98 |
 | Switch / router | TP-Link TL-SG108PE $69.95 (802.1Q, 4 PoE+) | UniFi USW-Lite-8-PoE $109 + UCG-Ultra $129 | same $238 |
 | Cabling | 2 drops $300-500 | 4 drops $600-1,000 | 5 drops $750-1,250 |
@@ -675,6 +675,8 @@ Zone drawing procedure: mount camera -> Frigate UI zone editor -> copy relative 
 | UPS | APC BE600M1 ~$86 | $86 | $86 |
 | Software | $0 (Frigate MIT, PaddleOCR Apache-2.0, Norfair BSD-3); Frigate+ $50/yr optional | $0 | $0 |
 | **Total** | **$825-1,125** | **$1,730-2,130** | **$2,130-2,630** |
+
+Arithmetic: every total assumes the Beelink EQ13 ($259); the GMKtec G3 Plus saves $60-80 per tier. Good's upper bound includes the optional Frigate+ $50. Best = $289.99 + $304.99 + $199.98 + $238 + $750-1,250 + $259 + $86 = $2,128-2,628. The Axis P1475-LE (~$800) replaces the $304.99 B52IR and is NOT inside that range: choosing it puts Best at about $2,625-3,125 before the optional Hailo-8L.
 
 Avoid: Ultralytics/BoxMOT (AGPL-3.0 - internal business use needs an enterprise license), CodeProject.AI (no asserted license, parent site offline), Coral USB for new builds (Frigate: "no longer recommended"), Jetson Orin Nano Super ($399 after the July 2026 increase), Plate Recognizer Stream ($840/yr for two cameras) unless native LPR fails after geometry fixes, UniFi cameras (Protect lock-in for RTSPS and plate data). Hikvision/Dahua-branded gear is legal for a private buyer after the FCC's 2026-07-16 order (use-restricted entries; continued use unaffected) but expect thin US supply - prefer the Dahua-OEM EmpireTech/Amcrest lines or NDAA-clean Uniview/Axis.
 
@@ -711,7 +713,7 @@ Explicitly out: face recognition of customers, sharing plate data with third par
 - Camera prices and specs from vendor stores; FCC DA 26-635 / DA 26-742; Ohio statutes at codes.ohio.gov; NCSL ALPR page; DPPA.
 
 ### 19.2 Hypotheses (H) - each has a test in the plan
-- Both shop cameras are Xiongmai-generation (firmware strings pending - section 3.3 step 1).
+- The `ceshi.ini` SD-card unlock takes on THIS Anyka variant (`Hw_HsAKQQXG_WIFI_20230421` + app `AppKN_VACL4_V1.5.3.0`). The family is verified (section 2.3, B); whether this firmware/app build still honours the config file is not - test = section 3.3 on SHOPSIGN, pass = `rtsp://192.168.0.155:554/live/ch00_1` answers after the power cycle. (The earlier "both cameras are Xiongmai-generation" hypothesis was refuted by the firmware string; the port fingerprint alone had over-classified them.)
 - The Fios router cannot do 802.1Q VLANs on its LAN ports (assume no; the downstream switch/router design does not depend on it).
 - `rtmp` role behavior on 0.13.2 (deprecated vs removed) - moot after the 0.17.2 upgrade.
 - Dwell thresholds (10/45/20 s) and grace timers - tuned against the truth log in Phase 1.
