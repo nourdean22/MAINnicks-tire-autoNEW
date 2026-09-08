@@ -141,13 +141,20 @@ async function topRibbonPhotosQuery(days: number, limit: number): Promise<Array<
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const { sql, and, eq, gte } = await import("drizzle-orm");
 
+  // ONE fragment for SELECT and GROUP BY, with the column UNQUALIFIED. Drizzle renders a
+  // column reference as `eventData` in the select list but `customer_events`.`eventData`
+  // inside groupBy(), and TiDB's only_full_group_by compares the two expressions textually:
+  // "Expression #1 of SELECT list is not in GROUP BY clause" on every public ribbon read
+  // (Sentry NICKSTIRE-1, 17 events in 30 min on 2026-09-08; proven read-only against prod:
+  // the qualified form fails, this form returns rows). Fixes NICKSTIRE-1.
+  const srcExpr = sql`JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.src'))`;
   // Pull JSON.src from eventData. MySQL's JSON_EXTRACT works here
   // because we typed the column as `json`. Drizzle's runtime helper
   // is overkill — raw sql is fine and indexable on (eventName,
   // createdAt) which is the access pattern.
   const rows = await d
     .select({
-      src: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`,
+      src: sql<string>`${srcExpr}`,
       count: sql<number>`COUNT(*)`,
     })
     .from(customerEvents)
@@ -155,7 +162,7 @@ async function topRibbonPhotosQuery(days: number, limit: number): Promise<Array<
       eq(customerEvents.eventName, "ribbon_photo_view"),
       gte(customerEvents.createdAt, since),
     ))
-    .groupBy(sql`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`)
+    .groupBy(srcExpr)
     .orderBy(sql`COUNT(*) DESC`)
     .limit(limit);
 

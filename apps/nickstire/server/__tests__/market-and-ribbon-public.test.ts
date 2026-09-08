@@ -47,3 +47,35 @@ describe("PhotoRibbon reads a public procedure (D14)", () => {
     expect(ribbon).not.toMatch(/topRibbonPhotos\.useQuery/);
   });
 });
+
+describe("ribbon photo counts · GROUP BY must be the SAME expression as the SELECT (Sentry NICKSTIRE-1, 2026-09-08)", () => {
+  it("drizzle renders a column reference differently in select vs groupBy — the trap, pinned", async () => {
+    const { QueryBuilder } = await import("drizzle-orm/mysql-core");
+    const { sql } = await import("drizzle-orm");
+    const { customerEvents } = await import("../../drizzle/schema");
+    const qb = new QueryBuilder();
+    const trap = qb
+      .select({ src: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))` })
+      .from(customerEvents)
+      .groupBy(sql`JSON_UNQUOTE(JSON_EXTRACT(${customerEvents.eventData}, '$.src'))`)
+      .toSQL().sql;
+    const selectExpr = trap.slice(trap.indexOf("select ") + 7, trap.indexOf(" from "));
+    const groupExpr = trap.slice(trap.indexOf("group by ") + 9);
+    expect(selectExpr, "known positive: qualified in groupBy, bare in select → only_full_group_by rejects it").not.toBe(groupExpr);
+  });
+  it("the shipped query uses ONE unqualified fragment in both positions, which renders identically", async () => {
+    const { QueryBuilder } = await import("drizzle-orm/mysql-core");
+    const { sql } = await import("drizzle-orm");
+    const { customerEvents } = await import("../../drizzle/schema");
+    const srcExpr = sql`JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.src'))`;
+    const fixed = new QueryBuilder().select({ src: sql<string>`${srcExpr}` }).from(customerEvents).groupBy(srcExpr).toSQL().sql;
+    const selectExpr = fixed.slice(fixed.indexOf("select ") + 7, fixed.indexOf(" from "));
+    const groupExpr = fixed.slice(fixed.indexOf("group by ") + 9);
+    expect(selectExpr).toBe(groupExpr);
+    const src = read("server/routers/admin/customerEvents.ts");
+    expect(src).toMatch(/const srcExpr = sql`JSON_UNQUOTE\(JSON_EXTRACT\(eventData, '\$\.src'\)\)`;/);
+    expect(src).toMatch(/src: sql<string>`\$\{srcExpr\}`/);
+    expect(src).toMatch(/\.groupBy\(srcExpr\)/);
+    expect(src).not.toMatch(/groupBy\(sql`JSON_UNQUOTE\(JSON_EXTRACT\(\$\{customerEvents\.eventData\}/);
+  });
+});
