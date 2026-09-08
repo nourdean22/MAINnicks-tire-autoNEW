@@ -167,31 +167,87 @@ describe("the shop's tenure agrees with the canonical constant", () => {
   });
 });
 
-/* ── who runs the shop ───────────────────────────────────────────────────── */
+/* ── who owns the shop ───────────────────────────────────────────────────── */
 
 /**
- * The site states plainly, on /moes-tire, that the location "transitioned to
- * new ownership and rebranded as Nick's Tire & Auto". A surface that
- * simultaneously tells visitors the shop is RUN BY MOE contradicts that in the
- * customer's face. Whichever is true, both cannot ship.
+ * OWNER-CONFIRMED 2026-09-03: Nick's Tire & Auto is the SAME owner, operating
+ * at 17625 Euclid Ave since BUSINESS.founded.year. The business was RENAMED
+ * from Moe's Tire & Auto. Ownership never changed, and MoesTireBridgePage now
+ * frames it correctly - "a name change under the same owner".
+ *
+ * That makes TWO claims false, and this block guards both:
+ *   "RUN BY MOE ..."                - implies the prior name's owner runs it
+ *   "transitioned to new ownership" - implies the owner changed
+ *
+ * ── WHY THE OLD POSITIVE CONTROL WAS DELETED (2026-09-08) ───────────────────
+ * This block used to assert "the new-ownership statement is still on the site"
+ * (expect(newOwnership.length).toBeGreaterThan(0)). That was written when
+ * /moes-tire did say the location "transitioned to new ownership". The owner
+ * then confirmed that is false and #2099 removed the copy - so the assertion
+ * had become A REQUIREMENT THAT THE SITE KEEP A FALSE CLAIM.
+ *
+ * It stayed green on ONE unrelated line: shared/guides.ts's generic advice that
+ * a customer should re-evaluate when a shop shows "new ownership, new
+ * technicians, declining quality" - a conditional about shops in general, not a
+ * claim about this one. Editing that single article sentence would have turned
+ * this suite red, and the obvious way to green it again would have been to
+ * re-add a false ownership claim to the site.
+ *
+ * The lesson, and the reason the replacements look the way they do: A POSITIVE
+ * CONTROL MUST PIN SOMETHING TRUE, NOT MERELY SOMETHING PRESENT. The controls
+ * below are matcher probes - the same convention the phone block already uses -
+ * so they prove the patterns can still see the defect without requiring any
+ * particular sentence to exist on the site.
+ *
+ * The ownership-change patterns are ASSERTION-SHAPED on purpose. A bare
+ * /new ownership/ would flag the guides.ts sentence above; that false positive
+ * is guarded by its own test below, so a future author who widens these
+ * patterns finds out immediately.
  */
-describe("the site does not contradict its own ownership story", () => {
-  const ownershipClaims = LINES.filter((l) => /run by moe/i.test(l.text));
+const PREV_OWNER_PATTERN = /run by moe/i;
 
-  it("no surface claims the shop is run by the previous owner", () => {
+const OWNERSHIP_CHANGE_PATTERNS: RegExp[] = [
+  /transitioned to new ownership/i,
+  /under new ownership/i,
+  /new ownership and rebranded/i,
+  /changed (?:hands|ownership)/i,
+  /new owners? (?:took over|bought)/i,
+];
+
+describe("the site tells one true ownership story", () => {
+  it("no surface claims the shop is run by the previous name's owner", () => {
     expect(
-      ownershipClaims.map((c) => `${c.file}:${c.line}`),
-      "contradicts the new-ownership statement on /moes-tire",
+      LINES.filter((l) => PREV_OWNER_PATTERN.test(l.text)).map((c) => `${c.file}:${c.line}`),
+      "same owner, renamed - 'run by Moe' is false (owner-confirmed 2026-09-03)",
     ).toEqual([]);
   });
 
-  it("POSITIVE CONTROL: the new-ownership statement is still on the site", () => {
-    const newOwnership = LINES.filter((l) => /new ownership/i.test(l.text));
-    expect(newOwnership.length).toBeGreaterThan(0);
+  it("no surface claims the shop changed ownership", () => {
+    expect(
+      LINES.filter((l) => OWNERSHIP_CHANGE_PATTERNS.some((p) => p.test(l.text))).map(
+        (c) => `${c.file}:${c.line}`,
+      ),
+      "the shop was renamed, never sold (owner-confirmed 2026-09-03)",
+    ).toEqual([]);
   });
 
-  it("the matcher would catch the claim if it returned", () => {
-    expect(/run by moe/i.test("RUN BY MOE SINCE 2018")).toBe(true);
+  // MUTATION-STYLE PROOF: both matchers must be able to SEE the claim, or the
+  // two greens above mean nothing.
+  it("the matchers detect each false claim if it returns", () => {
+    expect(PREV_OWNER_PATTERN.test("RUN BY MOE SINCE 2018")).toBe(true);
+    expect(
+      OWNERSHIP_CHANGE_PATTERNS.some((p) =>
+        p.test("the shop transitioned to new ownership and rebranded as Nick's Tire & Auto"),
+      ),
+    ).toBe(true);
+  });
+
+  // FALSE-POSITIVE GUARD: generic advice that merely mentions the words is not
+  // a claim about THIS shop. This is the line the deleted control depended on.
+  it("does not flag generic advice that only mentions new ownership", () => {
+    const generic =
+      "If something changes - new ownership, new technicians, declining quality - it is okay to re-evaluate.";
+    expect(OWNERSHIP_CHANGE_PATTERNS.some((p) => p.test(generic))).toBe(false);
   });
 });
 
