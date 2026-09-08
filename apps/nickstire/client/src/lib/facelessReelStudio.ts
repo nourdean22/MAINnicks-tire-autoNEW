@@ -395,6 +395,11 @@ export interface SourceNote {
 export const PROOF_SOURCE_FAMILIES = [
   "AAA",
   "NHTSA",
+  // U.S. Tire Manufacturers Association — the industry's own repair standard
+  // (tread-only, 1/4-inch limit, demount-and-inspect, plug+patch). Added
+  // 2026-09-08 after its page passed the registry's extractor test; backed by
+  // the `ustma_tire_repair` record in server/services/evidenceResolver.ts.
+  "USTMA",
   "Tire Rack",
   "Consumer Reports",
   "Bridgestone education",

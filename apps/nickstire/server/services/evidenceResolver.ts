@@ -135,6 +135,29 @@ export const PUBLIC_SOURCE_REGISTRY: PublicSourceRecord[] = [
     curatedAt: "2026-08-01",
     textVerifiedAt: "2026-08-01", // 2,603 chars extracted
   },
+  // ─── Added 2026-09-08 ────────────────────────────────────────────────────
+  // The industry's own repair standard was absent while tire-repair briefs are
+  // the single most common claim family the generator produces. Verified
+  // through OUR extractor (retrieveDocument: status "fetched", 2,823 chars) and
+  // selectSupportingPassage landed the exact sentences for both probe claims:
+  //   "...repairs only if damage is limited to the tread area only and the
+  //    puncture injury is no greater than 1/4 inch (6mm) in diameter."
+  //   "Tires must be removed from the rim/wheel assembly and inspected ... A
+  //    rubber stem, or plug, must be applied ... and a patch must be applied to
+  //    seal the inner liner." / "Tire repairs cannot overlap with other repairs."
+  // NOT aliased to "Tire Industry Association" / "TIA": a different body. A
+  // label naming TIA still resolves to nothing, which is correct.
+  {
+    id: "ustma_tire_repair",
+    family: "USTMA",
+    title: "USTMA: tire repair basics (tread area only, 1/4-inch limit, demount and inspect, plug plus patch)",
+    canonicalUrl: "https://www.ustires.org/tire-care-safety/tire-repair-basics",
+    retrievalStatus: "fetch_verified",
+    topics: ["repair", "puncture", "patch", "plug", "nail", "screw", "sidewall", "shoulder", "tread", "flat", "inner liner"],
+    matchAliases: ["ustma", "u.s. tire manufacturers association", "us tire manufacturers association", "ustires"],
+    curatedAt: "2026-09-08",
+    textVerifiedAt: "2026-09-08", // 2,823 chars extracted
+  },
 ];
 
 /**
