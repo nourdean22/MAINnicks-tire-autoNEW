@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
   brainMemory: {
     create: vi.fn(),
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
   },
   vectorEmbedding: {
     create: vi.fn(),

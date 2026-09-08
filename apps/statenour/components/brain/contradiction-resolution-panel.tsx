@@ -32,7 +32,7 @@ interface StoredContradiction {
   new_memory_id: string;
   old_memory_id: string;
   similarity: number;
-  signal: "negation" | "reversal" | "antonym" | "compound";
+  signal: "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
   new_excerpt: string;
   old_excerpt: string;
   days_apart: number;
@@ -189,7 +189,7 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
               )}
             >
               <div className="flex items-center gap-2 mb-1.5 text-[9px] font-mono uppercase tracking-wider">
-                <span className="text-red-400">{c.signal}</span>
+                <span className="text-red-400">{c.signal === "near_duplicate" ? "similar wording · which is current?" : c.signal}</span>
                 <span className="text-[var(--text-tertiary)]">
                   {c.days_apart}d apart · sim {Math.round(c.similarity * 100)}%
                 </span>

@@ -90,7 +90,7 @@ type ContradictionStatus =
   | "old_wins"
   | "both_valid"
   | "dismissed";
-type SignalKind = "negation" | "reversal" | "antonym" | "compound";
+type SignalKind = "negation" | "reversal" | "antonym" | "compound" | "near_duplicate";
 
 type ResolveChoice = Exclude<ContradictionStatus, "unresolved">;
 
@@ -145,6 +145,9 @@ const SIGNAL_TONE: Record<SignalKind, string> = {
   antonym: "border-rose-400/45 bg-rose-400/[0.08] text-rose-300",
   negation: "border-amber-400/45 bg-amber-400/[0.08] text-amber-300",
   reversal: "border-emerald-400/45 bg-emerald-400/[0.08] text-emerald-300",
+  // A `/save` whose wording differs from a similar memory (2026-09-07) —
+  // not a polarity signal, a "which one is current?" question. Neutral.
+  near_duplicate: "border-sky-400/45 bg-sky-400/[0.08] text-sky-300",
 };
 
 function trimText(s: string | null | undefined, n = PREVIEW_CHARS): string {

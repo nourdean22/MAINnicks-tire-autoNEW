@@ -1,0 +1,74 @@
+name: Docker context gate
+
+# Builds the DEPS stage of both statenour Dockerfiles against the real build
+# context whenever something that feeds an image changes. The repo-level test
+# tests/repo/dockerfile-copy-sources.test.ts is an incident guard (every COPY
+# source must be git-tracked); it cannot model stage ordering, .dockerignore or
+# the pruned context. This job can: it runs the same `COPY` lines and the same
+# `pnpm install --frozen-lockfile` the Railway builder runs, and fails where
+# Railway would have failed — before merge instead of three days after
+# (2026-09-04 → 09-07, every statenour-web + statenour-worker deploy died on a
+# COPY of a directory git had dropped, and nothing in CI could see it).
+#
+# Canary in-line (root AGENTS.md "Ship the canary, not just the control"): a
+# Dockerfile that COPYs a missing path MUST fail, or the real build's green
+# means nothing.
+#
+# NOTE: this repo has no branch protection, so a red run does not mechanically
+# block `gh pr merge`. Red means stop, by convention.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/statenour/Dockerfile"
+      - "apps/worker/Dockerfile"
+      - "apps/*/patches/**"
+      - "apps/statenour/prisma/schema.prisma"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "apps/*/package.json"
+      - "packages/*/package.json"
+      - ".dockerignore"
+      - ".github/workflows/docker-context-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-context-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deps-stage:
+    name: deps stage · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: statenour-web
+            dockerfile: apps/statenour/Dockerfile
+          - service: statenour-worker
+            dockerfile: apps/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the deps stage with the real build context
+        run: docker build --target deps -f "${{ matrix.dockerfile }}" -t "ctx-gate:${{ matrix.service }}" .
+
+      - name: Canary — a COPY of a missing path must fail the same stage
+        run: |
+          set -euo pipefail
+          sed 's#^COPY apps/nickstire/patches ./apps/nickstire/patches$#COPY apps/definitely-missing/patches ./apps/definitely-missing/patches#' \
+            "${{ matrix.dockerfile }}" > /tmp/Dockerfile.canary
+          grep -q 'definitely-missing' /tmp/Dockerfile.canary || { echo "canary fixture did not apply — the COPY line moved; update this step"; exit 1; }
+          if docker build --target deps -f /tmp/Dockerfile.canary -t "ctx-gate-canary:${{ matrix.service }}" . >/tmp/canary.log 2>&1; then
+            echo "CANARY BUILT: the gate cannot see a missing COPY source"; tail -40 /tmp/canary.log; exit 1
+          fi
+          grep -Eq 'not found|failed to compute cache key|no such file' /tmp/canary.log \
+            || { echo "canary failed for a different reason than a missing COPY source:"; tail -40 /tmp/canary.log; exit 1; }
+          echo "canary failed where it should: a missing COPY source is visible to this gate"
