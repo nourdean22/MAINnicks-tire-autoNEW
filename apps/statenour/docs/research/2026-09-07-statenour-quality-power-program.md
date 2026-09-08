@@ -46,6 +46,8 @@
 
 ## 2. VERIFIED CURRENT DEFECTS
 
+**Status 2026-09-08.** D10 lane #2180 + phone docking #2185 (instrument: `tests/e2e/floating-collision.spec.ts`) · D11 #2181 · D12 #2181 (no fabricated declines) · D13 #2183 (flag-off; the flip is the operator's) · D15 #2180 · D16 #2180 + #2186 (pass/fail pair on record) · D17 #2180 · D18 #2188 · D19 (journal + token) #2189 · U5 #2185 · §5.11 #2185. Open: D14 (nickstire), U3 remainder, U4, U6, U7, §5 items 1/3/4/8/9/10.
+
 Fields: evidence · confidence · surface · impact · action · acceptance · dependencies · placement. **FIXED** = in PR #2175 `statenour/bdnick-quality-program-p1` (https://github.com/nourdean22/MAINnicks-tire-autoNEW/pull/2175 — implemented + tested; deployment and runtime verification recorded in RECONCILIATION once merged).
 
 **D1 · Every deploy fails since 2026-09-04 (P0) — FIXED.** C. Railway build log; both Dockerfiles `COPY apps/statenour/patches` after #2096 deleted the only file there. Impact: merged ≠ deployed for 3 days; prod DB migrated for a writer that is not running. Action: drop the dead COPY; gate every build-context COPY source against `git ls-files` plus the inverse (declared patches must be copied). Acceptance: Railway deployments `SUCCESS` for web + worker; `/api/version` commit is a descendant of the merge. Deps: merge. Phase 1 (this branch).

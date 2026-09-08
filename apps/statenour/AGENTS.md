@@ -7,9 +7,9 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-07 · Quality+power wave #2175 (deployed-verified `71e7cf14`) +
-#2177 — every deploy since 09-04 had failed on a dead Dockerfile COPY; fixed, gated, five live
-defects repaired. Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-09-08 · Quality+power Phases 1–2 shipped + deployed (#2180 → #2189): deploy observer
+proven both ways, approvals expire, devices classified, signed image URLs flag-off, resume record, proxy.ts, violet
+AI accent retired. Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
