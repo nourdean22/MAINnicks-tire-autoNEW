@@ -20,7 +20,9 @@ the red. Fix: the pair is baselined WITH REASONS (test-visible contract; its run
 #2187 lesson again: keep policy lists private). Receipts: unmodified tree exit 1 naming exactly the three
 (1000 findings / 1016 baselined / 3 NEW); after the change exit 0 (999 / 1018 / 0); planted `__orphanCanary__`
 in `shared/reelScore.ts` caught by name, file restored byte-identical, exit 0 again; tsc exit 0; the three
-touched test files 10/10.
+touched test files 10/10. **Codex round 1 (PR #2224): one P2, real** - the baseline alone hid whether
+`ensureReelDraftForJob` still calls the serializer; `reelInventoryBriefSize.test.ts` now drives the created branch through a
+fake drizzle client (slimmed row / refuse-before-insert / updated control), mutation-proven: bypassing it fails 2 of 3.
 **Running the gate on THIS machine (this is the 09-07 "stops at `lint:orphans`" note below, explained):**
 `pnpm dlx` with pnpm default isolated linker fails here for ANY package, not just knip - first
 `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`, and once past that a Node 24 `ERR_REQUIRE_CYCLE_MODULE` inside
