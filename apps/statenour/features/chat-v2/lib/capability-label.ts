@@ -64,16 +64,18 @@ export function capabilityBadge(input: CapabilityInputs): CapabilityBadge {
     return { label: "fallback active", cautious: true, unknown: false };
   }
 
+  // Section 5.5 (2026-09-08): the badge claims HEALTH, not inventory. "181 catalog tools"
+  // was a count worn as a feature; it said nothing about whether Nick could act.
   const toolsDegraded = Boolean(toolSummary && (toolSummary.degraded > 0 || toolSummary.down > 0));
   if (connection !== "online" || toolsDegraded) {
     return {
-      label: toolSummary ? `${toolSummary.totalTools} catalog tools` : "checking capabilities",
+      label: toolSummary ? "tools limited" : "checking capabilities",
       cautious: true,
       unknown: !toolSummary,
     };
   }
   return {
-    label: toolSummary ? `${toolSummary.totalTools} catalog tools` : "checking capabilities",
+    label: toolSummary ? "ready" : "checking capabilities",
     cautious: !toolSummary,
     unknown: !toolSummary,
   };

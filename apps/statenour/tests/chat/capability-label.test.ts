@@ -61,14 +61,15 @@ describe("capabilityBadge — real states still report accurately", () => {
     expect(b.unknown).toBe(false);
   });
 
-  it("fully healthy reports the tool count and is NOT cautious", () => {
+  it("fully healthy says ready — no tool count (section 5.5) — and is NOT cautious", () => {
     const b = capabilityBadge({
       connection: "online",
       providerTone: "green",
       providerErrored: false,
       toolSummary: healthyTools,
     });
-    expect(b.label).toBe("174 catalog tools");
+    expect(b.label).toBe("ready");
+    expect(b.label).not.toMatch(/\d/);
     expect(b.cautious).toBe(false);
     expect(b.unknown).toBe(false);
   });
