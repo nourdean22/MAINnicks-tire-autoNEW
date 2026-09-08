@@ -388,10 +388,14 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     : "a free check with a written estimate before any work";
   const answer =
     config.aeoAnswer ||
-    // 2026-09-08 · was "you don't pay until you say yes" — false for a page
-    // whose diagnostic carries a fee (credited toward the repair, but charged).
-    // What is always true: every charge is on the written estimate first.
-    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed; every charge is on a written estimate you approve first. Call (216) 862-0005.`;
+    // "You don't pay until you say yes" is the canonical Repair Haiku — the
+    // brand-voice kernel (shared/voice.ts) prescribes it, and SMS, voice and
+    // 100+ pages repeat it. A 2026-09-08 pass briefly paraphrased it here as
+    // "every charge is on a written estimate you approve first" on the theory
+    // that a $59.99 diagnostic contradicts it; it does not — the diagnostic
+    // is itself on the written quote before it is charged. Canon restored;
+    // any change to this promise is the owner's, made in shared/voice.ts.
+    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
   return <AeoAnswerBlock answer={answer} />;
 }
 

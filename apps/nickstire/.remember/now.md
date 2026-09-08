@@ -39,8 +39,11 @@ closed-banner, or the membership band when open); no address/phone above the fol
 inside `SiteNavbar`'s fixed cluster (open/closed + until · address → directions · tel · rating; closed adds Emergency
 → `nickstire:emergency-request` window event → `EmergencyMode` form), membership band `hidden lg:block`, red
 closed-banner deleted, `StickyTrustBar` deleted, `shopHours` = Eastern time from canon (was visitor-local + a second
-hard-coded schedule), hero margins `mt-36`/`pt-32`, written-estimate ticket on every `FocusedServicePage`, AEO
-sentence fixed ("until you say yes" was false with a $59.99 diagnostic). Verified in the Browser pane at 375×812 on
+hard-coded schedule), hero margins `mt-36`/`pt-32`, written-estimate ticket on every `FocusedServicePage`, MERGED `3ce3c68dd`,
+live 06:30 UTC. **Correction the same day:** I had paraphrased the AEO default's "you don't pay until you say yes"
+as a fee-safety fix — WRONG: it is the canonical Repair Haiku (`shared/voice.ts` prescribes it; SMS, voice, 100+
+pages), and the $59.99 diagnostic is itself quoted in writing before it is charged. Reverted in the follow-up PR;
+only the owner changes that promise. Verified in the Browser pane at 375×812 on
 `vite preview` (launch config `nickstire-preview` added to `.claude/launch.json`). OPEN: `NotificationBar` toast + two
 FABs overlap the hero's third intent card on 812px phones (NotificationBar offset/timing, later PR). **TRAP (cost one CI cycle):** I quoted the skip-ci token inside a sentence of commit 2's message and
 GitHub skipped EVERY workflow for that push — the token counts anywhere in the head commit message. Never spell it
