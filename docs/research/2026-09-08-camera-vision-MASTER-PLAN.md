@@ -506,7 +506,7 @@ snapshots:
   retain: { default: 30 }
 
 review:
-  alerts:     { labels: [car, truck, motorcycle], required_zones: [front_lot, bay_entrance] }
+  alerts:     { labels: [car, truck, motorcycle] }   # required_zones is PER CAMERA below: a global list must exist on every camera (Frigate 0.17.2 validator)
   detections: { labels: [person] }
 
 semantic_search:
@@ -534,6 +534,8 @@ cameras:
         objects: [car, truck, motorcycle]
     motion:
       mask: []                      # mask the timestamp overlay + the public road once cameras are mounted
+    review:
+      alerts: { required_zones: [front_lot] }
   sign:
     enabled: true
     ffmpeg:
@@ -542,6 +544,8 @@ cameras:
           roles: [detect, record]     # the plate camera detects on its MAIN stream (see the LPR geometry note)
     detect: { width: 2560, height: 1440, fps: 5 }   # = the main stream's size; never a sub-stream on the LPR camera
     lpr: { enabled: true, enhancement: 2 }     # camera-level: only enabled/min_area/enhancement
+    review:
+      alerts: { required_zones: [bay_entrance] }
     zones:
       bay_entrance:
         coordinates: "0.30,0.40,0.70,0.40,0.85,0.95,0.15,0.95"
@@ -587,6 +591,7 @@ Zone drawing procedure: mount camera -> Frigate UI zone editor -> copy relative 
 | Gate | Criterion | Receipt |
 |---|---|---|
 | G0 (this wave) | prod `POST /api/devices/v380-shopsign/events?dryRun=1` (the NON-WRITING validation path from #2222: schema + device resolution, no DeviceEvent row, no ONLINE flip, no alert) returns 200 with `valid: true`; sentinel cron registered and `check:crons` green | Railway http log line + CI run |
+| G-lab (2026-09-08, DONE on this laptop) | Docker Desktop lab without cameras: authenticated Mosquitto + visitd 2.1.2 built from the Dockerfile ran the `arrival_and_leave` fixture through the real broker (ENTERED_ZONE -> ARRIVAL_CANDIDATE -> CONFIRMED_ARRIVAL -> LEFT, 4 dry-run events, outbox 0, `/metrics` reachable from the host); Frigate 0.17.2's own validator accepts `frigate/config.example.yml` (it caught the global `required_zones` bug, fixed the same day) | `camera-bridge/README.md` section 7 rows + `camera-bridge/lab/` |
 | G1 (fixture) | replay clip produces the labeled visits: 0 missed arrivals, <= 1 duplicate, `LEFT` emitted for every visit, no exceptions in 24 h loop | `visitd` metrics JSON |
 | G2 (field, 14 days, alerts off) | arrival recall >= 0.95, precision >= 0.90 on the truth log; dwell MAE < 15 s; duplicate rate < 5 %; ghost rate < 3 %; bridge uptime >= 99.5 % (heartbeats) | cockpit metrics panel |
 | G3 (alerts on) | <= 2 false alerts/day for 7 days; zero alerts in quiet hours except after-hours events; median alert latency (confirm -> Telegram) < 10 s | Telegram log + `push_suppressed` rows |

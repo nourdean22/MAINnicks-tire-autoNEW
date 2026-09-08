@@ -86,7 +86,7 @@ snapshots:
   retain: { default: 30 }
 
 review:
-  alerts:     { labels: [car, truck, motorcycle], required_zones: [front_lot, bay_entrance] }
+  alerts:     { labels: [car, truck, motorcycle] }   # required_zones is PER CAMERA below: a global list must exist on every camera (Frigate 0.17.2 validator)
   detections: { labels: [person] }
 
 semantic_search:
@@ -117,6 +117,8 @@ cameras:
         objects: [car, truck, motorcycle]
     motion:
       mask: []                      # mask the timestamp overlay + the public road once cameras are mounted
+    review:
+      alerts: { required_zones: [front_lot] }
 
   sign:
     enabled: true
@@ -127,6 +129,8 @@ cameras:
                                     # 1280-wide sub-stream halves a 100 px plate to ~1,250 px^2, under lpr.min_area 2000
     detect: { width: 2560, height: 1440, fps: 5 }   # = this camera's main-stream size; lower fps before shrinking the frame
     lpr: { enabled: true, enhancement: 2 }     # camera-level keys: enabled / min_area / enhancement only
+    review:
+      alerts: { required_zones: [bay_entrance] }
     # dedicated LPR camera later: `type: lpr` + objects.track [license_plate] (Frigate 0.16+ dedicated-LPR mode)
     zones:
       bay_entrance:
