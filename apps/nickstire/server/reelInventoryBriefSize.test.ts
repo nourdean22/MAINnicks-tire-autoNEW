@@ -9,8 +9,8 @@
  * a snapshot-laden brief slims under the limit, and an unslimmable one throws
  * by name instead of writing a blob that parses as nothing.
  */
-import { describe, it, expect } from "vitest";
-import { inventoryBriefJson, INVENTORY_BRIEF_MAX_BYTES } from "./services/reelInventoryLink";
+import { describe, it, expect, vi } from "vitest";
+import { ensureReelDraftForJob, inventoryBriefJson, INVENTORY_BRIEF_MAX_BYTES } from "./services/reelInventoryLink";
 
 function fatBrief(): Record<string, unknown> {
   return {
@@ -53,5 +53,60 @@ describe("inventoryBriefJson", () => {
     const parsed = JSON.parse(inventoryBriefJson(small));
     expect(parsed.topic).toBe("t");
     expect(Object.keys(parsed).sort()).toEqual(["id", "inventoryBriefNote", "selectedCaption", "topic"]);
+  });
+});
+
+/**
+ * WIRING, not just the seam. The tests above call inventoryBriefJson directly,
+ * which stays green even if the insert in ensureReelDraftForJob stops going
+ * through it (Codex P2 on #2224). These drive the real `created` branch with a
+ * fake drizzle client: the row that reaches .values() must carry the SLIMMED
+ * brief, and an unslimmable brief must refuse BEFORE any row is written.
+ *
+ * Mutation-proven: with the insert changed to `briefJson: JSON.stringify(args.brief)`
+ * both wiring tests fail (oversized row written; no refusal). The `updated`
+ * control proves the fake actually selects the branch.
+ */
+function fakeDb(affectedRows: number) {
+  const values = vi.fn().mockResolvedValue(undefined);
+  const insert = vi.fn(() => ({ values }));
+  // drizzle/mysql2 resolves .update() to [ResultSetHeader, FieldPacket[]]
+  const where = vi.fn().mockResolvedValue([{ affectedRows }, []]);
+  const set = vi.fn(() => ({ where }));
+  const update = vi.fn(() => ({ set }));
+  return { db: { update, insert } as unknown as Parameters<typeof ensureReelDraftForJob>[0], values, insert };
+}
+
+describe("ensureReelDraftForJob wiring: the mirror insert goes through the size guard", () => {
+  it("`created` branch writes the SLIMMED brief, never the raw one", async () => {
+    const { db, values } = fakeDb(0);
+    const out = await ensureReelDraftForJob(db, { briefId: "autopost-2026-09-08", mp4Url: "https://x/reel.mp4", brief: fatBrief() });
+    expect(out).toBe("created");
+    expect(values).toHaveBeenCalledTimes(1);
+    const row = values.mock.calls[0][0] as Record<string, unknown>;
+    expect(row.id).toBe("autopost-2026-09-08");
+    expect(row.status).toBe("review_ready");
+    expect(row.assetPaths).toEqual(["https://x/reel.mp4"]);
+    expect(Buffer.byteLength(String(row.briefJson), "utf8")).toBeLessThanOrEqual(INVENTORY_BRIEF_MAX_BYTES);
+    const parsed = JSON.parse(String(row.briefJson));
+    expect(parsed.approvedProductionPack).toBeUndefined();
+    expect(parsed.promptPack).toBeUndefined();
+    expect(parsed.higgsfieldPromptPack).toBeUndefined();
+    expect(parsed.inventoryBriefNote).toContain("reel_jobs.payload");
+    expect(parsed.selectedCaption).toContain("Shaking at highway speed");
+  });
+
+  it("an unslimmable brief is REFUSED through the caller, before any row is written", async () => {
+    const { db, values } = fakeDb(0);
+    const monster = { ...fatBrief(), voiceoverScript: "w".repeat(70_000) };
+    await expect(ensureReelDraftForJob(db, { briefId: "autopost-monster", mp4Url: "https://x/m.mp4", brief: monster })).rejects.toThrow(/INVENTORY_BRIEF_TOO_LARGE/);
+    expect(values).not.toHaveBeenCalled();
+  });
+
+  it("control: when the UPDATE matches a row nothing is inserted and the serializer is not needed", async () => {
+    const { db, insert } = fakeDb(1);
+    const out = await ensureReelDraftForJob(db, { briefId: "existing", mp4Url: "https://x/e.mp4", brief: fatBrief() });
+    expect(out).toBe("updated");
+    expect(insert).not.toHaveBeenCalled();
   });
 });

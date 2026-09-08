@@ -5080,6 +5080,16 @@
       "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
       "symbol": "buildApprovedPackBriefForTest",
       "reason": "Exists so the coverage gate asks EXACTLY what production asks - can the real builder turn this pack directory into a brief - instead of re-deriving that judgement. A hand-rolled version of this check read the wrong beat key on 2026-09-07 and misclassified 143 of 164 packs in BOTH directions, including calling 30 packs clean when the gate simply had nothing to read. Its production caller is buildBriefFromApprovedProductionPack, which it wraps; the export is the seam that keeps the test honest."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelInventoryLink.ts",
+      "symbol": "inventoryBriefJson",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The slim-then-refuse step for the social_content_inventory.brief_json mirror (a 65,535-byte TEXT column): it strips the immutable production-pack snapshot and both prompt packs, then REFUSES by name (INVENTORY_BRIEF_TOO_LARGE) instead of letting MySQL truncate a blob that would parse as nothing. Its only runtime caller is ensureReelDraftForJob in this module, which reelPipeline.ts (assembly writeback), mp4Ingest.ts and routers/content.ts import - so it fires on every assembled reel and is not vacuous. Exported so server/reelInventoryBriefSize.test.ts can drive the seam directly with the live 2026-09-08 shape (a 95,351-byte brief that hit ER_DATA_TOO_LONG) and pin both directions: slim-fits and refuse-by-name. Tests are excluded from knip project globs by design, which is why a test-only importer reads as an orphan. Landed in #2215; that PR CI run was the first red of this gate and every PR after inherited it. WIRING PINNED (Codex P2 on #2224, real): baselining alone left the call site unobserved, so the same test file now drives the real created branch of ensureReelDraftForJob through a fake drizzle client - the row that reaches .values() must carry the slimmed brief, and an unslimmable brief must refuse before any row is written, with an updated-branch control. Mutation-proven: bypassing the serializer at the insert fails exactly those two (a 90,729-byte row written; no refusal), 7/7 with it restored."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelInventoryLink.ts",
+      "symbol": "INVENTORY_BRIEF_MAX_BYTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, paired with inventoryBriefJson. The 65,535-byte capacity of the brief_json TEXT column, consumed at runtime by inventoryBriefJson in this module. Exported so the seam test POSITIVE CONTROL can assert the unslimmed fixture really exceeds the column before asserting the slimmed one fits; without it the slim-fits assertion would pass vacuously on any small fixture, and a second hand-typed 65535 in the test would be a copy that drifts silently if the column type ever changes. Same #2215 origin as inventoryBriefJson."
     }
   ]
 }
