@@ -296,26 +296,6 @@ export function CommandPalette() {
       { id: "action-flow", label: "Start Flow Mode (Brain Dump)", group: "Quick Actions", icon: <ActivityIcon className="size-4" />, action: () => navigate("/chat?mode=flow"), keywords: ["flow", "dump", "journal", "debrief"] },
       { id: "action-search-memory", label: "Search Brain Memories", group: "Quick Actions", icon: <SearchIcon className="size-4" />, action: () => navigate("/chat?prompt=search+my+memories+for+"), keywords: ["memory", "search", "recall", "remember"] },
       { id: "action-blind-spots", label: "Check Blind Spots", group: "Quick Actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
-      {
-        id: "action-leads",
-        label: "Check Business Dashboard",
-        group: "Quick Actions",
-        icon: <InboxIcon className="size-4" />,
-        action: probe("Business Dashboard", async () => {
-          // scattered-components slice · trpc.operator.businessDashboard
-          // (the same `getDashboardSummary` service the legacy GET
-          // /api/analytics/dashboard called). PRE-EXISTING BUG: the old
-          // probe read `d.leads.active/urgent/convertedThisWeek` — but
-          // `getDashboardSummary` returns NO `leads` key (its shape is
-          // revenue / customers / reviews / jobs / bridgeHealth). The
-          // line always showed "Active 0 · Urgent 0 · Converted 0". The
-          // typed result forces the real fields — month revenue,
-          // customers, jobs today.
-          const d = await trpcVanilla.operator.businessDashboard.query();
-          return `Revenue $${d.revenue.totalRevenue} · Customers ${d.customers.total ?? 0} (+${d.customers.newThisMonth ?? 0}) · Jobs today ${d.jobs.today ?? 0}`;
-        }),
-        keywords: ["leads", "pipeline", "business", "revenue", "dashboard"],
-      },
 
       // ═══ POWER — one-keystroke ops surface (ENR5 new) ═══
       {

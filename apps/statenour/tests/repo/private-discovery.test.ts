@@ -76,3 +76,15 @@ describe("private discovery posture", () => {
     }
   });
 });
+
+describe("HSTS is preload-ready (2026-09-08)", () => {
+  it("declares two years, subdomains and preload on every route", async () => {
+    const headers = await (nextConfig as { headers?: () => Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> }).headers!();
+    const hsts = headers.flatMap((h) => h.headers).find((h) => h.key === "Strict-Transport-Security");
+    expect(hsts, "no HSTS header declared").toBeTruthy();
+    expect(hsts!.value).toMatch(/max-age=(\d+)/);
+    expect(Number(/max-age=(\d+)/.exec(hsts!.value)![1])).toBeGreaterThanOrEqual(31536000 * 2);
+    expect(hsts!.value).toContain("includeSubDomains");
+    expect(hsts!.value).toContain("preload");
+  });
+});

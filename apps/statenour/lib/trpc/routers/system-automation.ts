@@ -4,7 +4,7 @@ import { autopilotProcedures } from "./system/autopilot";
 import { actionsProcedures } from "./system/actions";
 
 // Extract just the approvals from autopilot and actions
-const { approvals, decideApproval } = autopilotProcedures;
+const { approvals, decideApproval, approvalWindows } = autopilotProcedures;
 const { getPendingApprovals } = actionsProcedures;
 
 export const systemAutomationRouter = router({
@@ -14,5 +14,6 @@ export const systemAutomationRouter = router({
   // Approvals
   approvals,
   decideApproval,
+  approvalWindows,
   getPendingApprovals,
 });

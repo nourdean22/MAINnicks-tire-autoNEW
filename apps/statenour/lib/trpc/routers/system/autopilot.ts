@@ -8,6 +8,7 @@
  * change. See system.ts for the recomposition.
  */
 
+import { freshnessTable } from "@/lib/automation/approval-freshness";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { operatorProcedure } from "../../trpc";
@@ -422,6 +423,9 @@ export const autopilotProcedures = {
    * the legacy `data` envelope so ApprovalsPage's `data.rows` /
    * `data.summary` reads are unchanged.
    */
+  /** 2026-09-08 · the effective approval windows (defaults + APPROVAL_FRESHNESS_DAYS env). */
+  approvalWindows: operatorProcedure.query(() => freshnessTable()),
+
   approvals: operatorProcedure.query(async () => {
     const rowsPromise = listPendingActions();
     const summaryPromise = summarizeQueue();

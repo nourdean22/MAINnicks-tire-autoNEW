@@ -1,3 +1,4 @@
+import { ensureSignedImageUrl } from "@/lib/images/signed-url";
 import { imagePath } from "@/lib/images/signed-url";
 /**
  * lib/services/social-actions.ts · misc-pages slice (2026-05-22 ·
@@ -174,9 +175,13 @@ function resolveImageUrl(
   imageUrl: string | undefined,
   requestHost: string | undefined,
 ): { url: string | undefined; unresolved: boolean } {
-  if (!imageUrl || !imageUrl.startsWith("/")) {
-    return { url: imageUrl, unresolved: false };
+  // D13 · re-mint right before dispatch: relative or absolute, raw or expired-signed —
+  // a persisted queue row from before the flag still hands Meta a URL it can fetch.
+  const fresh = imageUrl ? ensureSignedImageUrl(imageUrl) : imageUrl;
+  if (!fresh || !fresh.startsWith("/")) {
+    return { url: fresh, unresolved: false };
   }
+  const path = fresh;
   const host =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     (requestHost ? `https://${requestHost}` : "");
@@ -184,8 +189,8 @@ function resolveImageUrl(
     return { url: undefined, unresolved: true };
   }
   const url = host.startsWith("http")
-    ? `${host}${imageUrl}`
-    : `https://${host}${imageUrl}`;
+    ? `${host}${path}`
+    : `https://${host}${path}`;
   return { url, unresolved: false };
 }
 

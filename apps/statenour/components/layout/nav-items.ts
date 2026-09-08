@@ -10,7 +10,6 @@ import {
   Send,
   Target,
   Image as ImageIcon,
-  Radar,
   Users,
   Link2,
   GraduationCap,
@@ -66,8 +65,6 @@ export const NAV: NavEntry[] = [
   // ── EXECUTE ──
   { href: "/content", label: "Content", icon: Send, section: "execute",
     tabs: [{ key: "drafts", label: "Drafts" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
-  { href: "/market", label: "Market", icon: Radar, section: "execute",
-    tabs: [{ key: "search", label: "SEO" }, { key: "radar", label: "Radar" }] },
   { href: "/learn",          label: "Learn",          icon: GraduationCap,  section: "execute", flatRow: true },
   { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
   { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },
