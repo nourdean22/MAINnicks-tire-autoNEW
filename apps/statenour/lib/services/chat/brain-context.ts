@@ -28,6 +28,7 @@
  * DB calls, no closures, fully testable by mocking the dynamic imports.
  */
 
+import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
 import { fenceContent, truncateFenced } from "@/lib/ai/tool-result-fencing";
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
@@ -85,6 +86,8 @@ export interface BuildBrainContextOutput {
   deeperContextCount: number;
   deeperContextTypes: string[];
   recalledHits?: any[];
+  /** Wave 0 (2026-09-08) · per-turn overlap between the two recall lanes (lib/brain/lane-overlap.ts). */
+  laneOverlap?: LaneOverlap;
   detectedContradictions?: any[];
 }
 
@@ -135,6 +138,8 @@ export async function buildBrainContext(
   let contextBlocksFired: ContextBlocksFired = { ...EMPTY_FIRED };
   let finalContextMemories: string | null = null;
   let recalledHits: any[] = [];
+  let contextualRankedIds: string[] = [];
+  let laneOverlap: LaneOverlap | undefined;
   let detectedContradictions: any[] = [];
 
   try {
@@ -286,7 +291,9 @@ export async function buildBrainContext(
             contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5, {
               queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
               fastTopics: true,
-              
+              onRanked: (rows: { id: string }[]) => {
+                contextualRankedIds = rows.map((r) => r.id);
+              },
             }),
             3000,
             null,
@@ -509,6 +516,16 @@ export async function buildBrainContext(
     // client contract. Raw hits are { memoryId, knnDistance, content, category }
     // but the sidebar reads { id, similarity, content, category } — so hits
     // rendered as "NaN% Match" with a missing React key. Map once here.
+    // Wave 0 (2026-09-08) · how much of the contextual lane's evidence the hybrid lane already
+    // carried this turn. Logged, not acted on: the arbiter that dedupes across lanes is Wave 2
+    // and this is the number it must beat.
+    if (contextualRankedIds.length > 0 || (hybridRecallReport?.hits?.length ?? 0) > 0) {
+      laneOverlap = computeLaneOverlap(
+        contextualRankedIds,
+        (hybridRecallReport?.hits ?? []).map((h: any) => String(h.id ?? h.memoryId ?? "")).filter(Boolean),
+      );
+      console.info("[brain-context] recall_lane_overlap", JSON.stringify(laneOverlap));
+    }
     if (hybridRecallReport) {
       recalledHits = (hybridRecallReport.hits ?? []).map((h: any) => ({
         id: h.id ?? h.memoryId,
@@ -581,6 +598,7 @@ export async function buildBrainContext(
     deeperContextCount,
     deeperContextTypes,
     recalledHits,
+    laneOverlap,
     detectedContradictions,
   };
 }

@@ -19,6 +19,7 @@
  * drift between consumers structurally impossible.
  */
 
+import { stampAdmission } from "@/lib/brain/memory-admission";
 import { prisma } from "@/lib/prisma";
 import { storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { softDelete } from "@/lib/db/soft-delete";
@@ -182,7 +183,13 @@ export async function createPin(args: {
           confidence: 1.0,
           expiresAt: null,
           source: args.source || "pin:chat",
-          metadata: metadata as never,
+          // brain-memory-direct-write: operator pin (2026-09-08: stamped with the admission envelope)
+          metadata: stampAdmission(metadata as Record<string, unknown>, {
+            source: args.source || "pin:chat",
+            memoryKind: "semantic",
+            extractionMethod: "operator_pin",
+            content,
+          }) as never,
         },
       });
 

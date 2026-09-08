@@ -1,6 +1,6 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-08 (backlog wave shipped and deployed; docs closure #2)
+**Updated:** 2026-09-08 (design pass + chat leftovers + Brain plan/Wave 0-1 shipped)
 
 **Objective this wave:** independently inspect, stress-test and repair bdnick.info, then hand the
 operator a prioritized program. Program doc: `docs/research/2026-09-07-statenour-quality-power-program.md`
@@ -12,6 +12,17 @@ services showed `Deploy failed`; the build log ended with `COPY apps/statenour/p
 found`. #2096 deleted the only file in that directory, git dropped the directory, and both
 Dockerfiles failed at the deps stage on every push after 12:34Z. The previous ledger entry said
 #2096 "shipped" — it was merged, not deployed. Merged and deployed are different claims.
+
+## Shipped 2026-09-08, evening (details: RECONCILIATION top; the Brain plan is the current roadmap)
+- **#2202 `PR head d237929f1`** design pass §5.3/5.4/5.8 · **#2204 `9f879de113bf`** chat badge + starters · **#2213 `this PR, head 8b7d7f113`**
+  Brain plan (`docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md`) + Wave 0/1.
+- **Next for the Brain (in order):** Wave 2 = `validFrom` at write + supersession flip after a shadow week +
+  retrieval arbiter behind `NICK_RECALL_ARBITER` + writer migration batch 1 (journal_brain, conversation_analysis,
+  belief-harvester, distillation, the Drive/Calendar/Reviews intake through the quarantine door). Then Wave 3
+  (allocator + placement + context receipt + deterministic query planner), Wave 4 (tool funnel 24→16→12).
+- **Operator-run:** `railway run --service statenour-web -- pnpm tsx scripts/drain-brain-embeddings.ts` (2,460
+  unembedded personal rows) · `pnpm eval:recall -- --write-manifest` where the 28-case corpus lives · decide the
+  paused `data-cleanup` cron · AGENTS.md 44 vs 48px · HSTS preload · phone composer check.
 
 ## Shipped 2026-09-08, backlog wave (deployed-verified; details: RECONCILIATION top)
 - **#2193 `008afcf20`** cost truth: aiChat records every call · one price table · lane caps = deterministic

@@ -119,7 +119,15 @@ describe("saveToBrain identity and near-duplicate semantics", () => {
     );
     expect(mocks.brainMemory.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ content: "Rent is $1,900 a month", metadata: { via: "test", nearDuplicateOf: "bm-old" } }),
+        data: expect.objectContaining({
+          content: "Rent is $1,900 a month",
+          // 2026-09-08: the row carries the admission envelope beside the caller's metadata
+          metadata: expect.objectContaining({
+            via: "test",
+            nearDuplicateOf: "bm-old",
+            admission: expect.objectContaining({ memoryKind: "semantic", evidenceClass: "operator_stated", extractionMethod: "explicit_save" }),
+          }),
+        }),
       }),
     );
     // The old row is untouched: no sighting bump, no soft-delete, no supersession.
@@ -166,7 +174,11 @@ describe("saveToBrain identity and near-duplicate semantics", () => {
     expect(r.embedded).toBe(true);
     expect(r.summary).toBe("Saved as user_save · Rent is $1,900 a month");
     expect(mocks.brainMemory.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ metadata: null }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({ admission: expect.objectContaining({ evidenceClass: "operator_stated", memoryKind: "semantic" }) }),
+        }),
+      }),
     );
     expect(mocks.brainMemory.upsert).not.toHaveBeenCalled();
   });

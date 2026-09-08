@@ -9,10 +9,10 @@ import { test, expect } from "@playwright/test";
  * the bottom pulse ticker (`data-target-audit="exempt"`): it is bottom-chrome
  * geometry and is resized with the chrome, not here.
  *
- * Focus must scroll a control clear of the fixed bottom chrome (2.4.11):
- * the second test focuses the first control below the fold and measures it
- * against the chrome — then removes the scroll padding and proves the same
- * focus lands UNDER the chrome, so the property is doing the work.
+ * Focus must leave a control clear of the fixed bottom chrome (2.4.11): the
+ * second test parks a control under the chrome (the browser considers it
+ * visible and will not scroll it — measured), focuses it, and requires the
+ * app's focusin handler to lift it. The parked position is the known positive.
  *
  * Known positives before the change (measured live in Chrome, 2026-09-08):
  * horizon links 20px, Accept 36, Dismiss 36, send 40, Morning brief 40,
@@ -65,35 +65,40 @@ function focusProbe() {
   window.scrollTo(0, 0);
   const docHeight = root.scrollHeight;
   const sel = "a[href],button,input,select,textarea";
-  // The WCAG 2.4.11 case: a control that is fully inside the viewport but UNDER the
-  // fixed chrome. Chrome (the browser) centres a control that is entirely off-screen
-  // when it is focused, which would pass with or without scroll padding — so the
-  // probe first scrolls the control to sit 10px above the viewport bottom (visible to
-  // the browser, hidden behind the chrome to the person), then focuses it.
-  const target = Array.from(document.querySelectorAll<HTMLElement>(sel)).find((el) => {
+  // The WCAG 2.4.11 case: a control fully inside the viewport but UNDER the fixed chrome.
+  // The browser considers it visible and will not scroll it on focus (measured on /journal),
+  // so the app's focusin handler (components/layout/bottom-tab-bar.tsx) must lift it. The probe
+  // parks the control 10px above the viewport bottom, focuses it, and measures.
+  // Candidates below the fold with room to be parked AND lifted. Run 6 measured focused=false
+  // on /journal: the empty hermetic state leaves that page's controls DISABLED, and a disabled
+  // control cannot take focus, so no focusin ever fired. Only a control that actually takes
+  // focus measures the handler; the probe walks candidates until one does.
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>(sel)).filter((el) => {
     if (el.closest('[data-target-audit="exempt"]') || getComputedStyle(el).position === "fixed") return false;
+    if ((el as HTMLButtonElement).disabled || el.getAttribute("aria-disabled") === "true" || el.getAttribute("tabindex") === "-1") return false;
+    if (el.closest("[inert]")) return false;
     const b = el.getBoundingClientRect();
     if (b.width <= 1 || b.height <= 1 || b.top <= window.innerHeight) return false;
     const bottomAbs = b.bottom + window.scrollY;
-    return bottomAbs + 10 <= docHeight; // room to park it 10px above the viewport bottom
+    return bottomAbs + 10 + 120 <= docHeight;
   });
-  if (!target) return { skipped: "no control below the fold" as const };
-  const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
-  const park = () => {
-    const b = target.getBoundingClientRect();
-    window.scrollTo(0, b.bottom + window.scrollY - window.innerHeight + 10);
-  };
-  park();
-  const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10, i.e. under the chrome
-  target.focus({ preventScroll: false });
-  const withPadding = target.getBoundingClientRect().bottom;
-  target.blur();
-  root.style.scrollPaddingBottom = "0px";
-  park();
-  target.focus({ preventScroll: false });
-  const withoutPadding = target.getBoundingClientRect().bottom;
-  root.style.scrollPaddingBottom = "";
-  return { chromeTop, parkedBottom, withPadding, withoutPadding, label };
+  if (candidates.length === 0) return { skipped: "no focusable control below the fold" as const };
+  const maxScroll = docHeight - window.innerHeight;
+  let tried = 0;
+  for (const target of candidates.slice(0, 6)) {
+    tried += 1;
+    const label = (target.getAttribute("aria-label") || target.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    window.scrollTo(0, 0);
+    const b0 = target.getBoundingClientRect();
+    window.scrollTo(0, b0.bottom + window.scrollY - window.innerHeight + 10);
+    const parkedBottom = target.getBoundingClientRect().bottom; // ~innerHeight - 10: under the chrome
+    const scrollBefore = window.scrollY;
+    target.focus({ preventScroll: false });
+    if (document.activeElement !== target) continue; // not focusable in this state — next candidate
+    const lifted = target.getBoundingClientRect().bottom;
+    return { chromeTop, parkedBottom, lifted, label, scrollBefore, scrollAfter: window.scrollY, maxScroll, focused: true, tried };
+  }
+  return { skipped: `no candidate took focus (tried ${tried})` as const };
 }
 
 async function open(page: import("@playwright/test").Page, path: string) {
@@ -116,16 +121,18 @@ for (const path of PAGES) {
   });
 }
 
-test("focus scrolls a below-the-fold control clear of the bottom chrome — and under it without the scroll padding (control)", async ({ page }) => {
+test("a control focused under the bottom chrome is lifted clear of it (2.4.11) — parked under it first as the known positive", async ({ page }) => {
   let exercised = 0;
   for (const path of FOCUS_PAGES) {
     await open(page, path);
     const r = await page.evaluate(focusProbe);
     if ("skipped" in r) continue;
     exercised += 1;
-    expect(r.parkedBottom, `${path}: the probe could not park "${r.label}" under the chrome`).toBeGreaterThan(r.chromeTop);
-    expect(r.withPadding, `${path}: focused "${r.label}" stays under the bottom chrome (chrome top ${Math.round(r.chromeTop)})`).toBeLessThanOrEqual(r.chromeTop + 1);
-    expect(r.withoutPadding, `${path}: negative control — without scroll padding "${r.label}" should stay under the chrome`).toBeGreaterThan(r.chromeTop);
+    expect(r.parkedBottom, `${path}: the probe could not park "${r.label}" under the chrome (known positive)`).toBeGreaterThan(r.chromeTop);
+    expect(
+      r.lifted,
+      `${path}: focused "${r.label}" stays under the bottom chrome (chrome top ${Math.round(r.chromeTop)}, parked ${Math.round(r.parkedBottom)} → ${Math.round(r.lifted)}; scrollY ${Math.round(r.scrollBefore)} → ${Math.round(r.scrollAfter)} of max ${Math.round(r.maxScroll)}; focused=${r.focused})`,
+    ).toBeLessThanOrEqual(r.chromeTop + 1);
   }
   expect(exercised, "no page had a control below the fold — the probe exercised nothing").toBeGreaterThan(0);
 });

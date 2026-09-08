@@ -82,7 +82,15 @@ describe("mergeMemories · category exclusions", () => {
 
     await mergeMemories();
 
-    const guard = { NOT: [{ createdBy: "user" }, { source: "manual" }] };
+    // 2026-09-08: the guard uses the gateway's operator-source predicate — user_save,
+    // operator, owner and every pin:* row are the operator's as much as "manual" is.
+    const guard = {
+      NOT: [
+        { createdBy: "user" },
+        { source: { in: expect.arrayContaining(["manual", "user_save", "operator", "skill_ingestion", "user"]) } },
+        { source: { startsWith: "pin:" } },
+      ],
+    };
     expect(mocks.brainMemory.groupBy.mock.calls[0][0].where).toMatchObject(guard);
     expect(mocks.brainMemory.findMany.mock.calls[0][0].where).toMatchObject({
       category: "pattern",

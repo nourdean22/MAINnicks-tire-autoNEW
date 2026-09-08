@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isOperatorSource,
   evaluateMemoryCandidate,
   evidenceClassForSource,
 } from "@/lib/brain/memory-commit-gateway";
@@ -111,5 +112,22 @@ describe("nearDuplicateScore", () => {
   it("empty or stopword-only content scores 0, never NaN", () => {
     expect(nearDuplicateScore("", "anything at all here")).toBe(0);
     expect(nearDuplicateScore("a an it", "of to in")).toBe(0);
+  });
+});
+
+describe("isOperatorSource / evidenceClassForSource — the operator's own writers (2026-09-08)", () => {
+  it("explicit save, pins and the outreach/media writers are operator_stated", () => {
+    for (const s of ["user", "manual", "skill_ingestion", "user_save", "operator", "owner", "pin:chat", "pin:manual", "PIN:Manual"]) {
+      expect(isOperatorSource(s), s).toBe(true);
+      expect(evidenceClassForSource(s), s).toBe("operator_stated");
+    }
+  });
+  it("machine-made pins and crons are not", () => {
+    for (const s of ["auto_pin:blindspot", "wisdom_sync_cron", "output_critic", "lib:semantic-link", "weekly_digest"]) {
+      expect(isOperatorSource(s), s).toBe(false);
+      expect(evidenceClassForSource(s), s).not.toBe("operator_stated");
+    }
+    expect(evidenceClassForSource("weekly_digest")).toBe("generated_summary");
+    expect(evidenceClassForSource("lib:semantic-link")).toBe("weak_inference");
   });
 });

@@ -11,6 +11,7 @@
  * Runs as part of the evening cron — the brain "sleeps" and consolidates.
  */
 
+import { OPERATOR_SOURCE_NAMES } from "@/lib/brain/memory-commit-gateway";
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
 import { brainMemory } from "./memory-manager";
@@ -39,7 +40,16 @@ export async function mergeMemories(): Promise<{ merged: number }> {
   // were imported as curated personal memory (source "manual") never enter
   // the candidate pool, in ANY category. Prisma NOT-array is null-safe
   // here: NOT({createdBy:"user"}) also admits legacy null createdBy rows.
-  const CURATED_GUARD = { NOT: [{ createdBy: "user" }, { source: "manual" }] };
+  // 2026-09-08 · the same operator-source predicate the evidence ladder uses:
+  // user_save (explicit /save), operator (outreach/media) and pin:* rows are the
+  // operator's too, and were only protected by luck of category before.
+  const CURATED_GUARD = {
+    NOT: [
+      { createdBy: "user" },
+      { source: { in: [...OPERATOR_SOURCE_NAMES] } },
+      { source: { startsWith: "pin:" } },
+    ],
+  };
 
   const categories = await prisma.brainMemory.groupBy({
     by: ["category"],
