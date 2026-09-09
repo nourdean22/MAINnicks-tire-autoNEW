@@ -248,8 +248,39 @@ export const RESERVATION_STALE_HOURS = 6;
  * `settled` would assert a spend we cannot evidence, and `released` is the
  * status the codebase already uses for "reserved, then nothing happened".
  */
-export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOURS): Promise<{ released: string[] }> {
-  const out: { released: string[] } = { released: [] };
+/**
+ * Does this reel job hold a provider operation we DISPATCHED and never resolved?
+ *
+ * `recordProviderOp` already stamps every beat attempt with an outcome, and
+ * `abandoned` means exactly one thing: we sent the request, the provider may
+ * have accepted, run and BILLED it, and we stopped watching. The data has been
+ * recorded since it was added and read by nothing.
+ *
+ * It is the difference between "this reservation is dead" and "this reservation
+ * is the only record of money that may already be gone".
+ */
+async function jobHasUnresolvedProviderOps(actionId: string): Promise<boolean> {
+  const m = /^reel_job_(\d+)$/.exec(actionId);
+  if (!m) return false;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return true; // cannot check => assume exposure; never release blind
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const [job] = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, Number(m[1]))).limit(1);
+    if (!job) return false;
+    const payload = JSON.parse(job.payload ?? "{}") as { storyboardBeats?: Array<{ providerOps?: Array<{ outcome?: string }> }> };
+    return (payload.storyboardBeats ?? []).some((b) =>
+      (b?.providerOps ?? []).some((op) => op?.outcome === "abandoned"),
+    );
+  } catch {
+    return true; // unreadable => assume exposure
+  }
+}
+
+export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOURS): Promise<{ released: string[]; retainedUnknownExposure: string[] }> {
+  const out: { released: string[]; retainedUnknownExposure: string[] } = { released: [], retainedUnknownExposure: [] };
   try {
     const ctx = await ledgerDb();
     if (!ctx) return out;
@@ -263,6 +294,19 @@ export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOUR
       .limit(50);
 
     for (const row of stale) {
+      // AN UNKNOWN CHARGE IS NOT A DEAD RESERVATION.
+      //
+      // Releasing here would turn "the provider may have taken $1.25" into a
+      // recorded zero — the ledger would read $0 spent while the provider's
+      // invoice reads $1.25, and the daily ceiling would be enforced against
+      // the wrong number in the permissive direction. Age is evidence that no
+      // WORKER is coming back; it is no evidence at all about what the
+      // PROVIDER did. Hold the exposure until something positively reconciles
+      // it against the provider.
+      if (await jobHasUnresolvedProviderOps(row.actionId)) {
+        out.retainedUnknownExposure.push(row.actionId);
+        continue;
+      }
       await ctx.d
         .update(ctx.table)
         .set({ status: "released", settledAt: new Date() })
@@ -274,6 +318,17 @@ export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOUR
         count: out.released.length,
         actionIds: out.released.slice(0, 10),
         staleHours,
+      });
+    }
+    if (out.retainedUnknownExposure.length) {
+      // Deliberately a warn, not an info: this is money whose fate we do not
+      // know, held against the day's budget on purpose. It should be visible
+      // and it should be finite — a growing count here is the signal that a
+      // provider-side reconciliation lane is genuinely needed, not optional.
+      log.warn("stale reservations RETAINED — the provider may have charged for these", {
+        count: out.retainedUnknownExposure.length,
+        actionIds: out.retainedUnknownExposure.slice(0, 10),
+        why: "beat carries a provider op with outcome=abandoned; age proves the worker is gone, not that the provider did nothing",
       });
     }
   } catch (err) {
