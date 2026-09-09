@@ -63,10 +63,12 @@ Studio wizard (Advanced Reel Studio, admin → Growth → Instagram → Studio)
 |---|---|---|
 | `REEL_GENERATION_ENABLED=true` | arms the cron pipeline | `requiresEnv` gate on the pulse job |
 | `REEL_PUBLISH_ENABLED=true` | publish kill-switch | checked inside `publishToSocial` |
-| `REEL_VIDEO_PROVIDER` | provider pin | **prod reads `template_stock` (verified 2026-08-11), NOT `higgsfield`** — the paid lane was dropped per "Dropping the paid video provider" below, so reels now render on the free local ffmpeg lane, which is **not draft-first** (see step 3 there). Auto-select prefers Veo when ANY Gemini key exists — a present-but-dead key silently picks Veo, so pin explicitly |
+| `REEL_VIDEO_PROVIDER` | provider pin | **prod reads `higgsfield`, re-verified live 2026-09-09.** This row previously asserted `template_stock` "(verified 2026-08-11), NOT `higgsfield`" and had been wrong for some time — the paid lane is the one running, so a reel costs money and "Dropping the paid video provider" below is HISTORY, not current state. Re-read it yourself before acting: `railway run -s MAINnicks-tire-auto -- node -e "console.log(process.env.REEL_VIDEO_PROVIDER)"`. Auto-select prefers Veo when ANY Gemini key exists — a present-but-dead key silently picks Veo, so pin explicitly |
 | `HIGGSFIELD_CREDENTIALS_JSON` | **seed only** | the CLI ROTATES tokens on refresh; rotated pairs are persisted to `app_secret_kv.higgsfield_credentials_json`, which is preferred over this var (#798). Re-login only if BOTH die: `higgsfield auth login` (device flow), then paste `~/.config/higgsfield/credentials.json` into this var |
 | `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg fonts-dejavu-core` | runtime system packages | Railway migrated this service to **Railpack, which ignores `nixpacks.toml`** — the ffmpeg declaration there is dead config |
 | `GEMINI_API_KEY` | brief generation | works for generateContent even while dead for Veo model access |
+| `REEL_FILM_GRAIN` | optical finish | `true` since 2026-09-09. Adds moving LUMA-plane grain (`FILM_GRAIN_STRENGTH`, currently 8) plus a `PI/12` vignette to the final encode, before the caption overlay so burned-in text stays clean. Applied at ASSEMBLY, so it changes the next reel assembled and never an already-assembled one. Exact-match on `"true"`: a flag that arms on `1` or `yes` is a flag that arms by accident, and this one alters every published frame |
+| `REEL_AUTO_VISUAL_WORLD` | approved reference frame | `true` in prod (verified 2026-09-09). Load-bearing: when a reel carries a visual world, `buildReelContinuityBlock` returns its locked invariants EARLY and never reaches its own `LENS_PALETTES` line, so `visualWorld.ts` is the file that decides that reel's palette |
 | `REEL_FALLBACK_TO_TEMPLATE_STOCK` | legacy compatibility flag | Paid-provider failures remain non-publishable (`needs_regen`); the former silent stock fallback is removed. Do not use this flag to bypass exact-asset QA or human approval. |
 
 ## Meta publishing contract
@@ -175,6 +177,41 @@ too - every other provider re-hosts through `storagePut`.
 Also lost on cancellation: `reference_frames` (Visual World hero images, roughly
 $0.10 each, `REEL_AUTO_VISUAL_WORLD=true`). The IG autopost image path does *not*
 depend on it - that branch routes to the branded-poster renderer.
+
+## Cron budgets — a lane can fail purely because it inherited the default
+
+Tier jobs race against `jobTimeoutMs(job)`, which falls back to
+`DEFAULT_JOB_TIMEOUT_MS` (4 min). That default is sized for the database-only
+jobs that make up most of the estate. A lane that waits on a PROVIDER needs its
+own budget or it fails on the clock while the handler is still working:
+
+| job | budget | why |
+|---|---|---|
+| `reel-pipeline` | 14 min | renders ~5 clips at ~90s each; measured ~11 min 2026-09-08 |
+| `ig-autopost` | 10 min | generates an image AND uploads it to Meta — two third-party round trips. Was failing 20 of 703 runs on the 4-min default (measured over 7 days, 2026-09-09) |
+
+**The upper bound is the tier's own cadence** (pulse = 15 min). Over it, a slow
+run still holds its cross-dyno lock when the next pulse fires, and the pulse
+skips — that shape cost roughly an hour of dead pipeline after a deploy.
+
+## Where to look first — Pipeline health
+
+**Instagram admin → gear menu → "Pipeline health"** (`?igview=pipeline`),
+backed by `instagramAdmin.reelPipelineHealth` → `server/services/reelPipelineHealth.ts`.
+Read-only; it issues SELECTs and nothing else.
+
+It answers, without a database client: the 30-day forward schedule with the
+**first day that has nothing to post** called out, measured hook performance
+(`reels_skip_rate` per published reel, best and worst), the queue by state,
+cost per PUBLISHED reel, and the health of the three lanes.
+
+Two things it will tell you that are easy to get wrong by eye:
+
+- **A queue of finished reels is not a stuck queue.** On 2026-09-09, 32 reels sat
+  `assembled` and looked like idle inventory; they were a scheduled run with no
+  gaps for 28 days. Read the dates, not the count.
+- **The screen says UNKNOWN rather than zero when the read fails.** An empty
+  schedule and a failed query look identical once they reach a chart.
 
 ## Render-integrity gate (#800/#801)
 
