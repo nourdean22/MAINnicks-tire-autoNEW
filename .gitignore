@@ -175,3 +175,10 @@ apps/nickstire/vapi-snapshots/
 # it ARCHIVES, via storagePut, and the pre-delete-report.csv the operator is
 # handed directly).
 apps/nickstire/.remediation/
+
+# camera-bridge operator config. `README.md` says to create it with
+# `cp config.example.yaml config.yaml`, and a real one carries the shop ingest URL and
+# the cloud device ids for this specific site -- deployment state, not source. It was
+# NOT ignored, so the first operator to follow the README would have staged it.
+camera-bridge/config.yaml
+camera-bridge/data/

@@ -157,6 +157,49 @@ removes task and wrapper; `-DryRun` prints the plan. Production runs under Docke
 > a lab curiosity, and the Linux/RTSP path in section 4 is the intended successor -- it replaces the
 > capture stage only; everything from `FrameHealth` down to `visitd` is shared.
 
+### The durable edge runtime — `edge_main.py` (2026-09-09)
+
+`vision/run_live.py` is the LAB lane: it runs the whole vision chain correctly and then
+hands its emissions to a bare HTTP sink, so a failed POST is a lost visit. `visitd` owns
+the ledger, the outboxes, retries and restart recovery but is fed by MQTT from Frigate,
+which cannot see a P2P-only V380. The two halves of a production sensor were built and
+never joined. `edge_main.py` joins them:
+
+```
+frame -> VisionPipeline.step()            pixels -> emissions (all the vision invariants)
+      -> Pipeline.after_step(emissions)   visits + StateNour outbox + shop outbox, ONE txn
+      -> CloudClient worker               drains StateNour, retries, dead-letters
+      -> Pipeline.drain_shop()            drains the shop projection, retries
+```
+
+There is exactly ONE `VisitTracker`: visitd's `Pipeline` builds it (restoring open visits
+from the ledger, so a restart resumes the cars that were on the lot) and the vision
+pipeline is handed it via `tracker=`. The tick belongs to `VisionPipeline.step()`, which
+already calls it -- this loop owns only the heartbeat and the shop drain.
+
+```powershell
+cp config.example.yaml config.yaml     # then set backend.shopUrl + cameras.<name>
+$env:CAMERA_INGEST_KEY = "<the shop ingest secret>"
+python edge_main.py --config config.yaml --camera sign `
+  --calibration ./scratchpad/shopsign_calibration.json --fps 4
+```
+
+Without `--calibration` it runs in CENSUS MODE: the portal polygon is empty so no arrival
+can be fabricated, and the heartbeat reports a missing calibration, which the shop renders
+as `CALIBRATION_INVALID` rather than healthy. `--commissioning-run C-YYYYMMDD-NNN` tags
+every row `COMMISSIONING`, which the shop excludes from its KPIs by default and never
+deletes. `--dry-run` silences StateNour only; the shop lane is unaffected.
+
+The shutdown line is the receipt, and it counts DELIVERIES, not attempts:
+
+```
+edge stopping frames=190 read_failures=0 heartbeats=4/4 delivered visits=0/0
+      outbox=0 shop_queue=0 dead_letters=0
+```
+
+`config.yaml` and `data/` are gitignored: the first carries this site's ingest URL and
+cloud device ids, the second is the ledger.
+
 ### Producer heartbeat (2026-09-09)
 
 Both producers now report the INFRASTRUCTURE fact to the shop, apart from visits, at

@@ -1,0 +1,507 @@
+"""The durable edge runtime: camera pixels -> ONE VisitTracker -> SQLite -> two projections.
+
+WHY THIS EXISTS. `vision/run_live.py` is the lab lane. It runs the whole vision chain
+correctly -- FrameHealth, SceneLock, DetectorCouncil, tracks, preexisting census, entry
+portal, bay latch -- and then hands its emissions to a bare HTTP sink. If that POST fails
+the emission is gone: no ledger, no outbox, no restart recovery. Meanwhile `visitd` owns
+all of that durability but is fed by MQTT from Frigate, which cannot see a P2P-only V380.
+
+So the two halves of a production sensor were built and never joined. This joins them.
+
+WHAT IT IS NOT: a second visit state machine. `VisionPipeline` already accepts an injected
+tracker, and visitd's `Pipeline` already owns one alongside the ledger and both outboxes.
+This module builds the visitd pipeline first and hands ITS tracker to the vision pipeline,
+so there is exactly one authority for visit state and exactly one durable boundary:
+
+    frame -> VisionPipeline.step()          (pixels -> emissions, the vision invariants)
+          -> Pipeline.after_step(emissions) (visits + StateNour outbox + shop outbox, ONE txn)
+          -> CloudClient worker              (drains StateNour, retries, dead-letters)
+          -> Pipeline.drain_shop()           (drains the shop projection, retries)
+
+THE TICK BELONGS TO THE VISION PIPELINE. `VisionPipeline.step()` already calls
+`tracker.tick(now)` and folds those emissions into its output, so this loop must NOT also
+call visitd's tick -- double-ticking would advance every visit timer twice per frame and
+depart cars early. The only timers this loop owns are the heartbeat and the shop drain.
+"""
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import signal
+import sys
+import threading
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from visitd import __version__                                    # noqa: E402
+from visitd.cloud_client import CloudClient                       # noqa: E402
+from visitd.config import Config, ConfigError, load_config        # noqa: E402
+from visitd.ledger import Ledger                                  # noqa: E402
+from visitd.main import Pipeline                                  # noqa: E402
+from visitd.metrics import REGISTRY, MetricsServer                # noqa: E402
+
+log = logging.getLogger("edge")
+
+#: Identity of THIS process, for the heartbeat's (producerInstanceId, heartbeatSeq)
+#: idempotency key. A restart is a new instance, so the cloud accepts a sequence that
+#: starts again from zero instead of treating it as a stale replay.
+PRODUCER_INSTANCE_ID = os.environ.get("EDGE_INSTANCE_ID") or os.urandom(8).hex()
+
+
+def _iso(ts: Optional[float]) -> Optional[str]:
+    """Epoch seconds -> ISO-8601 UTC. None stays None: an unobserved time is not 'now'."""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
+
+
+def source_generation(source: Any) -> str:
+    """`<mux lane>.<restore count>` -- the identity a track path must never cross.
+
+    A failover to another lane and a forced un-minimise of the capture window are both
+    discontinuities in what the pixels mean, so both bump the generation. The shop stores
+    it per visit, which is what lets an evidence review say "this crossing was stitched
+    across a source change" instead of trusting it.
+    """
+    active = getattr(source, "active", None)
+    restores = int(getattr(active, "restores", 0) or 0) if active is not None else 0
+    return f"{int(getattr(source, 'index', 0) or 0)}.{restores}"
+
+
+def edge_heartbeat_body(
+    *,
+    camera: str,
+    seq: int,
+    now: float,
+    mode: str,
+    source: Any,
+    vision: Any,
+    ledger: Ledger,
+    health_state: Any,
+    scene_state: Any,
+    calibration_version: Optional[str],
+    detector_name: Optional[str],
+    model_sha256: Optional[str],
+    last_healthy_frame_at: Optional[float],
+    commissioning_run_id: Optional[str] = None,
+) -> Dict[str, object]:
+    """The producer's account of itself, merging BOTH halves of what it knows.
+
+    `run_live` could only report the vision half (fps, frame health, pose) because it has
+    no ledger; `visitd` could only report the delivery half (outbox depth, dead letters)
+    because it never sees a pixel. A heartbeat carrying one half is why the shop's health
+    lattice had `cloud: unknown` or `frames: unknown` forever. This carries both, so every
+    facet the lattice judges has a real input.
+
+    Unknown stays None, never a guess: the lattice treats None as "unknown" and will not
+    call a camera healthy on a dimension nobody measured.
+    """
+    active = getattr(source, "active", None)
+    name = str(getattr(active, "name", "") or "")
+    if "rtsp" in name:
+        source_type = "rtsp"
+    elif "wgc" in name:
+        source_type = "wgc"
+    elif active is not None:
+        source_type = "window"
+    else:
+        source_type = None
+
+    oldest = ledger.shop_outbox_oldest_age(now)
+    return {
+        "camera": camera,
+        "producerInstanceId": PRODUCER_INSTANCE_ID,
+        "producerVersion": f"edge {__version__}",
+        "heartbeatSeq": int(seq),
+        "observedAtEdge": _iso(now),
+        "mode": mode,
+        "commissioningRunId": commissioning_run_id,
+        # --- the vision half -------------------------------------------------
+        "sourceType": source_type,
+        "sourceGeneration": source_generation(source),
+        "sourceConnected": active is not None,
+        "lastHealthyFrameAt": _iso(last_healthy_frame_at),
+        "captureFps": float(getattr(health_state, "fps", 0.0) or 0.0) if health_state is not None else None,
+        "frameOk": bool(health_state.ok) if health_state is not None else None,
+        # Pose is UNKNOWN until a reference has been adopted -- reporting the raw
+        # `pose_ok` before then would claim a match against nothing.
+        "poseOk": (bool(scene_state.pose_ok) if getattr(scene_state, "reference_set", False) else None)
+                  if scene_state is not None else None,
+        "poseDelta": (float(scene_state.pose_delta) if getattr(scene_state, "pose_delta", None) is not None else None)
+                     if scene_state is not None else None,
+        "calibrationVersion": calibration_version,
+        "detectorName": detector_name,
+        "modelSha256": model_sha256,
+        # --- the delivery half -----------------------------------------------
+        "openVisits": len(vision.tracker.open_visits()),
+        "outboxDepth": ledger.shop_outbox_depth(),
+        "oldestOutboxAgeSeconds": None if oldest is None else int(oldest),
+        "deadLetterDepth": ledger.dead_letter_depth(),
+        "restores": int(getattr(active, "restores", 0) or 0) if active is not None else 0,
+    }
+
+
+class EdgeLoop:
+    """One pass of the frame-driven loop. The frame-driven twin of visitd's `LiveLoop`.
+
+    Every clock is injected so a test can run exact passes without sleeping, and every
+    periodic job is wrapped: a heartbeat or drain defect must degrade telemetry, never
+    stop the pipeline that is watching the lot.
+    """
+
+    def __init__(
+        self,
+        pipeline: Pipeline,
+        vision: Any,
+        source: Any,
+        *,
+        camera: str,
+        mode: str,
+        calibration_version: Optional[str],
+        detector_name: Optional[str],
+        model_sha256: Optional[str] = None,
+        commissioning_run_id: Optional[str] = None,
+        heartbeat_seconds: float = 30.0,
+        drain_seconds: float = 5.0,
+        clock=time.time,
+    ) -> None:
+        self.pipeline = pipeline
+        self.vision = vision
+        self.source = source
+        self.camera = camera
+        self.mode = mode
+        self.calibration_version = calibration_version
+        self.detector_name = detector_name
+        self.model_sha256 = model_sha256
+        self.commissioning_run_id = commissioning_run_id
+        self.heartbeat_seconds = heartbeat_seconds
+        self.drain_seconds = drain_seconds
+        self.clock = clock
+
+        self.heartbeat_seq = 0
+        self.frames = 0
+        self.read_failures = 0
+        self.last_health: Any = None
+        self.last_scene: Any = None
+        self.last_healthy_frame_at: Optional[float] = None
+        now = clock()
+        self.next_heartbeat = now
+        self.next_drain = now + drain_seconds
+
+    # ------------------------------------------------------------------ one pass
+    def step(self) -> Dict[str, object]:
+        """Read one frame, run the vision chain, persist whatever it emitted, run due timers."""
+        out: Dict[str, object] = {"emissions": [], "suppressed": None}
+        try:
+            frame = self.source.read()
+        except Exception as exc:
+            # A capture that raises is a bad minute, not a bad day: count it, run the
+            # timers anyway (so the shop still learns the source is in trouble), and
+            # come back next pass. Dying here would take the producer down for a
+            # transient the self-heal would have cleared.
+            self.read_failures += 1
+            self.pipeline.metrics.inc("edge_read_failures_total")
+            log.warning("capture read failed error=%s", exc)
+            frame = None
+
+        if frame is not None:
+            self.frames += 1
+            try:
+                out = self.vision.step(frame)
+            except Exception:
+                self.pipeline.metrics.inc("edge_vision_errors_total")
+                log.exception("vision step error")
+                out = {"emissions": [], "suppressed": "vision error"}
+
+            hs = out.get("health") or self.vision.health.state(frame.ts)
+            self.last_health = hs
+            if hs is not None and getattr(hs, "ok", False):
+                self.last_healthy_frame_at = frame.ts
+            if out.get("scene") is not None:
+                self.last_scene = out["scene"]
+
+            emissions = list(out.get("emissions") or [])
+            if emissions:
+                # THE DURABLE BOUNDARY. Visits, the StateNour outbox and the shop outbox
+                # are one transaction; a raise here must propagate, because `after_step`
+                # holds the rows for the next pass and swallowing it would drop them.
+                self.pipeline.after_step(emissions)
+
+        self._run_timers()
+        return out
+
+    def _run_timers(self) -> None:
+        now = self.clock()
+        if now >= self.next_heartbeat:
+            self.next_heartbeat = now + self.heartbeat_seconds
+            try:
+                self.send_heartbeat(now)
+            except Exception:
+                self.pipeline.metrics.inc("edge_heartbeat_errors_total")
+                log.exception("heartbeat error")
+        if now >= self.next_drain:
+            self.next_drain = now + self.drain_seconds
+            try:
+                self.pipeline.drain_shop()
+            except Exception:
+                self.pipeline.metrics.inc("edge_drain_errors_total")
+                log.exception("shop drain error")
+
+    def send_heartbeat(self, now: Optional[float] = None) -> bool:
+        """Compose and post one heartbeat. False when no shop is configured."""
+        if not self.pipeline.shop.enabled:
+            return False
+        self.heartbeat_seq += 1
+        body = edge_heartbeat_body(
+            camera=self.camera,
+            seq=self.heartbeat_seq,
+            now=self.clock() if now is None else now,
+            mode=self.mode,
+            source=self.source,
+            vision=self.vision,
+            ledger=self.pipeline.ledger,
+            health_state=self.last_health,
+            scene_state=self.last_scene,
+            calibration_version=self.calibration_version,
+            detector_name=self.detector_name,
+            model_sha256=self.model_sha256,
+            last_healthy_frame_at=self.last_healthy_frame_at,
+            commissioning_run_id=self.commissioning_run_id,
+        )
+        return self.pipeline.shop.heartbeat(body)
+
+    def shutdown(self) -> None:
+        """Flush on the way out: commit whatever is held, drain what we can, say goodbye.
+
+        The final heartbeat is what turns the shop's card from HEALTHY straight to a
+        stale clock instead of leaving it claiming a producer that has stopped. It is
+        best effort like every other heartbeat -- a shutdown must not hang on a dead WAN.
+        """
+        try:
+            self.pipeline.after_step([])
+        except Exception:
+            log.exception("final commit failed")
+        try:
+            self.pipeline.drain_shop()
+        except Exception:
+            log.exception("final shop drain failed")
+
+
+# ---------------------------------------------------------------------------- wiring
+def build_edge(cfg: Config, args: argparse.Namespace):
+    """Build the visitd pipeline first, then hand ITS tracker to the vision pipeline.
+
+    Order matters: `Pipeline.__init__` restores open visits from the ledger into its
+    tracker, so building it first means a restarted producer resumes the cars that were
+    on the lot rather than re-arming from empty. Those restored visits have no live
+    vision TRACK -- the pixels moved on while the process was down -- and that is correct:
+    visitd's own timers age them out through the normal departure grace instead of the
+    vision layer inventing a track it never saw.
+    """
+    from vision.evidence import EvidenceStore
+    from vision.geometry import EntryPortal, LotMap, Zone
+    from vision.pipeline import VisionPipeline
+    from vision.run_live import build_council, build_source
+
+    ledger = Ledger(
+        args.ledger or cfg.ledger_path,
+        outbox_max_depth=cfg.backend.outbox_max_depth,
+        policy=cfg.policy,
+    )
+    cloud = CloudClient(cfg.backend, ledger, REGISTRY, dry_run=args.dry_run)
+    pipeline = Pipeline(cfg, ledger, cloud, REGISTRY)
+
+    camera = args.camera
+    if camera not in cfg.cameras:
+        raise ConfigError(
+            f"--camera {camera!r} is not in the config (cameras: {', '.join(cfg.cameras) or 'none'}). "
+            "The edge posts under this name and the shop's expected-camera registry keys on it, "
+            "so a mismatch would render as an unregistered producer."
+        )
+    cam = cfg.cameras[camera]
+
+    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
+
+    calibration_version = None
+    lot_poly = portal_poly = None
+    bays: dict = {}
+    if args.calibration and os.path.exists(args.calibration):
+        import hashlib
+        import json as _json
+
+        raw = open(args.calibration, "rb").read()
+        calibration_version = "sha256:" + hashlib.sha256(raw).hexdigest()[:12]
+        cal = _json.loads(raw.decode("utf-8"))
+        lot_poly = [tuple(p) for p in cal["lot"]]
+        portal_poly = [tuple(p) for p in (cal.get("portal") or [])]
+        bays = {k: [tuple(p) for p in v] for k, v in (cal.get("bays") or {}).items()}
+
+    arrival_zone = (cam.arrival_zones or ("front_lot",))[0]
+    if lot_poly:
+        lot_map = LotMap().add(arrival_zone, lot_poly)
+        for name, poly in bays.items():
+            lot_map.add(name, poly)
+        portal = EntryPortal(
+            Zone(arrival_zone, lot_poly),
+            portal_zone=Zone("portal", portal_poly) if portal_poly else None,
+        )
+    else:
+        # CENSUS MODE. An empty portal polygon cannot be crossed, so no arrival can be
+        # fabricated from an uncalibrated guess -- and the heartbeat reports a missing
+        # calibration, which the shop renders as CALIBRATION_INVALID rather than healthy.
+        log.warning("no calibration: census mode -- occupancy and health only, arrivals are NOT claimed")
+        lot_map = LotMap().add(arrival_zone, [(0.0, 0.0), (1e6, 0.0), (1e6, 1e6), (0.0, 1e6)])
+        portal = EntryPortal(Zone(arrival_zone, []), portal_zone=Zone("portal", []))
+
+    council = build_council(args.model, args.device, args.motion_gate)
+    vision = VisionPipeline(
+        council=council,
+        lot_map=lot_map,
+        entry_portal=portal,
+        camera=camera,
+        arrival_zone=arrival_zone,
+        bay_names=list(bays.keys()),
+        evidence=EvidenceStore(args.evidence, enabled=bool(args.evidence)),
+        # THE JOIN: one tracker, owned by visitd, driven by vision.
+        tracker=pipeline.tracker,
+    )
+
+    mode = args.mode or ("commissioning" if args.commissioning_run else
+                         ("production" if calibration_version else "shadow"))
+    if args.commissioning_run:
+        mode = "commissioning"
+    data_class = "COMMISSIONING" if mode == "commissioning" else "PRODUCTION"
+    pipeline.shop.data_class = data_class
+    pipeline.shop.commissioning_run_id = args.commissioning_run
+    # Provenance the shop stores per visit. Config values win where set; the calibration
+    # hash is computed here because only this process knows which file it loaded.
+    prov = dict(cam.provenance())
+    if calibration_version and not prov.get("calibrationVersion"):
+        prov["calibrationVersion"] = calibration_version
+    detector_name = getattr(council, "name", None) or type(council).__name__
+    if not prov.get("detectorName"):
+        prov["detectorName"] = detector_name
+    pipeline.shop.provenance = prov
+
+    return pipeline, vision, source, calibration_version, detector_name, mode, data_class
+
+
+def parse_args(argv=None) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        prog="edge_main",
+        description="Durable edge runtime: camera pixels through visitd's ledger and both outboxes.",
+    )
+    ap.add_argument("--config", default="config.yaml", help="visitd config (cameras, backend, policy)")
+    ap.add_argument("--camera", default="sign", help="which configured camera this producer IS")
+    ap.add_argument("--ledger", default=None, help="override the SQLite ledger path (':memory:' for a throwaway)")
+    ap.add_argument("--source", default="wgc", help="capture lane: wgc | window")
+    ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
+    ap.add_argument("--window-title", default="V380", help="capture window title")
+    ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
+    ap.add_argument("--calibration", default=None, help="lot/portal/bay polygons; without it, census mode")
+    ap.add_argument("--model", default=None, help="OpenVINO model xml; without it, motion-only")
+    ap.add_argument("--device", default="AUTO", help="OpenVINO device")
+    ap.add_argument("--motion-gate", action="store_true", default=True, help="skip the detector on still frames")
+    ap.add_argument("--evidence", default=None, help="directory for evidence packets")
+    ap.add_argument("--fps", type=float, default=4.0, help="analysis rate")
+    ap.add_argument("--seconds", type=float, default=0.0, help="stop after N seconds (0 = until signalled)")
+    ap.add_argument("--mode", choices=["production", "shadow", "commissioning"], default=None,
+                    help="default: shadow without a calibration, production with one")
+    ap.add_argument("--commissioning-run", default=None,
+                    help="commissioning run id; rows are tagged COMMISSIONING and excluded from shop KPIs")
+    ap.add_argument("--heartbeat-seconds", type=float, default=30.0)
+    ap.add_argument("--drain-seconds", type=float, default=5.0)
+    ap.add_argument("--dry-run", action="store_true", help="never POST to StateNour; the shop lane is unaffected")
+    ap.add_argument("--log-level", default="INFO")
+    return ap.parse_args(argv)
+
+
+def run_edge(args: argparse.Namespace) -> int:
+    logging.basicConfig(level=getattr(logging, str(args.log_level).upper(), logging.INFO),
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    cfg = load_config(args.config)
+    pipeline, vision, source, calibration_version, detector_name, mode, data_class = build_edge(cfg, args)
+
+    log.info(
+        "edge start version=%s instance=%s camera=%s mode=%s dataClass=%s calibration=%s ledger=%s",
+        __version__, PRODUCER_INSTANCE_ID, args.camera, mode, data_class,
+        calibration_version or "none", pipeline.ledger.path,
+    )
+    if not pipeline.shop.enabled:
+        log.warning("shop ingest is NOT configured (needs backend.shopUrl and CAMERA_INGEST_KEY); "
+                    "visits will persist locally and queue, but the shop admin will not update")
+
+    metrics_server: Optional[MetricsServer] = None
+    try:
+        metrics_server = MetricsServer(cfg.metrics_host, cfg.metrics_port, REGISTRY)
+        metrics_server.start()
+    except OSError as exc:
+        log.error("metrics server unavailable host=%s port=%s error=%s", cfg.metrics_host, cfg.metrics_port, exc)
+
+    pipeline.cloud.start()
+    loop = EdgeLoop(
+        pipeline, vision, source,
+        camera=args.camera, mode=mode.upper(),
+        calibration_version=calibration_version, detector_name=detector_name,
+        commissioning_run_id=args.commissioning_run,
+        heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
+    )
+
+    stop = threading.Event()
+
+    def _signal(signum: int, _frame: object) -> None:
+        log.info("shutdown signal=%s", signum)
+        stop.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _signal)
+        except (ValueError, OSError):
+            pass   # not the main thread, or unsupported on this platform
+
+    interval = 1.0 / max(0.5, args.fps)
+    deadline = (time.time() + args.seconds) if args.seconds else None
+    try:
+        while not stop.is_set():
+            if deadline is not None and time.time() >= deadline:
+                break
+            started = time.time()
+            loop.step()
+            time.sleep(max(0.0, interval - (time.time() - started)))
+    finally:
+        # Attempts are not deliveries. Logging only `heartbeat_seq` meant a run whose
+        # every heartbeat was rejected read exactly like a healthy one -- the same
+        # empty-vs-error shape this project keeps paying for.
+        log.info(
+            "edge stopping frames=%s read_failures=%s heartbeats=%s/%s delivered visits=%s/%s "
+            "outbox=%s shop_queue=%s dead_letters=%s",
+            loop.frames, loop.read_failures,
+            pipeline.shop.heartbeats_sent, loop.heartbeat_seq,
+            pipeline.shop.sent, pipeline.shop.sent + pipeline.shop.failed,
+            pipeline.ledger.outbox_depth(), pipeline.ledger.shop_outbox_depth(),
+            pipeline.ledger.dead_letter_depth(),
+        )
+        loop.shutdown()
+        pipeline.cloud.stop()
+        pipeline.ledger.close()
+        if metrics_server is not None:
+            metrics_server.stop()
+    return 0
+
+
+def main(argv=None) -> int:
+    try:
+        return run_edge(parse_args(argv))
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

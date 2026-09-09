@@ -306,14 +306,69 @@ export const HEARTBEAT_COLUMNS = [
 export const HEARTBEAT_ACCEPT =
   "(VALUES(`producerInstanceId`) <> `producerInstanceId` OR VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
 
-/** Every column updates only under HEARTBEAT_ACCEPT; the two server clocks are set here too. */
-export const HEARTBEAT_GUARDED_SET = [
-  ...HEARTBEAT_COLUMNS.filter((c) => c !== "camera").map(
-    (c) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`,
-  ),
-  `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
-  `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
-].join(", ");
+/**
+ * Columns that any guard READS. Every one of them has to be assigned after everything
+ * that reads it -- see the ordering derivation below.
+ */
+const HEARTBEAT_READ_BY_GUARDS = ["state", "heartbeatSeq", "producerInstanceId"] as const;
+
+/**
+ * Every column updates only under HEARTBEAT_ACCEPT, with the two server clocks.
+ *
+ * ⚠ THE ORDER OF THESE ASSIGNMENTS IS SEMANTIC, NOT COSMETIC, AND IT IS DERIVED BELOW.
+ *
+ * MySQL and TiDB evaluate `ON DUPLICATE KEY UPDATE` assignments LEFT TO RIGHT, and a bare
+ * column reference reads the value as updated SO FAR IN THE SAME STATEMENT, while
+ * `VALUES(col)` always reads the incoming row. So any guard that reads a column the
+ * statement also assigns means something different depending on where it sits.
+ *
+ * Two live defects came from getting this wrong, both measured rather than reasoned:
+ *
+ *  1. `producerInstanceId` was assigned FIRST, so every later guard compared the new
+ *     instance id to ITSELF (always false) and collapsed to `VALUES(heartbeatSeq) >=
+ *     heartbeatSeq`. A RESTARTED producer arrives with a new id and a sequence back at 1,
+ *     so it updated its id and failed that on everything else: the row kept the DEAD
+ *     producer's state, fps, calibration and frame times while advertising the live
+ *     producer's id, and the shop's camera card stayed frozen until the new sequence
+ *     climbed past the old one (~120 heartbeats after an hour of uptime). `affectedRows`
+ *     was non-zero throughout, so the route reported `accepted: true` the whole time.
+ *     Verified against production 2026-09-09: instance A seq 9 stored HEALTHY; instance B
+ *     seq 1 without calibration returned `accepted:true, state:CALIBRATION_INVALID`; the
+ *     next read still showed HEALTHY.
+ *  2. `stateSince` guards on `VALUES(state) <> state`, and `state` was assigned BEFORE it,
+ *     so it compared the new state to itself. It never moved once. "How long has this
+ *     camera been offline" was frozen at the row's creation time from the first release.
+ *
+ * THE DERIVATION. Assign in this order, so every guard reads pre-statement values:
+ *   1. plain columns        nothing reads them, so they can go anywhere -- first is fine
+ *   2. `stateSince`         reads `state`, so it must precede the `state` assignment
+ *   3. `receivedAt`         reads nothing
+ *   4. `state`              read by (2), so it comes after it
+ *   5. `heartbeatSeq`       reads `producerInstanceId` and itself, both still original
+ *   6. `producerInstanceId` reads itself (still original) and `heartbeatSeq` (now new).
+ *                           Safe because the id half alone decides every restart, and on
+ *                           a replay `heartbeatSeq` was NOT updated in step 5, so the
+ *                           sequence half is still evaluated against the stored value.
+ *
+ * Checked case by case against `applyOnDuplicateKeyUpdate` in the test, which simulates
+ * the left-to-right rule and runs THIS string: restart applies, replay is a no-op, a
+ * newer heartbeat applies, and `stateSince` moves only on a real state change.
+ */
+export const HEARTBEAT_GUARDED_SET = (() => {
+  const guard = (c: string) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`;
+  const readByGuards = new Set<string>(HEARTBEAT_READ_BY_GUARDS);
+  const plain = HEARTBEAT_COLUMNS.filter((c) => c !== "camera" && !readByGuards.has(c));
+  return [
+    ...plain.map(guard),
+    // Before `state`, or it compares the new state to itself and never fires.
+    `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
+    `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
+    guard("state"),
+    // The discriminators last, and in THIS order: see the derivation above.
+    guard("heartbeatSeq"),
+    guard("producerInstanceId"),
+  ].join(", ");
+})();
 
 const epoch = (d: Date | null | undefined): number | null => (d ? Math.floor(d.getTime() / 1000) : null);
 
