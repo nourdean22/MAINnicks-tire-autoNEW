@@ -185,18 +185,29 @@ Dedicated `CAMERA_INGEST_KEY` on Railway, then remove the `STATENOUR_SYNC_KEY` f
 
 ## 15 · Prioritized PR sequence (files)
 
-| PR | Scope | Files |
+**Status as of 2026-09-09 ~22:00 ET.** Everything through PR 4 has landed or is in review;
+the plan below was written before any of it and is kept honest by marking what changed.
+
+| PR | Scope | Status |
 |---|---|---|
-| #2250 ✅ | pose gate · self-heal by title · loop detector · on-lot count · README/compose/Funnel corrections | merged `151316793` |
-| #2251 🔶 | runtime truth: heartbeats, lattice, commissioning class, Cameras panel | open; migration 0120 to apply after merge |
-| PR 2 | durable direct-vision lane: `vision/visitd_adapter.py` (emissions → visitd `Pipeline.process_message` shape), `camera-bridge/edge_main.py` | `vision/pipeline.py`, `visitd/main.py`, tests |
-| PR 3 | durable shop projection: `shop_outbox` in `visitd/ledger.py`, drain loop, `ShopMirror.send` enqueues | `visitd/ledger.py`, `shop_mirror.py`, `main.py` |
-| PR 4 | edge runtime: `scripts/install-edge-runtime.ps1`, `doctor-edge-runtime.ps1`, watchdog, DPAPI secret | `camera-bridge/scripts/` |
-| PR 5 | source policy config (`sources: [rtsp, wgc, replay]`) + same-camera validator | `vision/capture.py`, `run_live.py`, config |
-| PR 6 | commissioning: `/api/camera/clock`, `commissioning_truth_events`, `/admin/lot/commission`, auto report + fixture | nickstire server/client, migration 0121 |
-| PR 7 | evidence pin/retention, review queue, push/Telegram alerts on transitions | nickstire + statenour push reuse |
-| PR 8 | Edge Control API (`127.0.0.1:8791`) + Serve + grants + app caps | `camera-bridge/edge_control/` |
-| PR 9 | ops intelligence rules + `visit_links` | nickstire, migration 0122 |
+| #2250 | pose gate · self-heal by title · loop detector · on-lot count · README/compose/Funnel corrections | **MERGED** `151316793` |
+| #2251 | runtime truth: heartbeats, 6-facet lattice, commissioning class, Cameras panel | **MERGED** `b3dc22a84`; migration 0120 **APPLIED** |
+| #2252 | this plan | **MERGED** `28a5f108b` |
+| #2253 | durable shop projection (`shop_outbox`) + the tracker-injection fix | **MERGED** `7019dc571` |
+| #2255 | edge runtime · commissioning · 24/7 supervision · 2 guard defects | **OPEN**; migration 0121 to apply after merge |
+| PR 5 | source policy config (`sources: [rtsp, wgc, replay]`) + same-camera validator | not started |
+| PR 7 | evidence pin/retention, review queue, push/Telegram alerts on transitions | not started |
+| PR 8 | Edge Control API (`127.0.0.1:8791`) + Serve + grants + app caps | not started |
+| PR 9 | ops intelligence rules + `visit_links` | not started |
+
+**Two corrections to §3 and §15, from building it.** The plan said "do not build a second
+`VisitTracker` beside visitd" — there never was one: `vision/pipeline.py` already imported
+visitd's. What was missing was only PERSISTENCE, so the join (`camera-bridge/edge_main.py`)
+was far smaller than PR 2 estimated. And the `tracker=` parameter that join depends on was
+BROKEN and had never run: injecting a tracker set `_parse_event = None`, so a real
+`VisitTracker` was handed raw dicts and died on `ev.time` at the first emission. The only
+test covering it injected a dict-accepting stub — the wiring was proven to call *something*,
+never to call the right thing.
 
 ## 16 · Same-day, no-purchase actions
 
