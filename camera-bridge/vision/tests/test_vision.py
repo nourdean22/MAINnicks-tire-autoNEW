@@ -698,6 +698,10 @@ def test_visitd_is_told_the_zones_actually_observed():
     pipe = VisionPipeline(
         council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
         entry_portal=portal, camera="sign", tracker=rec,
+        # This stub accepts the RAW payload dict, so it opts out of parsing explicitly.
+        # It used to get that implicitly from injecting a tracker, which is what hid the
+        # bug that a REAL injected tracker was handed dicts it could not read.
+        parse_event=None,
         frame_health=FrameHealth(freeze_run=10 ** 6, min_distinct=0),
     )
 
@@ -1441,3 +1445,62 @@ def test_visit_sink_stamps_the_data_class_on_every_row(monkeypatch):
     row = payload["visits"][0]
     assert row["dataClass"] == "COMMISSIONING" and row["commissioningRunId"] == "C-20260909-001"
     assert sink.heartbeat_url == "https://nickstire.org/api/camera/heartbeat"
+
+
+def test_an_INJECTED_REAL_TRACKER_actually_receives_parsed_events():
+    """The positive control the injection path never had.
+
+    `tracker=` exists so one visitd `VisitTracker` can own visit state while the vision
+    pipeline drives it -- the durable edge lane. The only test that used it injected a
+    RECORDING STUB that accepts dicts, which proved the wiring calls something, not that
+    it calls a real tracker correctly. It did not: the constructor set `_parse_event =
+    None` whenever a tracker was injected, so `VisitTracker.handle_event` got a raw dict
+    and died on `ev.time` at the first emission.
+    """
+    from visitd.state_machine import CameraSpec, VisitPolicy, VisitTracker
+
+    tracker = VisitTracker(VisitPolicy(), {"sign": CameraSpec(name="sign", arrival_zones=frozenset({"front_lot"}))})
+    lot_map = LotMap().add("front_lot", LOT)
+    portal = EntryPortal(Zone("front_lot", LOT), portal_zone=Zone("portal", PORTAL))
+    pipe = VisionPipeline(
+        council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
+        entry_portal=portal, camera="sign", tracker=tracker,
+    )
+    assert pipe._parse_event is not None, "injecting a tracker must NOT disable parsing"
+    assert pipe.tracker is tracker, "and the injected tracker is the one that gets used"
+
+    class _Track:
+        track_id = 1
+        box = (10.0, 10.0, 40.0, 40.0)
+        score = 0.9
+        born_ts = 1000.0
+        zones: list = []
+
+        def stationary_for(self, _now):
+            return 0.0
+
+    emissions = pipe._emit("new", _Track(), 1000.0)
+    assert emissions, "a real injected tracker must produce an emission, not raise"
+    assert emissions[0].visit_id, "and that emission carries the visit id the ledger keys on"
+    assert tracker.open_visits(), "the visit lives in the INJECTED tracker, which is the one visitd persists"
+
+    # An explicit parse_event=None still opts out, for stubs that want the raw dict.
+    seen = []
+
+    class _RawStub:
+        def handle_event(self, ev):
+            seen.append(ev)
+            return []
+
+        def tick(self, _now):
+            return []
+
+        def open_visits(self):
+            return []
+
+    raw_pipe = VisionPipeline(
+        council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
+        entry_portal=portal, camera="sign", tracker=_RawStub(), parse_event=None,
+    )
+    raw_pipe._emit("new", _Track(), 1000.0)
+    assert isinstance(seen[0], dict), "an explicit opt-out still hands over the raw payload"

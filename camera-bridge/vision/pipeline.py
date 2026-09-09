@@ -71,6 +71,12 @@ class PipelineStats:
         return d
 
 
+#: Sentinel: "the caller said nothing about parsing", which is different from an explicit
+#: `parse_event=None` (a stub tracker that wants the raw dict). Telling those apart is what
+#: keeps tracker injection from silently disabling the parser.
+_USE_VISITD_PARSER = object()
+
+
 class VisionPipeline:
     def __init__(
         self,
@@ -82,6 +88,7 @@ class VisionPipeline:
         bay_names: Optional[list[str]] = None,
         evidence: Optional[EvidenceStore] = None,
         tracker: Any = None,
+        parse_event: Any = _USE_VISITD_PARSER,
         startup_grace: float = 8.0,
         scene_lock: Optional[SceneLock] = None,
         frame_health: Optional[FrameHealth] = None,
@@ -106,12 +113,29 @@ class VisionPipeline:
         self._in_blind_interval = False
         self._last_image = None
 
+        # PARSING AND TRACKER OWNERSHIP ARE ORTHOGONAL, and conflating them was a real bug.
+        # This used to read `if tracker is not None: self._parse_event = None`, so injecting
+        # visitd's OWN tracker -- the whole point of the parameter, and the shape the durable
+        # edge lane needs -- handed `handle_event` a raw dict. `VisitTracker.handle_event(ev)`
+        # reads `ev.time` / `ev.after.camera`, so it died with
+        #   AttributeError: 'dict' object has no attribute 'time'
+        # on the FIRST emission. Nothing caught it because the only test that injected a
+        # tracker injected a RECORDING STUB that accepts dicts, which proves the wiring calls
+        # something, not that it calls a real tracker correctly.
+        #
+        # So: a caller may override the parser, including to None for a dict-accepting stub,
+        # but injecting a tracker no longer silently turns parsing off.
+        if parse_event is _USE_VISITD_PARSER:
+            loaded_parse, VisitTracker, VisitPolicy, CameraSpec = load_visitd()
+            self._parse_event = loaded_parse
+        else:
+            self._parse_event = parse_event
+            VisitTracker = VisitPolicy = CameraSpec = None
         if tracker is not None:
-            self._parse_event = None
             self.tracker = tracker
         else:
-            parse_event, VisitTracker, VisitPolicy, CameraSpec = load_visitd()
-            self._parse_event = parse_event
+            if VisitTracker is None:
+                loaded_parse, VisitTracker, VisitPolicy, CameraSpec = load_visitd()
             self.tracker = VisitTracker(
                 VisitPolicy(),
                 {camera: CameraSpec(name=camera, arrival_zones=frozenset({arrival_zone}))},
