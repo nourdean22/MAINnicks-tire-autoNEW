@@ -411,6 +411,83 @@ def test_a_big_close_vehicle_is_not_mistaken_for_a_camera_pan():
     assert st_pan.moving is True
 
 
+def _sky_over_lot(shift: int = 0) -> np.ndarray:
+    """Top 40% blank sky, bottom 60% textured lot -- the SHOPSIGN camera's actual shape.
+
+    Rolling a uniform band produces no pixel delta, which is the whole point: only the
+    textured 60% can register a pan at all.
+    """
+    img = np.zeros((H, W, 3), dtype=np.uint8)
+    horizon = int(H * 0.4)
+    img[:horizon, :, :] = 200                                   # flat sky
+    row = ((np.arange(W, dtype=np.int16) % 100) + 40).astype(np.uint8)
+    lot = np.repeat(np.repeat(row[None, :, None], H - horizon, axis=0), 3, axis=2)
+    if shift:
+        lot = np.roll(lot, shift, axis=1)
+    img[horizon:, :, :] = lot
+    return img
+
+
+def test_a_pan_over_a_partly_featureless_scene_is_still_camera_motion():
+    """The fail-open the truck fix nearly introduced.
+
+    Requiring change to be spatially GLOBAL stops a close truck reading as a pan -- but
+    naively, "global" means "most of ALL cells", and a blank sky band can never change no
+    matter how the camera swings. With 40% of the frame flat, a real pan tops out around
+    0.6 of all cells and would score as "not moving", opening the lock DURING camera
+    motion. That breaks a hard invariant (no visit while the camera moves) and there is no
+    backstop: `may_create_visits` is `(not moving) and pose_ok`, and pose_ok is
+    unconditionally True until someone calls set_reference(), which nothing in the
+    pipeline does.
+
+    Normalising by cells that COULD change is what makes both cases come out right.
+    """
+    lock = SceneLock()
+    lock.update(_sky_over_lot(0))
+    st = lock.update(_sky_over_lot(48))
+
+    assert st.change_frac > lock.moving_frac, "the textured band alone still moves a lot"
+    assert st.cell_frac >= lock.moving_cell_frac, (
+        f"cell_frac={st.cell_frac:.2f} -- a pan must saturate the cells that CAN change, "
+        f"not be diluted by the flat sky"
+    )
+    assert st.moving is True, "a pan over a partly featureless scene is camera motion"
+    assert st.may_create_visits is False, "the lock must be shut during camera motion"
+
+
+def test_a_camera_left_pointing_somewhere_else_never_regains_visit_authority():
+    """The pose gate, which was inert until 2026-09-09.
+
+    `set_reference()` had exactly one caller in the package -- a test -- so `_ref` was
+    always None in production, `pose_ok` was unconditionally True, and
+    `may_create_visits` collapsed to `not moving`. A camera knocked off aim would pan,
+    SETTLE, and then mint visits forever against lot/portal/bay polygons belonging to a
+    view it no longer had. Nothing would look wrong: motion had stopped.
+
+    Settling is not returning. The lock must stay shut until the view matches again.
+    """
+    lock = SceneLock()
+    base = frames(1, [[]])[0].image
+    lock.update(base)
+    assert lock.update(base).may_create_visits is True, "a still camera is usable"
+
+    # Swing away, then hold perfectly still somewhere else for a long time.
+    moved = frames(1, [[]], shift=[(48, 0)])[0].image
+    lock.update(moved)
+    settled = [lock.update(moved) for _ in range(10)]
+
+    assert settled[-1].moving is False, "it really has stopped moving"
+    assert settled[-1].pose_ok is False, "but it is not the calibrated view"
+    assert settled[-1].may_create_visits is False, (
+        "a settled-but-wrong pose must NOT mint visits -- lot geometry no longer applies"
+    )
+
+    # Returning to the original view restores authority.
+    lock.update(base)
+    back = [lock.update(base) for _ in range(4)]
+    assert back[-1].may_create_visits is True, "the camera came home; the lock reopens"
+
+
 def test_a_capture_gap_does_not_crash_the_detectors():
     """FailureInjector.camera_restart hands None down the pipeline. Crashing on a
     blackout would take out the whole loop."""
@@ -436,10 +513,15 @@ def test_the_blind_window_re_arms_once_per_interval_not_once_per_frame():
     pan, exactly the per-frame behaviour it claimed to replace, while a flag-value
     assertion passed. Assert the call COUNT: it is the thing the fix exists to change.
     """
-    n_still, n_pan, n_after = 3, 12, 4
+    # The camera pans away AND COMES BACK. That return is not decoration: since the pose
+    # reference is now live, a camera left pointing somewhere else keeps pose_ok False
+    # forever and the lock never reopens -- correct behaviour, but it means recovery, and
+    # therefore the re-arm, never happens. A pan-and-return is the scenario that actually
+    # exercises "re-armed once per interval".
+    n_still, n_pan, n_after = 3, 12, 6
     shift = ([(0, 0)] * n_still
              + [(48 * (i + 1), 0) for i in range(n_pan)]
-             + [(48 * n_pan, 0)] * n_after)
+             + [(0, 0)] * n_after)
     boxes = [[] for _ in shift]
 
     pipe = make_pipeline()
