@@ -4538,8 +4538,14 @@ export const contentExperimentAssignments = mysqlTable("content_experiment_assig
  *
  * Product boundary (ADR-0017, refined 2026-09-09): operational shop intelligence
  * lives in nickstire.org/admin; StateNour receives owner-level summaries, not the
- * shop-operations cockpit. Fed by `camera-bridge/visitd` over event contract v2,
- * one row per VISIT. `seq` is the last applied emission sequence, so a duplicate
+ * shop-operations cockpit. One row per VISIT, written through
+ * `POST /api/camera/visits`.
+ *
+ * WARNING: NO PRODUCER IS WIRED YET: visitd's cloud client posts to
+ * `{baseUrl}/api/devices/{id}/events` on its StateNour base URL, and nothing in
+ * `camera-bridge/` references the nickstire ingest route. Until visitd gains a
+ * second sink the table stays empty and the Lot section correctly reports
+ * "awaiting first event". `seq` is the last applied emission sequence, so a duplicate
  * or out-of-order delivery cannot walk a visit backwards.
  *
  * Every lifecycle timestamp is nullable on purpose: an unobserved time stays

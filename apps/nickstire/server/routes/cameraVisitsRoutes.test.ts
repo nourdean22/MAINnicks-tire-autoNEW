@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { plateTextToStore } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, plateTextToStore } from "./cameraVisitsRoutes";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -22,5 +22,25 @@ describe("camera visit ingest — plate durability", () => {
     expect(plateTextToStore("CONFIRMED", "")).toBeNull();
     expect(plateTextToStore("CONFIRMED", null)).toBeNull();
     expect(plateTextToStore("CONFIRMED", "---")).toBeNull();
+  });
+});
+
+describe("camera visit ingest — the seq guard covers every column", () => {
+  it("guards EVERY updatable column, so a new column cannot skip monotonicity", () => {
+    // The invariant is enforced by the ON DUPLICATE KEY UPDATE clause, not by a
+    // read-then-write, and it only holds if every assignment carries the guard. A
+    // column added to COLUMNS without one would let a stale delivery overwrite that
+    // single field while the rest of the row correctly refused it.
+    const updatable = COLUMNS.filter((c) => c !== "visitId");
+    for (const col of updatable) {
+      expect(GUARDED_SET, `${col} is not seq-guarded`).toContain(
+        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, VALUES(\`${col}\`), \`${col}\`)`,
+      );
+    }
+    expect(GUARDED_SET.split("IF(VALUES(`seq`)").length - 1).toBe(updatable.length);
+  });
+
+  it("never rewrites the key it matches on", () => {
+    expect(GUARDED_SET).not.toContain("`visitId` =");
   });
 });

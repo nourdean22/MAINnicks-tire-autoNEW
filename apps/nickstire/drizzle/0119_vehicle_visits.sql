@@ -6,9 +6,15 @@
 -- camera record lived in StateNour's `device_events`, so the shop had nowhere to
 -- read "who is on the lot right now".
 --
--- Fed by camera-bridge/visitd over the existing event contract v2. One row per
--- VISIT (not per event); `seq` carries the last applied emission sequence so an
--- out-of-order or duplicate delivery cannot move a visit backwards.
+-- One row per VISIT (not per event), written through POST /api/camera/visits;
+-- `seq` carries the last applied emission sequence so an out-of-order or duplicate
+-- delivery cannot move a visit backwards.
+--
+-- WARNING: NO PRODUCER IS WIRED YET. visitd's cloud client posts to
+-- {baseUrl}/api/devices/{id}/events on its StateNour base URL, and nothing in
+-- camera-bridge/ references the nickstire ingest route. Until visitd gains a second
+-- sink this table stays empty and the Lot section correctly reports
+-- "awaiting first event". Applying this migration is therefore safe and inert.
 --
 -- Every timestamp is NULLABLE on purpose: an unknown time stays unknown rather
 -- than being back-filled with a plausible guess. `estimatedFields` records which

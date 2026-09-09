@@ -87,7 +87,12 @@ export const ADMIN_REGISTRY: RegistrySection[] = [
     group: "Daily",
     priority: 12,
     showInSidebar: true,
-    allowedRoles: ADMIN_ROLES,
+    // NOT ADMIN_ROLES. This surface carries plate text, a customer link and who is
+    // physically on the property; every other identity-bearing Daily section is
+    // narrower too (`customers` excludes viewer/accountant, `revenue` excludes tech).
+    // The server is the real gate -- `lot.*` resolves to settings.manage in
+    // shared/adminPermissions.ts -- and this keeps the sidebar honest about it.
+    allowedRoles: FULL_ACCESS,
   },
   {
     id: "overview",

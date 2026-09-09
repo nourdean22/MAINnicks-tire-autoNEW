@@ -61,6 +61,16 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // camera — the operational-router QUERY default below handed both to every
   // role including viewer. A FAMILY set, not a single path: the first fix
   // covered `cameras` alone and left its sibling `cameraFeed` wide open.
+  // Same class, same rule (2026-09-09). `lot.*` is strictly MORE sensitive than the
+  // camera config those two paths return: `lot.visits` yields confirmed plate text, a
+  // customerId, arrival/departure times and who is physically on the property right now,
+  // and `lot.health` yields camera pose and detector identity. Left to the operational
+  // QUERY default below it would resolve to "admin.view" -- the weakest permission, held
+  // by every role including viewer and tech.
+  if (normalized.startsWith("lot.")) {
+    return "settings.manage";
+  }
+
   if (normalized === "nickactions.cameras" || normalized === "nickactions.camerafeed") {
     return "settings.manage";
   }

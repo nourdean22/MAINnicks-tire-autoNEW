@@ -29,7 +29,7 @@ const ROUTERS = `activity adStudio adminDashboard adminSecurity analytics autoLa
 callTracking callback campaigns chat closedLoop content contentAdmin contentStudio controlCenter
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency
 estimates export featureFlags financing followUps gallery garage gatewayTire gbp inspection
-instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth
+instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth lot
 loyalty memberships messengerBot metaAdsArchitect nickActions nourOsBridge payments
 portal pricing qa referrals reminders revenueAttribution revenueOps reviewReplies reviewRequests
 reviews segments seoTools serviceMatcher serviceReviews shareCards shopStatus shopdriver sms
@@ -82,6 +82,13 @@ describe("sensitive READS do not ride the permissive query default (Wave 2)", ()
     ["export.calls", "settings.manage"],
     // Camera config + stream URLs are physical security, not dashboard reads.
     ["nickActions.cameras", "settings.manage"],
+    // Same class, stronger case: lot.visits returns confirmed plate text, a customer
+    // link and who is physically on the property; lot.health returns camera pose and
+    // detector identity. Left to the operational QUERY default these resolve to
+    // admin.view, which every role holds -- including viewer and tech.
+    ["lot.now", "settings.manage"],
+    ["lot.visits", "settings.manage"],
+    ["lot.health", "settings.manage"],
   ] as const)("%s (query) requires %s", (path, expected) => {
     expect(permissionForAdminProcedure(path, "query")).toBe(expected);
   });
