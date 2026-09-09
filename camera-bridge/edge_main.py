@@ -316,11 +316,15 @@ class EdgeLoop:
         return self.pipeline.shop.heartbeat(body)
 
     def shutdown(self) -> None:
-        """Flush on the way out: commit whatever is held, drain what we can, say goodbye.
+        """Flush on the way out: commit whatever is held, then drain what we can.
 
-        The final heartbeat is what turns the shop's card from HEALTHY straight to a
-        stale clock instead of leaving it claiming a producer that has stopped. It is
-        best effort like every other heartbeat -- a shutdown must not hang on a dead WAN.
+        DELIBERATELY NO FINAL HEARTBEAT. A heartbeat asserts "this is my state right now",
+        and the state of a process that is exiting is not something the lattice has a word
+        for -- claiming HEALTHY on the way out would be a lie with a 30-second half-life,
+        and claiming CAMERA_OFFLINE would be a different one. Silence is the honest signal:
+        the last real heartbeat ages, and the shop derives STALE and then PRODUCER_OFFLINE
+        from that age on its own. That derivation is exactly what the read-side liveness
+        rules exist for.
         """
         try:
             self.pipeline.after_step([])

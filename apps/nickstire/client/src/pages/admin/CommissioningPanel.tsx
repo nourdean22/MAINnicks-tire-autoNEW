@@ -113,7 +113,12 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
       const samples: Array<{ t0: number; serverMs: number; t1: number }> = [];
       for (let i = 0; i < 5; i++) {
         const t0 = Date.now();
-        const res = await utils.lot.clock.fetch();
+        // `staleTime: 0` is load-bearing, not decoration. `utils.*.fetch()` goes through
+        // the react-query cache, and a cached answer would return the SAME server instant
+        // five times: five samples with a plausible spread of round-trip times and one
+        // frozen `serverMs`. The offset would come out wrong by however long the loop
+        // took, and nothing downstream could tell -- it would look like a clean sync.
+        const res = await utils.lot.clock.fetch(undefined, { staleTime: 0 });
         const t1 = Date.now();
         if (res?.ok) samples.push({ t0, serverMs: res.serverMs, t1 });
       }
