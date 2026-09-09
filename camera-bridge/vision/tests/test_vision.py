@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -27,6 +28,7 @@ from vision.detector import (  # noqa: E402
 )
 from vision.baylatch import BayLatch, VisitTiming  # noqa: E402
 from vision.evidence import EvidenceStore  # noqa: E402
+from vision.fetch_models import PINNED, verify  # noqa: E402
 from vision.fingerprint import PrivacyToken, VehicleFingerprint, compare  # noqa: E402
 from vision.frame import Detection, Frame  # noqa: E402
 from vision.framehealth import FrameHealth  # noqa: E402
@@ -882,3 +884,54 @@ def test_openvino_detector_loads_and_runs():
     assert isinstance(out, list)
     assert det.can_confirm is True
     assert det.last_latency_ms > 0
+
+
+# ------------------------------------------------------- pinned-weights integrity
+
+def test_a_corrupted_model_file_is_rejected_by_the_pin(tmp_path):
+    """Intel DISCONTINUED the Open Model Zoo, so these weights have no upstream
+    guarantee. Every measurement in this package was taken against one exact pair of
+    files; if a silently different model can load, those numbers stop meaning anything.
+
+    The size check alone is not enough -- the realistic corruption (a truncated or
+    tampered download) can preserve length. Flip one byte and keep the size to prove
+    the digest, not the length, is what rejects it.
+    """
+    pin = next(p for p in PINNED if p.rel_path.endswith(".bin"))
+    path = tmp_path / "model.bin"
+
+    # A file of exactly the right SIZE but the wrong CONTENT.
+    path.write_bytes(b"\x00" * pin.size_bytes)
+    ok, reason = verify(path, pin)
+    assert ok is False
+    assert "sha256" in reason, f"size passed but content must fail on digest: {reason}"
+
+    # Wrong size is rejected too, and named as a size problem (the cheap discriminator).
+    path.write_bytes(b"\x00" * (pin.size_bytes - 1))
+    ok, reason = verify(path, pin)
+    assert ok is False
+    assert "size" in reason
+
+    # Absent is not silently "fine".
+    ok, reason = verify(tmp_path / "not-here.bin", pin)
+    assert ok is False
+    assert reason == "missing"
+
+
+def test_the_pin_accepts_the_real_model_when_it_is_present():
+    """Positive control. Without it, `verify` could reject EVERYTHING and the test
+    above would still pass -- a rejector that never accepts proves nothing.
+    """
+    root = os.environ.get("VISION_OV_MODEL")
+    if not root:
+        pytest.skip("set VISION_OV_MODEL to the pinned .xml to run this")
+    models_root = Path(root).resolve().parents[2]
+    checked = 0
+    for pin in PINNED:
+        candidate = models_root / pin.rel_path
+        if not candidate.exists():
+            continue
+        ok, reason = verify(candidate, pin)
+        assert ok is True, f"{pin.rel_path}: {reason}"
+        checked += 1
+    assert checked > 0, f"no pinned file found under {models_root}; nothing was verified"
