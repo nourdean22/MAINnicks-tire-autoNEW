@@ -41,9 +41,19 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "booking.uploadPhoto",
   // public lead/contact/referral forms
   "callback.submit",
+  // 2026-09-09 · /careers job application form — unauthenticated applicants,
+  // same tier as lead.submit below. Throws to the caller on a real DB
+  // failure (unlike the others here) since it's meant to become the
+  // applicant's primary record; see candidates.test.ts.
+  "candidates.submit",
   "emergency.submit",
   "lead.submit",
   "referrals.submit",
+  // 2026-09-09 · fires from Careers.tsx's lead.submit onSuccess when an
+  // applicant names a referrer — same public/unauthenticated tier as the
+  // customer referrals.submit above. Soft-fails on a DB error (never blocks
+  // the applicant's own submission); see technicianReferrals.test.ts.
+  "technicianReferrals.submit",
   // public-site analytics + social-proof ingestion/reads
   "activity.recent",
   "callTracking.logCall",
