@@ -36,7 +36,10 @@ services:
           size: 1000000000
     ports:
       - "127.0.0.1:5000:5000"          # unauthenticated API: loopback only (visitd never needs it; humans use 8971)
-      - "8971:8971"                    # authenticated UI (JWT); expose over Tailscale ACL, never port-forward
+      - "127.0.0.1:8971:8971"          # authenticated UI (JWT): loopback only. Publish it to the tailnet with
+                                       # `tailscale serve --bg 8971` (Serve = tailnet-only; Funnel = public
+                                       # internet, never). Bound to 0.0.0.0 this was reachable by every
+                                       # device on the shop Wi-Fi, not only the tailnet the comment promised.
       - "127.0.0.1:8554:8554"          # go2rtc RTSP restream is unauthenticated: loopback only (Frigate reads it there)
       - "127.0.0.1:8555:8555/tcp"      # WebRTC, same rule; the 8971 UI falls back to MSE over Tailscale.
       - "127.0.0.1:8555:8555/udp"      # Rebind to the LAN only for a deliberate VLC/WebRTC check, then revert.

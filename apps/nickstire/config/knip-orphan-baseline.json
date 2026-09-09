@@ -5165,6 +5165,26 @@
       "file": "apps/nickstire/server/cron/index.ts",
       "symbol": "DEFAULT_JOB_TIMEOUT_MS",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Read by timeoutFor() in this module, so the runtime consumer is real. Exported for server/cronJobBudgets.test.ts, which pins the default AND asserts every provider-calling job's budget exceeds it -- the guard on the ig-autopost timeout fix (#2245: 20 failures in 703 runs, all 'timeout'). This entry exists because the export was briefly REMOVED on 2026-09-09 when a grep found no importer: the test had landed on an unmerged branch at the time, and the collision only surfaced after main was merged in. Do not re-privatise it."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "HEARTBEAT_COLUMNS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, same shape as COLUMNS above. HEARTBEAT_COLUMNS is USED in this module to build the camera_runtime INSERT list and HEARTBEAT_GUARDED_SET, so the runtime consumer is real. Exported so cameraVisitsRoutes.test.ts can enumerate the updatable columns and count accept-guards against them; the assertion is meaningless without the same list the SQL is generated from."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "HEARTBEAT_ACCEPT",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The idempotency predicate for producer heartbeats -- (new producer instance) OR (heartbeatSeq not older) -- interpolated into every guarded assignment in this module. Exported so the test can pin its exact text: dropping the instance-id half would make a restarted producer (whose sequence restarts at zero) invisible until it out-counted the dead instance, and no other test can see a predicate that lives inside a generated SQL string."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "HEARTBEAT_GUARDED_SET",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, the heartbeat twin of GUARDED_SET. Built and used inside this module (ON DUPLICATE KEY UPDATE of the camera_runtime upsert). Exported so the test can assert EVERY column plus the two server clocks (receivedAt, stateSince) carry the accept guard, and that stateSince moves only on an accepted heartbeat whose state changed; a column added without the guard would let a replayed heartbeat walk producer health backwards."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "parseHeartbeat",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. A one-line wrapper over the zod heartbeat schema that the route calls for every request. Exported so the body contract can be tested without a live HTTP server or database: required key fields, the PRODUCTION default for mode, and that an unparseable producer timestamp REJECTS (400) rather than degrading to null -- the same rule the visit ingest enforces."
     }
   ]
 }

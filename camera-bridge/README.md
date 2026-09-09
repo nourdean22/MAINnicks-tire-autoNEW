@@ -149,6 +149,30 @@ installer after moving the tree). `-RunAsSystem` opts into SYSTEM at startup fro
 removes task and wrapper; `-DryRun` prints the plan. Production runs under Docker Compose with
 `restart: unless-stopped`; nothing on Windows is production.
 
+> **Corrected 2026-09-09.** That sentence described the plan, not the measurement. The only
+> pixel source proven against the real SHOPSIGN feed is **Windows Graphics Capture of the V380
+> client on the Windows machine** (`vision/capture.py::WgcWindowSource`, 12.9 fps, occluded-window
+> safe); RTSP on these exact V380 units is still UNVERIFIED (ports 8800/9800 only until the
+> `ceshi.ini` unlock is proven). Until that flips, **Windows + WGC is a supported edge source**, not
+> a lab curiosity, and the Linux/RTSP path in section 4 is the intended successor -- it replaces the
+> capture stage only; everything from `FrameHealth` down to `visitd` is shared.
+
+### Producer heartbeat (2026-09-09)
+
+Both producers now report the INFRASTRUCTURE fact to the shop, apart from visits, at
+`POST /api/camera/heartbeat` (same `x-sync-key` as the visit ingest; migration 0120):
+
+| producer | cadence | what it can honestly report |
+|---|---|---|
+| `vision.run_live --post-to ... [--heartbeat-seconds 30]` | every 30 s | source type + generation (`<mux index>.<restores>`), fps, `FrameHealth.ok`, pose (once a reference exists), calibration id, detector, model sha256, open visits |
+| `visitd` live loop | with the StateNour heartbeat | broker+Frigate connectivity, outbox / dead-letter depth, open visits, per-camera `calibrationVersion` / `cameraPose` / `detectorName` from `config.yaml` |
+
+The shop derives one state per camera from the lattice (NEVER_INGESTED / PRODUCER_OFFLINE /
+STALE / CAMERA_OFFLINE / CALIBRATION_INVALID / DEGRADED_VISION / CLOUD_BACKLOG / HEALTHY) and
+keeps the dimensions, so a quiet lot reads HEALTHY and a dead producer no longer hides behind
+"no visits". `run_live --commissioning-run C-YYYYMMDD-NNN` tags every row `COMMISSIONING`, which
+the shop excludes from KPIs by default and never deletes.
+
 ## 10. Metrics and heartbeats
 
 `GET http://127.0.0.1:9090/metrics` (Prometheus text, loopback only). Key series: `visitd_transitions_total{state}`,

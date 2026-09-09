@@ -305,6 +305,78 @@ class V380WindowSource(CaptureSource):
         return f
 
 
+def restore_if_minimized(hwnd: int) -> bool:
+    """Un-minimise a window WITHOUT stealing focus. Returns True if it was minimised.
+
+    A minimised window renders no surface, so Windows Graphics Capture delivers nothing
+    and the producer dies with "no frame within 5s". This was hit twice on 2026-09-09
+    against the live V380 app: on the shop machine anyone who clicks minimise silently
+    stops the lot being watched, and nothing in the failure text says which of the many
+    causes it was.
+
+    SW_SHOWNOACTIVATE (4), not SW_RESTORE (9): the operator may be using the machine, and
+    a monitoring producer has no business stealing their foreground window.
+    """
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        if not user32.IsWindow(hwnd):
+            return False
+        if not user32.IsIconic(hwnd):
+            return False
+        user32.ShowWindow(hwnd, 4)
+        time.sleep(0.6)
+        return True
+    except Exception:
+        return False
+
+
+
+def find_windows_titled(title: str) -> list[int]:
+    """Every top-level window whose title contains `title`, minimised ones included.
+
+    `IsWindowVisible` is true for a minimised window (WS_VISIBLE stays set), so this
+    enumeration is exactly what a restore path needs: the documented `run_live` default
+    passes no `--hwnd`, and a restore keyed on a handle nobody supplied can never fire.
+    Returns handles in Z-order (foreground first).
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+    except Exception:
+        return []
+    user32 = ctypes.windll.user32
+    proto = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+    found: list[int] = []
+    needle = title.lower()
+
+    def cb(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        n = user32.GetWindowTextLengthW(hwnd)
+        if n <= 0:
+            return True
+        buf = ctypes.create_unicode_buffer(n + 1)
+        user32.GetWindowTextW(hwnd, buf, n + 1)
+        if needle in buf.value.lower():
+            found.append(int(hwnd))
+        return True
+
+    user32.EnumWindows(proto(cb), 0)
+    return found
+
+
+def restore_minimized_titled(title: str) -> int:
+    """Un-minimise every window matching `title`; returns how many were minimised.
+
+    The V380 client publishes several top-level windows under one title, and which of
+    them holds the video pane is decided elsewhere by pixel content. For a RESTORE that
+    choice does not matter: un-minimising a blank sibling is harmless (no focus change),
+    while leaving the real one minimised keeps the lot unwatched.
+    """
+    return sum(1 for h in find_windows_titled(title) if restore_if_minimized(h))
+
 class WgcWindowSource(CaptureSource):
     """Windows Graphics Capture of one window. The best desktop lane, measured.
 
@@ -345,6 +417,32 @@ class WgcWindowSource(CaptureSource):
         self._lock = None
         self._ctrl = None
         self._delivered = 0
+        #: Frames older than this mean the target stopped rendering -- usually minimised.
+        self.stale_restore_after = 2.0
+        #: Never attempt a restore more often than this.
+        self.restore_cooldown = 10.0
+        self._last_restore_attempt = 0.0
+        #: How many times this source had to un-minimise its target to keep working.
+        #: Non-zero means somebody is minimising the camera app on the shop machine --
+        #: worth surfacing as producer health rather than silently self-healing forever.
+        self.restores = 0
+
+    def _restore_target(self) -> bool:
+        """Un-minimise whatever this source is capturing. True if anything was minimised.
+
+        Keyed on the handle when one was given, otherwise on the title -- the default
+        `run_live` invocation gives no handle, and a restore that only worked with one was
+        dead code on exactly the path operators use (Codex P1 on #2250).
+        """
+        if self.window_hwnd is not None:
+            hit = restore_if_minimized(int(self.window_hwnd))
+        elif self.window_title:
+            hit = restore_minimized_titled(self.window_title) > 0
+        else:
+            hit = False
+        if hit:
+            self.restores += 1
+        return hit
 
     def open(self) -> None:
         import threading
@@ -378,14 +476,55 @@ class WgcWindowSource(CaptureSource):
                 if self._latest is not None:
                     return
             time.sleep(0.05)
+
+        # No frame. Before giving up, check the one cause that is both common and
+        # trivially fixable: the window is minimised, so it renders nothing at all.
+        if self._restore_target():
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                with self._lock:
+                    if self._latest is not None:
+                        return
+                time.sleep(0.05)
+            raise ConnectionError(
+                f"Windows Graphics Capture produced no frame for {self.window_hwnd} "
+                f"even after un-minimising it -- the app may be closed or on another desk"
+            )
         raise ConnectionError(
             f"Windows Graphics Capture produced no frame for "
-            f"{self.window_hwnd or self.window_title!r} within 5s"
+            f"{self.window_hwnd or self.window_title!r} within 5s "
+            f"(window was NOT minimised, so this is not the minimise case)"
         )
 
     def read(self) -> Optional[Frame]:
         if self._ctrl is None:
             self.open()
+
+        # SELF-HEAL DURING OPERATION, not only at startup.
+        #
+        # Windows Graphics Capture stops delivering the moment its target is minimised,
+        # but `_latest` still holds the last frame -- so `read()` keeps handing back the
+        # SAME picture with a stale timestamp, and the pipeline correctly calls it frozen
+        # and suppresses everything. Measured 2026-09-09 on a 5-minute live run: the
+        # operator minimised the V380 window part-way through and 401 of 873 frames were
+        # suppressed as unhealthy. The detection was right; the producer simply sat there.
+        #
+        # Restoring only in `open()` cannot help, because `open()` runs once. A cooldown
+        # keeps this from thrashing if the window is genuinely gone.
+        now = time.time()
+        with self._lock:
+            stale_for = now - (self._latest_ts or now)
+        if (stale_for > self.stale_restore_after
+                and now - self._last_restore_attempt > self.restore_cooldown):
+            self._last_restore_attempt = now
+            if self._restore_target():
+                deadline = time.time() + 2.0
+                while time.time() < deadline:
+                    with self._lock:
+                        if (self._latest_ts or 0) > now:
+                            break
+                    time.sleep(0.05)
+
         with self._lock:
             img = None if self._latest is None else self._latest.copy()
             ts = self._latest_ts

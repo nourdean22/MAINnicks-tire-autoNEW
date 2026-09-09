@@ -32,7 +32,7 @@ from vision.evidence import EvidenceStore  # noqa: E402
 from vision.fetch_models import PINNED, verify  # noqa: E402
 from vision.fingerprint import PrivacyToken, VehicleFingerprint, compare  # noqa: E402
 from vision.frame import Detection, Frame  # noqa: E402
-from vision.framehealth import FrameHealth  # noqa: E402
+from vision.framehealth import FrameHealth, mean_abs_diff  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 from vision.platelab import CANDIDATE, CONFIRMED, PlateLab, lookup_class  # noqa: E402
@@ -698,6 +698,10 @@ def test_visitd_is_told_the_zones_actually_observed():
     pipe = VisionPipeline(
         council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
         entry_portal=portal, camera="sign", tracker=rec,
+        # This stub accepts the RAW payload dict, so it opts out of parsing explicitly.
+        # It used to get that implicitly from injecting a tracker, which is what hid the
+        # bug that a REAL injected tracker was handed dicts it could not read.
+        parse_event=None,
         frame_health=FrameHealth(freeze_run=10 ** 6, min_distinct=0),
     )
 
@@ -1166,3 +1170,337 @@ def test_a_rejecting_ingest_never_takes_down_the_capture_loop():
     assert sink2.send(SimpleNamespace(visit_id="v-dead", state="LEFT", seq=1),
                       camera="sign", pipeline=make_pipeline()) is False
     assert sink2.failed == 1
+
+
+def test_a_motionless_lot_is_not_a_frozen_camera():
+    """A quiet lot is the NORMAL state, not a fault. Measured on the live SHOPSIGN feed.
+
+    The freeze detector judged on an 8x8 dhash, which cannot see sensor noise or the
+    V380 overlay clock, so a motionless parking lot hashed identically frame to frame
+    and `freeze_run=8` at ~4fps meant TWO SECONDS of a quiet lot read as a dead camera.
+    Measured live before the fix: 18 of 40 frames rejected, every one frozen=True.
+
+    That is not a cosmetic false alarm. `unhealthy` sets `_was_unhealthy`, which re-arms
+    the preexisting census on recovery, so every car arriving after a quiet spell would
+    be classified PREEXISTING and no arrival could ever fire. A lot is motionless most
+    of the night; the system would have been blind every morning.
+
+    The discriminator is the raw pixels, and the margin is large: over 29 consecutive
+    live pairs of a motionless lot, ZERO were byte-identical and the minimum full-res
+    MAD was 0.26. A stalled capture hands back the same buffer: exactly 0.0.
+    """
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(7)
+
+    # A LIVE but motionless scene: faint sensor noise, nothing else moving.
+    live = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+        live.update(t, noisy)
+        t += 0.25
+    st = live.state(t)
+    assert st.frozen is False, "a motionless lot with live sensor noise is NOT a frozen camera"
+    assert st.ok is True, f"a quiet lot must stay healthy: {st}"
+
+    # A STALLED capture: the same buffer handed back again and again.
+    stalled = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        stalled.update(t, base)
+        t += 0.25
+    st2 = stalled.state(t)
+    assert st2.frozen is True, "an identical repeated buffer IS a frozen capture"
+    assert st2.ok is False
+
+
+def test_the_freeze_epsilon_sits_below_real_sensor_noise():
+    """The threshold is only meaningful next to the number it was chosen against."""
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(11)
+    noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+
+    assert mean_abs_diff(base, base) == 0.0, "the same buffer differs by exactly nothing"
+    live_delta = mean_abs_diff(base, noisy)
+    assert live_delta > FrameHealth().freeze_epsilon * 5, (
+        f"live noise {live_delta:.3f} must sit well clear of the epsilon; measured live "
+        f"footage was 0.26 minimum"
+    )
+
+
+def test_a_parked_car_that_flickers_keeps_its_identity_but_a_departing_one_does_not():
+    """Measured on the live feed: 40 track births for ~7 stationary vehicles in 14 min.
+
+    The confidently-detected cars scored 0.60-1.00, so the churn was the densely-packed
+    background row dipping under the detector floor. With a flat 12-miss tolerance (4s at
+    3fps) each dip KILLED the track, and the next detection CREATED a new one -- born
+    after the boot census, and therefore a candidate for ARRIVAL. Every flicker was a
+    chance to invent a car that never drove in.
+
+    Patience must depend on what the track was doing. A parked car has not left in the
+    next four seconds. A car that was moving when it vanished probably has.
+    """
+    g = TrackGraph()
+    box = car_box(200.0)
+    t = 1000.0
+
+    # Park it: same box, held past `parked_after` (25s at ~3fps needs ~90 frames).
+    for _ in range(90):
+        g.update([Detection(box, 0.9)], t)
+        t += 0.33
+    assert len(g.tracks) == 1
+    parked_id = next(iter(g.tracks))
+    still_for = t - next(iter(g.tracks.values())).still_since
+    assert still_for >= g.parked_after, f"should read as parked, still_for={still_for:.1f}"
+
+    # Detector loses it for far longer than the moving tolerance.
+    for _ in range(g.max_misses + 20):
+        born, died = g.update([], t)
+        t += 0.33
+        assert not born
+    assert parked_id in g.tracks, "a parked car must not be declared gone after a flicker"
+    assert not died, "and must not be reported as departed"
+
+    # It comes back: the SAME track, not a new one -- so no arrival can be minted.
+    born, _ = g.update([Detection(box, 0.9)], t)
+    assert born == [], "a returning parked car is not a new arrival"
+    assert parked_id in g.tracks
+
+    # A MOVING track that vanishes is retired on the short tolerance.
+    g2 = TrackGraph()
+    t2 = 2000.0
+    for i in range(6):
+        g2.update([Detection(car_box(100.0 + 30 * i), 0.9)], t2)
+        t2 += 0.33
+    assert len(g2.tracks) == 1
+    died2 = []
+    for _ in range(g2.max_misses + 2):
+        _, d = g2.update([], t2)
+        died2.extend(d)
+        t2 += 0.33
+    assert died2, "a car that drove off must be retired promptly, not held for a minute"
+
+
+def test_one_duplicated_wgc_sample_is_not_a_loop():
+    """`WgcWindowSource.read()` legitimately hands back the same `_latest` buffer twice
+    when the capture callback is a few milliseconds late. In a quiet scene the perceptual
+    hashes already satisfy `distinct < min_distinct`, so ONE exact repeat used to flip
+    `looping`, mark the camera unhealthy, and re-arm the preexisting census -- every car
+    that arrived afterwards would have been PREEXISTING (Codex P1 on #2250)."""
+    # Textured like a real frame (a ramp, not a flat field): `dhash` samples SINGLE
+    # pixels on a 9x8 grid and compares horizontal neighbours, so wherever two sampled
+    # neighbours are within a few grey levels of each other, sensor noise flips the bit
+    # and a synthetic "quiet" scene hashes as 19 distinct frames. On this ramp adjacent
+    # samples sit ~20 levels apart, which is what real asphalt-with-gradient measured.
+    ramp = np.linspace(40, 200, 128).astype(np.uint8)
+    base = np.repeat(np.tile(ramp, (128, 1))[:, :, None], 3, axis=2)
+    rng = np.random.default_rng(7)
+
+    fh = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    for i in range(24):
+        # Sensor noise only: the perceptual hash is stable (quiet lot) but no two frames
+        # are pixel-exact ...
+        img = np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+        if i == 12:
+            img = last  # ... except this one, the late-callback duplicate
+        fh.update(float(i), img)
+        last = img
+    st = fh.state(24.0)
+    assert st.distinct < 4, "precondition: a quiet scene hashes to few distinct values"
+    assert st.looping is False, "a single repeated sample is not a cycling cache"
+    assert st.ok is True
+
+    # The same scene with a REAL loop (the same three buffers replayed) still trips it.
+    fh2 = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    frames = [np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+              for _ in range(3)]
+    for i in range(24):
+        fh2.update(float(i), frames[i % 3])
+    assert fh2.state(24.0).looping is True
+
+
+def test_wgc_restore_works_when_only_a_title_was_given(monkeypatch):
+    """The documented `run_live` default passes no `--hwnd`, so a restore keyed only on
+    a handle was dead code on exactly the path operators use (Codex P1 on #2250). With a
+    title, the source must resolve every matching window and un-minimise the iconic ones."""
+    from vision import capture
+
+    calls = []
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [111, 222, 333])
+    monkeypatch.setattr(capture, "restore_if_minimized",
+                        lambda h: calls.append(h) or h == 222)  # only 222 was minimised
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    assert src._restore_target() is True
+    assert calls == [111, 222, 333], "every candidate is checked; the choice of pane is not this code's job"
+    assert src.restores == 1
+
+    # Nothing minimised -> no restore counted.
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: False)
+    assert src._restore_target() is False
+    assert src.restores == 1
+
+    # An explicit handle still takes the direct path and never enumerates.
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: (_ for _ in ()).throw(AssertionError("enumerated")))
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: h == 999)
+    src2 = capture.WgcWindowSource(window_hwnd=999)
+    assert src2._restore_target() is True
+    assert src2.restores == 1
+
+
+def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
+    """`read()` must trigger the restore itself: `open()` runs once, and a window
+    minimised part-way through a run stalls delivery while `_latest` keeps being
+    returned. Measured 2026-09-09: 401 of 873 frames suppressed for exactly this."""
+    import threading
+    import time as _t
+    from vision import capture
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    src._ctrl = object()          # pretend open() already ran
+    src._lock = threading.Lock()
+    src._latest = np.zeros((10, 10, 3), dtype=np.uint8)
+    src._latest_ts = _t.time() - 30.0   # stale for 30 s
+    src.stale_restore_after = 2.0
+    src.restore_cooldown = 10.0
+
+    attempts = []
+    monkeypatch.setattr(src, "_restore_target", lambda: attempts.append(_t.time()) or False)
+    src.read()
+    assert len(attempts) == 1, "a stalled source restores"
+    src.read()
+    assert len(attempts) == 1, "... but not again inside the cooldown"
+    src._last_restore_attempt = 0.0
+    src.read()
+    assert len(attempts) == 2, "and again once the cooldown has passed"
+
+
+def test_run_live_heartbeat_body_reports_what_the_producer_actually_observed():
+    """The heartbeat is the producer's own account: source generation from the mux
+    index and the restore count, frame health from the LAST HEALTHY frame (a frozen
+    capture keeps delivering frames), pose only once a reference exists."""
+    from types import SimpleNamespace
+
+    from vision import run_live
+
+    active = SimpleNamespace(name="v380-wgc", restores=2)
+    source = SimpleNamespace(active=active, index=0)
+    pipeline = SimpleNamespace(tracker=SimpleNamespace(open_visits=lambda: [1, 2]))
+    health = SimpleNamespace(fps=11.5, ok=True)
+    scene = SimpleNamespace(pose_ok=True, pose_delta=1.25, reference_set=True)
+
+    body = run_live.heartbeat_body(
+        camera="sign", seq=7, now=1_800_000_000.0, mode="SHADOW", source=source, pipeline=pipeline,
+        health_state=health, scene_state=scene, calibration_version=None, detector_name="council",
+        model_sha256="abc", last_healthy_frame_at=1_799_999_999.0, commissioning_run_id=None,
+    )
+    assert body["camera"] == "sign" and body["heartbeatSeq"] == 7 and body["mode"] == "SHADOW"
+    assert body["sourceType"] == "wgc"
+    assert body["sourceGeneration"] == "0.2", "mux index . restores -- a restore is a new generation"
+    assert body["sourceConnected"] is True and body["restores"] == 2
+    assert body["captureFps"] == 11.5 and body["frameOk"] is True
+    assert body["poseOk"] is True and body["poseDelta"] == 1.25
+    assert body["calibrationVersion"] is None, "census mode reports NO calibration, so the cloud says CALIBRATION_INVALID"
+    assert body["openVisits"] == 2
+    assert body["lastHealthyFrameAt"] == "2027-01-15T07:59:59+00:00", "UTC ISO from the producer's own clock"
+    assert body["observedAtEdge"] == "2027-01-15T08:00:00+00:00"
+    assert body["producerInstanceId"] == run_live.PRODUCER_INSTANCE_ID
+
+    # No reference pose yet -> pose is UNKNOWN (None), not falsely ok and not falsely invalid.
+    scene0 = SimpleNamespace(pose_ok=True, pose_delta=None, reference_set=False)
+    body0 = run_live.heartbeat_body(
+        camera="sign", seq=8, now=1_800_000_001.0, mode="PRODUCTION", source=source, pipeline=pipeline,
+        health_state=None, scene_state=scene0, calibration_version="sha256:abc", detector_name=None,
+        model_sha256=None, last_healthy_frame_at=None,
+    )
+    assert body0["poseOk"] is None and body0["frameOk"] is None and body0["captureFps"] is None
+    assert body0["lastHealthyFrameAt"] is None, "an unobserved time is not now"
+
+    # A source that has fallen through every lane is disconnected.
+    dead = SimpleNamespace(active=None, index=2)
+    bodyx = run_live.heartbeat_body(
+        camera="sign", seq=9, now=1_800_000_002.0, mode="PRODUCTION", source=dead, pipeline=pipeline,
+        health_state=None, scene_state=None, calibration_version=None, detector_name=None,
+        model_sha256=None, last_healthy_frame_at=None,
+    )
+    assert bodyx["sourceConnected"] is False and bodyx["sourceGeneration"] == "2.0"
+
+
+def test_visit_sink_stamps_the_data_class_on_every_row(monkeypatch):
+    """A commissioning run's rows must carry COMMISSIONING, or the first test drive is
+    counted as today's customer arrival."""
+    from types import SimpleNamespace
+
+    from vision import run_live
+
+    posted = []
+    sink = run_live.VisitSink("https://nickstire.org/api/camera/visits", "k",
+                              data_class="COMMISSIONING", commissioning_run_id="C-20260909-001")
+    monkeypatch.setattr(sink, "_post", lambda url, payload, timeout=10.0: posted.append((url, payload)) or True)
+    em = SimpleNamespace(visit_id="v1", state="CONFIRMED_ARRIVAL", seq=3)
+    pipe = SimpleNamespace(timings={}, _track_visit={})
+    assert sink.send(em, camera="sign", pipeline=pipe) is True
+    url, payload = posted[0]
+    assert url.endswith("/api/camera/visits")
+    row = payload["visits"][0]
+    assert row["dataClass"] == "COMMISSIONING" and row["commissioningRunId"] == "C-20260909-001"
+    assert sink.heartbeat_url == "https://nickstire.org/api/camera/heartbeat"
+
+
+def test_an_INJECTED_REAL_TRACKER_actually_receives_parsed_events():
+    """The positive control the injection path never had.
+
+    `tracker=` exists so one visitd `VisitTracker` can own visit state while the vision
+    pipeline drives it -- the durable edge lane. The only test that used it injected a
+    RECORDING STUB that accepts dicts, which proved the wiring calls something, not that
+    it calls a real tracker correctly. It did not: the constructor set `_parse_event =
+    None` whenever a tracker was injected, so `VisitTracker.handle_event` got a raw dict
+    and died on `ev.time` at the first emission.
+    """
+    from visitd.state_machine import CameraSpec, VisitPolicy, VisitTracker
+
+    tracker = VisitTracker(VisitPolicy(), {"sign": CameraSpec(name="sign", arrival_zones=frozenset({"front_lot"}))})
+    lot_map = LotMap().add("front_lot", LOT)
+    portal = EntryPortal(Zone("front_lot", LOT), portal_zone=Zone("portal", PORTAL))
+    pipe = VisionPipeline(
+        council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
+        entry_portal=portal, camera="sign", tracker=tracker,
+    )
+    assert pipe._parse_event is not None, "injecting a tracker must NOT disable parsing"
+    assert pipe.tracker is tracker, "and the injected tracker is the one that gets used"
+
+    class _Track:
+        track_id = 1
+        box = (10.0, 10.0, 40.0, 40.0)
+        score = 0.9
+        born_ts = 1000.0
+        zones: list = []
+
+        def stationary_for(self, _now):
+            return 0.0
+
+    emissions = pipe._emit("new", _Track(), 1000.0)
+    assert emissions, "a real injected tracker must produce an emission, not raise"
+    assert emissions[0].visit_id, "and that emission carries the visit id the ledger keys on"
+    assert tracker.open_visits(), "the visit lives in the INJECTED tracker, which is the one visitd persists"
+
+    # An explicit parse_event=None still opts out, for stubs that want the raw dict.
+    seen = []
+
+    class _RawStub:
+        def handle_event(self, ev):
+            seen.append(ev)
+            return []
+
+        def tick(self, _now):
+            return []
+
+        def open_visits(self):
+            return []
+
+    raw_pipe = VisionPipeline(
+        council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
+        entry_portal=portal, camera="sign", tracker=_RawStub(), parse_event=None,
+    )
+    raw_pipe._emit("new", _Track(), 1000.0)
+    assert isinstance(seen[0], dict), "an explicit opt-out still hands over the raw payload"

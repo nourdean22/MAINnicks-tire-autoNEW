@@ -6,11 +6,18 @@ lot, who is waiting, which bays are full -- lives in nickstire, and nothing wrot
 the `vehicle_visits` table and its admin section had no producer at all, so the Lot
 page reported "awaiting first event" permanently. This closes that loop.
 
-WHAT IT DELIBERATELY IS NOT. It is not a second durable delivery path. The outbox
-remains the authoritative lane with ordering, retries, dead-lettering and restart
-recovery; this mirror is BEST EFFORT and must never block, reorder, or fail it. If the
-shop endpoint is down, the shop's read model goes stale — and the admin already
-surfaces staleness honestly — while the authoritative stream is untouched.
+WHAT IT IS NOT. It is not a second visit STATE MACHINE. visitd's tracker remains the
+single authority; this is a PROJECTION of that authority into the shop's read model,
+and it must never block, reorder, or fail the StateNour outbox.
+
+WHAT CHANGED (2026-09-09). It used to be best-effort in the literal sense: `send()`
+POSTed inline and a failure was logged and dropped. That lost the worst possible event.
+A terminal emission arriving while nickstire.org was unreachable was the LAST emission a
+visit ever produces, so nothing would retry it -- the car physically leaves, the edge
+ledger knows it left, and the shop board shows it parked forever. The projection now
+goes through `shop_outbox` in the SAME SQLite transaction as the ledger commit, and a
+drain loop retries until the shop accepts it. Delivery is still allowed to fail; LOSS is
+not. See `Ledger._upsert_shop_row` for why that queue coalesces by visit.
 
 WHY IT SENDS A FULL ROW EVERY TIME. The ingest applies a guarded full-column replace
 (`INSERT ... ON DUPLICATE KEY UPDATE` with every assignment gated on
@@ -55,17 +62,40 @@ class ShopMirror:
         timeout_seconds: float = 8.0,
         transport: Optional[Transport] = None,
         bay_zones: Optional[Dict[str, frozenset]] = None,
+        data_class: str = "PRODUCTION",
+        commissioning_run_id: Optional[str] = None,
+        provenance: Optional[Dict[str, Optional[str]]] = None,
     ) -> None:
         self.url = url
         self._key = sync_key
         self.timeout_seconds = timeout_seconds
         self.transport = transport
         self.bay_zones = bay_zones or {}
+        #: PRODUCTION | COMMISSIONING | REPLAY. A commissioning run's rows carry this so
+        #: the shop's KPIs exclude them by default; they are never deleted.
+        self.data_class = data_class
+        self.commissioning_run_id = commissioning_run_id
+        #: Deployment-static provenance (cameraPose / detectorName / calibrationVersion)
+        #: so the columns migration 0119 added stop being sent as None. Per-emission
+        #: values, when an emission carries them, win over these.
+        self.provenance = dict(provenance or {})
         self._visits: Dict[str, Dict[str, object]] = {}
         self._lock = threading.Lock()
         self.sent = 0
         self.failed = 0
         self.skipped = 0
+        self.heartbeats_sent = 0
+        self.heartbeats_failed = 0
+
+    @property
+    def heartbeat_url(self) -> Optional[str]:
+        """The sibling of the visits ingest: `/api/camera/visits` -> `/api/camera/heartbeat`."""
+        if not self.url:
+            return None
+        base = str(self.url)
+        if base.endswith("/api/camera/visits"):
+            return base[: -len("/visits")] + "/heartbeat"
+        return base.rstrip("/") + "/heartbeat"
 
     @property
     def enabled(self) -> bool:
@@ -75,7 +105,8 @@ class ShopMirror:
     def _is_bay(self, camera: str, zone: Optional[str]) -> bool:
         return bool(zone) and zone in self.bay_zones.get(camera, frozenset())
 
-    def row_for(self, emission, camera_name: Optional[str] = None) -> Dict[str, object]:
+    def row_for(self, emission, camera_name: Optional[str] = None,
+                provenance: Optional[Dict[str, Optional[str]]] = None) -> Dict[str, object]:
         """Merge one emission into the visit's accumulated row and return it.
 
         Pure with respect to the network; safe to call in tests without a transport.
@@ -109,12 +140,21 @@ class ShopMirror:
                     "preexisting": False,
                     "entryEvidence": None,
                     "estimatedFields": [],
-                    "sourceGeneration": None,
-                    "cameraPose": None,
-                    "detectorName": None,
-                    "calibrationVersion": None,
+                    "sourceGeneration": (provenance or self.provenance).get("sourceGeneration"),
+                    "cameraPose": (provenance or self.provenance).get("cameraPose"),
+                    "detectorName": (provenance or self.provenance).get("detectorName"),
+                    "calibrationVersion": (provenance or self.provenance).get("calibrationVersion"),
+                    "dataClass": self.data_class,
+                    "commissioningRunId": self.commissioning_run_id,
                 }
                 self._visits[visit_id] = row
+
+            # An emission that names its own provenance overrides the static default.
+            for key, attr in (("sourceGeneration", "source_generation"), ("cameraPose", "camera_pose"),
+                              ("detectorName", "detector_name"), ("calibrationVersion", "calibration_version")):
+                val = getattr(emission, attr, None)
+                if val:
+                    row[key] = str(val)
 
             row["state"] = emission.state
             row["seq"] = int(emission.seq)
@@ -153,16 +193,72 @@ class ShopMirror:
 
             return dict(row)
 
+    def heartbeat(self, body: Dict[str, object]) -> bool:
+        """POST one producer heartbeat to the shop. Best effort; NEVER raises.
+
+        This is the infrastructure fact the shop admin lacked: before it, `lot.health`
+        inferred camera existence from visit rows, so a healthy producer on a quiet
+        lot was indistinguishable from no producer at all.
+        """
+        url = self.heartbeat_url
+        if not self.enabled or not url:
+            return False
+        try:
+            transport = self.transport
+            if transport is None:
+                from .cloud_client import requests_transport
+
+                transport = requests_transport
+            status, text = transport(
+                "POST", url, dict(body),
+                {"Content-Type": "application/json", "x-sync-key": str(self._key)},
+                self.timeout_seconds,
+            )
+        except Exception as exc:
+            self.heartbeats_failed += 1
+            log.warning("shop heartbeat transport failed camera=%s error=%s", body.get("camera"), exc)
+            return False
+        if 200 <= status < 300:
+            self.heartbeats_sent += 1
+            return True
+        self.heartbeats_failed += 1
+        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:120])
+        return False
+
     def forget(self, visit_id: str) -> None:
         with self._lock:
             self._visits.pop(visit_id, None)
 
-    def send(self, emission, camera_name: Optional[str] = None) -> bool:
-        """Best effort. Returns True only on a 2xx. NEVER raises."""
+    def queue_row(self, emission, camera_name: Optional[str] = None,
+                  provenance: Optional[Dict[str, Optional[str]]] = None):
+        """Merge one emission and return the ledger tuple (visit_id, seq, url, payload), or None.
+
+        PURE: no network, no ledger. The caller persists the tuple inside the ledger's own
+        transaction, which is what makes a crash between "visit committed" and "shop notified"
+        impossible. Returns None when the mirror is unconfigured, so an unconfigured deployment
+        queues nothing rather than filling a table nobody drains.
+        """
         if not self.enabled:
             self.skipped += 1
-            return False
-        row = self.row_for(emission, camera_name)
+            return None
+        row = self.row_for(emission, camera_name, provenance)
+        if emission.state in TERMINAL_STATES:
+            # The merged row is now materialised in the ledger tuple, so the in-memory
+            # accumulator is free -- and MUST be freed here rather than after delivery,
+            # or a shop outage would pin every departed visit in memory until it cleared.
+            self.forget(emission.visit_id)
+        return (emission.visit_id, int(emission.seq), str(self.url), row)
+
+    def deliver(self, item: Dict[str, object]) -> str:
+        """POST one queued row. Returns 'sent' | 'rejected' | 'unreachable'. NEVER raises.
+
+        The two failure kinds are kept apart deliberately: 'unreachable' is a WAN/DNS problem that
+        will clear on its own, while 'rejected' is a contract or credential problem that will not,
+        and only the second is worth waking anyone about.
+        """
+        if not self.enabled:
+            self.skipped += 1
+            return "rejected"
         try:
             transport = self.transport
             if transport is None:
@@ -171,25 +267,23 @@ class ShopMirror:
                 transport = requests_transport
             status, text = transport(
                 "POST",
-                str(self.url),
-                {"visits": [row]},
+                str(item["url"]),
+                {"visits": [item["payload"]]},
                 {"Content-Type": "application/json", "x-sync-key": str(self._key)},
                 self.timeout_seconds,
             )
         except Exception as exc:  # a shop outage must never touch the authoritative lane
             self.failed += 1
-            log.warning("shop mirror transport failed visit=%s error=%s", emission.visit_id, exc)
-            return False
+            log.warning("shop mirror transport failed visit=%s error=%s", item.get("visit_id"), exc)
+            return "unreachable"
 
         if 200 <= status < 300:
             self.sent += 1
-            if emission.state in TERMINAL_STATES:
-                self.forget(emission.visit_id)
-            return True
+            return "sent"
 
         self.failed += 1
         # 401 is the one worth naming: it is almost always a missing CAMERA_INGEST_KEY.
         reason = "shop_sync_key_rejected" if status == 401 else f"http_{status}"
         log.warning("shop mirror rejected visit=%s status=%s reason=%s body=%r",
-                    emission.visit_id, status, reason, str(text)[:120])
-        return False
+                    item.get("visit_id"), status, reason, str(text)[:120])
+        return "rejected"

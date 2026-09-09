@@ -80,7 +80,7 @@ import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
 import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
-import { registerCameraVisitsRoute } from "../routes/cameraVisitsRoutes";
+import { registerCameraVisitsRoute, registerCameraHeartbeatRoute } from "../routes/cameraVisitsRoutes";
 import { registerSecurityTxt } from "./securityTxt";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
@@ -489,6 +489,7 @@ async function startServer() {
   registerNourChiefStrategistRoute(app);
   registerNourOsQueryRoute(app);
   registerCameraVisitsRoute(app);
+  registerCameraHeartbeatRoute(app);
   registerMetaRoutes(app);
 
   // ─── /.well-known/security.txt (RFC 9116) ───────────────

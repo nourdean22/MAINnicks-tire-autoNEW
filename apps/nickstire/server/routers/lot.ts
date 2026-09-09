@@ -46,6 +46,8 @@ import { sql } from "drizzle-orm";
 
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
+import { deriveCameraState, HEALTH_THRESHOLDS } from "../lib/cameraHealth";
+import { EXPECTED_CAMERAS } from "../../shared/cameras";
 
 /** Start of the shop's day, in SQL, as UTC epoch seconds. Never computed in JS. */
 const ET_DAY_START = sql`UNIX_TIMESTAMP(CONVERT_TZ(DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')), 'America/New_York', '+00:00'))`;
@@ -74,6 +76,44 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
   );
 
 const OPEN_VISIT_CAP = 500;
+
+/**
+ * WHAT THIS CAMERA CAN AND CANNOT KNOW ABOUT SERVICE.
+ *
+ * Operator, 2026-09-09, in two parts. First: "we change tires, do plugs, n small shit
+ * outside with the cars on jacks in the blue; all the mechanic work needs a lift goes
+ * inside." Then, when asked to confirm a work zone: "we will jack the cars up wherever
+ * necessary."
+ *
+ * That second sentence is the important one, and it kills a whole class of metric.
+ * OUTSIDE SERVICE HAS NO FIXED LOCATION, so it cannot be recognised by geometry. A car
+ * standing on the apron may be queueing or may be up on jacks having a plug fitted, and
+ * this system cannot tell which. An earlier version of this file tried to solve it with
+ * an `outside_*` zone; that was wrong, and a zone that can never be populated is worse
+ * than no zone -- it is a permanently-zero number that reads as "no outside work today".
+ *
+ * So the counters below claim only what the camera can actually establish:
+ *
+ *   inBays            a vehicle is inside bay 1 or bay 3    -- OBSERVED
+ *   onLotNotInBay     on the property, not in a bay         -- OBSERVED, and it
+ *                     deliberately is NOT called "waiting": some of these cars are
+ *                     being worked on where they stand.
+ *   leftWithoutBay    departed having never entered a bay   -- OBSERVED, and NOT called
+ *                     "abandoned": a finished outside tyre job looks exactly like a
+ *                     customer who gave up, and calling good business a loss is the
+ *                     worse error of the two.
+ *
+ * Wait times are only computable for vehicles that reached a bay, and are labelled as
+ * time-to-bay rather than as the shop's wait. Turning "on the lot" into a trustworthy
+ * queue needs a service-start signal the camera does not have -- a repair order opening,
+ * or a check-in -- not a cleverer polygon.
+ *
+ * BAY LAYOUT (operator): vehicles drive into bays 1 and 3 ONLY. Bay 2 holds the tire
+ * machines and bay 4 is stock, so neither ever contains a customer vehicle; drawing them
+ * as service bays would manufacture service events from cars parked in front of a
+ * machine room. Corroborated in the live frame, where tyre stacks sit in front of the
+ * rightmost opening.
+ */
 
 function num(v: unknown): number {
   const n = Number(v ?? 0);
@@ -131,6 +171,8 @@ export const lotRouter = router({
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
           SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
+          SUM(CASE WHEN departedAt IS NULL
+                    AND NOT (bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL) THEN 1 ELSE 0 END) AS onLotNotInBay,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL
                     AND preexisting = 0 THEN 1 ELSE 0 END) AS waiting,
           SUM(CASE WHEN departedAt IS NULL AND preexisting = 1 THEN 1 ELSE 0 END) AS preexisting,
@@ -156,6 +198,7 @@ export const lotRouter = router({
                     AND UNIX_TIMESTAMP(arrivedAt) >= ${ET_DAY_START} THEN 1 ELSE 0 END) AS customerAmbiguous,
           MIN(UNIX_TIMESTAMP() - UNIX_TIMESTAMP(updatedAt)) AS staleSeconds
         FROM vehicle_visits
+        WHERE dataClass = 'PRODUCTION'
       `));
 
       const r = agg[0];
@@ -165,6 +208,7 @@ export const lotRouter = router({
         SELECT ${sql.raw("FLOOR((UNIX_TIMESTAMP(bayEnteredAt) - UNIX_TIMESTAMP(COALESCE(waitStartedAt, arrivedAt))) / 60)")} AS m
         FROM vehicle_visits
         WHERE bayEnteredAt IS NOT NULL
+          AND dataClass = 'PRODUCTION'
           AND COALESCE(waitStartedAt, arrivedAt) IS NOT NULL
           AND UNIX_TIMESTAMP(bayEnteredAt) >= ${ET_DAY_START}
         ORDER BY bayEnteredAt DESC
@@ -178,10 +222,18 @@ export const lotRouter = router({
         SELECT bay, MIN(${ageMinutes("bayEnteredAt")}) AS occupiedMinutes
         FROM vehicle_visits
         WHERE departedAt IS NULL AND bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL
+          AND dataClass = 'PRODUCTION'
           AND bay IS NOT NULL
         GROUP BY bay
         ORDER BY bay
       `));
+
+      // Commissioning / replay rows are excluded from every counter above and are
+      // never deleted; this count keeps them visible so "no production visit yet"
+      // can be told apart from "nothing has ever been written".
+      const nonProd = rowsOf(await d.execute(sql`
+        SELECT COUNT(*) AS n FROM vehicle_visits WHERE dataClass <> 'PRODUCTION'
+      `))[0];
 
       const total = num(r.total);
       const onProperty = num(r.onProperty);
@@ -189,13 +241,23 @@ export const lotRouter = router({
         ok: true as const,
         asOf: new Date().toISOString(),
         neverIngested: total === 0,
+        commissioningVisits: num(nonProd?.n ?? 0),
         // The counters are exact SQL aggregates; this flags the one place a cap still
         // bites, so a large backlog is disclosed rather than presented as a total.
         truncated: onProperty > OPEN_VISIT_CAP,
         staleSeconds: total === 0 ? null : num(r.staleSeconds),
         counts: {
           onProperty,
-          waiting: num(r.waiting),
+          // Every car on the property that is not in a bay RIGHT NOW: cars that never
+          // entered one, cars that came back out, and cars that were already here at
+          // startup. This is the population the label names. `waitingForBay` is the
+          // narrower never-entered, non-preexisting set the wait clock runs on; it
+          // was the value shown here before, and it undercounted a car waiting
+          // outside after leaving a bay (Codex P2 on #2250).
+          onLotNotInBay: num(r.onLotNotInBay),
+          waitingForBay: num(r.waiting),
+          // Service, split by WHERE it happens. `inService` is the honest headline --
+          // a car on jacks outside is being worked on just as much as one on a lift.
           inBays: num(r.inBays),
           bayUnknown: num(r.bayUnknown),
           postService: num(r.postService),
@@ -203,7 +265,7 @@ export const lotRouter = router({
           preexistingWaiting: num(r.preexistingWaiting),
           arrivalsToday: num(r.arrivalsToday),
           departuresToday: num(r.departuresToday),
-          abandonedBeforeBay: num(r.abandonedBeforeBay),
+          leftWithoutBay: num(r.abandonedBeforeBay),
           arrivalTimeUnknown: num(r.arrivalTimeUnknown),
         },
         waits: {
@@ -244,7 +306,9 @@ export const lotRouter = router({
     .input(z.object({
       limit: z.number().int().min(1).max(200).default(50),
       openOnly: z.boolean().default(false),
-    }).default({ limit: 50, openOnly: false }))
+      /** Commissioning / replay rows are hidden unless asked for, never deleted. */
+      includeCommissioning: z.boolean().default(false),
+    }).default({ limit: 50, openOnly: false, includeCommissioning: false }))
     .query(async ({ input }) => {
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
@@ -274,13 +338,14 @@ export const lotRouter = router({
           SELECT visitId, camera, state, arrivedAt, waitStartedAt, bayEnteredAt,
                  bayExitedAt, departedAt,
                  bay, preexisting, entryEvidence, plateStatus, plateText, customerMatch,
-                 estimatedFields, cameraPose,
+                 estimatedFields, cameraPose, dataClass, commissioningRunId,
                  ${minutesBetween("arrivedAt", ["departedAt", "NOW()"])} AS onPropertyMinutes,
                  ${minutesBetween("createdAt", ["departedAt", "NOW()"])} AS sinceFirstSeenMinutes,
                  ${minutesBetween("COALESCE(waitStartedAt, arrivedAt)", ["bayEnteredAt", "departedAt", "NOW()"])} AS waitMinutes,
                  ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes
           FROM vehicle_visits
-          ${input.openOnly ? sql`WHERE departedAt IS NULL` : sql``}
+          WHERE ${input.includeCommissioning ? sql`1 = 1` : sql`dataClass = 'PRODUCTION'`}
+            ${input.openOnly ? sql`AND departedAt IS NULL` : sql``}
           ORDER BY COALESCE(arrivedAt, createdAt) DESC
           LIMIT ${input.limit}
         `));
@@ -318,6 +383,8 @@ export const lotRouter = router({
             // customer identifier to the browser unrendered is PII on the wire.
             estimatedFields: Array.isArray(v.estimatedFields) ? (v.estimatedFields as string[]) : [],
             cameraPose: (v.cameraPose as string | null) ?? null,
+            dataClass: String(v.dataClass ?? "PRODUCTION"),
+            commissioningRunId: (v.commissioningRunId as string | null) ?? null,
           })),
         };
       } catch (err) {
@@ -329,60 +396,130 @@ export const lotRouter = router({
     }),
 
   /**
-   * EVENT FRESHNESS, not camera health.
+   * CAMERA HEALTH -- the infrastructure fact, kept apart from visits.
    *
-   * This ages the most recent VISIT ROW per camera. visitd emits nothing while the
-   * lot is quiet, so a perfectly healthy camera watching an empty lot looks old
-   * here — the first version called that "stale", which reads as a broken camera.
-   * True liveness is the device heartbeat visitd PATCHes every 60s, which this
-   * router does not have. The states are `recent` / `quiet` / `unknown` so nobody
-   * mistakes silence for failure.
+   * Joins the registry of cameras the shop EXPECTS (shared/cameras.ts) to the latest
+   * producer heartbeat per camera (camera_runtime, migration 0120). A camera that has
+   * never reported renders NEVER_INGESTED instead of vanishing from the list -- the
+   * previous implementation derived the camera list from vehicle_visits, so a healthy
+   * producer on a quiet lot was indistinguishable from no producer at all.
+   *
+   * Liveness (STALE / PRODUCER_OFFLINE) is derived HERE from heartbeat age; every
+   * other dimension is what the producer reported about itself. Ages are SQL epoch
+   * arithmetic, never JS date math (driver-parsed TiDB timestamps shift on ET).
    */
   health: adminProcedure.query(async () => {
     const d = await dbTyped();
     if (!d) return { ok: false as const, reason: "database unavailable" };
 
     try {
-      // Pose and detector come from the LATEST row, not MAX() over the group: MAX on a
-      // varchar is alphabetical, so a camera re-posed from `north-high` to `east-low`
-      // would report `north-high` forever — and pose is the provenance that says
-      // whether detections are valid at all.
-      const list = rowsOf(await d.execute(sql`
-        SELECT v.camera,
-               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(v.updatedAt) AS ageSeconds,
-               v.updatedAt AS lastSeen,
-               v.cameraPose, v.detectorName,
+      const runtime = rowsOf(await d.execute(sql`
+        SELECT r.camera, r.producerInstanceId, r.producerVersion, r.gitSha, r.heartbeatSeq,
+               r.mode, r.commissioningRunId,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.receivedAt) AS ageSeconds,
+               UNIX_TIMESTAMP(r.receivedAt) AS receivedAtEpoch,
+               UNIX_TIMESTAMP(r.observedAtEdge) AS observedAtEdgeEpoch,
+               UNIX_TIMESTAMP(r.lastHealthyFrameAt) AS lastHealthyFrameAtEpoch,
+               r.sourceType, r.sourceGeneration, r.sourceConnected, r.captureFps,
+               r.frameOk, r.poseOk, r.poseDelta, r.calibrationVersion, r.detectorName,
+               r.modelSha256, r.inferenceP95Ms, r.outboxDepth, r.oldestOutboxAgeSeconds,
+               r.deadLetterDepth,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastCloudAckAt) AS cloudAckAgeSeconds,
+               r.diskFreeBytes, r.restores,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.stateSince) AS stateForSeconds,
                (SELECT COUNT(*) FROM vehicle_visits o
-                 WHERE o.camera = v.camera AND o.departedAt IS NULL) AS openVisits
-        FROM vehicle_visits v
-        INNER JOIN (
-          SELECT camera, MAX(updatedAt) AS mx FROM vehicle_visits GROUP BY camera
-        ) latest ON latest.camera = v.camera AND latest.mx = v.updatedAt
-        GROUP BY v.camera, v.updatedAt, v.cameraPose, v.detectorName
-        ORDER BY v.camera
+                 WHERE o.camera = r.camera AND o.departedAt IS NULL
+                   AND o.dataClass = 'PRODUCTION') AS openVisits
+        FROM camera_runtime r
       `));
+      const transitions = rowsOf(await d.execute(sql`
+        SELECT camera, fromState, toState, reason,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(at) AS agoSeconds
+        FROM camera_health_events
+        ORDER BY at DESC
+        LIMIT 20
+      `));
+
+      const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
+      const bool = (v: unknown): boolean | null =>
+        v === null || v === undefined ? null : Boolean(Number(v));
+      const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
+
+      const describe = (camera: string, label: string, commissioned: boolean, registered: boolean) => {
+        const r = byCamera.get(camera) ?? null;
+        const verdict = deriveCameraState(
+          r === null
+            ? null
+            : {
+                ageSeconds: numOrNull(r.ageSeconds),
+                observedAtEdgeEpoch: numOrNull(r.observedAtEdgeEpoch),
+                receivedAtEpoch: numOrNull(r.receivedAtEpoch),
+                sourceConnected: bool(r.sourceConnected),
+                lastHealthyFrameAtEpoch: numOrNull(r.lastHealthyFrameAtEpoch),
+                frameOk: bool(r.frameOk),
+                poseOk: bool(r.poseOk),
+                calibrationVersion: str(r.calibrationVersion),
+                outboxDepth: numOrNull(r.outboxDepth),
+                oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds),
+                deadLetterDepth: numOrNull(r.deadLetterDepth),
+              },
+        );
+        return {
+          camera,
+          label,
+          commissioned,
+          registered,
+          state: verdict.state,
+          facets: verdict.facets,
+          reason: verdict.reason,
+          ageSeconds: r ? numOrNull(r.ageSeconds) : null,
+          stateForSeconds: r ? numOrNull(r.stateForSeconds) : null,
+          mode: r ? String(r.mode ?? "PRODUCTION") : null,
+          commissioningRunId: r ? str(r.commissioningRunId) : null,
+          producer: r
+            ? { instanceId: String(r.producerInstanceId), version: str(r.producerVersion), gitSha: str(r.gitSha), heartbeatSeq: num(r.heartbeatSeq) }
+            : null,
+          source: r
+            ? { type: str(r.sourceType), generation: str(r.sourceGeneration), fps: numOrNull(r.captureFps), restores: numOrNull(r.restores) }
+            : null,
+          vision: r
+            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion) }
+            : null,
+          cloud: r
+            ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }
+            : null,
+          openVisits: r ? num(r.openVisits) : 0,
+        };
+      };
+
+      const expected = EXPECTED_CAMERAS.map((c) => describe(c.camera, c.label, c.commissioned, true));
+      const known = new Set<string>(EXPECTED_CAMERAS.map((c) => c.camera));
+      // A producer nobody registered is shown, not hidden: it is either a config typo
+      // (camera id mismatch) or something posting under the shop's key that should not be.
+      const unregistered = runtime
+        .filter((r) => !known.has(String(r.camera)))
+        .map((r) => describe(String(r.camera), `Unregistered producer: ${String(r.camera)}`, false, false));
+      const cameras = [...expected, ...unregistered];
 
       return {
         ok: true as const,
-        cameras: list.map((r) => {
-          const ageSeconds =
-            r.ageSeconds === null || r.ageSeconds === undefined ? null : num(r.ageSeconds);
-          return {
-            camera: String(r.camera),
-            lastSeen: r.lastSeen ? new Date(r.lastSeen as string | Date).toISOString() : null,
-            ageSeconds,
-            // Unknown age is UNKNOWN, never healthy.
-            status: ageSeconds === null ? "unknown" : ageSeconds < 300 ? "recent" : "quiet",
-            pose: (r.cameraPose as string | null) ?? null,
-            detector: (r.detectorName as string | null) ?? null,
-            openVisits: num(r.openVisits),
-          };
-        }),
+        asOf: new Date().toISOString(),
+        thresholds: HEALTH_THRESHOLDS,
+        cameras,
+        healthy: cameras.filter((c) => c.state === "HEALTHY").length,
+        expected: expected.length,
+        transitions: transitions.map((t) => ({
+          camera: String(t.camera),
+          from: str(t.fromState),
+          to: String(t.toState),
+          reason: str(t.reason),
+          agoSeconds: num(t.agoSeconds),
+        })),
       };
     } catch (err) {
       return {
         ok: false as const,
-        reason: err instanceof Error ? err.message : "vehicle_visits health read failed",
+        reason: err instanceof Error ? err.message : "camera_runtime health read failed",
       };
     }
   }),

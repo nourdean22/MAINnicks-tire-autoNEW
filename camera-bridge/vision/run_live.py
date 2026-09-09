@@ -25,6 +25,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import uuid
+from typing import Optional
 import sys
 import time
 
@@ -51,16 +53,56 @@ class VisitSink:
     loop, and visitd already owns durable delivery for the production path.
     """
 
-    def __init__(self, url: str, key: str) -> None:
+    def __init__(self, url: str, key: str, data_class: str = "PRODUCTION",
+                 commissioning_run_id: Optional[str] = None) -> None:
         self.url = url
         self._key = key
         self.sent = 0
         self.failed = 0
+        self.heartbeats_sent = 0
+        self.heartbeats_failed = 0
+        #: PRODUCTION | COMMISSIONING | REPLAY -- stamped on every row so a test drive
+        #: is excluded from the shop's KPIs by default (never deleted).
+        self.data_class = data_class
+        self.commissioning_run_id = commissioning_run_id
 
-    def send(self, emission, camera: str, pipeline) -> bool:
+    @property
+    def heartbeat_url(self) -> str:
+        """`/api/camera/visits` -> `/api/camera/heartbeat` on the same host."""
+        base = self.url
+        if base.endswith("/api/camera/visits"):
+            return base[: -len("/visits")] + "/heartbeat"
+        return base.rstrip("/") + "/heartbeat"
+
+    def _post(self, url: str, payload: dict, timeout: float = 10.0) -> bool:
         import json as _json
         import urllib.error
         import urllib.request
+
+        req = urllib.request.Request(url, data=_json.dumps(payload).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("x-sync-key", self._key)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status in (200, 207)
+
+    def heartbeat(self, body: dict) -> bool:
+        """POST one producer heartbeat. Failures are reported and swallowed, like visits."""
+        import urllib.error
+
+        try:
+            ok = self._post(self.heartbeat_url, body)
+        except (urllib.error.URLError, OSError) as exc:
+            self.heartbeats_failed += 1
+            print(f"  ! heartbeat POST failed ({exc}); the loop continues", flush=True)
+            return False
+        if ok:
+            self.heartbeats_sent += 1
+        else:
+            self.heartbeats_failed += 1
+        return ok
+
+    def send(self, emission, camera: str, pipeline) -> bool:
+        import urllib.error
 
         visit_id = getattr(emission, "visit_id", None)
         if not visit_id:
@@ -88,14 +130,11 @@ class VisitSink:
             "bayExitedAt": iso(getattr(timing, "bay_exited_at", None)),
             "departedAt": iso(getattr(timing, "departed_at", None)),
             "preexisting": False,   # preexisting objects never reach visitd at all
+            "dataClass": self.data_class,
+            "commissioningRunId": self.commissioning_run_id,
         }
-        body = _json.dumps({"visits": [row]}).encode()
-        req = urllib.request.Request(self.url, data=body, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("x-sync-key", self._key)
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                ok = resp.status in (200, 207)
+            ok = self._post(self.url, {"visits": [row]})
         except (urllib.error.URLError, OSError) as exc:
             print(f"  ! visit POST failed ({exc}); the loop continues", flush=True)
             self.failed += 1
@@ -132,6 +171,59 @@ def build_council(model: str | None, device: str, motion_gate: bool) -> Detector
     return DetectorCouncil(primary=primary, motion_gate=gate)
 
 
+PRODUCER_INSTANCE_ID = uuid.uuid4().hex[:16]
+
+
+def _iso(ts: Optional[float]) -> Optional[str]:
+    if ts is None:
+        return None
+    import datetime as _dt
+    return _dt.datetime.fromtimestamp(ts, _dt.timezone.utc).isoformat()
+
+
+def heartbeat_body(*, camera: str, seq: int, now: float, mode: str, source, pipeline,
+                   health_state, scene_state, calibration_version: Optional[str],
+                   detector_name: Optional[str], model_sha256: Optional[str],
+                   last_healthy_frame_at: Optional[float],
+                   commissioning_run_id: Optional[str] = None) -> dict:
+    """The producer's own account of itself, for `POST /api/camera/heartbeat`.
+
+    Every field is what THIS process observed; the cloud stamps its own receipt time,
+    so transport delay and clock skew stay distinguishable. `lastHealthyFrameAt` is
+    the last frame `FrameHealth` accepted, NOT the last frame read: a frozen capture
+    keeps delivering frames, and it is the healthy one that proves the camera is alive.
+    """
+    active = getattr(source, "active", None)
+    restores = int(getattr(active, "restores", 0) or 0) if active is not None else 0
+    generation = f"{getattr(source, 'index', 0)}.{restores}"
+    open_visits = len(getattr(getattr(pipeline, "tracker", None), "open_visits", lambda: [])())
+    return {
+        "camera": camera,
+        "producerInstanceId": PRODUCER_INSTANCE_ID,
+        "producerVersion": "vision.run_live",
+        "heartbeatSeq": int(seq),
+        "observedAtEdge": _iso(now),
+        "mode": mode,
+        "commissioningRunId": commissioning_run_id,
+        "sourceType": "wgc" if active is not None and "wgc" in str(getattr(active, "name", "")) else
+                      ("rtsp" if active is not None and "rtsp" in str(getattr(active, "name", "")) else "window"),
+        "sourceGeneration": generation,
+        "sourceConnected": active is not None,
+        "lastHealthyFrameAt": _iso(last_healthy_frame_at),
+        "captureFps": float(getattr(health_state, "fps", 0.0) or 0.0) if health_state is not None else None,
+        "frameOk": bool(health_state.ok) if health_state is not None else None,
+        "poseOk": (bool(scene_state.pose_ok) if getattr(scene_state, "reference_set", False) else None)
+                  if scene_state is not None else None,
+        "poseDelta": (float(scene_state.pose_delta) if getattr(scene_state, "pose_delta", None) is not None else None)
+                     if scene_state is not None else None,
+        "calibrationVersion": calibration_version,
+        "detectorName": detector_name,
+        "modelSha256": model_sha256,
+        "openVisits": int(open_visits),
+        "restores": restores,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seconds", type=float, default=60.0)
@@ -152,6 +244,14 @@ def main() -> int:
                          "e.g. https://nickstire.org/api/camera/visits")
     ap.add_argument("--sync-key-env", default="CAMERA_INGEST_KEY",
                     help="env var holding the ingest shared secret (never pass the key itself)")
+    ap.add_argument("--mode", choices=["production", "shadow", "commissioning"], default=None,
+                    help="what this run IS. Default: shadow without a calibration, production with one; "
+                         "--commissioning-run forces commissioning")
+    ap.add_argument("--commissioning-run", default=None,
+                    help="commissioning run id (e.g. C-20260909-001). Rows are tagged COMMISSIONING and "
+                         "excluded from the shop's KPIs by default")
+    ap.add_argument("--heartbeat-seconds", type=float, default=30.0,
+                    help="how often to POST a producer heartbeat when --post-to is set")
     args = ap.parse_args()
 
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
@@ -199,6 +299,17 @@ def main() -> int:
     pipe = VisionPipeline(council=council, lot_map=lot_map, entry_portal=portal,
                           camera="sign", bay_names=bays, evidence=store)
 
+    mode = args.mode or ("commissioning" if args.commissioning_run else ("production" if calibrated else "shadow"))
+    if args.commissioning_run:
+        mode = "commissioning"
+    data_class = "COMMISSIONING" if mode == "commissioning" else "PRODUCTION"
+    calibration_version = None
+    if calibrated:
+        import hashlib
+        with open(args.calibration, "rb") as fh:
+            calibration_version = "sha256:" + hashlib.sha256(fh.read()).hexdigest()[:12]
+    print(f"mode: {mode}  dataClass: {data_class}  calibration: {calibration_version or 'none'}")
+
     sink = None
     if args.post_to:
         key = os.environ.get(args.sync_key_env, "")
@@ -206,8 +317,27 @@ def main() -> int:
             print(f"--post-to given but {args.sync_key_env} is unset; refusing to POST "
                   "unauthenticated. Emissions will be printed only.")
         else:
-            sink = VisitSink(args.post_to, key)
-            print(f"posting visits to {args.post_to}")
+            sink = VisitSink(args.post_to, key, data_class=data_class,
+                             commissioning_run_id=args.commissioning_run)
+            print(f"posting visits to {args.post_to} (heartbeat every {args.heartbeat_seconds:g}s)")
+
+    heartbeat_seq = 0
+    next_heartbeat = time.time()
+    last_health = None
+    last_scene = None
+    last_healthy_frame_at: Optional[float] = None
+    detector_name = getattr(council, "name", None) or type(council).__name__
+    model_sha = None
+    try:
+        # The weights this system was measured against are pinned by sha256 in
+        # fetch_models.PINNED; the .bin digest identifies the model in the heartbeat.
+        from vision.fetch_models import PINNED as _PINNED
+        model_sha = next(
+            (f.sha256 for f in _PINNED if str(getattr(f, "rel_path", "")).endswith(".bin")),
+            None,
+        )
+    except Exception:
+        model_sha = None
 
     interval = 1.0 / max(0.5, args.fps)
     t_end = time.time() + args.seconds
@@ -219,6 +349,22 @@ def main() -> int:
             time.sleep(interval)
             continue
         out = pipe.step(frame)
+        hs = out.get("health") or pipe.health.state(time.time())
+        last_health = hs
+        if hs is not None and getattr(hs, "ok", False):
+            last_healthy_frame_at = frame.ts
+        if out.get("scene") is not None:
+            last_scene = out["scene"]
+        if sink is not None and time.time() >= next_heartbeat:
+            next_heartbeat = time.time() + args.heartbeat_seconds
+            heartbeat_seq += 1
+            sink.heartbeat(heartbeat_body(
+                camera="sign", seq=heartbeat_seq, now=time.time(), mode=mode.upper(), source=source,
+                pipeline=pipe, health_state=last_health, scene_state=last_scene,
+                calibration_version=calibration_version, detector_name=detector_name,
+                model_sha256=model_sha, last_healthy_frame_at=last_healthy_frame_at,
+                commissioning_run_id=args.commissioning_run,
+            ))
         council_res = out.get("council")
         if council_res is not None:
             vehicles_seen.append(len(council_res.detections))
@@ -236,7 +382,8 @@ def main() -> int:
         avg = sum(vehicles_seen) / len(vehicles_seen)
         print(f"vehicles per analysed frame: mean {avg:.2f}, max {max(vehicles_seen)}")
     if sink is not None:
-        print(f"visits posted: {sink.sent} sent, {sink.failed} failed")
+        print(f"visits posted: {sink.sent} sent, {sink.failed} failed; "
+              f"heartbeats: {sink.heartbeats_sent} sent, {sink.heartbeats_failed} failed")
     if not calibrated:
         print("\nARRIVALS NOT REPORTED: no calibration. Re-run with --save-frame, draw "
               "the lot and driveway polygons, then pass --calibration.")

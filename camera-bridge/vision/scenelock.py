@@ -108,14 +108,33 @@ class SceneLock:
         pose_tolerance: float = 12.0,
         moving_cell_frac: float = 0.70,
         auto_reference: bool = True,
+        pose_max_changed_frac: float = 0.30,
     ) -> None:
         self.moving_frac = moving_frac
         self.pixel_delta = pixel_delta
         self.settle_frames = settle_frames
         #: Camera motion must be SPATIALLY GLOBAL, not merely large.
         self.moving_cell_frac = moving_cell_frac
-        #: Max mean-abs-difference from the reference still counted as the same pose.
+        #: Legacy mean-abs-difference bound. Reported for observability; NO LONGER the
+        #: verdict -- see `pose_max_changed_frac`.
         self.pose_tolerance = pose_tolerance
+        #: The pose verdict: what FRACTION of the frame may differ from the reference and
+        #: still count as the same camera pose.
+        #:
+        #: The mean was the wrong statistic and it locked the system out. Measured live on
+        #: 2026-09-09: against a fixed reference the mean climbed 0 -> 5.58 in THIRTY
+        #: SECONDS purely from cars moving on the lot, monotonically, because the
+        #: reference never updates. Over a 15-minute run it crossed 12.0 and stayed there,
+        #: and since `may_create_visits` is `(not moving) and pose_ok`, the pipeline
+        #: suppressed 2315 of 2629 frames -- 88% blind -- and reported it under a counter
+        #: named "camera motion" while the camera had not moved at all.
+        #:
+        #: Cars coming and going IS the subject, so the pose check must be indifferent to
+        #: it. Over the same measurement the fraction of pixels differing by more than the
+        #: delta stayed at 0.008-0.019: 98% of the frame still matched. A real pan moves
+        #: essentially everything. So the verdict is "does MOST of the frame still line
+        #: up", which a busy lot passes and a pan cannot.
+        self.pose_max_changed_frac = pose_max_changed_frac
         #: Adopt the first settled view as the pose reference. See update()'s comment --
         #: without this the pose gate is inert, because nothing else calls
         #: set_reference() and `may_create_visits` is `(not moving) and pose_ok`.
@@ -188,9 +207,13 @@ class SceneLock:
             if self._ref.shape != g.shape:
                 return SceneState(moving=False, change_frac=change_frac, cell_frac=cell_frac,
                                   pose_ok=False, reference_set=True)
-            delta = float(np.abs(g - self._ref).mean())
+            diff = np.abs(g - self._ref)
+            delta = float(diff.mean())
+            # The VERDICT is the changed FRACTION, not the average magnitude: a lot full
+            # of moving cars leaves most of the frame in place, a pan does not.
+            changed = float((diff > self.pixel_delta).mean())
             return SceneState(moving=False, change_frac=change_frac, cell_frac=cell_frac,
-                              pose_ok=delta <= self.pose_tolerance,
+                              pose_ok=changed <= self.pose_max_changed_frac,
                               pose_delta=delta, reference_set=True)
 
         # No reference: the pose is UNKNOWN rather than verified. Kept permissive so an

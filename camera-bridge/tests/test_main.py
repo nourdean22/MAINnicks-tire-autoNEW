@@ -181,7 +181,7 @@ class CommitFailureTest(unittest.TestCase):
         commit = ledger.commit_step
         failures = [sqlite3.OperationalError("disk I/O error")]
 
-        def flaky_commit(visits, rows):
+        def flaky_commit(visits, rows, shop_rows=()):
             if failures:
                 raise failures.pop()
             return commit(visits, rows)

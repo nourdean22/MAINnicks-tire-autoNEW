@@ -83,6 +83,17 @@ CREATE TABLE IF NOT EXISTS dead_letter (
     last_error TEXT,
     parked_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS shop_outbox (
+    visit_id TEXT PRIMARY KEY,
+    seq INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shop_outbox_created ON shop_outbox(created_at);
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -116,9 +127,13 @@ class OutboxItem:
 class Ledger:
     """Durable state for visitd."""
 
-    def __init__(self, path: str, outbox_max_depth: int = 5000, policy: Optional[VisitPolicy] = None) -> None:
+    def __init__(self, path: str, outbox_max_depth: int = 5000, policy: Optional[VisitPolicy] = None,
+                 shop_outbox_max_depth: int = 2000) -> None:
         self.path = path
         self.outbox_max_depth = max(1, outbox_max_depth)
+        #: The shop queue coalesces by visit, so this is a cap on OPEN VISITS awaiting the
+        #: shop, not on emissions -- 2000 is far beyond any real lot and still bounds the disk.
+        self.shop_outbox_max_depth = max(1, shop_outbox_max_depth)
         self.policy = policy or VisitPolicy()
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
@@ -159,12 +174,19 @@ class Ledger:
                 self._conn.execute("ROLLBACK")
                 raise
 
-    def commit_step(self, visits: Iterable[Visit], rows: Sequence[Tuple[str, str, str, Dict[str, object]]]) -> Tuple[List[str], int]:
-        """Persist one pipeline step atomically: the visits it touched AND the outbox rows it emitted share
-        one transaction, so a crash can never leave a reloaded visit one seq behind what is already queued.
+    def commit_step(
+        self,
+        visits: Iterable[Visit],
+        rows: Sequence[Tuple[str, str, str, Dict[str, object]]],
+        shop_rows: Sequence[Tuple[str, int, str, Dict[str, object]]] = (),
+    ) -> Tuple[List[str], int]:
+        """Persist one pipeline step atomically: the visits it touched, the outbox rows it emitted AND the
+        shop projection rows share one transaction, so a crash can never leave a reloaded visit one seq
+        behind what is already queued, nor a delivered visit whose shop row was never enqueued.
 
-        `rows` are (event_id, device_id, url, payload). Returns (per-row status in order: 'inserted' |
-        'duplicate' | 'refused', total rows evicted to make room).
+        `rows` are (event_id, device_id, url, payload). `shop_rows` are (visit_id, seq, url, payload) --
+        see `_upsert_shop_row` for why the shop queue coalesces by visit instead of appending.
+        Returns (per-row status in order: 'inserted' | 'duplicate' | 'refused', total rows evicted).
         """
         with self._lock:
             self._conn.execute("BEGIN")
@@ -177,11 +199,53 @@ class Ledger:
                     status, n = self._enqueue_row(event_id, device_id, url, payload)
                     statuses.append(status)
                     evicted += n
+                for visit_id, seq, url, payload in shop_rows:
+                    evicted += self._upsert_shop_row(visit_id, seq, url, payload)
                 self._conn.execute("COMMIT")
                 return statuses, evicted
             except Exception:
                 self._conn.execute("ROLLBACK")
                 raise
+
+    def _upsert_shop_row(self, visit_id: str, seq: int, url: str, payload: Dict[str, object]) -> int:
+        """Queue the shop's view of ONE visit, inside an open transaction. Returns rows evicted.
+
+        WHY THIS COALESCES INSTEAD OF APPENDING. The shop ingest applies a guarded full-column
+        replace (`INSERT ... ON DUPLICATE KEY UPDATE` gated on `VALUES(seq) >= seq`), and this
+        mirror sends the whole merged row every time. So of N queued emissions for one visit, only
+        the HIGHEST seq carries information -- every earlier one is a strict subset the database
+        would refuse anyway. Keying the queue by `visit_id` therefore bounds it at one row per OPEN
+        VISIT rather than one per emission: a two-hour shop outage leaves a handful of rows, not
+        thousands, and the terminal state always wins because it always carries the highest seq.
+
+        The row is MATERIALISED here, not rendered at drain time: `ShopMirror` accumulates per-visit
+        state in memory, and that memory does not survive a restart. Storing the merged payload is
+        what makes the projection durable rather than merely retried.
+        """
+        now = time.time()
+        # An older seq for a visit already queued is dropped: it cannot add information, and
+        # letting it overwrite would walk the queued row backwards.
+        self._conn.execute(
+            """INSERT INTO shop_outbox (visit_id, seq, url, payload, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(visit_id) DO UPDATE SET
+                 seq=excluded.seq, url=excluded.url, payload=excluded.payload, updated_at=excluded.updated_at,
+                 attempts=0, last_error=NULL
+               WHERE excluded.seq >= shop_outbox.seq""",
+            (visit_id, int(seq), url, json.dumps(payload, separators=(",", ":"), sort_keys=True), now, now),
+        )
+        evicted = 0
+        depth = int(self._conn.execute("SELECT COUNT(*) FROM shop_outbox").fetchone()[0])
+        if depth > self.shop_outbox_max_depth:
+            # Bounded like the authoritative outbox, and by the same rule: the OLDEST goes, so a
+            # runaway backlog cannot consume the disk the open-visit state lives on. Counted by the
+            # caller so it is visible as a metric rather than silent.
+            cur = self._conn.execute(
+                "DELETE FROM shop_outbox WHERE visit_id IN (SELECT visit_id FROM shop_outbox ORDER BY created_at ASC LIMIT ?)",
+                (depth - self.shop_outbox_max_depth,),
+            )
+            evicted = int(cur.rowcount or 0)
+        return evicted
 
     def _save_visit(self, visit: Visit) -> None:
         """Upsert one visit inside an open transaction."""
@@ -429,6 +493,56 @@ class Ledger:
                 (int(limit),),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def shop_outbox_depth(self) -> int:
+        """Visits whose shop projection is not yet delivered."""
+        with self._lock:
+            return int(self._conn.execute("SELECT COUNT(*) FROM shop_outbox").fetchone()[0])
+
+    def shop_outbox_oldest_age(self, now: Optional[float] = None) -> Optional[float]:
+        """Seconds since the oldest undelivered shop row was first queued, or None when empty.
+
+        This is the number the shop admin turns into CLOUD_BACKLOG: depth alone cannot tell a busy
+        second from an hour-long outage.
+        """
+        with self._lock:
+            row = self._conn.execute("SELECT MIN(created_at) AS c FROM shop_outbox").fetchone()
+        if row is None or row["c"] is None:
+            return None
+        return max(0.0, (time.time() if now is None else now) - float(row["c"]))
+
+    def shop_outbox_batch(self, limit: int = 25) -> List[Dict[str, object]]:
+        """Oldest-first batch of undelivered shop rows."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT visit_id, seq, url, payload, attempts, created_at FROM shop_outbox ORDER BY created_at ASC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        return [
+            {"visit_id": r["visit_id"], "seq": int(r["seq"]), "url": r["url"],
+             "payload": json.loads(r["payload"]), "attempts": int(r["attempts"]), "created_at": float(r["created_at"])}
+            for r in rows
+        ]
+
+    def shop_outbox_ack(self, visit_id: str, seq: int) -> bool:
+        """Delete a delivered row -- ONLY if it is still the seq that was delivered.
+
+        The guard matters: a new emission for the same visit can be queued while its predecessor is
+        in flight, and an unguarded delete would drop that newer row without ever sending it, which
+        is precisely the silent loss this table exists to prevent.
+        """
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM shop_outbox WHERE visit_id = ? AND seq = ?", (visit_id, int(seq)))
+            return int(cur.rowcount or 0) > 0
+
+    def shop_outbox_fail(self, visit_id: str, error: str) -> None:
+        """Record a failed delivery attempt. Nothing is ever dead-lettered here: the shop read model
+        is a projection, so the only correct end state is 'delivered' or 'still trying'."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE shop_outbox SET attempts = attempts + 1, last_error = ? WHERE visit_id = ?",
+                (error[:500], visit_id),
+            )
 
     def outbox_ids(self) -> List[int]:
         """Pending ids in delivery order (diagnostics/tests)."""

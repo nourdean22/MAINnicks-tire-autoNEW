@@ -4588,15 +4588,90 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
   detectorName: varchar("detectorName", { length: 128 }),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
 
+  /**
+   * PRODUCTION | COMMISSIONING | REPLAY (migration 0120). A controlled test drive
+   * must never become "today's customer arrival": every KPI query filters
+   * PRODUCTION by default and commissioning rows are excluded, never deleted.
+   */
+  dataClass: varchar("dataClass", { length: 16 }).default("PRODUCTION").notNull(),
+  commissioningRunId: varchar("commissioningRunId", { length: 64 }),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("uq_vehicle_visits_visitId").on(table.visitId),
+  index("idx_vehicle_visits_dataClass").on(table.dataClass),
   index("idx_vehicle_visits_state").on(table.state),
   index("idx_vehicle_visits_arrivedAt").on(table.arrivedAt),
   index("idx_vehicle_visits_departedAt").on(table.departedAt),
   index("idx_vehicle_visits_bay").on(table.bay),
   index("idx_vehicle_visits_plateText").on(table.plateText),
+]);
+
+/**
+ * Latest heartbeat per camera producer (migration 0120). Producer health is an
+ * INFRASTRUCTURE fact and lives here; zero visits is a BUSINESS fact and lives in
+ * `vehicle_visits`. Before this table the two shared one timestamp, and a healthy
+ * producer on a quiet lot rendered as `cameras: []`.
+ *
+ * Every field is what the PRODUCER observed at `observedAtEdge`; `receivedAt` is
+ * when the cloud got it. Idempotency key = (producerInstanceId, heartbeatSeq).
+ * `state` is the producer-side derivation at ingest; liveness (STALE /
+ * PRODUCER_OFFLINE) is derived at read time from `receivedAt` age.
+ */
+export const cameraRuntime = mysqlTable("camera_runtime", {
+  camera: varchar("camera", { length: 64 }).primaryKey(),
+  producerInstanceId: varchar("producerInstanceId", { length: 64 }).notNull(),
+  producerVersion: varchar("producerVersion", { length: 64 }),
+  gitSha: varchar("gitSha", { length: 40 }),
+  heartbeatSeq: int("heartbeatSeq").default(0).notNull(),
+  observedAtEdge: timestamp("observedAtEdge"),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  /** PRODUCTION | SHADOW | COMMISSIONING — what the producer says it is doing. */
+  mode: varchar("mode", { length: 16 }).default("PRODUCTION").notNull(),
+  commissioningRunId: varchar("commissioningRunId", { length: 64 }),
+  sourceType: varchar("sourceType", { length: 32 }),
+  sourceGeneration: varchar("sourceGeneration", { length: 64 }),
+  sourceConnected: boolean("sourceConnected"),
+  lastFrameAt: timestamp("lastFrameAt"),
+  lastHealthyFrameAt: timestamp("lastHealthyFrameAt"),
+  captureFps: float("captureFps"),
+  frameOk: boolean("frameOk"),
+  poseOk: boolean("poseOk"),
+  poseDelta: float("poseDelta"),
+  calibrationVersion: varchar("calibrationVersion", { length: 32 }),
+  detectorName: varchar("detectorName", { length: 128 }),
+  modelSha256: varchar("modelSha256", { length: 64 }),
+  lastInferenceAt: timestamp("lastInferenceAt"),
+  inferenceP95Ms: float("inferenceP95Ms"),
+  openVisits: int("openVisits"),
+  outboxDepth: int("outboxDepth"),
+  oldestOutboxAgeSeconds: int("oldestOutboxAgeSeconds"),
+  deadLetterDepth: int("deadLetterDepth"),
+  lastCloudAckAt: timestamp("lastCloudAckAt"),
+  diskFreeBytes: bigint("diskFreeBytes", { mode: "number" }),
+  /** Times the producer had to un-minimise its capture window. Non-zero = somebody is minimising the camera app. */
+  restores: int("restores"),
+  state: varchar("state", { length: 32 }).notNull(),
+  stateSince: timestamp("stateSince"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_camera_runtime_receivedAt").on(table.receivedAt),
+]);
+
+/** Producer-reported state TRANSITIONS only — never one row per heartbeat. */
+export const cameraHealthEvents = mysqlTable("camera_health_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  camera: varchar("camera", { length: 64 }).notNull(),
+  fromState: varchar("fromState", { length: 32 }),
+  toState: varchar("toState", { length: 32 }).notNull(),
+  reason: varchar("reason", { length: 191 }),
+  producerInstanceId: varchar("producerInstanceId", { length: 64 }),
+  sourceGeneration: varchar("sourceGeneration", { length: 64 }),
+  at: timestamp("at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_camera_health_events_camera_at").on(table.camera, table.at),
 ]);
 
 export type VehicleVisit = typeof vehicleVisits.$inferSelect;

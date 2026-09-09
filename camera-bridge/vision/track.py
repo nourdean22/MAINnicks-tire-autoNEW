@@ -56,12 +56,19 @@ class TrackGraph:
         low_match_iou: float = 0.15,
         max_misses: int = 12,
         move_epsilon: float = 14.0,
+        parked_after: float = 25.0,
+        parked_max_misses: int = 150,
     ) -> None:
         self.high_score = high_score
         self.match_iou = match_iou
         self.low_match_iou = low_match_iou
         self.max_misses = max_misses
         self.move_epsilon = move_epsilon
+        #: A track that has held still this long is treated as PARKED, and parked cars
+        #: do not leave without moving first.
+        self.parked_after = parked_after
+        #: Miss tolerance for a parked track. Deliberately large.
+        self.parked_max_misses = parked_max_misses
         self.tracks: dict[int, Track] = {}
         self._next_id = 1
 
@@ -118,7 +125,27 @@ class TrackGraph:
         died: list[Track] = []
         for t in rem_tracks2:
             t.misses += 1
-            if t.misses > self.max_misses:
+            # A PARKED car and a MOVING car should not get the same patience.
+            #
+            # Measured on the live SHOPSIGN feed: 40 track births for ~7 stationary
+            # vehicles over 14 minutes. The confidently-detected cars scored 0.60-1.00,
+            # so the churn is the densely-packed background row flickering under the
+            # detector floor -- and a flat 12-miss tolerance (4s at 3fps) declared those
+            # cars GONE and then re-created them seconds later.
+            #
+            # That is not a cosmetic problem. A re-created track is a NEW track, born
+            # after the boot census, and therefore a candidate for ARRIVAL. Every flicker
+            # was a chance to invent a car that never drove in -- the exact false-arrival
+            # class this package exists to prevent.
+            #
+            # A car that has not moved for `parked_after` seconds has not left in the
+            # next four seconds either; it is behind a passing van or briefly under the
+            # detector's confidence floor. It keeps its identity far longer. A track that
+            # was still MOVING when it vanished keeps the short tolerance, so a car that
+            # actually drives off is retired promptly.
+            still_for = now - t.still_since
+            allowed = self.parked_max_misses if still_for >= self.parked_after else self.max_misses
+            if t.misses > allowed:
                 died.append(t)
         for t in died:
             self.tracks.pop(t.track_id, None)
