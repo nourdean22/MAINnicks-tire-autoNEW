@@ -153,14 +153,23 @@ function percentile(sorted: number[], p: number): number | null {
 }
 
 /**
- * How long after a run ends before its verdict may be FROZEN.
+ * The MINIMUM wait after a run ends before its verdict may be recorded.
  *
  * The edge emits a terminal state only after its departure grace and then drains the shop
  * projection on a timer with retries, so the last events of a run legitimately arrive
- * after the operator has pressed End. Persisting a verdict inside this window would record
- * a missing-departure FAIL for a run that was about to pass.
+ * after the operator has pressed End.
+ *
+ * ⚠ ELAPSED TIME ALONE IS NOT QUIESCENCE, and treating it as such was the bug. The shop
+ * outbox retries an unreachable row INDEFINITELY, so a two-minute WAN outage would let
+ * this window pass with the terminal row still queued -- freezing a missing-departure
+ * FAIL for a run that was fine (Codex P1 on #2255). Settlement therefore also requires
+ * the camera's own heartbeat to report an EMPTY outbox: the edge saying "I have nothing
+ * left to send" is an acknowledgement, where a clock is only a hope.
  */
 const EDGE_SETTLE_MS = 120_000;
+
+/** A heartbeat older than this cannot vouch for the queue being empty NOW. */
+const QUIESCENCE_HEARTBEAT_MAX_AGE_S = 180;
 
 /**
  * Load one commissioning run and diff it against what the machine recorded.
@@ -235,14 +244,32 @@ async function loadCommissioningReport(
     { toleranceMs },
   );
 
-  // HAS THE EDGE FINISHED SPEAKING? The producer emits a terminal state only after its
-  // departure grace, then drains the shop projection asynchronously with retries. An
-  // operator who taps DEPARTED and immediately ends the run would otherwise have a
-  // missing-departure FAIL frozen into the record while the real departure was still in
-  // flight (Codex P1 on #2255). Below this window the verdict is provisional and is NOT
-  // persisted; the report itself is always computed fresh.
+  // HAS THE EDGE FINISHED SPEAKING? Two conditions, and the second is the one that makes
+  // this an observation rather than a guess: enough time for the departure grace, AND the
+  // camera's own latest heartbeat reporting an EMPTY shop outbox. A queue that is still
+  // draining -- or a producer that has gone quiet and cannot vouch for anything -- leaves
+  // the run unsettled, so a WAN outage postpones the verdict instead of freezing a wrong one.
   const endedMs = numOrNull(run.endedMs);
-  const settled = endedMs !== null && Date.now() - endedMs >= EDGE_SETTLE_MS;
+  const drain = rowsOf(await d.execute(sql`
+    SELECT outboxDepth,
+           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds
+    FROM camera_runtime WHERE camera = ${String(run.camera)}
+  `))[0];
+  const drainAge = drain ? numOrNull(drain.ageSeconds) : null;
+  const drainDepth = drain ? numOrNull(drain.outboxDepth) : null;
+  const edgeQuiet =
+    drainAge !== null && drainAge <= QUIESCENCE_HEARTBEAT_MAX_AGE_S && drainDepth === 0;
+  const enoughTime = endedMs !== null && Date.now() - endedMs >= EDGE_SETTLE_MS;
+  const settled = enoughTime && edgeQuiet;
+  const unsettledReason = settled
+    ? null
+    : !enoughTime
+      ? "the edge emits a departure only after its grace period; giving it time"
+      : drainAge === null
+        ? "no producer heartbeat to confirm its queue is empty"
+        : drainAge > QUIESCENCE_HEARTBEAT_MAX_AGE_S
+          ? `the producer has not reported for ${Math.round(drainAge)}s, so it cannot vouch for its queue`
+          : `the edge still has ${drainDepth} row(s) queued for the shop`;
 
   return {
     run: {
@@ -254,10 +281,48 @@ async function loadCommissioningReport(
       open: !run.endedMs,
       clock,
       settled,
+      unsettledReason,
       settleSeconds: Math.round(EDGE_SETTLE_MS / 1000),
     },
     report,
   };
+}
+
+/**
+ * Record the verdict of every SETTLED run in `runIds` that needs it. Returns how many.
+ *
+ * Called from the history read, which the panel polls, so a finished run finalises on its
+ * own instead of waiting for somebody to reopen the report -- the UI opens the report once,
+ * immediately, while it is still provisional, so a reopen-triggered write meant the chip
+ * stayed blank forever (Codex P2 on #2255).
+ *
+ * The stored verdict is REWRITTEN, not written once. A frozen answer sounds tidier, but a
+ * late-arriving departure legitimately changes it, and a permanently wrong FAIL on the
+ * record is worse than a value that converges. It only ever moves while the run is
+ * settled, so it cannot flap.
+ */
+async function finalizeSettledVerdicts(
+  d: NonNullable<Awaited<ReturnType<typeof dbTyped>>>,
+  runIds: string[],
+): Promise<number> {
+  let written = 0;
+  for (const runId of runIds) {
+    try {
+      const built = await loadCommissioningReport(d, runId, 3000);
+      if (!built || !built.run.settled) continue;
+      await d.execute(sql`
+        UPDATE commissioning_runs
+           SET verdict = ${built.report.verdict},
+               verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
+         WHERE runId = ${runId}
+      `);
+      written++;
+    } catch {
+      // One run that cannot be finalised must not stop the others, and must never fail
+      // the history read the operator is actually looking at.
+    }
+  }
+  return written;
 }
 
 export const lotRouter = router({
@@ -687,6 +752,15 @@ export const lotRouter = router({
           WHERE camera = ${input.camera} AND runId LIKE ${`C-${day}-%`}
         `))[0];
         const runId = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
+        // CLOSE ANY RUN ALREADY OPEN ON THIS CAMERA. The heartbeat hands the producer the
+        // most recent open run, so an abandoned one (a reloaded PWA, a killed tab) would
+        // be picked up again the moment a newer run ended -- leaving the edge in
+        // commissioning mode indefinitely and quietly excluding real visits from the
+        // shop's metrics (Codex P1 on #2255). At most one run per camera is open, ever.
+        await d.execute(sql`
+          UPDATE commissioning_runs SET endedAt = NOW(3)
+           WHERE camera = ${input.camera} AND endedAt IS NULL
+        `);
         // Corrected by the SAME offset the taps are, so the anchor and the offsets it
         // anchors live on one timeline.
         const originMs = input.monoOriginWallMs != null && clock
@@ -788,6 +862,19 @@ export const lotRouter = router({
           ORDER BY r.startedAt DESC
           LIMIT ${input.limit}
         `));
+        // Finalise here rather than in the report: this is the read the panel polls, so a
+        // completed run records its verdict without anyone reopening anything.
+        await finalizeSettledVerdicts(
+          d,
+          rows.filter((r) => r.endedMs && !r.verdict).map((r) => String(r.runId)),
+        );
+        const acknowledged = rowsOf(await d.execute(sql`
+          SELECT camera, commissioningRunId, mode,
+                 ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds
+          FROM camera_runtime
+        `));
+        const ackByCamera = new Map(acknowledged.map((a) => [String(a.camera), a]));
+
         return {
           ok: true as const,
           runs: rows.map((r) => ({
@@ -803,6 +890,17 @@ export const lotRouter = router({
             clock: r.clockSamples === null || r.clockSamples === undefined
               ? null
               : { offsetMs: num(r.clockOffsetMs), rttMs: num(r.clockRttMs), samples: num(r.clockSamples) },
+            // Has the PRODUCER acknowledged this exact run? The panel keeps the run screen
+            // disarmed until it has: the edge only learns of a run on its next heartbeat,
+            // and a car driven during that gap is recorded as PRODUCTION with no run id --
+            // which the now-immutable ingest fields make unrepairable.
+            acknowledged: (() => {
+              const a = ackByCamera.get(String(r.camera));
+              if (!a) return false;
+              const age = numOrNull(a.ageSeconds);
+              return String(a.commissioningRunId ?? "") === String(r.runId)
+                && age !== null && age <= QUIESCENCE_HEARTBEAT_MAX_AGE_S;
+            })(),
           })),
         };
       } catch (err) {
@@ -819,18 +917,11 @@ export const lotRouter = router({
       try {
         const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
         if (!built) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
-        // Freeze the verdict the first time we see a SETTLED run. Doing it here rather
-        // than at end time is what lets a late-arriving departure change the answer, and
-        // freezing it at all is what makes the history chip a record rather than a live
-        // opinion that could shift months later if the tolerances were retuned.
-        if (built.run.settled) {
-          await d.execute(sql`
-            UPDATE commissioning_runs
-               SET verdict = ${built.report.verdict},
-                   verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
-             WHERE runId = ${input.runId} AND verdict IS NULL
-          `);
-        }
+        // Recording happens in the history read, which the panel polls -- so a finished
+        // run finalises whether or not anyone opens this. Doing it here too keeps a report
+        // opened long after the fact from showing a verdict the history has not caught up
+        // with yet.
+        if (built.run.settled) await finalizeSettledVerdicts(d, [input.runId]);
         return { ok: true as const, ...built };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning report failed" };

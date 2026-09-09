@@ -82,7 +82,9 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
   const monoOrigin = useRef<number>(0);
 
   const utils = trpc.useUtils();
-  const runs = trpc.lot.commissioningRuns.useQuery({ limit: 5 }, { refetchInterval: runId ? false : 30_000 });
+  // Polled THROUGHOUT a run, not only when idle: this read carries the producer's
+  // acknowledgement, which is what arms the tap buttons.
+  const runs = trpc.lot.commissioningRuns.useQuery({ limit: 5 }, { refetchInterval: 5_000 });
   const report = trpc.lot.commissioningReport.useQuery(
     { runId: reportRunId ?? "", toleranceMs: 3000 },
     { enabled: Boolean(reportRunId) },
@@ -98,6 +100,14 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     const t = setInterval(() => setElapsed(Math.round((performance.now() - monoOrigin.current) / 1000)), 1000);
     return () => clearInterval(t);
   }, [runId]);
+
+  const openRun = runs.data?.ok === true ? runs.data.runs.find((r) => r.open) ?? null : null;
+  const activeRun = runId ? runs.data?.ok === true ? runs.data.runs.find((r) => r.runId === runId) ?? null : null : null;
+  // THE PRODUCER'S ACKNOWLEDGEMENT, not our own optimism. The edge only learns of a run on
+  // its next heartbeat (up to 30 s), and a car driven during that gap is recorded as
+  // PRODUCTION with no run id -- which the immutable ingest fields make unrepairable, so
+  // the drive would pollute customer KPIs AND the report would see no machine visit.
+  const armed = Boolean(activeRun?.acknowledged);
 
   /**
    * Measure the phone/server clock offset before the run, not after.
@@ -164,6 +174,41 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     }
   }
 
+  /**
+   * Re-attach to a run that is still open on the server.
+   *
+   * `runId` lives only in component state, so a PWA reload or an iOS kill mid-drive lost
+   * the only path that could end the run -- leaving the edge in commissioning mode
+   * indefinitely, quietly excluding real visits from the shop's metrics (Codex P1 on
+   * #2255). The monotonic origin cannot be recovered (this is a NEW page), so taps after a
+   * resume carry wall time only; the report degrades to the wall reading for them and says
+   * so, rather than inventing an anchor.
+   */
+  function resume(id: string) {
+    monoOrigin.current = performance.now();
+    setTaps([]);
+    setElapsed(0);
+    setReportRunId(null);
+    setError("Resumed after a reload: the monotonic anchor is lost, so taps from here carry wall time only.");
+    setRunId(id);
+  }
+
+  async function endOrphan(id: string) {
+    setBusy("Ending…");
+    try {
+      const res = await end.mutateAsync({ runId: id });
+      if (!res.ok) {
+        setError(res.reason);
+        return;
+      }
+      await utils.lot.commissioningRuns.invalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not end the run");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function finish() {
     if (!runId) return;
     setBusy("Ending run…");
@@ -220,6 +265,17 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
             </div>
           )}
 
+          {!armed && (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[13px] text-amber-200">
+              <div className="font-semibold">Waiting for the camera to acknowledge — do not drive yet.</div>
+              <div className="mt-1 text-amber-200/80">
+                The producer picks up a run on its next heartbeat, up to 30 seconds. A car driven
+                before then is recorded as a real customer visit and cannot be reclassified
+                afterwards.
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 grid gap-2.5">
             {TAPS.map((t) => {
               const isNext = t.key === nextExpected;
@@ -229,8 +285,9 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
                   key={t.key}
                   type="button"
                   onClick={() => tap(t.key)}
-                  className={`min-h-[72px] rounded-xl border-2 px-4 py-3 text-left transition-colors ${
-                    isNext
+                  disabled={!armed}
+                  className={`min-h-[72px] rounded-xl border-2 px-4 py-3 text-left transition-colors disabled:opacity-40 ${
+                    isNext && armed
                       ? "border-emerald-500/60 bg-emerald-500/10"
                       : "border-foreground/15 hover:bg-foreground/5"
                   }`}
@@ -266,7 +323,8 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
             Every tap is stamped with this phone's wall clock and a monotonic timer, and the
             offset against the server was measured before the run. Rows recorded during a run
             are tagged <span className="font-mono">COMMISSIONING</span> and stay out of the
-            shop's counters.
+            shop's counters. If this page reloads mid-run, the run stays open on the server —
+            reopen the Lot page and resume or end it from the list.
           </p>
         </div>
       </div>
@@ -283,7 +341,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         <button
           type="button"
           onClick={syncAndStart}
-          disabled={Boolean(busy)}
+          disabled={Boolean(busy) || Boolean(openRun)}
           className="min-h-[44px] rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 text-[13px] font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
         >
           {busy ?? "Start a run"}
@@ -292,6 +350,36 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     >
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[13px] text-red-300">{error}</div>
+      )}
+
+      {openRun && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="text-[13px] font-semibold text-amber-200">
+            <span className="font-mono">{openRun.runId}</span> is still open
+          </div>
+          <div className="mt-1 text-[13px] text-amber-200/80">
+            {openRun.acknowledged
+              ? "The camera is in commissioning mode, so its visits are being kept out of the shop's counters. End the run when you are finished."
+              : "The camera has not acknowledged this run. If it never does, end it."}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => resume(openRun.runId)}
+              className="min-h-[44px] rounded-md border border-foreground/20 px-3 text-[13px] font-semibold hover:bg-foreground/5"
+            >
+              Resume
+            </button>
+            <button
+              type="button"
+              onClick={() => endOrphan(openRun.runId)}
+              disabled={Boolean(busy)}
+              className="min-h-[44px] rounded-md border border-red-500/40 bg-red-500/10 px-3 text-[13px] font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+            >
+              {busy ?? "End it"}
+            </button>
+          </div>
+        </div>
       )}
 
       {reportRunId && (
@@ -377,7 +465,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
                 <span>visits {report.data.report.visitIds.length}</span>
                 {!report.data.run.settled && (
                   <span className="text-foreground/40">
-                    still settling &middot; reopen in {report.data.run.settleSeconds}s for the recorded verdict
+                    not recorded yet &middot; {report.data.run.unsettledReason}
                   </span>
                 )}
                 {report.data.run.clock && (
