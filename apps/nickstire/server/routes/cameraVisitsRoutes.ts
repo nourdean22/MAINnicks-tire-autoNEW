@@ -134,9 +134,42 @@ export const COLUMNS = [
   "dataClass", "commissioningRunId",
 ] as const;
 
+/**
+ * Columns a producer LEARNS over the life of a visit and can never un-learn.
+ *
+ * The mirror accumulates per-visit state IN MEMORY, and that memory does not survive a
+ * producer restart. After one, the tracker is restored from the edge's own ledger but the
+ * mirror's accumulator is empty, so the next emission renders a full row with NULL
+ * arrival and bay times -- and at a higher seq, so the guard ACCEPTS it and the complete
+ * row is overwritten with nulls. A routine restart would silently erase a visit's timing
+ * (Codex P1 on #2255).
+ *
+ * `COALESCE(VALUES(c), c)` makes that impossible: a delivery that does not know a
+ * timestamp leaves the known one alone. These values are only ever LEARNED -- a car does
+ * not un-arrive -- so there is no legitimate write that needs to clear them.
+ */
+const LEARNED_ONCE = new Set<string>([
+  "arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt",
+  "bay", "entryEvidence", "evidenceRef",
+]);
+
+/**
+ * Columns fixed at INSERT and never updated: a visit belongs to the run it STARTED in.
+ *
+ * Without this, a producer restarted across a commissioning boundary would reclassify an
+ * in-flight visit — a real customer becoming COMMISSIONING and vanishing from the shop's
+ * KPIs, or a test drive becoming PRODUCTION and being counted as one.
+ */
+const IMMUTABLE_AFTER_INSERT = new Set<string>(["dataClass", "commissioningRunId"]);
+
 /** Every column updates only when the incoming seq is at least the stored one. */
-export const GUARDED_SET = COLUMNS.filter((c) => c !== "visitId")
-  .map((c) => `\`${c}\` = IF(VALUES(\`seq\`) >= \`seq\`, VALUES(\`${c}\`), \`${c}\`)`)
+export const GUARDED_SET = COLUMNS.filter(
+  (c) => c !== "visitId" && !IMMUTABLE_AFTER_INSERT.has(c),
+)
+  .map((c) => {
+    const incoming = LEARNED_ONCE.has(c) ? `COALESCE(VALUES(\`${c}\`), \`${c}\`)` : `VALUES(\`${c}\`)`;
+    return `\`${c}\` = IF(VALUES(\`seq\`) >= \`seq\`, ${incoming}, \`${c}\`)`;
+  })
   .join(", ");
 
 export function registerCameraVisitsRoute(app: Express): void {
@@ -477,9 +510,45 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         }
       }
 
+      // THE COMMISSIONING HANDSHAKE, and it rides the heartbeat on purpose.
+      //
+      // `startCommissioning` only writes a row; nothing told the PRODUCER. So pressing
+      // "Start a run" left the edge in PRODUCTION: the controlled drive would enter the
+      // shop's real KPIs, its visits would carry no `commissioningRunId`, and the report
+      // would find no machine events to compare against -- the whole exercise would run
+      // and prove nothing (Codex P1 on #2255).
+      //
+      // The producer already talks to this route every 30 s, so the open run for this
+      // camera comes back in the reply and the producer adopts it. No new endpoint, no
+      // polling loop, and no way for the two to disagree about which run is live: the
+      // database is the single answer and the heartbeat is the only question.
+      //
+      // The producer then REPORTS the run id in its next heartbeat, which lands in
+      // `camera_runtime.commissioningRunId` -- so the admin can show that the edge has
+      // actually acknowledged the run rather than assuming it did.
+      let activeRun: { runId: string; label: string | null } | null = null;
+      try {
+        const openRun = (await d.execute(sql`
+          SELECT runId, label FROM commissioning_runs
+          WHERE camera = ${b.camera} AND endedAt IS NULL
+          ORDER BY startedAt DESC LIMIT 1
+        `)) as unknown;
+        const list = (Array.isArray(openRun) ? openRun[0] : openRun) as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(list) && list.length) {
+          activeRun = { runId: String(list[0].runId), label: (list[0].label as string | null) ?? null };
+        }
+      } catch {
+        // A missing commissioning table (migration 0121 unapplied) must NOT break the
+        // heartbeat: producer health is the more important of the two, and a producer
+        // that cannot report itself because a newer feature is half-deployed would be a
+        // strictly worse outcome than one that simply never enters commissioning mode.
+        activeRun = null;
+      }
+
       console.info(
         `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} state=${verdict.state}` +
-        (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : ""),
+        (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : "") +
+        (activeRun ? ` activeRun=${activeRun.runId}` : ""),
       );
       return res.status(200).json({
         accepted,
@@ -487,6 +556,7 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         facets: verdict.facets,
         reason: verdict.reason,
         transition,
+        activeCommissioningRun: activeRun,
       });
     } catch (err) {
       return res.status(500).json({ error: err instanceof Error ? err.message : "heartbeat write failed" });

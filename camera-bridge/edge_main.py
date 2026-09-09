@@ -209,6 +209,10 @@ class EdgeLoop:
         self.next_persist = now + persist_seconds
         #: Commits that carried tracker state but no outbox rows -- the quiet-frame path.
         self.quiet_commits = 0
+        #: The capture generation the vision pipeline is currently reasoning within.
+        self.generation = source_generation(source)
+        #: How many times the lane or the restore count changed under us.
+        self.generation_breaks = 0
 
     # ------------------------------------------------------------------ one pass
     def step(self) -> Dict[str, object]:
@@ -229,6 +233,37 @@ class EdgeLoop:
         if frame is not None:
             self.frames += 1
             self.last_frame_at = self.clock()
+
+            # A TRACK PATH MUST NEVER CROSS A CAPTURE GENERATION, and this is the only
+            # place that can enforce it. `CaptureMux` falls back to the next lane after
+            # repeated failed reads, and `WgcWindowSource` bumps its restore count when it
+            # un-minimises the window; either way the pixels afterwards mean something
+            # different from the pixels before. Feeding the first frame of a new generation
+            # straight into the existing pipeline lets an OUTSIDE sample from one lane and
+            # an INSIDE sample from another form a single portal-crossing path -- an
+            # arrival nobody observed, which is the exact failure this system exists to
+            # prevent (Codex P1 on #2255).
+            #
+            # `mark_degraded()` clears the ground-point history of every track that is not
+            # already an arrival (an arrival keeps its path: its crossing is already
+            # evidenced), and `note_reconnect()` re-arms the preexisting census so cars
+            # visible in the new generation are counted as already-present rather than as
+            # having just driven in.
+            gen = source_generation(self.source)
+            if gen != self.generation:
+                self.generation_breaks += 1
+                log.warning(
+                    "capture generation %s -> %s: degrading tracks and re-arming the census "
+                    "(no path may span a source change)", self.generation, gen,
+                )
+                self.generation = gen
+                try:
+                    self.vision.tracks.mark_degraded()
+                    self.vision.census.note_reconnect(frame.ts)
+                except Exception:
+                    self.pipeline.metrics.inc("edge_generation_break_errors_total")
+                    log.exception("generation break failed")
+
             try:
                 out = self.vision.step(frame)
             except Exception:
@@ -343,9 +378,17 @@ class EdgeLoop:
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
-            commissioning_run_id=self.commissioning_run_id,
+            # Whatever the mirror is CURRENTLY tagging rows with, which the previous
+            # heartbeat's reply may have changed. Reporting the launch flag instead would
+            # make the admin show a run the producer had already left, or miss one it had
+            # just joined -- and the point of the field is to prove the edge acknowledged.
+            commissioning_run_id=self.pipeline.shop.commissioning_run_id or self.commissioning_run_id,
         )
-        return self.pipeline.shop.heartbeat(body)
+        ok = self.pipeline.shop.heartbeat(body)
+        # The reply may have switched the mode; keep the loop's own view in step so the
+        # NEXT heartbeat reports it without waiting another round trip.
+        self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.mode
+        return ok
 
     def shutdown(self) -> None:
         """Flush on the way out: commit whatever is held, then drain what we can.
@@ -570,9 +613,9 @@ def run_edge(args: argparse.Namespace) -> int:
         # every heartbeat was rejected read exactly like a healthy one -- the same
         # empty-vs-error shape this project keeps paying for.
         log.info(
-            "edge stopping frames=%s read_failures=%s quiet_commits=%s heartbeats=%s/%s delivered "
-            "visits=%s/%s outbox=%s shop_queue=%s dead_letters=%s",
-            loop.frames, loop.read_failures, loop.quiet_commits,
+            "edge stopping frames=%s read_failures=%s quiet_commits=%s generation_breaks=%s "
+            "heartbeats=%s/%s delivered visits=%s/%s outbox=%s shop_queue=%s dead_letters=%s",
+            loop.frames, loop.read_failures, loop.quiet_commits, loop.generation_breaks,
             pipeline.shop.heartbeats_sent, loop.heartbeat_seq,
             pipeline.shop.sent, pipeline.shop.sent + pipeline.shop.failed,
             pipeline.ledger.outbox_depth(), pipeline.ledger.shop_outbox_depth(),

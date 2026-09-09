@@ -153,6 +153,16 @@ function percentile(sorted: number[], p: number): number | null {
 }
 
 /**
+ * How long after a run ends before its verdict may be FROZEN.
+ *
+ * The edge emits a terminal state only after its departure grace and then drains the shop
+ * projection on a timer with retries, so the last events of a run legitimately arrive
+ * after the operator has pressed End. Persisting a verdict inside this window would record
+ * a missing-departure FAIL for a run that was about to pass.
+ */
+const EDGE_SETTLE_MS = 120_000;
+
+/**
  * Load one commissioning run and diff it against what the machine recorded.
  *
  * Shared by the report query and the end mutation so the two can never disagree about the
@@ -169,7 +179,8 @@ async function loadCommissioningReport(
   const run = rowsOf(await d.execute(sql`
     SELECT runId, camera, label, verdict, clockOffsetMs, clockRttMs, clockSamples,
            ${sql.raw("ROUND(UNIX_TIMESTAMP(startedAt) * 1000)")} AS startedMs,
-           ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(monoOriginAt) * 1000)")} AS monoOriginMs
     FROM commissioning_runs WHERE runId = ${runId}
   `))[0];
   if (!run) return null;
@@ -195,20 +206,24 @@ async function loadCommissioningReport(
     ? null
     : { offsetMs: num(run.clockOffsetMs), rttMs: num(run.clockRttMs), samples: num(run.clockSamples) };
 
-  // The monotonic origin is the SERVER's run-start instant, while `phoneMonoMs` counts from
-  // the PHONE's. They differ by the latency of the start request -- a couple of hundred
-  // milliseconds, an order of magnitude inside the crossing tolerance, and far smaller than
-  // the clock step this exists to survive.
+  // ANCHOR THE MONOTONIC TAPS TO THE PHONE'S OWN ZERO POINT. `phoneMonoMs` counts from the
+  // instant the CLIENT zeroed its timer, which is after `startCommissioning` returned;
+  // anchoring to the server's `startedAt` would add the whole request round trip to every
+  // tap as a constant error, so a slow start would read as a wall-clock step or push a
+  // valid run past the tolerance (Codex P2 on #2255). Fall back to `startedAt` only for
+  // runs recorded before the anchor existed -- and those keep the old, slightly-off
+  // behaviour rather than silently losing their monotonic reading altogether.
   const startedMs = numOrNull(run.startedMs);
+  const monoOriginMs = numOrNull(run.monoOriginMs) ?? startedMs;
   const report = buildCommissioningReport(
     taps
       .filter((t) => t.atMs !== null && t.atMs !== undefined)
       .map((t) => ({
         event: String(t.event),
         atMs: num(t.atMs),
-        monoAtMs: startedMs === null || t.phoneMonoMs === null || t.phoneMonoMs === undefined
+        monoAtMs: monoOriginMs === null || t.phoneMonoMs === null || t.phoneMonoMs === undefined
           ? null
-          : startedMs + num(t.phoneMonoMs),
+          : monoOriginMs + num(t.phoneMonoMs),
       })),
     visits.flatMap((v) => machineEventsFromVisit({
       visitId: String(v.visitId),
@@ -220,15 +235,26 @@ async function loadCommissioningReport(
     { toleranceMs },
   );
 
+  // HAS THE EDGE FINISHED SPEAKING? The producer emits a terminal state only after its
+  // departure grace, then drains the shop projection asynchronously with retries. An
+  // operator who taps DEPARTED and immediately ends the run would otherwise have a
+  // missing-departure FAIL frozen into the record while the real departure was still in
+  // flight (Codex P1 on #2255). Below this window the verdict is provisional and is NOT
+  // persisted; the report itself is always computed fresh.
+  const endedMs = numOrNull(run.endedMs);
+  const settled = endedMs !== null && Date.now() - endedMs >= EDGE_SETTLE_MS;
+
   return {
     run: {
       runId: String(run.runId),
       camera: String(run.camera),
       label: (run.label as string | null) ?? null,
       startedMs,
-      endedMs: numOrNull(run.endedMs),
+      endedMs,
       open: !run.endedMs,
       clock,
+      settled,
+      settleSeconds: Math.round(EDGE_SETTLE_MS / 1000),
     },
     report,
   };
@@ -640,6 +666,13 @@ export const lotRouter = router({
       clockSamples: z.array(z.object({
         t0: z.number(), serverMs: z.number(), t1: z.number(),
       })).max(20).default([]),
+      /**
+       * The phone's wall clock at the instant it zeroed its monotonic timer. Taps are
+       * reconstructed from THIS plus `phoneMonoMs`, not from the server's `startedAt`:
+       * the two differ by the whole start-request round trip, and folding that into every
+       * tap as a constant error would make a slow start look like a wall-clock step.
+       */
+      monoOriginWallMs: z.number().int().nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
       const d = await dbTyped();
@@ -654,11 +687,17 @@ export const lotRouter = router({
           WHERE camera = ${input.camera} AND runId LIKE ${`C-${day}-%`}
         `))[0];
         const runId = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
+        // Corrected by the SAME offset the taps are, so the anchor and the offsets it
+        // anchors live on one timeline.
+        const originMs = input.monoOriginWallMs != null && clock
+          ? input.monoOriginWallMs + clock.offsetMs
+          : input.monoOriginWallMs ?? null;
         await d.execute(sql`
-          INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples)
+          INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples, monoOriginAt)
           VALUES (${runId}, ${input.camera}, ${input.label ?? null},
                   ${ctx.user?.email ?? ctx.user?.name ?? "admin"},
-                  ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null})
+                  ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null},
+                  ${originMs === null ? null : sql`FROM_UNIXTIME(${originMs} / 1000)`})
         `);
         return { ok: true as const, runId, clock };
       } catch (err) {
@@ -719,16 +758,15 @@ export const lotRouter = router({
         // later if the tolerances were retuned; freezing it at the end of the run is what
         // makes it a RECORD rather than a live opinion.
         const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
-        if (built) {
-          await d.execute(sql`
-            UPDATE commissioning_runs
-               SET verdict = ${built.report.verdict},
-                   verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
-             WHERE runId = ${input.runId}
-          `);
-          return { ok: true as const, verdict: built.report.verdict, findings: built.report.findings };
-        }
-        return { ok: true as const, verdict: null, findings: [] };
+        if (!built) return { ok: true as const, verdict: null, provisional: true, findings: [] };
+        // Never persisted here: a run that ended a second ago has not settled by
+        // construction. The report query freezes it once the window has passed.
+        return {
+          ok: true as const,
+          verdict: built.report.verdict,
+          provisional: true,
+          findings: built.report.findings,
+        };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "could not end the run" };
       }
@@ -781,6 +819,18 @@ export const lotRouter = router({
       try {
         const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
         if (!built) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+        // Freeze the verdict the first time we see a SETTLED run. Doing it here rather
+        // than at end time is what lets a late-arriving departure change the answer, and
+        // freezing it at all is what makes the history chip a record rather than a live
+        // opinion that could shift months later if the tolerances were retuned.
+        if (built.run.settled) {
+          await d.execute(sql`
+            UPDATE commissioning_runs
+               SET verdict = ${built.report.verdict},
+                   verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
+             WHERE runId = ${input.runId} AND verdict IS NULL
+          `);
+        }
         return { ok: true as const, ...built };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning report failed" };

@@ -4678,6 +4678,13 @@ export const commissioningRuns = mysqlTable("commissioning_runs", {
   clockOffsetMs: int("clockOffsetMs"),
   clockRttMs: int("clockRttMs"),
   clockSamples: int("clockSamples"),
+  /**
+   * The PHONE's own zero point for `phoneMonoMs`, corrected by the measured offset.
+   * Anchoring to `startedAt` would fold the whole start-request latency into every
+   * reconstructed tap as a constant error, and a slow start would then read as a
+   * wall-clock step or push a valid run past the match tolerance.
+   */
+  monoOriginAt: timestamp("monoOriginAt", { fsp: 3 }),
   verdict: varchar("verdict", { length: 16 }),
   verdictReason: varchar("verdictReason", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

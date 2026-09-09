@@ -566,3 +566,58 @@ def _real_emissions(pipeline, camera: str, persist: bool = False):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenerationBreakTest(unittest.TestCase):
+    """A track path must never span a capture generation (Codex P1 on #2255)."""
+
+    def _vision_with_spies(self, pipeline):
+        v = FakeVision(pipeline.tracker, steps=[{"emissions": []}] * 20)
+        v.degraded = []
+        v.reconnects = []
+        v.tracks = SimpleNamespace(mark_degraded=lambda: v.degraded.append(True))
+        v.census = SimpleNamespace(note_reconnect=lambda ts: v.reconnects.append(ts))
+        return v
+
+    def test_a_LANE_FAILOVER_degrades_tracks_and_re_arms_the_census(self):
+        """`CaptureMux` moves to the next lane after repeated failed reads. An OUTSIDE
+        sample from one lane plus an INSIDE sample from another reads as a portal crossing
+        nobody observed -- the exact failure this system exists to prevent."""
+        pipeline = make_pipeline()
+        src = FakeSource(index=0)
+        vision = self._vision_with_spies(pipeline)
+        loop = _loop(pipeline, vision, src, persist_seconds=0.0)
+
+        src._frames.append(FakeFrame(1000.0)); loop.step()
+        self.assertEqual(vision.degraded, [], "no change yet")
+
+        src.index = 1                                  # failover
+        src._frames.append(FakeFrame(1001.0)); loop.step()
+        self.assertEqual(len(vision.degraded), 1, "tracks degraded on the new generation")
+        self.assertEqual(vision.reconnects, [1001.0], "census re-armed at the new frame's time")
+        self.assertEqual(loop.generation_breaks, 1)
+
+    def test_an_UN_MINIMISE_is_a_generation_change_too(self):
+        """A restore is a discontinuity in what the pixels mean, not merely a hiccup."""
+        pipeline = make_pipeline()
+        src = FakeSource(restores=0)
+        vision = self._vision_with_spies(pipeline)
+        loop = _loop(pipeline, vision, src, persist_seconds=0.0)
+        src._frames.append(FakeFrame(1000.0)); loop.step()
+        src.active.restores = 1
+        src._frames.append(FakeFrame(1001.0)); loop.step()
+        self.assertEqual(loop.generation_breaks, 1)
+        self.assertEqual(len(vision.degraded), 1)
+
+    def test_a_STEADY_source_never_breaks_paths(self):
+        """The break discards path history, so firing it spuriously would destroy the
+        evidence a legitimate crossing is built from."""
+        pipeline = make_pipeline()
+        src = FakeSource()
+        vision = self._vision_with_spies(pipeline)
+        loop = _loop(pipeline, vision, src, persist_seconds=0.0)
+        for i in range(10):
+            src._frames.append(FakeFrame(1000.0 + i))
+            loop.step()
+        self.assertEqual(loop.generation_breaks, 0)
+        self.assertEqual(vision.degraded, [])

@@ -199,6 +199,11 @@ class ShopMirror:
         This is the infrastructure fact the shop admin lacked: before it, `lot.health`
         inferred camera existence from visit rows, so a healthy producer on a quiet
         lot was indistinguishable from no producer at all.
+
+        IT IS ALSO THE COMMISSIONING HANDSHAKE. The reply carries the open run for this
+        camera, and `apply_active_run` adopts it, so pressing "Start a run" in the admin
+        actually reaches the producer. Without that the controlled drive would be recorded
+        as PRODUCTION with no run id and the report would have nothing to compare against.
         """
         url = self.heartbeat_url
         if not self.enabled or not url:
@@ -220,10 +225,50 @@ class ShopMirror:
             return False
         if 200 <= status < 300:
             self.heartbeats_sent += 1
+            self.apply_active_run(text)
             return True
         self.heartbeats_failed += 1
         log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:120])
         return False
+
+    def apply_active_run(self, response_text) -> Optional[str]:
+        """Adopt (or release) the commissioning run the shop reports. Returns the run id.
+
+        A malformed or unexpected reply leaves the current mode ALONE rather than falling
+        back to PRODUCTION: an older shop deployment that does not send the field at all
+        must not silently reclassify a run that is already under way. Only an explicit
+        `activeCommissioningRun: null` ends commissioning mode.
+        """
+        if isinstance(response_text, (str, bytes)):
+            try:
+                import json as _json
+
+                payload = _json.loads(response_text)
+            except Exception:
+                return self.commissioning_run_id
+        elif isinstance(response_text, dict):
+            payload = response_text
+        else:
+            return self.commissioning_run_id
+        if not isinstance(payload, dict) or "activeCommissioningRun" not in payload:
+            return self.commissioning_run_id
+
+        active = payload.get("activeCommissioningRun")
+        run_id = active.get("runId") if isinstance(active, dict) else None
+        if run_id == self.commissioning_run_id:
+            return self.commissioning_run_id
+
+        if run_id:
+            log.warning("entering COMMISSIONING mode run=%s: visits are tagged and excluded "
+                        "from the shop's counters until the run ends", run_id)
+            self.commissioning_run_id = str(run_id)
+            self.data_class = "COMMISSIONING"
+        else:
+            log.warning("leaving commissioning mode (run %s ended); visits are PRODUCTION again",
+                        self.commissioning_run_id)
+            self.commissioning_run_id = None
+            self.data_class = "PRODUCTION"
+        return self.commissioning_run_id
 
     def forget(self, visit_id: str) -> None:
         with self._lock:

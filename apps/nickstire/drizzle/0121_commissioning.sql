@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS commissioning_runs (
   clockOffsetMs INT NULL,
   clockRttMs INT NULL,
   clockSamples INT NULL,
+  -- The PHONE's own zero point for `phoneMonoMs`, corrected by the measured offset.
+  -- Anchoring to `startedAt` instead would fold the entire start-request latency into
+  -- every reconstructed tap as a constant error -- and a slow start would then look like
+  -- a wall-clock step, or push a valid run past the match tolerance.
+  monoOriginAt TIMESTAMP(3) NULL DEFAULT NULL,
   verdict VARCHAR(16) NULL,
   verdictReason VARCHAR(500) NULL,
   createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

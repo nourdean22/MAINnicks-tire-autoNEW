@@ -309,3 +309,66 @@ class ShopOutboxLedgerTest(unittest.TestCase):
         # ... and the ledger is still usable afterwards: a rollback is not a poisoned handle.
         led.commit_step([], [], [("v-ok", 1, "u", {"visitId": "v-ok"})])
         self.assertEqual(led.shop_outbox_depth(), 1)
+
+
+class CommissioningHandshakeTest(unittest.TestCase):
+    """The producer LEARNS about a run from the heartbeat reply (Codex P1 on #2255).
+
+    `startCommissioning` only writes a database row. Without this the edge stayed in
+    PRODUCTION: the controlled drive would enter the shop's real KPIs, its visits would
+    carry no run id, and the report would find no machine events to compare against.
+    """
+
+    def _mirror(self, **kw):
+        return ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(), **kw)
+
+    def test_it_ADOPTS_the_run_the_shop_reports(self):
+        m = self._mirror()
+        self.assertEqual(m.data_class, "PRODUCTION")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": {"runId": "C-20260910-001"}}')
+        self.assertEqual(m.commissioning_run_id, "C-20260910-001")
+        self.assertEqual(m.data_class, "COMMISSIONING")
+        # And rows written from now on carry it.
+        row = m.row_for(emission())
+        self.assertEqual(row["dataClass"], "COMMISSIONING")
+        self.assertEqual(row["commissioningRunId"], "C-20260910-001")
+
+    def test_an_EXPLICIT_null_ends_commissioning_mode(self):
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": null}')
+        self.assertIsNone(m.commissioning_run_id)
+        self.assertEqual(m.data_class, "PRODUCTION")
+
+    def test_a_reply_WITHOUT_the_field_leaves_the_mode_alone(self):
+        """An older shop deployment that does not send the field must not silently
+        reclassify a run that is already under way."""
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        m.apply_active_run('{"accepted": true, "state": "HEALTHY"}')
+        self.assertEqual(m.commissioning_run_id, "C-1")
+        self.assertEqual(m.data_class, "COMMISSIONING")
+
+    def test_GARBAGE_leaves_the_mode_alone_and_never_raises(self):
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        for junk in ("not json at all", "", b"\x00\x01", None, 42, "[1,2,3]"):
+            m.apply_active_run(junk)
+        self.assertEqual(m.commissioning_run_id, "C-1")
+
+    def test_re_reporting_the_SAME_run_is_a_no_op_and_does_not_log(self):
+        """A 30-second heartbeat would otherwise announce the same run all day."""
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        m.apply_active_run('{"activeCommissioningRun": {"runId": "C-1"}}')
+        self.assertEqual(m.commissioning_run_id, "C-1")
+
+    def test_a_SUCCESSFUL_heartbeat_applies_the_reply(self):
+        """The positive control for the wiring: a 2xx must actually feed the body through."""
+        class ReplyRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"activeCommissioningRun": {"runId": "C-FROM-REPLY"}}'
+
+        m = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=ReplyRecorder())
+        with self.assertLogs("visitd", level="WARNING"):
+            self.assertTrue(m.heartbeat({"camera": "sign"}))
+        self.assertEqual(m.commissioning_run_id, "C-FROM-REPLY")

@@ -123,12 +123,17 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         if (res?.ok) samples.push({ t0, serverMs: res.serverMs, t1 });
       }
       setBusy("Starting run…");
-      const started = await start.mutateAsync({ camera, clockSamples: samples });
+      // Zero the monotonic timer and capture the WALL instant of that same moment, so the
+      // server can anchor every reconstructed tap to the phone's own origin instead of to
+      // its own `startedAt` -- which would fold this whole request's latency into every
+      // tap as a constant error.
+      const originWallMs = Date.now();
+      monoOrigin.current = performance.now();
+      const started = await start.mutateAsync({ camera, clockSamples: samples, monoOriginWallMs: originWallMs });
       if (!started.ok) {
         setError(started.reason);
         return;
       }
-      monoOrigin.current = performance.now();
       setTaps([]);
       setElapsed(0);
       setRunId(started.runId);
@@ -295,6 +300,14 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
             <div className="font-mono text-[14px] font-semibold">{reportRunId}</div>
             <div className="flex items-center gap-2">
               {report.data?.ok === true && verdictChip(report.data.report.verdict)}
+              {report.data?.ok === true && !report.data.run.settled && (
+                <span
+                  className="rounded border border-foreground/20 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-foreground/50"
+                  title={`The edge emits a departure only after its grace period and drains on a timer, so the last events of a run can arrive after you press End. This verdict is not recorded until ${report.data.run.settleSeconds}s have passed.`}
+                >
+                  provisional
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setReportRunId(null)}
@@ -362,6 +375,11 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
                   <span>median |Δ| {report.data.report.stats.medianAbsDeltaMs} ms</span>
                 )}
                 <span>visits {report.data.report.visitIds.length}</span>
+                {!report.data.run.settled && (
+                  <span className="text-foreground/40">
+                    still settling &middot; reopen in {report.data.run.settleSeconds}s for the recorded verdict
+                  </span>
+                )}
                 {report.data.run.clock && (
                   <span className={clockTone(report.data.run.clock.rttMs)}>
                     clock {report.data.run.clock.offsetMs > 0 ? "+" : ""}

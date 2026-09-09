@@ -34,13 +34,45 @@ describe("camera visit ingest — the seq guard covers every column", () => {
     // read-then-write, and it only holds if every assignment carries the guard. A
     // column added to COLUMNS without one would let a stale delivery overwrite that
     // single field while the rest of the row correctly refused it.
-    const updatable = COLUMNS.filter((c) => c !== "visitId");
+    const immutable = ["dataClass", "commissioningRunId"];
+    const updatable = COLUMNS.filter((c) => c !== "visitId" && !immutable.includes(c));
     for (const col of updatable) {
+      // The PREFIX, not the whole assignment: the `then` branch legitimately differs
+      // between a plain replace and the COALESCE the learned-once columns use. What must
+      // hold for EVERY column is that the same seq comparison gates it.
       expect(GUARDED_SET, `${col} is not seq-guarded`).toContain(
-        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, VALUES(\`${col}\`), \`${col}\`)`,
+        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, `,
       );
     }
     expect(GUARDED_SET.split("IF(VALUES(`seq`)").length - 1).toBe(updatable.length);
+  });
+
+  it("NEVER UN-LEARNS a timestamp: a null from a restarted producer cannot erase one", () => {
+    // The mirror accumulates per-visit state IN MEMORY, and that does not survive a
+    // producer restart. Afterwards its first emission renders a full row with NULL
+    // arrival and bay times at a HIGHER seq -- which the guard would accept, overwriting
+    // a complete row with nulls. A routine restart would silently erase a visit's timing
+    // (Codex P1 on #2255). A car does not un-arrive, so COALESCE is always right here.
+    for (const col of ["arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt", "bay", "entryEvidence", "evidenceRef"]) {
+      expect(GUARDED_SET, `${col} can be nulled by a restart`).toContain(
+        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, COALESCE(VALUES(\`${col}\`), \`${col}\`), \`${col}\`)`,
+      );
+    }
+    // But a value that legitimately CHANGES is still replaced outright -- COALESCE
+    // everywhere would freeze the state machine at its first non-null reading.
+    expect(GUARDED_SET).toContain("`state` = IF(VALUES(`seq`) >= `seq`, VALUES(`state`), `state`)");
+    expect(GUARDED_SET).toContain("`plateStatus` = IF(VALUES(`seq`) >= `seq`, VALUES(`plateStatus`), `plateStatus`)");
+  });
+
+  it("the DATA CLASS is fixed at insert: a restart cannot reclassify a visit", () => {
+    // A producer restarted across a commissioning boundary would otherwise turn a real
+    // customer into COMMISSIONING (vanishing from the shop's KPIs) or a test drive into
+    // PRODUCTION (counted as one). A visit belongs to the run it STARTED in.
+    expect(GUARDED_SET).not.toContain("`dataClass` =");
+    expect(GUARDED_SET).not.toContain("`commissioningRunId` =");
+    // ... while still being written on the INSERT itself.
+    expect(COLUMNS).toContain("dataClass");
+    expect(COLUMNS).toContain("commissioningRunId");
   });
 
   it("never rewrites the key it matches on", () => {
@@ -49,12 +81,12 @@ describe("camera visit ingest — the seq guard covers every column", () => {
 });
 
 describe("camera visit ingest — commissioning data class", () => {
-  it("carries dataClass and commissioningRunId through the seq-guarded column set", () => {
-    // A commissioning row that lost its class on a retried delivery would silently
-    // become a production visit; the guard must cover both columns like any other.
+  it("is written on INSERT and never on UPDATE", () => {
+    // A commissioning row that lost its class on a retried delivery would silently become
+    // a production visit -- so it is written once, with the row, and then frozen.
     expect(COLUMNS).toContain("dataClass");
     expect(COLUMNS).toContain("commissioningRunId");
-    expect(GUARDED_SET).toContain("`dataClass` = IF(VALUES(`seq`) >= `seq`, VALUES(`dataClass`), `dataClass`)");
+    expect(GUARDED_SET).not.toContain("VALUES(`dataClass`)");
   });
 });
 
