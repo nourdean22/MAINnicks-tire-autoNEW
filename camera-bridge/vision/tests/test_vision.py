@@ -935,3 +935,48 @@ def test_the_pin_accepts_the_real_model_when_it_is_present():
         assert ok is True, f"{pin.rel_path}: {reason}"
         checked += 1
     assert checked > 0, f"no pinned file found under {models_root}; nothing was verified"
+
+
+def test_reserved_evidence_fields_stay_documented_as_reserved():
+    """A drift catcher on a DOCSTRING, because that docstring was false.
+
+    evidence.py once advertised that every packet carried "the plate candidates, the
+    fingerprint's supports AND contradictions". No writer has ever populated either, so
+    that was false for every packet ever written -- and an empty evidence field that
+    reads as a confident negative is precisely the defect shape this package exists to
+    prevent. If someone wires plate reading in, this test fails and points at the
+    docstring that must stop saying RESERVED.
+    """
+    import vision.evidence as ev
+
+    doc = ev.__doc__ or ""
+    packets = _packets_from_a_clean_arrival()
+    assert packets, "no packets written; this test would prove nothing"
+
+    populated = [p for p in packets if p.get("plate") or p.get("fingerprint")]
+    if populated:
+        assert "RESERVED" not in doc, (
+            "plate/fingerprint are now populated -- remove the RESERVED note from "
+            "vision/evidence.py's docstring, it is stale"
+        )
+    else:
+        assert "RESERVED" in doc, (
+            "plate/fingerprint are still empty in every packet, so the docstring must "
+            "say so rather than advertise evidence the packet does not carry"
+        )
+
+
+def _packets_from_a_clean_arrival() -> list[dict]:
+    """Drive a real arrival and return the packets the pipeline actually wrote.
+
+    Reads the store's in-memory `packets` rather than re-parsing JSONL off disk: the
+    point is what the PIPELINE handed the store, and disabling disk IO keeps the test
+    from depending on the on-disk filename layout.
+    """
+    store = EvidenceStore(enabled=False)
+    pipe = make_pipeline(evidence=store)
+    n = 26
+    boxes = [[car_box(6.0 + 3.4 * i)] for i in range(n)]
+    for f in frames(n, boxes):
+        pipe.step(f, detections=[Detection(car_box(6.0), 0.9)])
+    return [p.to_dict() for p in store.packets]

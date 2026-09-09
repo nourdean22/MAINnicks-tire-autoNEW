@@ -2,11 +2,22 @@
 EvidencePacket: every meaningful transition must be reconstructable, visually and
 logically, without guessing.
 
-An operator asking "why did the system say this car arrived?" gets: the before /
+An operator asking "why did the system say this car arrived?" gets, TODAY: the before /
 crossing / after frames, the camera pose, the track id, the detector scores and which
-detector was allowed to confirm, the zone geometry and the exact rule that fired, the
-plate candidates, the fingerprint's supports AND contradictions, and an explicit list
-of which values were ESTIMATED rather than observed.
+detector was allowed to confirm, the zone geometry and the exact rule that fired, and an
+explicit list of which values were ESTIMATED rather than observed.
+
+`plate` and `fingerprint` are RESERVED and are always empty right now. Nothing
+constructs a PlateLab or a VehicleFingerprint inside VisionPipeline.step(), so neither
+write site can populate them. They are kept because the packet schema is right and a
+consumer reading `packet["plate"] == {}` should mean "not captured", never "no plate
+seen" -- but this docstring previously claimed the packet carried "the plate candidates,
+the fingerprint's supports AND contradictions", which was false for every packet ever
+written. An empty evidence field that reads as a confident negative is the exact defect
+shape this package exists to prevent, so it is named here rather than implied.
+
+They get populated when plate reading is actually wired into the pipeline, which is
+gated on camera geometry (master-plan gate G4) and not before.
 
 Frames are written as JPEG next to a JSONL journal, and every packet references its
 frames by filename so the journal stays small and greppable.
@@ -35,6 +46,8 @@ class EvidencePacket:
     pose: dict[str, Any] = field(default_factory=dict)
     zones: list[str] = field(default_factory=list)
     box: Optional[tuple[float, float, float, float]] = None
+    #: RESERVED -- always {} today; no writer populates these. See the module docstring.
+    #: Empty means "not captured", NEVER "looked and found nothing".
     plate: dict[str, Any] = field(default_factory=dict)
     fingerprint: dict[str, Any] = field(default_factory=dict)
     frames: dict[str, str] = field(default_factory=dict)   # role -> filename
