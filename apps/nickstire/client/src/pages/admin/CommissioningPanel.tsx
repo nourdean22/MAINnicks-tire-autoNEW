@@ -85,6 +85,17 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
    * drive reports INCONCLUSIVE for a missing witness (Codex P1 on #2255). End waits.
    */
   const [pendingTaps, setPendingTaps] = useState(0);
+  /**
+   * A run whose End we have sent but whose producer has not acknowledged.
+   *
+   * Symmetric with arming, and for the same reason. The edge learns a run ENDED only from
+   * its next heartbeat, up to 30 s later, and until then `ShopMirror` still tags arriving
+   * vehicles COMMISSIONING with the ended run id -- which the immutable ingest fields make
+   * permanent. Leaving the run screen the instant End succeeds would let a real customer
+   * who pulls in during that window be excluded from the shop's KPIs forever
+   * (Codex P1 on #2255).
+   */
+  const [endingRunId, setEndingRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reportRunId, setReportRunId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -108,7 +119,16 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
   const runs = trpc.lot.commissioningRuns.useQuery({ limit: 5 }, { refetchInterval: 5_000 });
   const report = trpc.lot.commissioningReport.useQuery(
     { runId: reportRunId ?? "", toleranceMs: 3000 },
-    { enabled: Boolean(reportRunId) },
+    {
+      enabled: Boolean(reportRunId),
+      // KEEP ASKING WHILE IT IS PROVISIONAL. `finish()` opens this the instant the run
+      // ends, when it is provisional by construction: the edge has not yet emitted the
+      // departure, let alone delivered it. A one-shot query would leave the operator
+      // staring at a missing-departure FAIL that the database had already corrected
+      // (Codex P2 on #2255). It stops polling the moment the run settles.
+      refetchInterval: (q) =>
+        q.state.data?.ok === true && q.state.data.run.settled ? false : 10_000,
+    },
   );
 
   const start = trpc.lot.startCommissioning.useMutation();
@@ -123,12 +143,23 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
   }, [runId]);
 
   const openRun = runs.data?.ok === true ? runs.data.runs.find((r) => r.open) ?? null : null;
+  // The producer still names the ended run, so it is still tagging rows with it.
+  const endingStillAcknowledged =
+    endingRunId !== null
+    && runs.data?.ok === true
+    && (runs.data.runs.find((r) => r.runId === endingRunId)?.acknowledged ?? false);
   const activeRun = runId ? runs.data?.ok === true ? runs.data.runs.find((r) => r.runId === runId) ?? null : null : null;
   // THE PRODUCER'S ACKNOWLEDGEMENT, not our own optimism. The edge only learns of a run on
   // its next heartbeat (up to 30 s), and a car driven during that gap is recorded as
   // PRODUCTION with no run id -- which the immutable ingest fields make unrepairable, so
   // the drive would pollute customer KPIs AND the report would see no machine visit.
   const armed = Boolean(activeRun?.acknowledged);
+
+  useEffect(() => {
+    // Once the producer stops naming the run, it has switched back to production tagging
+    // and the warning has served its purpose.
+    if (endingRunId !== null && !endingStillAcknowledged) setEndingRunId(null);
+  }, [endingRunId, endingStillAcknowledged]);
 
   /**
    * Measure the phone/server clock offset before the run, not after.
@@ -253,6 +284,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         setError(`the run is still open: ${res.reason}`);
         return;
       }
+      setEndingRunId(runId);
       setReportRunId(runId);
       setRunId(null);
       await utils.lot.commissioningRuns.invalidate();
@@ -379,6 +411,20 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     >
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[13px] text-red-300">{error}</div>
+      )}
+
+      {endingStillAcknowledged && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[13px] text-amber-200">
+          <div className="font-semibold">
+            <span className="font-mono">{endingRunId}</span> has ended, but the camera has not
+            noticed yet — keep the lot clear.
+          </div>
+          <div className="mt-1 text-amber-200/80">
+            The producer learns a run ended on its next heartbeat, up to 30 seconds. A car that
+            pulls in before then is still tagged as part of the run and cannot be reclassified,
+            so it would be left out of the shop's counters permanently.
+          </div>
+        </div>
       )}
 
       {openRun && (

@@ -178,6 +178,11 @@ class EdgeLoop:
         self.source = source
         self.camera = camera
         self.mode = mode
+        #: What this producer is when NOT commissioning. `mode` follows the shop's answer,
+        #: so without a baseline to return to it would stay COMMISSIONING forever after a
+        #: run ended -- the camera card would keep its badge while rows were correctly
+        #: tagged PRODUCTION again (Codex P2 on #2255).
+        self.base_mode = "COMMISSIONING" if mode == "COMMISSIONING" else mode
         self.calibration_version = calibration_version
         self.detector_name = detector_name
         self.model_sha256 = model_sha256
@@ -250,6 +255,7 @@ class EdgeLoop:
             # visible in the new generation are counted as already-present rather than as
             # having just driven in.
             gen = source_generation(self.source)
+            prev_generation = self.generation
             if gen != self.generation:
                 self.generation_breaks += 1
                 log.warning(
@@ -261,8 +267,19 @@ class EdgeLoop:
                     self.vision.tracks.mark_degraded()
                     self.vision.census.note_reconnect(frame.ts)
                 except Exception:
+                    # FAIL CLOSED. If the invalidation itself failed, the old paths and an
+                    # un-re-armed census are still live -- and feeding this frame in anyway
+                    # is precisely how an outside sample from the previous lane joins an
+                    # inside sample from the new one and fabricates an arrival. Dropping
+                    # one frame costs a quarter of a second; processing it can invent a car
+                    # (Codex P1 on #2255). The next frame retries, because `self.generation`
+                    # is restored so the break is attempted again.
+                    self.generation = prev_generation
                     self.pipeline.metrics.inc("edge_generation_break_errors_total")
-                    log.exception("generation break failed")
+                    log.exception("generation break FAILED; dropping this frame rather than "
+                                  "letting a path span the change")
+                    self._run_timers()
+                    return {"emissions": [], "suppressed": "generation break failed"}
 
             try:
                 out = self.vision.step(frame)
@@ -378,16 +395,17 @@ class EdgeLoop:
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
-            # Whatever the mirror is CURRENTLY tagging rows with, which the previous
-            # heartbeat's reply may have changed. Reporting the launch flag instead would
-            # make the admin show a run the producer had already left, or miss one it had
-            # just joined -- and the point of the field is to prove the edge acknowledged.
-            commissioning_run_id=self.pipeline.shop.commissioning_run_id or self.commissioning_run_id,
+            # ONLY what the mirror is currently tagging rows with. Falling back to the
+            # launch flag would keep re-reporting a run the producer had already left, so
+            # the admin would never see commissioning end -- and this field exists
+            # precisely to prove what the edge acknowledged.
+            commissioning_run_id=self.pipeline.shop.commissioning_run_id,
         )
         ok = self.pipeline.shop.heartbeat(body)
-        # The reply may have switched the mode; keep the loop's own view in step so the
-        # NEXT heartbeat reports it without waiting another round trip.
-        self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.mode
+        # The reply may have switched the mode either way; keep the loop's view in step so
+        # the NEXT heartbeat reports it without waiting another round trip. Returning to
+        # `base_mode` is what lets the camera card's badge clear when a run ends.
+        self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
 
     def shutdown(self) -> None:

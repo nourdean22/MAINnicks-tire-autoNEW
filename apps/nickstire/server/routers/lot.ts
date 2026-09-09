@@ -761,9 +761,13 @@ export const lotRouter = router({
       // out loud on site; the count is of runs for the SAME camera on the SAME ET day.
       const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
       try {
+        // COUNTED GLOBALLY FOR THE DAY, not per camera. `runId` is the table's PRIMARY
+        // KEY, so a per-camera ordinal meant the first run on each of two cameras on the
+        // same day both computed C-YYYYMMDD-001 and the second insert failed on a
+        // duplicate key (Codex P2 on #2255). A global ordinal keeps the id short enough
+        // to say out loud on site, which was the point of the format.
         const existing = rowsOf(await d.execute(sql`
-          SELECT COUNT(*) AS n FROM commissioning_runs
-          WHERE camera = ${input.camera} AND runId LIKE ${`C-${day}-%`}
+          SELECT COUNT(*) AS n FROM commissioning_runs WHERE runId LIKE ${`C-${day}-%`}
         `))[0];
         const runId = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
         // CLOSE ANY RUN ALREADY OPEN ON THIS CAMERA. The heartbeat hands the producer the
