@@ -1,6 +1,6 @@
 # Nour monorepo (`nour-monorepo`)
 
-> One repository · four Railway services · one bill · two concurrent AI-agent sessions.
+> One repository · three Railway services · one bill · multiple concurrent AI-agent sessions.
 
 This is a private, single-owner monorepo housing two production web products and the
 infrastructure that supports them. It is managed with **pnpm workspaces + Turborepo** and
@@ -15,7 +15,7 @@ the gotchas that bite everyone.
 
 ## Table of Contents
 
-1. [The four apps at a glance](#the-four-apps-at-a-glance)
+1. [The three apps at a glance](#the-three-apps-at-a-glance)
 2. [Tech stack](#tech-stack)
 3. [Repository topology](#repository-topology)
 4. [Monorepo Strategy & Governance](#monorepo-strategy--governance)
@@ -38,7 +38,7 @@ the gotchas that bite everyone.
 
 ---
 
-## The four apps at a glance
+## The three apps at a glance
 
 | Path | Package name | What it is | Deploys to |
 |---|---|---|---|
@@ -84,15 +84,12 @@ NOURCITY/
 │  ├─ nickstire/        # nicks-tire-auto — Vite+Express, TiDB        → nickstire.org
 │  ├─ statenour/        # @statenour/web  — Next.js, Neon+pgvector    → bdnick.info
 │  ├─ worker/           # @statenour/worker — Express+node-cron relay (internal)
-│  └─ voice/            # statenour-voice — Python LiveKit agent (internal, non-pnpm)
-├─ packages/
-│  ├─ utils/            # @nour/utils — shared TS utils (cn, with-timeout); built dist/
-│  ├─ lenses/           # @statenour/lenses — strategic-reasoning framework registry
-│  └─ chrome-extension/ # @statenour/chrome-extension — MV3 brain-capture extension
+│  └─ voice/            # RETIRED 2026-08-03 — ZERO tracked files; `ls` may still show it
+├─ packages/            # shared workspace packages — rostered in "Workspace packages" below
 ├─ docs/                # MIGRATION_PLAN.md, MIGRATION_AUDIT.md, RAILWAY_PROVISION.md, adr/
 ├─ scripts/             # repo-level helper scripts
 ├─ lefthook.yml         # pre-commit + pre-push git hooks (the REAL gates)
-├─ .github/workflows/   # test.yml · lighthouse-ci.yml · prerender-refresh.yml
+├─ .github/workflows/   # CI — every action ref SHA-pinned, gated by actionPinning.test.mjs
 ├─ .worktrees/          # git worktrees used by concurrent agent sessions
 ├─ package.json         # root scripts (turbo wrappers) + pnpm patches/overrides
 ├─ pnpm-workspace.yaml  # apps/* + packages/*
@@ -103,8 +100,9 @@ NOURCITY/
 ```
 
 There is **no root `tsconfig.json`** — each app/package owns its own. There is **no root
-Dockerfile** — `statenour`, `worker`, and `voice` each ship their own; `nickstire` builds
-via Railway dashboard commands (see [Deployment](#deployment-railway)).
+Dockerfile** — `statenour` and `worker` each ship their own (Railway builds those images, so
+their OS layers are real and are **not** visible to Dependabot); `nickstire` builds from source
+via `nixpacks.toml` + Railway dashboard commands (see [Deployment](#deployment-railway)).
 
 ### Workspace packages
 
@@ -113,6 +111,12 @@ via Railway dashboard commands (see [Deployment](#deployment-railway)).
 | `packages/utils` | `@nour/utils` (0.2.0) | Shared TS helpers — `./cn` (clsx + tailwind-merge), `./with-timeout`. Ships a tsc-built `dist/`. | statenour (others declare it; worker does not import it) |
 | `packages/lenses` | `@statenour/lenses` (0.1.0, MIT) | Typed registry of strategic reasoning frameworks (first-principles, JTBD, Porter…) with trigger regexes + prompt blocks. | statenour `lib/ai/strategic-frameworks/` |
 | `packages/chrome-extension` | `@statenour/chrome-extension` (0.2.1) | MV3 Chrome extension for quick "brain dump" capture (custom `scripts/build.mjs`). | standalone (not imported) |
+| `packages/ai-capabilities` | `@nour/ai-capabilities` (0.1.0) | `enhance-prompt`: detects whether a request is a UI/design-generation prompt (vs. e.g. a caption or code task), then enhances it with design-system context behind a quality gate before it reaches a generation model. | statenour (`package.json:95`) |
+| `packages/social-assets` | `@nour/social-assets` (0.1.0) | Social-graphic rendering engine — Satori (JSX→SVG) + `@resvg/resvg-js` (SVG→PNG), own font pipeline, `render` CLI. | statenour (`package.json:96`) |
+| `packages/reel-engine` | `@nour/reel-engine` (0.1.0) | Programmatic video rendering via Remotion (`@remotion/bundler` + `@remotion/renderer`). | worker (`package.json:17`) — `renderReelVideo`, see `apps/worker/src/scheduler.ts` |
+| `packages/gbp-publisher` | `@nour/gbp-publisher` (0.1.0) | Google Business Profile OAuth + posting/publishing interface (`googleapis`). | nickstire (`package.json:57`) |
+| `packages/meta-ads-architect` | `@nour/meta-ads-architect` (0.1.0) | Generates compliant, structured Meta Ads campaigns from typed input. | nickstire (`package.json:58`) |
+| `packages/signal-forge` | `@nour/signal-forge` (0.1.0) | CLI + library for generating structured architecture/audit docs from typed input — `control` (signal-control-architecture generation), `nexus` (defect-taxonomy audits), rendered to markdown. | standalone — **not declared in any app's `package.json`**; run via its own CLI (`control`/`nexus`/`lock`), not imported |
 
 > A change inside `packages/**` makes Turbo treat **all consuming apps as affected** — so a
 > `@nour/utils` edit will rebuild statenour (and anything else that imports it) on the next
@@ -481,7 +485,7 @@ failure blocks the push. **Never bypass with `--no-verify`.**
 
 ## Deployment (Railway)
 
-All four apps live in one Railway project — **`natural-appreciation`** — on branch `main`,
+All three live apps run in one Railway project — **`natural-appreciation`** — on branch `main`,
 each with its own **Root Directory + Watch Path** so only the changed app redeploys.
 
 | Service | App | Build | Watch path |
@@ -489,7 +493,7 @@ each with its own **Root Directory + Watch Path** so only the changed app redepl
 | `MAINnicks-tire-auto` | nickstire | **No Dockerfile in repo.** Railway dashboard build/start commands (`pnpm --filter nicks-tire-auto build` / `start`), healthcheck `/api/health`. A legacy `vercel.json` remains for an install-command override. | `apps/nickstire/**` |
 | `statenour-web` | statenour | `apps/statenour/Dockerfile` — 3-stage `node:20-alpine`, **build context = monorepo root** (builds `@nour/utils` + `@statenour/lenses` dist first), Next.js standalone, runtime `node apps/statenour/server.js`, `PORT=8080`. | `apps/statenour/**` |
 | `statenour-worker` | worker | `apps/worker/Dockerfile` — 3-stage `node:20-alpine`, `pnpm deploy --prod --legacy` for a symlink-free artifact, `node dist/index.js`. Railway crons hit `/cron/mega` + `/cron/mega-evening`. | `apps/worker/**` |
-| `statenour-voice` | voice | `apps/voice/Dockerfile` — Python image, build context `apps/voice/` only, `python agent.py`. Outside the Turbo graph. | `apps/voice/**` |
+| `statenour-voice` — **RETIRED, scaled to 0 replicas** (see the topology note above) | voice | `apps/voice/Dockerfile` still exists — Python image, build context `apps/voice/` only, `python agent.py`. Outside the Turbo graph. Kept here for history; not live traffic. | `apps/voice/**` |
 
 There are **no `railway.json`/`railway.toml`/`nixpacks.toml`/`Procfile`** files — deploy is
 driven by the three Dockerfiles + nickstire's dashboard-configured commands. Operator

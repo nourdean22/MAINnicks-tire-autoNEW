@@ -57,7 +57,28 @@ first run found a fourth subject the hand-audit had missed.
      mention-vs-execution: an e2e test command, a commit message quoting
      a flag, a proposals-file append).
    - **Chaining** — `;`, `&&`, `|`, subshells: does the guard see the
-     second command in a compound line?
+     second command in a compound line? The inverse matters just as much:
+     a rule whose scan doesn't STOP at a chain operator can reach INTO an
+     unrelated later command. Witnessed 2026-09-01/09: `force-push`'s
+     bundled-short-flag arm (`\s-[a-eg-uw-z]*f[a-z]*\b`, written for git's
+     own `-f`/`-uf`) matched `gh api`'s unrelated `-f` (field) flag across
+     an `&&` boundary — `git push origin <branch> && gh api ... -f
+     body="..."` was wrongly denied. `push-to-main` had already solved
+     this with a scan restricted to `[^;|&\n]*?`; `force-push` had not.
+     Fixed by applying the same restriction (config/agent-os/policy.json,
+     verified: the false positive now passes, all denyExamples still
+     deny). Any rule using a bare `[^\n]*?` scan after the verb is a
+     candidate for the same bug — check it, don't assume the fix in one
+     rule propagated to its siblings.
+   - **Reachability chain-tracing** — for any "X is reachable/triggerable"
+     claim about an enforcement surface (a canary, a registered tool, a
+     cron job), trace the FULL chain to the entry point that will
+     ACTUALLY be used (route → auth gate → allowlist → runner), and probe
+     the chain, not the registry. Membership in a lookup table is never
+     reachability (witnessed 2026-08-25: a staging canary asserted
+     `registerAllJobs()` membership and called it reachability, while the
+     real trigger route 403'd both staged names via a separate allowlist
+     the canary never touched — caught only by an independent review).
    - **Mention vs execution** — text that only QUOTES a forbidden string
      (docs, commit messages, test fixtures) must pass. A guard that
      blocks its own documentation will be disabled by a frustrated
@@ -85,6 +106,15 @@ first run found a fourth subject the hand-audit had missed.
 4. **Re-run the full probe set after ANY edit to the guard** — a fix for
    one bypass routinely reopens another (the #1355 matching-layer rebuild
    took an hour precisely because fixes interacted).
+5. **A canary that SPAWNS git must strip `GIT_*` env vars before it runs.**
+   Hooks inherit `GIT_DIR`/`GIT_INDEX_FILE` from the real commit that
+   triggered them; a fixture repo-init under an inherited `GIT_DIR`
+   re-initializes the SHARED `.git`, not a scratch one. Witnessed
+   2026-08-25: exactly this took down every linked worktree's git ops
+   machine-wide, and every commit retry re-planted the damage until the
+   env was stripped in both the canary and `stop-check.mjs`'s own runner.
+   Red-team every canary in the context it will actually run (hook env),
+   never standalone-only.
 
 ## Red flags
 

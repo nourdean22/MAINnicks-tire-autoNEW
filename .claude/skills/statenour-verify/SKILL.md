@@ -46,6 +46,23 @@ non-obvious and two of them silently lie if run carelessly.
   2026-07-30 (#1238): a test fixture omitted a newly-required field on
   an interface, typecheck exited 0, and vitest was the only thing that
   caught it. Never report "verified" off typecheck alone.
+- **`pnpm typecheck` never compiles `scripts/` either** — both `scripts/`
+  and `tests/` are tsconfig-excluded. Verify a new or changed script with
+  a scoped tsconfig extending the app's: `{"extends":"./tsconfig.json",
+  "include":["scripts/<file>","next-env.d.ts"]}`, then `tsc --noEmit -p`
+  that file. Tests have no such workaround — they're verified by
+  execution only, never by typecheck.
+- **A green `tsc` can still ship a broken `next build` — a different
+  failure mode from the `tests/`/`scripts/` exclusion above, same "green
+  tsc lied" shape.** Before importing between `lib/observability/*` (or
+  anything reachable from `*.client.config.ts` / `instrumentation-client.ts`),
+  ask which bundle the IMPORTER lands in — a Node-only dependency reachable
+  from the browser graph fails `next build`, never `tsc --noEmit`. Run the
+  real build when you change an import edge, not just typecheck.
+- **A comment asserting "covered by `<other file>`" is a coverage CLAIM,
+  not a fact** — grep the named file for the symbol/category before
+  writing it, exactly like any other receipt. If the coverage doesn't
+  exist yet, write the test first, or write "NOT yet covered" instead.
 - **TS2307 "cannot find module" in a file OUTSIDE your diff = stale-junction
   phantom, not your regression.** Worktree node_modules are junctions to the
   PRIMARY checkout; if the primary sits behind main, packages added since
@@ -78,6 +95,10 @@ non-obvious and two of them silently lie if run carelessly.
 - Pushing `main` deploys statenour to Railway; the repo-level pre-push
   hook runs `turbo build`, NOT the test suite — confirming a green
   `pnpm test` locally is on you.
+- **`git push` itself runs `build:affected` inside pre-push** — give it a
+  600s timeout and run it in the background (the default 120s times out
+  as exit 143 with nothing pushed). The local SHA is not the receipt that
+  the push landed; prove it with `git ls-remote origin refs/heads/<branch>`.
 - **Never invoke `cross-env` bare in PowerShell, and never trust a
   `FINAL_EXIT=$LASTEXITCODE` sentinel after a `&&` chain.** Witnessed:
   chaining gates through `... && cross-env STALE_DOCS_STRICT=1 pnpm
@@ -113,6 +134,47 @@ non-obvious and two of them silently lie if run carelessly.
   #1532). Assert with a discriminator filter (e.g.
   `category !== "memory_gateway_shadow"`), never raw call counts, and treat
   `calls[0]` reads as the same hazard.
+- **N concurrent FIRST-TIME dynamic imports of a mocked module can race the
+  mock registry** — some callers get the real module instead of the mock.
+  Import the mocked module once before the fan-out and pass the binding
+  down; don't let each concurrent caller `import()` it cold. A "mocked"
+  test emitting the real module's log lines, or taking seconds instead of
+  milliseconds, is this bug.
+- **State shared between `instrumentation.ts` and app code must live on
+  `globalThis`** (or another process-global), never module scope — the two
+  load as separate bundles, so a module-scoped variable set in one is
+  invisible in the other. Canary shape: `vi.resetModules()` plus a fresh
+  import must still read the settled state; reading the pre-reset default
+  instead means the state was module-scoped.
+- **Before deleting a file, `grep -rn '<basename>' tests/`** — not just its
+  import. A source-reading guard (`readSource`/`readFileSync`) references a
+  file by string and survives an import-based dead-code sweep untouched,
+  then breaks when the file it names is gone. When the guard's subject is
+  legitimately retired, retarget the contract at the replacement surface —
+  don't delete the canary.
+- **Deleting the last file of a directory (a patch, a fixture, anything)
+  can delete a directory a Dockerfile `COPY`s** — git does not track empty
+  directories, so the next checkout simply lacks the dir the `COPY`
+  expects. Run `tests/repo/dockerfile-copy-sources.test.ts` and read its
+  message before pushing any change that deletes files under a `COPY`
+  source; it exists in the suite specifically to catch this.
+
+## Before declaring a prompt-injection / fencing fix done
+
+One fixed renderer is not a fixed class. Witnessed: a fencing fix landed for
+one of five assemblers that splice stored text into the chat system prompt
+(contextual recall) while the cross-session thread, hybrid recall,
+anticipatory recall, chat recall, and tool results (`searchColdMemory`,
+`searchConversations`, customer-360 notes) all still reached the prompt bare
+— found only by a hostile review, and again by a self-review after the "fix"
+was declared closed.
+
+Before declaring any such fix done, **enumerate every assembler** that
+renders stored text into a prompt or a tool result — `brain-context.ts`
+block producers, `system-prompt.ts` sections, `augment-final-prompt.ts`,
+`context-hints.ts`, `lib/ai/tools/*` — and name each one as fenced,
+allowlisted-with-reason, or not applicable. The durable gate shape is
+`tests/ai/prompt-block-fencing-gate.test.ts`.
 
 ## Before shipping any report / diagnostic section
 
@@ -145,6 +207,15 @@ finding — because the window cut off the map's head, whose first line is
 full read. Absence claims inherit the blast radius of "not in the repo
 is a fact about your search": prove the search saw the whole subject.
 
+**Before declaring a producer-side fix done on any rendered flag or
+badge, grep the RENDER expression for every producer it ORs or aggregates
+and check each one** — fixing one producer while a sibling still emits
+the old value leaves the badge unchanged and the fix unproven. For chat
+quality verdicts specifically, proof is reload + read the persisted
+`tokenUsage.critic` / `tokenUsage.gate` blob via trpc `chat.conversation`
+— a live-stream screenshot is a blind instrument for this surface; it
+shows the stream, not what got persisted.
+
 ## Confirming a merge is DEPLOYED
 
 "Merged" and "deployed" are different claims. Confirm via the
@@ -155,6 +226,12 @@ DEPLOYED=$(curl -s https://bdnick.info/api/version | jq -r .data.build.commit)
 git merge-base --is-ancestor <your-merge-sha> "$DEPLOYED" && echo LIVE
 ```
 
+`jq` may be absent in git-bash — fall back to
+`grep -o '"commit":"[a-f0-9]*"'` on the raw response body. Treat an EMPTY
+`$DEPLOYED` as "the check is broken," never as "not deployed yet." Prefer
+a per-turn one-shot check over a long-running background poll loop — a
+turn boundary kills the loop silently and leaves you waiting on nothing.
+
 Two waiter failure modes witnessed 2026-08-26, same session:
 - **SHA equality breaks the moment a sibling merges** — the deployed SHA
   legitimately overtakes the one you await (watched prod run two
@@ -164,6 +241,14 @@ Two waiter failure modes witnessed 2026-08-26, same session:
   `commitShort` is `sha.slice(0, 7)`; a 9-char comparison printed
   "still not deployed" forever over a build that was already live.
   Compare full SHAs via ancestry, or exactly 7 chars, nothing between.
+
+**Promote this to a hard step before any "shipped" wording, not an
+optional spot-check.** Run BOTH `railway status` (read `Deploy failed`
+per service) AND the ancestry check above; a merge with only one of the
+two is MERGED, never SHIPPED. Trap: `railway logs --build` with no
+deployment id shows the latest SUCCESSFUL build, not the current one —
+list deployments first and pass the FAILED deployment id explicitly, or
+you'll read a stale green build log and call a broken deploy healthy.
 
 ## When the operator DECLINES a gate finding
 
@@ -217,6 +302,16 @@ and the full vitest could not run anywhere. What still verifies, in order:
    No install, so no hooks. **Disclose it in the PR body** ("commit pushed from
    a hookless scratch clone; CI is the gate") and merge only on fully green.
 
+**The same hookless-clone technique applies to a MULTI-APP wave sharing
+one worktree, for a different reason:** `turbo build --affected` reads
+the working tree, so another app's uncommitted edits make ITS build a
+gate for your push too. Either use one worktree per app, or export
+per-app patches (`git add -N` for new files, then `git diff HEAD --binary
+--output=<file> -- <paths>`) and commit each from its own hookless
+scratch clone. Run the per-app pre-commit gates by hand on the STAGED
+files first — a brand-voice or lint scan reports 0 files scanned, not a
+pass, unless you staged them.
+
 ## Before calling a wave done
 
 The author's own hostile pass is necessary, not sufficient. On the 2026-09-01
@@ -231,6 +326,12 @@ shape, verify their top findings yourself, then declare done.
 `.env.local` is **not** the full credential set — several keys live only
 on Railway. A provider-failure cascade is not proof of a billing problem
 until you check which lanes actually had keys.
+
+**A key's PRESENCE — an env-check boolean, a `.env` line, a doc's claim —
+is never evidence of VALIDITY.** When any provider lane misbehaves, the
+only real check is one live, cheap call against the provider from the
+runtime that actually holds the key. Reading the key's existence proves
+nothing about whether it still authenticates.
 
 > Prefer `railway run --service statenour-web <cmd>` over hand-exporting
 > vars. It injects the real environment, so the preferred provider lane
@@ -247,6 +348,23 @@ and rejects anything else, but the OpenAI fallback returns **1536** with
 no length guard. "Succeeding" on that fallback would silently poison a
 1024-dim corpus — check `embedding_dim` after any embedding backfill.
 
+**When every scenario in a run errors with the provider's sentinel value
+in seconds, check the provider breaker or cooldown FIRST** — a recent
+stray call or a recent failed call can trip it, and the next real attempt
+inherits the trip. Re-run the identical command once before touching any
+code. Never grade or trust a run whose Nick calls came back as sentinels;
+it measured the breaker, not your change.
+
+## Credentials in fixtures and diffs
+
+Fixtures use synthetic values with the same shape, never a real
+credential — not even in a test that proves the value gets redacted.
+Before committing anything touching credentials, grep the diff for
+fragments of every value the operator has shown you this session,
+screenshots included. A green gitleaks scan is shape-dependent, not
+value-dependent: the same real key passes as an inline argument and
+fails only as `const secret = "..."` — don't trust it as the sole check.
+
 ## Reading an ambiguous CI or hook result
 
 Two of every three "failures" in the 2026-09-02 wave needed no code
@@ -261,7 +379,17 @@ change. Triage before fixing:
   debug." Never treat a cancelled run as green evidence.
 - **`completion-authority` evaluates review threads at run time.**
   Resolving threads afterwards leaves a STALE red. Re-run it; do not
-  re-litigate the threads.
+  re-litigate the threads. It compiles four sub-gates — know the one-line
+  fix for each: rewrite the per-diff evidence entry (never reuse a prior
+  diff's); resolve review threads via GraphQL `resolveReviewThread` AFTER
+  replying to each, not before; obey the ledger ladder — fix the LABEL,
+  never inflate the state; always run `scripts/render-reality-ledger.mjs`
+  and commit the regenerated `.md` beside the `.json`.
+- **List review threads (`gh api graphql … reviewThreads`) and READ them
+  before resolving, every time.** Reply with evidence, then resolve — but
+  a thread is sometimes right about a real bug the tests missed. Never
+  resolve a thread just to clear the gate; that converts a correct
+  reviewer finding into a shipped defect.
 - **Trace reachability before assuming authorship.** An e2e failure
   looked like the wave's until traced: `/api/intel` has no import path to
   the changed code, the error was a heartbeat timeout (`curl rc=28`),
@@ -280,12 +408,71 @@ change. Triage before fixing:
 - **Check the CI database version, not just prod.** CI is
   `pgvector/pgvector:pg16`, prod is PG17 — `IS JSON OBJECT` needs PG16+.
   Both fine here, but the gap is real and untested by default.
+- **A gate that reports a failure COUNT with no LOCATION needs the
+  instrument fixed before the finding.** Witnessed: gitleaks printed
+  `leaks found: 1` with no rule/file/line; guessing (a
+  `google-site-verification` meta tag) shipped a wrong, mis-scoped
+  allowlist while the red stayed red. `--report-format json
+  --report-path` gave the real hit (`generic-api-key` on a minified
+  analytics key). **Never scope an allowlist to a LINE on minified
+  HTML** — one line can be the whole 15KB document, and a real secret
+  sharing it would be exempted too. Scope to the matched text.
+- **`gh pr checks` reporting zero rows is not "settled," and a pushed
+  SHA with zero check-runs while Actions shows operational is a stalled
+  event delivery, not a billing question.** Require a positive row
+  count (`pass > 0`, not just `pending==0 && fail==0`) before trusting
+  a settle loop. If check-runs never appear on a pushed SHA, push the
+  next real commit — closing/reopening the PR does not re-fire them.
 
 ## After MODIFYING a verified query, re-run it
 
 A receipt for the old version is not a receipt for the new one. Recorded
 after a wave modified a SQL statement post-verification and shipped it
 unre-run.
+
+## A negative result from a third-party API is not evidence yet
+
+Before recording "the record isn't there", clear two failure modes that both
+return a clean, believable empty result:
+
+1. **The vendor's naming convention.** Langfuse stores an observation as
+   `<functionId>:<span>` — searching `observability-probe` finds nothing while
+   `observability-probe:ai.generateText` is sitting right there.
+2. **List endpoints are PROJECTIONS.** `GET /api/public/v2/observations` omits
+   `metadata`, `userId`, `tags`, `release`, `model` and `input` entirely; those
+   exist only on the DETAIL route, `GET /api/public/traces/<traceId>`. Querying
+   the list for a field the list does not carry returns "absent" for a field
+   that is present.
+
+Both fired in one run, and nearly recorded a WORKING pipeline as dead — in a
+session whose whole subject was a health badge that lied. **Prove the reader
+works by matching one record you know exists**, then trust its zeroes. Same
+discipline as [empty-vs-error](../empty-vs-error/SKILL.md): absent and broken
+are different answers, and a thin projection makes them look identical.
+
+## Naming collisions in a spread-order barrel
+
+`nourTools` spreads multiple domain files in order — the LAST one to declare a
+given key wins, silently. Adding a tool whose name already exists elsewhere in
+the barrel overwrites a working tool with no error, and the catalog's total
+count stays flat (one key replaced the other), so a count-only sanity check
+won't catch it. Witnessed: a new `scheduleFollowUp` silently shadowed an
+existing customer-facing follow-up tool of the same name; caught only by
+`catalog-integrity`'s stronger check.
+
+Before adding a tool: `git grep -n '<name>: tool('` across `lib/ai/tools/`.
+Register in BOTH `catalog.ts` and `tool-families.ts` — their category/cost
+unions differ, and only the pre-commit typecheck catches a mismatch between
+the two.
+
+**Registration is not reachability for the chat pruner either.** A tool
+correctly present in all three registries can still be invisible to
+`pruneTools` for all but one of five realistic phrasings — the trigger
+regex and the attach-pattern regex are different, and a tool can match one
+without the other. After adding a chat tool, run `pruneTools` against 5
+phrasings a real user would type and assert the tool actually surfaces; a
+registered-but-unreachable tool measured this way on a real wave got
+attached for only 1 of 5 tries.
 
 ## When NOT to use
 

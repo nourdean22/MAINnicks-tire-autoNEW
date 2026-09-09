@@ -114,8 +114,8 @@ async function main() {
       console.log("");
       console.log("✗ NO DATA · shadow mode hasn't run in this window.");
       console.log("");
-      console.log("To populate · set NICK_PRIME_PROMPT=shadow in Vercel env");
-      console.log("vars and let the chat path accumulate 24-48h of paired");
+      console.log("To populate · set NICK_PRIME_PROMPT=shadow in the statenour-web");
+      console.log("Railway service's env vars and let the chat path accumulate 24-48h of paired");
       console.log("turns · then re-run this script.");
       console.log("");
     }

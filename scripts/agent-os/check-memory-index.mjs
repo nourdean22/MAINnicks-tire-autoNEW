@@ -58,6 +58,7 @@
  *   node scripts/agent-os/check-memory-index.mjs --quiet        # only on problems
  */
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -101,11 +102,44 @@ const QUIET = process.argv.includes("--quiet");
 function projectSlug(repoRoot) {
   return repoRoot.replace(/[\\/:]/g, "-");
 }
+
+/**
+ * Resolve the MAIN worktree root — deliberately not this checkout's.
+ *
+ * Agent memory is keyed to the PRIMARY checkout's path. A harness worktree
+ * under `.claude/worktrees/*` resolves its own root, whose slug
+ * (`…--claude-worktrees-<branch>`) names a memory directory that has never
+ * existed. Measured 2026-09-09: the guard printed "CANNOT CHECK: … is not a
+ * directory" and exited 2 in exactly the sessions that do the work, since
+ * AGENTS.md tells every concurrent session to start from a worktree.
+ *
+ * It failed SAFE — exit 2, never 0 — so this was never a false green. But a
+ * guard that cannot run where the work happens protects nobody, and the
+ * documented workaround (pass `--dir` by hand) is one nobody remembers.
+ *
+ * `--git-common-dir` resolves to the PRIMARY `.git` from inside any linked
+ * worktree, so its parent is the main checkout. Falls back to this root when
+ * git is absent or the answer is unusable: a wrong slug still bails loudly.
+ */
+function mainWorktreeRoot(fallback) {
+  try {
+    const out = execFileSync(
+      "git",
+      ["-C", fallback, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+    if (out) return dirname(out);
+  } catch {
+    // Not a git checkout, git missing, or a git too old for --path-format.
+  }
+  return fallback;
+}
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DIR =
   argDir !== -1
     ? process.argv[argDir + 1]
-    : join(homedir(), ".claude", "projects", projectSlug(REPO_ROOT), "memory");
+    : join(homedir(), ".claude", "projects", projectSlug(mainWorktreeRoot(REPO_ROOT)), "memory");
 
 function bail(msg) {
   console.log(`[memory-index] CANNOT CHECK: ${msg}`);
