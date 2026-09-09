@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -36,6 +37,7 @@ from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 from vision.platelab import CANDIDATE, CONFIRMED, PlateLab, lookup_class  # noqa: E402
 from vision.replaylab import FailureInjector, ReplayLab  # noqa: E402
+from vision.run_live import VisitSink  # noqa: E402
 from vision.scenelock import SceneLock  # noqa: E402
 from vision.track import TrackGraph  # noqa: E402
 
@@ -1062,3 +1064,105 @@ def _packets_from_a_clean_arrival() -> list[dict]:
     for f in frames(n, boxes):
         pipe.step(f, detections=[Detection(car_box(6.0), 0.9)])
     return [p.to_dict() for p in store.packets]
+
+
+# ------------------------------------------------- producer -> ingest, over a real socket
+
+class _Captured:
+    """What a stand-in ingest actually received."""
+
+    def __init__(self) -> None:
+        self.path = None
+        self.headers = {}
+        self.body = None
+
+
+def _serve_once(status: int, captured: "_Captured"):
+    """A one-request HTTP server on an ephemeral port. Returns (url, shutdown)."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802 - stdlib naming
+            n = int(self.headers.get("Content-Length", 0))
+            captured.path = self.path
+            captured.headers = {k.lower(): v for k, v in self.headers.items()}
+            captured.body = self.rfile.read(n).decode()
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *a):  # keep pytest output clean
+            return
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    port = srv.server_address[1]
+    return f"http://127.0.0.1:{port}/api/camera/visits", srv.shutdown
+
+
+def test_the_visit_sink_posts_a_body_the_shop_route_accepts():
+    """The producer half of the chain, over a REAL socket.
+
+    Everything else about this path was verified by reading two files in two languages.
+    That catches a field-name mismatch but not a transport one, and until this test the
+    POST had never actually been executed. It asserts the four things the TypeScript route
+    requires before it will store anything: the `visits` envelope, the `x-sync-key` header,
+    the four non-nullish columns (visitId/camera/state/seq), and seq as a NUMBER -- the
+    route's schema is `z.number().int()`, so a stringified seq would 400 every delivery
+    while looking correct in a log.
+    """
+    import json as _json
+
+    cap = _Captured()
+    url, shutdown = _serve_once(200, cap)
+    try:
+        sink = VisitSink(url, "shhh")
+        pipe = make_pipeline()
+        em = SimpleNamespace(visit_id="v-42", state="CONFIRMED_ARRIVAL", seq=7)
+        ok = sink.send(em, camera="sign", pipeline=pipe)
+    finally:
+        shutdown()
+
+    assert ok is True and sink.sent == 1 and sink.failed == 0
+    assert cap.path == "/api/camera/visits"
+    assert cap.headers.get("x-sync-key") == "shhh", "the route 401s without this header"
+    assert cap.headers.get("content-type") == "application/json"
+
+    payload = _json.loads(cap.body)
+    assert list(payload.keys()) == ["visits"], "the route parses {visits: [...]}, not a bare row"
+    row = payload["visits"][0]
+    for required in ("visitId", "camera", "state", "seq"):
+        assert row.get(required) not in (None, ""), f"{required} is not nullish in the route schema"
+    assert isinstance(row["seq"], int) and not isinstance(row["seq"], bool), (
+        "seq must be a JSON number -- the route rejects a string, and a rejected delivery "
+        "is indistinguishable from a quiet lot"
+    )
+
+
+def test_a_rejecting_ingest_never_takes_down_the_capture_loop():
+    """A shop-side outage must cost visits, not the pipeline.
+
+    The sink runs inside the frame loop. If a 500 propagated, one bad deploy on
+    nickstire.org would stop the camera from seeing anything at all -- trading a
+    reporting outage for a sensing outage.
+    """
+    cap = _Captured()
+    url, shutdown = _serve_once(500, cap)
+    try:
+        sink = VisitSink(url, "shhh")
+        pipe = make_pipeline()
+        em = SimpleNamespace(visit_id="v-500", state="LEFT", seq=1)
+        ok = sink.send(em, camera="sign", pipeline=pipe)
+    finally:
+        shutdown()
+
+    assert ok is False, "a 500 is not a successful delivery"
+    assert cap.body is not None, "the request was still made"
+
+    # And a host that is not listening at all: still no exception.
+    sink2 = VisitSink("http://127.0.0.1:9/api/camera/visits", "shhh")
+    assert sink2.send(SimpleNamespace(visit_id="v-dead", state="LEFT", seq=1),
+                      camera="sign", pipeline=make_pipeline()) is False
+    assert sink2.failed == 1
