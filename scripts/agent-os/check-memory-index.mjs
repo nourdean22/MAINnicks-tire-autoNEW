@@ -123,10 +123,19 @@ function projectSlug(repoRoot) {
  */
 function mainWorktreeRoot(fallback) {
   try {
+    // Strip GIT_* first. This guard can run from a git hook (SessionStart, or
+    // anything that shells it out mid-commit), and git exports GIT_DIR to
+    // children — an inherited one would make `rev-parse` answer about THAT
+    // repo, silently keying memory to the wrong project slug. Same hazard the
+    // canaries in this directory strip for, one level up: there it corrupts a
+    // fixture, here it would just quietly read the wrong index.
+    const env = { ...process.env };
+    for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+
     const out = execFileSync(
       "git",
       ["-C", fallback, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "ignore"] },
     ).trim();
     if (out) return dirname(out);
   } catch {

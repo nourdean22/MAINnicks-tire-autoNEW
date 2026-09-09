@@ -186,8 +186,28 @@ test("the default memory path derives from the MAIN worktree, not a linked one",
   const base = mkdtempSync(join(tmpdir(), "mi-"));
   const mainRoot = join(base, "mi-main");
   const linked = join(base, "mi-tree");
-  const git = (args, cwd) =>
-    spawnSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  /**
+   * STRIP EVERY GIT_* VAR. Non-negotiable, and it cost a real incident on
+   * 2026-09-09 when this helper was first written without it.
+   *
+   * lefthook runs these canaries from `agent-os-verify` inside pre-commit, and
+   * git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE to child processes.
+   * An inherited GIT_DIR makes `git init` below initialise **the real repo**
+   * rather than the tmpdir — and with no work tree in scope it writes
+   * `core.bare = true` into the SHARED `.git/config`. Every linked worktree
+   * and the primary then die with "fatal: this operation must be run in a work
+   * tree" while `git log` keeps working, so it does not even look like a git
+   * problem. Ten checkouts went down at once; the commit still succeeded,
+   * which is what makes it so easy to miss.
+   *
+   * `stop-check.test.mjs` carries the identical guard for the identical reason
+   * (2026-08-25). Any canary in this directory that shells out to git needs it.
+   */
+  const git = (args, cwd) => {
+    const env = { ...process.env };
+    for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+    return spawnSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  };
 
   try {
     mkdirSync(join(mainRoot, "scripts", "agent-os"), { recursive: true });
