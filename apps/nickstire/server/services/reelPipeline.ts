@@ -1495,6 +1495,27 @@ export async function resumeTimedOutReelJobs(limit = 5): Promise<{ resumed: numb
     if (!beats) { out.skipped.push({ jobId: job.id, why: "no_beats" }); continue; }
     if (!pack) { out.skipped.push({ jobId: job.id, why: "no_prompt_pack" }); continue; }
 
+    // NEVER RESUME A JOB WHOSE REMOTE STATE IS UNKNOWN.
+    //
+    // Defect in this function as first shipped (2026-09-09), found by audit the
+    // same day: it read status, igPostId, payload and clips — and never the
+    // stamped error class. shared/providerErrors.ts marks
+    // LOCAL_TIMEOUT_REMOTE_UNKNOWN as { action: "RECONCILE_BEFORE_RETRY",
+    // mayDoubleSpend: true } precisely because the provider may already have
+    // completed and BILLED the beat we are about to buy again. Auto-requeueing
+    // it is the single thing that policy table forbids — and it is the exact
+    // class the three jobs resumed on 2026-09-09 were carrying.
+    //
+    // Until a provider-reconciliation lane exists, such a job is QUARANTINED
+    // rather than silently re-paid: it stays needs_regen and is reported in
+    // `skipped` with its class, so the gap is visible instead of expensive.
+    const { parseErrorClass, policyForErrorClass } = await import("../../shared/providerErrors");
+    const cls = parseErrorClass(job.error);
+    if (cls && policyForErrorClass(cls).mayDoubleSpend) {
+      out.skipped.push({ jobId: job.id, why: `reconcile_first:${cls}` });
+      continue;
+    }
+
     const autoResumes = Number(payload.autoResumes ?? 0);
     if (autoResumes >= MAX_AUTO_RESUMES) { out.skipped.push({ jobId: job.id, why: "auto_resume_cap" }); continue; }
 
