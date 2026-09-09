@@ -1,0 +1,291 @@
+"""
+VisionPipeline: frames in, TRUSTWORTHY visit events out.
+
+    frame -> FrameHealth -> SceneLock -> DetectorCouncil -> TrackGraph
+          -> PreexistingCensus -> EntryPortal -> BayLatch -> EvidencePacket -> visitd
+
+Invariants, each asserted by a test in tests/test_vision.py:
+
+  1. A vehicle already present at startup or right after a reconnect is PREEXISTING.
+     It counts toward occupancy and NEVER reaches visitd, so it can never become a
+     CONFIRMED_ARRIVAL by sitting still. (This is the P0 the live POC exposed.)
+  2. While the camera is moving or its pose is untrusted, NO visit is created. Open
+     visits survive, marked visibilityDegraded.
+  3. A new visit requires explicit entry evidence: an outside -> inside portal
+     crossing on the vehicle's ground point. Dwell never invents an arrival.
+  4. If no detector allowed to confirm is available, the pipeline reports occupancy
+     and motion but creates no visits at all.
+  5. A frozen or stale capture cannot mint arrivals; recovery is treated as a
+     reconnect, which re-arms the preexisting census.
+
+visitd itself is untouched -- it stays a pure function of the event stream it is fed.
+The whole point of this module is to feed it an HONEST stream.
+"""
+from __future__ import annotations
+
+import os
+import sys
+from collections import Counter
+from dataclasses import dataclass, field
+from typing import Any, Optional, Sequence
+
+from .baylatch import BayLatch, VisitTiming
+from .census import PreexistingCensus
+from .detector import CouncilResult, DetectorCouncil
+from .evidence import EvidencePacket, EvidenceStore
+from .frame import Detection, Frame
+from .framehealth import FrameHealth
+from .geometry import EntryPortal, LotMap
+from .scenelock import SceneLock
+from .track import Track, TrackGraph
+
+
+def load_visitd():
+    """Import the shipped visitd package from the sibling directory."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    parent = os.path.dirname(here)          # camera-bridge/
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+    from visitd.frigate_events import parse_event                      # noqa: E402
+    from visitd.state_machine import CameraSpec, VisitPolicy, VisitTracker  # noqa: E402
+    return parse_event, VisitTracker, VisitPolicy, CameraSpec
+
+
+@dataclass
+class PipelineStats:
+    frames: int = 0
+    suppressed_camera_motion: int = 0
+    suppressed_unhealthy: int = 0
+    suppressed_unverified: int = 0
+    detector_skipped_no_motion: int = 0
+    preexisting: int = 0
+    candidates: int = 0
+    arrivals: int = 0
+    rejected_no_entry_evidence: int = 0
+    motion_only_frames: int = 0
+    visitd_states: Counter = field(default_factory=Counter)
+
+    def to_dict(self) -> dict:
+        d = {k: v for k, v in self.__dict__.items() if k != "visitd_states"}
+        d["visitdStates"] = dict(self.visitd_states)
+        return d
+
+
+class VisionPipeline:
+    def __init__(
+        self,
+        council: DetectorCouncil,
+        lot_map: LotMap,
+        entry_portal: EntryPortal,
+        camera: str = "sign",
+        arrival_zone: str = "front_lot",
+        bay_names: Optional[list[str]] = None,
+        evidence: Optional[EvidenceStore] = None,
+        tracker: Any = None,
+        startup_grace: float = 8.0,
+        scene_lock: Optional[SceneLock] = None,
+        frame_health: Optional[FrameHealth] = None,
+        track_graph: Optional[TrackGraph] = None,
+    ) -> None:
+        self.council = council
+        self.lot_map = lot_map
+        self.portal = entry_portal
+        self.camera = camera
+        self.arrival_zone = arrival_zone
+        self.health = frame_health or FrameHealth()
+        self.scene = scene_lock or SceneLock()
+        self.tracks = track_graph or TrackGraph()
+        self.census = PreexistingCensus(startup_grace=startup_grace)
+        self.bays = BayLatch(bay_names or [])
+        self.evidence = evidence or EvidenceStore(enabled=False)
+        self.stats = PipelineStats()
+        self.timings: dict[int, VisitTiming] = {}
+        self._track_visit: dict[int, str] = {}
+        self._start_ts: Optional[float] = None
+        self._was_unhealthy = False
+        self._last_image = None
+
+        if tracker is not None:
+            self._parse_event = None
+            self.tracker = tracker
+        else:
+            parse_event, VisitTracker, VisitPolicy, CameraSpec = load_visitd()
+            self._parse_event = parse_event
+            self.tracker = VisitTracker(
+                VisitPolicy(),
+                {camera: CameraSpec(name=camera, arrival_zones=frozenset({arrival_zone}))},
+            )
+
+    # ---------------------------------------------------------------- visitd bridge
+    def _emit(self, kind: str, track: Track, now: float, ended: bool = False) -> list:
+        x1, y1, x2, y2 = track.box
+        after = {
+            "id": f"{self.camera}-{track.track_id}",
+            "camera": self.camera,
+            "label": "car",
+            "score": float(track.score),
+            "top_score": float(track.score),
+            "frame_time": now,
+            "start_time": track.born_ts,
+            "end_time": now if ended else None,
+            "box": [int(x1), int(y1), int(x2), int(y2)],
+            "area": int(max(0.0, x2 - x1) * max(0.0, y2 - y1)),
+            "stationary": track.stationary_for(now) > 3.0,
+            "motionless_count": int(track.stationary_for(now) * 5),
+            "current_zones": [] if ended else [self.arrival_zone],
+            "entered_zones": [self.arrival_zone] if kind == "new" else [],
+        }
+        payload = {"type": kind, "before": {}, "after": after}
+        event = self._parse_event(payload) if self._parse_event else payload
+        emissions = list(self.tracker.handle_event(event))
+        for em in emissions:
+            self.stats.visitd_states[getattr(em, "state", "?")] += 1
+            vid = getattr(em, "visit_id", None)
+            if vid:
+                self._track_visit[track.track_id] = vid
+        return emissions
+
+    # -------------------------------------------------------------------- main step
+    def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None) -> dict:
+        now = frame.ts
+        if self._start_ts is None:
+            self._start_ts = now
+        self.stats.frames += 1
+        out: dict[str, Any] = {"emissions": [], "suppressed": None, "born": [], "died": []}
+
+        # 0. Is this frame even OF the camera? -----------------------------------
+        # A screen-region capture silently returns whatever window overlaps the target.
+        # An unverified frame is not evidence about the lot, so it cannot be allowed to
+        # start, advance or end a visit.
+        if frame.meta.get("window_verified") is False:
+            self.stats.suppressed_unverified += 1
+            self._was_unhealthy = True          # recovery re-arms the preexisting census
+            self.tracks.mark_degraded()
+            out["suppressed"] = "capture window occluded: frame is not the camera"
+            return out
+
+        # 1. Frame health -------------------------------------------------------
+        self.health.update(now, frame.image)
+        hs = self.health.state(now)
+        if not hs.ok:
+            self.stats.suppressed_unhealthy += 1
+            self._was_unhealthy = True
+            self.tracks.mark_degraded()
+            out["suppressed"] = f"capture unhealthy (frozen={hs.frozen}, fps={hs.fps:.2f})"
+            out["health"] = hs
+            return out
+        if self._was_unhealthy:
+            # Recovery is a reconnect: anything visible now may have been there all along.
+            self.census.note_reconnect(now)
+            self._was_unhealthy = False
+
+        # 2. Scene lock ---------------------------------------------------------
+        scene = self.scene.update(frame.image)
+        out["scene"] = scene
+        if not scene.may_create_visits:
+            self.stats.suppressed_camera_motion += 1
+            self.tracks.mark_degraded()
+            self.census.note_reconnect(now)
+            out["suppressed"] = f"camera motion / untrusted pose (change={scene.change_frac:.2f})"
+            return out
+
+        # 3. Detection ----------------------------------------------------------
+        if detections is not None:
+            dets = list(detections)
+            confirmable = True
+            result = CouncilResult(detections=dets, can_confirm_arrival=True,
+                                   reason="detections injected")
+        else:
+            result = self.council.run(frame.image)
+            dets = result.detections
+            confirmable = result.can_confirm_arrival
+            if result.skipped_no_motion:
+                self.stats.detector_skipped_no_motion += 1
+            if result.motion_only:
+                self.stats.motion_only_frames += 1
+        out["council"] = result
+        self._last_image = frame.image
+
+        # 4. Track --------------------------------------------------------------
+        born, died = self.tracks.update(dets, now, confirmable=confirmable)
+        out["born"] = born
+        out["died"] = died
+
+        # 5. Census: classify every newborn -------------------------------------
+        for t in born:
+            t.evidence = self.census.classify_birth(t.born_ts, self._start_ts)
+            if t.evidence == "preexisting":
+                self.stats.preexisting += 1
+                t.entry_reason = "visible during startup/reconnect blind window"
+                self.evidence.write(EvidencePacket(
+                    event="PREEXISTING", ts=now, camera=self.camera, track_id=t.track_id,
+                    rule="census: born inside the blind window -> occupancy only, no visit",
+                    reasons=[t.entry_reason], box=t.box,
+                    detector_scores={"score": t.score, "source": t.source},
+                ))
+            else:
+                self.stats.candidates += 1
+
+        # 6. Entry evidence: the ONLY way to become an arrival -------------------
+        for t in list(self.tracks.tracks.values()):
+            t.zones = self.lot_map.zones_at(t.ground_point)
+            if t.evidence != "candidate":
+                continue
+            if not t.confirmable:
+                self.stats.rejected_no_entry_evidence += 1
+                continue
+            verdict = self.portal.evaluate(t.path)
+            if verdict["crossed"]:
+                t.evidence = "arrival"
+                t.entry_reason = verdict["reason"]
+                self.stats.arrivals += 1
+                self.timings[t.track_id] = VisitTiming(arrived_at=now, wait_started_at=now)
+                emissions = self._emit("new", t, now)
+                out["emissions"].extend(emissions)
+                self.evidence.write(EvidencePacket(
+                    event="ARRIVAL_EVIDENCE", ts=now, camera=self.camera, track_id=t.track_id,
+                    visit_id=self._track_visit.get(t.track_id),
+                    rule="entry portal: outside -> inside crossing on the ground point",
+                    reasons=[verdict["reason"],
+                             f"outside_hits={verdict['outside_hits']}",
+                             f"inside_run={verdict['inside_run']}"],
+                    box=t.box, zones=t.zones,
+                    detector_scores={"score": t.score, "source": t.source,
+                                     "confirmable": t.confirmable},
+                    pose={"changeFrac": round(scene.change_frac, 4), "poseOk": scene.pose_ok},
+                ))
+
+        # 7. Ongoing arrivals -> visitd updates; bay observations ----------------
+        for t in self.tracks.tracks.values():
+            if t.evidence == "arrival" and t.misses == 0:
+                out["emissions"].extend(self._emit("update", t, now))
+            for bay in self.bays.bays:
+                self.bays.observe(bay, bay in t.zones, now, t.track_id)
+                if bay in t.zones:
+                    tm = self.timings.get(t.track_id)
+                    if tm and tm.bay_entered_at is None:
+                        tm.bay_entered_at = now
+
+        # 8. Departures ---------------------------------------------------------
+        for t in died:
+            if t.evidence == "arrival":
+                out["emissions"].extend(self._emit("end", t, now, ended=True))
+                tm = self.timings.get(t.track_id)
+                if tm:
+                    tm.departed_at = now
+            self._track_visit.pop(t.track_id, None)
+
+        # 9. visitd's own clock -------------------------------------------------
+        for em in self.tracker.tick(now):
+            self.stats.visitd_states[getattr(em, "state", "?")] += 1
+            out["emissions"].append(em)
+
+        return out
+
+    # ------------------------------------------------------------------- summary
+    def summary(self) -> dict:
+        d = self.stats.to_dict()
+        d["openVisits"] = len(getattr(self.tracker, "open_visits", lambda: [])())
+        d["occupiedBays"] = self.bays.occupied_bays()
+        d["falseArrivalsFromPreexisting"] = 0  # structural: preexisting never reaches visitd
+        return d

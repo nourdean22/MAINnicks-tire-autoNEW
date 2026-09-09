@@ -1,0 +1,18 @@
+# vision operating layer -- pin after a successful run on the target box.
+# Verified together on Windows 11 26200 / Python 3.14.4 / Core Ultra 7 266V + Arc 140V
+# on 2026-09-09.
+
+numpy>=2.0
+opencv-python-headless>=4.10      # 5.0.0 verified; cv2.dnn.readNetFromCaffe is GONE in 5.x
+
+# Detector runtime. Native OpenVINO supports Python 3.14; the separate
+# onnxruntime-openvino wheel does NOT, so it is deliberately not a dependency.
+openvino>=2026.3                  # 2026.3.1 verified; exposes CPU, GPU and NPU here
+
+# Desktop capture. windows-capture is the adopted lane (Windows Graphics Capture:
+# reads an occluded window without raising or resizing it). mss is the fallback.
+windows-capture>=1.4 ; sys_platform == "win32"
+mss>=9.0 ; sys_platform == "win32"
+
+# Tests
+pytest>=8.0
