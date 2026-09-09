@@ -68,9 +68,18 @@ export async function processKpiSnapshot(): Promise<{ recordsProcessed: number; 
       (SELECT COUNT(*) FROM review_requests
         WHERE sentAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
           AND sentAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')) AS sent,
+      -- created_at, NOT createdAt. This table is snake_case and the one above
+      -- it is camelCase (review_requests.sentAt), which is why the mismatch
+      -- reads as a typo rather than a bug: both spellings are correct in this
+      -- schema, just not on the same table.
+      --
+      -- Consequence, measured 2026-09-09: kpi-snapshot had run 5 times and
+      -- succeeded 0 times since it first fired on 2026-09-03. It did not
+      -- degrade - it never once worked. A raw SQL identifier is invisible to
+      -- tsc and to Drizzle's typing, so nothing upstream could catch it.
       (SELECT COUNT(*) FROM review_replies
-        WHERE createdAt >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
-          AND createdAt <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')) AS received
+        WHERE created_at >= CONVERT_TZ(${weekStart}, 'America/New_York', '+00:00')
+          AND created_at <  CONVERT_TZ(DATE_ADD(${weekStart}, INTERVAL 7 DAY), 'America/New_York', '+00:00')) AS received
   `))[0] ?? {};
 
   const totalLeads = n(leads.total);

@@ -52,7 +52,7 @@
       "startSecond": 22,
       "endSecond": 28,
       "narration": "Do not guess before buying one.",
-      "onScreenText": "Free check. Link in bio.",
+      "onScreenText": "FLUID, NOT THE CLUTCH",
       "visual": "Close-up of the same manual-transmission clutch pedal in the driver footwell, the pedal now sitting high and firm at the top of its travel, dim interior lighting, static camera with a slow creeping push-in",
       "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles"
     }
@@ -69,16 +69,59 @@
     "passFloor": 70,
     "passes": false,
     "breakdown": {
-      "firstFrameScrollStop": { "score": 8, "max": 10, "note": "Close-up clutch pedal in a footwell is a visually distinct scroll-stop frame for a manual-transmission audience, not verified by calculateReelQualityScore()" },
-      "mutedFirst": { "score": 10, "max": 10, "note": "Captions alone carry full meaning per beat" },
-      "beatStructure": { "score": 5, "max": 5, "note": "HOOK/SETUP/VALUE/VALUE/CTA, 5 beats" },
-      "length": { "score": 5, "max": 5, "note": "28s, within 15-60s target and account's ~28-30s convention" },
-      "loop": { "score": 0, "max": 5, "note": "CTA frame (shop garage bay) does not loop back to HOOK frame (pedal close-up) — no loop plan designed" },
-      "sourcedFact": { "score": 0, "max": 10, "note": "No EvidenceRecord in evidenceResolver.ts backs the hydraulic-clutch-leak claims; store not queried live this run (no DB access); grep of businessFacts.ts/evidenceRecords.ts for 'clutch' returned zero matches" },
-      "faceless": { "score": 10, "max": 10, "note": "No people/faces/hands in any beat's visual prompt" },
-      "claimSafety": { "score": 10, "max": 10, "note": "Approved soft-language only ('can point to', 'may indicate', 'worth checking', 'don't guess'); no price, warranty, or absolute claim; does not assert the clutch itself is fine, only that it's worth checking first" },
-      "keyword": { "score": 5, "max": 5, "note": "clutch, pedal, leak — relevant automotive keywords present in narration/captions" },
-      "winningConceptGate": { "score": 0, "max": 5, "note": "scoreReelConcept() (>=57/60 tournament gate) was not invoked — scored 0 rather than assumed passing" }
+      "firstFrameScrollStop": {
+        "score": 8,
+        "max": 10,
+        "note": "Close-up clutch pedal in a footwell is a visually distinct scroll-stop frame for a manual-transmission audience, not verified by calculateReelQualityScore()"
+      },
+      "mutedFirst": {
+        "score": 10,
+        "max": 10,
+        "note": "Captions alone carry full meaning per beat"
+      },
+      "beatStructure": {
+        "score": 5,
+        "max": 5,
+        "note": "HOOK/SETUP/VALUE/VALUE/CTA, 5 beats"
+      },
+      "length": {
+        "score": 5,
+        "max": 5,
+        "note": "28s, within 15-60s target and account's ~28-30s convention"
+      },
+      "loop": {
+        "score": 0,
+        "max": 5,
+        "note": "CTA frame (shop garage bay) does not loop back to HOOK frame (pedal close-up) — no loop plan designed"
+      },
+      "sourcedFact": {
+        "score": 0,
+        "max": 10,
+        "note": "No EvidenceRecord in evidenceResolver.ts backs the hydraulic-clutch-leak claims; store not queried live this run (no DB access); grep of businessFacts.ts/evidenceRecords.ts for 'clutch' returned zero matches"
+      },
+      "faceless": {
+        "score": 10,
+        "max": 10,
+        "note": "No people/faces/hands in any beat's visual prompt"
+      },
+      "claimSafety": {
+        "score": 10,
+        "max": 10,
+        "note": "Approved soft-language only ('can point to', 'may indicate', 'worth checking', 'don't guess'); no price, warranty, or absolute claim; does not assert the clutch itself is fine, only that it's worth checking first"
+      },
+      "keyword": {
+        "score": 5,
+        "max": 5,
+        "note": "clutch, pedal, leak — relevant automotive keywords present in narration/captions"
+      },
+      "winningConceptGate": {
+        "score": 0,
+        "max": 5,
+        "note": "scoreReelConcept() (>=57/60 tournament gate) was not invoked — scored 0 rather than assumed passing"
+      }
     }
+  },
+  "ask": {
+    "kind": "profile"
   }
 }

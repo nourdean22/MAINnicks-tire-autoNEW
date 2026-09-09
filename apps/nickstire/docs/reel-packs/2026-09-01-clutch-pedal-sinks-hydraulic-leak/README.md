@@ -273,7 +273,7 @@ pending an actual render — not `PASS`, and not silently omitted:
 > Fluid spot near the firewall — worth checking before you pay for a
 > clutch you might not need.
 >
-> Don't guess with a soft pedal. Send this to someone with a manual.
+> Don't guess with a soft pedal.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #manualtransmission
 

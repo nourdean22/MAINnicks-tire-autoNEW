@@ -1088,6 +1088,26 @@ Keep it under 200 characters.`;
    * against is concluding "nothing was paid for" from an absence of evidence and
    * then spending again.
    */
+  /**
+   * One read that answers "is the reel machine ok?".
+   *
+   * Every figure it returns was reachable before and none of it was on a
+   * screen: whether anything is scheduled for tomorrow, how many finished
+   * reels are waiting, which published openings actually held viewers, what a
+   * published reel costs, and whether the lanes that do the work are running.
+   * Those questions were being answered by hand, with ad-hoc SQL against
+   * production, one probe at a time.
+   *
+   * READ-ONLY. It runs SELECTs and nothing else - no generation, no publish,
+   * no spend - so it is safe to open, refresh and leave open.
+   */
+  reelPipelineHealth: adminProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(365).optional() }).optional())
+    .query(async ({ input }) => {
+      const { buildReelPipelineHealth } = await import("../services/reelPipelineHealth");
+      return buildReelPipelineHealth(input?.windowDays ?? 30);
+    }),
+
   reelRecoveryLedger: adminProcedure
     .input(
       z
