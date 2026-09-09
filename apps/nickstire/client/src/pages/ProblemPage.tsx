@@ -7,6 +7,7 @@ import { motion, useInView } from "framer-motion";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { getProblemBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
@@ -44,6 +45,9 @@ export default function ProblemPage() {
   // Fallback: extract slug from pathname if useParams doesn't match (static routes)
   const slug = paramSlug || (typeof window !== "undefined" ? window.location.pathname.replace(/^\//, "").split("/")[0] : "");
   const page = slug ? getProblemBySlug(slug) : undefined;
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
 
   if (!page) {
     return (
@@ -274,9 +278,9 @@ export default function ProblemPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-in">
               <FadeIn delay={0.05}>
                 <div className="text-center p-6">
-                  <div className="text-4xl font-bold text-primary mb-2">{BUSINESS.reviews.rating}</div>
+                  <div className="text-4xl font-bold text-primary mb-2">{reviewRating}</div>
                   <div className="text-foreground/60 text-sm">Google Rating</div>
-                  <div className="text-foreground/40 text-xs mt-1">{BUSINESS.reviews.countDisplay} reviews</div>
+                  <div className="text-foreground/40 text-xs mt-1">{reviewCountDisplay} reviews</div>
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>

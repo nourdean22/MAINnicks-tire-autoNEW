@@ -29,6 +29,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { getGoogleReviews } from "../google-reviews";
 
 const log = createLogger("payment-status-intel");
 
@@ -245,9 +246,13 @@ function normalizeDeclineReason(reason: string): string {
  * warranty" (unverified), "400+ reviews" (stale — canonical count lives
  * in BUSINESS.reviews), "convert 3x better" (invented stat).
  */
-export function getObjectionCoaching(
+export async function getObjectionCoaching(
   topObjection: string
-): { objection: string; script: string; tip: string } {
+): Promise<{ objection: string; script: string; tip: string }> {
+  const googleData = await getGoogleReviews();
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
   const financingProviders = BUSINESS.financing.providers.join(", ");
   const coaching: Record<string, { script: string; tip: string }> = {
     price_concern: {
@@ -272,7 +277,7 @@ export function getObjectionCoaching(
     },
     trust_issue: {
       script:
-        `I get it — this industry has a bad rep. Here's what we do differently: we show you the part before we replace it, we don't sell you what you don't need, and our Google reviews are public — ${BUSINESS.reviews.countDisplay} of them averaging ${BUSINESS.reviews.rating} stars.`,
+        `I get it — this industry has a bad rep. Here's what we do differently: we show you the part before we replace it, we don't sell you what you don't need, and our Google reviews are public — ${reviewCountDisplay} of them averaging ${reviewRating} stars.`,
       tip: "Social proof and transparency. Show, don't tell. Let reviews do the heavy lifting.",
     },
     self_repair: {

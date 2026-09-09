@@ -89,7 +89,7 @@ function getDayOfWeek(): number {
 }
 
 // ─── HARDCODED NOTIFICATION DATABASE (FALLBACK) ────────
-const getAllNotifications = (): Notification[] => [
+const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): Notification[] => [
   // ── URGENCY ──
   {
     id: "urg-1",
@@ -123,7 +123,7 @@ const getAllNotifications = (): Notification[] => [
   {
     id: "sp-1",
     strategy: "social_proof",
-    text: `4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews — Euclid Ave, open 7 days`,
+    text: `${reviewRating} stars from ${reviewCountDisplay} Google reviews — Euclid Ave, open 7 days`,
     icon: Star,
   },
   {
@@ -253,12 +253,12 @@ const getAllNotifications = (): Notification[] => [
 ];
 
 // ─── FILTER LOGIC ────────────────────────────────────────
-function getFilteredHardcodedNotifications(): Notification[] {
+function getFilteredHardcodedNotifications(reviewRating: number, reviewCountDisplay: string): Notification[] {
   const season = getCurrentSeason();
   const timeOfDay = getTimeOfDay();
   const dayOfWeek = getDayOfWeek();
 
-  return getAllNotifications().filter((n) => {
+  return getAllNotifications(reviewRating, reviewCountDisplay).filter((n) => {
     if (n.seasons && !n.seasons.includes(season)) return false;
     if (n.timeOfDay && !n.timeOfDay.includes(timeOfDay)) return false;
     if (n.daysOfWeek && !n.daysOfWeek.includes(dayOfWeek)) return false;
@@ -325,7 +325,19 @@ export default function NotificationBar() {
     retry: 1,
   });
 
-  const baseNotifications = useMemo(() => getFilteredHardcodedNotifications(), []);
+  // Live Google rating/count for the social-proof notification — falls
+  // back to the canon BUSINESS.reviews values while the query is loading.
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+
+  const baseNotifications = useMemo(
+    () => getFilteredHardcodedNotifications(reviewRating, reviewCountDisplay),
+    [reviewRating, reviewCountDisplay]
+  );
 
   // Build the final notification list: weather → specials → dynamic DB → hardcoded fallback
   const activeNotifications = useMemo(() => {

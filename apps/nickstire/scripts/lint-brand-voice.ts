@@ -31,28 +31,11 @@ import { fileURLToPath } from "node:url";
 
 import { findVoiceViolations, KILL_RULES, type VoiceSurface } from "../shared/voice";
 import { blankClassNames, keepOnlyStringLiterals } from "./lib/scanText";
+import { scopeOf, stripWorkspacePrefix } from "./lib/brandVoiceScope";
 
 const __filename = fileURLToPath(import.meta.url);
 const APP_ROOT = resolve(dirname(__filename), "..");
 const AUDIT_MODE = process.argv.includes("--audit");
-
-// ─── Scope: only files where customers see the text ─────────────────────────
-// Out of scope on purpose: tests, types, drizzle/schema.ts, admin/* (internal
-// operator UI), server/_core, server/lib, server/routers (infra, not copy).
-const IN_SCOPE: { rx: RegExp; surface: VoiceSurface }[] = [
-  { rx: /^client\/src\/pages\/.*\.tsx$/, surface: "web" },
-  { rx: /^client\/src\/components\/.*\.tsx$/, surface: "web" },
-  { rx: /^server\/services\/vapi\.ts$/, surface: "voice" },
-  { rx: /^server\/cron\/jobs\/.*Sequences\.ts$/, surface: "sms" },
-  { rx: /^server\/cron\/jobs\/.*Outreach\.ts$/, surface: "sms" },
-  { rx: /^server\/cron\/jobs\/.*Recovery\.ts$/, surface: "sms" },
-  { rx: /^shared\/routes\.ts$/, surface: "meta" },
-];
-
-function scopeOf(relPath: string): VoiceSurface | null {
-  if (relPath.includes("admin/")) return null;
-  return IN_SCOPE.find((s) => s.rx.test(relPath))?.surface ?? null;
-}
 
 interface Finding {
   file: string;
@@ -97,13 +80,18 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadab
     staged = git(["diff", "--cached", "--name-only"])
       .split(/\r?\n/)
       .map((l) => l.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(stripWorkspacePrefix);
   } catch (err) {
     return { findings: [], filesScanned: 0, unreadable: `git diff --name-only failed: ${(err as Error).message}` };
   }
 
   // STAGE 2 — keep only voice surfaces BEFORE asking for any content. Most
   // commits stage nothing in scope, so most runs now read no diff at all.
+  // `inScope` holds STRIPPED (workspace-relative) paths from here on — both
+  // for the scopeOf() check and as the pathspec arg to `git diff -- <file>`
+  // below, since pathspecs resolve relative to cwd (APP_ROOT), the opposite
+  // direction from --name-only output. See stripWorkspacePrefix's doc comment.
   const inScope = staged.filter((f) => scopeOf(f) !== null);
   if (inScope.length === 0) return { findings: [], filesScanned: 0, unreadable: null };
 
@@ -159,8 +147,10 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadab
     const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
     if (fileMatch) {
       flush();
-      // Strip the workspace prefix — git runs from APP_ROOT but reports repo paths.
-      currentFile = fileMatch[1].replace(/^apps\/nickstire\//, "");
+      // Diff-header output (`+++ b/...`) is always repo-root-relative
+      // regardless of the pathspec used to request it — same strip, same
+      // helper as STAGE 1/2 above, different data source.
+      currentFile = stripWorkspacePrefix(fileMatch[1]);
       currentSurface = scopeOf(currentFile);
       currentLineNum = 0;
       if (currentSurface) filesScanned.add(currentFile);

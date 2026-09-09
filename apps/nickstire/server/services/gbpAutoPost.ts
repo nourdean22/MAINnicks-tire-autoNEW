@@ -7,6 +7,7 @@
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 import { BUSINESS } from "@shared/business";
+import { getGoogleReviews } from "../google-reviews";
 
 const log = createLogger("gbp-poster");
 
@@ -42,8 +43,12 @@ function gbpUrl(baseUrl: string, campaign: string, archetype?: string): string {
 }
 
 /** Create a GBP post draft from a special/promotion */
-export function createSpecialPost(special: { title: string; description: string; expiresAt?: Date }): GBPPost {
-  const text = `${special.title}\n\n${special.description}\n\n📍 ${BUSINESS.name} — ${BUSINESS.address.street}, ${BUSINESS.address.city}\n📞 ${BUSINESS.phone.display}\n⭐ ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews`;
+export async function createSpecialPost(special: { title: string; description: string; expiresAt?: Date }): Promise<GBPPost> {
+  const googleData = await getGoogleReviews();
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+  const text = `${special.title}\n\n${special.description}\n\n📍 ${BUSINESS.name} — ${BUSINESS.address.street}, ${BUSINESS.address.city}\n📞 ${BUSINESS.phone.display}\n⭐ ${reviewRating} stars, ${reviewCountDisplay} reviews`;
   return {
     id: randomUUID(),
     type: "offer",
