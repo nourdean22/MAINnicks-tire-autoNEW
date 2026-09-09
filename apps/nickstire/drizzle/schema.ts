@@ -4660,6 +4660,54 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   index("idx_camera_runtime_receivedAt").on(table.receivedAt),
 ]);
 
+/**
+ * A controlled commissioning drive (migration 0121). Migration 0120 gave a visit a
+ * `dataClass` so a test drive stops counting as a customer; this records what a HUMAN
+ * observed during it, so the machine's answer can be compared against ground truth
+ * instead of against a feeling.
+ */
+export const commissioningRuns = mysqlTable("commissioning_runs", {
+  runId: varchar("runId", { length: 64 }).primaryKey(),
+  camera: varchar("camera", { length: 64 }).notNull(),
+  label: varchar("label", { length: 191 }),
+  startedAt: timestamp("startedAt", { fsp: 3 }).defaultNow().notNull(),
+  endedAt: timestamp("endedAt", { fsp: 3 }),
+  startedBy: varchar("startedBy", { length: 191 }),
+  /** Measured at run start from several round trips. NULL means NOT MEASURED, which a
+   *  report must disclose rather than silently assuming a zero offset. */
+  clockOffsetMs: int("clockOffsetMs"),
+  clockRttMs: int("clockRttMs"),
+  clockSamples: int("clockSamples"),
+  verdict: varchar("verdict", { length: 16 }),
+  verdictReason: varchar("verdictReason", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_commissioning_runs_camera").on(table.camera, table.startedAt),
+]);
+
+/**
+ * One human tap, with THREE clocks. `phoneWallAt` can be seconds off (Android's clock
+ * steps); `phoneMonoMs` is immune to that; `serverReceivedAt` puts network delay on its
+ * own axis. Separating them is what lets a report say "the camera was 285 ms behind the
+ * human" instead of "something somewhere took 1.4 s".
+ */
+export const commissioningTruthEvents = mysqlTable("commissioning_truth_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runId: varchar("runId", { length: 64 }).notNull(),
+  event: varchar("event", { length: 24 }).notNull(),
+  phoneWallAt: timestamp("phoneWallAt", { fsp: 3 }).notNull(),
+  phoneMonoMs: bigint("phoneMonoMs", { mode: "number" }),
+  serverReceivedAt: timestamp("serverReceivedAt", { fsp: 3 }).defaultNow().notNull(),
+  /** phoneWallAt adjusted by the run's measured offset. DERIVED, and stored so a report
+   *  stays reproducible after the offset is re-measured. */
+  correctedAt: timestamp("correctedAt", { fsp: 3 }),
+  note: varchar("note", { length: 191 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_truth_events_run").on(table.runId, table.phoneWallAt),
+]);
+
 /** Producer-reported state TRANSITIONS only — never one row per heartbeat. */
 export const cameraHealthEvents = mysqlTable("camera_health_events", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),

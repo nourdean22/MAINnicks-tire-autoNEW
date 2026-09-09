@@ -47,6 +47,9 @@ import { sql } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { deriveCameraState, HEALTH_THRESHOLDS } from "../lib/cameraHealth";
+import {
+  buildCommissioningReport, estimateClockOffset, machineEventsFromVisit, TRUTH_EVENTS,
+} from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
 
 /** Start of the shop's day, in SQL, as UTC epoch seconds. Never computed in JS. */
@@ -523,4 +526,217 @@ export const lotRouter = router({
       };
     }
   }),
+
+  // ─── Commissioning: the human witness ────────────────────────────────────
+  //
+  // A controlled drive-in is the only evidence separating "the pipeline is green" from
+  // "the pipeline is right". The phone records what a person SAW; these procedures store
+  // it and diff it against what the machine recorded.
+  //
+  // Every timestamp below is turned into epoch MILLISECONDS by SQL
+  // (`ROUND(UNIX_TIMESTAMP(col) * 1000)`), never by parsing a Date in JS: driver-parsed
+  // TiDB timestamps come back shifted on ET, and this is precisely a measurement of
+  // sub-second differences, so a four-hour shift would not even look wrong -- it would
+  // look like a catastrophic pipeline latency.
+
+  /**
+   * Server time, for the phone's clock-offset estimate.
+   *
+   * The phone calls this several times, records its own send/receive instants around each
+   * call, and keeps the exchange with the LOWEST round-trip: a delayed packet biases the
+   * estimate one way only, so the fastest exchange is the one whose one-way times are
+   * most nearly equal. Deliberately does no database work — a query that waited on TiDB
+   * would measure the database, not the network.
+   */
+  clock: adminProcedure.query(() => ({ ok: true as const, serverMs: Date.now() })),
+
+  startCommissioning: adminProcedure
+    .input(z.object({
+      camera: z.string().min(1).max(64),
+      label: z.string().max(191).optional(),
+      /** Round trips measured by the phone: t0/t1 are ITS clock, serverMs is ours. */
+      clockSamples: z.array(z.object({
+        t0: z.number(), serverMs: z.number(), t1: z.number(),
+      })).max(20).default([]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      const clock = estimateClockOffset(input.clockSamples);
+      // Run ids are date-scoped and sequential so the operator can say "C-20260910-001"
+      // out loud on site; the count is of runs for the SAME camera on the SAME ET day.
+      const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
+      try {
+        const existing = rowsOf(await d.execute(sql`
+          SELECT COUNT(*) AS n FROM commissioning_runs
+          WHERE camera = ${input.camera} AND runId LIKE ${`C-${day}-%`}
+        `))[0];
+        const runId = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
+        await d.execute(sql`
+          INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples)
+          VALUES (${runId}, ${input.camera}, ${input.label ?? null},
+                  ${ctx.user?.email ?? ctx.user?.name ?? "admin"},
+                  ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null})
+        `);
+        return { ok: true as const, runId, clock };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not start the run" };
+      }
+    }),
+
+  recordTruth: adminProcedure
+    .input(z.object({
+      runId: z.string().min(1).max(64),
+      event: z.enum(TRUTH_EVENTS),
+      /** The phone's wall clock at the tap, epoch ms. */
+      phoneWallMs: z.number().int(),
+      /** Milliseconds since the run started, from a MONOTONIC source. Survives a clock step. */
+      phoneMonoMs: z.number().int().nullish(),
+      note: z.string().max(191).nullish(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const run = rowsOf(await d.execute(sql`
+          SELECT clockOffsetMs, endedAt FROM commissioning_runs WHERE runId = ${input.runId}
+        `))[0];
+        if (!run) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+        // A tap after the run ended is refused rather than silently appended: the report
+        // is a record of one bounded drive, and a late tap would move its verdict.
+        if (run.endedAt) return { ok: false as const, reason: `run ${input.runId} has already ended` };
+
+        const offset = numOrNull(run.clockOffsetMs);
+        const correctedMs = offset === null ? null : input.phoneWallMs + offset;
+        await d.execute(sql`
+          INSERT INTO commissioning_truth_events (runId, event, phoneWallAt, phoneMonoMs, correctedAt)
+          VALUES (${input.runId}, ${input.event},
+                  FROM_UNIXTIME(${input.phoneWallMs} / 1000),
+                  ${input.phoneMonoMs ?? null},
+                  ${correctedMs === null ? null : sql`FROM_UNIXTIME(${correctedMs} / 1000)`})
+        `);
+        return { ok: true as const, event: input.event, correctedMs };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not record the tap" };
+      }
+    }),
+
+  endCommissioning: adminProcedure
+    .input(z.object({ runId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        await d.execute(sql`
+          UPDATE commissioning_runs SET endedAt = NOW(3) WHERE runId = ${input.runId} AND endedAt IS NULL
+        `);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not end the run" };
+      }
+    }),
+
+  commissioningRuns: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).default({ limit: 10 }))
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const rows = rowsOf(await d.execute(sql`
+          SELECT r.runId, r.camera, r.label, r.verdict, r.clockOffsetMs, r.clockRttMs, r.clockSamples,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(r.startedAt) * 1000)")} AS startedMs,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(r.endedAt) * 1000)")} AS endedMs,
+                 (SELECT COUNT(*) FROM commissioning_truth_events e WHERE e.runId = r.runId) AS taps,
+                 (SELECT COUNT(*) FROM vehicle_visits v WHERE v.commissioningRunId = r.runId) AS visits
+          FROM commissioning_runs r
+          ORDER BY r.startedAt DESC
+          LIMIT ${input.limit}
+        `));
+        return {
+          ok: true as const,
+          runs: rows.map((r) => ({
+            runId: String(r.runId),
+            camera: String(r.camera),
+            label: (r.label as string | null) ?? null,
+            verdict: (r.verdict as string | null) ?? null,
+            startedMs: numOrNull(r.startedMs),
+            endedMs: numOrNull(r.endedMs),
+            open: !r.endedMs,
+            taps: num(r.taps),
+            visits: num(r.visits),
+            clock: r.clockSamples === null || r.clockSamples === undefined
+              ? null
+              : { offsetMs: num(r.clockOffsetMs), rttMs: num(r.clockRttMs), samples: num(r.clockSamples) },
+          })),
+        };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning_runs read failed" };
+      }
+    }),
+
+  /** The diff: what the human witnessed vs what the machine recorded, and a verdict. */
+  commissioningReport: adminProcedure
+    .input(z.object({ runId: z.string().min(1).max(64), toleranceMs: z.number().int().min(100).max(60_000).default(3000) }))
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const run = rowsOf(await d.execute(sql`
+          SELECT runId, camera, label, verdict, clockOffsetMs, clockRttMs, clockSamples,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(startedAt) * 1000)")} AS startedMs,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs
+          FROM commissioning_runs WHERE runId = ${input.runId}
+        `))[0];
+        if (!run) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+
+        // COALESCE(correctedAt, phoneWallAt): an uncorrected tap is still shown, and the
+        // report's own INCONCLUSIVE rule is what discloses that the clock was never synced.
+        const taps = rowsOf(await d.execute(sql`
+          SELECT event,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(COALESCE(correctedAt, phoneWallAt)) * 1000)")} AS atMs
+          FROM commissioning_truth_events
+          WHERE runId = ${input.runId}
+          ORDER BY COALESCE(correctedAt, phoneWallAt) ASC
+        `));
+
+        const visits = rowsOf(await d.execute(sql`
+          SELECT visitId, arrivedAt, bayEnteredAt, departedAt
+          FROM vehicle_visits WHERE commissioningRunId = ${input.runId}
+        `));
+
+        const clock = run.clockSamples === null || run.clockSamples === undefined
+          ? null
+          : { offsetMs: num(run.clockOffsetMs), rttMs: num(run.clockRttMs), samples: num(run.clockSamples) };
+
+        const report = buildCommissioningReport(
+          taps
+            .filter((t) => t.atMs !== null && t.atMs !== undefined)
+            .map((t) => ({ event: String(t.event), atMs: num(t.atMs) })),
+          visits.flatMap((v) => machineEventsFromVisit({
+            visitId: String(v.visitId),
+            arrivedAt: (v.arrivedAt as Date | string | null) ?? null,
+            bayEnteredAt: (v.bayEnteredAt as Date | string | null) ?? null,
+            departedAt: (v.departedAt as Date | string | null) ?? null,
+          })),
+          clock,
+          { toleranceMs: input.toleranceMs },
+        );
+
+        return {
+          ok: true as const,
+          run: {
+            runId: String(run.runId),
+            camera: String(run.camera),
+            label: (run.label as string | null) ?? null,
+            startedMs: numOrNull(run.startedMs),
+            endedMs: numOrNull(run.endedMs),
+            open: !run.endedMs,
+            clock,
+          },
+          report,
+        };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning report failed" };
+      }
+    }),
 });

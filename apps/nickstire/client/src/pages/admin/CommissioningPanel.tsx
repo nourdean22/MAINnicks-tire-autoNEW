@@ -1,0 +1,395 @@
+/**
+ * Commissioning: the operator's phone as the out-of-band witness.
+ *
+ * A controlled drive-in is the only evidence that separates "the pipeline is green" from
+ * "the pipeline is right". You stand somewhere safe, tap what you SEE, and the report
+ * afterwards diffs your timeline against the machine's.
+ *
+ * DESIGN CONSTRAINTS, all from where this is actually used — outdoors, one-handed, on a
+ * phone, while watching a moving car:
+ *  · Taps are the largest thing on screen and never smaller than 48px (the iOS-PWA rule);
+ *    a mis-tap is a corrupted measurement, not a cosmetic annoyance.
+ *  · The next expected tap is highlighted, but EVERY tap stays enabled. A real drive does
+ *    not follow the script — a car reverses, or you miss the moment — and a wizard that
+ *    forced the order would make the operator record a lie to get to the next screen.
+ *  · Two clocks are captured per tap: `Date.now()` and `performance.now()`. Android's wall
+ *    clock can step mid-run (an NTP correction, a timezone change); the monotonic one
+ *    cannot, so the pair is what makes a late-discovered clock jump recoverable.
+ *  · No `window.confirm` anywhere — silently suppressed in an installed PWA, which is
+ *    exactly how this is opened.
+ */
+import { useEffect, useRef, useState } from "react";
+import { ClipboardCheck, CircleDot, Timer, CheckCircle2, XCircle, HelpCircle, X } from "lucide-react";
+
+import { trpc } from "@/lib/trpc";
+import { Panel } from "./shared";
+
+/** The six taps, in the order a drive-in produces them. Mirrors the server's vocabulary. */
+const TAPS = [
+  { key: "OUTSIDE", label: "Outside", hint: "car is off the property" },
+  { key: "ENTERING", label: "Entering", hint: "crossing the driveway" },
+  { key: "INSIDE_LOT", label: "Inside lot", hint: "fully on the property" },
+  { key: "IN_BAY", label: "In a bay", hint: "pulled into bay 1 or 3" },
+  { key: "EXITING", label: "Exiting", hint: "heading for the street" },
+  { key: "DEPARTED", label: "Departed", hint: "gone" },
+] as const;
+
+type TapKey = (typeof TAPS)[number]["key"];
+
+interface LocalTap {
+  event: TapKey;
+  wallMs: number;
+  monoMs: number;
+}
+
+function clockTone(rttMs: number | null): string {
+  if (rttMs === null) return "text-foreground/50";
+  if (rttMs > 1500) return "text-red-400";
+  if (rttMs > 400) return "text-amber-400";
+  return "text-emerald-400";
+}
+
+function verdictChip(verdict: string) {
+  const map: Record<string, { cls: string; icon: React.ReactNode }> = {
+    PASS: { cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", icon: <CheckCircle2 className="w-4 h-4" /> },
+    FAIL: { cls: "border-red-500/40 bg-red-500/10 text-red-300", icon: <XCircle className="w-4 h-4" /> },
+    INCONCLUSIVE: { cls: "border-amber-500/40 bg-amber-500/10 text-amber-300", icon: <HelpCircle className="w-4 h-4" /> },
+  };
+  const v = map[verdict] ?? map.INCONCLUSIVE;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-semibold ${v.cls}`}>
+      {v.icon}
+      {verdict.toLowerCase()}
+    </span>
+  );
+}
+
+/** ms -> "+285 ms" / "-1.2 s". Sign is kept: early and late are different problems. */
+function formatDelta(ms: number | null): string {
+  if (ms === null) return "—";
+  const sign = ms < 0 ? "−" : "+";
+  const a = Math.abs(ms);
+  return a < 1000 ? `${sign}${a} ms` : `${sign}${(a / 1000).toFixed(a < 10_000 ? 2 : 1)} s`;
+}
+
+export default function CommissioningPanel({ camera = "sign" }: { camera?: string }) {
+  const [runId, setRunId] = useState<string | null>(null);
+  const [taps, setTaps] = useState<LocalTap[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reportRunId, setReportRunId] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const monoOrigin = useRef<number>(0);
+
+  const utils = trpc.useUtils();
+  const runs = trpc.lot.commissioningRuns.useQuery({ limit: 5 }, { refetchInterval: runId ? false : 30_000 });
+  const report = trpc.lot.commissioningReport.useQuery(
+    { runId: reportRunId ?? "", toleranceMs: 3000 },
+    { enabled: Boolean(reportRunId) },
+  );
+
+  const start = trpc.lot.startCommissioning.useMutation();
+  const record = trpc.lot.recordTruth.useMutation();
+  const end = trpc.lot.endCommissioning.useMutation();
+
+  // Hooks stay above every conditional return (`pnpm run lint:hooks` enforces it).
+  useEffect(() => {
+    if (!runId) return;
+    const t = setInterval(() => setElapsed(Math.round((performance.now() - monoOrigin.current) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [runId]);
+
+  /**
+   * Measure the phone/server clock offset before the run, not after.
+   *
+   * Five round trips, each timed on THIS device; the server picks the fastest, because a
+   * delayed packet biases the estimate one way only. Without this the report has no
+   * anchor and correctly refuses to call a run PASS.
+   */
+  async function syncAndStart() {
+    setError(null);
+    setBusy("Syncing clocks…");
+    try {
+      const samples: Array<{ t0: number; serverMs: number; t1: number }> = [];
+      for (let i = 0; i < 5; i++) {
+        const t0 = Date.now();
+        const res = await utils.lot.clock.fetch();
+        const t1 = Date.now();
+        if (res?.ok) samples.push({ t0, serverMs: res.serverMs, t1 });
+      }
+      setBusy("Starting run…");
+      const started = await start.mutateAsync({ camera, clockSamples: samples });
+      if (!started.ok) {
+        setError(started.reason);
+        return;
+      }
+      monoOrigin.current = performance.now();
+      setTaps([]);
+      setElapsed(0);
+      setRunId(started.runId);
+      setReportRunId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not start the run");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Record one tap. The local list updates IMMEDIATELY and independently of the network:
+   * the measurement is the instant your thumb landed, and making it wait on a POST would
+   * put WAN latency inside the very number being measured. A failed send is surfaced, not
+   * swallowed — a silently dropped tap would show up later as a machine "miss".
+   */
+  async function tap(event: TapKey) {
+    if (!runId) return;
+    const wallMs = Date.now();
+    const monoMs = Math.round(performance.now() - monoOrigin.current);
+    setTaps((prev) => [...prev, { event, wallMs, monoMs }]);
+    try {
+      const res = await record.mutateAsync({ runId, event, phoneWallMs: wallMs, phoneMonoMs: monoMs });
+      if (!res.ok) setError(`${event}: ${res.reason}`);
+    } catch (e) {
+      setError(`${event} was not saved: ${e instanceof Error ? e.message : "send failed"}`);
+    }
+  }
+
+  async function finish() {
+    if (!runId) return;
+    setBusy("Ending run…");
+    try {
+      await end.mutateAsync({ runId });
+      setReportRunId(runId);
+      setRunId(null);
+      await utils.lot.commissioningRuns.invalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not end the run");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const nextExpected = TAPS[Math.min(taps.length, TAPS.length - 1)]?.key;
+
+  // ─── The run screen: everything else gets out of the way ──────────────────
+  if (runId) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-background p-4">
+        <div className="mx-auto max-w-md">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-semibold">{runId}</div>
+              <div className="text-[13px] text-foreground/60">
+                <Timer className="mr-1 inline h-3.5 w-3.5" />
+                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} · {taps.length} taps
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={finish}
+              disabled={Boolean(busy)}
+              className="min-h-[48px] rounded-lg border border-foreground/20 px-4 text-[14px] font-semibold hover:bg-foreground/5 disabled:opacity-50"
+            >
+              {busy ?? "End run"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[13px] text-red-300">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-2.5">
+            {TAPS.map((t) => {
+              const isNext = t.key === nextExpected;
+              const count = taps.filter((x) => x.event === t.key).length;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => tap(t.key)}
+                  className={`min-h-[72px] rounded-xl border-2 px-4 py-3 text-left transition-colors ${
+                    isNext
+                      ? "border-emerald-500/60 bg-emerald-500/10"
+                      : "border-foreground/15 hover:bg-foreground/5"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[19px] font-bold leading-tight">{t.label}</div>
+                      <div className="text-[13px] text-foreground/55">{t.hint}</div>
+                    </div>
+                    {count > 0 && (
+                      <span className="rounded-full bg-foreground/10 px-2.5 py-1 text-[13px] tabular-nums">
+                        ×{count}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {taps.length > 0 && (
+            <div className="mt-4 space-y-1 text-[13px] text-foreground/55">
+              {[...taps].reverse().slice(0, 8).map((t, i) => (
+                <div key={`${t.event}-${t.monoMs}-${i}`} className="flex justify-between tabular-nums">
+                  <span>{t.event.toLowerCase().replace("_", " ")}</span>
+                  <span>+{(t.monoMs / 1000).toFixed(1)} s</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-4 text-[12px] text-foreground/40">
+            Every tap is stamped with this phone's wall clock and a monotonic timer, and the
+            offset against the server was measured before the run. Rows recorded during a run
+            are tagged <span className="font-mono">COMMISSIONING</span> and stay out of the
+            shop's counters.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Idle: recent runs, and the report of the one just finished ───────────
+  return (
+    <Panel
+      title="Commissioning"
+      icon={<ClipboardCheck className="h-4 w-4" />}
+      subtitle="Drive a known car through while tapping what you see — the report diffs your timeline against the camera's"
+      actions={
+        <button
+          type="button"
+          onClick={syncAndStart}
+          disabled={Boolean(busy)}
+          className="min-h-[44px] rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 text-[13px] font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+        >
+          {busy ?? "Start a run"}
+        </button>
+      }
+    >
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[13px] text-red-300">{error}</div>
+      )}
+
+      {reportRunId && (
+        <div className="mb-4 rounded-lg border border-foreground/15 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-mono text-[14px] font-semibold">{reportRunId}</div>
+            <div className="flex items-center gap-2">
+              {report.data?.ok === true && verdictChip(report.data.report.verdict)}
+              <button
+                type="button"
+                onClick={() => setReportRunId(null)}
+                aria-label="Dismiss report"
+                className="rounded-md p-2 text-foreground/50 hover:bg-foreground/5"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {report.isPending ? (
+            <div className="mt-2 text-[13px] text-foreground/50">Building the report…</div>
+          ) : report.data?.ok === false ? (
+            <div className="mt-2 text-[13px] text-red-300">{report.data.reason}</div>
+          ) : report.data?.ok === true ? (
+            <>
+              {report.data.report.findings.length > 0 && (
+                <ul className="mt-2 space-y-1 text-[13px] text-amber-300">
+                  {report.data.report.findings.map((f, i) => (
+                    <li key={i}>· {f}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-foreground/10 text-left text-foreground/50">
+                      <th className="py-1.5 pr-3 font-medium">You saw</th>
+                      <th className="py-1.5 pr-3 font-medium">Camera</th>
+                      <th className="py-1.5 font-medium text-right">Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.data.report.matches.map((m, i) => (
+                      <tr key={i} className="border-b border-foreground/5 last:border-0">
+                        <td className="py-1.5 pr-3">
+                          {m.human.event.toLowerCase().replace("_", " ")}
+                          {m.required && <span className="text-foreground/35"> · required</span>}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/70">
+                          {m.machine ? m.machine.state.toLowerCase().replace(/_/g, " ") : "—"}
+                        </td>
+                        <td
+                          className={`py-1.5 text-right tabular-nums ${
+                            m.deltaMs === null
+                              ? "text-foreground/40"
+                              : Math.abs(m.deltaMs) > 3000
+                                ? "text-red-400"
+                                : "text-emerald-400"
+                          }`}
+                        >
+                          {formatDelta(m.deltaMs)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-foreground/50 tabular-nums">
+                <span>
+                  required matched {report.data.report.stats.matchedRequired}/{report.data.report.stats.totalRequired}
+                </span>
+                {report.data.report.stats.medianAbsDeltaMs !== null && (
+                  <span>median |Δ| {report.data.report.stats.medianAbsDeltaMs} ms</span>
+                )}
+                <span>visits {report.data.report.visitIds.length}</span>
+                {report.data.run.clock && (
+                  <span className={clockTone(report.data.run.clock.rttMs)}>
+                    clock {report.data.run.clock.offsetMs > 0 ? "+" : ""}
+                    {report.data.run.clock.offsetMs} ms · rtt {report.data.run.clock.rttMs} ms
+                  </span>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {runs.isError ? (
+        <div className="text-[13px] text-red-300">Commissioning history unavailable — this is not "no runs".</div>
+      ) : runs.isPending ? (
+        <div className="text-[13px] text-foreground/50">Loading runs…</div>
+      ) : runs.data?.ok === false ? (
+        <div className="text-[13px] text-red-300">{runs.data.reason}</div>
+      ) : (runs.data?.runs.length ?? 0) === 0 ? (
+        <div className="text-[13px] text-foreground/60">
+          No commissioning run yet. The first one is what turns "the tests are green" into
+          "a real car was measured".
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {runs.data!.runs.map((r) => (
+            <button
+              key={r.runId}
+              type="button"
+              onClick={() => setReportRunId(r.runId)}
+              className="flex w-full items-center justify-between gap-3 rounded-md border border-foreground/10 px-3 py-2 text-left text-[13px] hover:bg-foreground/5"
+            >
+              <span className="font-mono">{r.runId}</span>
+              <span className="flex items-center gap-2 text-foreground/60 tabular-nums">
+                {r.open && <CircleDot className="h-3.5 w-3.5 text-emerald-400" />}
+                <span>{r.taps} taps</span>
+                <span>{r.visits} visits</span>
+                {r.verdict && verdictChip(r.verdict)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}

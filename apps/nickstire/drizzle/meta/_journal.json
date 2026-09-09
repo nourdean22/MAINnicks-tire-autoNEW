@@ -939,6 +939,13 @@
       "when": 1789300100000,
       "tag": "0120_camera_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "5",
+      "when": 1789300200000,
+      "tag": "0121_commissioning",
+      "breakpoints": true
     }
   ]
 }

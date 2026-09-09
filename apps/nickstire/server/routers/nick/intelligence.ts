@@ -809,7 +809,12 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS camera_health_events (id BIGINT AUTO_INCREMENT PRIMARY KEY, camera VARCHAR(64) NOT NULL, fromState VARCHAR(32) NULL, toState VARCHAR(32) NOT NULL, reason VARCHAR(191) NULL, producerInstanceId VARCHAR(64) NULL, sourceGeneration VARCHAR(64) NULL, at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_camera_health_events_camera_at (camera, at))`,
       `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS dataClass VARCHAR(16) NOT NULL DEFAULT 'PRODUCTION'`,
       `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS commissioningRunId VARCHAR(64) NULL`,
-      `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_dataClass ON vehicle_visits (dataClass)`
+      `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_dataClass ON vehicle_visits (dataClass)`,
+      // 2026-09-09 · drizzle/0121_commissioning.sql — the human witness for a controlled
+      // drive. TIMESTAMP(3): a portal crossing and a button press are hundreds of
+      // milliseconds apart, and whole seconds would round the quantity being measured.
+      `CREATE TABLE IF NOT EXISTS commissioning_runs (runId VARCHAR(64) NOT NULL, camera VARCHAR(64) NOT NULL, label VARCHAR(191) NULL, startedAt TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), endedAt TIMESTAMP(3) NULL DEFAULT NULL, startedBy VARCHAR(191) NULL, clockOffsetMs INT NULL, clockRttMs INT NULL, clockSamples INT NULL, verdict VARCHAR(16) NULL, verdictReason VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (runId), INDEX idx_commissioning_runs_camera (camera, startedAt))`,
+      `CREATE TABLE IF NOT EXISTS commissioning_truth_events (id BIGINT AUTO_INCREMENT PRIMARY KEY, runId VARCHAR(64) NOT NULL, event VARCHAR(24) NOT NULL, phoneWallAt TIMESTAMP(3) NOT NULL, phoneMonoMs BIGINT NULL, serverReceivedAt TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), correctedAt TIMESTAMP(3) NULL DEFAULT NULL, note VARCHAR(191) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_truth_events_run (runId, phoneWallAt))`
     ];
 
     let applied = 0;

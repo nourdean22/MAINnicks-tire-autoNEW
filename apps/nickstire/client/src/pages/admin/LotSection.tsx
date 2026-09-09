@@ -42,6 +42,7 @@ import { PageHeader, StatCard, Panel, MetricGrid, EmptyState } from "./shared";
 // Durations live in shared/format.ts, with the "these take SQL-computed MINUTES,
 // never timestamps" contract documented next to them.
 import { formatDuration, advanceOpenDuration } from "./shared/format";
+import CommissioningPanel from "./CommissioningPanel";
 import {
   Car,
   Clock,
@@ -693,6 +694,10 @@ export default function LotSection() {
           </div>
         )}
       </Panel>
+
+      {/* Between the cameras and the visit list on purpose: you commission a camera you
+          can see the health of, and you read the result against the visits it produced. */}
+      <CommissioningPanel camera="sign" />
 
       <Panel title="Recent visits" icon={<Car className="w-4 h-4" />}
              subtitle="Durations are SQL-computed; an open visit keeps counting, a departed one is frozen"
