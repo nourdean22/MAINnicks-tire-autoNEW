@@ -58,16 +58,25 @@ describe("getRecentReelSignals", () => {
     expect(signals.topics).toEqual(["good row"]);
   });
 
-  it("a DB error degrades to empty history instead of throwing", async () => {
+  it("a DB error degrades to empty history AND says it could not look", async () => {
     rows = new Error("connection refused");
+    // available:false is the load-bearing half. Empty arrays alone are
+    // indistinguishable from a quiet week, and read that way an outage scores
+    // as perfect originality - so the flag is asserted, not just the shape.
     await expect(getRecentReelSignals()).resolves.toEqual({
       topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [],
+      available: false,
     });
   });
 
-  it("no rows in the window is empty history, not an error", async () => {
+  it("no rows in the window is empty history, not an error - and it says it DID look", async () => {
     rows = [];
     const signals = await getRecentReelSignals();
-    expect(signals).toEqual({ topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [] });
+    expect(signals).toEqual({
+      topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [],
+      available: true,
+    });
+    // The pair below is the entire point: identical arrays, opposite meanings.
+    expect(signals.available).toBe(true);
   });
 });

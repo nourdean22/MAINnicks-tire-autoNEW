@@ -55,8 +55,8 @@
       "startSec": 18,
       "endSec": 21,
       "visualPrompt": "Macro, shallow depth of field: the same wheel rim close-up under the same harsh directional shop light, the once empty lug seat now filled by a lug nut seated flush against the rim face, static camera with a slow push-in.",
-      "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
-      "voiceover": "Nick's Tire and Auto — stop by and we'll take a look."
+      "onScreenText": "SEATED FLUSH AGAIN",
+      "voiceover": "Caught early, a snapped stud is a quick fix."
     }
   ],
   "negativePrompt": "faces, hands, human figures, on-screen text, logos, watermarks, subtitles",
@@ -70,7 +70,9 @@
     "composite": 4.2
   },
   "evidence": {
-    "businessFactsUsed": ["legal.entity"],
+    "businessFactsUsed": [
+      "legal.entity"
+    ],
     "unverifiedClaims": [
       "wheel studs shear from age, rust, or over-torquing",
       "potholes accelerate failure of a weakened stud",
@@ -81,7 +83,18 @@
   "captionsFile": "captions.srt",
   "socialCopy": {
     "primary": "Lug nut that just won't stay tight, no matter how many times it's torqued? It might not be the nut — it could be a wheel stud that's sheared. Fewer studs means the wheel isn't clamped evenly, and that's worth catching early, not guessing about. Nick's Tire & Auto, 17625 Euclid Ave, Cleveland — stop by and we'll take a look.",
-    "hashtags": ["ClevelandAutoRepair", "EuclidOhio", "WheelSafety", "CarMaintenanceTips", "NicksTireAndAuto", "AutoRepairShop", "FaceOfCleveland", "TireShop", "CarCare101", "NortheastOhio"],
+    "hashtags": [
+      "ClevelandAutoRepair",
+      "EuclidOhio",
+      "WheelSafety",
+      "CarMaintenanceTips",
+      "NicksTireAndAuto",
+      "AutoRepairShop",
+      "FaceOfCleveland",
+      "TireShop",
+      "CarCare101",
+      "NortheastOhio"
+    ],
     "adVariantA": {
       "hook": "A lug nut that keeps loosening isn't always the nut's fault.",
       "cta": "Stop by Nick's Tire & Auto on Euclid Ave — we'll take a look, no guesswork."
@@ -90,5 +103,8 @@
       "hook": "One missing lug nut. One bigger question underneath it.",
       "cta": "Questions about a wheel that doesn't feel right? Call (216) 862-0005 or stop in."
     }
+  },
+  "ask": {
+    "kind": "visit"
   }
 }

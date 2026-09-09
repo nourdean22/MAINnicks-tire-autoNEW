@@ -28,6 +28,7 @@ export { smsConversationsRouter } from "./smsConversations";
 export { reviewRepliesRouter } from "./reviewReplies";
 export { shareCardsRouter } from "./shareCards";
 export { galleryRouter } from "./gallery";
+export { lotRouter } from "./lot";
 export { techniciansRouter } from "./technicians";
 export { customersRouter } from "./customers";
 export { winbackRouter } from "./winback";

@@ -58,8 +58,16 @@ const LEGACY_ROLE_SECTIONS: Record<AdminRole, readonly string[]> = {
   // the trafficFunnel line below is what happens when only the cosmetic gate is
   // changed: the role got a door it could not walk through, 7 of 10 calls threw
   // FORBIDDEN, and the grant had to be withdrawn.
-  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
-  manager: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content"],
+  // `lot` added 2026-09-09 with the Lot section. This pin was written to prove role
+  // access survived the MOVE into the registry, so a genuinely NEW section has to be
+  // added here deliberately -- and the comment above demands the second half of the
+  // check, which was done rather than assumed: `lot` is FULL_ACCESS (owner + manager)
+  // in registry.tsx, `lot.*` resolves to `settings.manage` in shared/adminPermissions.ts,
+  // and owner (ADMIN_PERMISSIONS) and manager (explicit list) both hold that permission.
+  // So both roles can walk through the door the sidebar shows them -- not the
+  // trafficFunnel failure below, where only the cosmetic gate moved.
+  owner: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot"],
+  manager: ["overview", "approvals", "intelligence", "customers", "leads", "opportunities", "market", "tireOrders", "growth", "instagram", "campaigns", "memberships", "voiceReceptionist", "opsHub", "settings", "revenue", "callTrackingView", "trafficFunnel", "content", "lot"],
   front_desk: ["overview", "customers", "leads", "opportunities", "tireOrders", "voiceReceptionist", "callTrackingView"],
   tech: ["overview", "customers", "tireOrders"],
   // trafficFunnel removed 2026-09-02: its procedures need marketing.manage /

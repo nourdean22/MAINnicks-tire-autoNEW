@@ -51,6 +51,26 @@ const CODE_ROUTES: Record<RenderedDefectCode, { method: RepairMethod; unit: Repa
   LIGHTING_DRIFT:         { method: "regrade",    unit: "color_grade",    paid: false },
   PALETTE_DRIFT:          { method: "regrade",    unit: "color_grade",    paid: false },
   WEAK_COMPOSITION:       { method: "reassemble", unit: "final_encode",   paid: false },
+  // Craft codes. Routed honestly rather than cheaply.
+  //
+  // The tempting move is to send these to "regrade", which is free. It would
+  // also be a lie: no colour pass adds pore detail to a plastic-looking tyre or
+  // puts a contact shadow under a floating caliper. A route that cannot fix its
+  // defect reports a successful repair over an unchanged frame, which is worse
+  // than having no route at all.
+  //
+  // They rarely arrive here: clampVerdict declines a repair whose findings are
+  // craft-only, so these route only when they ride along with a real block -
+  // a beat already being regenerated, whose prompt can carry the material and
+  // lighting corrections at no extra provider call.
+  PLASTIC_AI_LOOK:        { method: "regenerate", unit: "generated_beat", paid: true },
+  IMPOSSIBLE_PHYSICALITY: { method: "regenerate", unit: "generated_beat", paid: true },
+  // The odd one out, and worth saying plainly: a generic frame is a brief
+  // problem, not a render problem. Regenerating the same beat from the same
+  // prompt produces the same anonymous shot. The route is recorded for
+  // completeness; the actual fix is upstream, in a brief that names something
+  // only this shop could show.
+  GENERIC_STOCK_LOOK:     { method: "regenerate", unit: "generated_beat", paid: true },
 };
 
 export interface RepairRouteOptions {

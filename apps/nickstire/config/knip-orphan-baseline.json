@@ -5090,6 +5090,81 @@
       "file": "apps/nickstire/server/services/reelInventoryLink.ts",
       "symbol": "INVENTORY_BRIEF_MAX_BYTES",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, paired with inventoryBriefJson. The 65,535-byte capacity of the brief_json TEXT column, consumed at runtime by inventoryBriefJson in this module. Exported so the seam test POSITIVE CONTROL can assert the unslimmed fixture really exceeds the column before asserting the slimmed one fits; without it the slim-fits assertion would pass vacuously on any small fixture, and a second hand-typed 65535 in the test would be a copy that drifts silently if the column type ever changes. Same #2215 origin as inventoryBriefJson."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "GUARDED_SET",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and the highest-value one in this file. GUARDED_SET is BUILT AND USED inside this module (it is interpolated into the ON DUPLICATE KEY UPDATE clause of the ingest upsert), so it is not an unwired producer. It is exported so cameraVisitsRoutes.test.ts can assert that EVERY updatable column carries its `IF(VALUES(seq) >= seq, ...)` guard: a column added to COLUMNS without one would silently let a stale or out-of-order delivery overwrite a newer visit state, which no other test can see because the guard lives in a generated SQL string."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "COLUMNS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. COLUMNS is USED in this module to build both the INSERT column list and GUARDED_SET, so the runtime consumer is real. The export exists so the guard test above can enumerate the updatable columns and count guards against them -- the assertion is meaningless without the same list the SQL is generated from."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "plateTextToStore",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Called in this module for every ingested visit, so it is not vacuous. Exported so its durability rule can be tested directly: plate TEXT is stored only when the read is CONFIRMED, and every other status keeps its status while losing its text. That rule is a privacy and correctness boundary -- an unproven plate string reaching the read model becomes a fact staff act on -- and testing it through the HTTP route would need a live database."
+    },
+    {
+      "file": "apps/nickstire/server/middleware/securityHeaders.ts",
+      "symbol": "inlineScriptHashes",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/securityHeaders.test.ts can assert that every inline script the app serves has a matching CSP hash -- a missing hash silently drops the script in the browser with no server-side symptom directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/middleware/securityHeaders.ts",
+      "symbol": "configureCspInlineScripts",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/securityHeaders.test.ts can assert the configured inline-script set, so the CSP header and the scripts actually emitted cannot drift apart directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/middleware/securityHeaders.ts",
+      "symbol": "cspInlineScriptSource",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/securityHeaders.test.ts can assert the exact source a hash is computed over -- hashing a differently-whitespaced string is the classic way a CSP hash silently stops matching directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "SHUTDOWN_LOCK_GRACE_SECONDS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/cronLockHandback.test.ts can assert the grace window a shutting-down worker leaves on its held locks, which is otherwise only observable by waiting out a real shutdown directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "relinquishHeldLocksForShutdown",
+      "reason": "NOT AN ORPHAN -- a static-analysis blind spot, verified 2026-09-09. It IS called in production, from server/_core/index.ts:1325, but through a runtime `require(\"../cron/index\").relinquishHeldLocksForShutdown()` inside the shutdown handler, which knip cannot follow. The lazy require is deliberate (the shutdown path must not pull the cron registry in at module load), so it is left alone rather than converted to a static import to please the scanner. server/cronLockHandback.test.ts covers the behaviour."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelPipeline.ts",
+      "symbol": "MAX_AUTO_RESUMES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelAutonomyGaps.test.ts can assert the resume ceiling, so an autonomous pipeline cannot be changed into an unbounded retry loop without a test failing directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/client/src/lib/facelessReelStudio.ts",
+      "symbol": "repeatedSignalCount",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelQualityVector.test.ts can assert the repetition measure the quality vector scores on, which would otherwise only be visible as a shifted composite score directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "FILM_GRAIN_STRENGTH",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelOpticalFinish.test.ts can assert the grain constant the emitted ffmpeg filter must carry directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelAssembly.ts",
+      "symbol": "opticalFinishFilter",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/reelOpticalFinish.test.ts can assert the composed filter string, which is only otherwise observable by rendering a video and inspecting the frames directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/services/hookPerformance.ts",
+      "symbol": "NO_HOOK_EVIDENCE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/hookScoreboard.test.ts can assert the sentinel that keeps 'no evidence' distinct from a score of zero -- exactly the empty-vs-error distinction this repo keeps having to re-fix directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/services/hookPerformance.ts",
+      "symbol": "MIN_HOOK_SAMPLE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/hookScoreboard.test.ts can assert the sample floor below which a hook score is withheld rather than published from too little data directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "DEFAULT_JOB_TIMEOUT_MS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Read by timeoutFor() in this module, so the runtime consumer is real. Exported for server/cronJobBudgets.test.ts, which pins the default AND asserts every provider-calling job's budget exceeds it -- the guard on the ig-autopost timeout fix (#2245: 20 failures in 703 runs, all 'timeout'). This entry exists because the export was briefly REMOVED on 2026-09-09 when a grep found no importer: the test had landed on an unmerged branch at the time, and the collision only surfaced after main was merged in. Do not re-privatise it."
     }
   ]
 }

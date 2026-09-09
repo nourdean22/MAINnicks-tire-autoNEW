@@ -102,14 +102,38 @@ export async function buildReelRecoveryLedger(opts?: { limit?: number; jobId?: n
       // ── payload: provider ops, QA verdict, scheduling intent ──
       let beats: Array<Record<string, unknown>> = [];
       let qualityVerdict: string | null = null;
-      let scheduledFor: string | null = null;
+
+      // SCHEDULING INTENT COMES FROM THE COLUMN, not the payload.
+      //
+      // This read `payload.publicationIntendedAt` - a key nothing has ever
+      // written. The writer puts the value in the `publication_intended_at`
+      // COLUMN on the same insert (reelPipeline enqueue), and the payload it
+      // serialises alongside is the brief, which has no such field. So the
+      // operator's recovery ledger reported "no scheduled time" for every reel
+      // ever queued, including the 28 currently sitting with a real one.
+      //
+      // Verified against production 2026-09-09: every assembled autopost job
+      // from 2026-09-09 to 2026-10-07 carries a populated intent at 18:00 local,
+      // one per day with no gap. The data was there the whole time; the ledger
+      // was reading the wrong place for it.
+      const intended = (job as { publicationIntendedAt?: Date | string | null }).publicationIntendedAt;
+      let scheduledFor: string | null =
+        intended instanceof Date
+          ? intended.toISOString()
+          : typeof intended === "string" && intended
+            ? intended
+            : null;
       try {
         const payload = JSON.parse(job.payload ?? "{}") as Record<string, unknown>;
         const sb = payload.storyboardBeats;
         if (Array.isArray(sb)) beats = sb as Array<Record<string, unknown>>;
         const qa = payload.renderedQa as Record<string, unknown> | undefined;
-        if (qa && typeof qa.verdict === "string") qualityVerdict = qa.verdict;
-        if (typeof payload.publicationIntendedAt === "string") scheduledFor = payload.publicationIntendedAt;
+        // FIELD NAME, corrected. This read `qa.verdict`, and RenderedQaVerdict
+        // has no such field - it carries `decision` ("approve" | "repair").
+        // So the operator's "why is every reel held" diagnostic printed a null
+        // quality verdict for every job ever written, on both branches, and
+        // looked exactly like a QA stage that had not run.
+        if (qa && typeof qa.decision === "string") qualityVerdict = qa.decision;
       } catch {
         unknowns.push("payload_unparseable — provider ops, QA verdict and scheduling intent are UNKNOWN for this job");
       }

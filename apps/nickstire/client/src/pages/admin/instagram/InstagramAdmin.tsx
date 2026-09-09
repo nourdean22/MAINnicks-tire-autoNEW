@@ -19,6 +19,7 @@ import DraftBoardPanel from "../DraftBoardPanel";
 import PatternLab from "./PatternLab";
 import AutonomyCommandCenter from "@/components/admin/AutonomyCommandCenter";
 import ActionCenter from "./ActionCenter";
+import { Pipeline } from "./Pipeline";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 /**
@@ -176,6 +177,7 @@ export function InstagramAdmin() {
         {activeView === "publish" && <QueueV2 />}
         {activeView === "community" && <Inbox onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
         {activeView === "insights" && <Learn onNavigate={(legacyTab) => navigate(legacyTab === "studio" ? "create" : "today")} />}
+        {activeView === "pipeline" && <Pipeline />}
         {activeView === "planning" && <DraftBoardPanel onNavigate={() => navigate("create")} />}
         {activeView === "patterns" && <PatternLab onNavigate={navigate} />}
         {activeView === "actions" && <ActionCenter onPublishStaged={() => navigate("publish")} />}

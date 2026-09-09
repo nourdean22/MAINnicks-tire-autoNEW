@@ -1,11 +1,42 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Lot / vehicle visits — schema APPLIED to production (2026-09-09)
+
+**`vehicle_visits` EXISTS in production TiDB. Migration `0119_vehicle_visits` is APPLIED. Do not
+re-apply it, and do not record it as pending.** This entry exists because the state was previously
+tracked only in `apps/nickstire/.remember/now.md`, which the source-of-truth hierarchy ranks at 8 —
+*below* this document at 4 — so a session following the hierarchy would have read "pending" here.
+
+Applied on the operator's explicit instruction (a production schema write is a protected operation
+and is never taken on agent initiative). Read-back receipt at apply time:
+
+| check | value |
+|---|---|
+| existed before | `false` |
+| columns after | **25** |
+| rows | 0 |
+| recorded in `__drizzle_migrations` | yes — sha256 `8c5e16b9a94d9454…`, `created_at` = journal `when` `1789300000000` |
+| `reconcile-migrations.mjs --strict` | **no blocking drift** |
+| target host | `gateway01.us-east-1.prod.aws.tidbcloud.com:4000` |
+
+**What is live, and what is not.** The `/admin` **Lot** section is deployed and reachable (owner and
+manager only; `lot.*` resolves to `settings.manage`). With the table present and empty it correctly
+renders **"Awaiting first event"** — NOT the failed-read banner, which is what it showed while the
+table was missing. That distinction is the point: an empty lot and an unreadable one are different
+facts and the screen says which.
+
+**What is still missing is a PRODUCER, not the schema.** Two exist in the tree —
+`camera-bridge/visitd/shop_mirror.py` and `camera-bridge/vision/run_live.py`'s `VisitSink`, both
+posting `{visits:[…]}` with `x-sync-key` to `POST /api/camera/visits` — but neither runs against a
+live camera yet, because the cameras are not reachable from the operator's laptop. Until one runs on
+the shop machine the table stays empty and every Lot counter stays blank by design.
 
 ## Public-site serving contract (2026-09-07, PR #2173 → `f2bcf949d`)
 

@@ -1049,6 +1049,24 @@ function buildTiers(): void {
         // Telegram preview (dryrun), never a live post.
         name: "ig-autopost",
         requiresEnv: "META_IG_USER_ID",
+        // 10 MINUTES, not the 4-minute default.
+        //
+        // Measured 2026-09-09: this lane failed 20 of 703 runs over seven days,
+        // every one of them recorded as "timeout" - 3 on 2026-09-09 alone, and
+        // at least one on six of the last eight days. It is the only lane in
+        // the estate still failing on a schedule.
+        //
+        // The cause is the budget, not the work. Inside a slot window this job
+        // GENERATES an image and then uploads it to Meta - two network round
+        // trips against third-party services, either of which can be slow - and
+        // it was inheriting DEFAULT_JOB_TIMEOUT_MS, which is sized for the
+        // database-only jobs that make up most of the estate.
+        //
+        // 10 minutes sits under the tier's own 15-minute cadence, so a slow run
+        // still finishes before the next pulse is due and the lock hand-back
+        // stays inside one interval. Same reasoning as the reel pipeline's
+        // 14-minute budget below, one tier down in cost.
+        timeoutMs: 10 * 60 * 1000,
         handler: async () => {
           const { runIgAutopostCron } = await import("../services/igAutopost");
           return runIgAutopostCron();

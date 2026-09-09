@@ -1,0 +1,54 @@
+{
+  "openvinoVersion": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+  "availableDevices": [
+    "CPU",
+    "GPU",
+    "NPU"
+  ],
+  "model": "vehicle-detection-0200.xml",
+  "frameSource": "C:/Users/nourd/AppData/Local/Temp/claude/C--/26e7056f-7dd3-4472-bcf0-d35de33fa3aa/scratchpad/shopsign_frames",
+  "frameCount": 40,
+  "frameSize": [
+    1024,
+    665
+  ],
+  "results": [
+    {
+      "device": "CPU",
+      "available": true,
+      "iters": 40,
+      "meanMs": 2.79,
+      "medianMs": 2.78,
+      "p95Ms": 3.29,
+      "minMs": 2.4,
+      "maxMs": 3.76,
+      "throughputFps": 315.4,
+      "detections": 40
+    },
+    {
+      "device": "GPU",
+      "available": true,
+      "iters": 40,
+      "meanMs": 1.54,
+      "medianMs": 1.55,
+      "p95Ms": 1.68,
+      "minMs": 1.37,
+      "maxMs": 1.71,
+      "throughputFps": 487.7,
+      "detections": 40
+    },
+    {
+      "device": "NPU",
+      "available": true,
+      "iters": 40,
+      "meanMs": 1.9,
+      "medianMs": 1.9,
+      "p95Ms": 2.02,
+      "minMs": 1.7,
+      "maxMs": 2.25,
+      "throughputFps": 404.3,
+      "detections": 40
+    }
+  ],
+  "fastest": "GPU"
+}

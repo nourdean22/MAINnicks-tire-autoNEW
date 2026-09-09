@@ -249,8 +249,8 @@ pending an actual render — not `PASS`, and not silently omitted:
 > firmly. If the RPM jumps but the car doesn't respond, that's slip, not a
 > weak engine.
 >
-> Worth checking before it gets worse. Stop by and we'll take a look. Send
-> this to someone whose gas pedal feels disconnected from their speed.
+> Worth checking before it gets worse. Send this to someone whose gas pedal
+> feels disconnected from their speed.
 >
 > #cartips #clevelandohio #carmaintenance #autorepair #manualtransmission
 

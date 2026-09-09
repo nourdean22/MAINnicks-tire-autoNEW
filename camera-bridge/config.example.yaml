@@ -18,7 +18,15 @@ mqtt:
 
 backend:
   baseUrl: https://bdnick.info
-  syncKeyEnv: STATENOUR_SYNC_KEY   # name of the env var holding the x-sync-key value
+  syncKeyEnv: STATENOUR_SYNC_KEY
+
+  # OPTIONAL second sink: the shop's own read model, which backs the Lot section of
+  # nickstire.org/admin. Best effort and OFF unless BOTH the URL and the key are
+  # present -- a URL without a key would 401 on every visit. The authoritative ordered
+  # outbox to baseUrl above is never blocked, reordered or failed by this; if the shop
+  # endpoint is down its read model simply goes stale, which that admin surfaces.
+  # shopUrl: https://nickstire.org/api/camera/visits
+  # shopSyncKeyEnv: CAMERA_INGEST_KEY   # name of the env var holding the x-sync-key value
   timeoutSeconds: 8
   heartbeatSeconds: 60             # PATCH /api/devices/{cloudDeviceId} cadence
   retryMinSeconds: 1               # exponential backoff floor for cloud POST retries

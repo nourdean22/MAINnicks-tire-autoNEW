@@ -27,6 +27,7 @@ not from `.env`:
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
 | `SOCIAL_INVENTORY_PUBLISH_ENABLED` | `true` | PUBLISH · inventory posts |
+| `REEL_FILM_GRAIN` | `true` *(2026-09-09)* | RENDER · adds moving luma grain + vignette to every reel ASSEMBLED from now on. Not a send, but it changes what every future viewer sees, and it is the only flag here that alters pixels. Already-assembled reels keep the look they were rendered with. |
 | `FEATURE_UNPAID_INVOICE_RECOVERY` | *(unset)* | SMS · unpaid-invoice chase — read the guard, `=== "1"` and `!== "false"` disagree about unset |
 
 Four of these — the voice and cadence flags — had **never appeared in any
@@ -93,6 +94,102 @@ detailed in `docs/CURRENT-TRUTH.md`:
   `shop_settings.tirePriceFloors` so cold pods and prerender can serve them —
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
+
+## 2026-09-09 — the account was being judged on the wrong number, and the critic was grading a spec the generator never got
+
+**SAVES ARE NOT A REELS RANKING INPUT.** Meta's own ranking documentation lists
+nine predictions for Reels and saves is not among them; it belongs to the
+*Explore* list. This account had been measured on 0.00 saves per post for a year.
+That figure is real and it is a symptom, not a penalty.
+
+**The number that does rank was already in the database, unread.**
+`reels_skip_rate` is the percentage of viewers who leave inside three seconds,
+and "watching less than three seconds" is a named Reels prediction. Migration
+0108 has been collecting it since it shipped. Read for the first time
+2026-09-09, one row per post, latest snapshot, reach > 0:
+
+| measure | value |
+|---|---|
+| published posts carrying a skip rate | 41 |
+| corpus mean skip | 66.4% |
+| best / worst hook | 39.8% / 92.9% |
+| Pearson r, skip rate vs reach | **−0.633** |
+
+Two thirds of viewers leave before the fourth second, and reach follows. The
+generator had been writing hook 105 blind to hooks 1 through 104; it now receives
+that scoreboard. **Do not re-derive this from saves.** `server/services/hookPerformance.ts`
+holds the read, and it returns an EMPTY prompt fragment when the history is
+unreadable or the sample is under six, so an outage teaches nothing rather than
+teaching from nothing.
+
+**THE CRITIC WAS GRADING A SPEC THE GENERATOR NEVER RECEIVED.** `LENS_PALETTES`
+gives each of the fourteen motion lenses its own world; the vision critic was
+still told the world was graphite+gold, so it would have reported
+`PALETTE_DRIFT` on every correctly-rendered non-noir reel. Fixing the critic
+alone was not enough: `buildReelContinuityBlock` returns an approved visual
+world's invariants EARLY, before it reaches its own palette line, and
+`visualWorld.ts` hardcoded the retired string twice more. `REEL_AUTO_VISUAL_WORLD`
+is `true` in production, so this was live, not theoretical.
+
+**FOUR LANES WERE CHECKED, NOT ONE.** Roughly sixty scheduled jobs run here and
+fifty-six were clean. Of the four that were not:
+
+- `kpi-snapshot` had **never once succeeded** — 5 runs, 0 successes since it
+  first fired 2026-09-03 — on a single identifier: it asked `review_replies` for
+  `createdAt`, and that table spells it `created_at`. The table beside it in the
+  same statement genuinely uses camelCase `sentAt`, so both spellings are correct
+  in this schema on different tables. A column name inside a raw `sql` template
+  is invisible to tsc, to Drizzle's typing and to every lint. **The first and only
+  signal was a production cron failure.**
+- `ig-autopost` timed out on 20 of 703 runs over seven days because it inherited
+  `DEFAULT_JOB_TIMEOUT_MS` (4 min, sized for database-only jobs) while it
+  generates an image and uploads it to Meta. Now 10 min, under its tier's own
+  15-minute cadence.
+- The other two were already repaired earlier the same week.
+
+**THE PACK LANE HAD NO CALL TO ACTION AT ALL.** `buildBriefFromApprovedProductionPack`
+never read `ask`, so every pack-derived reel rendered no end card. Four packs had
+worked around it by burning the shop name, address and phone into their last
+BEAT plus a spoken "stop by" — the one surface an ask must never occupy, because
+`assembleReel` refuses it. **Those four could never have shipped**; they would
+have failed at assembly, after their clips were paid for. Fixed at source.
+
+**And every pack-derived reel wore one look.** `motionLens` and `archetype` were
+hardcoded, so 26 of 27 queued reels carried the identical lens and only 5 of 14
+lenses appeared in the whole 21-day window. Both now rotate deterministically on
+the pack id — measured across the real 166 packs as all 14 lenses reached, spread
+7 to 16 each. Determinism matters: randomness would make a retry look like a new
+idea to the repetition ledger.
+
+**THE POSTING LANE WAS ALREADY HEALTHY, and that was verified before anything
+was changed.** It publishes one reel a day and had an unbroken 28-day schedule
+through 2026-10-07 with a populated `publication_intended_at` on each. The two
+nine-day dark stretches in the preceding month traced to defects fixed earlier
+that week. **A queue of finished reels is not a stuck queue** — check the
+scheduled dates before concluding inventory is idle.
+
+**Cost per PUBLISHED reel**, all generation spend over the reels that actually
+shipped, failures included because they were paid for too: **$4.09 lifetime,
+$6.49 over the last 30 days.** The honest denominator is publishes, not
+generated seconds.
+
+**FILM GRAIN IS ARMED, at strength 8.** A generated clip is perfectly smooth and
+real footage never is; that absence is much of what reads as AI-made. The figure
+that had kept the feature off — 2.57x file size — was measured on a synthetic
+smooth gradient, the worst possible case. **Re-measured on a real 8.2 MB reel
+master it costs 1.18x**, and the curve turns hard just after 8 (9 → 2.19x,
+10 → 3.34x, 12 → 6.40x). Twelve looks best and produced a 52.8 MB file, past a
+phone upload limit. Chromatic aberration and highlight bloom were each measured
+washing Nick yellow out by ~10% and were rejected on that evidence.
+
+**Where to look now:** Instagram admin → gear → **Pipeline health**. It carries
+the forward schedule with the first empty day called out, measured hook
+performance, the queue, cost per published reel and lane health. All of it was
+reachable before and none of it was on a screen; it was being answered with
+ad-hoc SQL against production, one probe at a time.
+
+Shipped `562681607`, `c8880ee0b`, `09abf1e23`, `77c4ab9d7`, each verified on
+main by file content and confirmed serving via `/api/health`.
 
 ## 2026-08-21 — the silent stock fallback is dead in production, and the fix sat unmerged for a day
 

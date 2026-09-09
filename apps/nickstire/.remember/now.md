@@ -1,5 +1,79 @@
 # Session ledger — nickstire
 
+**Updated: 2026-09-09** (IN FLIGHT — four PRs open: #2234 docs/freeze · #2236 camera-bridge vision
+platform · #2238 admin Lot section (THIS app) · #2241 visitd shop mirror. See the 2026-09-09 section
+directly below; the 2026-09-08 close-out follows it.)
+
+## 2026-09-09 · admin Lot section + camera vision audit wave
+
+**What is in #2238 for this app:** the `lot` admin section (registry `priority: 12` — a 15/15 collision
+with `approvals` was caught before commit), the `POST /api/camera/visits` ingest, migration
+`0119_vehicle_visits`, and the plate-safety rules (only a CONFIRMED read is durable; a CONFUSABLE_UNIQUE
+or AMBIGUOUS match is never auto-bound to a customer).
+
+**Two defects CI caught that a local run could not.** This branch was pushed from a hookless sparse
+clone with no `node_modules`, so nickstire's vitest cannot run here at all. Pointing the PRIMARY
+checkout's vitest at this tree via an ad-hoc config does NOT work either — vite fails to load any
+module across the two roots, including files that demonstrably exist. Do not spend time retrying that;
+push and let CI gate, which is what the root AGENTS.md already prescribes.
+  1. `adminRegistryTruth.test.ts` keeps a HARDCODED `LEGACY_ROLE_SECTIONS` list (it pins that role
+     access survived the 2026-08-03 registry unification). A new section must be added to it
+     deliberately: CI failed with `expected [ 'approvals', ...(19) ] to deeply equal [ ...(18) ]`.
+     Its comment also demands the second half — check `permissionForAdminProcedure` for every
+     procedure the page calls. Done, not assumed: `lot` is `FULL_ACCESS` (owner + manager), `lot.*`
+     resolves to `settings.manage`, and both roles hold it, so neither gets a door it cannot walk
+     through (the trafficFunnel failure the comment cites). `commandPaletteRoleTruth.test.ts` derives
+     from `ADMIN_REGISTRY.length` and needed nothing.
+  2. The live `operator-walkthrough` completion evidence said the section is visible to "all admin
+     roles". False, and false in the direction that matters — it OVERSTATED who can see plate text and
+     who is physically on the property. Corrected to owner + manager with the permission named.
+
+**⚠ CI SILENTLY NEVER FIRES on this branch.** Two consecutive pushes produced `total_count: 0`
+check-runs and NO workflow run object at all (`gh run list` shows nothing for those SHAs). Second
+occurrence this session. Cure: `gh workflow run "<name>" --ref nickstire/admin-lot-camera-truth`.
+"Completion Authority" and "Secret Scanning" have no `workflow_dispatch` trigger (HTTP 422) — they only
+run on PR events. **An empty check list is NOT "all green"**: any CI poller needs a minimum-count guard,
+mine declared "ALL TERMINAL" on zero checks.
+
+**⚠ Two RED checks on every PR are NOT ours.** `security` fails because `next@16.2.11` carries two
+CRITICAL RCE advisories (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4; both `<16.3.3`) — statenour's dep,
+and `apps/statenour/package.json:132` already declares `^16.2.11`, a caret that ALREADY permits the fix,
+so only `pnpm-lock.yaml` pins it back. `knip orphan gate` says of itself "reports failure on an
+unmodified tree - the gate is stuck red", with new orphans in `server/middleware/securityHeaders.ts`,
+`server/cron/index.ts`, `server/services/reelPipeline.ts`, `client/src/lib/facelessReelStudio.ts` — same
+shape as the 2026-09-08 unstick below, different orphans.
+
+**Merge conflict resolved 2026-09-09:** main moved under this branch. `server/_core/index.ts` auto-merged;
+`.completion/evidence.json` needed a 3-WAY UNION, not a pick — both sides had added
+`-superseded-2026-09-09` keys. Resolution: start from main so no sibling entry is dropped, overlay only
+the keys this branch changed vs the merge base (verified main had NOT touched the two live rolling keys).
+143 base / 145 ours / 148 theirs -> 150 merged, zero main entries lost.
+
+**DONE — migration `0119_vehicle_visits` APPLIED to prod TiDB 2026-09-09**, on the operator's explicit
+instruction (it is a protected operation and was not taken on agent initiative). Receipts: table did not
+exist before, created with **25 columns**, 0 rows, recorded in `__drizzle_migrations` with sha256
+`8c5e16b9a94d9454...` and `created_at` = the journal's `when` (1789300000000), exactly as
+`scripts/db-migrate.ts` would; `reconcile-migrations.mjs --strict` -> **no blocking drift**. Target was
+confirmed by printing the HOST only: `gateway01.us-east-1.prod.aws.tidbcloud.com:4000`.
+
+**How, because the obvious routes do not work here.** There is NO local `.env`/`DATABASE_URL` in the
+primary checkout OR in a `git worktree add` worktree (only `worktree-setup.ps1` copies one), and
+`vehicle_visits` is NOT among the statements inlined in `handleRunMigrations()`, so the admin-tRPC
+"Chrome path" would have needed a code change plus a deploy first. What worked: a THROWAWAY scoped
+runner executed as `railway run -s MAINnicks-tire-auto -- pnpm exec tsx <script>` — the short form the
+auto-mode classifier allows, and it injects the real environment so no credential is ever pasted into a
+command. The runner was dry-run BY DEFAULT with the guard gating `mysql.createConnection` itself (not
+merely logging), refused to proceed if the file contained a destructive verb, and was deleted after the
+apply per the runbook.
+
+**Verified live in Chrome:** the Lot section flipped from the red "Lot counters unavailable — this is not
+an empty lot" banner to **"Awaiting first event"**. That is the empty-vs-error distinction working in
+production: the table now exists and is genuinely empty, which is a different fact from a failed read.
+
+**What is still missing is a PRODUCER, not the schema.** The floor board's vehicle cards stay hidden
+until a real visit arrives (deliberately — an empty shell is worse than an honest empty state), and the
+cameras are unreachable from the laptop, so a producer has to run on the shop machine.
+
 **Updated: 2026-09-08** (CLOSED OUT 07:00 UTC — five PRs merged and live: #2182 `081f517f7` · #2187 `829067f76` ·
 #2190 `3ce3c68dd` · #2192 `0cbe534ed` · #2194 `1a64afd4d`; main CI green; snapshot refresh run 34217365307 from
 `0cbe534ed` was still running. Next session starts from `docs/QUALITY-PROGRAM-2026-09-07.md` "Final state" + §13
@@ -8,6 +82,74 @@ merged program — see the first section; 2026-09-07 evening — public-site + a
 `claude/nicks-tire-quality-audit-544da2` · earlier the same day: admin Phase 1 shipped to PR #2163 ·
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
 routine disabled. Prior arc 2026-09-03 below.)
+
+## 2026-09-09 · reel pipeline — the wrong metric, three dead lanes, and one screen
+
+**Separate session from the Lot/camera work above; no overlapping files.** Merged
+`562681607`, `c8880ee0b`, `09abf1e23`, `77c4ab9d7`, all content-verified on main
+and confirmed serving.
+
+**READ THIS BEFORE OPTIMISING FOR SAVES.** Saves are NOT a Reels ranking input —
+Meta's own list has nine Reels predictions and saves is not among them (it belongs
+to Explore). This account had been judged on 0.00 saves for a year. The number
+that DOES rank, `reels_skip_rate`, has been collected since migration 0108 and had
+never been read. First read 2026-09-09, one row per post, latest snapshot,
+reach > 0: **41 posts, mean skip 66.4%, best 39.8%, worst 92.9%, Pearson r vs
+reach −0.633.** The generator now receives that scoreboard
+(`server/services/hookPerformance.ts`), and it returns an EMPTY fragment when the
+read fails, so an outage teaches nothing rather than teaching from nothing.
+
+**A QUEUE OF FINISHED REELS IS NOT A STUCK QUEUE.** 32 reels sat `assembled` and
+looked like idle paid inventory. They were a scheduled run with no gaps for 28
+days, each with a populated `publication_intended_at`. I called it idle before
+checking the dates; do not repeat that. The posting lane was already healthy.
+
+**`kpi-snapshot` had NEVER succeeded** — 5 runs, 0 successes since 2026-09-03 —
+on one identifier: `review_replies` spells it `created_at`, and the table beside
+it in the same statement genuinely uses camelCase `sentAt`. **A column name in a
+raw `sql` template is invisible to tsc, to Drizzle and to every lint.** The only
+signal was a production cron failure. `kpiSnapshotSql.test.ts` now checks every
+column the job names against the schema.
+
+**`ig-autopost` was failing 20 of 703 runs** purely because it inherited the
+4-minute `DEFAULT_JOB_TIMEOUT_MS` while doing two third-party round trips. Now
+10 min. Budgets must stay UNDER the tier cadence (pulse = 15 min) or a slow run
+holds its lock past the next pulse.
+
+**The pack lane had NO call to action at all** — the builder never read `ask`, so
+every pack-derived reel rendered no end card. Four packs faked one by burning the
+shop address into their last BEAT, which `assembleReel` refuses, so those four
+could never have shipped. And `motionLens`/`archetype` were hardcoded: 26 of 27
+queued reels carried one lens. Both now rotate deterministically per pack id (all
+14 lenses reached across the real 166 packs).
+
+**MEASURE ON REAL FOOTAGE.** Film grain shipped default-OFF because a synthetic
+smooth gradient said it cost 2.57x file size. On a real 8.2 MB reel master it
+costs **1.18x**. The gradient was the worst case and was never representative.
+`REEL_FILM_GRAIN=true` is now ARMED at strength 8; the curve turns hard just
+after (9 → 2.19x, 10 → 3.34x, 12 → 6.40x, which produced a 52.8 MB file). It
+applies at ASSEMBLY, so the 28 already-assembled reels keep their look — the
+operator asked for exactly that.
+
+**`docs/operations/REEL-PIPELINE.md` asserted `REEL_VIDEO_PROVIDER=template_stock`
+"NOT higgsfield".** Production reads `higgsfield`. The paid lane is the one
+running, so a reel costs money. Re-read the live value, never the doc.
+
+**Where to look now:** Instagram admin → gear → **Pipeline health**
+(`?igview=pipeline`). Forward schedule with the first empty day called out,
+measured hook performance, queue, cost per published reel ($4.09 lifetime,
+$6.49 last 30 days), lane health. Read-only.
+
+**Left deliberately short of done:** the pre-spend ask-leak check is a WARN, not
+a block. Promoting it regenerates briefs, and fixtures across seven test files
+still model the old pattern (the three canonical SAMPLE_REEL_BRIEFS did too, and
+those are fixed). Sweeping the fixtures is its own change. The render-time gate
+remains the hard stop.
+
+**Operator decision, declined:** AI audio disclosure. It is already ON — the
+publish path sends `is_ai_generated` because `higgsfield` is on the generative
+list — and the operator was told it is a flag in the API call, not visible copy.
+No change made.
 
 ## 2026-09-08 · knip orphan gate unstuck (branch `nickstire/knip-orphans-2220`)
 

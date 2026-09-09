@@ -216,7 +216,19 @@ describe("Reel Approval & Publishing Integrity", () => {
   it("E2E pipeline: enqueue -> finalize -> approve -> publish", async () => {
     const validBrief = {
       selectedCaption: "This is a high quality reel about brake rotor rust.",
-      campaignKeyword: "educational",
+      // "educational" is NOT a campaign keyword - the real list is BRAKES,
+      // TREAD, POTHOLE, PRESSURE and so on - so this fixture had silently been
+      // failing the "Campaign keyword valid" part all along, scoring 70/75
+      // instead of 75. It still passed, because the distinctiveness part was
+      // handing it the missing 5 points for an EMPTY recent window.
+      //
+      // That window is empty here because the test has no database, and
+      // getRecentReelSignals now distinguishes "nothing to repeat" from "could
+      // not look". A test harness with no DB is the second case, so the part
+      // correctly scores zero - which took the total to 65 and exposed the
+      // fixture defect underneath. Fixed at the source rather than by relaxing
+      // the scorer: a brief whose keyword is invalid SHOULD lose that part.
+      campaignKeyword: "BRAKES",
       topic: "brakes",
       storyboardBeats: [
         { beatNumber: 1, visual: "Rusting rotor close-up", startSecond: 0, endSecond: 4, motion: "Slow pan", onScreenText: "Rotor Rust" },
