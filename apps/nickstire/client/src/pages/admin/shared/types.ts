@@ -22,7 +22,12 @@ export type AdminSection =
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships" | "tireOrders"
   | "opsHub" | "growth" | "intelligence" | "instagram" | "approvals"
-  | "opportunities" | "market";
+  | "opportunities" | "market" | "lot";
+// 2026-09-09 · `lot` added. Camera visit truth (who is on the property, who is
+// waiting, which bays are occupied) is SHOP OPERATIONS, so it belongs in this
+// admin -- ADR-0017's product boundary puts owner-level summaries in StateNour
+// and the operational cockpit here. Reads `trpc.lot.*`, backed by the
+// `vehicle_visits` table (migration 0119) that camera-bridge/visitd writes.
 // 2026-09-07 · `opportunities` added. The opportunity queue used to render as the
 // owner's Decision Inbox on the admin home, where the top 5 "LEAD the day".
 // The operator retired it — a queue that leads the day manufactures obligations

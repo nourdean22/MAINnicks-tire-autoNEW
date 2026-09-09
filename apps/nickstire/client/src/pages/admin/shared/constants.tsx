@@ -65,6 +65,7 @@ export const CHART_THEME = {
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Today",
+  lot: "Lot",
   approvals: "Approvals",
   leads: "Sales Pipeline",
   opportunities: "Opportunities",

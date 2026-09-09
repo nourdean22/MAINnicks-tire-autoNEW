@@ -1,0 +1,73 @@
+-- 0119 · vehicle_visits — the shop-side read model for camera visit truth.
+--
+-- Product boundary (ADR-0017, refined 2026-09-09): operational shop intelligence
+-- belongs in nickstire.org/admin. StateNour receives owner-level summaries and
+-- anomalies, not the primary shop-operations cockpit. Until now the only durable
+-- camera record lived in StateNour's `device_events`, so the shop had nowhere to
+-- read "who is on the lot right now".
+--
+-- Fed by camera-bridge/visitd over the existing event contract v2. One row per
+-- VISIT (not per event); `seq` carries the last applied emission sequence so an
+-- out-of-order or duplicate delivery cannot move a visit backwards.
+--
+-- Every timestamp is NULLABLE on purpose: an unknown time stays unknown rather
+-- than being back-filled with a plausible guess. `estimatedFields` records which
+-- values were inferred rather than observed.
+--
+-- Hand-applied (both apps migrate by hand; there is no auto-migrate).
+--
+-- COLUMN WIDTHS ARE SIZED AGAINST WHAT THE CODE WRITES, NOT WHAT READS NICELY.
+-- TiDB runs STRICT_TRANS_TABLES: an over-width write is REJECTED and the row is
+-- LOST, not truncated. Two columns here were originally one character from that:
+--   detectorName  -- "openvino:person-vehicle-bike-detection-crossroad-1016+adjudicated"
+--                    is exactly 64 chars, so varchar(64) would have silently
+--                    dropped every escalated-detection row. Now 128.
+--   entryEvidence -- the portal's longest rejection reason, "no outside history:
+--                    born inside the property (not an entry)", is 58 chars, and
+--                    these strings are prose that will grow. Now 191.
+-- Status columns follow the repo's varchar(32) convention rather than being sized
+-- to today's longest value; ENUM is deliberately avoided because an out-of-enum
+-- write loses the row and every new state would need an ALTER.
+
+CREATE TABLE IF NOT EXISTS vehicle_visits (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+  visitId          VARCHAR(64)  NOT NULL,
+  camera           VARCHAR(64)  NOT NULL,
+  state            VARCHAR(32)  NOT NULL,
+  seq              INT          NOT NULL DEFAULT 0,
+
+  -- lifecycle. NULL means "not observed", never "zero".
+  arrivedAt        DATETIME     NULL,
+  waitStartedAt    DATETIME     NULL,
+  bayEnteredAt     DATETIME     NULL,
+  bayExitedAt      DATETIME     NULL,
+  departedAt       DATETIME     NULL,
+  bay              VARCHAR(32)  NULL,
+
+  -- identity. Advisory until EXACT or staff-confirmed.
+  plateText        VARCHAR(16)  NULL,
+  plateStatus      VARCHAR(32)  NOT NULL DEFAULT 'NONE',
+  customerMatch    VARCHAR(32)  NOT NULL DEFAULT 'NONE',
+  customerId       INT          NULL,
+
+  -- provenance: why the system believed this
+  preexisting      TINYINT(1)   NOT NULL DEFAULT 0,
+  entryEvidence    VARCHAR(191) NULL,
+  estimatedFields  JSON         NULL,
+  evidenceRef      VARCHAR(255) NULL,
+  sourceGeneration VARCHAR(64)  NULL,
+  cameraPose       VARCHAR(64)  NULL,
+  detectorName     VARCHAR(128) NULL,
+  calibrationVersion VARCHAR(32) NULL,
+
+  createdAt        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uq_vehicle_visits_visitId (visitId),
+  KEY idx_vehicle_visits_state (state),
+  KEY idx_vehicle_visits_arrivedAt (arrivedAt),
+  KEY idx_vehicle_visits_departedAt (departedAt),
+  KEY idx_vehicle_visits_bay (bay),
+  KEY idx_vehicle_visits_plateText (plateText)
+);

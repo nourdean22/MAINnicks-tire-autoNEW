@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect, useCallback } from "react";
-import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
+import { Brain, Clapperboard, ClipboardList, Disc, DollarSign, Images, Instagram, LayoutDashboard, Megaphone, ParkingSquare, PhoneCall, Send, Settings, Shield, Sparkles, TrendingUp, UserCheck } from "lucide-react";
 import type { AdminSection, NavGroup } from "./shared/types";
 import type { AdminNavigateDetail, AdminOpenCustomerDrawerDetail } from "./shared/navigation";
 import { ADMIN_ROLES, type AdminRole } from "@shared/adminPermissions";
@@ -70,8 +70,25 @@ const GrowthSection = lazy(() => import("./GrowthSection"));
 const IntelligenceHQSection = lazy(() => import("./intelligence/IntelligenceHQSection"));
 const TrafficFunnelSection = lazy(() => import("./TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./VoiceReceptionistSection"));
+const LotSection = lazy(() => import("./LotSection"));
 
 export const ADMIN_REGISTRY: RegistrySection[] = [
+  {
+    // 2026-09-09 · Camera visit truth. Shop operations belong in the shop's own
+    // admin (ADR-0017 product boundary); StateNour gets owner summaries, not the
+    // operational cockpit. Every card is driven by a discriminated `{ ok }`
+    // result so a failed read renders as an explicit error, never as "0 cars".
+    id: "lot",
+    label: "Lot",
+    icon: <ParkingSquare className="w-4 h-4" />,
+    component: LotSection,
+    aliases: ["cameras", "camera", "vehicles", "parking", "bays", "visits", "shopsign"],
+    keywords: ["lot", "camera", "vehicle", "bay", "waiting", "arrival", "plate"],
+    group: "Daily",
+    priority: 12,
+    showInSidebar: true,
+    allowedRoles: ADMIN_ROLES,
+  },
   {
     id: "overview",
     label: "Today",
