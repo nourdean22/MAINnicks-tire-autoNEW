@@ -63,6 +63,74 @@ merged program — see the first section; 2026-09-07 evening — public-site + a
 brand-voice debt pass · 0112 verified ALREADY applied · prerender found already current · reel
 routine disabled. Prior arc 2026-09-03 below.)
 
+## 2026-09-09 · reel pipeline — the wrong metric, three dead lanes, and one screen
+
+**Separate session from the Lot/camera work above; no overlapping files.** Merged
+`562681607`, `c8880ee0b`, `09abf1e23`, `77c4ab9d7`, all content-verified on main
+and confirmed serving.
+
+**READ THIS BEFORE OPTIMISING FOR SAVES.** Saves are NOT a Reels ranking input —
+Meta's own list has nine Reels predictions and saves is not among them (it belongs
+to Explore). This account had been judged on 0.00 saves for a year. The number
+that DOES rank, `reels_skip_rate`, has been collected since migration 0108 and had
+never been read. First read 2026-09-09, one row per post, latest snapshot,
+reach > 0: **41 posts, mean skip 66.4%, best 39.8%, worst 92.9%, Pearson r vs
+reach −0.633.** The generator now receives that scoreboard
+(`server/services/hookPerformance.ts`), and it returns an EMPTY fragment when the
+read fails, so an outage teaches nothing rather than teaching from nothing.
+
+**A QUEUE OF FINISHED REELS IS NOT A STUCK QUEUE.** 32 reels sat `assembled` and
+looked like idle paid inventory. They were a scheduled run with no gaps for 28
+days, each with a populated `publication_intended_at`. I called it idle before
+checking the dates; do not repeat that. The posting lane was already healthy.
+
+**`kpi-snapshot` had NEVER succeeded** — 5 runs, 0 successes since 2026-09-03 —
+on one identifier: `review_replies` spells it `created_at`, and the table beside
+it in the same statement genuinely uses camelCase `sentAt`. **A column name in a
+raw `sql` template is invisible to tsc, to Drizzle and to every lint.** The only
+signal was a production cron failure. `kpiSnapshotSql.test.ts` now checks every
+column the job names against the schema.
+
+**`ig-autopost` was failing 20 of 703 runs** purely because it inherited the
+4-minute `DEFAULT_JOB_TIMEOUT_MS` while doing two third-party round trips. Now
+10 min. Budgets must stay UNDER the tier cadence (pulse = 15 min) or a slow run
+holds its lock past the next pulse.
+
+**The pack lane had NO call to action at all** — the builder never read `ask`, so
+every pack-derived reel rendered no end card. Four packs faked one by burning the
+shop address into their last BEAT, which `assembleReel` refuses, so those four
+could never have shipped. And `motionLens`/`archetype` were hardcoded: 26 of 27
+queued reels carried one lens. Both now rotate deterministically per pack id (all
+14 lenses reached across the real 166 packs).
+
+**MEASURE ON REAL FOOTAGE.** Film grain shipped default-OFF because a synthetic
+smooth gradient said it cost 2.57x file size. On a real 8.2 MB reel master it
+costs **1.18x**. The gradient was the worst case and was never representative.
+`REEL_FILM_GRAIN=true` is now ARMED at strength 8; the curve turns hard just
+after (9 → 2.19x, 10 → 3.34x, 12 → 6.40x, which produced a 52.8 MB file). It
+applies at ASSEMBLY, so the 28 already-assembled reels keep their look — the
+operator asked for exactly that.
+
+**`docs/operations/REEL-PIPELINE.md` asserted `REEL_VIDEO_PROVIDER=template_stock`
+"NOT higgsfield".** Production reads `higgsfield`. The paid lane is the one
+running, so a reel costs money. Re-read the live value, never the doc.
+
+**Where to look now:** Instagram admin → gear → **Pipeline health**
+(`?igview=pipeline`). Forward schedule with the first empty day called out,
+measured hook performance, queue, cost per published reel ($4.09 lifetime,
+$6.49 last 30 days), lane health. Read-only.
+
+**Left deliberately short of done:** the pre-spend ask-leak check is a WARN, not
+a block. Promoting it regenerates briefs, and fixtures across seven test files
+still model the old pattern (the three canonical SAMPLE_REEL_BRIEFS did too, and
+those are fixed). Sweeping the fixtures is its own change. The render-time gate
+remains the hard stop.
+
+**Operator decision, declined:** AI audio disclosure. It is already ON — the
+publish path sends `is_ai_generated` because `higgsfield` is on the generative
+list — and the operator was told it is a flag in the API call, not visible copy.
+No change made.
+
 ## 2026-09-08 · knip orphan gate unstuck (branch `nickstire/knip-orphans-2220`)
 
 The `knip orphan gate` CI job was red on EVERY PR from #2215 (13:53Z) onward, docs-only ones included,
