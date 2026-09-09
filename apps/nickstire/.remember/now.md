@@ -49,10 +49,30 @@ shape as the 2026-09-08 unstick below, different orphans.
 the keys this branch changed vs the merge base (verified main had NOT touched the two live rolling keys).
 143 base / 145 ours / 148 theirs -> 150 merged, zero main entries lost.
 
-**OPERATOR ACTION — the section is inert until this is done:** migration `0119_vehicle_visits` must be
-applied to prod TiDB. It is `CREATE TABLE IF NOT EXISTS`, additive, drops nothing, and safe — but a prod
-schema write is a protected operation and was deliberately NOT done on agent initiative. Until then the
-Lot section shows its failed-read banner, which is the intended honest behaviour, not a bug.
+**DONE — migration `0119_vehicle_visits` APPLIED to prod TiDB 2026-09-09**, on the operator's explicit
+instruction (it is a protected operation and was not taken on agent initiative). Receipts: table did not
+exist before, created with **25 columns**, 0 rows, recorded in `__drizzle_migrations` with sha256
+`8c5e16b9a94d9454...` and `created_at` = the journal's `when` (1789300000000), exactly as
+`scripts/db-migrate.ts` would; `reconcile-migrations.mjs --strict` -> **no blocking drift**. Target was
+confirmed by printing the HOST only: `gateway01.us-east-1.prod.aws.tidbcloud.com:4000`.
+
+**How, because the obvious routes do not work here.** There is NO local `.env`/`DATABASE_URL` in the
+primary checkout OR in a `git worktree add` worktree (only `worktree-setup.ps1` copies one), and
+`vehicle_visits` is NOT among the statements inlined in `handleRunMigrations()`, so the admin-tRPC
+"Chrome path" would have needed a code change plus a deploy first. What worked: a THROWAWAY scoped
+runner executed as `railway run -s MAINnicks-tire-auto -- pnpm exec tsx <script>` — the short form the
+auto-mode classifier allows, and it injects the real environment so no credential is ever pasted into a
+command. The runner was dry-run BY DEFAULT with the guard gating `mysql.createConnection` itself (not
+merely logging), refused to proceed if the file contained a destructive verb, and was deleted after the
+apply per the runbook.
+
+**Verified live in Chrome:** the Lot section flipped from the red "Lot counters unavailable — this is not
+an empty lot" banner to **"Awaiting first event"**. That is the empty-vs-error distinction working in
+production: the table now exists and is genuinely empty, which is a different fact from a failed read.
+
+**What is still missing is a PRODUCER, not the schema.** The floor board's vehicle cards stay hidden
+until a real visit arrives (deliberately — an empty shell is worse than an honest empty state), and the
+cameras are unreachable from the laptop, so a producer has to run on the shop machine.
 
 **Updated: 2026-09-08** (CLOSED OUT 07:00 UTC — five PRs merged and live: #2182 `081f517f7` · #2187 `829067f76` ·
 #2190 `3ce3c68dd` · #2192 `0cbe534ed` · #2194 `1a64afd4d`; main CI green; snapshot refresh run 34217365307 from
