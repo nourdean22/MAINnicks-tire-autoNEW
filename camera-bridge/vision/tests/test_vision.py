@@ -32,7 +32,7 @@ from vision.evidence import EvidenceStore  # noqa: E402
 from vision.fetch_models import PINNED, verify  # noqa: E402
 from vision.fingerprint import PrivacyToken, VehicleFingerprint, compare  # noqa: E402
 from vision.frame import Detection, Frame  # noqa: E402
-from vision.framehealth import FrameHealth  # noqa: E402
+from vision.framehealth import FrameHealth, mean_abs_diff  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 from vision.platelab import CANDIDATE, CONFIRMED, PlateLab, lookup_class  # noqa: E402
@@ -1166,3 +1166,59 @@ def test_a_rejecting_ingest_never_takes_down_the_capture_loop():
     assert sink2.send(SimpleNamespace(visit_id="v-dead", state="LEFT", seq=1),
                       camera="sign", pipeline=make_pipeline()) is False
     assert sink2.failed == 1
+
+
+def test_a_motionless_lot_is_not_a_frozen_camera():
+    """A quiet lot is the NORMAL state, not a fault. Measured on the live SHOPSIGN feed.
+
+    The freeze detector judged on an 8x8 dhash, which cannot see sensor noise or the
+    V380 overlay clock, so a motionless parking lot hashed identically frame to frame
+    and `freeze_run=8` at ~4fps meant TWO SECONDS of a quiet lot read as a dead camera.
+    Measured live before the fix: 18 of 40 frames rejected, every one frozen=True.
+
+    That is not a cosmetic false alarm. `unhealthy` sets `_was_unhealthy`, which re-arms
+    the preexisting census on recovery, so every car arriving after a quiet spell would
+    be classified PREEXISTING and no arrival could ever fire. A lot is motionless most
+    of the night; the system would have been blind every morning.
+
+    The discriminator is the raw pixels, and the margin is large: over 29 consecutive
+    live pairs of a motionless lot, ZERO were byte-identical and the minimum full-res
+    MAD was 0.26. A stalled capture hands back the same buffer: exactly 0.0.
+    """
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(7)
+
+    # A LIVE but motionless scene: faint sensor noise, nothing else moving.
+    live = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+        live.update(t, noisy)
+        t += 0.25
+    st = live.state(t)
+    assert st.frozen is False, "a motionless lot with live sensor noise is NOT a frozen camera"
+    assert st.ok is True, f"a quiet lot must stay healthy: {st}"
+
+    # A STALLED capture: the same buffer handed back again and again.
+    stalled = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        stalled.update(t, base)
+        t += 0.25
+    st2 = stalled.state(t)
+    assert st2.frozen is True, "an identical repeated buffer IS a frozen capture"
+    assert st2.ok is False
+
+
+def test_the_freeze_epsilon_sits_below_real_sensor_noise():
+    """The threshold is only meaningful next to the number it was chosen against."""
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(11)
+    noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+
+    assert mean_abs_diff(base, base) == 0.0, "the same buffer differs by exactly nothing"
+    live_delta = mean_abs_diff(base, noisy)
+    assert live_delta > FrameHealth().freeze_epsilon * 5, (
+        f"live noise {live_delta:.3f} must sit well clear of the epsilon; measured live "
+        f"footage was 0.26 minimum"
+    )
