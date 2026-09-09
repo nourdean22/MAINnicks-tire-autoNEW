@@ -1,0 +1,84 @@
+name: Camera bridge
+
+# The camera-bridge Python suites had NO CI at all until 2026-09-09. 153 tests --
+# visitd's visit state machine and the vision layer's five invariants, including the
+# ones that exist to stop a parked car being promoted to a confirmed arrival -- ran
+# only when a human happened to run them, on one Windows laptop. A P0 guard with no
+# gate is a guard that silently stops guarding.
+#
+# Deliberately self-contained: Python only, no pnpm, no turbo. Path-filtered to
+# camera-bridge/** so it does not slow down PRs that cannot affect it.
+#
+# NOT installed here, on purpose:
+#   openvino            -- large, and every test that needs it is skipped unless
+#                          VISION_OV_MODEL points at a real Intel IR. CI asserts the
+#                          logic; the hardware numbers are measured on the target box.
+#   windows-capture/mss -- Windows-only, and both are imported lazily inside the
+#                          capture functions, so the modules import fine on Linux.
+#
+# NOTE: this repo has no branch protection, so a red run does not mechanically block
+# `gh pr merge`. Red means stop, by convention.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "camera-bridge/**"
+      - ".github/workflows/camera-bridge.yml"
+  push:
+    branches: [main]
+    paths:
+      - "camera-bridge/**"
+      - ".github/workflows/camera-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: camera-bridge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: visitd + vision (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: camera-bridge
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # numpy is the only module-level third-party import across vision/ and
+          # visitd/; opencv is installed headless because the evidence writer reaches
+          # for cv2 lazily and we want that path exercised rather than swallowed.
+          pip install "numpy>=2.0" "opencv-python-headless>=4.10" "pytest>=8.0" pytest-subtests
+
+      - name: Run the suites
+        # One command covers BOTH trees only because camera-bridge/conftest.py puts
+        # `camera-bridge/` and `camera-bridge/tests/` on sys.path. Without it the two
+        # trees have opposite cwd requirements and one of them collects nothing --
+        # which is exactly how a suite goes quietly missing.
+        run: python -m pytest -q --tb=short
+
+      - name: Fail if the run collected nothing
+        # A pytest run that collects ZERO tests exits 5, not 0 -- but a future glob or
+        # path-filter change could still leave this job green over an empty run, which
+        # is the silent-instrument failure this repo keeps re-learning. Assert a real
+        # floor instead of trusting the exit code.
+        run: |
+          count=$(python -m pytest -q --collect-only 2>/dev/null | tail -1 | grep -oE '^[0-9]+' || echo 0)
+          echo "collected: $count"
+          if [ "${count:-0}" -lt 100 ]; then
+            echo "::error::camera-bridge collected only ${count} tests; expected >= 100. A green run over an empty collection is not a pass."
+            exit 1
+          fi
