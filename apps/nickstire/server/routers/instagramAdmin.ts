@@ -2114,6 +2114,17 @@ Keep it under 200 characters.`;
       log.warn("could not resolve reel jobs for the queue (per-job actions will be unavailable)", e);
     }
 
+    // Fetched ONCE for the whole page, not per draft. The badge should agree
+    // with the gate that admits a brief, and that gate scores against the recent
+    // window - but this is a list endpoint, so a per-row history read would be an
+    // N+1 against a MEDIUMTEXT column. Skipped entirely when the page holds no
+    // reels.
+    let recentSignals: Awaited<ReturnType<typeof import("../services/reelRepetitionHistory").getRecentReelSignals>> | undefined;
+    if (rows.some((r: typeof rows[number]) => r.contentType === "reel")) {
+      const { getRecentReelSignals } = await import("../services/reelRepetitionHistory");
+      recentSignals = await getRecentReelSignals();
+    }
+
     const results = [];
     for (const r of rows) {
       let parsedBrief: any = {};
@@ -2137,7 +2148,7 @@ Keep it under 200 characters.`;
         } else {
           try {
             const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-            const qRes = calculateReelQualityScore(parsedBrief);
+            const qRes = calculateReelQualityScore(parsedBrief, undefined, { recent: recentSignals });
             scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
           } catch (e) {
             log.warn("failed to calculate reel score in getAllDrafts", e);

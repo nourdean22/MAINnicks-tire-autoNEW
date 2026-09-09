@@ -108,8 +108,12 @@ export async function buildReelRecoveryLedger(opts?: { limit?: number; jobId?: n
         const sb = payload.storyboardBeats;
         if (Array.isArray(sb)) beats = sb as Array<Record<string, unknown>>;
         const qa = payload.renderedQa as Record<string, unknown> | undefined;
-        if (qa && typeof qa.verdict === "string") qualityVerdict = qa.verdict;
-        if (typeof payload.publicationIntendedAt === "string") scheduledFor = payload.publicationIntendedAt;
+        // FIELD NAME, corrected. This read `qa.verdict`, and RenderedQaVerdict
+        // has no such field - it carries `decision` ("approve" | "repair").
+        // So the operator's "why is every reel held" diagnostic printed a null
+        // quality verdict for every job ever written, on both branches, and
+        // looked exactly like a QA stage that had not run.
+        if (qa && typeof qa.decision === "string") qualityVerdict = qa.decision;
       } catch {
         unknowns.push("payload_unparseable — provider ops, QA verdict and scheduling intent are UNKNOWN for this job");
       }

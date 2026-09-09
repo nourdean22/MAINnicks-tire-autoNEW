@@ -14,7 +14,6 @@
  */
 import {
   CAMPAIGN_KEYWORDS,
-  calculateReelQualityScore,
   type CampaignKeyword,
   type QualityScoreResult,
   type ReelBrief,
@@ -145,7 +144,11 @@ export async function draftReelFromGenome(genome: CreativeGenome): Promise<Draft
   if (brief !== rawBrief) log.info("resolved genome evidence attached as proof notes", { attached: resolution.records.length });
   // Claim-level provenance rides the brief - a published asset can name its evidence.
   (brief as { evidenceRecords?: unknown }).evidenceRecords = resolution.records;
-  const qualityScore = calculateReelQualityScore(brief);
+  // Scored against the recent window, like every other lane that decides
+  // whether a brief is worth generating - a director drafting from a genome is
+  // exactly where repeating last week's archetype should cost something.
+  const { scoreReelBriefWithMemory } = await import("./reelQualityScore");
+  const qualityScore = await scoreReelBriefWithMemory(brief);
   log.info("reel drafted from genome", {
     territory: genome.creativeTerritory,
     archetype: seed.archetype,

@@ -145,7 +145,12 @@ describe("the quality score can finally see a sibling", () => {
   it("NO CONTEXT IS NOT A PASS — a blind score loses the points and says why", () => {
     const fn = STUDIO.slice(STUDIO.indexOf("function distinctPart"));
     const body = fn.slice(0, fn.indexOf("export function calculateReelQualityScore"));
-    expect(body).toContain("if (!recent)");
+    // Re-anchored: the guard grew a second no-answer case (an unreadable
+    // history) and now reads `!recent || recent.available === false`, so the
+    // old literal `if (!recent)` no longer appears. The INVARIANT is unchanged
+    // and is what is pinned - a scorer with nothing to compare against scores
+    // zero and says so, rather than quietly awarding the points.
+    expect(body).toContain("!recent");
     expect(body).toContain("points: 0");
     expect(body).toContain("Not checked");
   });
@@ -175,14 +180,22 @@ describe("the quality score can finally see a sibling", () => {
     });
     expect(looked.overall).toBe(blind.overall + 5);
 
-    // And a brief that repeats the recent window is refused the points.
+    // And a brief that repeats the window is DOCKED for it - but only for what
+    // it actually repeats. This assertion used to expect a repeated topic to
+    // cost the whole 5-point part, matching the original all-or-nothing
+    // scoring. Measured against production 2026-09-09 (47 reels in the 21-day
+    // window: 41 distinct topics, but only 6 of 14 archetypes and 5 of 14
+    // motion lenses in use), all-or-nothing handed nearly every brief a zero
+    // and so silently demanded a perfect score on all nine other parts.
+    // Scoring is now one point per signal, so one repeat costs one point.
     const repeat = calculateReelQualityScore(SAMPLE_REEL_BRIEFS[0], undefined, {
       recent: {
         topics: [SAMPLE_REEL_BRIEFS[0].topic],
         keywords: [], archetypes: [], motionLenses: [], objectCharacters: [],
       },
     });
-    expect(repeat.overall).toBe(blind.overall);
+    expect(repeat.overall).toBe(looked.overall - 1);
+    expect(repeat.overall).toBeGreaterThan(blind.overall);
     expect(repeat.parts.find((p) => p.label === "Distinct from recent reels")?.detail).toContain("Repeats recent topic");
   });
 });
