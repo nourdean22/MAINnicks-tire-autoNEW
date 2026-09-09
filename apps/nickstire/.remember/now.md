@@ -1,5 +1,59 @@
 # Session ledger — nickstire
 
+**Updated: 2026-09-09** (IN FLIGHT — four PRs open: #2234 docs/freeze · #2236 camera-bridge vision
+platform · #2238 admin Lot section (THIS app) · #2241 visitd shop mirror. See the 2026-09-09 section
+directly below; the 2026-09-08 close-out follows it.)
+
+## 2026-09-09 · admin Lot section + camera vision audit wave
+
+**What is in #2238 for this app:** the `lot` admin section (registry `priority: 12` — a 15/15 collision
+with `approvals` was caught before commit), the `POST /api/camera/visits` ingest, migration
+`0119_vehicle_visits`, and the plate-safety rules (only a CONFIRMED read is durable; a CONFUSABLE_UNIQUE
+or AMBIGUOUS match is never auto-bound to a customer).
+
+**Two defects CI caught that a local run could not.** This branch was pushed from a hookless sparse
+clone with no `node_modules`, so nickstire's vitest cannot run here at all. Pointing the PRIMARY
+checkout's vitest at this tree via an ad-hoc config does NOT work either — vite fails to load any
+module across the two roots, including files that demonstrably exist. Do not spend time retrying that;
+push and let CI gate, which is what the root AGENTS.md already prescribes.
+  1. `adminRegistryTruth.test.ts` keeps a HARDCODED `LEGACY_ROLE_SECTIONS` list (it pins that role
+     access survived the 2026-08-03 registry unification). A new section must be added to it
+     deliberately: CI failed with `expected [ 'approvals', ...(19) ] to deeply equal [ ...(18) ]`.
+     Its comment also demands the second half — check `permissionForAdminProcedure` for every
+     procedure the page calls. Done, not assumed: `lot` is `FULL_ACCESS` (owner + manager), `lot.*`
+     resolves to `settings.manage`, and both roles hold it, so neither gets a door it cannot walk
+     through (the trafficFunnel failure the comment cites). `commandPaletteRoleTruth.test.ts` derives
+     from `ADMIN_REGISTRY.length` and needed nothing.
+  2. The live `operator-walkthrough` completion evidence said the section is visible to "all admin
+     roles". False, and false in the direction that matters — it OVERSTATED who can see plate text and
+     who is physically on the property. Corrected to owner + manager with the permission named.
+
+**⚠ CI SILENTLY NEVER FIRES on this branch.** Two consecutive pushes produced `total_count: 0`
+check-runs and NO workflow run object at all (`gh run list` shows nothing for those SHAs). Second
+occurrence this session. Cure: `gh workflow run "<name>" --ref nickstire/admin-lot-camera-truth`.
+"Completion Authority" and "Secret Scanning" have no `workflow_dispatch` trigger (HTTP 422) — they only
+run on PR events. **An empty check list is NOT "all green"**: any CI poller needs a minimum-count guard,
+mine declared "ALL TERMINAL" on zero checks.
+
+**⚠ Two RED checks on every PR are NOT ours.** `security` fails because `next@16.2.11` carries two
+CRITICAL RCE advisories (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4; both `<16.3.3`) — statenour's dep,
+and `apps/statenour/package.json:132` already declares `^16.2.11`, a caret that ALREADY permits the fix,
+so only `pnpm-lock.yaml` pins it back. `knip orphan gate` says of itself "reports failure on an
+unmodified tree - the gate is stuck red", with new orphans in `server/middleware/securityHeaders.ts`,
+`server/cron/index.ts`, `server/services/reelPipeline.ts`, `client/src/lib/facelessReelStudio.ts` — same
+shape as the 2026-09-08 unstick below, different orphans.
+
+**Merge conflict resolved 2026-09-09:** main moved under this branch. `server/_core/index.ts` auto-merged;
+`.completion/evidence.json` needed a 3-WAY UNION, not a pick — both sides had added
+`-superseded-2026-09-09` keys. Resolution: start from main so no sibling entry is dropped, overlay only
+the keys this branch changed vs the merge base (verified main had NOT touched the two live rolling keys).
+143 base / 145 ours / 148 theirs -> 150 merged, zero main entries lost.
+
+**OPERATOR ACTION — the section is inert until this is done:** migration `0119_vehicle_visits` must be
+applied to prod TiDB. It is `CREATE TABLE IF NOT EXISTS`, additive, drops nothing, and safe — but a prod
+schema write is a protected operation and was deliberately NOT done on agent initiative. Until then the
+Lot section shows its failed-read banner, which is the intended honest behaviour, not a bug.
+
 **Updated: 2026-09-08** (CLOSED OUT 07:00 UTC — five PRs merged and live: #2182 `081f517f7` · #2187 `829067f76` ·
 #2190 `3ce3c68dd` · #2192 `0cbe534ed` · #2194 `1a64afd4d`; main CI green; snapshot refresh run 34217365307 from
 `0cbe534ed` was still running. Next session starts from `docs/QUALITY-PROGRAM-2026-09-07.md` "Final state" + §13

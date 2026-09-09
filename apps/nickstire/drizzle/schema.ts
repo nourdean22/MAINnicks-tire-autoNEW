@@ -4532,3 +4532,72 @@ export const contentExperimentAssignments = mysqlTable("content_experiment_assig
   index("idx_exp_assign_media").on(table.mediaId),
   index("idx_exp_assign_arm").on(table.experimentId, table.armId),
 ]);
+
+/**
+ * Camera visit truth, shop side (migration 0119).
+ *
+ * Product boundary (ADR-0017, refined 2026-09-09): operational shop intelligence
+ * lives in nickstire.org/admin; StateNour receives owner-level summaries, not the
+ * shop-operations cockpit. One row per VISIT, written through
+ * `POST /api/camera/visits`.
+ *
+ * WARNING: NO PRODUCER IS WIRED YET: visitd's cloud client posts to
+ * `{baseUrl}/api/devices/{id}/events` on its StateNour base URL, and nothing in
+ * `camera-bridge/` references the nickstire ingest route. Until visitd gains a
+ * second sink the table stays empty and the Lot section correctly reports
+ * "awaiting first event". `seq` is the last applied emission sequence, so a duplicate
+ * or out-of-order delivery cannot walk a visit backwards.
+ *
+ * Every lifecycle timestamp is nullable on purpose: an unobserved time stays
+ * unknown instead of being back-filled with a plausible guess, and
+ * `estimatedFields` names any value that was inferred rather than observed.
+ */
+export const vehicleVisits = mysqlTable("vehicle_visits", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  visitId: varchar("visitId", { length: 64 }).notNull(),
+  camera: varchar("camera", { length: 64 }).notNull(),
+  state: varchar("state", { length: 32 }).notNull(),
+  seq: int("seq").default(0).notNull(),
+
+  // TIMESTAMP, not DATETIME, and deliberately. AGENTS.md: "Driver-parsed TiDB
+  // DATETIME values come back shifted on ET". DATETIME carries no timezone, so a
+  // JS Date written and read back through mysql2 shifts by the session offset --
+  // which would silently corrupt every wait time and day bucket the Lot section
+  // computes. TIMESTAMP stores UTC and converts on read, so the Date round-trip
+  // is consistent. The 2038 range is irrelevant for shop visit times.
+  arrivedAt: timestamp("arrivedAt"),
+  waitStartedAt: timestamp("waitStartedAt"),
+  bayEnteredAt: timestamp("bayEnteredAt"),
+  bayExitedAt: timestamp("bayExitedAt"),
+  departedAt: timestamp("departedAt"),
+  bay: varchar("bay", { length: 32 }),
+
+  /** Advisory until EXACT or staff-confirmed — never bind identity on a fuzzy read. */
+  plateText: varchar("plateText", { length: 16 }),
+  plateStatus: varchar("plateStatus", { length: 32 }).default("NONE").notNull(),
+  customerMatch: varchar("customerMatch", { length: 32 }).default("NONE").notNull(),
+  customerId: int("customerId"),
+
+  /** A vehicle already present at startup/reconnect: occupancy only, never an arrival. */
+  preexisting: boolean("preexisting").default(false).notNull(),
+  entryEvidence: varchar("entryEvidence", { length: 191 }),
+  estimatedFields: json("estimatedFields"),
+  evidenceRef: varchar("evidenceRef", { length: 255 }),
+  sourceGeneration: varchar("sourceGeneration", { length: 64 }),
+  cameraPose: varchar("cameraPose", { length: 64 }),
+  detectorName: varchar("detectorName", { length: 128 }),
+  calibrationVersion: varchar("calibrationVersion", { length: 32 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_vehicle_visits_visitId").on(table.visitId),
+  index("idx_vehicle_visits_state").on(table.state),
+  index("idx_vehicle_visits_arrivedAt").on(table.arrivedAt),
+  index("idx_vehicle_visits_departedAt").on(table.departedAt),
+  index("idx_vehicle_visits_bay").on(table.bay),
+  index("idx_vehicle_visits_plateText").on(table.plateText),
+]);
+
+export type VehicleVisit = typeof vehicleVisits.$inferSelect;
+export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;

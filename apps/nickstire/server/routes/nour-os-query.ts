@@ -445,11 +445,13 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
   //   name, phoneMasked, plate, exact, vehicleDesc, membershipStatus,
   //   bookingsToday: [{ id, status, preferredDate, linkage,
   //                     service?, vehicle? (phone+name rows only) }] }],
-  //   count, sources: ["memberships"] }
+  //   count, matchClass: EXACT|CONFUSABLE_UNIQUE|AMBIGUOUS|NONE,
+  //   autoLinkAllowed (true ONLY for EXACT), exactCount, confusableCount,
+  //   sources: ["memberships"] }
   "vehicle_lookup_by_plate": async (filters) => {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
-    const { normalizePlate, plateVariants, maskPhone, bookingLinkage } = await import("../lib/plate");
+    const { normalizePlate, plateVariants, maskPhone, bookingLinkage, classifyPlateMatches } = await import("../lib/plate");
     const d = await getDb();
     if (!d) return { error: "No DB" };
     const raw = String(filters.plate || "");
@@ -507,7 +509,18 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
         bookingsToday,
       });
     }
-    return { plate: raw, normalized, variants, matches, count: matches.length, sources: ["memberships"] };
+    // A confusable hit is NOT an identity. Callers must branch on `matchClass`,
+    // and only EXACT may bind a customer automatically -- see classifyPlateMatches.
+    const classification = classifyPlateMatches(normalized, matches as Array<{ plate?: unknown }>);
+    return {
+      plate: raw,
+      normalized,
+      variants,
+      matches,
+      count: matches.length,
+      ...classification,
+      sources: ["memberships"],
+    };
   },
 
   // ─── Recent active customer IDs (added 2026-05-17 · Wave-200 Phase 6) ──
