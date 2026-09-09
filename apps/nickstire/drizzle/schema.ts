@@ -4676,3 +4676,122 @@ export const cameraHealthEvents = mysqlTable("camera_health_events", {
 
 export type VehicleVisit = typeof vehicleVisits.$inferSelect;
 export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;
+
+/**
+ * Technician-referral tracking — the $300-after-90-days bonus advertised on
+ * /careers had no backing record before this: the referrer's name lived only
+ * inside a free-text note concatenated onto the applicant's `leads.problem`
+ * field (client/src/pages/Careers.tsx ApplicationForm), so the shop could not
+ * reliably tell who referred whom, verify the 90-day condition, or pay the
+ * bonus out without a dispute. One row per referral claim, soft-linked to the
+ * referred applicant's own `leads` row (source:"careers").
+ */
+export const technicianReferrals = mysqlTable("technician_referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  /**
+   * The referred applicant's row in `leads` (source:"careers") — kept for
+   * rows created before `candidates` existed. New submissions populate
+   * `candidateId` instead, once Careers.tsx is cut over to the dedicated
+   * candidates.submit endpoint (see `candidates` table below); additive,
+   * both columns are nullable so neither cutover step can break the other.
+   */
+  // Plain nullable INT, not `.references()` — matching vehicle_visits.customerId
+  // above and the migration's own stated convention (0121_technician_referrals.sql:
+  // "no SQL-level FOREIGN KEY constraint"). A drizzle `.references({onDelete:
+  // "set null"})` call is a promise drizzle-kit would enforce with a real DB
+  // constraint if it generated this migration — it doesn't, this migration is
+  // hand-written, so that promise would be fiction: deleting a lead would leave
+  // a dangling leadId here forever, not null it out. Referential integrity is
+  // app-enforced, not DB-enforced, for all three of these columns.
+  leadId: int("leadId"),
+  candidateId: int("candidateId"),
+  referrerName: varchar("referrerName", { length: 255 }).notNull(),
+  /** Optional — lets the shop text/call the referrer when the bonus is due. */
+  referrerPhone: varchar("referrerPhone", { length: 30 }),
+  /** Admin-linked match to a current employee record — never auto-matched. Plain INT, no FK — see leadId above. */
+  referrerTechnicianId: int("referrerTechnicianId"),
+  /** Role the referred applicant applied for, captured at submit time. */
+  positionTitle: varchar("positionTitle", { length: 100 }),
+  /**
+   * pending -> eligible -> paid, or -> disqualified/forfeited. VARCHAR, not
+   * ENUM: TiDB runs STRICT_TRANS_TABLES, so a write outside an ENUM's
+   * declared values is REJECTED and the row is LOST, not defaulted (see
+   * .claude/skills/nickstire-tidb-ddl). varchar(32) matches the repo's own
+   * status-column convention (e.g. vehicle_visits.state above).
+   */
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  bonusAmountCents: int("bonusAmountCents").default(30000).notNull(),
+  /** Set only when an admin confirms the referred applicant was actually hired. */
+  hiredAt: timestamp("hiredAt"),
+  /** hiredAt + 90 days — stamped alongside hiredAt so eligibility is a stored fact, not a recomputation that drifts if the 90-day rule is later changed. */
+  eligibleAt: timestamp("eligibleAt"),
+  paidAt: timestamp("paidAt"),
+  disqualifiedReason: varchar("disqualifiedReason", { length: 500 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_tech_referral_lead").on(table.leadId),
+  index("idx_tech_referral_status").on(table.status),
+  index("idx_tech_referral_created").on(table.createdAt),
+]);
+
+export type TechnicianReferral = typeof technicianReferrals.$inferSelect;
+export type InsertTechnicianReferral = typeof technicianReferrals.$inferInsert;
+
+/**
+ * Job applicants from /careers — a dedicated home, NOT a `leads` row.
+ *
+ * Before this table, Careers.tsx's ApplicationForm submitted through
+ * trpc.lead.submit — the same endpoint customer sales inquiries use. That
+ * meant every job applicant: got AI-urgency-scored by scoreLead() as if
+ * their application text were a car-repair problem; received the generic
+ * lead-confirmation SMS, which literally asks "What's going on with the
+ * car — tires, brakes, check engine, or something else?" (server/sms.ts,
+ * leadConfirmationSms — verified against the live function, not assumed);
+ * and entered every downstream customer-lead system (the sales opportunity
+ * queue, stale-lead follow-up crons, Meta Conversions API, Google Sheets
+ * sync) with no way for any of those systems to know "careers" isn't a
+ * sales channel, because none of them are source-aware in that direction.
+ *
+ * This table and its router (server/routers/candidates.ts) went live
+ * 2026-09-09: drizzle/0122_candidates.sql applied to production, then
+ * Careers.tsx's ApplicationForm cut over from lead.submit to
+ * candidates.submit the same day — the apply-then-wire sequencing this repo
+ * uses for any schema change a live code path would otherwise query before
+ * the table exists.
+ */
+export const candidates = mysqlTable("candidates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  positionTitle: varchar("positionTitle", { length: 100 }),
+  experienceLevel: varchar("experienceLevel", { length: 32 }),
+  message: text("message"),
+  /** Where the application came from. VARCHAR, not ENUM — see nickstire-tidb-ddl. */
+  source: varchar("source", { length: 40 }).default("careers").notNull(),
+  /** new -> contacted -> interviewing -> hired / declined / withdrew */
+  status: varchar("status", { length: 32 }).default("new").notNull(),
+  // Attribution fields mirror `leads`' own convention (utmSource..sessionId)
+  // so funnel/source-to-hire measurement is possible from day one, not
+  // bolted on later.
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
+  sessionId: varchar("sessionId", { length: 64 }),
+  contactedAt: timestamp("contactedAt"),
+  contactedBy: varchar("contactedBy", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_candidate_phone").on(table.phone),
+  index("idx_candidate_status").on(table.status),
+  index("idx_candidate_created").on(table.createdAt),
+]);
+
+export type Candidate = typeof candidates.$inferSelect;
+export type InsertCandidate = typeof candidates.$inferInsert;
