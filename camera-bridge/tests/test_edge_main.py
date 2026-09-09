@@ -370,6 +370,73 @@ class TimersTest(unittest.TestCase):
                          "the queued projection was delivered on the way out")
 
 
+class WatchdogTest(unittest.TestCase):
+    """The layer BELOW the self-heal: when the source has stopped entirely."""
+
+    def test_a_FROZEN_but_DELIVERING_camera_is_not_a_stall(self):
+        """The distinction that makes the watchdog safe. A frozen or looping camera still
+        delivers frames; the pipeline already calls that DEGRADED_VISION and suppresses
+        detections. Restarting on it would be a restart loop against a dirty lens."""
+        pipeline = make_pipeline()
+        shop_enabled(pipeline)
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, stall_exit_seconds=60.0)
+        for _ in range(200):
+            clock.advance(1.0)
+            loop.source._frames.append(FakeFrame(clock()))   # the SAME picture, but arriving
+            loop.step()
+        self.assertIsNone(loop.stalled, "frames are arriving; that is a vision problem, not a process one")
+
+    def test_a_source_that_stops_DELIVERING_is_a_stall(self):
+        pipeline = make_pipeline()
+        shop_enabled(pipeline)
+        clock = _Clock(1000.0)
+        src = FakeSource(frames=[FakeFrame(1000.0)])
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), src, clock=clock, stall_exit_seconds=60.0)
+        loop.step()                       # one real frame
+        self.assertIsNone(loop.stalled)
+        clock.advance(61.0)
+        loop.step()                       # source is empty now
+        self.assertIsNotNone(loop.stalled)
+        self.assertIn("stopped delivering", loop.stalled)
+        self.assertIn("1 frame", loop.stalled)
+
+    def test_a_producer_that_NEVER_captured_anything_is_caught_too(self):
+        """Waiting for a `last_frame_at` that will never arrive would hang forever on the
+        one failure a restart is most likely to fix."""
+        pipeline = make_pipeline()
+        shop_enabled(pipeline)
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, stall_exit_seconds=60.0)
+        loop.step()
+        self.assertIsNone(loop.stalled)
+        clock.advance(61.0)
+        loop.step()
+        self.assertIn("was EVER captured", loop.stalled or "")
+
+    def test_the_watchdog_can_be_turned_OFF(self):
+        pipeline = make_pipeline()
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, stall_exit_seconds=0.0)
+        clock.advance(100_000.0)
+        loop.step()
+        self.assertIsNone(loop.stalled)
+
+    def test_the_first_stall_reason_is_KEPT_not_overwritten_each_pass(self):
+        """The reason names how long the source had been quiet WHEN IT TRIPPED. Recomputing
+        it every pass would make the log say a bigger number each time and hide when it
+        actually started."""
+        pipeline = make_pipeline()
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, stall_exit_seconds=60.0)
+        clock.advance(61.0)
+        loop.step()
+        first = loop.stalled
+        clock.advance(600.0)
+        loop.step()
+        self.assertEqual(loop.stalled, first)
+
+
 class SourceGenerationTest(unittest.TestCase):
     def test_a_restore_or_a_failover_is_a_NEW_generation(self):
         """A track path must never cross a generation: an outside point from one lane
@@ -417,7 +484,8 @@ def _args(**over):
 
 
 def _loop(pipeline, vision, source, clock=None, **kw):
-    opts = dict(camera="lot", mode="SHADOW", calibration_version=None, detector_name="fake")
+    opts = dict(camera="lot", mode="SHADOW", calibration_version=None, detector_name="fake",
+                stall_exit_seconds=0.0)   # OFF by default in tests; the watchdog suite opts in
     opts.update(kw)
     return EdgeLoop(pipeline, vision, source, clock=clock or _Clock(1000.0), **opts)
 

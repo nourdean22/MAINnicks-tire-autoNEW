@@ -200,6 +200,37 @@ edge stopping frames=190 read_failures=0 heartbeats=4/4 delivered visits=0/0
 `config.yaml` and `data/` are gitignored: the first carries this site's ingest URL and
 cloud device ids, the second is the ledger.
 
+### Running it 24/7 on Windows (2026-09-09)
+
+```powershell
+powershell -File scripts/doctor-edge-runtime.ps1 -Calibration .\scratchpad\shopsign_calibration.json
+powershell -File scripts/install-edge-runtime.ps1 -EncryptSecret -Calibration .\scratchpad\shopsign_calibration.json
+Start-ScheduledTask -TaskName NickEdgeProducer
+```
+
+**At logon, never as SYSTEM.** WGC reads a window on the INTERACTIVE DESKTOP; a service
+runs in Session 0, which has no desktop, so a SYSTEM task would start, find no window and
+stall forever while looking perfectly healthy in Task Scheduler. The doctor treats a
+service-account principal as a FAIL for exactly that reason. Revisit once RTSP is proven.
+
+**Two supervision layers, and the boundary between them is deliberate.** The OS restarts a
+process that DIED. The process exits 3 itself when it is ALIVE but its source stopped
+delivering (`--stall-exit-seconds`, default 180 s), which the OS layer cannot see. A frozen
+or looping camera is NOT a stall -- it still delivers frames, the pipeline already reports
+DEGRADED_VISION and suppresses detections, and restarting on it would only loop against a
+dirty lens.
+
+**The secret is never plaintext beside the code.** `-EncryptSecret` reads
+`CAMERA_INGEST_KEY` from `.env.local` once and writes a DPAPI blob under `secrets/` that
+only that user on that machine can decrypt; the generated wrapper decrypts it into the
+child's environment, so the key never reaches a command line (Task Manager shows those) or
+a log. `secrets/`, `logs/` and the generated `edge-task.cmd` are gitignored.
+
+`doctor-edge-runtime.ps1` exits with the number of FAILs, so it is scriptable. WARN and
+FAIL differ on purpose: FAIL means it cannot do the job, WARN means it will run and report
+its limits honestly -- no calibration is a WARN because census mode is a legitimate state
+that reports itself as `CALIBRATION_INVALID` rather than pretending to be healthy.
+
 ### Producer heartbeat (2026-09-09)
 
 Both producers now report the INFRASTRUCTURE fact to the shop, apart from visits, at

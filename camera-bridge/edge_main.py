@@ -169,6 +169,7 @@ class EdgeLoop:
         commissioning_run_id: Optional[str] = None,
         heartbeat_seconds: float = 30.0,
         drain_seconds: float = 5.0,
+        stall_exit_seconds: float = 180.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -182,6 +183,8 @@ class EdgeLoop:
         self.commissioning_run_id = commissioning_run_id
         self.heartbeat_seconds = heartbeat_seconds
         self.drain_seconds = drain_seconds
+        #: Deliver NOTHING for this long and the process asks to be restarted. 0 disables.
+        self.stall_exit_seconds = stall_exit_seconds
         self.clock = clock
 
         self.heartbeat_seq = 0
@@ -190,7 +193,13 @@ class EdgeLoop:
         self.last_health: Any = None
         self.last_scene: Any = None
         self.last_healthy_frame_at: Optional[float] = None
+        #: Any frame at all, healthy or not -- see `stalled`.
+        self.last_frame_at: Optional[float] = None
+        #: Set by the watchdog. `run_edge` turns it into a non-zero exit so the OS
+        #: supervisor restarts, rather than trying to resurrect the process in place.
+        self.stalled: Optional[str] = None
         now = clock()
+        self.started_at = now
         self.next_heartbeat = now
         self.next_drain = now + drain_seconds
 
@@ -212,6 +221,7 @@ class EdgeLoop:
 
         if frame is not None:
             self.frames += 1
+            self.last_frame_at = self.clock()
             try:
                 out = self.vision.step(frame)
             except Exception:
@@ -236,8 +246,37 @@ class EdgeLoop:
         self._run_timers()
         return out
 
+    def check_stall(self, now: float) -> Optional[str]:
+        """Has the source stopped delivering ANYTHING? Returns a reason, or None.
+
+        THE DISTINCTION THAT MAKES THIS SAFE. A frozen or looping camera still delivers
+        frames -- that is a VISION problem, and the pipeline already reports it as
+        DEGRADED_VISION and suppresses detections. Restarting on it would be a restart
+        loop against a dirty lens, achieving nothing but log noise and thrash. A source
+        delivering NO FRAME AT ALL is a PROCESS problem, which a restart genuinely fixes:
+        a dead capture session, an app that was closed and reopened, a handle that went
+        stale past what `_restore_target` can heal.
+
+        The clock runs from process start until the first frame, so a producer that never
+        captured anything is caught too rather than waiting forever for a `last_frame_at`
+        it will never get.
+        """
+        if self.stall_exit_seconds <= 0:
+            return None
+        since = self.last_frame_at if self.last_frame_at is not None else self.started_at
+        age = now - since
+        if age <= self.stall_exit_seconds:
+            return None
+        if self.last_frame_at is None:
+            return (f"no frame was EVER captured in {age:.0f}s (limit {self.stall_exit_seconds:.0f}s) -- "
+                    "the window or stream was never readable")
+        return (f"no frame for {age:.0f}s (limit {self.stall_exit_seconds:.0f}s) after "
+                f"{self.frames} frame(s) -- the capture source stopped delivering")
+
     def _run_timers(self) -> None:
         now = self.clock()
+        if self.stalled is None:
+            self.stalled = self.check_stall(now)
         if now >= self.next_heartbeat:
             self.next_heartbeat = now + self.heartbeat_seconds
             try:
@@ -417,6 +456,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="commissioning run id; rows are tagged COMMISSIONING and excluded from shop KPIs")
     ap.add_argument("--heartbeat-seconds", type=float, default=30.0)
     ap.add_argument("--drain-seconds", type=float, default=5.0)
+    ap.add_argument("--stall-exit-seconds", type=float, default=180.0,
+                    help="exit(3) after this long with NO frame at all so the supervisor restarts; "
+                         "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
+                         "reported as degraded vision, and restarting on it would only thrash")
     ap.add_argument("--dry-run", action="store_true", help="never POST to StateNour; the shop lane is unaffected")
     ap.add_argument("--log-level", default="INFO")
     return ap.parse_args(argv)
@@ -451,6 +494,7 @@ def run_edge(args: argparse.Namespace) -> int:
         calibration_version=calibration_version, detector_name=detector_name,
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
+        stall_exit_seconds=args.stall_exit_seconds,
     )
 
     stop = threading.Event()
@@ -467,12 +511,20 @@ def run_edge(args: argparse.Namespace) -> int:
 
     interval = 1.0 / max(0.5, args.fps)
     deadline = (time.time() + args.seconds) if args.seconds else None
+    exit_code = 0
     try:
         while not stop.is_set():
             if deadline is not None and time.time() >= deadline:
                 break
             started = time.time()
             loop.step()
+            if loop.stalled:
+                # Ask to be restarted rather than trying to resurrect in place. The OS
+                # supervisor already knows how to restart with a budget and a backoff;
+                # re-implementing that here would be a second, worse supervisor.
+                log.error("edge stalled: %s -- exiting for the supervisor to restart", loop.stalled)
+                exit_code = 3
+                break
             time.sleep(max(0.0, interval - (time.time() - started)))
     finally:
         # Attempts are not deliveries. Logging only `heartbeat_seq` meant a run whose
@@ -492,7 +544,7 @@ def run_edge(args: argparse.Namespace) -> int:
         pipeline.ledger.close()
         if metrics_server is not None:
             metrics_server.stop()
-    return 0
+    return exit_code
 
 
 def main(argv=None) -> int:
