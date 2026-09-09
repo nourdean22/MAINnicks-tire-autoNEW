@@ -24,7 +24,12 @@
 import { describe, it, expect } from "vitest";
 import { permissionForAdminProcedure, ADMIN_ROLES, hasAdminPermission } from "../shared/adminPermissions";
 
-/** Every top-level key in server/routers.ts appRouter, verbatim. */
+/**
+ * A CURATED subset of the top-level keys in server/routers.ts appRouter -- NOT the
+ * whole list, despite what this comment claimed until 2026-09-09. Fourteen keys
+ * (auth, market, proposals, search, ...) have always been absent, so a router added
+ * without a line here is simply not covered by the fail-open sweep below. Add yours.
+ */
 const ROUTERS = `activity adStudio adminDashboard adminSecurity analytics autoLabor booking
 callTracking callback campaigns chat closedLoop content contentAdmin contentStudio controlCenter
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency

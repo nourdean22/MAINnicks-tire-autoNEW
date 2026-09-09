@@ -355,6 +355,10 @@ export default function LotSection() {
                     </td>
                     <td className="py-2 text-foreground/50">
                       {v.entryEvidence ?? "—"}
+                      {/* Pose is the provenance that says whether the geometry behind this
+                          row was even valid; it was being sent to the browser and rendered
+                          nowhere. */}
+                      {v.cameraPose && <span className="text-foreground/40"> · {v.cameraPose}</span>}
                       {v.estimatedFields.length > 0 && (
                         <span className="text-amber-400"> · {v.estimatedFields.length} estimated</span>
                       )}
