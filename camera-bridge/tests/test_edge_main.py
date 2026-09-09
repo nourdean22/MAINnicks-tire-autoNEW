@@ -145,14 +145,66 @@ class EmissionsReachTheLedgerTest(unittest.TestCase):
         self.assertGreaterEqual(pipeline.ledger.outbox_depth(), 1, "StateNour outbox got the event")
         self.assertGreaterEqual(pipeline.ledger.shop_outbox_depth(), 1, "shop projection got the row")
 
-    def test_a_frame_that_produced_NOTHING_writes_nothing(self):
-        """A loop that committed on every frame would rewrite visit rows 4x a second."""
+    def test_a_frame_that_produced_NOTHING_enqueues_nothing(self):
+        """Quiet frames persist tracker STATE but must never enqueue an outbox row --
+        otherwise the shop would receive a delivery per frame for a car that did nothing."""
         pipeline = make_pipeline()
         shop_enabled(pipeline)
         vision = FakeVision(pipeline.tracker, steps=[{"emissions": []}])
-        _loop(pipeline, vision, FakeSource(frames=[FakeFrame(1000.0)])).step()
+        _loop(pipeline, vision, FakeSource(frames=[FakeFrame(1000.0)]), persist_seconds=0.0).step()
         self.assertEqual(pipeline.ledger.outbox_depth(), 0)
         self.assertEqual(pipeline.ledger.shop_outbox_depth(), 0)
+
+    def test_TRACKER_STATE_reaches_SQLITE_on_quiet_frames_too(self):
+        """Codex P1 on #2255. `VisionPipeline.step()` mutates the SHARED tracker on ordinary
+        frames even when it emits nothing -- `last_activity`, sighting bounds, zone intervals
+        -- and those drive the departure grace. Persisting only on transitions meant a crash
+        between them restored stale timers, which can delay a departure, split a visit, or
+        close one early."""
+        pipeline = make_pipeline()
+        commits = []
+        real = pipeline.after_step
+        pipeline.after_step = lambda ems: commits.append(list(ems)) or real(ems)
+
+        clock = _Clock(1000.0)
+        vision = FakeVision(pipeline.tracker, steps=[{"emissions": []}] * 10)
+        loop = _loop(pipeline, vision, FakeSource(), clock=clock, persist_seconds=2.0)
+        for _ in range(10):
+            clock.advance(0.25)                     # 4 fps, 2.5 s of quiet frames
+            loop.source._frames.append(FakeFrame(clock()))
+            loop.step()
+
+        self.assertTrue(commits, "quiet frames must still reach the persistence boundary")
+        self.assertTrue(all(c == [] for c in commits), "and carry NO emissions")
+        # Timed, not per-frame: 10 frames across 2.5 s at a 2 s interval is far fewer than 10.
+        self.assertLess(len(commits), 5, f"persistence should be throttled, saw {len(commits)} commits")
+        self.assertEqual(loop.quiet_commits, len(commits))
+
+    def test_persist_seconds_zero_commits_EVERY_processed_frame(self):
+        pipeline = make_pipeline()
+        commits = []
+        pipeline.after_step = lambda ems: commits.append(list(ems))
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, persist_seconds=0.0)
+        for _ in range(4):
+            clock.advance(0.25)
+            loop.source._frames.append(FakeFrame(clock()))
+            loop.step()
+        self.assertEqual(len(commits), 4)
+
+    def test_a_frame_that_never_ARRIVED_does_not_commit(self):
+        """The persist timer must not fire on a read that returned nothing: there is no new
+        tracker state to save, and committing would only churn the ledger while the camera
+        is down."""
+        pipeline = make_pipeline()
+        commits = []
+        pipeline.after_step = lambda ems: commits.append(list(ems))
+        clock = _Clock(1000.0)
+        loop = _loop(pipeline, FakeVision(pipeline.tracker), FakeSource(), clock=clock, persist_seconds=0.0)
+        for _ in range(5):
+            clock.advance(1.0)
+            loop.step()                              # source is empty -> read() returns None
+        self.assertEqual(commits, [])
 
     def test_the_loop_does_NOT_tick_the_tracker_itself(self):
         """`VisionPipeline.step()` already calls `tracker.tick(now)` and folds those

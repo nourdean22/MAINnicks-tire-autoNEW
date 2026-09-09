@@ -170,6 +170,7 @@ class EdgeLoop:
         heartbeat_seconds: float = 30.0,
         drain_seconds: float = 5.0,
         stall_exit_seconds: float = 180.0,
+        persist_seconds: float = 2.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -185,6 +186,9 @@ class EdgeLoop:
         self.drain_seconds = drain_seconds
         #: Deliver NOTHING for this long and the process asks to be restarted. 0 disables.
         self.stall_exit_seconds = stall_exit_seconds
+        #: How stale persisted tracker state is allowed to get on quiet frames. See
+        #: `_persist_due`. 0 persists on EVERY processed frame.
+        self.persist_seconds = persist_seconds
         self.clock = clock
 
         self.heartbeat_seq = 0
@@ -202,6 +206,9 @@ class EdgeLoop:
         self.started_at = now
         self.next_heartbeat = now
         self.next_drain = now + drain_seconds
+        self.next_persist = now + persist_seconds
+        #: Commits that carried tracker state but no outbox rows -- the quiet-frame path.
+        self.quiet_commits = 0
 
     # ------------------------------------------------------------------ one pass
     def step(self) -> Dict[str, object]:
@@ -237,14 +244,39 @@ class EdgeLoop:
                 self.last_scene = out["scene"]
 
             emissions = list(out.get("emissions") or [])
-            if emissions:
-                # THE DURABLE BOUNDARY. Visits, the StateNour outbox and the shop outbox
-                # are one transaction; a raise here must propagate, because `after_step`
-                # holds the rows for the next pass and swallowing it would drop them.
+            # THE DURABLE BOUNDARY. Visits, the StateNour outbox and the shop outbox are
+            # one transaction; a raise here must propagate, because `after_step` holds the
+            # rows for the next pass and swallowing it would drop them.
+            #
+            # ⚠ THIS RUNS ON QUIET FRAMES TOO, and that is the point. `VisionPipeline.step()`
+            # mutates the SHARED tracker on ordinary frames even when it emits nothing: it
+            # refreshes `last_activity`, sighting bounds and zone intervals, and those drive
+            # the departure grace. Persisting only on transitions meant a crash between them
+            # restored stale timers, which can delay a departure, split a visit, or close one
+            # early -- and none of that is visible until it happens in the field.
+            #
+            # It is TIMED rather than per-frame because `commit_step` re-serialises every
+            # open visit: at 4 fps with several cars on the lot that is dozens of writes a
+            # second for state that moves in tens of seconds. `persist_seconds` bounds how
+            # stale the on-disk copy can be (2 s by default, against a departure grace
+            # measured in tens of seconds); an emission always commits immediately.
+            if emissions or self._persist_due():
+                if not emissions:
+                    self.quiet_commits += 1
                 self.pipeline.after_step(emissions)
 
         self._run_timers()
         return out
+
+    def _persist_due(self) -> bool:
+        """True when the quiet-frame persist interval has elapsed (and arms the next one)."""
+        now = self.clock()
+        if self.persist_seconds <= 0:
+            return True
+        if now < self.next_persist:
+            return False
+        self.next_persist = now + self.persist_seconds
+        return True
 
     def check_stall(self, now: float) -> Optional[str]:
         """Has the source stopped delivering ANYTHING? Returns a reason, or None.
@@ -460,6 +492,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="commissioning run id; rows are tagged COMMISSIONING and excluded from shop KPIs")
     ap.add_argument("--heartbeat-seconds", type=float, default=30.0)
     ap.add_argument("--drain-seconds", type=float, default=5.0)
+    ap.add_argument("--persist-seconds", type=float, default=2.0,
+                    help="how stale persisted tracker state may get on frames that emit nothing; "
+                         "0 persists every frame. An emission always commits immediately")
     ap.add_argument("--stall-exit-seconds", type=float, default=180.0,
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
@@ -498,7 +533,7 @@ def run_edge(args: argparse.Namespace) -> int:
         calibration_version=calibration_version, detector_name=detector_name,
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
-        stall_exit_seconds=args.stall_exit_seconds,
+        stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
     )
 
     stop = threading.Event()
@@ -535,9 +570,9 @@ def run_edge(args: argparse.Namespace) -> int:
         # every heartbeat was rejected read exactly like a healthy one -- the same
         # empty-vs-error shape this project keeps paying for.
         log.info(
-            "edge stopping frames=%s read_failures=%s heartbeats=%s/%s delivered visits=%s/%s "
-            "outbox=%s shop_queue=%s dead_letters=%s",
-            loop.frames, loop.read_failures,
+            "edge stopping frames=%s read_failures=%s quiet_commits=%s heartbeats=%s/%s delivered "
+            "visits=%s/%s outbox=%s shop_queue=%s dead_letters=%s",
+            loop.frames, loop.read_failures, loop.quiet_commits,
             pipeline.shop.heartbeats_sent, loop.heartbeat_seq,
             pipeline.shop.sent, pipeline.shop.sent + pipeline.shop.failed,
             pipeline.ledger.outbox_depth(), pipeline.ledger.shop_outbox_depth(),

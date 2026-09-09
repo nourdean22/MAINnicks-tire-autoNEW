@@ -23,7 +23,7 @@ function cleanRun(): { human: HumanEvent[]; machine: MachineEvent[] } {
       { event: "DEPARTED", atMs: T + 310_000 },
     ],
     machine: [
-      { state: "ENTERED_ZONE", atMs: T + 4_285, visitId: "v-1" },
+      { state: "FIRST_SEEN", atMs: T + 4_285, visitId: "v-1" },
       { state: "CONFIRMED_ARRIVAL", atMs: T + 9_201, visitId: "v-1" },
       { state: "IN_SERVICE", atMs: T + 40_410, visitId: "v-1" },
       { state: "LEFT", atMs: T + 310_500, visitId: "v-1" },
@@ -101,8 +101,11 @@ describe("commissioning report — the failures worth catching", () => {
   });
 
   it("FAILS a match that is outside tolerance, and says by how much", () => {
+    // Uses IN_SERVICE (matched to the IN_BAY tap) rather than the first event: FIRST_SEEN
+    // is judged against the wider first-detection window on purpose, so it is the wrong
+    // probe for the tight tolerance.
     const { human, machine } = cleanRun();
-    machine[0] = { ...machine[0], atMs: T + 4_000 + 9_000 };   // 9 s late
+    machine[2] = { ...machine[2], atMs: T + 40_000 + 9_000 };   // 9 s late into the bay
     const r = buildCommissioningReport(human, machine, GOOD_CLOCK, { toleranceMs: 3000 });
     expect(r.verdict).toBe("FAIL");
     expect(r.findings.join(" ")).toContain("9000 ms away");
@@ -110,13 +113,13 @@ describe("commissioning report — the failures worth catching", () => {
 
   it("a NEGATIVE delta (machine EARLY) is judged on magnitude, not sign", () => {
     // An early machine event is not "better than on time" -- it means the two timelines
-    // disagree, and an arrival before the human saw the car enter is suspicious.
+    // disagree, and a bay entry before the human saw the car pull in is suspicious.
     const { human, machine } = cleanRun();
-    machine[0] = { ...machine[0], atMs: T + 4_000 - 8_000 };
+    machine[2] = { ...machine[2], atMs: T + 40_000 - 8_000 };
     const r = buildCommissioningReport(human, machine, GOOD_CLOCK, { toleranceMs: 3000 });
     expect(r.verdict).toBe("FAIL");
-    const entering = r.matches.find((m) => m.human.event === "ENTERING");
-    expect(entering?.deltaMs).toBe(-8_000);
+    const inBay = r.matches.find((m) => m.human.event === "IN_BAY");
+    expect(inBay?.deltaMs).toBe(-8_000);
   });
 });
 
@@ -199,7 +202,9 @@ describe("deriving the machine timeline from a stored visit row", () => {
       bayEnteredAt: null,
       departedAt: new Date(T + 310_000),
     });
-    expect(evs.map((e: MachineEvent) => e.state)).toEqual(["ENTERED_ZONE", "LEFT"]);
+    // FIRST_SEEN, not ENTERED_ZONE: this timestamp is the track's BIRTH, which precedes
+    // the driveway crossing by however long the car was visible approaching.
+    expect(evs.map((e: MachineEvent) => e.state)).toEqual(["FIRST_SEEN", "LEFT"]);
     expect(evs.every((e: MachineEvent) => e.visitId === "v-1")).toBe(true);
     // A never-observed bay entry is ABSENT, not a zero timestamp at the epoch.
     expect(evs.some((e: MachineEvent) => e.state === "IN_SERVICE")).toBe(false);
@@ -227,5 +232,143 @@ describe("deriving the machine timeline from a stored visit row", () => {
       visitId: "v-1", arrivedAt: "not a date", bayEnteredAt: null, departedAt: null,
     });
     expect(evs).toEqual([]);
+  });
+});
+
+describe("commissioning report — Codex #2255 findings", () => {
+  it("a REQUIRED tap that was never made is INCONCLUSIVE, not a PASS", () => {
+    // THE VACUOUS-INSTRUMENT BUG. `required` used to be computed only for taps that were
+    // PRESENT, so an omitted mandatory tap vanished from both the numerator and the
+    // denominator. This exact run -- OUTSIDE + DEPARTED, a matching LEFT, and no machine
+    // arrival at all -- scored a clean PASS having established nothing about the entry.
+    const human: HumanEvent[] = [
+      { event: "OUTSIDE", atMs: T },
+      { event: "DEPARTED", atMs: T + 310_000 },
+    ];
+    const machine: MachineEvent[] = [{ state: "LEFT", atMs: T + 310_200, visitId: "v-1" }];
+    const r = buildCommissioningReport(human, machine, GOOD_CLOCK);
+    expect(r.verdict).toBe("INCONCLUSIVE");
+    expect(r.findings.join(" ")).toContain("ENTERING tap was never recorded");
+    // The denominator is the CONSTANT required set, so this reads as incomplete (1/2)
+    // rather than complete (1/1).
+    expect(r.stats.totalRequired).toBe(2);
+    expect(r.stats.matchedRequired).toBe(1);
+  });
+
+  it("INCONCLUSIVE and not FAIL, because the camera may have been perfect", () => {
+    // Nobody wrote down what it was supposed to match, so the run proves nothing either
+    // way. Calling it FAIL would blame the machine for the operator's missing tap.
+    const r = buildCommissioningReport(
+      [{ event: "ENTERING", atMs: T }],
+      [{ state: "FIRST_SEEN", atMs: T + 100, visitId: "v-1" }],
+      GOOD_CLOCK,
+    );
+    expect(r.verdict).toBe("INCONCLUSIVE");
+    expect(r.findings.join(" ")).toContain("hole in the witness");
+  });
+
+  it("FIRST_SEEN gets the WIDER tolerance, because it is not the moment witnessed", () => {
+    // `arrivedAt` is the track's birth -- on an open forecourt, while the car is still
+    // approaching down the street. Judging that against the 3 s crossing tolerance would
+    // fail a correct pipeline on any car visible for a few seconds before it turned in.
+    const human: HumanEvent[] = [
+      { event: "ENTERING", atMs: T + 12_000 },
+      { event: "DEPARTED", atMs: T + 310_000 },
+    ];
+    const machine: MachineEvent[] = [
+      { state: "FIRST_SEEN", atMs: T, visitId: "v-1" },          // 12 s before the tap
+      { state: "LEFT", atMs: T + 310_200, visitId: "v-1" },
+    ];
+    const r = buildCommissioningReport(human, machine, GOOD_CLOCK, { toleranceMs: 3000 });
+    expect(r.verdict).toBe("PASS");
+
+    // ... but a detection minutes adrift is still caught.
+    const adrift = buildCommissioningReport(
+      human,
+      [{ state: "FIRST_SEEN", atMs: T - 120_000, visitId: "v-1" }, machine[1]],
+      GOOD_CLOCK,
+      { toleranceMs: 3000, firstSeenToleranceMs: 30_000 },
+    );
+    expect(adrift.verdict).toBe("FAIL");
+    expect(adrift.findings.join(" ")).toContain("first-detection window");
+  });
+
+  it("a state that IS the witnessed moment keeps the tight tolerance", () => {
+    // The wider window must apply ONLY to first detection, or it would launder a genuinely
+    // late departure into a pass.
+    const r = buildCommissioningReport(
+      [{ event: "ENTERING", atMs: T }, { event: "DEPARTED", atMs: T + 300_000 }],
+      [
+        { state: "FIRST_SEEN", atMs: T - 5_000, visitId: "v-1" },
+        { state: "LEFT", atMs: T + 300_000 + 20_000, visitId: "v-1" },   // 20 s late
+      ],
+      GOOD_CLOCK,
+      { toleranceMs: 3000, firstSeenToleranceMs: 30_000 },
+    );
+    expect(r.verdict).toBe("FAIL");
+    expect(r.findings.join(" ")).toContain("20000 ms away (tolerance 3000 ms)");
+  });
+
+  it("an unwitnessed FIRST_SEEN is still an invented arrival", () => {
+    const r = buildCommissioningReport(
+      [{ event: "ENTERING", atMs: T }, { event: "DEPARTED", atMs: T + 300_000 }],
+      [
+        { state: "FIRST_SEEN", atMs: T, visitId: "v-1" },
+        { state: "LEFT", atMs: T + 300_100, visitId: "v-1" },
+        { state: "FIRST_SEEN", atMs: T + 150_000, visitId: "v-ghost" },
+      ],
+      GOOD_CLOCK,
+    );
+    expect(r.verdict).toBe("FAIL");
+    expect(r.findings.join(" ")).toContain("no human tap to account for it");
+  });
+});
+
+describe("commissioning report — a wall clock that steps mid-run", () => {
+  it("PREFERS the monotonic reading, so a clock jump does not fail a correct pipeline", () => {
+    // Android can step its wall clock mid-run (an NTP correction, a timezone change).
+    // Every tap after the step carries the jump, so a report reading wall time alone would
+    // report enormous latencies for a pipeline that was working perfectly. The client
+    // captures a monotonic timer specifically to survive this (Codex P2 on #2255).
+    const human: HumanEvent[] = [
+      { event: "ENTERING", atMs: T + 4_000, monoAtMs: T + 4_000 },
+      // The phone's clock jumped 90 s forward here; the monotonic reading did not.
+      { event: "IN_BAY", atMs: T + 40_000 + 90_000, monoAtMs: T + 40_000 },
+      { event: "DEPARTED", atMs: T + 310_000 + 90_000, monoAtMs: T + 310_000 },
+    ];
+    const machine: MachineEvent[] = [
+      { state: "FIRST_SEEN", atMs: T + 4_200, visitId: "v-1" },
+      { state: "IN_SERVICE", atMs: T + 40_300, visitId: "v-1" },
+      { state: "LEFT", atMs: T + 310_400, visitId: "v-1" },
+    ];
+    const r = buildCommissioningReport(human, machine, GOOD_CLOCK);
+    expect(r.verdict).toBe("PASS");
+    // The step is DISCLOSED rather than silently absorbed: it is the useful finding.
+    expect(r.findings.join(" ")).toContain("wall clock stepped mid-run");
+    expect(r.findings.join(" ")).toContain("note rather than a failure");
+    expect(r.stats.maxAbsDeltaMs).toBeLessThan(1_000);
+  });
+
+  it("falls back to wall time when the phone sent no monotonic reading", () => {
+    const { human, machine } = cleanRun();
+    const r = buildCommissioningReport(human, machine, GOOD_CLOCK);
+    expect(r.verdict).toBe("PASS");
+    expect(r.findings.join(" ")).not.toContain("stepped mid-run");
+  });
+
+  it("a SMALL wall/monotonic difference is not reported as a step", () => {
+    // The two origins differ by the latency of the run-start request -- a couple of
+    // hundred milliseconds. Flagging that would cry wolf on every single run.
+    const human: HumanEvent[] = [
+      { event: "ENTERING", atMs: T + 4_000, monoAtMs: T + 4_180 },
+      { event: "DEPARTED", atMs: T + 310_000, monoAtMs: T + 310_180 },
+    ];
+    const machine: MachineEvent[] = [
+      { state: "FIRST_SEEN", atMs: T + 4_200, visitId: "v-1" },
+      { state: "LEFT", atMs: T + 310_300, visitId: "v-1" },
+    ];
+    const r = buildCommissioningReport(human, machine, GOOD_CLOCK);
+    expect(r.findings.join(" ")).not.toContain("stepped mid-run");
+    expect(r.verdict).toBe("PASS");
   });
 });

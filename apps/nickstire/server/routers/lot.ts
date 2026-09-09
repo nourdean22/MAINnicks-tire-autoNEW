@@ -152,6 +152,88 @@ function percentile(sorted: number[], p: number): number | null {
   return sorted[idx];
 }
 
+/**
+ * Load one commissioning run and diff it against what the machine recorded.
+ *
+ * Shared by the report query and the end mutation so the two can never disagree about the
+ * same run. Every timestamp is converted to epoch MILLISECONDS by SQL
+ * (`ROUND(UNIX_TIMESTAMP(col) * 1000)`) rather than by parsing a Date in JS: this is a
+ * measurement of sub-second differences, and a driver timezone shift would not look wrong
+ * here -- it would look like a catastrophic pipeline latency.
+ */
+async function loadCommissioningReport(
+  d: NonNullable<Awaited<ReturnType<typeof dbTyped>>>,
+  runId: string,
+  toleranceMs: number,
+) {
+  const run = rowsOf(await d.execute(sql`
+    SELECT runId, camera, label, verdict, clockOffsetMs, clockRttMs, clockSamples,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(startedAt) * 1000)")} AS startedMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs
+    FROM commissioning_runs WHERE runId = ${runId}
+  `))[0];
+  if (!run) return null;
+
+  // Both clocks come back: the wall reading (corrected by the run's offset) AND the
+  // monotonic offset. The report prefers the monotonic one and discloses any disagreement,
+  // because a phone that stepped its wall clock mid-run would otherwise fail a correct
+  // pipeline with a jump it recorded about itself.
+  const taps = rowsOf(await d.execute(sql`
+    SELECT event, phoneMonoMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(COALESCE(correctedAt, phoneWallAt)) * 1000)")} AS atMs
+    FROM commissioning_truth_events
+    WHERE runId = ${runId}
+    ORDER BY COALESCE(correctedAt, phoneWallAt) ASC
+  `));
+
+  const visits = rowsOf(await d.execute(sql`
+    SELECT visitId, arrivedAt, bayEnteredAt, departedAt
+    FROM vehicle_visits WHERE commissioningRunId = ${runId}
+  `));
+
+  const clock = run.clockSamples === null || run.clockSamples === undefined
+    ? null
+    : { offsetMs: num(run.clockOffsetMs), rttMs: num(run.clockRttMs), samples: num(run.clockSamples) };
+
+  // The monotonic origin is the SERVER's run-start instant, while `phoneMonoMs` counts from
+  // the PHONE's. They differ by the latency of the start request -- a couple of hundred
+  // milliseconds, an order of magnitude inside the crossing tolerance, and far smaller than
+  // the clock step this exists to survive.
+  const startedMs = numOrNull(run.startedMs);
+  const report = buildCommissioningReport(
+    taps
+      .filter((t) => t.atMs !== null && t.atMs !== undefined)
+      .map((t) => ({
+        event: String(t.event),
+        atMs: num(t.atMs),
+        monoAtMs: startedMs === null || t.phoneMonoMs === null || t.phoneMonoMs === undefined
+          ? null
+          : startedMs + num(t.phoneMonoMs),
+      })),
+    visits.flatMap((v) => machineEventsFromVisit({
+      visitId: String(v.visitId),
+      arrivedAt: (v.arrivedAt as Date | string | null) ?? null,
+      bayEnteredAt: (v.bayEnteredAt as Date | string | null) ?? null,
+      departedAt: (v.departedAt as Date | string | null) ?? null,
+    })),
+    clock,
+    { toleranceMs },
+  );
+
+  return {
+    run: {
+      runId: String(run.runId),
+      camera: String(run.camera),
+      label: (run.label as string | null) ?? null,
+      startedMs,
+      endedMs: numOrNull(run.endedMs),
+      open: !run.endedMs,
+      clock,
+    },
+    report,
+  };
+}
+
 export const lotRouter = router({
   /**
    * The counter card: what is on the lot right now.
@@ -622,7 +704,7 @@ export const lotRouter = router({
     }),
 
   endCommissioning: adminProcedure
-    .input(z.object({ runId: z.string().min(1).max(64) }))
+    .input(z.object({ runId: z.string().min(1).max(64), toleranceMs: z.number().int().min(100).max(60_000).default(3000) }))
     .mutation(async ({ input }) => {
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
@@ -630,7 +712,23 @@ export const lotRouter = router({
         await d.execute(sql`
           UPDATE commissioning_runs SET endedAt = NOW(3) WHERE runId = ${input.runId} AND endedAt IS NULL
         `);
-        return { ok: true as const };
+        // PERSIST THE VERDICT. It used to be computed on demand and never stored, so the
+        // history list rendered a `verdict` column that no code path ever wrote -- every
+        // finished run showed a blank chip forever (Codex P2 on #2255). Recomputing it on
+        // every history render would also mean a run's verdict could silently change months
+        // later if the tolerances were retuned; freezing it at the end of the run is what
+        // makes it a RECORD rather than a live opinion.
+        const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
+        if (built) {
+          await d.execute(sql`
+            UPDATE commissioning_runs
+               SET verdict = ${built.report.verdict},
+                   verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
+             WHERE runId = ${input.runId}
+          `);
+          return { ok: true as const, verdict: built.report.verdict, findings: built.report.findings };
+        }
+        return { ok: true as const, verdict: null, findings: [] };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "could not end the run" };
       }
@@ -681,60 +779,9 @@ export const lotRouter = router({
       const d = await dbTyped();
       if (!d) return { ok: false as const, reason: "database unavailable" };
       try {
-        const run = rowsOf(await d.execute(sql`
-          SELECT runId, camera, label, verdict, clockOffsetMs, clockRttMs, clockSamples,
-                 ${sql.raw("ROUND(UNIX_TIMESTAMP(startedAt) * 1000)")} AS startedMs,
-                 ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs
-          FROM commissioning_runs WHERE runId = ${input.runId}
-        `))[0];
-        if (!run) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
-
-        // COALESCE(correctedAt, phoneWallAt): an uncorrected tap is still shown, and the
-        // report's own INCONCLUSIVE rule is what discloses that the clock was never synced.
-        const taps = rowsOf(await d.execute(sql`
-          SELECT event,
-                 ${sql.raw("ROUND(UNIX_TIMESTAMP(COALESCE(correctedAt, phoneWallAt)) * 1000)")} AS atMs
-          FROM commissioning_truth_events
-          WHERE runId = ${input.runId}
-          ORDER BY COALESCE(correctedAt, phoneWallAt) ASC
-        `));
-
-        const visits = rowsOf(await d.execute(sql`
-          SELECT visitId, arrivedAt, bayEnteredAt, departedAt
-          FROM vehicle_visits WHERE commissioningRunId = ${input.runId}
-        `));
-
-        const clock = run.clockSamples === null || run.clockSamples === undefined
-          ? null
-          : { offsetMs: num(run.clockOffsetMs), rttMs: num(run.clockRttMs), samples: num(run.clockSamples) };
-
-        const report = buildCommissioningReport(
-          taps
-            .filter((t) => t.atMs !== null && t.atMs !== undefined)
-            .map((t) => ({ event: String(t.event), atMs: num(t.atMs) })),
-          visits.flatMap((v) => machineEventsFromVisit({
-            visitId: String(v.visitId),
-            arrivedAt: (v.arrivedAt as Date | string | null) ?? null,
-            bayEnteredAt: (v.bayEnteredAt as Date | string | null) ?? null,
-            departedAt: (v.departedAt as Date | string | null) ?? null,
-          })),
-          clock,
-          { toleranceMs: input.toleranceMs },
-        );
-
-        return {
-          ok: true as const,
-          run: {
-            runId: String(run.runId),
-            camera: String(run.camera),
-            label: (run.label as string | null) ?? null,
-            startedMs: numOrNull(run.startedMs),
-            endedMs: numOrNull(run.endedMs),
-            open: !run.endedMs,
-            clock,
-          },
-          report,
-        };
+        const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
+        if (!built) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+        return { ok: true as const, ...built };
       } catch (err) {
         return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning report failed" };
       }

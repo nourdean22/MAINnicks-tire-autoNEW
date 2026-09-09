@@ -163,7 +163,17 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     if (!runId) return;
     setBusy("Ending run…");
     try {
-      await end.mutateAsync({ runId });
+      // CHECK `ok` BEFORE CHANGING LOCAL STATE. The mutation reports a database or
+      // migration failure as a RESOLVED `{ ok: false, reason }`, so `mutateAsync` does not
+      // throw. Clearing `runId` on that payload would close the screen while the run is
+      // still open in the database -- the operator could then neither retry ending it nor
+      // record another tap, and the report would open on a run that never finished
+      // (Codex P2 on #2255).
+      const res = await end.mutateAsync({ runId });
+      if (!res.ok) {
+        setError(`the run is still open: ${res.reason}`);
+        return;
+      }
       setReportRunId(runId);
       setRunId(null);
       await utils.lot.commissioningRuns.invalidate();
