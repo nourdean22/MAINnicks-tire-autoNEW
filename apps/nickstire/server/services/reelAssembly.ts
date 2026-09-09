@@ -539,9 +539,28 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   ];
 }
 
-/** Grain strength on the LUMA plane. 6 of 100 - visible as texture at arm's
- *  length, invisible as noise. Above ~10 it reads as a broken encode. */
-export const FILM_GRAIN_STRENGTH = 6;
+/**
+ * Grain strength on the LUMA plane.
+ *
+ * 8, chosen from a measured cost curve on a REAL published reel rather than
+ * from taste. Grain is incompressible and the price is sharply non-linear, so
+ * the setting is a cliff-edge decision, not a dial:
+ *
+ *    6 -> 1.18x file size      9 -> 2.19x
+ *    8 -> 1.57x              10 -> 3.34x
+ *                            12 -> 6.40x
+ *
+ * The knee sits immediately after 8. Twelve looks the most filmic and produced
+ * a 52.8 MB file from an 8.2 MB source - large enough that it exceeded a phone
+ * upload limit, which is a fair proxy for what Instagram's transcoder would do
+ * to it. Eight is the most texture available before the curve turns.
+ *
+ * NOTE the earlier figure this replaces: a synthetic smooth-gradient test put
+ * grain at 2.57x, and that number is what kept the whole feature off. Real
+ * footage carries detail for grain to hide behind, so the true cost at the
+ * shipped strength is 1.18x. Measure on the real thing.
+ */
+export const FILM_GRAIN_STRENGTH = 8;
 
 /**
  * The optical finish, or a no-op when it is not armed.
