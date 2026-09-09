@@ -135,12 +135,153 @@ type VisitRow = {
   customerMatch: string;
   estimatedFields: string[];
   cameraPose: string | null;
+  dataClass: string;
+  commissioningRunId: string | null;
   onPropertyMinutes: number | null;
   sinceFirstSeenMinutes: number | null;
   waitMinutes: number | null;
   bayMinutes: number | null;
   open: boolean;
 };
+
+type CameraFacets = {
+  producer: string;
+  source: string;
+  frames: string;
+  pose: string;
+  calibration: string;
+  cloud: string;
+};
+
+type CameraHealth = {
+  camera: string;
+  label: string;
+  commissioned: boolean;
+  registered: boolean;
+  state: string;
+  facets: CameraFacets;
+  reason: string;
+  ageSeconds: number | null;
+  stateForSeconds: number | null;
+  mode: string | null;
+  commissioningRunId: string | null;
+  producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
+  source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; poseDelta: number | null; calibrationVersion: string | null } | null;
+  cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
+  openVisits: number;
+};
+
+/** Seconds -> "12s" / "4m" / "2h"; null -> em dash. Never "0s" for unknown. */
+function formatAgo(sec: number | null): string {
+  if (sec === null) return "—";
+  if (sec < 60) return `${Math.max(0, Math.round(sec))}s`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m`;
+  return `${Math.round(sec / 3600)}h`;
+}
+
+/** Headline tone per state. Colour AND wording carry the meaning; colour alone never does. */
+function stateTone(state: string, commissioned: boolean): string {
+  switch (state) {
+    case "HEALTHY":
+      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+    case "STALE":
+    case "CALIBRATION_INVALID":
+    case "DEGRADED_VISION":
+    case "CLOUD_BACKLOG":
+      return "border-amber-500/40 bg-amber-500/10 text-amber-300";
+    case "PRODUCER_OFFLINE":
+    case "CAMERA_OFFLINE":
+      return "border-red-500/40 bg-red-500/10 text-red-300";
+    default:
+      // NEVER_INGESTED: a fault for a commissioned camera, an expectation for a planned one.
+      return commissioned
+        ? "border-foreground/20 bg-foreground/5 text-foreground/70"
+        : "border-foreground/10 bg-foreground/5 text-foreground/40";
+  }
+}
+
+/** One dimension of the lattice. `good` values read calm; the rest read as attention. */
+function facetTone(value: string): string {
+  if (["alive", "connected", "fresh", "ok", "valid"].includes(value)) return "text-emerald-400/80";
+  if (value === "unknown" || value === "never") return "text-foreground/35";
+  return "text-amber-400";
+}
+
+function CameraCard({ c }: { c: CameraHealth }) {
+  const stateLabel = c.state.replace(/_/g, " ").toLowerCase();
+  const facets: Array<[string, string]> = [
+    ["producer", c.facets.producer],
+    ["source", c.facets.source],
+    ["frames", c.facets.frames],
+    ["pose", c.facets.pose],
+    ["calibration", c.facets.calibration],
+    ["cloud", c.facets.cloud],
+  ];
+  return (
+    <div className={`rounded-lg border p-3 ${c.registered ? "border-foreground/10" : "border-amber-500/30"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold truncate">{c.label}</div>
+          <div className="text-[12px] text-foreground/50 truncate">
+            {c.camera}
+            {c.mode && c.mode !== "PRODUCTION" && (
+              <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300">
+                {c.mode.toLowerCase()}
+                {c.commissioningRunId ? ` · ${c.commissioningRunId}` : ""}
+              </span>
+            )}
+          </div>
+        </div>
+        <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${stateTone(c.state, c.commissioned)}`}>
+          {c.state === "NEVER_INGESTED" && !c.commissioned ? "not commissioned yet" : stateLabel}
+        </span>
+      </div>
+
+      {c.state !== "NEVER_INGESTED" && (
+        <>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            {facets.map(([k, v]) => (
+              <span key={k} className="text-foreground/45">
+                {k} <span className={facetTone(v)}>{v.replace(/_/g, " ")}</span>
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-foreground/60 tabular-nums">
+            <span>heartbeat {formatAgo(c.ageSeconds)} ago</span>
+            {c.stateForSeconds !== null && <span>{stateLabel} for {formatAgo(c.stateForSeconds)}</span>}
+            {c.source?.type && (
+              <span>
+                {c.source.type}
+                {c.source.generation ? ` · gen ${c.source.generation}` : ""}
+                {c.source.fps !== null ? ` · ${c.source.fps.toFixed(1)} fps` : ""}
+              </span>
+            )}
+            {c.vision?.detector && <span>{c.vision.detector}</span>}
+            {c.vision?.calibrationVersion && <span>cal {c.vision.calibrationVersion}</span>}
+            {c.cloud && c.cloud.outboxDepth !== null && <span>outbox {c.cloud.outboxDepth}</span>}
+            {c.source && c.source.restores !== null && c.source.restores > 0 && (
+              <span className="text-amber-400">window restored {c.source.restores}×</span>
+            )}
+            {c.openVisits > 0 && <span>{c.openVisits} open</span>}
+            {c.producer && (
+              <span className="text-foreground/40">
+                seq {c.producer.heartbeatSeq}
+                {c.producer.version ? ` · v${c.producer.version}` : ""}
+              </span>
+            )}
+          </div>
+          {c.state !== "HEALTHY" && <div className="mt-1.5 text-[12px] text-foreground/60">{c.reason}</div>}
+        </>
+      )}
+      {c.state === "NEVER_INGESTED" && c.commissioned && (
+        <div className="mt-1.5 text-[12px] text-foreground/50">
+          No producer has ever reported for this camera. Start the edge with the shop ingest configured; this card turns live on its first heartbeat.
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Stage = { label: string; tone: string };
 
@@ -265,9 +406,12 @@ function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now:
 }
 
 export default function LotSection() {
+  // Commissioning / replay rows are excluded from every counter and hidden from the
+  // list by default; they are never deleted, so the operator can opt in to see them.
+  const [showCommissioning, setShowCommissioning] = useState(false);
   const now = trpc.lot.now.useQuery(undefined, { refetchInterval: POLL_MS });
   const visits = trpc.lot.visits.useQuery(
-    { limit: 50, openOnly: false },
+    { limit: 50, openOnly: false, includeCommissioning: showCommissioning },
     { refetchInterval: POLL_MS },
   );
   const health = trpc.lot.health.useQuery(undefined, { refetchInterval: POLL_MS });
@@ -329,8 +473,12 @@ export default function LotSection() {
       ) : n?.ok === true && n.neverIngested ? (
         <EmptyState
           icon={<Camera className="w-5 h-5" />}
-          title="No camera events yet"
-          subtitle="The vision edge has not delivered a visit. Counters stay blank until real data arrives rather than showing zeros that look like an empty lot."
+          title={n.commissioningVisits > 0 ? "No production visits yet" : "No camera events yet"}
+          subtitle={
+            n.commissioningVisits > 0
+              ? `${n.commissioningVisits} commissioning ${n.commissioningVisits === 1 ? "visit is" : "visits are"} recorded and excluded from every counter. Use "Show commissioning runs" below to review them.`
+              : "The vision edge has not delivered a visit. Counters stay blank until real data arrives rather than showing zeros that look like an empty lot."
+          }
         />
       ) : n?.ok === true ? (
         <>
@@ -511,52 +659,52 @@ export default function LotSection() {
         </>
       ) : null}
 
-      <Panel title="Event freshness by camera" icon={<Camera className="w-4 h-4" />}
-             subtitle="How recently each camera produced a VISIT EVENT — not a camera heartbeat">
+      <Panel title="Cameras" icon={<Camera className="w-4 h-4" />}
+             subtitle="Producer heartbeats — infrastructure health, independent of whether any car has arrived">
         {health.isError ? (
-          <Unknown what="Event freshness" reason={health.error?.message} />
+          <Unknown what="Camera health" reason={health.error?.message} />
         ) : health.isPending ? (
-          <Loading what="camera freshness" />
+          <Loading what="camera health" />
         ) : !health.data ? (
-          <Unknown what="Event freshness" />
+          <Unknown what="Camera health" />
         ) : health.data.ok === false ? (
-          <Unknown what="Event freshness" reason={health.data.reason} />
-        ) : health.data.cameras.length === 0 ? (
-          <div className="text-[13px] text-foreground/60">No camera has reported yet.</div>
+          <Unknown what="Camera health" reason={health.data.reason} />
         ) : (
-          <div className="space-y-1.5">
-            {health.data.cameras.map((c) => (
-              <div key={c.camera} className="flex items-center justify-between text-[13px] py-1.5 border-b border-foreground/5 last:border-0">
-                <span className="font-medium">{c.camera}</span>
-                <div className="flex items-center gap-3 text-foreground/70">
-                  {c.detector && <span className="text-foreground/50">{c.detector}</span>}
-                  {c.pose && <span className="text-foreground/50">{c.pose}</span>}
-                  <span
-                    className={
-                      c.status === "recent"
-                        ? "text-emerald-400"
-                        : c.status === "quiet"
-                          ? "text-amber-400"
-                          : "text-foreground/50"
-                    }
-                  >
-                    {c.status}
-                    {c.ageSeconds !== null && c.status !== "recent" ? ` · ${Math.round(c.ageSeconds / 60)}m ago` : ""}
-                  </span>
-                </div>
-              </div>
+          <div className="space-y-2">
+            {(health.data.cameras as CameraHealth[]).map((c) => (
+              <CameraCard key={c.camera} c={c} />
             ))}
+            {health.data.transitions.length > 0 && (
+              <div className="pt-1 space-y-0.5 text-[12px] text-foreground/50">
+                {health.data.transitions.slice(0, 6).map((t, i) => (
+                  <div key={`${t.camera}-${i}`} className="tabular-nums">
+                    <span className="text-foreground/70">{t.camera}</span>
+                    {" "}{(t.from ?? "—").toLowerCase()} → {t.to.toLowerCase()} · {formatAgo(t.agoSeconds)} ago
+                    {t.reason ? <span className="text-foreground/40"> · {t.reason}</span> : null}
+                  </div>
+                ))}
+              </div>
+            )}
             <p className="text-[12px] text-foreground/40 pt-1">
-              A quiet lot produces no events, so "quiet" here does not mean the camera is
-              down. True camera liveness is the device heartbeat, which this panel does
-              not read.
+              A quiet lot is healthy. Stale and offline come from heartbeat age (stale after{" "}
+              {health.data.thresholds.staleAfterSeconds}s, offline after {health.data.thresholds.offlineAfterSeconds}s);
+              every other dimension is what the producer reported about itself.
             </p>
           </div>
         )}
       </Panel>
 
       <Panel title="Recent visits" icon={<Car className="w-4 h-4" />}
-             subtitle="Durations are SQL-computed; an open visit keeps counting, a departed one is frozen">
+             subtitle="Durations are SQL-computed; an open visit keeps counting, a departed one is frozen"
+             actions={
+               <button
+                 type="button"
+                 onClick={() => setShowCommissioning((v) => !v)}
+                 className={`rounded-md border px-2 py-1 text-[12px] ${showCommissioning ? "border-sky-500/40 bg-sky-500/10 text-sky-300" : "border-foreground/15 text-foreground/60 hover:text-foreground"}`}
+               >
+                 {showCommissioning ? "Hide commissioning runs" : "Show commissioning runs"}
+               </button>
+             }>
         {visits.isError ? (
           <Unknown what="Visit list" reason={visits.error?.message} />
         ) : visits.isPending ? (
@@ -601,6 +749,14 @@ export default function LotSection() {
                         <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[11px] ${stage.tone}`}>
                           {stage.label}
                         </span>
+                        {v.dataClass !== "PRODUCTION" && (
+                          <span
+                            className="ml-1 inline-flex items-center rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300"
+                            title={v.commissioningRunId ?? undefined}
+                          >
+                            {v.dataClass.toLowerCase()}
+                          </span>
+                        )}
                       </td>
                       <td className={`py-2 pr-3 text-right tabular-nums ${v.open ? dwellTone(dwell) : "text-foreground/70"}`}>
                         {formatDuration(dwell)}

@@ -52,6 +52,13 @@ cameras:
     bayZones: []                    # Phase 2: [bay_1, bay_2] on the bay cameras
     zoneNames:
       bay_entrance: Bay Entrance
+    # Provenance forwarded to the shop read model (vehicle_visits, migration 0119) and
+    # the producer heartbeat (camera_runtime, migration 0120). All optional; a camera
+    # with no calibrationVersion is reported as CALIBRATION_INVALID in the shop admin,
+    # which is the honest state for an uncalibrated source, not an error.
+    # calibrationVersion: zones-2026-09-09
+    # cameraPose: north-high
+    # detectorName: frigate:openvino
 
 # Cross-camera stitching (rule 3): a visit that left `from` may continue on `to` within the window.
 topology:

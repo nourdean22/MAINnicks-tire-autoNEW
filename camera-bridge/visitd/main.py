@@ -18,6 +18,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -76,6 +77,11 @@ class Pipeline:
         )
         self.metrics = metrics
         self.tracker = VisitTracker(cfg.policy, cfg.camera_specs())
+        #: Identity of THIS process for the shop heartbeat's idempotency key
+        #: (producerInstanceId, heartbeatSeq): a restart is a new instance, so the
+        #: cloud accepts its sequence starting again from zero.
+        self.producer_instance_id = uuid.uuid4().hex[:16]
+        self.shop_heartbeat_seq = 0
         self.last_frame_time: Optional[float] = None
         self.wall_at_last_message: float = time.monotonic()
         self.last_event_at: Optional[str] = None
@@ -254,7 +260,8 @@ class Pipeline:
                     if row is None:
                         continue
                     cam = self.cfg.cameras.get(emission.camera)
-                    self.shop.send(emission, cam.display_name if cam else None)
+                    self.shop.send(emission, cam.display_name if cam else None,
+                                   cam.provenance() if cam else None)
             except Exception as exc:
                 log.warning("shop mirror raised error=%s; the outbox is unaffected", exc)
             self.metrics.set("visitd_shop_mirror_sent_total", self.shop.sent)
@@ -286,6 +293,32 @@ class Pipeline:
             self.ledger.checkpoint()
             log.info("ledger pruned visits=%s dead_letter=%s retention_days=%s", visits, parked, self.cfg.ledger_retention_days)
         return visits + parked
+
+    def shop_heartbeat_body(self, cam, mqtt_connected: bool) -> dict:
+        """The producer's account of itself for the shop's `POST /api/camera/heartbeat`.
+
+        visitd never sees pixels -- its "frames" are Frigate events over MQTT -- so it
+        reports what it CAN know: whether its source (broker + Frigate) is connected and
+        how its durable queue is doing. Frame fields stay None ("unknown"), never a
+        guess, so a quiet lot cannot read as a dead camera.
+        """
+        self.shop_heartbeat_seq += 1
+        prov = cam.provenance()
+        body = {
+            "camera": cam.name,
+            "producerInstanceId": self.producer_instance_id,
+            "producerVersion": f"visitd {__version__}",
+            "heartbeatSeq": self.shop_heartbeat_seq,
+            "observedAtEdge": datetime.now(tz=timezone.utc).isoformat(),
+            "mode": "PRODUCTION",
+            "sourceType": "mqtt",
+            "sourceConnected": bool(mqtt_connected) and (self.frigate_available is not False),
+            "openVisits": len(self.tracker.open_visits()),
+            "outboxDepth": self.ledger.outbox_depth(),
+            "deadLetterDepth": self.ledger.dead_letter_depth(),
+        }
+        body.update({k: v for k, v in prov.items() if v})
+        return body
 
     def heartbeat_body(self, mqtt_connected: bool) -> dict:
         """PATCH payload for every configured device."""
@@ -349,6 +382,10 @@ class LiveLoop:
             body = pipeline.heartbeat_body(self.mqtt_connected())
             for cam in self.cfg.cameras.values():
                 pipeline.cloud.heartbeat(cam.cloud_device_id, body)
+                if pipeline.shop.enabled:
+                    # The shop's infrastructure fact, apart from visits. Best effort;
+                    # ShopMirror.heartbeat never raises, so the loop cannot stall on it.
+                    pipeline.shop.heartbeat(pipeline.shop_heartbeat_body(cam, self.mqtt_connected()))
         try:
             pipeline.housekeeping(now, self.epoch())
         except Exception:

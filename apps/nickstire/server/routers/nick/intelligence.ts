@@ -800,7 +800,16 @@ export async function handleRunMigrations() {
       `CREATE UNIQUE INDEX IF NOT EXISTS uniq_customer_phone10 ON customers(phone10)`,
       // 2026-07-10 · IG approvals integrity
       `ALTER TABLE social_content_inventory ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1`,
-      `CREATE TABLE IF NOT EXISTS social_content_approvals (id VARCHAR(64) PRIMARY KEY, inventory_id VARCHAR(64) NOT NULL, version INT NOT NULL, approved_by INT NOT NULL, brief_hash VARCHAR(64) NOT NULL, media_hash VARCHAR(64) NOT NULL, media_url TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_sca_inventory_version (inventory_id, version), INDEX idx_sca_inventory_version (inventory_id, version))`
+      `CREATE TABLE IF NOT EXISTS social_content_approvals (id VARCHAR(64) PRIMARY KEY, inventory_id VARCHAR(64) NOT NULL, version INT NOT NULL, approved_by INT NOT NULL, brief_hash VARCHAR(64) NOT NULL, media_hash VARCHAR(64) NOT NULL, media_url TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_sca_inventory_version (inventory_id, version), INDEX idx_sca_inventory_version (inventory_id, version))`,
+      // 2026-09-09 · drizzle/0120_camera_runtime.sql — producer heartbeats (the
+      // infrastructure fact) apart from visits (the business fact), plus the
+      // commissioning data class so a test drive never becomes a customer arrival.
+      // Byte-for-byte the statements in the migration file; additive and idempotent.
+      `CREATE TABLE IF NOT EXISTS camera_runtime (camera VARCHAR(64) NOT NULL, producerInstanceId VARCHAR(64) NOT NULL, producerVersion VARCHAR(64) NULL, gitSha VARCHAR(40) NULL, heartbeatSeq INT NOT NULL DEFAULT 0, observedAtEdge TIMESTAMP NULL DEFAULT NULL, receivedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, mode VARCHAR(16) NOT NULL DEFAULT 'PRODUCTION', commissioningRunId VARCHAR(64) NULL, sourceType VARCHAR(32) NULL, sourceGeneration VARCHAR(64) NULL, sourceConnected TINYINT(1) NULL, lastFrameAt TIMESTAMP NULL DEFAULT NULL, lastHealthyFrameAt TIMESTAMP NULL DEFAULT NULL, captureFps FLOAT NULL, frameOk TINYINT(1) NULL, poseOk TINYINT(1) NULL, poseDelta FLOAT NULL, calibrationVersion VARCHAR(32) NULL, detectorName VARCHAR(128) NULL, modelSha256 VARCHAR(64) NULL, lastInferenceAt TIMESTAMP NULL DEFAULT NULL, inferenceP95Ms FLOAT NULL, openVisits INT NULL, outboxDepth INT NULL, oldestOutboxAgeSeconds INT NULL, deadLetterDepth INT NULL, lastCloudAckAt TIMESTAMP NULL DEFAULT NULL, diskFreeBytes BIGINT NULL, restores INT NULL, state VARCHAR(32) NOT NULL, stateSince TIMESTAMP NULL DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (camera), INDEX idx_camera_runtime_receivedAt (receivedAt))`,
+      `CREATE TABLE IF NOT EXISTS camera_health_events (id BIGINT AUTO_INCREMENT PRIMARY KEY, camera VARCHAR(64) NOT NULL, fromState VARCHAR(32) NULL, toState VARCHAR(32) NOT NULL, reason VARCHAR(191) NULL, producerInstanceId VARCHAR(64) NULL, sourceGeneration VARCHAR(64) NULL, at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_camera_health_events_camera_at (camera, at))`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS dataClass VARCHAR(16) NOT NULL DEFAULT 'PRODUCTION'`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS commissioningRunId VARCHAR(64) NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_dataClass ON vehicle_visits (dataClass)`
     ];
 
     let applied = 0;
