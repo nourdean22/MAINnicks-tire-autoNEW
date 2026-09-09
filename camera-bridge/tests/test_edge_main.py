@@ -94,24 +94,29 @@ class OneAuthorityTest(unittest.TestCase):
         the ledger persists would not be the one the pixels update."""
         args = _args(calibration=None)
         cfg = _cfg()
-        pipeline, vision, source, cal, detector, mode, data_class = edge_main.build_edge(cfg, args)
+        pipeline, vision, source, cal, detector, mode, data_class, base_mode = edge_main.build_edge(cfg, args)
         try:
             self.assertIs(vision.tracker, pipeline.tracker,
                           "the vision pipeline must NOT own a second VisitTracker")
             self.assertIsNone(cal, "no calibration file -> census mode")
             self.assertEqual(mode, "shadow", "uncalibrated defaults to shadow, never production")
+            self.assertEqual(base_mode, "shadow", "and the baseline it returns to is the same")
             self.assertEqual(data_class, "PRODUCTION")
         finally:
             pipeline.ledger.close()
 
     def test_a_commissioning_run_tags_its_rows_and_never_counts_as_production(self):
         args = _args(calibration=None, commissioning_run="C-20260910-001")
-        pipeline, vision, source, cal, det, mode, data_class = edge_main.build_edge(_cfg(), args)
+        pipeline, vision, source, cal, det, mode, data_class, base_mode = edge_main.build_edge(_cfg(), args)
         try:
             self.assertEqual(mode, "commissioning")
             self.assertEqual(data_class, "COMMISSIONING")
             self.assertEqual(pipeline.shop.data_class, "COMMISSIONING")
             self.assertEqual(pipeline.shop.commissioning_run_id, "C-20260910-001")
+            # The BASELINE is derived from the calibration, never from the launch flag: a
+            # producer started with --commissioning-run must still be able to LEAVE
+            # commissioning when the run ends.
+            self.assertEqual(base_mode, "shadow")
         finally:
             pipeline.ledger.close()
 
@@ -621,3 +626,49 @@ class GenerationBreakTest(unittest.TestCase):
             loop.step()
         self.assertEqual(loop.generation_breaks, 0)
         self.assertEqual(vision.degraded, [])
+
+
+class RestartIdentityTest(unittest.TestCase):
+    """A restart must not let a new car inherit an old visit (Codex P1 on #2255)."""
+
+    def test_track_ids_start_ABOVE_every_restored_sighting(self):
+        """`_emit` derives a sighting id as `{camera}-{track_id}` and a fresh TrackGraph
+        restarts at 1, so after a restart the FIRST car seen would be handed the same id as
+        a restored sighting -- and visitd looks sightings up by that id, so a completely
+        different vehicle would inherit that visit's arrival time, bay and data class."""
+        from types import SimpleNamespace as NS
+
+        tracker = NS(open_visits=lambda: [
+            NS(sightings={"sign-3": object(), "sign-11": object()}),
+            NS(sightings={"sign-7": object(), "other-99": object()}),
+        ])
+        vision = NS(tracks=NS(_next_id=1))
+        highest = edge_main.seed_track_ids(vision, tracker, "sign")
+        self.assertEqual(highest, 11, "the highest id for THIS camera, ignoring other cameras")
+        self.assertEqual(vision.tracks._next_id, 12)
+
+    def test_a_clean_start_leaves_the_counter_alone(self):
+        from types import SimpleNamespace as NS
+
+        vision = NS(tracks=NS(_next_id=1))
+        self.assertEqual(edge_main.seed_track_ids(vision, NS(open_visits=lambda: []), "sign"), 0)
+        self.assertEqual(vision.tracks._next_id, 1)
+
+    def test_an_unreadable_tracker_never_takes_the_producer_down(self):
+        from types import SimpleNamespace as NS
+
+        def boom():
+            raise RuntimeError("ledger unreadable")
+
+        vision = NS(tracks=NS(_next_id=1))
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertEqual(edge_main.seed_track_ids(vision, NS(open_visits=boom), "sign"), 0)
+        self.assertEqual(vision.tracks._next_id, 1)
+
+    def test_non_numeric_sighting_ids_are_ignored_rather_than_crashing(self):
+        from types import SimpleNamespace as NS
+
+        tracker = NS(open_visits=lambda: [NS(sightings={"sign-abc": 1, "sign-": 1, "sign-4": 1})])
+        vision = NS(tracks=NS(_next_id=1))
+        self.assertEqual(edge_main.seed_track_ids(vision, tracker, "sign"), 4)
+        self.assertEqual(vision.tracks._next_id, 5)

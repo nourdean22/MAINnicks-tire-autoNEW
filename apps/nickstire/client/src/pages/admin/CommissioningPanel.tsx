@@ -261,6 +261,11 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         setError(res.reason);
         return;
       }
+      // The SAME acknowledgement wait as `finish()`. Ending an orphaned run has exactly
+      // the same gap -- the producer keeps tagging arrivals with it until its next
+      // heartbeat -- and skipping the banner here meant the one path an operator reaches
+      // AFTER a reload was the one without the warning (Codex P1 on #2255).
+      setEndingRunId(id);
       await utils.lot.commissioningRuns.invalidate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not end the run");

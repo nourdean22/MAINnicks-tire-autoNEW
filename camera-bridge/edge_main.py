@@ -163,7 +163,8 @@ class EdgeLoop:
         *,
         camera: str,
         mode: str,
-        calibration_version: Optional[str],
+        base_mode: Optional[str] = None,
+        calibration_version: Optional[str] = None,
         detector_name: Optional[str],
         model_sha256: Optional[str] = None,
         commissioning_run_id: Optional[str] = None,
@@ -178,11 +179,12 @@ class EdgeLoop:
         self.source = source
         self.camera = camera
         self.mode = mode
-        #: What this producer is when NOT commissioning. `mode` follows the shop's answer,
-        #: so without a baseline to return to it would stay COMMISSIONING forever after a
-        #: run ended -- the camera card would keep its badge while rows were correctly
-        #: tagged PRODUCTION again (Codex P2 on #2255).
-        self.base_mode = "COMMISSIONING" if mode == "COMMISSIONING" else mode
+        #: What this producer is when NOT commissioning, passed in from the CALIBRATION
+        #: rather than inferred from `mode`. Inferring it meant a runtime launched with
+        #: `--commissioning-run` adopted COMMISSIONING as its own baseline and could never
+        #: leave it, so the camera badge stayed lit after the run ended while rows were
+        #: correctly tagged PRODUCTION again (Codex P2 on #2255).
+        self.base_mode = (base_mode or ("SHADOW" if mode == "COMMISSIONING" else mode)).upper()
         self.calibration_version = calibration_version
         self.detector_name = detector_name
         self.model_sha256 = model_sha256
@@ -430,6 +432,49 @@ class EdgeLoop:
 
 
 # ---------------------------------------------------------------------------- wiring
+def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
+    """Push the vision track counter past every RESTORED sighting id. Returns the new floor.
+
+    THE COLLISION THIS PREVENTS. `VisionPipeline._emit` derives a sighting id as
+    `"{camera}-{track_id}"`, and a fresh `TrackGraph` restarts `_next_id` at 1. After a
+    restart the tracker holds restored sightings like `sign-1`, so the FIRST car the new
+    process sees is handed `sign-1` too -- and visitd looks a sighting up by that id, so a
+    completely different vehicle is attached to the old visit. It would inherit that
+    visit's arrival time, its bay, and its commissioning class.
+
+    Seeding the counter above the highest restored id makes the ids disjoint by
+    construction, which is cheaper and far more robust than trying to detect the clash
+    afterwards.
+
+    THE PART THIS DOES NOT FIX, stated rather than hidden: the restored sightings have no
+    live vision track to end them, so they stay open until visitd's own
+    `max_sighting_seconds` force-end fires. That is deliberate -- a car genuinely still on
+    the lot SHOULD keep its visit and its real arrival time, which is the entire point of
+    restoring -- but it does mean a car that left while the producer was down lingers until
+    that expiry. Tightening `max_sighting_seconds` is the lever; reconciling properly needs
+    vision identity to survive a restart, which it does not today.
+    """
+    highest = 0
+    prefix = f"{camera}-"
+    try:
+        for visit in tracker.open_visits():
+            for sighting_id in getattr(visit, "sightings", {}):
+                sid = str(sighting_id)
+                if not sid.startswith(prefix):
+                    continue
+                tail = sid[len(prefix):]
+                if tail.isdigit():
+                    highest = max(highest, int(tail))
+    except Exception:
+        log.exception("could not read restored sightings; leaving the track counter alone")
+        return 0
+    if highest:
+        vision.tracks._next_id = highest + 1
+        log.info("restored %s sighting(s); vision track ids start at %s so a new car cannot "
+                 "inherit an old visit", highest, highest + 1)
+    return highest
+
+
 def build_edge(cfg: Config, args: argparse.Namespace):
     """Build the visitd pipeline first, then hand ITS tracker to the vision pipeline.
 
@@ -507,9 +552,17 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         # THE JOIN: one tracker, owned by visitd, driven by vision.
         tracker=pipeline.tracker,
     )
+    seed_track_ids(vision, pipeline.tracker, camera)
 
-    mode = args.mode or ("commissioning" if args.commissioning_run else
-                         ("production" if calibration_version else "shadow"))
+    # The mode this producer returns to when NOT commissioning. Derived from the
+    # CALIBRATION, never from the launch flag: a runtime started with
+    # `--commissioning-run` would otherwise treat COMMISSIONING as its own baseline and
+    # never leave it, so the camera badge would stay lit after the run ended even though
+    # rows were correctly tagged PRODUCTION again (Codex P2 on #2255).
+    base_mode = args.mode if args.mode in ("production", "shadow") else (
+        "production" if calibration_version else "shadow"
+    )
+    mode = args.mode or ("commissioning" if args.commissioning_run else base_mode)
     if args.commissioning_run:
         mode = "commissioning"
     data_class = "COMMISSIONING" if mode == "commissioning" else "PRODUCTION"
@@ -525,7 +578,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         prov["detectorName"] = detector_name
     pipeline.shop.provenance = prov
 
-    return pipeline, vision, source, calibration_version, detector_name, mode, data_class
+    return pipeline, vision, source, calibration_version, detector_name, mode, data_class, base_mode
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -577,7 +630,7 @@ def run_edge(args: argparse.Namespace) -> int:
     logging.basicConfig(level=getattr(logging, str(args.log_level).upper(), logging.INFO),
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     cfg = load_config(args.config)
-    pipeline, vision, source, calibration_version, detector_name, mode, data_class = build_edge(cfg, args)
+    pipeline, vision, source, calibration_version, detector_name, mode, data_class, base_mode = build_edge(cfg, args)
 
     log.info(
         "edge start version=%s instance=%s camera=%s mode=%s dataClass=%s calibration=%s ledger=%s",
@@ -605,7 +658,7 @@ def run_edge(args: argparse.Namespace) -> int:
     pipeline.cloud.start()
     loop = EdgeLoop(
         pipeline, vision, source,
-        camera=args.camera, mode=mode.upper(),
+        camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
         calibration_version=calibration_version, detector_name=detector_name,
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
