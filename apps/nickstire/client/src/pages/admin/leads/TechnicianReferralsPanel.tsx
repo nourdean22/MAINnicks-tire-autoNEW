@@ -37,7 +37,7 @@ function formatCents(cents: number): string {
 export function TechnicianReferralsPanel() {
   const [open, setOpen] = useState(true);
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.technicianReferrals.list.useQuery(undefined, { enabled: open });
+  const { data, isLoading, isError, error } = trpc.technicianReferrals.list.useQuery(undefined, { enabled: open });
 
   const invalidate = () => utils.technicianReferrals.list.invalidate();
   const markHired = trpc.technicianReferrals.markHired.useMutation({
@@ -49,7 +49,7 @@ export function TechnicianReferralsPanel() {
   });
   const markPaid = trpc.technicianReferrals.markPaid.useMutation({
     onSuccess: () => { toast.success("Marked paid."); invalidate(); },
-    onError: () => toast.error("Couldn't update this referral."),
+    onError: (err) => toast.error(err.message || "Couldn't update this referral."),
   });
   const disqualify = trpc.technicianReferrals.disqualify.useMutation({
     onSuccess: () => { toast.success("Disqualified."); invalidate(); },
@@ -81,6 +81,11 @@ export function TechnicianReferralsPanel() {
           {isLoading ? (
             <div className="flex items-center gap-2 text-[12px] text-foreground/40">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading&hellip;
+            </div>
+          ) : isError ? (
+            <div className="border border-red-500/40 bg-red-500/10 p-3 text-[12px] text-red-400">
+              <strong>Couldn't load referrals.</strong> {error?.message || "Unknown error."} This is
+              not the same as zero referrals — retry rather than treating this as empty.
             </div>
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
@@ -139,16 +144,20 @@ export function TechnicianReferralsPanel() {
                           <Check className="w-3 h-3" /> Mark hired
                         </button>
                       )}
-                      {r.status === "eligible" && (
-                        <button
-                          type="button"
-                          onClick={() => markPaid.mutate({ id: r.id })}
-                          disabled={markPaid.isPending}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
-                        >
-                          <Check className="w-3 h-3" /> Mark paid
-                        </button>
-                      )}
+                      {r.status === "eligible" && (() => {
+                        const stillWaiting = r.eligibleAt ? new Date(r.eligibleAt).getTime() > Date.now() : true;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => markPaid.mutate({ id: r.id })}
+                            disabled={markPaid.isPending || stillWaiting}
+                            title={stillWaiting ? "The 90-day wait isn't up yet." : undefined}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 rounded transition-colors disabled:opacity-50"
+                          >
+                            <Check className="w-3 h-3" /> Mark paid
+                          </button>
+                        );
+                      })()}
                       {(r.status === "pending" || r.status === "eligible") && (
                         <button
                           type="button"

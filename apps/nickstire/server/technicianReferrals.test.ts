@@ -139,6 +139,39 @@ describe("markHired stamps eligibility as a stored fact, not a later recomputati
   });
 });
 
+describe("markPaid enforces the 90-day wait server-side, not just via the button being shown", () => {
+  it("fetches the referral and checks both status and eligibleAt before paying", () => {
+    const block = ROUTER_SRC.slice(
+      ROUTER_SRC.indexOf("markPaid: adminProcedure"),
+      ROUTER_SRC.indexOf("disqualify: adminProcedure"),
+    );
+    expect(block).toMatch(/getTechnicianReferralById\(input\.id\)/);
+    expect(block).toMatch(/referral\.status !== "eligible"/);
+    expect(block).toMatch(/referral\.eligibleAt\.getTime\(\) > Date\.now\(\)/);
+    expect(block).toMatch(/throw new TRPCError/);
+  });
+
+  it("getTechnicianReferralById exists in db.ts and throws on a missing row rather than returning undefined", () => {
+    const fn = DB_SRC.slice(
+      DB_SRC.indexOf("export async function getTechnicianReferralById"),
+      DB_SRC.indexOf("export async function updateTechnicianReferralStatus"),
+    );
+    expect(fn).toMatch(/if \(!row\) throw new Error/);
+  });
+});
+
+describe("submit does not trust a caller-supplied leadId at face value", () => {
+  it("createTechnicianReferral looks the lead up and only keeps leadId when it is a real careers-source lead", () => {
+    const fn = DB_SRC.slice(
+      DB_SRC.indexOf("export async function createTechnicianReferral"),
+      DB_SRC.indexOf("export async function getTechnicianReferrals"),
+    );
+    expect(fn).toMatch(/\.from\(leads\)/);
+    expect(fn).toMatch(/lead\.source !== "careers"/);
+    expect(fn).toMatch(/leadId = null;/);
+  });
+});
+
 describe("permissionForAdminProcedure covers technicianReferrals explicitly", () => {
   it("does NOT fall through to the fail-closed security.manage default on mutations", () => {
     expect(permissionForAdminProcedure("technicianReferrals.markPaid", "mutation")).toBe("leads.manage");
@@ -190,5 +223,23 @@ describe("Careers.tsx: the Google Jobs datePosted fix stays fixed, and referral 
     expect(onSuccessBlock.indexOf("setSubmitted(true);")).toBeLessThan(
       onSuccessBlock.indexOf("submitTechReferral.mutate"),
     );
+  });
+
+  it("the referrer's phone rides along in the durable lead fallback, not just their name", () => {
+    // If technicianReferrals.submit hits migrationPending, the structured row
+    // is never written and leads.problem is the only place this survives —
+    // dropping the phone there would be a silent, permanent data loss.
+    const problemTextBlock = CAREERS_SRC.slice(
+      CAREERS_SRC.indexOf("const problemText = ["),
+      CAREERS_SRC.indexOf("submitLead.mutate({"),
+    );
+    expect(problemTextBlock).toMatch(/form\.referredByPhone/);
+  });
+});
+
+describe("migration 0121 is registered in the drizzle journal", () => {
+  it("drizzle/meta/_journal.json has a 0121_technician_referrals entry, or db-migrate.ts will skip the table forever", () => {
+    const journal = readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8");
+    expect(journal).toMatch(/"0121_technician_referrals"/);
   });
 });

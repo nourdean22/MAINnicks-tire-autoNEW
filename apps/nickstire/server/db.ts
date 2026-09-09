@@ -7,6 +7,7 @@ import {
   customerVehicles, InsertCustomerVehicle,
   serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
+  leads,
   technicianReferrals, InsertTechnicianReferral, TechnicianReferral,
   candidates, InsertCandidate, Candidate,
   mechanicQA, InsertMechanicQA,
@@ -438,7 +439,18 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
-    const result = await db.insert(technicianReferrals).values(referral);
+    // `submit` is a public procedure — the caller supplies leadId directly, so
+    // it cannot be trusted as-is: an unauthenticated caller could attach a
+    // fabricated $300 referral claim to an arbitrary sequential lead ID.
+    // Verify the lead exists and actually came from /careers before storing
+    // the association; otherwise keep the referral (still worth recording —
+    // the applicant's own name/phone are separate) but drop the association.
+    let leadId = referral.leadId ?? null;
+    if (leadId != null) {
+      const [lead] = await db.select({ id: leads.id, source: leads.source }).from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (!lead || lead.source !== "careers") leadId = null;
+    }
+    const result = await db.insert(technicianReferrals).values({ ...referral, leadId });
     return { success: true, id: Number(result[0].insertId) } as const;
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -464,6 +476,15 @@ export async function getTechnicianReferrals() {
     }
     throw err;
   }
+}
+
+/** Single-row read for router-side gating (e.g. markPaid's 90-day check) — throws if the row doesn't exist. */
+export async function getTechnicianReferralById(id: number): Promise<TechnicianReferral> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select().from(technicianReferrals).where(eq(technicianReferrals.id, id)).limit(1);
+  if (!row) throw new Error(`Technician referral #${id} not found`);
+  return row;
 }
 
 export async function updateTechnicianReferralStatus(

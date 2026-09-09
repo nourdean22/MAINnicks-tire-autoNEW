@@ -147,8 +147,20 @@ describe("schema: candidates.status is VARCHAR, not ENUM — the nickstire-tidb-
       SCHEMA_SRC.indexOf('export const technicianReferrals = mysqlTable("technician_referrals"'),
       SCHEMA_SRC.indexOf("export type TechnicianReferral"),
     );
-    expect(table).toMatch(/candidateId: int\("candidateId"\)\.references\(\(\) => candidates\.id/);
-    expect(table).toMatch(/leadId: int\("leadId"\)\.references\(\(\) => leads\.id/);
+    // Plain nullable INT, no `.references()` — matches vehicle_visits.customerId
+    // and the migration's own hand-written "no SQL-level FK" convention. A
+    // `.references({onDelete: "set null"})` here would be fiction: this
+    // migration is hand-written, not drizzle-kit-generated, so nothing would
+    // actually enforce the ON DELETE behavior it claims.
+    expect(table).toMatch(/candidateId: int\("candidateId"\),/);
+    expect(table).toMatch(/leadId: int\("leadId"\),/);
+    expect(table).not.toMatch(/leadId: int\("leadId"\)\.references/);
+    expect(table).not.toMatch(/candidateId: int\("candidateId"\)\.references/);
+  });
+
+  it("migration 0122 is registered in the drizzle journal, or db-migrate.ts will skip the table forever", () => {
+    const journal = readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8");
+    expect(journal).toMatch(/"0122_candidates"/);
   });
 });
 

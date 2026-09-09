@@ -4695,13 +4695,21 @@ export const technicianReferrals = mysqlTable("technician_referrals", {
    * candidates.submit endpoint (see `candidates` table below); additive,
    * both columns are nullable so neither cutover step can break the other.
    */
-  leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
-  candidateId: int("candidateId").references(() => candidates.id, { onDelete: "set null" }),
+  // Plain nullable INT, not `.references()` — matching vehicle_visits.customerId
+  // above and the migration's own stated convention (0121_technician_referrals.sql:
+  // "no SQL-level FOREIGN KEY constraint"). A drizzle `.references({onDelete:
+  // "set null"})` call is a promise drizzle-kit would enforce with a real DB
+  // constraint if it generated this migration — it doesn't, this migration is
+  // hand-written, so that promise would be fiction: deleting a lead would leave
+  // a dangling leadId here forever, not null it out. Referential integrity is
+  // app-enforced, not DB-enforced, for all three of these columns.
+  leadId: int("leadId"),
+  candidateId: int("candidateId"),
   referrerName: varchar("referrerName", { length: 255 }).notNull(),
   /** Optional — lets the shop text/call the referrer when the bonus is due. */
   referrerPhone: varchar("referrerPhone", { length: 30 }),
-  /** Admin-linked match to a current employee record — never auto-matched. */
-  referrerTechnicianId: int("referrerTechnicianId").references(() => technicians.id, { onDelete: "set null" }),
+  /** Admin-linked match to a current employee record — never auto-matched. Plain INT, no FK — see leadId above. */
+  referrerTechnicianId: int("referrerTechnicianId"),
   /** Role the referred applicant applied for, captured at submit time. */
   positionTitle: varchar("positionTitle", { length: 100 }),
   /**

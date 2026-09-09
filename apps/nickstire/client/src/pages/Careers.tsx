@@ -381,7 +381,11 @@ function ApplicationForm() {
       `Position: ${form.position}`,
       form.experience && `Experience: ${form.experience}`,
       form.message && `About: ${form.message}`,
-      form.referredBy && `Referred by: ${form.referredBy}`,
+      // Also carries the referrer's phone: if technicianReferrals.submit hits
+      // migrationPending (0121 not applied yet), the structured row never
+      // gets written, and this lead's `problem` text is the only place the
+      // referral claim survives — losing the phone here would be permanent.
+      form.referredBy && `Referred by: ${form.referredBy}${form.referredByPhone ? ` (${form.referredByPhone})` : ""}`,
     ].filter(Boolean).join("\n");
 
     submitLead.mutate({

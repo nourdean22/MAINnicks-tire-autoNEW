@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   createTechnicianReferral,
   getTechnicianReferrals,
+  getTechnicianReferralById,
   updateTechnicianReferralStatus,
 } from "../db";
 import { sanitizeText, sanitizePhone } from "../sanitize";
@@ -90,9 +91,27 @@ export const technicianReferralsRouter = router({
       return { success: true, eligibleAt };
     }),
 
+  /**
+   * The advertised bonus is "$300 AFTER 90 DAYS" — markHired sets status to
+   * "eligible" immediately (which is what unlocks the panel's Mark Paid
+   * button), but eligibility for the button to be SHOWN is not the same as
+   * eligibility for the payout to be OWED. Re-check eligibleAt here, not just
+   * status, so a just-hired referral can't be paid same-day even via a stale
+   * client or a direct mutation call.
+   */
   markPaid: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
+      const referral = await getTechnicianReferralById(input.id);
+      if (referral.status !== "eligible") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Referral must be marked hired and eligible before it can be paid." });
+      }
+      if (!referral.eligibleAt || referral.eligibleAt.getTime() > Date.now()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Not eligible until ${referral.eligibleAt ? referral.eligibleAt.toISOString().split("T")[0] : "unknown"} — the 90-day wait isn't up yet.`,
+        });
+      }
       await updateTechnicianReferralStatus(input.id, { status: "paid", paidAt: new Date() });
       logAdminAction({
         action: "technician_referral.marked_paid",
