@@ -10,11 +10,24 @@
 -- `seq` carries the last applied emission sequence so an out-of-order or duplicate
 -- delivery cannot move a visit backwards.
 --
--- WARNING: NO PRODUCER IS WIRED YET. visitd's cloud client posts to
--- {baseUrl}/api/devices/{id}/events on its StateNour base URL, and nothing in
--- camera-bridge/ references the nickstire ingest route. Until visitd gains a second
--- sink this table stays empty and the Lot section correctly reports
--- "awaiting first event". Applying this migration is therefore safe and inert.
+-- PRODUCER STATUS (corrected 2026-09-09; the original note below it is superseded).
+-- Two producers now exist, both on branches open at the time of writing:
+--   * camera-bridge/vision/run_live.py -- VisitSink + --post-to, so the vision
+--     pipeline's emissions can be posted straight at this route.
+--   * camera-bridge/visitd/shop_mirror.py -- a best-effort mirror wired into
+--     visitd's after_step, accumulating per-visit rows because the ingest does a
+--     guarded full-column replace. send() never raises, so a shop-side outage
+--     cannot take visitd down.
+-- The ORIGINAL note here read "NO PRODUCER IS WIRED YET ... nothing in
+-- camera-bridge/ references the nickstire ingest route". That was true when this
+-- migration was written and is now false; it is corrected rather than deleted so
+-- the change of state is visible.
+--
+-- What is still true, and is the operationally important part: applying this
+-- migration is SAFE AND INERT. It is CREATE TABLE IF NOT EXISTS, it is additive,
+-- it drops nothing, and until a producer actually runs against a live camera the
+-- table stays empty and the Lot section correctly reports "awaiting first event"
+-- rather than inventing a lot state.
 --
 -- Every timestamp is NULLABLE on purpose: an unknown time stays unknown rather
 -- than being back-filled with a plausible guess. `estimatedFields` records which
