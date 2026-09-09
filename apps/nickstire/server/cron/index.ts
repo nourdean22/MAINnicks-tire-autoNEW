@@ -139,6 +139,18 @@ let _lockTableMissingLogged = false;
  * concurrent processes. If locked_until is in the past, the UPDATE branch
  * steals; otherwise the row is untouched.
  */
+/**
+ * Locks this process currently holds, so shutdown can hand them back.
+ *
+ * A deploy replaces the container mid-pulse and the dying process never
+ * released its lock, so the job stayed blocked for the FULL TTL - which the
+ * per-job budget work lengthened from 10 minutes to 28 for reel-pipeline.
+ * Measured 2026-09-09: a holder took the lock at 12:41, the 12:49 deploy killed
+ * it, and reel-pipeline was skipped on every pulse until 13:09. Six deploys
+ * that day, so roughly an hour of dead pipeline nobody asked for.
+ */
+const heldLocks = new Map<string, LockToken>();
+
 export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_MS): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
@@ -169,9 +181,11 @@ export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_
     `);
     const arr = rows as Array<{ lock_token: string; holder: string }>;
     if (arr.length === 0) return { status: "held-by-other" };
-    return arr[0].lock_token === newToken
-      ? { status: "acquired", jobName, token: newToken }
-      : { status: "held-by-other" };
+    if (arr[0].lock_token !== newToken) return { status: "held-by-other" };
+    // Remember it so shutdown can hand it back instead of leaving the job
+    // blocked for a full TTL after a deploy replaces this container.
+    heldLocks.set(jobName, newToken);
+    return { status: "acquired", jobName, token: newToken };
   } catch (err) {
     // Differentiate "table missing" (expected during migration window —
     // proceed with in-memory lock) from "query error" (real bug — still
@@ -198,12 +212,55 @@ export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_
  * into a loud signal — that exact scenario is the double-fire the
  * lock subsystem exists to prevent.
  */
+/**
+ * SHORTEN, don't delete, the locks this dying process holds.
+ *
+ * Deleting outright would be wrong in the one case that matters: a SIGTERM the
+ * process survives. Shortening to a 90-second grace window keeps the
+ * double-fire guard meaningful while cutting post-deploy dead time from a full
+ * TTL to about a minute. Guarded on our own token, so a lock already stolen by
+ * another dyno is left completely alone.
+ *
+ * Never throws: shutdown must not be blocked by a lock we could not tidy.
+ */
+export const SHUTDOWN_LOCK_GRACE_SECONDS = 90;
+
+export async function relinquishHeldLocksForShutdown(): Promise<{ shortened: string[] }> {
+  const out: { shortened: string[] } = { shortened: [] };
+  if (!heldLocks.size) return out;
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return out;
+    for (const [jobName, token] of heldLocks) {
+      try {
+        const [result] = await db.execute(sql`
+          UPDATE cron_locks
+             SET locked_until = DATE_ADD(NOW(), INTERVAL ${sql.raw(String(SHUTDOWN_LOCK_GRACE_SECONDS))} SECOND)
+           WHERE name = ${jobName}
+             AND lock_token = ${token}
+             AND locked_until > DATE_ADD(NOW(), INTERVAL ${sql.raw(String(SHUTDOWN_LOCK_GRACE_SECONDS))} SECOND)
+        `);
+        if (((result as { affectedRows?: number })?.affectedRows ?? 0) > 0) out.shortened.push(jobName);
+      } catch { /* one lock failing must not stop the rest */ }
+    }
+    if (out.shortened.length) {
+      log.info("shutdown: shortened held cron locks so the next dyno can pick up", {
+        jobs: out.shortened, graceSeconds: SHUTDOWN_LOCK_GRACE_SECONDS,
+      });
+    }
+  } catch { /* shutdown is best-effort */ }
+  return out;
+}
+
 export async function releaseCronLock(lock: Extract<LockResult, { status: "acquired" }>): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return;
+    heldLocks.delete(lock.jobName);
     const [result] = await db.execute(sql`DELETE FROM cron_locks WHERE name = ${lock.jobName} AND lock_token = ${lock.token}`);
     // mysql2 returns { affectedRows: N } on DELETE
     const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;

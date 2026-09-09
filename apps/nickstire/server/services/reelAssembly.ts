@@ -464,6 +464,27 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "medium",
     "-crf",
     "20",
+    // TAG THE COLOUR SPACE. The encode wrote UNTAGGED H.264, which is not a
+    // neutral choice - it is an ambiguous one. Every decoder then guesses, and
+    // they do not guess alike: Instagram's transcoder, Safari, Chrome and QuickTime
+    // each apply their own default matrix to untagged 8-bit 4:2:0. The reel that
+    // looked right in the render can arrive on a phone washed out, crushed or
+    // shifted in hue, and nothing upstream would ever show it, because our own QA
+    // reads the same untagged file with the same assumption that produced it.
+    //
+    // Rec.709 is the correct declaration for this pipeline: the sources are 8-bit
+    // SDR, the deliverable is 1080x1920 SDR, and 709 is the HD standard every
+    // consumer surface expects. This tags what we are ALREADY producing; it does
+    // not convert anything, so no existing render changes appearance - it stops
+    // the guessing.
+    "-colorspace",
+    "bt709",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-color_range",
+    "tv",
     ...(hasAudio ? ["-c:a", "aac", "-b:a", "192k", "-ac", "2"] : ["-an"]),
     "-movflags",
     "+faststart",

@@ -243,10 +243,18 @@ The generator (Seedance) CANNOT spell — any word, number, gauge reading, scree
 One prompt per beat: vertical 9:16, clip length = beat duration, subject + motion + style from the chosen lens/archetype/character. The scene is UNPOPULATED and UNBRANDED: design each beat so the generator renders NO words, numbers, logos, signage, screens-with-readings, or human faces/hands/gloves in the first place. Do NOT author a negative prompt or name banned concepts (text, letters, logo, watermark) in a "do not include" clause — naming a banned concept in a negation makes the generator render it; the deterministic negative prompt is compiled downstream, not by you. On-screen TEXT is added in assembly, not generation — never ask the generator to render words.`);
 
   sections.push(`# FFMPEG REQUIREMENTS (plan only — never executed by you)
-Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. A cut/push/text change every 1.5-2.5s. Audio: music bed + the REQUIRED voiceover script (see VOICEOVER CONTRACT) - and the reel must STILL teach muted. Pick a face-free cover frame.`);
+Concat beat clips -> libx264, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, -movflags +faststart. Audio: music bed + the REQUIRED voiceover script (see VOICEOVER CONTRACT) - and the reel must STILL teach muted. Pick a face-free cover frame.
+
+PACING IS A CHOICE PER BEAT, NOT A METRONOME. This block used to prescribe "a cut/push/text change every 1.5-2.5s" for every reel ever made. That is a sound floor against slideshow output and a bad ceiling: it made the whole corpus move at one speed. Choose the beat's motion from its JOB:
+- REVEAL or shock: fast, under a second, the change IS the point.
+- INSPECTION or suspense: hold. A slow push on real damage can earn three or four seconds of one shot.
+- MECHANIC EXPLANATION: long enough that a viewer can actually read the evidence being described.
+- SATISFYING PROCESS: rhythmic and repetitive; let the rhythm carry it.
+- PREMIUM PRODUCT: fewer, more confident moves.
+No beat may be a static frame with nothing moving - that is the slideshow the old rule existed to prevent - but two consecutive beats must not move at the same speed for the same reason.`);
 
   sections.push(`# CAPTION STRUCTURE
-7 hook options (first lines). Selected caption = hook + 1-2 plain-English teaching lines. 3-12 hashtags, locally weighted. ASCII characters only.
+7 hook options (first lines). Selected caption = hook + 1-2 plain-English teaching lines. 0-5 hashtags, locally weighted - Instagram capped captions at FIVE in December 2025 and the pipeline trims the excess downstream, so anything past five is written and then thrown away. Zero is allowed and often better than five weak ones. ASCII characters only.
 
 ONE ASK PER REEL, AND IT IS NOT YOURS TO WRITE. The ask is a declared field on
 the brief and is rendered once, on the end card. Do NOT write a call to action

@@ -502,6 +502,52 @@ export interface HiggsfieldBeatPrompt {
   conditioningMode?: ConditioningMode;
 }
 
+/**
+ * THE PALETTE EACH LENS ACTUALLY WANTS.
+ *
+ * One hardcoded line - "graphite black and deep shadow tones with gold #FDB913
+ * accent highlights" - was pushed into the continuity block of EVERY autonomous
+ * reel. Two problems, and the second is worse than the first.
+ *
+ * MONOTONY: 166 produced packs, and the corpus is visually interchangeable. A
+ * distinctive brand asset used as the ground instead of an accent stops being
+ * distinctive; it just becomes the only thing the account looks like.
+ *
+ * CONTRADICTION: it fought the lens grammar it was printed beside.
+ * xray_cutaway asks for "cool schematic glow, clean dark field"; blueprint_
+ * technical asks for a drafting field; tilt_shift_miniature asks for "bright
+ * even daylight". The palette line then demanded deep shadow and gold over all
+ * three. The generator received two instructions and split the difference,
+ * which is the reliable way to make everything look like the same murky
+ * AI-commercial render.
+ *
+ * Nick yellow (#FDB913) survives in every world - as an ACCENT, the 5-15% it
+ * should have been. The brand code stays; the mood changes.
+ */
+export const LENS_PALETTES: Record<MotionLens, string> = {
+  extreme_macro_push_in: "deep graphite and black field, one hard key light raking the surface, gold #FDB913 only as a rim accent on the hero edge.",
+  tilt_shift_miniature: "bright even daylight, clean saturated model-shop colours, gold #FDB913 as a single prop or marker accent.",
+  xray_cutaway: "cool schematic blue-white on a clean dark field, translucent layers, gold #FDB913 reserved for the one annotated detail.",
+  anthropomorphized_object: "practical shop lighting on neutral concrete, warm tungsten pools, gold #FDB913 accent on one prop.",
+  surreal_scale: "epic natural light with grounded shadows, palette taken from the real environment, gold #FDB913 as the single human-made accent.",
+  optical_illusion_morph: "flat even lighting and high-contrast graphic colour so the morph reads, gold #FDB913 as one of two dominant tones.",
+  hyperreal_cinematic: "deep graphite and shadow, controlled highlight roll-off, gold #FDB913 rim light - the premium world.",
+  claymation_stop_motion: "soft toy-set lighting, matte plasticine colour, visible fingerprints, gold #FDB913 as a moulded accent.",
+  blueprint_technical: "drafting blue and paper white, precise line weight, gold #FDB913 for the one callout that matters.",
+  neon_retro_futurist: "magenta and cyan neon on wet black, chrome reflections, gold #FDB913 as the warm third light.",
+  forensic_evidence_scan: "controlled dark field with one narrow inspection beam, evidence-table neutrality, gold #FDB913 on the marker only.",
+  product_ad_macro: "seamless studio sweep, soft box gradient, restrained gold #FDB913 rim - the catalogue world.",
+  weather_radar_overlay: "cold grey-blue Cleveland daylight, wet asphalt sheen, gold #FDB913 as the alert colour.",
+  warning_light_world: "near-black cabin dark with amber instrument glow, gold #FDB913 as the warning source itself.",
+};
+
+/**
+ * Nick yellow is a DISTINCTIVE ASSET, not a filter. It must appear in every
+ * reel and dominate almost none of them.
+ */
+export const BRAND_ACCENT_RULE =
+  "Nick yellow #FDB913 appears as a deliberate accent on roughly 5-15% of the frame - one edge, one marker, one light source. It is never a global colour cast or a full-field wash.";
+
 export const VISUAL_WORLD_STYLES = ["safe", "bold", "experimental"] as const;
 export type VisualWorldStyle = (typeof VISUAL_WORLD_STYLES)[number];
 
@@ -1396,7 +1442,8 @@ export function buildReelContinuityBlock(
   return [
     `VISUAL CONTINUITY (identical in every shot of this reel):`,
     `Hero subject: ${character.label} - ${character.essence} First established as: ${heroAnchor}`,
-    `Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.`,
+    `Palette: ${LENS_PALETTES[brief.motionLens] ?? LENS_PALETTES.hyperreal_cinematic}`,
+    BRAND_ACCENT_RULE,
     `Same hero object design, same environment, same lighting direction, and same weather in every shot.`,
     `Never change the hero object's shape, tread/surface pattern, damage location, or color between shots.`,
   ].join("\n");
