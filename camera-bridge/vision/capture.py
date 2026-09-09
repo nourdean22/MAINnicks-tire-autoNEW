@@ -305,6 +305,33 @@ class V380WindowSource(CaptureSource):
         return f
 
 
+def restore_if_minimized(hwnd: int) -> bool:
+    """Un-minimise a window WITHOUT stealing focus. Returns True if it was minimised.
+
+    A minimised window renders no surface, so Windows Graphics Capture delivers nothing
+    and the producer dies with "no frame within 5s". This was hit twice on 2026-09-09
+    against the live V380 app: on the shop machine anyone who clicks minimise silently
+    stops the lot being watched, and nothing in the failure text says which of the many
+    causes it was.
+
+    SW_SHOWNOACTIVATE (4), not SW_RESTORE (9): the operator may be using the machine, and
+    a monitoring producer has no business stealing their foreground window.
+    """
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        if not user32.IsWindow(hwnd):
+            return False
+        if not user32.IsIconic(hwnd):
+            return False
+        user32.ShowWindow(hwnd, 4)
+        time.sleep(0.6)
+        return True
+    except Exception:
+        return False
+
+
 class WgcWindowSource(CaptureSource):
     """Windows Graphics Capture of one window. The best desktop lane, measured.
 
@@ -345,6 +372,10 @@ class WgcWindowSource(CaptureSource):
         self._lock = None
         self._ctrl = None
         self._delivered = 0
+        #: How many times this source had to un-minimise its target to keep working.
+        #: Non-zero means somebody is minimising the camera app on the shop machine --
+        #: worth surfacing as producer health rather than silently self-healing forever.
+        self.restores = 0
 
     def open(self) -> None:
         import threading
@@ -378,9 +409,25 @@ class WgcWindowSource(CaptureSource):
                 if self._latest is not None:
                     return
             time.sleep(0.05)
+
+        # No frame. Before giving up, check the one cause that is both common and
+        # trivially fixable: the window is minimised, so it renders nothing at all.
+        if self.window_hwnd is not None and restore_if_minimized(int(self.window_hwnd)):
+            self.restores += 1
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                with self._lock:
+                    if self._latest is not None:
+                        return
+                time.sleep(0.05)
+            raise ConnectionError(
+                f"Windows Graphics Capture produced no frame for {self.window_hwnd} "
+                f"even after un-minimising it -- the app may be closed or on another desk"
+            )
         raise ConnectionError(
             f"Windows Graphics Capture produced no frame for "
-            f"{self.window_hwnd or self.window_title!r} within 5s"
+            f"{self.window_hwnd or self.window_title!r} within 5s "
+            f"(window was NOT minimised, so this is not the minimise case)"
         )
 
     def read(self) -> Optional[Frame]:
