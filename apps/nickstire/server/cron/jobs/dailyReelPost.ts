@@ -48,6 +48,22 @@ import {
 const log = createLogger("cron:daily-reel-post");
 
 const POST_HOUR_ET = 9;
+
+/**
+ * Rendered-QA gate values that WAIT ON A HUMAN and therefore read identically on
+ * every future pulse: needs_paid_repair parks until an operator authorizes the
+ * spend, reject and stock_fallback park until the reel is regenerated.
+ *
+ * Deliberately EXCLUDED, because these do change by themselves and belong to the
+ * gate chain: auto_repair (the chain queues the free repair, QA re-verdicts the
+ * new render), unavailable (QA has not run yet, or could not be read - the chain
+ * fails closed on it), needs_review, and disabled (which is allowed anyway).
+ *
+ * Used ONLY to decide what is worth SELECTING in the drain. The authoritative
+ * chain still runs in full on whatever is selected, so no reel reaches Instagram
+ * that the chain would refuse.
+ */
+const PARKED_QA_GATES: ReadonlySet<string> = new Set(["needs_paid_repair", "reject", "stock_fallback"]);
 export const REEL_READY_TARGET = 3;
 export const REEL_READY_LOW_WATERMARK = 1;
 
@@ -458,6 +474,48 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       if (cDupe) {
         skipped.push({ jobId: candidate.id, code: `repost:${cDupe.surface}` });
         continue;
+      }
+
+      // PARKED-QA PRE-FILTER. The comment above says rendered-QA states are
+      // "transient" and belong to the gate chain. That is true of auto_repair
+      // (the chain queues the free repair and the verdict changes by itself)
+      // and of a verdict not yet computed. It is NOT true of the states that
+      // wait on a human: needs_paid_repair parks until an operator authorizes
+      // spend; reject and stock_fallback park until the reel is regenerated.
+      // Those read identically on every future pulse, so a candidate in one of
+      // them is exactly the jam this pre-filter exists to prevent.
+      //
+      // Live example this was written against: job 1890002 (autopost-2026-09-09)
+      // came back from the vision critic with three BLOCK findings - the hero
+      // object changes from a compact spare to a full-size tire mid-reel - which
+      // route to a PAID beat regeneration. It was selected on every pulse on
+      // 2026-09-09 and held, so NOTHING posted that day while 29 other reels sat
+      // approved behind it with a clean "approve" verdict.
+      //
+      // Read-only on purpose: runIfMissing:false reuses the persisted verdict and
+      // never runs QA here, so this filter cannot spend money, cannot mutate the
+      // job, and cannot manufacture a verdict. A candidate whose QA has not run
+      // yet returns "unavailable" and is deliberately NOT skipped - that one IS
+      // transient and still belongs to the chain, unchanged.
+      //
+      // Nothing here can let a reel through that the chain would refuse: the full
+      // gate still runs on whatever is selected. This only decides what is worth
+      // SELECTING.
+      try {
+        const { evaluateReelPublishGate } = await import("../../services/qualityGate");
+        const cGate = await evaluateReelPublishGate(candidate.id, { runIfMissing: false });
+        if (!cGate.allowed && PARKED_QA_GATES.has(cGate.gate)) {
+          skipped.push({ jobId: candidate.id, code: `qa_parked:${cGate.gate}` });
+          continue;
+        }
+      } catch (err) {
+        // A gate that cannot be READ is not a gate that passed, but it is also
+        // not evidence against this candidate: leave it selectable and let the
+        // authoritative chain below decide (it fails closed on error).
+        log.warn("daily reel: parked-QA pre-filter read failed; leaving candidate selectable", {
+          jobId: candidate.id,
+          err: err instanceof Error ? err.message : String(err),
+        });
       }
 
       job = candidate;
