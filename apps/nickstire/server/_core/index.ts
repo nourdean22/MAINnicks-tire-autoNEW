@@ -80,6 +80,7 @@ import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
 import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
+import { registerCameraVisitsRoute } from "../routes/cameraVisitsRoutes";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
 import { registerMetaRoutes } from "../routes/metaRoutes";
@@ -507,6 +508,7 @@ async function startServer() {
   registerSimulatorRoute(app);
   registerNourChiefStrategistRoute(app);
   registerNourOsQueryRoute(app);
+  registerCameraVisitsRoute(app);
   registerMetaRoutes(app);
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
