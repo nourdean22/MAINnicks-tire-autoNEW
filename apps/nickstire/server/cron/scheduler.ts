@@ -1167,6 +1167,7 @@ function buildTiers(): void {
         timeoutMs: 14 * 60 * 1000,
         handler: async () => {
           const { processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs,
+                  resumeTimedOutReelJobs,
                   selectReelVideoProvider, reelProviderCredentialsPresent } = await import(
             "../services/reelPipeline"
           );
@@ -1181,6 +1182,16 @@ function buildTiers(): void {
           const recovered = await recoverStuckReelJobs()
             .then((r) => r.recovered)
             .catch(() => 0);
+          // Then: put back any job a provider TIMEOUT left dead. Distinct from
+          // the recovery above (which frees rows a crashed worker still holds):
+          // these are terminal needs_regen rows holding paid clips that nothing
+          // ever retried, so each timeout used to cost a schedule slot until a
+          // human noticed. Bounded, guarded and refusing anything that is not
+          // plainly resumable - see resumeTimedOutReelJobs. Never throws the
+          // pulse: a failure here leaves the rows exactly as dead as before.
+          const resumed = await resumeTimedOutReelJobs()
+            .then((r) => r.resumed.length)
+            .catch((e) => { log.warn("reel-pipeline: timed-out-job resume failed", { err: e instanceof Error ? e.message : String(e) }); return 0; });
           // ASSEMBLY RUNS BEFORE GENERATION, up to three jobs per pulse. Assembly
           // is ~1 min of ffmpeg over clips that already exist; generation is
           // ~11 min of paid rendering. When gen ran first, every finished-clip
@@ -1228,12 +1239,13 @@ function buildTiers(): void {
           const rep = await settle(processNextRepairJob());
           const details = [
             recovered ? `recovered ${recovered}` : null,
+            resumed ? `resumed ${resumed} timed-out` : null,
             ...asms.map((a) => `assemble ${a.jobId ?? "?"}: ${a.status}`),
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
             rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
           const result = {
-            recordsProcessed: recovered + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
+            recordsProcessed: recovered + resumed + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
           // Assembly/repair have already run above — this re-throws AFTER them,

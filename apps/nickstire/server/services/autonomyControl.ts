@@ -67,6 +67,31 @@ export const autonomyPolicyStrictSchema = z.object({
     newTerritory: z.boolean(),
     unresolvedEvidence: z.boolean(),
   }).strict(),
+  /**
+   * SPEND THE BUDGET THAT IS ALREADY SET, WITHOUT ASKING FIRST.
+   *
+   * Added 2026-09-09. A rendered-QA verdict of needs_paid_repair is a real
+   * defect with a known fix whose only obstacle is that the fix costs credits.
+   * Before this, every one parked until an operator authorized that specific
+   * spend - measured: 30 consecutive daily-reel-post pulses held on job 1890002,
+   * with the whole channel dark behind it for a day.
+   *
+   * "auto" does NOT mean unbounded. The repair is queued through the same
+   * requestBeatRepair the operator button uses, which prices the beat at the
+   * ACTIVE provider and calls enforceAtBoundary with today's real spend - so
+   * limits.maxGenerationCostPerDayUsd and limits.maxRepairAttemptsPerAsset are
+   * still the ceilings, and a repair that would breach either is refused and
+   * the reel simply stays held, exactly as before.
+   *
+   * OPTIONAL WITH A DEFAULT on purpose: the schema is .strict(), and every
+   * policy row written before this field existed must keep validating. Missing
+   * key reads as approval_required, which is the pre-2026-09-09 behaviour, so
+   * this cannot silently turn spending on for anyone who has not chosen it.
+   */
+  autonomousRepair: z.object({
+    /** manual | approval_required | auto - "auto" spends within the limits above. */
+    paidBeatRegeneration: permission,
+  }).strict().default({ paidBeatRegeneration: "approval_required" }),
   emergencyControls: z.object({
     globalKillSwitch: z.boolean(),
     generationKillSwitch: z.boolean(),

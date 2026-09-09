@@ -1432,6 +1432,105 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
  *
  * SAFETY: same REEL_GENERATION_ENABLED kill-switch — never touches the DB when off.
  */
+/**
+ * Maximum times the pipeline will resume the SAME job by itself. A resume is
+ * cheap and safe, but a job that keeps timing out is telling us something the
+ * cron cannot fix, and an unbounded retry would spend real credits discovering
+ * that over and over.
+ */
+export const MAX_AUTO_RESUMES = 2;
+
+/**
+ * PUT A TIMED-OUT JOB BACK IN THE QUEUE INSTEAD OF LEAVING IT DEAD.
+ *
+ * A provider timeout lands the job in `needs_regen` - terminal, no worker
+ * holds it - while the clips it already generated are saved and PAID FOR
+ * (the generator writes each beat progressively). Nothing retried those rows,
+ * so every timeout was a permanently lost schedule slot until an operator
+ * noticed: three slots sat dead from 2026-09-07 to 2026-09-09 holding 8 paid
+ * clips between them.
+ *
+ * The generator already resumes per beat - it skips any beat whose clip entry
+ * is already an http url - so a resume is just the row put back in `queued`,
+ * and it costs only the beats that are actually missing.
+ *
+ * REFUSES anything that is not plainly the resume case:
+ *   · status is not exactly `needs_regen` (never touch a row a worker holds)
+ *   · the job already published
+ *   · no beats, or no prompt pack to generate from
+ *   · saved clips are not a clean PREFIX of the beats - a gap, or a full set,
+ *     is a different problem and a human should see it
+ *   · it has already been auto-resumed MAX_AUTO_RESUMES times
+ *
+ * The write is guarded on id AND status, so a row that changed underneath is
+ * left alone. Spend stays bounded by the ordinary generation governor, which
+ * runs when the pipeline picks the job up - this function authorizes nothing,
+ * it only makes the job eligible again.
+ */
+export async function resumeTimedOutReelJobs(limit = 5): Promise<{ resumed: number[]; skipped: Array<{ jobId: number; why: string }> }> {
+  const out: { resumed: number[]; skipped: Array<{ jobId: number; why: string }> } = { resumed: [], skipped: [] };
+  if (process.env.REEL_GENERATION_ENABLED !== "true") return out;
+
+  const { getDb } = await import("../db");
+  const d = await getDb();
+  if (!d) return out;
+
+  const { reelJobs } = await import("../../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+  const { affectedRowCount } = await import("../lib/db-affected");
+  const { queueStateForReelStatus } = await import("@shared/reelQueue");
+
+  const rows = await d.select().from(reelJobs).where(eq(reelJobs.status, "needs_regen")).limit(limit);
+
+  for (const job of rows) {
+    if (job.igPostId) { out.skipped.push({ jobId: job.id, why: "already_published" }); continue; }
+
+    let payload: Record<string, any> = {};
+    try { payload = JSON.parse(job.payload ?? "{}"); } catch {
+      out.skipped.push({ jobId: job.id, why: "payload_unparseable" });
+      continue;
+    }
+    const beats = (payload.storyboardBeats ?? []).length;
+    const pack = (payload.promptPack ?? payload.higgsfieldPromptPack ?? []).length;
+    if (!beats) { out.skipped.push({ jobId: job.id, why: "no_beats" }); continue; }
+    if (!pack) { out.skipped.push({ jobId: job.id, why: "no_prompt_pack" }); continue; }
+
+    const autoResumes = Number(payload.autoResumes ?? 0);
+    if (autoResumes >= MAX_AUTO_RESUMES) { out.skipped.push({ jobId: job.id, why: "auto_resume_cap" }); continue; }
+
+    let clips: unknown[] = [];
+    try { clips = JSON.parse(job.clipUrlsJson ?? "[]"); } catch {
+      out.skipped.push({ jobId: job.id, why: "clips_unparseable" });
+      continue;
+    }
+    const saved = clips.filter((u) => typeof u === "string" && (u as string).startsWith("http")).length;
+    if (saved !== clips.length) { out.skipped.push({ jobId: job.id, why: "clip_gap" }); continue; }
+    if (clips.length >= beats) { out.skipped.push({ jobId: job.id, why: "nothing_missing" }); continue; }
+
+    payload.autoResumes = autoResumes + 1;
+    const res = await d
+      .update(reelJobs)
+      .set({
+        status: "queued",
+        queueState: queueStateForReelStatus("queued"),
+        attempts: 0,
+        error: null,
+        payload: JSON.stringify(payload),
+      })
+      .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "needs_regen")));
+
+    if (affectedRowCount(res) === 1) {
+      out.resumed.push(job.id);
+      log.info("reel job auto-resumed after a provider timeout", {
+        jobId: job.id, briefId: job.briefId, clipsKept: saved, beatsMissing: beats - saved, autoResume: autoResumes + 1,
+      });
+    } else {
+      out.skipped.push({ jobId: job.id, why: "row_changed_underneath" });
+    }
+  }
+  return out;
+}
+
 export async function recoverStuckReelJobs(): Promise<{ recovered: number }> {
   if (process.env.REEL_GENERATION_ENABLED !== "true") return { recovered: 0 };
 
