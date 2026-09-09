@@ -1222,3 +1222,56 @@ def test_the_freeze_epsilon_sits_below_real_sensor_noise():
         f"live noise {live_delta:.3f} must sit well clear of the epsilon; measured live "
         f"footage was 0.26 minimum"
     )
+
+
+def test_a_parked_car_that_flickers_keeps_its_identity_but_a_departing_one_does_not():
+    """Measured on the live feed: 40 track births for ~7 stationary vehicles in 14 min.
+
+    The confidently-detected cars scored 0.60-1.00, so the churn was the densely-packed
+    background row dipping under the detector floor. With a flat 12-miss tolerance (4s at
+    3fps) each dip KILLED the track, and the next detection CREATED a new one -- born
+    after the boot census, and therefore a candidate for ARRIVAL. Every flicker was a
+    chance to invent a car that never drove in.
+
+    Patience must depend on what the track was doing. A parked car has not left in the
+    next four seconds. A car that was moving when it vanished probably has.
+    """
+    g = TrackGraph()
+    box = car_box(200.0)
+    t = 1000.0
+
+    # Park it: same box, held past `parked_after` (25s at ~3fps needs ~90 frames).
+    for _ in range(90):
+        g.update([Detection(box, 0.9)], t)
+        t += 0.33
+    assert len(g.tracks) == 1
+    parked_id = next(iter(g.tracks))
+    still_for = t - next(iter(g.tracks.values())).still_since
+    assert still_for >= g.parked_after, f"should read as parked, still_for={still_for:.1f}"
+
+    # Detector loses it for far longer than the moving tolerance.
+    for _ in range(g.max_misses + 20):
+        born, died = g.update([], t)
+        t += 0.33
+        assert not born
+    assert parked_id in g.tracks, "a parked car must not be declared gone after a flicker"
+    assert not died, "and must not be reported as departed"
+
+    # It comes back: the SAME track, not a new one -- so no arrival can be minted.
+    born, _ = g.update([Detection(box, 0.9)], t)
+    assert born == [], "a returning parked car is not a new arrival"
+    assert parked_id in g.tracks
+
+    # A MOVING track that vanishes is retired on the short tolerance.
+    g2 = TrackGraph()
+    t2 = 2000.0
+    for i in range(6):
+        g2.update([Detection(car_box(100.0 + 30 * i), 0.9)], t2)
+        t2 += 0.33
+    assert len(g2.tracks) == 1
+    died2 = []
+    for _ in range(g2.max_misses + 2):
+        _, d = g2.update([], t2)
+        died2.extend(d)
+        t2 += 0.33
+    assert died2, "a car that drove off must be retired promptly, not held for a minute"
