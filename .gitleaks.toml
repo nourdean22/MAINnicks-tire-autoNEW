@@ -51,6 +51,25 @@ description = "Ahrefs Web Analytics site key — a public client-side identifier
 regexTarget = "match"
 regexes = [
   '''data-key=["'][A-Za-z0-9+/=_-]{16,64}["']''',
+  # IndexNow verification key — same shape of false positive as the Ahrefs
+  # entry above (a required public identifier, flagged only because gitleaks
+  # scans base..head and this was the first PR to introduce it as new lines).
+  # It is a domain-ownership verification token for the IndexNow protocol
+  # (indexnow.org): the protocol REQUIRES it be served in plaintext at
+  # <site>/<key>.txt so search engines can read it back and confirm the
+  # submitter controls the domain — publicness is the entire mechanism, not
+  # an accident. Receipts: `server/_core/index.ts` has served this exact
+  # value at that exact route (GET /d274e03f24e4438599616695d23dab67.txt) on
+  # `main` since before this entry was added — `curl
+  # https://nickstire.org/d274e03f24e4438599616695d23dab67.txt` returns it to
+  # any caller — and that occurrence never tripped this gate because it
+  # entered the repo in a different PR's base..head range; PR #2254 added a
+  # second occurrence, in scripts/indexnow-submit.mjs, as new lines in its
+  # own range, which is what fired. Matched by exact value, not a general
+  # pattern, so this cannot exempt any other 32-character token — only this
+  # specific published verification key, which is already public regardless
+  # of what this file says.
+  '''INDEXNOW_KEY = "d274e03f24e4438599616695d23dab67"''',
 ]
 # Test-fixture tokens for the agent-bridge scope canary are SYNTHETIC — the
 # file asserts token->scope resolution and never contains a real secret. Path-
