@@ -46,6 +46,7 @@ from visitd.state_machine import VisitTracker, VisitPolicy, CameraSpec  # noqa: 
 RUN_SECONDS = float(sys.argv[1]) if len(sys.argv) > 1 else 75.0
 WINDOW_TITLE = os.environ.get("V380_WINDOW_TITLE", "V380")
 STARTUP_GRACE = 8.0
+COAST_GRACE = 6.0        # hold a momentarily-lost car this long, then let it depart
 SCENE_MOTION_FRAC = 0.33
 MIN_AREA_FRAC = 0.006
 user32 = ctypes.windll.user32
@@ -154,7 +155,12 @@ def main():
                 tr.update(cx=c[0], cy=c[1], box=box, seen=now, degraded=False)
                 if tr["evidence"] != "preexisting":
                     emit("update", tr, tid, now)
-            elif (now - tr["still_since"]) > 2.0 and (now - tr["seen"]) < 900:
+            elif (now - tr["still_since"]) > 2.0 and (now - tr["seen"]) < COAST_GRACE:
+                # Coasting holds a car that the detector momentarily lost. It was bounded
+                # at 900 s, which is longer than any run: `now - seen > 3` could never be
+                # reached while this branch still matched, so a vanished blob stayed in
+                # front_lot emitting updates forever and the DEPARTING/LEFT path this
+                # script advertises was unreachable.
                 tr["coast"] = True
                 if tr["evidence"] != "preexisting":
                     emit("update", tr, tid, now)

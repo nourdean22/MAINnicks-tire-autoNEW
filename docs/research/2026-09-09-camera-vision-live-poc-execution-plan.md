@@ -117,8 +117,8 @@ Each step: **actor** = `[OP]` operator (physical/on-device) or `[AGENT]` coding 
 
 **Track A -- get a clean, verified baseline (do first, in order)**
 
-1. `[AGENT]` **Rebase the work onto `origin/main` `4532b711`** from a fresh worktree (current checkout is a side branch, 4 behind). Per NOURCITY rules: named branch, explicit paths, `npm_config_node_linker=hoisted` for gates, mirror junctions by hand.
-   - **Accept:** `git rev-list --left-right --count origin/main...HEAD` shows `0 <ahead>` on the left.
+1. `[AGENT]` **Start a fresh named branch from `origin/main`** in its own worktree and carry the required changes over by explicit path. Do **not** rebase: the work sits on a branch that has already been pushed, and rewriting shared history is a protected operation (root `AGENTS.md`, Protected operations). Per NOURCITY rules: named branch, explicit paths, `npm_config_node_linker=hoisted` for gates, mirror junctions by hand.
+   - **Accept:** `git rev-list --left-right --count origin/main...HEAD` shows `0 <ahead>` on the left, and `git reflog` shows no rewrite of an already-pushed commit.
 
 2. `[OP]` **SHOPSIGN runbook Steps 0-2** (3): `arp -a`, `Get-NetTCPConnection` on the V380 process, `nmap -p 554,8800,8899,9800 192.168.0.155`, ONVIF WS-Discovery/mDNS/SSDP probe. Snapshot the benign surface **before** any change.
    - **Accept:** written record confirming only 8800/9800 respond (matches the 2026-09-08 finding); SHOPINSIDE left untouched as control.
@@ -126,9 +126,10 @@ Each step: **actor** = `[OP]` operator (physical/on-device) or `[AGENT]` coding 
 3. `[AGENT]` **G0 dry-run against the live SHOPSIGN unit** (VERIFIED route -- `apps/statenour/app/api/devices/[id]/events/route.ts:59`):
    ```
    POST /api/devices/v380-shopsign/events?dryRun=1
-   body: {"items":[{"event":"vehicle_detected", ...}]}
+   body: {"events":[{"event":"vehicle_detected", ...}]}
    ```
-   - **Accept:** response `{dryRun:true, valid:true, report:[{wouldAlert:...}]}` and **zero** DB writes (route returns before `deviceEvent.createMany` at `:89`). This proves the producer contract before wiring any real source.
+   The wrapper key is **`events`**, not `items`: the route does `const items = body.events || [body]` (`route.ts:52`), so an `items` wrapper is swallowed as ONE event whose `event` field is undefined and the probe returns `valid:false` — failing the gate for the wrong reason.
+   - **Accept:** response `{dryRun:true, valid:true, events:[{wouldAlert:...}]}` — the report array comes back under **`events`** (`route.ts:79`), not `report` — and **zero** DB writes (the route returns before `deviceEvent.createMany`). This proves the producer contract before wiring any real source.
 
 **Track B -- make the edge honest (correctness floor)**
 

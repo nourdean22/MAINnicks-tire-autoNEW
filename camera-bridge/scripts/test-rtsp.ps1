@@ -44,6 +44,29 @@ function Test-TcpPort {
     }
 }
 
+function Get-GenerationClass {
+    # Returns a STRUCTURED class, so display colour never depends on scraping the prose.
+    # The previous colour test matched "*Xiongmai -> replace*" against the verdict TEXT,
+    # and the new unknown-generation verdict mentions Xiongmai while explaining how to
+    # tell the two apart -- so every 8800/9800 camera was still painted red as
+    # "replace", preserving the exact signal this script was changed to remove.
+    param([int[]]$Open)
+    if ($Open -contains 554 -or $Open -contains 8899) { return "onvif" }
+    $others = @($Open | Where-Object { $_ -ne 8800 -and $_ -ne 9800 })
+    if (($Open -contains 8800 -or $Open -contains 9800) -and $others.Count -eq 0) { return "unknown-p2p" }
+    if ($Open.Count -eq 0) { return "unreachable" }
+    return "unclassified"
+}
+
+function Get-VerdictColor {
+    param([string]$Class)
+    switch ($Class) {
+        "onvif"       { "Green" }
+        "unreachable" { "Red" }
+        default       { "DarkYellow" }   # unknown generation is NOT a replace signal
+    }
+}
+
 function Get-GenerationVerdict {
     param([int[]]$Open)
     if ($Open -contains 554 -or $Open -contains 8899) { return "ONVIF-era: RTSP available" }
@@ -95,7 +118,8 @@ foreach ($name in ($Cameras.Keys | Sort-Object)) {
     $openText = $(if ($open.Count -gt 0) { ($open -join ",") } else { "none" })
     Write-Host "  open tcp: $openText"
     $verdict = Get-GenerationVerdict -Open $open
-    $color = $(if ($verdict -like "ONVIF-era*") { "Green" } elseif ($verdict -like "*Xiongmai -> replace*" -or $verdict -like "No TCP*") { "Red" } else { "DarkYellow" })
+    $class = Get-GenerationClass -Open $open
+    $color = Get-VerdictColor -Class $class
     Write-Host "  verdict: $verdict" -ForegroundColor $color
 
     $working = @()
