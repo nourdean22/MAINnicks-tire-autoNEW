@@ -5160,6 +5160,11 @@
       "file": "apps/nickstire/server/services/hookPerformance.ts",
       "symbol": "MIN_HOOK_SAMPLE",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Used inside its own module (so the runtime consumer is real, not vacuous); exported so server/hookScoreboard.test.ts can assert the sample floor below which a hook score is withheld rather than published from too little data directly rather than inferring it from behaviour further downstream."
+    },
+    {
+      "file": "apps/nickstire/server/cron/index.ts",
+      "symbol": "DEFAULT_JOB_TIMEOUT_MS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Read by timeoutFor() in this module, so the runtime consumer is real. Exported for server/cronJobBudgets.test.ts, which pins the default AND asserts every provider-calling job's budget exceeds it -- the guard on the ig-autopost timeout fix (#2245: 20 failures in 703 runs, all 'timeout'). This entry exists because the export was briefly REMOVED on 2026-09-09 when a grep found no importer: the test had landed on an unmerged branch at the time, and the collision only surfaced after main was merged in. Do not re-privatise it."
     }
   ]
 }

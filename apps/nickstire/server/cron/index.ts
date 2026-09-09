@@ -94,9 +94,15 @@ const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
  * the tiered runner and the HTTP/staged trigger in this file — and scheduler.ts
  * already imports from this module, so the dependency only points one way.
  */
-// Module-private: read only by timeoutFor() below, and nothing outside this file
-// imports it. An export with no importer is what the orphan gate flags.
-const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
+// EXPORTED, and it must stay exported. It was briefly made module-private on
+// 2026-09-09 because a grep found zero importers -- but server/cronJobBudgets.test.ts,
+// added by #2245 hours earlier on a branch that had not yet merged, imports it to pin
+// the default and to assert that every provider-calling job's budget EXCEEDS it. That
+// test is the whole guard on the ig-autopost timeout fix; without the export it read
+// `undefined` and failed with "expected value must be number or bigint".
+// The knip orphan gate still flags it, because tests are outside knip's project globs --
+// it carries a baseline entry with that reason rather than losing the export again.
+export const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
 export function jobTimeoutMs(job: { timeoutMs?: number }): number {
   return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
 }
