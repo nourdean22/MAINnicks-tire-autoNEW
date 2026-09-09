@@ -7,6 +7,7 @@ import {
   customerVehicles, InsertCustomerVehicle,
   serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
+  technicianReferrals, InsertTechnicianReferral, TechnicianReferral,
   mechanicQA, InsertMechanicQA,
   analyticsSnapshots, InsertAnalyticsSnapshot,
   customerNotifications, InsertCustomerNotification,
@@ -411,6 +412,72 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(referrals).set({ status }).where(eq(referrals.id, id));
+  return { success: true };
+}
+
+// ─── TECHNICIAN REFERRAL QUERIES ──────────────────────
+//
+// Separate from `referrals` above (the $25/$25 customer program) — this backs
+// the $300-after-90-days TECHNICIAN referral bonus advertised on /careers.
+// drizzle/0120_technician_referrals.sql creates the table; it is hand-applied
+// and, as of this code shipping, may not yet be applied to production. Every
+// function here therefore distinguishes "table not migrated yet" from a real
+// failure, the same empty-vs-error discipline the Lot section uses for
+// vehicle_visits — a caller must never render "not yet migrated" as "zero
+// referrals" or crash the caller's own request.
+
+/** True only for MySQL's "table doesn't exist" — 1146 / ER_NO_SUCH_TABLE — never for any other error. Exported for a direct unit test rather than only exercised indirectly. */
+export function isMissingTableError(err: unknown): boolean {
+  const code = (err as { code?: string; errno?: number } | null)?.code;
+  const errno = (err as { code?: string; errno?: number } | null)?.errno;
+  return code === "ER_NO_SUCH_TABLE" || errno === 1146;
+}
+
+export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(technicianReferrals).values(referral);
+    return { success: true, id: Number(result[0].insertId) } as const;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      // Migration 0120 not yet applied. The applicant's own lead row (with
+      // the referrer's name preserved in its free-text notes) already saved
+      // successfully — this is a missed tracking write, not a failed
+      // application, so the caller must not surface this as an error.
+      return { success: false, migrationPending: true as const };
+    }
+    throw err;
+  }
+}
+
+export async function getTechnicianReferrals() {
+  const db = await getDb();
+  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
+  try {
+    const rows: TechnicianReferral[] = await db.select().from(technicianReferrals).orderBy(desc(technicianReferrals.createdAt)).limit(500);
+    return { available: true as const, migrationPending: false as const, rows };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferral[] };
+    }
+    throw err;
+  }
+}
+
+export async function updateTechnicianReferralStatus(
+  id: number,
+  updates: {
+    status?: "pending" | "eligible" | "paid" | "disqualified" | "forfeited";
+    hiredAt?: Date;
+    eligibleAt?: Date;
+    paidAt?: Date;
+    disqualifiedReason?: string;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(technicianReferrals).set(updates).where(eq(technicianReferrals.id, id));
   return { success: true };
 }
 

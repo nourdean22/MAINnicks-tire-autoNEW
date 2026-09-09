@@ -97,6 +97,11 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   if (normalized.startsWith("smsconversations.")) return "customers.manage";
 
   if (normalized.startsWith("customers.") || normalized.startsWith("technicians.") || normalized.startsWith("jobassignments.")) return "customers.manage";
+  // Structured tracking for the $300 technician-referral bonus on /careers —
+  // same tier as the applicant flow it's attached to (front_desk fields
+  // applications too), not money.manage: these mutations only update tracking
+  // status, they never move money themselves — the $300 is paid by hand.
+  if (normalized.startsWith("technicianreferrals.")) return "leads.manage";
   if (normalized.startsWith("lead.") || normalized.startsWith("segments.")) return "leads.manage";
   if (normalized.startsWith("booking.") || normalized.startsWith("dispatch.")) return "bookings.manage";
   if (normalized.startsWith("callback.") || normalized.startsWith("calltracking.")) return "callbacks.manage";

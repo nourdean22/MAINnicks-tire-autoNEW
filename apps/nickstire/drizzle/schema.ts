@@ -4601,3 +4601,50 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
 
 export type VehicleVisit = typeof vehicleVisits.$inferSelect;
 export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;
+
+/**
+ * Technician-referral tracking — the $300-after-90-days bonus advertised on
+ * /careers had no backing record before this: the referrer's name lived only
+ * inside a free-text note concatenated onto the applicant's `leads.problem`
+ * field (client/src/pages/Careers.tsx ApplicationForm), so the shop could not
+ * reliably tell who referred whom, verify the 90-day condition, or pay the
+ * bonus out without a dispute. One row per referral claim, soft-linked to the
+ * referred applicant's own `leads` row (source:"careers").
+ */
+export const technicianReferrals = mysqlTable("technician_referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The referred applicant's row in `leads` (source:"careers"). */
+  leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
+  referrerName: varchar("referrerName", { length: 255 }).notNull(),
+  /** Optional — lets the shop text/call the referrer when the bonus is due. */
+  referrerPhone: varchar("referrerPhone", { length: 30 }),
+  /** Admin-linked match to a current employee record — never auto-matched. */
+  referrerTechnicianId: int("referrerTechnicianId").references(() => technicians.id, { onDelete: "set null" }),
+  /** Role the referred applicant applied for, captured at submit time. */
+  positionTitle: varchar("positionTitle", { length: 100 }),
+  /**
+   * pending -> eligible -> paid, or -> disqualified/forfeited. VARCHAR, not
+   * ENUM: TiDB runs STRICT_TRANS_TABLES, so a write outside an ENUM's
+   * declared values is REJECTED and the row is LOST, not defaulted (see
+   * .claude/skills/nickstire-tidb-ddl). varchar(32) matches the repo's own
+   * status-column convention (e.g. vehicle_visits.state above).
+   */
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  bonusAmountCents: int("bonusAmountCents").default(30000).notNull(),
+  /** Set only when an admin confirms the referred applicant was actually hired. */
+  hiredAt: timestamp("hiredAt"),
+  /** hiredAt + 90 days — stamped alongside hiredAt so eligibility is a stored fact, not a recomputation that drifts if the 90-day rule is later changed. */
+  eligibleAt: timestamp("eligibleAt"),
+  paidAt: timestamp("paidAt"),
+  disqualifiedReason: varchar("disqualifiedReason", { length: 500 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_tech_referral_lead").on(table.leadId),
+  index("idx_tech_referral_status").on(table.status),
+  index("idx_tech_referral_created").on(table.createdAt),
+]);
+
+export type TechnicianReferral = typeof technicianReferrals.$inferSelect;
+export type InsertTechnicianReferral = typeof technicianReferrals.$inferInsert;

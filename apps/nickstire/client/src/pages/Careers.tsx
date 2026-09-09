@@ -37,6 +37,16 @@ interface Position {
   requirements: string[];
   nice: string[];
   schemaId: string;
+  /**
+   * Fixed original JobPosting date — NOT recomputed on render. Google's
+   * job-posting content policy explicitly bans resetting datePosted when
+   * nothing about the job changed ("don't update the DatePosted property if
+   * there was no change to the job post"); doing so can trigger a manual
+   * action removing every posting on the site from Google Jobs, not just one
+   * role. Update this by hand, deliberately, only when a role's actual terms
+   * change (pay, title, responsibilities) — never automatically.
+   */
+  datePosted: string;
 }
 
 // ─── POSITIONS ────────────────────────────────────────────
@@ -68,6 +78,7 @@ const POSITIONS: Position[] = [
       "Diagnostic experience with intermittent faults",
     ],
     schemaId: "automotive-technician",
+    datePosted: "2026-09-09",
   },
   {
     title: "Service Advisor",
@@ -96,6 +107,7 @@ const POSITIONS: Position[] = [
       "Bilingual (Spanish, Arabic, or other languages common in our community)",
     ],
     schemaId: "service-advisor",
+    datePosted: "2026-09-09",
   },
   {
     title: "Tire / Hybrid Technician",
@@ -123,6 +135,7 @@ const POSITIONS: Position[] = [
       "Ability to work efficiently during high-volume periods",
     ],
     schemaId: "tire-technician",
+    datePosted: "2026-09-09",
   },
 ];
 
@@ -176,7 +189,10 @@ function JobPostingSchemas() {
       name: BUSINESS.name,
       value: pos.schemaId,
     },
-    datePosted: new Date().toISOString().split("T")[0],
+    // Fixed, not regenerated per render — see the Position.datePosted doc
+    // comment. Google's job-posting policy explicitly bans resetting this
+    // property when nothing about the job changed.
+    datePosted: pos.datePosted,
     employmentType: "FULL_TIME",
     hiringOrganization: {
       "@type": "Organization",
@@ -317,10 +333,26 @@ function ApplicationForm() {
     experience: "",
     message: "",
     referredBy: "",
+    referredByPhone: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  // Best-effort, fire-and-forget: this gives the $300 referral bonus a real
+  // tracked record instead of a free-text note. It must never block or fail
+  // the applicant's own submission — see onSuccess below.
+  const submitTechReferral = trpc.technicianReferrals.submit.useMutation();
   const submitLead = trpc.lead.submit.useMutation({
-    onSuccess: () => setSubmitted(true),
+    onSuccess: (data) => {
+      setSubmitted(true);
+      const referrerName = form.referredBy.trim();
+      if (referrerName) {
+        submitTechReferral.mutate({
+          leadId: data.leadId ?? null,
+          referrerName,
+          referrerPhone: form.referredByPhone.trim() || null,
+          positionTitle: form.position,
+        });
+      }
+    },
     onError: () => toast.error("Something went wrong. Please call us instead."),
   });
 
@@ -454,17 +486,31 @@ function ApplicationForm() {
         />
       </div>
 
-      <div>
-        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
-          Referred by (optional)
-        </label>
-        <input
-          type="text"
-          value={form.referredBy}
-          onChange={(e) => setForm((f) => ({ ...f, referredBy: e.target.value }))}
-          placeholder="Who told you about us?"
-          className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Referred by (optional)
+          </label>
+          <input
+            type="text"
+            value={form.referredBy}
+            onChange={(e) => setForm((f) => ({ ...f, referredBy: e.target.value }))}
+            placeholder="Who told you about us?"
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Their phone (optional)
+          </label>
+          <input
+            type="tel"
+            value={form.referredByPhone}
+            onChange={(e) => setForm((f) => ({ ...f, referredByPhone: e.target.value }))}
+            placeholder="So we can reach them about the $300"
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+          />
+        </div>
       </div>
 
       <button
