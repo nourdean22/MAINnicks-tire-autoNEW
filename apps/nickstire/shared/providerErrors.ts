@@ -199,6 +199,19 @@ export function stampError(verdict: ProviderErrorVerdict, message: string): stri
 export const PROVIDER_ERROR_CLASSES = Object.keys(POLICY) as ProviderErrorClass[];
 
 /** Recover the class from a stamped error string. */
+/**
+ * The recorded policy for a class, by name.
+ *
+ * `classifyProviderError` needs a live error object; a row that FAILED hours ago
+ * carries only its stamped class in `reel_jobs.error`. Recovery lanes have to be
+ * able to ask "is this class safe to retry without reconciling first?" from the
+ * stamp alone — otherwise they retry the one class the table forbids retrying,
+ * which is exactly what resumeTimedOutReelJobs did on the day it shipped.
+ */
+export function policyForErrorClass(cls: ProviderErrorClass): Omit<ProviderErrorVerdict, "errorClass" | "reason"> {
+  return POLICY[cls];
+}
+
 export function parseErrorClass(stamped: string | null | undefined): ProviderErrorClass | null {
   const m = /^\[([A-Z_]+)\]/.exec(String(stamped ?? ""));
   const token = m?.[1];

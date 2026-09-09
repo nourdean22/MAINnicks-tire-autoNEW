@@ -896,7 +896,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
             );
             if (target) {
               const { requestBeatRepair } = await import("../../services/selectiveRepair");
-              const r = await requestBeatRepair({ jobId: job.id, beatNumber: target.beatNumber as number });
+              // The cron is NOT an operator. Passing the real actor keeps the
+              // spend boundary fail-closed and denies this path a human's
+              // implied approval — see requestBeatRepair's `actor` docstring.
+              const r = await requestBeatRepair({
+                jobId: job.id,
+                beatNumber: target.beatNumber as number,
+                actor: { type: "cron", id: `daily-reel-post:job_${job.id}` },
+              });
               log.info(`daily reel: auto-repair queued (${g.gate === "auto_repair" ? "free lane" : "POLICY-AUTHORIZED PAID"}) — beat ${r.beatNumber} on job ${job.id}`, { code: target.code, gate: g.gate });
               return { recordsProcessed: 0, details: `auto-repair queued for beat ${r.beatNumber} on job ${job.id} (${target.code}); re-verdict after re-render; index not advanced` };
             }
@@ -1257,6 +1264,39 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       throw pubErr;
     }
     const ig = outcome.results.find((r) => r.platform === "instagram");
+
+    // AMBIGUOUS IS NOT FAILURE, AND THIS DOOR IS THE UNATTENDED ONE.
+    //
+    // metaSocial returns { success:false, ambiguous:true } when media_publish was
+    // DISPATCHED and nothing came back; its own words are "the reel may be LIVE",
+    // and its docstring instructs callers to park rather than reset. Instagram
+    // publishes an ambiguous dispatch with NO idempotency key, NO request id, and
+    // NO error code meaning "already published" (verified against Meta's error
+    // reference 2026-09-09) — so a retry cannot be deduplicated by the platform
+    // and simply posts the reel twice.
+    //
+    // Falling into the !ig.success branch below reset the row to `assembled`,
+    // which the very next pulse republishes. scheduledPosts, instagramAdmin,
+    // adStudio and instagramStudio all already park this; the autonomous reel
+    // door was the only surface that did not.
+    if (!ig?.success && ig?.ambiguous) {
+      await recordPublishOutcome(attemptId, OUTCOME.ambiguous, {
+        igPostId: null, error: ig?.error ?? "ambiguous dispatch", platformResults: outcome.results,
+      });
+      await d.update(reelJobs)
+        .set({
+          status: "publish_ambiguous",
+          queueState: queueStateForReelStatus("publish_ambiguous"),
+          error: String(ig?.error ?? "media_publish dispatched, no response — may be LIVE").slice(0, 500),
+        })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      log.error(`Reel autopost publish AMBIGUOUS for job ${job.id} — parked, NOT retried`, { error: ig?.error });
+      return {
+        recordsProcessed: 0,
+        details: `publish AMBIGUOUS for job ${job.id} (may be live) — parked for reconciliation; index not advanced`,
+      };
+    }
+
     await recordPublishOutcome(attemptId, ig?.success ? OUTCOME.confirmed : OUTCOME.failed, {
       igPostId: ig?.postId ?? null, error: ig?.success ? null : (ig?.error ?? "unknown"), platformResults: outcome.results,
     });

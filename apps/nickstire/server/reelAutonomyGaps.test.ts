@@ -49,7 +49,24 @@ describe("paid repair is a policy switch, not a standing question", () => {
   it("the spend still goes through requestBeatRepair, which holds the budget and cap", () => {
     // Not a re-implementation: the ceilings live in that writer, and this is the
     // only call site the cron uses.
-    expect(CRON).toContain("requestBeatRepair({ jobId: job.id, beatNumber: target.beatNumber as number })");
+    //
+    // Anchor widened 2026-09-09: the call gained an `actor` argument and went
+    // multi-line. The invariant was never the formatting — it is that the cron
+    // spends through that writer and nowhere else — so both halves are pinned
+    // separately below rather than by one brittle single-line string.
+    expect(CRON).toContain("await requestBeatRepair({");
+    const call = CRON.slice(CRON.indexOf("await requestBeatRepair({"));
+    expect(call.slice(0, 300)).toContain("jobId: job.id");
+    expect(call.slice(0, 300)).toContain("beatNumber: target.beatNumber as number");
+    // Exactly one call site in the cron: a second would be a second spend door.
+    expect(CRON.split("requestBeatRepair(").length - 1).toBe(1);
+  });
+
+  it("and it spends as the CRON, never inheriting a human's approval at the boundary", () => {
+    // enforceAtBoundary reads an operator tap as self-approval and lets operator
+    // paths proceed on an unreachable policy store. See reelAutonomyP0.test.ts.
+    const call = CRON.slice(CRON.indexOf("await requestBeatRepair({"));
+    expect(call.slice(0, 300)).toContain('actor: { type: "cron"');
   });
 
   it("PLANTED CANARY: the default policy is approval_required, so nobody starts spending by upgrade", () => {

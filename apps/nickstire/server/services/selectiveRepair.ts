@@ -24,6 +24,7 @@
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
 import { queueStateForReelStatus } from "../../shared/reelQueue";
+import type { BoundaryActorContext } from "./autonomyControl";
 
 const log = createLogger("services:selective-repair");
 
@@ -85,6 +86,22 @@ export async function requestBeatRepair(input: {
   jobId: number;
   beatNumber: number;
   instruction?: RepairInstruction;
+  /**
+   * WHO is asking. Load-bearing at the spend boundary, not decoration.
+   *
+   * enforceAtBoundary treats an operator's own tap as self-approval
+   * (REQUIRE_APPROVAL -> APPROVED_BY_OPERATOR) and lets operator paths proceed
+   * LOUD when the policy store is unreachable, while cron and autonomous actors
+   * are BLOCKED and FAIL CLOSED. This function hardcoded "operator" for every
+   * caller, so when the daily reel cron began requesting PAID repairs on its own
+   * (2026-09-09, policy v11) it inherited a human's approval authority and a
+   * human's break-glass posture at the exact moment money is spent.
+   *
+   * A caller that is not a person MUST pass its real actor. The default stays
+   * "operator" because the admin button is the original caller and genuinely is
+   * one.
+   */
+  actor?: BoundaryActorContext;
 }): Promise<RepairRequestResult> {
   const { getDb } = await import("../db");
   const d = await getDb();
@@ -145,7 +162,7 @@ export async function requestBeatRepair(input: {
         ...(spend !== null ? { generationCostUsd: spend } : {}),
       },
     },
-    { type: "operator", id: `repair_request_job_${input.jobId}` },
+    input.actor ?? { type: "operator", id: `repair_request_job_${input.jobId}` },
     payload.genomeId ?? null,
   );
 
