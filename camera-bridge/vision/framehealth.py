@@ -102,6 +102,7 @@ class FrameHealth:
         min_fps: float = 0.5,
         max_age: float = 5.0,
         min_distinct: int = 4,
+        loop_min_repeats: int = 3,
         freeze_epsilon: float = 0.02,
     ) -> None:
         self.window = window
@@ -115,6 +116,13 @@ class FrameHealth:
         self.min_fps = min_fps
         self.max_age = max_age
         self.min_distinct = min_distinct
+        #: How many frames in the window must be pixel-exact replays of an earlier one
+        #: before the capture is called LOOPING. One is not enough: `WgcWindowSource.read()`
+        #: legitimately hands back the same `_latest` buffer twice when the capture
+        #: callback is a few ms late, and a single such sample must not mark the camera
+        #: unhealthy and re-arm the preexisting census (Codex P1 on #2250). A real loop
+        #: replays buffers CONTINUOUSLY, so it accumulates repeats across the window.
+        self.loop_min_repeats = loop_min_repeats
         self._ts: deque[float] = deque(maxlen=window)
         self._dups: deque[bool] = deque(maxlen=window)
         self._hashes: deque[int] = deque(maxlen=window)
@@ -126,7 +134,7 @@ class FrameHealth:
         #: A/B/C loop entirely. A merely static scene never repeats exactly.
         self._thumbs: deque[np.ndarray] = deque(maxlen=window)
         self._freeze_streak = 0
-        self._has_exact_repeat = False
+        self._repeats: deque[bool] = deque(maxlen=window)
         self.last_ts: Optional[float] = None
 
     def update(self, ts: float, image: Optional[np.ndarray]) -> None:
@@ -155,12 +163,15 @@ class FrameHealth:
 
         if image is not None:
             thumb = _thumb(image)
-            # An EXACT repeat of any frame already in the window is the loop signature.
-            self._has_exact_repeat = any(
+            # An EXACT repeat of any frame already in the window is the loop signature --
+            # counted per frame, so the verdict can require a RUN of them.
+            self._repeats.append(any(
                 float(np.abs(thumb - t).mean()) <= self.freeze_epsilon for t in self._thumbs
-            )
+            ))
             self._thumbs.append(thumb)
             self._prev_image = image
+        else:
+            self._repeats.append(False)
         if h is not None:
             self._prev_hash = h
             self._hashes.append(h)
@@ -186,7 +197,7 @@ class FrameHealth:
         looping = (
             len(self._hashes) >= self.window
             and distinct < self.min_distinct
-            and self._has_exact_repeat
+            and sum(self._repeats) >= self.loop_min_repeats
         )
         # FPS is likewise only judged once the window has filled.
         fps_ok = fps >= self.min_fps or len(ts) < self.window

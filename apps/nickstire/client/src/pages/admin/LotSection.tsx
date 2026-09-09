@@ -357,7 +357,11 @@ export default function LotSection() {
               value={n.counts.onLotNotInBay}
               icon={<Clock className="w-4 h-4" />}
               color={n.waits.oldestWaitMinutes && n.waits.oldestWaitMinutes > ATTENTION_MINUTES ? "text-amber-400" : "text-foreground"}
-              trendLabel={n.waits.oldestWaitMinutes !== null ? `longest ${formatDuration(n.waits.oldestWaitMinutes)} on lot` : "includes cars on jacks"}
+              trendLabel={
+                n.waits.oldestWaitMinutes !== null
+                  ? `${n.counts.waitingForBay} never in a bay · longest ${formatDuration(n.waits.oldestWaitMinutes)}`
+                  : "includes cars on jacks"
+              }
             />
             {/* Bays 1 and 3 only, and INTERIOR only. A car being plugged on the apron
                 in front of a bay is a different job with a different duration, so the

@@ -332,6 +332,51 @@ def restore_if_minimized(hwnd: int) -> bool:
         return False
 
 
+
+def find_windows_titled(title: str) -> list[int]:
+    """Every top-level window whose title contains `title`, minimised ones included.
+
+    `IsWindowVisible` is true for a minimised window (WS_VISIBLE stays set), so this
+    enumeration is exactly what a restore path needs: the documented `run_live` default
+    passes no `--hwnd`, and a restore keyed on a handle nobody supplied can never fire.
+    Returns handles in Z-order (foreground first).
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+    except Exception:
+        return []
+    user32 = ctypes.windll.user32
+    proto = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+    found: list[int] = []
+    needle = title.lower()
+
+    def cb(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        n = user32.GetWindowTextLengthW(hwnd)
+        if n <= 0:
+            return True
+        buf = ctypes.create_unicode_buffer(n + 1)
+        user32.GetWindowTextW(hwnd, buf, n + 1)
+        if needle in buf.value.lower():
+            found.append(int(hwnd))
+        return True
+
+    user32.EnumWindows(proto(cb), 0)
+    return found
+
+
+def restore_minimized_titled(title: str) -> int:
+    """Un-minimise every window matching `title`; returns how many were minimised.
+
+    The V380 client publishes several top-level windows under one title, and which of
+    them holds the video pane is decided elsewhere by pixel content. For a RESTORE that
+    choice does not matter: un-minimising a blank sibling is harmless (no focus change),
+    while leaving the real one minimised keeps the lot unwatched.
+    """
+    return sum(1 for h in find_windows_titled(title) if restore_if_minimized(h))
+
 class WgcWindowSource(CaptureSource):
     """Windows Graphics Capture of one window. The best desktop lane, measured.
 
@@ -382,6 +427,23 @@ class WgcWindowSource(CaptureSource):
         #: worth surfacing as producer health rather than silently self-healing forever.
         self.restores = 0
 
+    def _restore_target(self) -> bool:
+        """Un-minimise whatever this source is capturing. True if anything was minimised.
+
+        Keyed on the handle when one was given, otherwise on the title -- the default
+        `run_live` invocation gives no handle, and a restore that only worked with one was
+        dead code on exactly the path operators use (Codex P1 on #2250).
+        """
+        if self.window_hwnd is not None:
+            hit = restore_if_minimized(int(self.window_hwnd))
+        elif self.window_title:
+            hit = restore_minimized_titled(self.window_title) > 0
+        else:
+            hit = False
+        if hit:
+            self.restores += 1
+        return hit
+
     def open(self) -> None:
         import threading
         from windows_capture import WindowsCapture
@@ -417,8 +479,7 @@ class WgcWindowSource(CaptureSource):
 
         # No frame. Before giving up, check the one cause that is both common and
         # trivially fixable: the window is minimised, so it renders nothing at all.
-        if self.window_hwnd is not None and restore_if_minimized(int(self.window_hwnd)):
-            self.restores += 1
+        if self._restore_target():
             deadline = time.time() + 5.0
             while time.time() < deadline:
                 with self._lock:
@@ -454,11 +515,9 @@ class WgcWindowSource(CaptureSource):
         with self._lock:
             stale_for = now - (self._latest_ts or now)
         if (stale_for > self.stale_restore_after
-                and now - self._last_restore_attempt > self.restore_cooldown
-                and self.window_hwnd is not None):
+                and now - self._last_restore_attempt > self.restore_cooldown):
             self._last_restore_attempt = now
-            if restore_if_minimized(int(self.window_hwnd)):
-                self.restores += 1
+            if self._restore_target():
                 deadline = time.time() + 2.0
                 while time.time() < deadline:
                     with self._lock:

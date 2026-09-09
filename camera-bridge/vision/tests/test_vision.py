@@ -1275,3 +1275,97 @@ def test_a_parked_car_that_flickers_keeps_its_identity_but_a_departing_one_does_
         died2.extend(d)
         t2 += 0.33
     assert died2, "a car that drove off must be retired promptly, not held for a minute"
+
+
+def test_one_duplicated_wgc_sample_is_not_a_loop():
+    """`WgcWindowSource.read()` legitimately hands back the same `_latest` buffer twice
+    when the capture callback is a few milliseconds late. In a quiet scene the perceptual
+    hashes already satisfy `distinct < min_distinct`, so ONE exact repeat used to flip
+    `looping`, mark the camera unhealthy, and re-arm the preexisting census -- every car
+    that arrived afterwards would have been PREEXISTING (Codex P1 on #2250)."""
+    # Textured like a real frame (a ramp, not a flat field): `dhash` samples SINGLE
+    # pixels on a 9x8 grid and compares horizontal neighbours, so wherever two sampled
+    # neighbours are within a few grey levels of each other, sensor noise flips the bit
+    # and a synthetic "quiet" scene hashes as 19 distinct frames. On this ramp adjacent
+    # samples sit ~20 levels apart, which is what real asphalt-with-gradient measured.
+    ramp = np.linspace(40, 200, 128).astype(np.uint8)
+    base = np.repeat(np.tile(ramp, (128, 1))[:, :, None], 3, axis=2)
+    rng = np.random.default_rng(7)
+
+    fh = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    for i in range(24):
+        # Sensor noise only: the perceptual hash is stable (quiet lot) but no two frames
+        # are pixel-exact ...
+        img = np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+        if i == 12:
+            img = last  # ... except this one, the late-callback duplicate
+        fh.update(float(i), img)
+        last = img
+    st = fh.state(24.0)
+    assert st.distinct < 4, "precondition: a quiet scene hashes to few distinct values"
+    assert st.looping is False, "a single repeated sample is not a cycling cache"
+    assert st.ok is True
+
+    # The same scene with a REAL loop (the same three buffers replayed) still trips it.
+    fh2 = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    frames = [np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+              for _ in range(3)]
+    for i in range(24):
+        fh2.update(float(i), frames[i % 3])
+    assert fh2.state(24.0).looping is True
+
+
+def test_wgc_restore_works_when_only_a_title_was_given(monkeypatch):
+    """The documented `run_live` default passes no `--hwnd`, so a restore keyed only on
+    a handle was dead code on exactly the path operators use (Codex P1 on #2250). With a
+    title, the source must resolve every matching window and un-minimise the iconic ones."""
+    from vision import capture
+
+    calls = []
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [111, 222, 333])
+    monkeypatch.setattr(capture, "restore_if_minimized",
+                        lambda h: calls.append(h) or h == 222)  # only 222 was minimised
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    assert src._restore_target() is True
+    assert calls == [111, 222, 333], "every candidate is checked; the choice of pane is not this code's job"
+    assert src.restores == 1
+
+    # Nothing minimised -> no restore counted.
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: False)
+    assert src._restore_target() is False
+    assert src.restores == 1
+
+    # An explicit handle still takes the direct path and never enumerates.
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: (_ for _ in ()).throw(AssertionError("enumerated")))
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: h == 999)
+    src2 = capture.WgcWindowSource(window_hwnd=999)
+    assert src2._restore_target() is True
+    assert src2.restores == 1
+
+
+def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
+    """`read()` must trigger the restore itself: `open()` runs once, and a window
+    minimised part-way through a run stalls delivery while `_latest` keeps being
+    returned. Measured 2026-09-09: 401 of 873 frames suppressed for exactly this."""
+    import threading
+    import time as _t
+    from vision import capture
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    src._ctrl = object()          # pretend open() already ran
+    src._lock = threading.Lock()
+    src._latest = np.zeros((10, 10, 3), dtype=np.uint8)
+    src._latest_ts = _t.time() - 30.0   # stale for 30 s
+    src.stale_restore_after = 2.0
+    src.restore_cooldown = 10.0
+
+    attempts = []
+    monkeypatch.setattr(src, "_restore_target", lambda: attempts.append(_t.time()) or False)
+    src.read()
+    assert len(attempts) == 1, "a stalled source restores"
+    src.read()
+    assert len(attempts) == 1, "... but not again inside the cooldown"
+    src._last_restore_attempt = 0.0
+    src.read()
+    assert len(attempts) == 2, "and again once the cooldown has passed"

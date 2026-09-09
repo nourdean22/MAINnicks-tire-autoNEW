@@ -149,6 +149,14 @@ installer after moving the tree). `-RunAsSystem` opts into SYSTEM at startup fro
 removes task and wrapper; `-DryRun` prints the plan. Production runs under Docker Compose with
 `restart: unless-stopped`; nothing on Windows is production.
 
+> **Corrected 2026-09-09.** That sentence described the plan, not the measurement. The only
+> pixel source proven against the real SHOPSIGN feed is **Windows Graphics Capture of the V380
+> client on the Windows machine** (`vision/capture.py::WgcWindowSource`, 12.9 fps, occluded-window
+> safe); RTSP on these exact V380 units is still UNVERIFIED (ports 8800/9800 only until the
+> `ceshi.ini` unlock is proven). Until that flips, **Windows + WGC is a supported edge source**, not
+> a lab curiosity, and the Linux/RTSP path in section 4 is the intended successor -- it replaces the
+> capture stage only; everything from `FrameHealth` down to `visitd` is shared.
+
 ## 10. Metrics and heartbeats
 
 `GET http://127.0.0.1:9090/metrics` (Prometheus text, loopback only). Key series: `visitd_transitions_total{state}`,

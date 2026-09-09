@@ -169,6 +169,8 @@ export const lotRouter = router({
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
           SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
+          SUM(CASE WHEN departedAt IS NULL
+                    AND NOT (bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL) THEN 1 ELSE 0 END) AS onLotNotInBay,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL
                     AND preexisting = 0 THEN 1 ELSE 0 END) AS waiting,
           SUM(CASE WHEN departedAt IS NULL AND preexisting = 1 THEN 1 ELSE 0 END) AS preexisting,
@@ -233,7 +235,14 @@ export const lotRouter = router({
         staleSeconds: total === 0 ? null : num(r.staleSeconds),
         counts: {
           onProperty,
-          onLotNotInBay: num(r.waiting),
+          // Every car on the property that is not in a bay RIGHT NOW: cars that never
+          // entered one, cars that came back out, and cars that were already here at
+          // startup. This is the population the label names. `waitingForBay` is the
+          // narrower never-entered, non-preexisting set the wait clock runs on; it
+          // was the value shown here before, and it undercounted a car waiting
+          // outside after leaving a bay (Codex P2 on #2250).
+          onLotNotInBay: num(r.onLotNotInBay),
+          waitingForBay: num(r.waiting),
           // Service, split by WHERE it happens. `inService` is the honest headline --
           // a car on jacks outside is being worked on just as much as one on a lift.
           inBays: num(r.inBays),
