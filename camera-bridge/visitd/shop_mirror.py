@@ -6,11 +6,18 @@ lot, who is waiting, which bays are full -- lives in nickstire, and nothing wrot
 the `vehicle_visits` table and its admin section had no producer at all, so the Lot
 page reported "awaiting first event" permanently. This closes that loop.
 
-WHAT IT DELIBERATELY IS NOT. It is not a second durable delivery path. The outbox
-remains the authoritative lane with ordering, retries, dead-lettering and restart
-recovery; this mirror is BEST EFFORT and must never block, reorder, or fail it. If the
-shop endpoint is down, the shop's read model goes stale — and the admin already
-surfaces staleness honestly — while the authoritative stream is untouched.
+WHAT IT IS NOT. It is not a second visit STATE MACHINE. visitd's tracker remains the
+single authority; this is a PROJECTION of that authority into the shop's read model,
+and it must never block, reorder, or fail the StateNour outbox.
+
+WHAT CHANGED (2026-09-09). It used to be best-effort in the literal sense: `send()`
+POSTed inline and a failure was logged and dropped. That lost the worst possible event.
+A terminal emission arriving while nickstire.org was unreachable was the LAST emission a
+visit ever produces, so nothing would retry it -- the car physically leaves, the edge
+ledger knows it left, and the shop board shows it parked forever. The projection now
+goes through `shop_outbox` in the SAME SQLite transaction as the ledger commit, and a
+drain loop retries until the shop accepts it. Delivery is still allowed to fail; LOSS is
+not. See `Ledger._upsert_shop_row` for why that queue coalesces by visit.
 
 WHY IT SENDS A FULL ROW EVERY TIME. The ingest applies a guarded full-column replace
 (`INSERT ... ON DUPLICATE KEY UPDATE` with every assignment gated on
@@ -222,13 +229,36 @@ class ShopMirror:
         with self._lock:
             self._visits.pop(visit_id, None)
 
-    def send(self, emission, camera_name: Optional[str] = None,
-             provenance: Optional[Dict[str, Optional[str]]] = None) -> bool:
-        """Best effort. Returns True only on a 2xx. NEVER raises."""
+    def queue_row(self, emission, camera_name: Optional[str] = None,
+                  provenance: Optional[Dict[str, Optional[str]]] = None):
+        """Merge one emission and return the ledger tuple (visit_id, seq, url, payload), or None.
+
+        PURE: no network, no ledger. The caller persists the tuple inside the ledger's own
+        transaction, which is what makes a crash between "visit committed" and "shop notified"
+        impossible. Returns None when the mirror is unconfigured, so an unconfigured deployment
+        queues nothing rather than filling a table nobody drains.
+        """
         if not self.enabled:
             self.skipped += 1
-            return False
+            return None
         row = self.row_for(emission, camera_name, provenance)
+        if emission.state in TERMINAL_STATES:
+            # The merged row is now materialised in the ledger tuple, so the in-memory
+            # accumulator is free -- and MUST be freed here rather than after delivery,
+            # or a shop outage would pin every departed visit in memory until it cleared.
+            self.forget(emission.visit_id)
+        return (emission.visit_id, int(emission.seq), str(self.url), row)
+
+    def deliver(self, item: Dict[str, object]) -> str:
+        """POST one queued row. Returns 'sent' | 'rejected' | 'unreachable'. NEVER raises.
+
+        The two failure kinds are kept apart deliberately: 'unreachable' is a WAN/DNS problem that
+        will clear on its own, while 'rejected' is a contract or credential problem that will not,
+        and only the second is worth waking anyone about.
+        """
+        if not self.enabled:
+            self.skipped += 1
+            return "rejected"
         try:
             transport = self.transport
             if transport is None:
@@ -237,25 +267,23 @@ class ShopMirror:
                 transport = requests_transport
             status, text = transport(
                 "POST",
-                str(self.url),
-                {"visits": [row]},
+                str(item["url"]),
+                {"visits": [item["payload"]]},
                 {"Content-Type": "application/json", "x-sync-key": str(self._key)},
                 self.timeout_seconds,
             )
         except Exception as exc:  # a shop outage must never touch the authoritative lane
             self.failed += 1
-            log.warning("shop mirror transport failed visit=%s error=%s", emission.visit_id, exc)
-            return False
+            log.warning("shop mirror transport failed visit=%s error=%s", item.get("visit_id"), exc)
+            return "unreachable"
 
         if 200 <= status < 300:
             self.sent += 1
-            if emission.state in TERMINAL_STATES:
-                self.forget(emission.visit_id)
-            return True
+            return "sent"
 
         self.failed += 1
         # 401 is the one worth naming: it is almost always a missing CAMERA_INGEST_KEY.
         reason = "shop_sync_key_rejected" if status == 401 else f"http_{status}"
         log.warning("shop mirror rejected visit=%s status=%s reason=%s body=%r",
-                    emission.visit_id, status, reason, str(text)[:120])
-        return False
+                    item.get("visit_id"), status, reason, str(text)[:120])
+        return "rejected"

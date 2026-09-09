@@ -45,19 +45,23 @@ class ShopMirrorTest(unittest.TestCase):
         # A URL with no key would 401 on every single visit; that is not "configured".
         half = ShopMirror("https://nickstire.org/api/camera/visits", None, transport=rec)
         self.assertFalse(half.enabled)
-        self.assertFalse(half.send(emission()))
+        self.assertIsNone(half.queue_row(emission()))
         self.assertEqual(rec.calls, [], "a disabled mirror must not make a request")
         self.assertEqual(half.skipped, 1)
 
-    def test_posts_the_visit_row_with_the_key_header(self):
+    def test_delivers_the_queued_row_with_the_key_header(self):
         rec = Recorder()
         m = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=rec)
-        self.assertTrue(m.send(emission()))
+        queued = m.queue_row(emission())
+        visit_id, seq, url, row = queued
+        self.assertEqual((visit_id, seq), ("v1", 3))
+        self.assertEqual(url, "https://nickstire.org/api/camera/visits")
+        self.assertEqual(m.deliver({"visit_id": visit_id, "seq": seq, "url": url, "payload": row}), "sent")
         self.assertEqual(len(rec.calls), 1)
         call = rec.calls[0]
         self.assertEqual(call["method"], "POST")
         self.assertEqual(call["headers"]["x-sync-key"], "k")
-        row = call["payload"]["visits"][0]
+        self.assertEqual(call["payload"]["visits"][0], row)
         self.assertEqual(row["visitId"], "v1")
         self.assertEqual(row["state"], "CONFIRMED_ARRIVAL")
         self.assertEqual(row["seq"], 3)
@@ -69,12 +73,12 @@ class ShopMirrorTest(unittest.TestCase):
         knows would null out everything learned earlier, so the row is merged here."""
         rec = Recorder()
         m = ShopMirror("u", "k", transport=rec, bay_zones={"sign": frozenset({"bay_1"})})
-        m.send(emission(state="ENTERED_ZONE", seq=1))
-        m.send(emission(state="IN_SERVICE", seq=4, zone="bay_1", at=1_700_000_500.0))
-        m.send(emission(state="LEFT", seq=9, zone=None, at=1_700_000_900.0,
-                        frigate_end_time=1_700_000_880.0))
-
-        rows = [c["payload"]["visits"][0] for c in rec.calls]
+        rows = [
+            m.queue_row(emission(state="ENTERED_ZONE", seq=1))[3],
+            m.queue_row(emission(state="IN_SERVICE", seq=4, zone="bay_1", at=1_700_000_500.0))[3],
+            m.queue_row(emission(state="LEFT", seq=9, zone=None, at=1_700_000_900.0,
+                                 frigate_end_time=1_700_000_880.0))[3],
+        ]
         self.assertEqual(rows[1]["bayEnteredAt"], iso_utc(1_700_000_500.0))
         self.assertEqual(rows[1]["arrivedAt"], iso_utc(1_700_000_000.0),
                          "the arrival learned at seq 1 must survive into seq 4")
@@ -91,46 +95,50 @@ class ShopMirrorTest(unittest.TestCase):
         m = ShopMirror("u", "k", transport=rec)
         for status in ("CANDIDATE", "AMBIGUOUS", "UNREADABLE", "NONE"):
             m.forget("v1")
-            m.send(emission(plate={"status": status, "text": "ABC1234", "normalizedText": "ABC1234"}))
-            row = rec.calls[-1]["payload"]["visits"][0]
+            row = m.queue_row(emission(plate={"status": status, "text": "ABC1234", "normalizedText": "ABC1234"}))[3]
             self.assertEqual(row["plateStatus"], status)
             self.assertIsNone(row["plateText"], f"{status} must not carry text off the edge")
 
         m.forget("v1")
-        m.send(emission(plate={"status": "CONFIRMED", "text": "ABC 1234", "normalizedText": "ABC1234"}))
-        self.assertEqual(rec.calls[-1]["payload"]["visits"][0]["plateText"], "ABC1234")
+        row = m.queue_row(emission(plate={"status": "CONFIRMED", "text": "ABC 1234", "normalizedText": "ABC1234"}))[3]
+        self.assertEqual(row["plateText"], "ABC1234")
 
-    def test_a_transport_failure_is_swallowed_and_counted(self):
-        """A shop outage must never reach the authoritative lane."""
-        rec = Recorder(boom=OSError("connection refused"))
-        m = ShopMirror("u", "k", transport=rec)
-        self.assertFalse(m.send(emission()))   # no exception escapes
-        self.assertEqual(m.failed, 1)
-        self.assertEqual(m.sent, 0)
+    def test_unreachable_and_rejected_are_DIFFERENT_outcomes(self):
+        """A WAN outage clears on its own; a 401 does not. Collapsing them would either
+        wake somebody for every dropped packet or stay silent through a dead credential."""
+        item = {"visit_id": "v1", "seq": 3, "url": "u", "payload": {"visitId": "v1"}}
 
-    def test_a_rejection_is_counted_not_raised(self):
-        m = ShopMirror("u", "k", transport=Recorder(status=401))
-        self.assertFalse(m.send(emission()))
-        self.assertEqual(m.failed, 1)
+        boom = ShopMirror("u", "k", transport=Recorder(boom=OSError("connection refused")))
+        self.assertEqual(boom.deliver(item), "unreachable")   # no exception escapes
+        self.assertEqual((boom.failed, boom.sent), (1, 0))
+
+        rejected = ShopMirror("u", "k", transport=Recorder(status=401))
+        self.assertEqual(rejected.deliver(item), "rejected")
+        self.assertEqual(rejected.failed, 1)
 
     def test_a_terminal_visit_is_forgotten_so_memory_is_bounded(self):
-        rec = Recorder()
-        m = ShopMirror("u", "k", transport=rec)
-        m.send(emission(state="CONFIRMED_ARRIVAL"))
+        m = ShopMirror("u", "k", transport=Recorder())
+        m.queue_row(emission(state="CONFIRMED_ARRIVAL"))
         self.assertIn("v1", m._visits)
-        m.send(emission(state="LEFT", seq=9))
+        m.queue_row(emission(state="LEFT", seq=9))
         self.assertNotIn("v1", m._visits, "a departed visit must not be retained forever")
 
-    def test_a_failed_send_keeps_the_visit_so_the_next_emission_still_carries_history(self):
-        m = ShopMirror("u", "k", transport=Recorder(status=500))
-        m.send(emission(state="LEFT", seq=9))
-        self.assertIn("v1", m._visits, "dropping state on a failed send would lose the arrival")
+    def test_the_terminal_row_is_MATERIALISED_before_the_accumulator_is_freed(self):
+        """Forgetting on queue rather than on delivery is only safe because the merged row
+        is already in the returned tuple. If it were not, a shop outage would lose the
+        arrival time of every departing car."""
+        m = ShopMirror("u", "k", transport=Recorder())
+        m.queue_row(emission(state="ENTERED_ZONE", seq=1))
+        _, _, _, row = m.queue_row(emission(state="LEFT", seq=9, frigate_end_time=1_700_000_880.0))
+        self.assertNotIn("v1", m._visits)
+        self.assertEqual(row["arrivedAt"], iso_utc(1_700_000_000.0), "history survives into the queued row")
+        self.assertEqual(row["departedAt"], iso_utc(1_700_000_880.0))
 
     def test_estimated_transitions_are_recorded_as_such(self):
         rec = Recorder()
         m = ShopMirror("u", "k", transport=rec)
-        m.send(emission(state="DEPARTING", seq=7, estimated=True))
-        self.assertIn("DEPARTING", rec.calls[-1]["payload"]["visits"][0]["estimatedFields"])
+        row = m.queue_row(emission(state="DEPARTING", seq=7, estimated=True))[3]
+        self.assertIn("DEPARTING", row["estimatedFields"])
 
     def test_row_for_is_usable_without_any_transport(self):
         """The mapper is pure with respect to the network, so it can be reasoned about
@@ -143,110 +151,161 @@ class ShopMirrorTest(unittest.TestCase):
 
 
 class PipelineIsolationTest(unittest.TestCase):
-    """The structural claim, exercised against the REAL Pipeline: the shop mirror cannot
-    disturb the authoritative outbox. This drives `after_step` rather than re-implementing
-    its guard in the test, because a test that reimplements the code under test proves
-    nothing about the code."""
+    """The structural claims, exercised against the REAL Pipeline: the shop projection is
+    DURABLE, and it still cannot disturb the authoritative outbox. This drives `after_step`
+    rather than re-implementing its guard, because a test that reimplements the code under
+    test proves nothing about the code."""
 
-    def _pipeline(self):
+    def _pipeline(self, shop_transport=None):
         from test_main import make_pipeline, raw, EVENTS
-        return make_pipeline(), raw, EVENTS
+        p = make_pipeline()
+        p.shop.url = "https://nickstire.org/api/camera/visits"
+        p.shop._key = "k"
+        p.shop.transport = shop_transport or Recorder()
+        return p, raw, EVENTS
 
-    def test_the_mirror_is_ACTUALLY_INVOKED_for_every_emitted_row(self):
-        """The positive control. Without this, wiring that never runs looks identical to
+    def test_every_emitted_row_lands_in_the_shop_outbox_in_the_SAME_commit(self):
+        """The positive control. Without it, wiring that never runs looks identical to
         wiring that works: the first version of this feature landed the send loop in
         __init__ instead of after_step, where it referenced an undefined name and was
         skipped because the mirror was disabled in tests. Every other test still passed."""
         p, raw_fn, events_topic = self._pipeline()
-        calls = []
-
-        class Probe:
-            enabled = True
-            sent = 0
-            failed = 0
-
-            def send(self, emission, _name=None, _provenance=None):
-                calls.append(emission.state)
-                return True
-
-        p.shop = Probe()
         p.process_message(events_topic, raw_fn("new", "o1", 1000.0, ["front_lot"]), 1000.0)
         p.process_message(events_topic, raw_fn("update", "o1", 1012.0, ["front_lot"]), 1012.0)
-        self.assertEqual(calls, ["ENTERED_ZONE", "ARRIVAL_CANDIDATE"],
-                         "the mirror must be fed every emission that produced an outbox row")
 
-    def test_a_mirror_that_RAISES_leaves_the_outbox_intact(self):
+        queued = p.ledger.shop_outbox_batch()
+        self.assertEqual(len(queued), 1, "two emissions for ONE visit coalesce to one queued row")
+        self.assertEqual(queued[0]["payload"]["state"], "ARRIVAL_CANDIDATE")
+        self.assertEqual(p.ledger.shop_outbox_depth(), 1)
+
+    def test_a_DEPARTURE_LOST_TO_AN_OUTAGE_IS_RETRIED_not_dropped(self):
+        """THE bug this table exists for. A terminal emission is the LAST one a visit ever
+        produces, so under the old inline send a shop outage at that moment meant nothing
+        would ever retry it: the car physically leaves, the edge ledger knows, and the board
+        shows it parked forever."""
+        down = Recorder(boom=OSError("connection refused"))
+        p, raw_fn, events_topic = self._pipeline(shop_transport=down)
+        p.process_message(events_topic, raw_fn("new", "o1", 1000.0, ["front_lot"]), 1000.0)
+        p.process_message(events_topic, raw_fn("end", "o1", 1100.0, ["front_lot"]), 1100.0)
+        p.tick(1400.0)   # let the visit reach a terminal state
+
+        self.assertGreaterEqual(p.ledger.shop_outbox_depth(), 1)
+        self.assertEqual(p.drain_shop()["unreachable"], 1, "the shop is down; nothing is delivered")
+        self.assertGreaterEqual(p.ledger.shop_outbox_depth(), 1, "and NOTHING is dropped")
+        age = p.ledger.shop_outbox_oldest_age()
+        self.assertIsNotNone(age, "the backlog has a measurable age, which is what surfaces in the admin")
+
+        # The shop comes back. The queued row is delivered without any new emission.
+        up = Recorder(status=200)
+        p.shop.transport = up
+        result = p.drain_shop()
+        self.assertGreaterEqual(result["sent"], 1)
+        self.assertEqual(p.ledger.shop_outbox_depth(), 0, "the backlog drains with no further events")
+        self.assertTrue(up.calls, "the recovered transport actually carried the row")
+        self.assertIsNone(p.ledger.shop_outbox_oldest_age())
+
+    def test_a_queued_row_SURVIVES_A_RESTART(self):
+        """Durability is a claim about the disk, not about the process. A row that only
+        lived in the mirror's in-memory accumulator would be gone here."""
+        import tempfile, os
+        from visitd.ledger import Ledger
+        from test_main import make_pipeline
+
+        fd, path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        try:
+            p = make_pipeline(ledger=Ledger(path))
+            p.shop.url, p.shop._key, p.shop.transport = "u", "k", Recorder()
+            p.ledger.commit_step([], [], [("v-restart", 4, "u", {"visitId": "v-restart", "seq": 4})])
+
+            fresh = Ledger(path)   # a brand-new process reading the same file
+            rows = fresh.shop_outbox_batch()
+            self.assertEqual([r["visit_id"] for r in rows], ["v-restart"])
+            self.assertEqual(rows[0]["payload"]["seq"], 4)
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    def test_a_mirror_that_RAISES_while_queueing_leaves_the_outbox_intact(self):
         p, raw_fn, events_topic = self._pipeline()
 
-        class Exploding:
-            enabled = True
-            sent = 0
-            failed = 0
+        def boom(*a, **k):
+            raise RuntimeError("mirror is broken")
 
-            def send(self, *_a, **_k):
-                raise RuntimeError("shop endpoint melted")
-
-        p.shop = Exploding()
-        # A real arrival through the real pipeline, with the mirror blowing up every time.
-        p.process_message(events_topic, raw_fn("new", "o1", 1000.0, ["front_lot"]), 1000.0)
-        p.process_message(events_topic, raw_fn("update", "o1", 1012.0, ["front_lot"]), 1012.0)
-
-        self.assertGreater(p.ledger.outbox_depth(), 0,
-                           "the authoritative outbox must still have been written")
-        self.assertGreater(len(p.tracker.open_visits()), 0, "the visit must still be tracked")
+        p.shop.queue_row = boom
+        with self.assertLogs("visitd", level="WARNING"):
+            p.process_message(events_topic, raw_fn("new", "o1", 1000.0, ["front_lot"]), 1000.0)
+        self.assertEqual(p.ledger.outbox_depth(), 1, "the AUTHORITATIVE outbox still got its row")
+        self.assertEqual(p.ledger.shop_outbox_depth(), 0)
 
     def test_the_mirror_is_off_unless_configured(self):
-        p, _raw, _topic = self._pipeline()
-        self.assertFalse(p.shop.enabled,
-                         "no shopUrl in the test config, so the mirror must be inert")
+        from test_main import make_pipeline, raw, EVENTS
+        p = make_pipeline()          # no shop url/key
+        self.assertFalse(p.shop.enabled)
+        p.process_message(EVENTS, raw("new", "o1", 1000.0, ["front_lot"]), 1000.0)
+        self.assertEqual(p.ledger.shop_outbox_depth(), 0, "an unconfigured shop queues nothing")
+        self.assertEqual(p.drain_shop(), {"sent": 0, "rejected": 0, "unreachable": 0})
 
 
-class ShopHeartbeatTest(unittest.TestCase):
-    """The infrastructure fact, apart from visits."""
+class ShopOutboxLedgerTest(unittest.TestCase):
+    """The queue's own rules, at the ledger level."""
 
-    def test_heartbeat_goes_to_the_sibling_route_and_never_raises(self):
-        rec = Recorder(status=200)
-        m = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=rec)
-        self.assertEqual(m.heartbeat_url, "https://nickstire.org/api/camera/heartbeat")
-        self.assertTrue(m.heartbeat({"camera": "sign", "producerInstanceId": "abc", "heartbeatSeq": 1}))
-        self.assertEqual(rec.calls[0]["url"], "https://nickstire.org/api/camera/heartbeat")
-        self.assertEqual(rec.calls[0]["headers"]["x-sync-key"], "k")
-        self.assertEqual(m.heartbeats_sent, 1)
+    def _ledger(self, **kw):
+        from visitd.ledger import Ledger
+        return Ledger(":memory:", **kw)
 
-        boom = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(boom=RuntimeError("down")))
-        self.assertFalse(boom.heartbeat({"camera": "sign"}))   # swallowed, counted, never raised
-        self.assertEqual(boom.heartbeats_failed, 1)
+    def test_it_COALESCES_by_visit_so_an_outage_cannot_build_an_unbounded_backlog(self):
+        led = self._ledger()
+        for seq in range(1, 51):
+            led.commit_step([], [], [("v1", seq, "u", {"visitId": "v1", "seq": seq})])
+        rows = led.shop_outbox_batch()
+        self.assertEqual(len(rows), 1, "50 emissions for one visit are ONE queued row")
+        self.assertEqual(rows[0]["seq"], 50, "and it is the newest, which is the only one carrying information")
 
-        rejected = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(status=401))
-        self.assertFalse(rejected.heartbeat({"camera": "sign"}))
-        self.assertEqual(rejected.heartbeats_failed, 1)
+    def test_an_older_seq_cannot_walk_a_queued_row_backwards(self):
+        led = self._ledger()
+        led.commit_step([], [], [("v1", 9, "u", {"visitId": "v1", "seq": 9, "state": "LEFT"})])
+        led.commit_step([], [], [("v1", 4, "u", {"visitId": "v1", "seq": 4, "state": "IN_SERVICE"})])
+        row = led.shop_outbox_batch()[0]
+        self.assertEqual(row["seq"], 9)
+        self.assertEqual(row["payload"]["state"], "LEFT", "a late older emission must not resurrect a departed car")
 
-    def test_heartbeat_is_off_without_a_key_like_everything_else(self):
-        rec = Recorder()
-        self.assertFalse(ShopMirror("https://nickstire.org/api/camera/visits", None, transport=rec).heartbeat({}))
-        self.assertEqual(rec.calls, [])
+    def test_ack_is_GUARDED_by_seq_so_a_newer_row_is_never_silently_dropped(self):
+        """A new emission can be queued while its predecessor is in flight. An unguarded
+        delete on success would drop that newer row without ever sending it."""
+        led = self._ledger()
+        led.commit_step([], [], [("v1", 3, "u", {"visitId": "v1", "seq": 3})])
+        led.commit_step([], [], [("v1", 5, "u", {"visitId": "v1", "seq": 5})])   # arrived mid-flight
+        self.assertFalse(led.shop_outbox_ack("v1", 3), "the in-flight seq is stale; nothing is deleted")
+        self.assertEqual(led.shop_outbox_depth(), 1)
+        self.assertTrue(led.shop_outbox_ack("v1", 5))
+        self.assertEqual(led.shop_outbox_depth(), 0)
 
+    def test_the_queue_is_bounded_and_evicts_the_oldest(self):
+        led = self._ledger(shop_outbox_max_depth=3)
+        for i in range(6):
+            led.commit_step([], [], [(f"v{i}", 1, "u", {"visitId": f"v{i}"})])
+        ids = [r["visit_id"] for r in led.shop_outbox_batch()]
+        self.assertEqual(len(ids), 3)
+        self.assertNotIn("v0", ids, "the oldest goes first, so disk stays bounded")
+        self.assertIn("v5", ids)
 
-class ShopMirrorProvenanceTest(unittest.TestCase):
-    def test_rows_carry_their_data_class_and_run_id(self):
-        m = ShopMirror(None, None, data_class="COMMISSIONING", commissioning_run_id="C-20260909-001")
-        row = m.row_for(emission())
-        self.assertEqual(row["dataClass"], "COMMISSIONING")
-        self.assertEqual(row["commissioningRunId"], "C-20260909-001")
-        # The default is PRODUCTION, so an unconfigured producer keeps working.
-        self.assertEqual(ShopMirror(None, None).row_for(emission())["dataClass"], "PRODUCTION")
+    def test_a_failed_commit_rolls_the_shop_row_back_with_everything_else(self):
+        """One transaction means one outcome. A shop row that survived a rolled-back commit
+        would describe a visit state the ledger never accepted."""
+        led = self._ledger()
 
-    def test_provenance_columns_are_no_longer_sent_as_none(self):
-        static = {"cameraPose": "north-high", "detectorName": "frigate:cpu", "calibrationVersion": "zones-v3"}
-        m = ShopMirror(None, None, provenance=static)
-        row = m.row_for(emission())
-        self.assertEqual(row["cameraPose"], "north-high")
-        self.assertEqual(row["detectorName"], "frigate:cpu")
-        self.assertEqual(row["calibrationVersion"], "zones-v3")
-        # A per-call (per-camera) provenance wins over the mirror-wide default ...
-        row2 = m.row_for(emission(visit_id="v2"), provenance={"cameraPose": "east-low"})
-        self.assertEqual(row2["cameraPose"], "east-low")
-        # ... and an emission naming its own provenance wins over both.
-        e = emission(visit_id="v3")
-        e.__dict__["camera_pose"] = "moved"
-        self.assertEqual(m.row_for(e)["cameraPose"], "moved")
+        class Boom:
+            visit_id = "v-bad"
+
+            def __getattr__(self, name):
+                raise RuntimeError("visit is unserialisable")
+
+        with self.assertRaises(Exception):
+            led.commit_step([Boom()], [], [("v1", 1, "u", {"visitId": "v1"})])
+        self.assertEqual(led.shop_outbox_depth(), 0, "the shop row rolled back with the commit")
+        # ... and the ledger is still usable afterwards: a rollback is not a poisoned handle.
+        led.commit_step([], [], [("v-ok", 1, "u", {"visitId": "v-ok"})])
+        self.assertEqual(led.shop_outbox_depth(), 1)

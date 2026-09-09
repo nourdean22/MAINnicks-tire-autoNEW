@@ -218,8 +218,25 @@ class Pipeline:
         held = self._pending_rows
         rows = held + [row for _, row in rendered if row is not None]
         closed = self.tracker.closed_visits()
+        # The shop projection is queued in the SAME transaction as the ledger commit. Building the
+        # tuples cannot touch the network and must not be able to fail the commit, so it is wrapped:
+        # a mirror defect degrades the shop read model, never the authoritative lane.
+        shop_rows = []
+        if self.shop.enabled:
+            try:
+                for emission, row in rendered:
+                    if row is None:
+                        continue
+                    cam = self.cfg.cameras.get(emission.camera)
+                    queued = self.shop.queue_row(emission, cam.display_name if cam else None,
+                                                 cam.provenance() if cam else None)
+                    if queued is not None:
+                        shop_rows.append(queued)
+            except Exception as exc:
+                log.warning("shop mirror raised while queueing error=%s; the outbox is unaffected", exc)
+                shop_rows = []
         try:
-            statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows)
+            statuses, evicted = self.ledger.commit_step(list(self.tracker.open_visits()) + closed, rows, shop_rows)
         except Exception as exc:
             self._pending_rows = rows
             log.error("ledger commit failed error=%s; %s closed visit(s) and %s outbox row(s) retry on the next step", exc, len(closed), len(rows))
@@ -251,21 +268,7 @@ class Pipeline:
             self._continuations_counted += continued
             self.metrics.inc("visitd_tracker_max_age_continuations_total", continued)
         if self.shop.enabled:
-            # Defence in depth. ShopMirror.send already swallows everything, but the
-            # guarantee that the shop read model cannot disturb the AUTHORITATIVE outbox
-            # belongs at the call site too -- otherwise it rests on the callee staying
-            # well-behaved forever, and this runs after a successful ledger commit.
-            try:
-                for emission, row in rendered:
-                    if row is None:
-                        continue
-                    cam = self.cfg.cameras.get(emission.camera)
-                    self.shop.send(emission, cam.display_name if cam else None,
-                                   cam.provenance() if cam else None)
-            except Exception as exc:
-                log.warning("shop mirror raised error=%s; the outbox is unaffected", exc)
-            self.metrics.set("visitd_shop_mirror_sent_total", self.shop.sent)
-            self.metrics.set("visitd_shop_mirror_failed_total", self.shop.failed)
+            self.metrics.set("visitd_shop_outbox_depth", self.ledger.shop_outbox_depth())
         for reason, count in self.tracker.drain_force_ended().items():
             self.metrics.inc("visitd_tracker_force_ended_total", count, labels={"reason": reason})
             log.warning("force-ended open sightings count=%s reason=%s (visits depart through the normal grace)", count, reason)
@@ -294,6 +297,46 @@ class Pipeline:
             log.info("ledger pruned visits=%s dead_letter=%s retention_days=%s", visits, parked, self.cfg.ledger_retention_days)
         return visits + parked
 
+    def drain_shop(self, limit: int = 25) -> Dict[str, int]:
+        """Deliver queued shop projection rows, oldest first. NEVER raises.
+
+        Stops at the first unreachable row: when the WAN is down every subsequent attempt would
+        also fail, and hammering a dead endpoint 25 times per tick buys nothing. A REJECTED row
+        (4xx/5xx from a reachable server) does not stop the batch -- one poison visit must not
+        block every other car on the lot -- it stays queued with its attempt count climbing, which
+        is what surfaces as a stuck backlog in the admin.
+        """
+        result = {"sent": 0, "rejected": 0, "unreachable": 0}
+        if not self.shop.enabled:
+            return result
+        try:
+            batch = self.ledger.shop_outbox_batch(limit)
+        except Exception as exc:
+            log.warning("shop outbox read failed error=%s", exc)
+            return result
+        for item in batch:
+            try:
+                outcome = self.shop.deliver(item)
+            except Exception as exc:  # deliver() is documented never to raise; belt and braces
+                log.warning("shop mirror raised while delivering visit=%s error=%s", item.get("visit_id"), exc)
+                outcome = "unreachable"
+            result[outcome] = result.get(outcome, 0) + 1
+            try:
+                if outcome == "sent":
+                    self.ledger.shop_outbox_ack(str(item["visit_id"]), int(item["seq"]))
+                else:
+                    self.ledger.shop_outbox_fail(str(item["visit_id"]), outcome)
+            except Exception as exc:
+                log.warning("shop outbox bookkeeping failed visit=%s error=%s", item.get("visit_id"), exc)
+            if outcome == "unreachable":
+                break
+        if result["sent"]:
+            self.metrics.inc("visitd_shop_delivered_total", result["sent"])
+        if result["rejected"]:
+            self.metrics.inc("visitd_shop_rejected_total", result["rejected"])
+        self.metrics.set("visitd_shop_outbox_depth", self.ledger.shop_outbox_depth())
+        return result
+
     def shop_heartbeat_body(self, cam, mqtt_connected: bool) -> dict:
         """The producer's account of itself for the shop's `POST /api/camera/heartbeat`.
 
@@ -314,7 +357,10 @@ class Pipeline:
             "sourceType": "mqtt",
             "sourceConnected": bool(mqtt_connected) and (self.frigate_available is not False),
             "openVisits": len(self.tracker.open_visits()),
-            "outboxDepth": self.ledger.outbox_depth(),
+            # The SHOP's own backlog, not StateNour's: this heartbeat is what turns into
+            # CLOUD_BACKLOG on the shop admin, so it must measure the queue that feeds it.
+            "outboxDepth": self.ledger.shop_outbox_depth(),
+            "oldestOutboxAgeSeconds": (lambda a: None if a is None else int(a))(self.ledger.shop_outbox_oldest_age()),
             "deadLetterDepth": self.ledger.dead_letter_depth(),
         }
         body.update({k: v for k, v in prov.items() if v})
@@ -386,6 +432,11 @@ class LiveLoop:
                     # The shop's infrastructure fact, apart from visits. Best effort;
                     # ShopMirror.heartbeat never raises, so the loop cannot stall on it.
                     pipeline.shop.heartbeat(pipeline.shop_heartbeat_body(cam, self.mqtt_connected()))
+        try:
+            pipeline.drain_shop()
+        except Exception:
+            metrics.inc("visitd_pipeline_errors_total")
+            log.exception("shop drain error")
         try:
             pipeline.housekeeping(now, self.epoch())
         except Exception:
