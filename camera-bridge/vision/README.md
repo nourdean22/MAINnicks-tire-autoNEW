@@ -47,6 +47,14 @@ NPU on its own, so each is compiled explicitly. Reproduce with
 1.00 and dark SUV 1.00 in the lot pane) with **no false positives on the empty apron** —
 the exact surface where MOG2 fired continuously on shadows and pavement texture.
 
+**Read that alongside the model's own numbers, not instead of them.** Intel's model card
+gives `vehicle-detection-0200` as 0.786 GFLOPs, 1.817M parameters, one class, 256x256 BGR
+in `B,C,H,W`, scoring **AP 0.254 @ IoU 0.50:0.95 on Intel's internal test set**. That is a
+deliberately cheap detector, not an accurate one. One good frame at Nick's is not a
+detection rate, and the modest AP is exactly why the design is a *council*: this model is
+the always-on first stage, and ambiguous or entry-critical frames escalate to a stronger
+one. Treating it as the final word would repeat the MOG2 mistake with a bigger model.
+
 **Desktop capture lanes**, all three measured against the V380 client:
 
 | Lane | Result |
@@ -103,7 +111,16 @@ until someone has drawn where the driveway actually is.
 
 ## Licensing
 
-OpenVINO and Intel Open Model Zoo IR models are Apache-2.0. AGPL Ultralytics/BoxMOT
-remain rejected. D-FINE pretrained weights are **not** vendored: the distributed-weights
-licence (Objects365-derived) was still unresolved as of 2026-08-19 — repository licence
-is not weight licence.
+Verified 2026-09-09 against primary sources, stating repository licence and weight
+licence separately, because they are not the same question:
+
+- **`open_model_zoo`** — the repository `LICENSE` is Apache-2.0 and contains no clause
+  carving out model weights, trained models or datasets as distinct from source. The
+  `vehicle-detection-0200` model card states no licence of its own. The honest position is
+  therefore "Apache-2.0, with no separate weight terms asserted", not "the weights are
+  definitively Apache-2.0".
+- **`windows-capture`** — MIT per PyPI metadata; 2.0.1, `requires_python >=3.9`.
+- **AGPL Ultralytics / BoxMOT** — remain rejected. See `docs/UPSTREAMS.md`.
+- **D-FINE pretrained weights** are **not** vendored: the distributed-weights licence
+  (Objects365-derived) was unresolved as of 2026-08-19. Repository licence is not weight
+  licence, which is why this list separates the two.
