@@ -372,6 +372,11 @@ class WgcWindowSource(CaptureSource):
         self._lock = None
         self._ctrl = None
         self._delivered = 0
+        #: Frames older than this mean the target stopped rendering -- usually minimised.
+        self.stale_restore_after = 2.0
+        #: Never attempt a restore more often than this.
+        self.restore_cooldown = 10.0
+        self._last_restore_attempt = 0.0
         #: How many times this source had to un-minimise its target to keep working.
         #: Non-zero means somebody is minimising the camera app on the shop machine --
         #: worth surfacing as producer health rather than silently self-healing forever.
@@ -433,6 +438,34 @@ class WgcWindowSource(CaptureSource):
     def read(self) -> Optional[Frame]:
         if self._ctrl is None:
             self.open()
+
+        # SELF-HEAL DURING OPERATION, not only at startup.
+        #
+        # Windows Graphics Capture stops delivering the moment its target is minimised,
+        # but `_latest` still holds the last frame -- so `read()` keeps handing back the
+        # SAME picture with a stale timestamp, and the pipeline correctly calls it frozen
+        # and suppresses everything. Measured 2026-09-09 on a 5-minute live run: the
+        # operator minimised the V380 window part-way through and 401 of 873 frames were
+        # suppressed as unhealthy. The detection was right; the producer simply sat there.
+        #
+        # Restoring only in `open()` cannot help, because `open()` runs once. A cooldown
+        # keeps this from thrashing if the window is genuinely gone.
+        now = time.time()
+        with self._lock:
+            stale_for = now - (self._latest_ts or now)
+        if (stale_for > self.stale_restore_after
+                and now - self._last_restore_attempt > self.restore_cooldown
+                and self.window_hwnd is not None):
+            self._last_restore_attempt = now
+            if restore_if_minimized(int(self.window_hwnd)):
+                self.restores += 1
+                deadline = time.time() + 2.0
+                while time.time() < deadline:
+                    with self._lock:
+                        if (self._latest_ts or 0) > now:
+                            break
+                    time.sleep(0.05)
+
         with self._lock:
             img = None if self._latest is None else self._latest.copy()
             ts = self._latest_ts
