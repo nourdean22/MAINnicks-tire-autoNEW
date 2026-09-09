@@ -1781,8 +1781,17 @@ export const contentAdminRouter = router({
         });
       }
 
+      // SCORE AGAINST WHAT WE HAVE ALREADY MADE.
+      // calculateReelQualityScore's distinctiveness part scores ZERO without
+      // this context, deliberately - a brief certified "distinct" by a scorer
+      // that never saw a sibling is how 166 near-identical packs all cleared
+      // 70/75. getRecentReelSignals degrades to an empty window on a DB fault
+      // rather than throwing; an empty window legitimately means "nothing
+      // recent to repeat", which is the same answer a healthy new account gives.
+      const { getRecentReelSignals } = await import("../services/reelRepetitionHistory");
+      const recent = await getRecentReelSignals();
       const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-      const score = calculateReelQualityScore(brief as any);
+      const score = calculateReelQualityScore(brief as any, undefined, { recent });
       if (!score.passing) {
         throw new TRPCError({
           code: "BAD_REQUEST",
