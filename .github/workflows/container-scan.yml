@@ -1,0 +1,156 @@
+name: Container scan
+
+# The layer Dependabot cannot see.
+#
+# Dependabot reads manifests. `dependabot.yml` declares `npm` and
+# `github-actions` — that is the whole of this repo's automated dependency
+# watch. Both Railway-built images carry package sets outside it:
+#
+#   · apk    — statenour: python3, ffmpeg, imagemagick, py3-pip
+#              worker:    chromium, nss, freetype, harfbuzz, ca-certificates
+#     ImageMagick and Chromium are two of the highest-CVE-volume packages there are.
+#   · pip    — 14 version-pinned packages in statenour's runtime stage
+#              (yt-dlp, litellm, openai, requests, fastapi, uvicorn, …).
+#              NOTHING watches these today.
+#
+# It scans the runtime OS layer EXTRACTED from the real Dockerfile
+# (scripts/extract-runtime-oslayer.mjs), not a hand-copied package list — a
+# second copy would drift the first time someone adds a package. It does not
+# build the app: `next build` plus four workspace builds is slow and can fail
+# for reasons unrelated to security, and a gate that reddens for the wrong
+# reason is a gate people learn to ignore.
+#
+# --ignore-unfixed is deliberate. An OS CVE with no released fix is not
+# actionable, and a permanently-red gate teaches everyone to merge over red.
+# Red here means: a fix EXISTS, bump the base image. Accepted findings go in a
+# checked-in `.trivyignore` — visible in the diff, per-item, reviewable — never
+# by loosening the severity threshold.
+#
+# Canaried both ways (root AGENTS.md "Ship the canary, not just the control"):
+# every matrix leg proves the scanner enumerated real packages before its green
+# counts, and a separate job proves the vulnerability database actually matches
+# against a known-vulnerable image.
+#
+# NOTE: this repo has no branch protection, so a red run does not mechanically
+# block `gh pr merge`. Red means stop, by convention.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/statenour/Dockerfile"
+      - "apps/worker/Dockerfile"
+      - "scripts/extract-runtime-oslayer.mjs"
+      - ".trivyignore"
+      - ".github/workflows/container-scan.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_VERSION: "0.74.0"
+
+jobs:
+  instrument:
+    name: canary · the vulnerability DB actually matches
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Trivy
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          sudo mv /tmp/trivy /usr/local/bin/trivy
+          trivy --version
+
+      - name: A known-vulnerable image MUST report findings
+        run: |
+          set -euo pipefail
+          # alpine:3.10 went EOL in 2021. If this scans clean, the vulnerability
+          # database did not load and every green below is meaningless — the
+          # scanner would be reporting silence, not safety.
+          trivy image --quiet --scanners vuln --severity HIGH,CRITICAL \
+            --format json -o /tmp/canary.json alpine:3.10
+          n=$(jq '[.Results[]? | (.Vulnerabilities // []) | length] | add // 0' /tmp/canary.json)
+          echo "canary findings on alpine:3.10 = $n"
+          if [ "$n" -lt 1 ]; then
+            echo "::error::Trivy reported ZERO high/critical vulns on an EOL alpine:3.10 — the DB did not load. Treat every other green in this workflow as unproven."
+            exit 1
+          fi
+          echo "canary OK: the vulnerability database is live and matching"
+
+  scan:
+    name: os layer · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: statenour-web
+            dockerfile: apps/statenour/Dockerfile
+          - service: statenour-worker
+            dockerfile: apps/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Trivy
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          sudo mv /tmp/trivy /usr/local/bin/trivy
+          trivy --version
+
+      - name: Extract the runtime OS layer from the real Dockerfile
+        run: |
+          set -euo pipefail
+          node scripts/extract-runtime-oslayer.mjs "${{ matrix.dockerfile }}" > /tmp/os.Dockerfile
+          echo "--- layer under scan (derived, not hand-written) ---"
+          cat /tmp/os.Dockerfile
+          mkdir -p /tmp/ctx
+          docker build -q -f /tmp/os.Dockerfile -t "oslayer:${{ matrix.service }}" /tmp/ctx
+
+      - name: Canary — the scanner must SEE packages before any green counts
+        run: |
+          set -euo pipefail
+          trivy image --quiet --scanners vuln --list-all-pkgs \
+            --format json -o /tmp/pkgs.json "oslayer:${{ matrix.service }}"
+          n=$(jq '[.Results[]? | (.Packages // []) | length] | add // 0' /tmp/pkgs.json)
+          echo "packages enumerated = $n"
+          if [ "$n" -lt 1 ]; then
+            echo "::error::Trivy enumerated ZERO packages in oslayer:${{ matrix.service }} — it is not looking at a real image. A clean result here would be blindness, not safety."
+            exit 1
+          fi
+
+      - name: Report every fixable finding (visible, non-blocking)
+        run: |
+          set -euo pipefail
+          {
+            echo "## ${{ matrix.service }} · runtime OS layer"
+            echo
+            echo '```'
+            trivy image --quiet --scanners vuln --ignore-unfixed \
+              --severity MEDIUM,HIGH,CRITICAL --format table "oslayer:${{ matrix.service }}" 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gate — a CRITICAL with an available fix fails the run
+        run: |
+          set -euo pipefail
+          if ! trivy image --quiet --scanners vuln --ignore-unfixed \
+                 --severity CRITICAL --exit-code 1 "oslayer:${{ matrix.service }}"; then
+            echo "::error::A CRITICAL vulnerability WITH AN AVAILABLE FIX is present in ${{ matrix.service }}'s runtime OS layer. Bump the base image or the offending package in ${{ matrix.dockerfile }}. If it is genuinely not applicable, add it to .trivyignore with a dated reason — never widen the severity threshold."
+            exit 1
+          fi
+          echo "no fixable CRITICAL findings in ${{ matrix.service }}"

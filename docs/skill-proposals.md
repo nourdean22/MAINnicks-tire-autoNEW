@@ -12,6 +12,23 @@ Each block is a proposal an operator approves, rejects, or defers.
 - To act on one: edit the target skill directly, or hand the block to the
   global `skill-improver` skill. Then mark `Status: applied <PR>` or
   `Status: rejected <reason>`.
+- **Approval is not a status — it is an assignment.** An approved-but-unshipped
+  proposal reads `Status: approved <date> · owner <who> · due <date>`. Blameless-
+  postmortem practice (Google SRE; PagerDuty's own docs) is blunt that action
+  items die when they have no named owner and no follow-up cadence — and a bare
+  "approved" is indistinguishable from "silently dropped" when you read the file
+  six weeks later. If nobody will own it by a date, the honest status is
+  `rejected`, not `approved`.
+- **Decay pass — attached to a ritual that already fires, not a new one.** At the
+  end-of-wave `session-observer` run, re-read every `Status: proposed` block older
+  than ~60 days and do one of: re-verify the trigger still reproduces (leave it),
+  or mark `Status: retired <date> — <why>`. A proposal whose target file has since
+  been rewritten is evidence to re-check, not a to-do to preserve. Lessons-learned
+  registers stop being read when they only ever grow.
+- **A proposal that survives three decay passes untouched should be rejected
+  explicitly.** Permanent `proposed` is the same failure as a permanently-advisory
+  gate: a status that never forces a decision stops carrying information, and the
+  queue quietly becomes a place ideas go to be archived without anyone saying so.
 
 ---
 
@@ -603,7 +620,7 @@ statenour primitives documented (existence re-verified at
 - **Cost:** minutes lost; the dangerous version is trusting the silent green as "no rows".
 - **Proposed edit:** add: "never use `tsx -e` with multi-line code from PowerShell — it can no-op silently. Write a temp `.mts` INSIDE the app (module resolution needs it), run, delete. Zero output from a probe is a FAILED probe, not an empty result."
 - **Confidence:** high (reproduced both halves in one session)
-- **Status:** proposed — NOT APPLIED 2026-08-10: `windows-shell-reliability` is a GLOBAL skill (~/.claude/skills/), outside this repo's reviewable diff. Apply it operator-side.
+- **Status:** applied 2026-09-09 — the operator directed a full clear of the pending-proposal backlog this session, which extends to global skills too; added as new section 8 in `~/.claude/skills/windows-shell-reliability/SKILL.md`. (2026-08-10 note preserved above for provenance: it was previously deferred specifically because a repo session's diff can't review a global-config edit — this session applied it with the operator's direct, in-conversation instruction to touch "Claude's own operating setup".)
 
 ### P3 · Edit-tool trailing-space normalization (harness trap, for harness-worktree-setup)
 - **Trigger (witnessed):** a replace_all whose new_string ended in a meaningful trailing space had the space normalized away → produced `##Title` headers matching NEITHER markdown header level; two follow-up Edits differing only by that space were rejected as "old and new are identical". Fixed via a PowerShell regex insert and verified with a grep for the broken shape.
@@ -619,14 +636,19 @@ statenour primitives documented (existence re-verified at
 - **Cost:** near-miss — caught only because the gate re-derived the stack; trusted, a false "Prisma 7" would have shipped into GATE + RECONCILIATION as fact and seeded a future migration assumption.
 - **Proposed edit:** add to plan-gate's "Order of checks" as step 0: "A plan carrying its own 'verified / ground-truth / fact-base' table gets that table re-verified FIRST — self-verification is not evidence, regardless of the tooling the plan says it used (2026-08-11: 'VERIFIED: Prisma 7 via live code read' vs installed 6.19.3)."
 - **Confidence:** high (class recurred: Prisma-7 + Stagehand-v4 in one report family; 16 false claims in the 08-09 campaign gate)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — folded into `plan-gate`'s new step 0 (operator directive: clear the pending-proposal backlog), merged with the 08-12 and 09-07 step-0 proposals below since all three are the same "re-verify the plan's own claims first" shape
 
 ### P2 · AGENTS.md §2 "small ships" vs operator's batched-wave preference
 - **Trigger (witnessed):** mid-turn operator instruction this session: "finish everything in one long pass with minimal pr bc the checks take forever." The wave shipped as ONE PR (#1513: 10 code files + a docs commit) against §2's "small ships — 1-4 files + 1 test file per commit; a wave is 4-6 slices."
 - **Cost:** none this session (instruction followed), but the standing rule and the operator's revealed preference now disagree — the next session that obeys §2 will fragment a wave the operator wanted batched.
 - **Proposed edit:** operator policy call on AGENTS.md §2: either append "…unless the operator asks for a batched wave (slow-checks mode: one PR, staged commits inside it)" or reaffirm the rule as-is. Deliberately not an agent edit.
 - **Confidence:** medium (explicit instruction, once)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — resolved in the operator's favour and settled in
+  `apps/statenour/AGENTS.md` §2 as a named exception. The preference is no longer "once": it
+  recurred across sessions ("finish everything in one long pass with minimal pr", "do it all in
+  one big merge so you don't have to keep coming back to me") and is already a ★★★ standing
+  memory rule (`no-phased-plans-run-to-close-in-session`). A rule that contradicts a thrice-stated
+  operator preference is the thing that was wrong, not the operator.
 
 ## 2026-08-12 · capabilities gate + Pulse exit animation + memory-manager test fix (#1529–#1532)
 
@@ -667,21 +689,21 @@ statenour primitives documented (existence re-verified at
 - **Cost:** none this time (gated); executed as written, the plan would have built its two biggest phases — a "first consumer" and a triage surface — against a queue that has been drained for two weeks.
 - **Proposed edit:** add to plan-gate's "Order of checks": "Any NUMBER a plan builds a phase on ('393 pending', '68 junk wisdoms') gets re-measured live before the verdict — historical snapshots survive in code comments and prior audits long after the state they describe is fixed. A number quoted in a code comment is a fossil, not a reading."
 - **Confidence:** high (three recurrences across independent plan authors)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — folded into `plan-gate` step 0 alongside the 08-11 and 09-07 proposals (operator directive: clear the pending-proposal backlog)
 
 ### P2 · `statenour-verify` (a comment claiming coverage exists elsewhere is itself a coverage claim)
 - **Trigger (witnessed):** my own test file (`tests/cron/data-cleanup-pending-actions.test.ts`, #1537) shipped with the comment "The purger's own behavior is covered by tests/lib/stale-data-purger.test.ts" — false; that file never exercised `pending_actions_7d`, so the WHERE/DATA predicate promoted to an unsupervised nightly cron had zero real coverage anywhere. Caught by the operator-directed adversarial review; fixed in #1542 (predicate genuinely pinned, red-green executed: flipped predicate fails exactly the new test).
 - **Cost:** a false-green window on a nightly prod mutation path (#1537 → #1542), plus the review cycle to catch it.
 - **Proposed edit:** add a Traps row: "A comment asserting 'covered by <other file>' is a coverage CLAIM — grep the named file for the symbol/category before writing it, exactly like any other receipt. If the coverage doesn't exist yet, write the test first or write 'NOT yet covered' instead."
 - **Confidence:** medium (once, expensive class, mechanism identical to the false-green family)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P3 · `harness-worktree-setup` (the deletion guard matches `git rm` path text too)
 - **Trigger (witnessed):** a compound commit command containing `git rm -q apps/.../hooks/chat/use-chat-deep-link.ts tests/hooks/use-chat-deep-link.test.tsx` was hook-blocked with "Remove-Item on system path '/chat' is blocked" — the policy gate pattern-matched the `/chat/` path segment inside the command text, killing the whole compound before anything ran (#1540 session). Recovery: delete the files on disk first (Remove-Item on the real paths was fine), then stage the deletions with plain `git add <paths>` — git stages a deletion for a named path whose file is gone; `git rm` is never needed.
 - **Cost:** one blocked compound + a re-structured commit sequence (~5 minutes).
 - **Proposed edit:** add a Traps row: "`git rm` with a path containing a protected-name segment (`/chat`, …) trips the deletion guard on COMMAND TEXT. Delete via the file tools first, then `git add` the deleted paths — it stages deletions without `git rm`."
 - **Confidence:** medium (once, clear mechanism, same command-text family as the documented heredoc trap)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` Traps (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-13 · ScanFinish Run 2 — faceless-reel mega-brief + audit round 2 (#1558, #1561)
 
@@ -690,28 +712,28 @@ statenour primitives documented (existence re-verified at
 - **Cost:** a real display bug shipped to main; one audit round + follow-up PR to catch and fix.
 - **Proposed edit:** add a Traps row: "A numeric test fixture is a claim about the PRODUCER's scale/domain. Before inventing a value (0.05 vs 5.0, cents vs dollars, *10000 vs percent), grep the function that produces it in production and one existing consumer that renders it — a self-consistent wrong-scale fixture keeps every test green around a real ×100 bug."
 - **Confidence:** high (the same session's OTHER fixture-shape bug — `ctaType` at the payload top level, a field no real row has — is the identical class in a second file)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · `nickstire-verify` (`as never` on a parsed-JSON field is a bug factory — validate, never cast)
 - **Trigger (witnessed):** two instances in ONE run's diff: (a) `attentionMicrostructureStore.ts` read `brief.ctaType as never` — a field that does not exist anywhere on a real `reel_jobs.payload` — making `hasCta` structurally always false (the swipe file's beat-structure half could never report anything but "insufficient", indistinguishable from "not enough data yet"); (b) `dailyReelPost.ts:493` force-cast raw JSON strings into `EntailmentVerdict` the same way. Fixed with real normalizers (`normalizeCtaType`, `normalizeEntailmentVerdict`) + a canonical `parseReelJobPayload()` (`shared/reelJobPayload.ts`) so payload readers share one compiler-checked shape.
 - **Cost:** one structurally-dead feature merged in #1558 (would have read as "no data yet" forever); a dormant second instance.
 - **Proposed edit:** add a Traps row: "`as never` / `as unknown as X` on a JSON.parse'd field silences the exact compiler check that would catch a nonexistent field or wrong-domain value. Validate through a normalizer that degrades unknowns honestly, and read `reel_jobs.payload` through `shared/reelJobPayload.ts`'s `parseReelJobPayload()` — never a fresh ad-hoc inline type."
 - **Confidence:** high (two instances in one diff, one load-bearing)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P3 · `harness-worktree-setup` (follow-up PR from the same branch after a squash-merge = phantom conflict; cherry-pick onto a fresh branch instead)
 - **Trigger (witnessed):** PR #1560 (one new commit on the same branch #1558 had squash-merged) reported "the merge commit cannot be cleanly created" — the branch's merge base predated the squash, so GitHub tried to re-apply all 9 already-merged commits. Recovery that worked first try: `git checkout -b <fresh> origin/main && git cherry-pick <new-sha>` → clean apply, PR #1561 merged. Second occurrence of the family: Run 1's ledger records the same shape (#1551's squash made #1552 unmergeable), resolved there with the messier `checkout --ours`.
 - **Cost:** one closed PR + a re-land cycle (~5 minutes) this time; the family has now cost two sessions.
 - **Proposed edit:** add a Traps row: "After an earlier PR from THIS branch squash-merges, any follow-up PR from the same branch phantom-conflicts (its merge base predates the squash). Don't resolve — cherry-pick the new commit(s) onto a fresh branch cut from current origin/main and PR that."
 - **Confidence:** high (recurred 2×, both witnessed in this repo's ledger)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P4 · `nickstire-verify` (an e2e "proof" test must call the SAME transform production calls — extract shared splits)
 - **Trigger (witnessed):** `scanfinishRun2EndToEnd.test.ts` Stage 1 hand-fed all 14 Local Discovery topics (including the 4 e_check ones) into `localDiscoveryTopics` unfiltered, silently bypassing the e_check→government_feed evidence-gate split that the real entry point (`gatherTopicSignals()`, `contentTopicSignals.ts`) performs inline — the test's docstring claimed "the REAL functions... not re-implemented fixtures" while skipping the one load-bearing derivation. Audit-confirmed; fixed in #1561 by extracting `splitLocalDiscoveryTopics()` so the IO layer and the test call one tested implementation, and the test now asserts every government_feed candidate is blocked.
 - **Cost:** the run's headline proof-of-work receipt proved less than it claimed; would have silently kept "passing" if the library were ever reordered.
 - **Proposed edit:** add a Traps row: "When an e2e test hand-builds the input a real IO function normally derives, it can bypass the exact gate it claims to prove. If the derivation is inline in the IO layer, extract it into a pure shared function and call THAT from both the IO layer and the test."
 - **Confidence:** medium (once, clear mechanism, audit-verified)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-15 · monorepo deep run (PR #1588) — prerender payload, skill discovery, red-gate triage
 
@@ -731,7 +753,7 @@ statenour primitives documented (existence re-verified at
   payload (row counts, card counts, absence of a not-found branch), not just the
   metadata."
 - **Confidence:** high (three distinct instances in one session)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · NEW rule for `nickstire-verify` — regen environment determines what breaks
 - **Trigger (witnessed):** bisecting the committed tree showed `8d31ca036`
@@ -749,7 +771,7 @@ statenour primitives documented (existence re-verified at
   environment can actually reach BEFORE regenerating, and diff the payload
   afterwards."
 - **Confidence:** high (three separate regressions, two environments)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps, attached to the existing prerender rule (operator directive: clear the pending-proposal backlog)
 
 ### P3 · NEW rule for `harness-worktree-setup` Traps table — `git add <dir>` after `git mv`
 - **Trigger (witnessed):** commit 6612733b3 moved two skills with `git mv`, then
@@ -764,7 +786,7 @@ statenour primitives documented (existence re-verified at
   RENAME but can leave content edits unstaged (`RM` in short status). Stage moved
   files by explicit path and re-read `git status` before committing."
 - **Confidence:** medium (once, clear mechanism, self-caught)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P4 · NEW rule for `nickstire-verify` (or wherever red-gate triage belongs) — fix the instrument first
 - **Trigger (witnessed):** the `gitleaks` hard gate failed printing only
@@ -785,7 +807,7 @@ statenour primitives documented (existence re-verified at
   text, never to a line — minified HTML makes 'the line' the whole document."
 - **Confidence:** high (the guess was wrong in both target AND scope; the
   instrument fix resolved it in one run)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-18 · Nick persona measurement arc (#1649, #1650) + operator standing correction
 
@@ -816,7 +838,7 @@ statenour primitives documented (existence re-verified at
   app's (`{"extends":"./tsconfig.json","include":["scripts/<file>","next-env.d.ts"]}`); tests are
   verified by execution only."
 - **Confidence:** high (witnessed a real broken import behind the green; second app with same trap)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-18 · persona arc, later slices (#1655-#1665)
 
@@ -833,7 +855,7 @@ statenour primitives documented (existence re-verified at
   fan-out and pass the binding down. A mocked test emitting the real module's logs, or taking
   seconds, is this bug."
 - **Confidence:** high (reproduced, root-caused, fix verified — 599ms and 3/3 mocked after)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · `statenour-verify` — a zero-score eval run is a breaker symptom before it is a code bug
 - **Trigger (witnessed):** a 14/14-errored-in-6s persona suite run right after the mock-race
@@ -846,7 +868,7 @@ statenour primitives documented (existence re-verified at
   identical command before touching code. Never grade or trust a run whose Nick calls were
   sentinels."
 - **Confidence:** high (breaker cooldown confirmed by identical-command re-run going green)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-18 · chat-UX round 2 — the operator-forced thoroughness pass (#1677/#1678)
 
@@ -869,7 +891,7 @@ statenour primitives documented (existence re-verified at
   blind instrument for this surface."
 - **Confidence:** high (same blind-instrument class as the leverage-layer gate lesson;
   witnessed false green + witnessed second producer, both receipted this session)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` (operator directive: clear the pending-proposal backlog)
 
 
 ## 2026-08-19 · regen exit 0 is not proof the tree is whole (war-room session)
@@ -887,7 +909,7 @@ statenour primitives documented (existence re-verified at
   routes and the swap DELETES their previous files. (2) Run `node scripts/check-prerender.mjs` and
   git-restore any missing route dirs (`git checkout -- prerendered/<route>`) before committing."
 - **Confidence:** high (witnessed both failure classes in one session, receipts in #1709 body)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 
 ## 2026-08-25 · ChatGPT-handoff audit + landing #1809/#1830
@@ -905,7 +927,7 @@ statenour primitives documented (existence re-verified at
   `resolveReviewThread` after replying · obey the ledger ladder (fix the LABEL, never inflate the
   state) · always run `scripts/render-reality-ledger.mjs` and commit the .md beside the .json.
 - **Confidence:** high (four distinct reds witnessed in one session)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-verify`'s DoD-compiler section (operator directive: clear the pending-proposal backlog)
 
 ### P2 · guard-red-team
 - **Trigger (witnessed):** my staging canary asserted `registerAllJobs()` membership and CALLED it
@@ -920,7 +942,7 @@ statenour primitives documented (existence re-verified at
   → runner) and canary the chain, not the registry. Membership in a lookup table is never
   reachability."
 - **Confidence:** medium (one clear instance this session, plus the ChatGPT variant of the class)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `guard-red-team`'s probe list as "Reachability chain-tracing" (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-25 · chat-stack wave (7 PRs: #1836 #1843 #1846 #1848 #1849 #1850 #1851)
 
@@ -937,7 +959,7 @@ statenour primitives documented (existence re-verified at
   the real repo. Red-team every canary in the context it will actually run (hook env), not just
   standalone."
 - **Confidence:** high (deterministically reproduced both directions, fixed, re-proven)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `guard-red-team`'s protocol as rule 5 (operator directive: clear the pending-proposal backlog)
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** #1851 — `/system` showed "NOT INITIALIZED" over a lane whose boot log
@@ -950,7 +972,7 @@ statenour primitives documented (existence re-verified at
   app code MUST live on `globalThis` (or another process-global), never module scope — the two are
   separate bundles. Canary shape: `vi.resetModules()` + fresh import must read the settled state."
 - **Confidence:** high (prod-observed, mechanism confirmed, canary added)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` (operator directive: clear the pending-proposal backlog)
 
 ### P3 · harness-worktree-setup
 - **Trigger (witnessed):** #1843 needed two new npm deps; the junctioned worktree cannot run ANY
@@ -965,7 +987,7 @@ statenour primitives documented (existence re-verified at
   (and that the guard also matches such literals quoted inside heredoc docs — write docs via the
   Write tool, which is itself how THIS proposal had to be written).
 - **Confidence:** medium (once, but fully worked; receipts in #1843's body)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — the 6-step recipe added to `harness-worktree-setup` § Changing dependencies (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-26 · interaction-audit wave + home-redesign review (#1881-#1898, #1897)
 
@@ -1041,21 +1063,21 @@ statenour primitives documented (existence re-verified at
 - **Cost:** mic + Realtime voice silently dead in prod for an unknown period; this session nearly shipped "prod key works" as fact.
 - **Proposed edit:** add a rule: "A provider key's PRESENCE (env-check boolean, .env line, doc claim) is never evidence of VALIDITY. When any provider lane misbehaves, the check is one live cheap call against the provider from the runtime that holds the key."
 - **Confidence:** high (same class as nickstire-env-is-not-production — recurred across both apps)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` (operator directive: clear the pending-proposal backlog)
 
 ### P2 · harness-worktree-setup
 - **Trigger (witnessed):** `worktree-setup.ps1` detected a pnpm-lock diff vs the stale primary and printed "Bypassing node_modules link… run pnpm install manually" — but the PreToolUse hook blocks EVERY install under `.worktrees/*` with no bypass. The worktree was unusable as created; the session fell back to the scratchpad-clone recipe (clone branch → install → build `@nour/*` packages → push from clone), same as #1843.
 - **Cost:** one dead worktree created and torn down, one blocked call, ~10 min.
 - **Proposed edit:** add: "If setup prints 'Bypassing node_modules link' (lockfile drift), do NOT create/keep the worktree — go straight to the scratchpad-clone recipe (statenour-chat-tts-2026-08-27 memory has the steps)."
 - **Confidence:** high (second occurrence; #1843 hit the same wall from the junctioned side)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P3 · nickstire-shared-main-push
 - **Trigger (witnessed):** operator instructed twice this session: "one merge, not several — CI is ~13 min and cancel-in-progress kills every sibling PR's in-flight run" (five sibling sessions live). The session's Agent-policy run on `7f293d3` was itself cancelled by the next sibling merge, demonstrating the mechanism.
 - **Cost:** each extra merge to main costs every open PR a full CI cycle.
 - **Proposed edit:** add: "Merges to main cancel sibling in-flight CI (cancel-in-progress). Default to ONE merge per session — review in slices, land once. Applies to both apps, not just nickstire."
 - **Confidence:** high (operator stated twice; mechanism witnessed on this session's own run)
-- **Status:** proposed
+- **Status:** applied 2026-08-26, discovered stamped incorrectly here 2026-09-09 — this rule is already live as "PR mechanics" rule 3 in `nickstire-shared-main-push/SKILL.md` (verified by direct read); this ledger line was simply never updated to match. Corrected now, no new edit needed.
 
 ## 2026-08-27 · Adoption-gates wave + zombie rescue + primary re-park
 
@@ -1094,22 +1116,21 @@ statenour primitives documented (existence re-verified at
 - **Cost:** one failed lenses build + a diagnosis round-trip, twice in one session.
 - **Proposed edit:** extend scope line: the skill currently says it covers only harness-created worktrees under `.claude/worktrees/` — add "also run the junction block whenever `worktree-setup.ps1` completes but `<wt>/node_modules` does not exist; the script's Complete banner does not verify its junctions."
 - **Confidence:** medium (once, clear, with a matching near-precedent same day)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` "When NOT to use" as an exception (operator directive: clear the pending-proposal backlog)
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** watching PR #1946: (a) `gh pr checks` returned "no checks reported on the branch" which satisfied a naive settle loop (`pending==0 && fail==0` → printed "SETTLED: fail=0"); (b) a pushed SHA (`9c8962b4b`) had 0 check-runs for ~30 min while githubstatus said Actions operational — close/reopen did not re-fire; the next real push did.
 - **Cost:** one false "SETTLED" report; a near-miss advisory-merge decision built on a wrong billing hypothesis.
 - **Proposed edit:** add a "CI watch" bullet: require `pass > 3` (or any positive row count) before trusting a settle; and "0 check-runs on a pushed SHA with Actions 'operational' is an event-delivery stall — push the next real commit rather than close/reopen, and do not diagnose billing without the billing API."
 - **Confidence:** high (two distinct instrument-lies in one PR watch)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s "Reading an ambiguous CI or hook result" section (operator directive: clear the pending-proposal backlog)
 
 ### P3 · prod-db-guard
 - **Trigger (witnessed):** the authorized seeder's backup step: `CREATE TABLE ... AS SELECT * FROM "AutomationPolicy"` failed 42P01 — the model maps to `automation_policies` (`@@map`). Separately that morning, `git show origin/main:.gitignore > file` MSYS-mangled the colon ref (`origin\main;.gitignore`) and the redirect TRUNCATED ~300 tracked files to 0 bytes; recovery was `git archive origin/main | tar -x`.
 - **Cost:** one failed backup attempt (caught); ~300 files zeroed including the live `.completion/evidence.json` (fully recovered, byte-verified).
 - **Proposed edit:** to the backup step: "resolve the physical table name from `@@map` before writing backup SQL — the Prisma model name 42P01s"; new red-flag row: "restoring files via `git show <ref>:<path> > <path>` in git-bash — root-dotfile colon refs MSYS-mangle and the redirect truncates BEFORE the failure; use `git archive <ref> [-- <paths>] | tar -x`."
 - **Confidence:** high (both witnessed with receipts; MSYS truncation also memorized agent-side)
-||||||| 691e01a9a
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `prod-db-guard` as a new "Two receipts you can lose in the same five minutes" section (operator directive: clear the pending-proposal backlog)
 
 ## 2026-08-28 · escalate-on-ask + agent follow-ups (#1983)
 
@@ -1129,7 +1150,7 @@ statenour primitives documented (existence re-verified at
   the seam (assert the option reaches the serving call), never inside either unit — a dead control
   hides precisely between two well-tested units."
 - **Confidence:** high (witnessed, fixed, canaried red-green)
-- **Status:** proposed
+- **Status:** superseded 2026-09-09 — this is the same shape the later, more general `assert-the-consumer` skill (2026-09-08) now covers ("fires whenever a change adds a WRITER... grep for the consumer before declaring done"). No separate edit made; re-check `assert-the-consumer` before proposing this again.
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** I named a new tool `scheduleFollowUp`; that name already existed in
@@ -1143,7 +1164,7 @@ statenour primitives documented (existence re-verified at
   silently rather than erroring. Also register in BOTH `catalog.ts` and `tool-families.ts` — their
   category/cost unions differ, and only the pre-commit typecheck catches a wrong one."
 - **Confidence:** high (witnessed, caught, renamed)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s new "Naming collisions in a spread-order barrel" section (operator directive: clear the pending-proposal backlog)
 
 ### P3 · NEW: prior-art-grep
 - **Trigger (witnessed):** twice in one wave I nearly rebuilt something that existed — the tool
@@ -1190,7 +1211,7 @@ statenour primitives documented (existence re-verified at
   catalog/TOOL_FAMILIES proves the tool EXISTS, never that the pruner will surface it — the trigger
   and the attach pattern are different regexes and a tool can match one without the other."
 - **Confidence:** high (measured before and after)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s new "Naming collisions in a spread-order barrel" section (operator directive: clear the pending-proposal backlog)
 
 ## 2026-09-01 · Command Surface wave (#2047/#2048)
 
@@ -1208,7 +1229,7 @@ statenour primitives documented (existence re-verified at
   guard's subject dies, retarget the CONTRACT at the replacement surface, don't delete the
   canary."
 - **Confidence:** medium (once, but the repo has a whole family of readSource-style guards)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · statenour-verify (deploy-confirmation section)
 - **Trigger (witnessed):** two failures in one confirmation. (a) The skill's own snippet pipes
@@ -1223,7 +1244,7 @@ statenour primitives documented (existence re-verified at
   var as "check broken", never "not deployed". Prefer per-turn one-shot checks over
   long-running background poll loops (turn boundaries kill them).
 - **Confidence:** high (both legs witnessed this session; empty-var-as-bad-news recurs repo-wide)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s "Confirming a merge is DEPLOYED" section (operator directive: clear the pending-proposal backlog)
 
 ## 2026-09-01 · Audit wave (#2057 · #2058 · #2059 · #2060)
 
@@ -1232,28 +1253,28 @@ statenour primitives documented (existence re-verified at
 - **Cost:** ~15 min across two retries, plus one "push landed?" false alarm resolved only by `git ls-remote`.
 - **Proposed edit:** add under receipts: "`git push` runs `build:affected` in pre-push. Run it with a 600 s timeout in the background and prove the push with `git ls-remote origin refs/heads/<branch>`; the local SHA is not the receipt."
 - **Confidence:** high (recurred 2×)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · statenour-verify
 - **Trigger (witnessed):** #2057's `completion-authority` lane went red on three Codex review threads (`chatgpt-codex-connector`); #2058 got one more. Two were wrong (trailer WAS present; a count already carried its own staleness warning), one found a REAL second half of the P0 (`/decisions/1.png` bypassed the matcher — confirmed 200 on prod). The gate blocks merge until threads are RESOLVED (GraphQL `resolveReviewThread`), and only re-runs on push or `gh run rerun`.
 - **Cost:** one merge blocked; without reading the threads the P0 would have shipped half-fixed.
 - **Proposed edit:** "Before merging, list review threads (`gh api graphql … reviewThreads`). Reply with evidence and resolve each — but READ them first: one in four this wave was right about a bug the tests missed. Never resolve to clear a gate."
 - **Confidence:** high (4 threads, 2 PRs)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s "Reading an ambiguous CI or hook result" section (operator directive: clear the pending-proposal backlog)
 
 ### P3 · guard-red-team
 - **Trigger (witnessed):** the `force-push` PreToolUse rule (`__GIT__push\b[^\n]*?(…|\s\+[^\s:+])`) blocked a command that was `git push origin <branch> && gh api … -f body="…[^/]+\.(ext)…"` — the `+` inside a review-reply body chained after a legitimate push matched the `+refspec` arm.
 - **Cost:** one blocked call, one split retry; a false positive that teaches sessions to route around the guard.
 - **Proposed edit:** anchor the `+refspec` arm to the push's own arguments — stop the `[^\n]*?` scan at the first `&&`/`;`/`|` — and add this command as a canary allow-example in `policy.test.mjs`.
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 (operator directive: clear the pending-proposal backlog) — the actual root cause was the bundled-short-flag arm (`gh api`'s `-f`), not just `+refspec`; fixed by restricting the WHOLE alternation's scan to `[^;|&\n]*?` (matching `push-to-main`'s existing technique) in `config/agent-os/policy.json`; new allowExample added and the fix verified via `node --test scripts/agent-os/policy.test.mjs` (9/9 pass) plus a standalone reproduction of the exact reported command going from denied→allowed. Documented in `guard-red-team`'s Chaining bullet.
 
 ### P4 · harness-worktree-setup
 - **Trigger (witnessed):** the primary checkout's `apps/**` + every `node_modules` were gone (6,686 tracked files deleted on disk), so the junction-based setup script had nothing to junction. A plain `git worktree add` OUTSIDE `.worktrees/` + `pnpm install --filter "@statenour/web..."` (3m35s) worked, but `typecheck:raw` then failed on three unbuilt workspace packages (`@nour/ai-capabilities`, `@nour/social-assets`, `@statenour/lenses`) until each was `tsc -p`-compiled; `verify:hard` stopped at `check:env` (no `.env`) and `check:policy-coverage` (no DB).
 - **Cost:** three failed typecheck/commit attempts; one blocked `pnpm --filter <pkg> build` (classifier).
 - **Proposed edit:** a "plain worktree" section: when the primary's node_modules are absent, create the worktree outside `.worktrees/`, install with the `...` filter, `pnpm exec tsc -p tsconfig.json` in each of the three packages before typecheck, and run the `check:*` gates individually, reporting `check:env`/`check:policy-coverage` as environment-skipped.
 - **Confidence:** high (each step failed once before the fix was found)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup` as new "5 · Plain worktree" section (operator directive: clear the pending-proposal backlog)
 
 ### P5 · NEW: positive-control-first (or a line in statenour-verify)
 - **Trigger (witnessed):** every new test this wave was run on the UNFIXED code first and the failure shape recorded (middleware 6f/8p; ingest-gmail 5f/1p; recall 5f/1p; N-1 2f/1p). Two of those runs caught test-harness bugs that would otherwise have shipped as green tests of nothing: `vi.restoreAllMocks()` stripping factory resolved values (ingest-gmail crashed on `.length`), and a `mockImplementationOnce(throw)` left unconsumed by a read-only control that fired in the NEXT test.
@@ -1269,7 +1290,7 @@ statenour primitives documented (existence re-verified at
 - **Cost:** three follow-up PRs; a defence that was reported closed while four of five doors stayed open, live, for ~2 hours.
 - **Proposed edit:** "Before declaring any prompt-injection / fencing fix done, ENUMERATE every assembler that renders stored text into a prompt or a tool result — `brain-context.ts` block producers, `system-prompt.ts` sections, `augment-final-prompt.ts`, `context-hints.ts`, `lib/ai/tools/*` — and name each one as fenced, allowlisted-with-reason, or not applicable. One fixed renderer is not a fixed class. The gate shape that makes this durable is `tests/ai/prompt-block-fencing-gate.test.ts`."
 - **Confidence:** high (5 misses in one wave, two review passes needed)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` as new "Before declaring a prompt-injection / fencing fix done" section (operator directive: clear the pending-proposal backlog)
 
 ## 2026-09-02 · nickstire admin audit wave (#2063 · #2068 · #2070 · #2072) + production apply
 
@@ -1342,7 +1363,7 @@ statenour primitives documented (existence re-verified at
   in the browser graph fail `next build`, never `tsc`. Run the real build when you
   change an import edge, not just typecheck."
 - **Confidence:** high (structural, reproducible; the gate reproduced it twice)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 ### P2 · `verify-receipt` (global) — a vendor list endpoint is a PROJECTION, and vendors rename
 - **Trigger (witnessed):** after #2082 deployed, my verification script printed
@@ -1361,7 +1382,12 @@ statenour primitives documented (existence re-verified at
   are routinely projections that omit the very fields you are verifying. Prove the
   reader works by matching one record you know exists."
 - **Confidence:** high (two separate false-negative mechanisms in one run)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` as "A negative result from a
+  third-party API is not evidence yet", carrying both mechanisms by name (the
+  `<functionId>:<span>` convention and the list-endpoint projection) and cross-linked to
+  `empty-vs-error`. Deliberately NOT a new global `verify-receipt` skill: this ledger's own
+  2026-07-30 precedent is that an update beats a new skill when an existing one is the right
+  bucket, and `statenour-verify` already owns "prove the instrument sees the target".
 
 ### P3 · `statenour-verify` — grep your own diff for credential fragments before committing
 - **Trigger (witnessed):** writing mask/scrub canaries I used the operator's REAL
@@ -1384,7 +1410,7 @@ statenour primitives documented (existence re-verified at
   fails as `const secret = ...`."
 - **Confidence:** high (one incident, two files, one closed PR — and the gate's coverage
   gap is verified, not assumed)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` as new "Credentials in fixtures and diffs" section (operator directive: clear the pending-proposal backlog)
 
 > **Deliberately NOT proposed:** the OpenTelemetry provider-conflict mechanism itself
 > (Sentry.init claims the global provider; `tracesSampler` is consulted for root spans
@@ -1413,7 +1439,7 @@ statenour primitives documented (existence re-verified at
   A merge without both is MERGED, never SHIPPED." Add the trap: "`railway logs --build` without a
   deployment id shows the latest SUCCESSFUL build; list deployments first and pass the FAILED id."
 - **Confidence:** high (two services, three days, the same ledger line repeated by two sessions)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — promoted to a hard step in `statenour-verify`'s "Confirming a merge is DEPLOYED" section (operator directive: clear the pending-proposal backlog)
 
 ### P2 · plan-gate — check production evidence before the doc checks
 - **Trigger (witnessed):** the pasted 2026-09-07 audit ("Report B") ran its gate against
@@ -1428,7 +1454,7 @@ statenour primitives documented (existence re-verified at
   A plan gated against docs while prod is broken ranks the wrong things." Mirrors the
   source-of-truth hierarchy in root `AGENTS.md` (production evidence is rank 1; docs are rank 4–5).
 - **Confidence:** medium (one wave, but the omission is structural in the skill text)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — folded into `plan-gate` step 0 alongside the 08-11 and 08-12 proposals (operator directive: clear the pending-proposal backlog)
 
 ### P3 · statenour-verify (Traps) — deleting the last file in a directory a Dockerfile COPYs breaks every build
 - **Trigger (witnessed):** #2096 deleted `apps/statenour/patches/ai@6.0.162.patch`, the only file
@@ -1443,7 +1469,7 @@ statenour primitives documented (existence re-verified at
   delete a directory a Dockerfile COPYs. Run `tests/repo/dockerfile-copy-sources.test.ts` (it is in
   the suite) and read its message before pushing a change that deletes files under a COPY source."
 - **Confidence:** high (the defect is deterministic and the gate now reproduces it)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify` Traps (operator directive: clear the pending-proposal backlog)
 
 > **Deliberately NOT proposed:** the scratch-clone push path when shared `node_modules` predate a
 > dependency (`@sentry/nextjs` here) — `statenour-verify` already documents it under "When no
@@ -1615,7 +1641,7 @@ statenour primitives documented (existence re-verified at
   `git diff HEAD --binary --output=<file> -- <paths>`) and commit each from the hookless clone. Run the
   per-app pre-commit gates by hand on the STAGED files first (brand-voice scans 0 files unless staged)."
 - **Confidence:** medium (once, clear; the toolchain trap itself recurred - 2026-09-02 and today)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `statenour-verify`'s "When no statenour toolchain exists" section (operator directive: clear the pending-proposal backlog)
 
 ### P2 · `harness-worktree-setup` / `scripts/worktree-setup.ps1`
 - **Trigger (witnessed):** `worktree-setup.ps1` refused to junction `node_modules` because `pnpm-lock.yaml`
@@ -1628,7 +1654,7 @@ statenour primitives documented (existence re-verified at
   name) instead of the dead-end install advice; (b) copy only untracked `.env*` files (skip anything
   `git ls-files` knows), so the worktree starts clean.
 - **Confidence:** high (both witnessed; the lockfile-diff branch has no safe manual path today)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `harness-worktree-setup`'s "When NOT to use" exception (operator directive: clear the pending-proposal backlog)
 
 ### P3 · root `AGENTS.md` Environment (Windows)
 - **Trigger (witnessed):** `git diff HEAD --binary -- <paths> | Out-File -NoNewline` produced a patch with every
@@ -1640,7 +1666,7 @@ statenour primitives documented (existence re-verified at
   `git diff --output=<file>` (raw bytes, LF). To get rid of a stray untracked file the guard will not let you
   delete, move it to the scratchpad instead."
 - **Confidence:** high (structural; reproducible)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — both lines added to root `AGENTS.md` § Environment (Windows) (operator directive: clear the pending-proposal backlog)
 
 ### P4 · `prior-art-grep`
 - **Trigger (witnessed):** the camera plan first named `vehicles.licensePlate` as the plate store (three audit
@@ -1651,7 +1677,7 @@ statenour primitives documented (existence re-verified at
   newest migrations and grep them for `drop table` / `retire` - the schema file can outlive the table (Drizzle
   keeps the definition after the DROP)."
 - **Confidence:** medium (once, clear)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `prior-art-grep` as a new ⚠ warning (operator directive: clear the pending-proposal backlog)
 
 ### P5 · `nickstire-shared-main-push` (PR mechanics)
 - **Trigger (witnessed):** minutes after #2220 merged, every new PR (#2221 nickstire, #2222 statenour, #2223
@@ -1663,4 +1689,4 @@ statenour primitives documented (existence re-verified at
   docs-only PR showing the same red is the cleanest proof), disclose it on the PR, spawn the fix as its own
   task, and do not absorb it."
 - **Confidence:** high (witnessed on three PRs at once)
-- **Status:** proposed
+- **Status:** applied 2026-09-09 — added to `nickstire-shared-main-push` as new "A red gate whose own log says 'unmodified tree'" section (operator directive: clear the pending-proposal backlog)

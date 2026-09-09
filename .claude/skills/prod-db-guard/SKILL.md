@@ -104,6 +104,23 @@ Almost every "does this work in prod?" question has a read-only answer:
 
 Prefer these. They answer the question without a write path.
 
+## Two receipts you can lose in the same five minutes
+
+- **Resolve the physical table name from `@@map` before writing backup
+  SQL.** `CREATE TABLE ... AS SELECT * FROM "AutomationPolicy"` fails
+  `42P01` — the Prisma MODEL name is not the database TABLE name once a
+  model declares `@@map`. Check the schema's `@@map` before naming a
+  table in raw SQL.
+- **Never restore files via `git show <ref>:<path> > <path>` in
+  git-bash.** A root-dotfile-shaped colon ref MSYS-mangles
+  (`origin\main;.gitignore`), and the `>` redirect truncates the target
+  to 0 bytes *before* the command's own failure is visible — witnessed
+  restoring one file this way zeroed ~300 tracked files, including the
+  live `.completion/evidence.json`. Use
+  `git archive <ref> [-- <paths>] | tar -x` instead; it cannot truncate
+  a target it never opens for writing until the archive stream is
+  already valid.
+
 ## Red flags — stop if you catch yourself thinking these
 
 - "It's just a dry run."

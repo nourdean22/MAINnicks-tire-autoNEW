@@ -8,8 +8,14 @@
 > next spins up nour-os-unified the contract here is still the source
 > of truth. The local-agent/tuya_agent.py + the /api/sync/nour-os
 > route still exist + still work if the agent is restarted.
+>
+> **Correction (2026-09-09):** the body text and diagram below still say
+> "Vercel" — statenour-os has since moved to Railway (`main` auto-deploys
+> to bdnick.info; see `apps/statenour/AGENTS.md`). The endpoints and
+> contract are otherwise unchanged; only the hosting platform label was
+> stale.
 
-How the Vercel-hosted web app sends smart-home commands to the
+How the Railway-hosted web app sends smart-home commands to the
 Windows desktop agent that actually talks to Ring / Eufy / Tuya /
 Google Home.
 
@@ -23,7 +29,7 @@ publicly reachable from the internet.
 
 ```
   ┌─────────────────────────────┐        ┌──────────────────────────┐
-  │  statenour-os (Vercel)      │        │  nour-os-unified         │
+  │  statenour-os (Railway)     │        │  nour-os-unified         │
   │  POST /api/devices/command  │───────▶│  (Windows desktop)       │
   │  enqueues → Postgres        │        │  polls every 15-30s      │
   │                             │        │  executes via bridges    │

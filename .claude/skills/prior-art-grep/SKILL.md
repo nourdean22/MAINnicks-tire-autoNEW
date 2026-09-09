@@ -52,6 +52,16 @@ genuine no-match.** A typo'd or non-existent path therefore reads as
 "nothing found" and gets recorded as "Prior art: none". Confirm the path
 exists (`git ls-files <path>`) before believing an empty result.
 
+⚠ **The schema file can outlive the table.** For every table you are about
+to read from or build on, list the newest migrations and grep them for
+`drop table` / `retire` before trusting `schema.prisma` or `schema.ts` —
+Drizzle keeps a table's definition around after the migration that dropped
+it (witnessed: the camera plan named `vehicles.licensePlate` as the plate
+store from three audit agents quoting the schema, after
+`drizzle/0117_retire_dead_vehicles_table.sql` had already retired that
+table — caught only because the migrations directory was checked for
+naming conventions, not by the grep set above).
+
 Then write ONE line before you build:
 
 > Prior art: none / `<file:line>` — reusing / `<file:line>` — insufficient

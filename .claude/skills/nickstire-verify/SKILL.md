@@ -32,6 +32,21 @@ a `...-superseded-<date>` key — the manifest is rolling, not append-only.
 
 Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
 
+**One check name, FOUR different sub-gates — a red is not "the same gate
+again."** Witnessed on #1830: `completion-authority` went red four times
+on one PR, each a different sub-gate, ~50 minutes of fix-push-poll cycles
+because only sub-gate 1 was documented:
+1. Stale per-diff `.completion/evidence.json` entry (above) — fix:
+   rewrite the matching entry for THIS diff.
+2. Unresolved P1 review threads from the Codex review bot — fix: reply,
+   then resolve via GraphQL `resolveReviewThread`.
+3. A capability-ledger cross-axis rule (`operator_only` requires >=
+   `integration_verified`) — fix: obey the ledger ladder; fix the
+   LABEL, never inflate the state to satisfy the rule.
+4. An un-rendered `REALITY-LEDGER.md` diff — fix: always run
+   `scripts/render-reality-ledger.mjs` and commit the `.md` beside the
+   `.json`.
+
 ## Traps
 
 - **A derived scan set must include the WIRING file it derives from.**
@@ -63,6 +78,39 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
   "verified OK / not checked" answer shape, then verify their top findings
   yourself. A single author pass over more than ~20 files has not once been
   sufficient (2026-08-12 onward).
+- **A numeric test fixture is a claim about the PRODUCER's scale or
+  domain.** Before inventing a value (0.05 vs 5.0, cents vs dollars,
+  x10000 vs percent), grep the function that produces it in production
+  and one existing consumer that renders it — a self-consistent
+  wrong-scale fixture keeps every test green around a real x100 bug.
+  Witnessed 2026-08-13: the real producer (`getTopPosts()`,
+  `server/pipelines/instagram-data.ts:576`) returns `engagementRate` on
+  a PERCENTAGE scale (5.23 for 5.23%), but two test fixtures invented a
+  0-1 fraction production never produces — every test stayed green
+  while a real reel would have rendered "523.00%" (#1558, caught only
+  by a post-merge audit, fixed in #1561).
+- **`as never` / `as unknown as X` on a JSON.parse'd field silences
+  the exact compiler check that would catch a nonexistent field or a
+  wrong-domain value.** Validate through a normalizer that degrades
+  unknowns honestly, and read `reel_jobs.payload` through
+  `shared/reelJobPayload.ts`'s `parseReelJobPayload()` — never a fresh
+  ad-hoc inline type. Witnessed 2026-08-13, two instances in one diff:
+  `attentionMicrostructureStore.ts` cast `brief.ctaType as never` for a
+  field no real payload has (making `hasCta` structurally always
+  false), and `dailyReelPost.ts:493` force-cast raw JSON into
+  `EntailmentVerdict` the same way — both merged in #1558 behind a
+  green suite.
+- **An e2e "proof" test that hand-builds the input a real IO function
+  normally derives can bypass the exact gate it claims to prove.** If
+  the derivation is inline in the IO layer, extract it into a pure
+  shared function and call THAT from both the IO layer and the test.
+  Witnessed 2026-08-13: `scanfinishRun2EndToEnd.test.ts` hand-fed all
+  14 Local Discovery topics unfiltered, silently skipping the
+  e_check -> government_feed evidence-gate split that
+  `gatherTopicSignals()` performs inline — the docstring claimed "the
+  REAL functions" while bypassing the one load-bearing derivation
+  (#1558); fixed in #1561 by extracting `splitLocalDiscoveryTopics()`
+  so the IO layer and the test share one implementation.
 - **Brand-voice linter on CSS class names.** The pre-commit
   `brand-voice` linter regex-matches banned words (`premium`, `tier`,
   etc.) in the staged diff — including CSS class names. The
@@ -125,6 +173,41 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
   CI audits this. The SPA hydrates on top of prerendered HTML — so a
   nav change reaches users via the JS bundle immediately, but the
   prerendered HTML (what crawlers see) stays stale until regen.
+- **A check that a page EXISTS is not a check that it CARRIES its
+  content.** Prod serves two documents for nickstire routes: crawlers
+  get ~150KB of committed prerendered HTML, browsers get the ~14KB SPA
+  shell. Assert the payload (row counts, card counts, absence of a
+  not-found branch), not just the metadata. Witnessed 2026-08-15:
+  `prerender:semantic-check` validated title/description/canonical/H1/
+  NAP/JSON-LD across 9 routes and passed all of: a 1-star review under
+  the homepage's "five-star reviews" headline, a price-comparison route
+  with ZERO per-size floor rows while the live endpoint served 9, and
+  10 blog articles serving HTTP 200 with "ARTICLE NOT FOUND" while
+  `content.articleBySlug` had full content for every one — ten
+  acquisition pages invisible to search for four days, all green
+  (#1588).
+- **Never run `pnpm run regen` locally to refresh the committed
+  prerendered tree.** `regen` (`scripts/regen-prerender.mjs`) rewrites
+  the tracked tree — a different script from `prerender` above, which
+  only writes `dist/`. A LOCAL regen loses DB-backed payloads; a CI
+  regen loses Places-API-backed payloads unless `GOOGLE_MAPS_API_KEY`
+  is set in that workflow. Check what the environment can actually
+  reach BEFORE regenerating, and diff the payload afterwards.
+  Witnessed 2026-08-15: a local regen (`6d99b9e3c`) broke all 10 blog
+  articles plus the price floors; the CI refresh that then "fixed" it
+  regressed `/reviews` (132,918 bytes / 5 cards -> 107,213 bytes / 0
+  cards) because that workflow has no `GOOGLE_MAPS_API_KEY` — the tree
+  has oscillated between environments for weeks (#1588).
+- **After every regen, verify the swap didn't silently drop routes.**
+  `pnpm run regen` can exit 0 and report "Broken: 0" while tolerating
+  up to 10% failed routes — and the swap DELETES those routes' previous
+  files. (1) grep the regen log for `✗` and for `skipped`. (2) Run
+  `node scripts/check-prerender.mjs` and git-restore any missing route
+  dirs (`git checkout -- prerendered/<route>`) before committing.
+  Witnessed 2026-08-19: exit 0 / "Broken: 0" while 10 blog routes
+  failed on a latent scoping bug and the swap dropped their files (340
+  -> 327); two more routes timed out on the 50s budget the second run
+  and also needed git-restore (#1709).
 - **`lint:source` matches `confirm (` / `prompt (` even inside a
   single-line JSX comment.** Its comment-skip heuristic tests for a line
   starting with `//`, `*` or `/*`, and a `{/* … */}` line starts with `{`

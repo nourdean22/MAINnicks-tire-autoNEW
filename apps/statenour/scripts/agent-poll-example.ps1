@@ -8,7 +8,7 @@
 #
 # Env required:
 #   STATENOUR_URL  — https://bdnick.info (no trailing slash)
-#   SYNC_KEY       — matches Vercel env SYNC_KEY
+#   SYNC_KEY       — matches the statenour-web Railway service's SYNC_KEY
 #   BRIDGE_ROOT    — absolute path to nour-os-unified/modules
 #                    (where iot/ring/bridge.js lives)
 #

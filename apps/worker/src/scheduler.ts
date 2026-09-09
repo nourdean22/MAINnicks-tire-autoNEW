@@ -14,8 +14,12 @@
  *
  * Trade-off accepted: 1 internal network hop per fire (~5-15ms on
  * Railway internal). Worth it · this commit can ship without touching
- * any cron handler code in statenour-web · and rollback is just
- * "stop the worker, point Vercel cron at statenour-web again."
+ * any cron handler code in statenour-web. Rollback note (corrected
+ * 2026-09-09): the original plan below was "stop the worker, point
+ * Vercel cron at statenour-web again" — Vercel is now fully retired for
+ * this app (apps/statenour/AGENTS.md), so that path no longer exists.
+ * Current rollback is a straight `git revert` of the commit that
+ * introduced this forwarding.
  *
  * Schedule list mirrors apps/statenour/config/crons.ts active rows
  * with frequency < 1h. Daily/weekly rows ride the mega fan-out

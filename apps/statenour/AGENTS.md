@@ -51,7 +51,10 @@ script inside this app is active — do not resurrect one.
 
 1. **Auto mode** — execute autonomously, prefer action over planning. Never destructive without
    explicit confirmation (root `AGENTS.md` → Protected operations defines what counts).
-2. **Small ships** — 1–4 files plus a test per commit; a wave is 4–6 slices.
+2. **Small ships by default** — 1–4 files plus a test per commit; a wave is 4–6 slices.
+   **Operator exception (settled 2026-09-09):** when the operator asks for a batched wave —
+   "one big merge", "minimal PRs, the checks take forever" — ship ONE PR with staged commits
+   inside it and say so in the PR body. Their stated preference wins; do not fragment it back.
 3. **The push must build clean.** Full gate: `pnpm verify:hard` — **16 checks, composition at
    `package.json:12`. Read it there;** any prose list goes stale the next time one is added.
 4. **Auth is gated, not advisory.** Operator-private GET routes need `auth: "owner"`; mutating

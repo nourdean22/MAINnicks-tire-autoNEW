@@ -68,6 +68,13 @@ here is the *observation*; the operator keeps the write.
   every wave is the thing you want to be able to see.
 - **Silent scope creep into an edit.** If a proposal feels obviously
   right, it is still a proposal. Write it down and stop.
+- **A correction applied to one artifact is not applied.** A 2026-09-08
+  finding (`canonical-business-truth.test.ts`'s cause) was corrected in
+  this queue but the correction never reached the skill that carried the
+  same wrong claim — same session, same author, two artifacts. When a
+  prior proposal turns out to be wrong or incomplete, grep for every place
+  the ORIGINAL claim appears (this queue, the target skill, any memory
+  entry it cites), not just the file you happened to be editing.
 
 ## Approval path (operator)
 

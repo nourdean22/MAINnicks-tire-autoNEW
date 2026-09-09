@@ -76,7 +76,7 @@ if (!processed) {
 
   if (!afterTypedByKey && afterLegacyByKey) {
     console.log("\n🔴 CONFIRMED: legacy write succeeded, typed write SILENTLY DROPPED");
-    console.log("   Watch Vercel runtime logs for 'autonomous_event_typed_write_failed' in next ~30s");
+    console.log("   Watch statenour-web's Railway logs for 'autonomous_event_typed_write_failed' in next ~30s");
   } else if (afterTypedByKey && afterLegacyByKey) {
     console.log("\n🟢 Both writes succeeded — handler is healthy");
   } else if (!afterTypedByKey && !afterLegacyByKey) {

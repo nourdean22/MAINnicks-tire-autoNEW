@@ -17,6 +17,18 @@ Gate first. Build second. A plan is a hypothesis about what is missing.
 
 Run these before writing any code or agreeing to any scope.
 
+0. **Re-verify the plan's own claims before anything else — three recurring shapes.**
+   (a) A plan carrying its own "verified / ground-truth / fact-base" table gets that table
+   re-verified FIRST: self-verification is not evidence, regardless of the tooling the plan
+   says it used (2026-08-11: "VERIFIED: Prisma 7 via live code read" vs. installed 6.19.3).
+   (b) Any NUMBER a plan builds a phase on ("393 pending", "68 junk wisdoms") gets re-measured
+   live: historical snapshots survive in code comments and prior audits long after the state
+   they describe has changed — a number quoted in a comment is a fossil, not a reading (three
+   independent recurrences). (c) Check production evidence before the doc checks below:
+   `/api/version` (or the app's equivalent), `railway status`, and the deployment list — a plan
+   gated only against docs while production is actually broken (a 3-day undeployed outage was
+   invisible to a 54-section audit that never checked this) ranks the wrong things. This mirrors
+   root `AGENTS.md`'s source-of-truth hierarchy: production evidence is rank 1, docs are rank 4-5.
 1. **`docs/UPSTREAMS.md`** — the disposition register. If the plan proposes
    adopting an external tool or platform, it very likely has a verdict already.
 2. **`apps/<app>/docs/CURRENT-TRUTH.md`** — what is actually live in that app.
