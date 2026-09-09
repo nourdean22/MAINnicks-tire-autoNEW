@@ -92,3 +92,44 @@ export function formatMoneyShort(dollars: number): string {
   if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}K`;
   return `$${Math.round(dollars).toLocaleString()}`;
 }
+
+/**
+ * DURATION FORMATTERS — for elapsed spans the SERVER already computed.
+ *
+ * These take whole MINUTES, not timestamps, and that is the contract that matters.
+ * `apps/nickstire/AGENTS.md`: driver-parsed TiDB DATETIME values come back shifted on
+ * ET, so a duration derived by subtracting two of them in JavaScript is wrong by the
+ * UTC offset — four or five hours, silently, and worst in exactly the "how long has
+ * this car been waiting" number an operator acts on. Every caller must pass a number
+ * that SQL produced (see `lot.ts` `minutesBetween`).
+ */
+
+/** Whole minutes → "42m" / "1h 5m". `null`/`undefined` → "—", never "0m". */
+export function formatDuration(m: number | null | undefined): string {
+  if (m === null || m === undefined) return "—";
+  if (m < 0) return "—";
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/**
+ * Advance a server-computed duration by the wall-clock time since it was fetched, so
+ * an OPEN interval keeps counting between polls instead of freezing at the last value.
+ *
+ * Two properties this exists to guarantee:
+ *  · a CLOSED interval never grows — a departed car's stay is a fact, and a fact that
+ *    increases while you watch it is a bug, not a live dashboard;
+ *  · `null` stays `null` — an unobserved start must not become a confident 0, which
+ *    reads as "just arrived" and is the same lie as a confident zero elsewhere here.
+ */
+export function advanceOpenDuration(
+  serverMinutes: number | null,
+  open: boolean,
+  fetchedAtMs: number,
+  nowMs: number,
+): number | null {
+  if (serverMinutes === null) return null;
+  if (!open) return serverMinutes;
+  const elapsed = Math.max(0, Math.floor((nowMs - fetchedAtMs) / 60_000));
+  return serverMinutes + elapsed;
+}

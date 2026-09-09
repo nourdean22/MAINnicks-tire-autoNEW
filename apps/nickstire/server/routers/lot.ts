@@ -31,10 +31,15 @@
  * was never observed is excluded from "today" by SQL NULL semantics, and letting
  * that quietly shrink the arrival count is an unknown rendering as a zero.
  *
- * WARNING: NO PRODUCER IS WIRED YET. visitd posts to StateNour's device-events
- * route, not to `POST /api/camera/visits`, so until it gains a second sink these
- * reads return `neverIngested: true` and the section says "awaiting first event".
- * That is the honest state, not a bug in these queries.
+ * PRODUCER STATUS (corrected 2026-09-09). This header used to say "NO PRODUCER IS
+ * WIRED YET". That was true when it was written and is now false: `visitd`'s
+ * `shop_mirror` posts visit rows from its `after_step`, and `vision/run_live.py`'s
+ * `VisitSink` posts pipeline emissions directly. Both are merged.
+ *
+ * What remains true: until migration `0119_vehicle_visits` is applied to production
+ * AND a producer runs against a live camera, these reads return
+ * `neverIngested: true` and the section says "awaiting first event". That is the
+ * honest state, not a bug in these queries.
  */
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -49,11 +54,41 @@ const ET_DAY_START = sql`UNIX_TIMESTAMP(CONVERT_TZ(DATE(CONVERT_TZ(NOW(), '+00:0
 const ageMinutes = (col: string) =>
   sql.raw(`FLOOR((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(${col})) / 60)`);
 
+/**
+ * Whole minutes between two columns, in SQL, NULL-safe at BOTH ends.
+ *
+ * `from` is the anchor: if it is NULL the answer is NULL, never 0 — an unobserved
+ * arrival must not render as "here 0 minutes", which reads as "just pulled in".
+ * `toCoalesce` lets an OPEN interval run to NOW(), so a car still on the lot shows a
+ * growing number instead of a blank.
+ *
+ * This is SQL and not JS on purpose. `apps/nickstire/AGENTS.md`: driver-parsed TiDB
+ * DATETIME values come back shifted on ET, so subtracting them in JavaScript produces
+ * durations that are wrong by the UTC offset -- four or five hours, silently, and
+ * worst in exactly the "how long has this car been waiting" number an operator acts on.
+ */
+const minutesBetween = (from: string, toCoalesce: string[]) =>
+  sql.raw(
+    `CASE WHEN ${from} IS NULL THEN NULL ELSE GREATEST(0, FLOOR(` +
+    `(UNIX_TIMESTAMP(COALESCE(${toCoalesce.join(", ")})) - UNIX_TIMESTAMP(${from})) / 60)) END`,
+  );
+
 const OPEN_VISIT_CAP = 500;
 
 function num(v: unknown): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Like `num`, but preserves NULL. Used for durations, where NULL means "we never saw
+ * the start" and 0 means "it started this minute" -- two different facts that `num`
+ * would flatten into the same reassuring zero.
+ */
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** mysql2 returns [rows, fields] for raw execute; drizzle may hand back either shape. */
@@ -68,7 +103,7 @@ function rowsOf(result: unknown): Array<Record<string, unknown>> {
  * Nearest-rank percentile on an ascending array. Not interpolated: at n=2 the median
  * is the LOWER of the pair, which is the conservative reading for a wait time.
  */
-export function percentile(sorted: number[], p: number): number | null {
+function percentile(sorted: number[], p: number): number | null {
   if (!sorted.length) return null;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[idx];
@@ -219,10 +254,31 @@ export const lotRouter = router({
         // `arrivedAt DESC` pushed every never-observed-arrival visit to the END of the
         // ordering. Past `limit` rows those became permanently invisible — the rows the
         // schema deliberately permits were exactly the ones the table hid.
+        // The four duration columns below, explained OUT HERE rather than as `--`
+        // comments inside the template literal. `rawSqlTablesExist.test.ts` scans raw
+        // SQL for table references and does not strip comments, so ordinary prose
+        // containing the word "from" mints a phantom table -- this exact block failed
+        // that gate with a table named `the`, out of "from the wait clock". Prose in a
+        // SQL string is parseable by the auditor and unreadable to it; keep it in TS.
+        //
+        //   onPropertyMinutes      arrival -> departure or now. NULL when the arrival
+        //                          was never observed, so the UI says "first seen"
+        //                          rather than inventing a start.
+        //   sinceFirstSeenMinutes  createdAt -> departure or now. createdAt is NOT
+        //                          NULL, so an unobserved arrival still gets an honest
+        //                          floor: "here at least this long".
+        //   waitMinutes            wait clock (or arrival) -> bay, departure, or now.
+        //                          A still-waiting car keeps counting up.
+        //   bayMinutes             bay entry -> bay exit, departure, or now.
         const list = rowsOf(await d.execute(sql`
-          SELECT visitId, camera, state, arrivedAt, bayEnteredAt, bayExitedAt, departedAt,
+          SELECT visitId, camera, state, arrivedAt, waitStartedAt, bayEnteredAt,
+                 bayExitedAt, departedAt,
                  bay, preexisting, entryEvidence, plateStatus, plateText, customerMatch,
-                 estimatedFields, cameraPose
+                 estimatedFields, cameraPose,
+                 ${minutesBetween("arrivedAt", ["departedAt", "NOW()"])} AS onPropertyMinutes,
+                 ${minutesBetween("createdAt", ["departedAt", "NOW()"])} AS sinceFirstSeenMinutes,
+                 ${minutesBetween("COALESCE(waitStartedAt, arrivedAt)", ["bayEnteredAt", "departedAt", "NOW()"])} AS waitMinutes,
+                 ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes
           FROM vehicle_visits
           ${input.openOnly ? sql`WHERE departedAt IS NULL` : sql``}
           ORDER BY COALESCE(arrivedAt, createdAt) DESC
@@ -237,9 +293,19 @@ export const lotRouter = router({
             camera: String(v.camera),
             state: String(v.state),
             arrivedAt: iso(v.arrivedAt),
+            waitStartedAt: iso(v.waitStartedAt),
             bayEnteredAt: iso(v.bayEnteredAt),
             bayExitedAt: iso(v.bayExitedAt),
             departedAt: iso(v.departedAt),
+            // Durations arrive already computed by SQL. `numOrNull`, not `num`: these
+            // are deliberately nullable and 0 is a REAL value ("just arrived"), so
+            // collapsing NULL to 0 here would erase the distinction the CASE above
+            // exists to preserve.
+            onPropertyMinutes: numOrNull(v.onPropertyMinutes),
+            sinceFirstSeenMinutes: numOrNull(v.sinceFirstSeenMinutes),
+            waitMinutes: numOrNull(v.waitMinutes),
+            bayMinutes: numOrNull(v.bayMinutes),
+            open: !v.departedAt,
             bay: (v.bay as string | null) ?? null,
             preexisting: Boolean(v.preexisting),
             entryEvidence: (v.entryEvidence as string | null) ?? null,
