@@ -29,6 +29,12 @@ class MqttConfig:
 class BackendConfig:
     base_url: str = "https://bdnick.info"
     sync_key: Optional[str] = None
+    #: Optional SECOND sink: the shop's own read model (nickstire.org/admin's Lot
+    #: section). Best effort and off unless both the URL and the key are present -- a
+    #: URL without a key would 401 on every visit. The authoritative ordered outbox to
+    #: `base_url` is unaffected either way.
+    shop_url: Optional[str] = None
+    shop_sync_key: Optional[str] = None
     timeout_seconds: float = 8.0
     heartbeat_seconds: float = 60.0
     retry_min_seconds: float = 1.0
@@ -108,9 +114,13 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
         inbox_batch_max=max(1, int(_get(mqtt_raw, "inboxBatchMax", 500))),
     )
     sync_key_env = str(_get(backend_raw, "syncKeyEnv", "STATENOUR_SYNC_KEY"))
+    shop_url_raw = _get(backend_raw, "shopUrl", None)
+    shop_key_env = str(_get(backend_raw, "shopSyncKeyEnv", "CAMERA_INGEST_KEY"))
     backend = BackendConfig(
         base_url=str(_get(backend_raw, "baseUrl", "https://bdnick.info")).rstrip("/"),
         sync_key=env.get(sync_key_env) or None,
+        shop_url=(str(shop_url_raw).rstrip("/") if shop_url_raw else None),
+        shop_sync_key=env.get(shop_key_env) or None,
         timeout_seconds=float(_get(backend_raw, "timeoutSeconds", 8.0)),
         heartbeat_seconds=float(_get(backend_raw, "heartbeatSeconds", 60.0)),
         retry_min_seconds=float(_get(backend_raw, "retryMinSeconds", 1.0)),

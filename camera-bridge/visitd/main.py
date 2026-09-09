@@ -30,6 +30,7 @@ from .ledger import DEAD_LETTER_RETENTION_SECONDS, Ledger
 from .metrics import REGISTRY, MetricsRegistry, MetricsServer
 from .mqtt_client import InboxItem, MqttClient
 from .replay import read_jsonl, replay
+from .shop_mirror import ShopMirror
 from .state_machine import Emission, VisitTracker
 
 log = logging.getLogger("visitd")
@@ -66,6 +67,13 @@ class Pipeline:
         self.cfg = cfg
         self.ledger = ledger
         self.cloud = cloud
+        # Best-effort mirror into the shop's read model. Never blocks the outbox.
+        self.shop = ShopMirror(
+            cfg.backend.shop_url,
+            cfg.backend.shop_sync_key,
+            timeout_seconds=cfg.backend.timeout_seconds,
+            bay_zones={name: frozenset(cam.bay_zones) for name, cam in cfg.cameras.items()},
+        )
         self.metrics = metrics
         self.tracker = VisitTracker(cfg.policy, cfg.camera_specs())
         self.last_frame_time: Optional[float] = None
@@ -236,6 +244,21 @@ class Pipeline:
         if continued:
             self._continuations_counted += continued
             self.metrics.inc("visitd_tracker_max_age_continuations_total", continued)
+        if self.shop.enabled:
+            # Defence in depth. ShopMirror.send already swallows everything, but the
+            # guarantee that the shop read model cannot disturb the AUTHORITATIVE outbox
+            # belongs at the call site too -- otherwise it rests on the callee staying
+            # well-behaved forever, and this runs after a successful ledger commit.
+            try:
+                for emission, row in rendered:
+                    if row is None:
+                        continue
+                    cam = self.cfg.cameras.get(emission.camera)
+                    self.shop.send(emission, cam.display_name if cam else None)
+            except Exception as exc:
+                log.warning("shop mirror raised error=%s; the outbox is unaffected", exc)
+            self.metrics.set("visitd_shop_mirror_sent_total", self.shop.sent)
+            self.metrics.set("visitd_shop_mirror_failed_total", self.shop.failed)
         for reason, count in self.tracker.drain_force_ended().items():
             self.metrics.inc("visitd_tracker_force_ended_total", count, labels={"reason": reason})
             log.warning("force-ended open sightings count=%s reason=%s (visits depart through the normal grace)", count, reason)
@@ -340,6 +363,10 @@ def run_live(cfg: Config, dry_run: bool) -> int:
     ledger = Ledger(cfg.ledger_path, outbox_max_depth=cfg.backend.outbox_max_depth, policy=cfg.policy)
     cloud = CloudClient(cfg.backend, ledger, metrics, dry_run=dry_run)
     pipeline = Pipeline(cfg, ledger, cloud, metrics)
+    if pipeline.shop.enabled:
+        log.info("shop mirror enabled url=%s (best effort; the outbox is unaffected)", cfg.backend.shop_url)
+    elif cfg.backend.shop_url:
+        log.warning("shop mirror configured but its key is missing; the shop read model will not update")
     mqtt = MqttClient(cfg.mqtt, inbox, metrics)
     server: Optional[MetricsServer] = None
     try:
