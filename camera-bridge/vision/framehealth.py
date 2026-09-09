@@ -45,6 +45,43 @@ def hamming(a: int, b: int) -> int:
     return bin(a ^ b).count("1")
 
 
+def _thumb(image: np.ndarray, stride: int = 6) -> np.ndarray:
+    """Sub-sampled grayscale thumbnail, cheap enough to keep a window of them."""
+    if image.ndim == 3:
+        return image[::stride, ::stride, :3].mean(axis=2).astype(np.float32)
+    return image[::stride, ::stride].astype(np.float32)
+
+
+def mean_abs_diff(a: Optional[np.ndarray], b: Optional[np.ndarray], stride: int = 6) -> float:
+    """Mean absolute pixel difference between two frames, subsampled by `stride`.
+
+    THIS IS THE FREEZE DISCRIMINATOR, and `dhash` cannot be. Measured on the live
+    SHOPSIGN feed over 29 consecutive pairs of a motionless lot:
+
+        byte-identical pairs : 0/29
+        pairs with change    : 29/29
+        MAD (full res)       : min 0.26, mean 0.97
+        dhash8 hamming       : 0 for most pairs
+
+    A live sensor always carries noise, and the V380 overlay clock ticks every second,
+    so a LIVE-but-static lot never repeats a frame exactly. A STALLED capture hands back
+    the same buffer, giving exactly 0.0. The margin is 0.26 vs 0.0 -- clean. An 8x8
+    perceptual hash throws all of it away, which is why a quiet lot read as a dead feed.
+
+    stride=6 is free: measured 0.319 vs 0.325 against the full-resolution value on the
+    same pairs, at 1/36th the work.
+    """
+    if a is None or b is None or a.shape != b.shape:
+        return float("inf")
+    if a.ndim == 3:
+        sa = a[::stride, ::stride, :3].mean(axis=2)
+        sb = b[::stride, ::stride, :3].mean(axis=2)
+    else:
+        sa = a[::stride, ::stride]
+        sb = b[::stride, ::stride]
+    return float(np.abs(sa.astype(np.float32) - sb.astype(np.float32)).mean())
+
+
 @dataclass
 class HealthState:
     fps: float
@@ -65,31 +102,76 @@ class FrameHealth:
         min_fps: float = 0.5,
         max_age: float = 5.0,
         min_distinct: int = 4,
+        loop_min_repeats: int = 3,
+        freeze_epsilon: float = 0.02,
     ) -> None:
         self.window = window
         self.dup_hamming = dup_hamming
         self.freeze_run = freeze_run
+        #: A pair whose mean absolute pixel difference is at or below this is treated as
+        #: the SAME BUFFER handed back twice. Live static footage measured >= 0.26 on the
+        #: real feed, so 0.02 sits an order of magnitude below anything a live sensor
+        #: produces while still catching an exact repeat.
+        self.freeze_epsilon = freeze_epsilon
         self.min_fps = min_fps
         self.max_age = max_age
         self.min_distinct = min_distinct
+        #: How many frames in the window must be pixel-exact replays of an earlier one
+        #: before the capture is called LOOPING. One is not enough: `WgcWindowSource.read()`
+        #: legitimately hands back the same `_latest` buffer twice when the capture
+        #: callback is a few ms late, and a single such sample must not mark the camera
+        #: unhealthy and re-arm the preexisting census (Codex P1 on #2250). A real loop
+        #: replays buffers CONTINUOUSLY, so it accumulates repeats across the window.
+        self.loop_min_repeats = loop_min_repeats
         self._ts: deque[float] = deque(maxlen=window)
         self._dups: deque[bool] = deque(maxlen=window)
         self._hashes: deque[int] = deque(maxlen=window)
         self._prev_hash: Optional[int] = None
+        self._prev_image: Optional[np.ndarray] = None
+        #: Sub-sampled thumbnails of recent frames. A genuine loop REPLAYS a buffer, so
+        #: the incoming frame is pixel-identical to one ALREADY IN THE WINDOW -- not
+        #: necessarily the previous one, which is why a consecutive-only check misses an
+        #: A/B/C loop entirely. A merely static scene never repeats exactly.
+        self._thumbs: deque[np.ndarray] = deque(maxlen=window)
         self._freeze_streak = 0
+        self._repeats: deque[bool] = deque(maxlen=window)
         self.last_ts: Optional[float] = None
 
     def update(self, ts: float, image: Optional[np.ndarray]) -> None:
         self._ts.append(ts)
         self.last_ts = ts
         h = dhash(image) if image is not None else None
+
+        # DUPLICATE-FOR-REPORTING (dup_ratio) stays perceptual: two frames that LOOK the
+        # same are the interesting thing for a human reading the ratio.
         if h is not None and self._prev_hash is not None:
-            dup = hamming(h, self._prev_hash) <= self.dup_hamming
-            self._dups.append(dup)
-            self._freeze_streak = self._freeze_streak + 1 if dup else 0
+            self._dups.append(hamming(h, self._prev_hash) <= self.dup_hamming)
         else:
             self._dups.append(False)
+
+        # FROZEN is a claim about the CAPTURE, not about the scene, so it is decided on
+        # raw pixels. A motionless lot is a perfectly healthy thing to be looking at; a
+        # repeated buffer is not. Deciding this on the 8x8 dhash conflated the two and
+        # rejected 18 of 40 frames of a real quiet lot as "frozen" -- which would mark
+        # the camera unhealthy, re-arm the preexisting census, and classify every car
+        # that arrived afterwards as PREEXISTING. Arrivals would never fire.
+        if image is not None and self._prev_image is not None:
+            same_buffer = mean_abs_diff(image, self._prev_image) <= self.freeze_epsilon
+            self._freeze_streak = self._freeze_streak + 1 if same_buffer else 0
+        else:
             self._freeze_streak = 0
+
+        if image is not None:
+            thumb = _thumb(image)
+            # An EXACT repeat of any frame already in the window is the loop signature --
+            # counted per frame, so the verdict can require a RUN of them.
+            self._repeats.append(any(
+                float(np.abs(thumb - t).mean()) <= self.freeze_epsilon for t in self._thumbs
+            ))
+            self._thumbs.append(thumb)
+            self._prev_image = image
+        else:
+            self._repeats.append(False)
         if h is not None:
             self._prev_hash = h
             self._hashes.append(h)
@@ -106,7 +188,17 @@ class FrameHealth:
         distinct = len(set(self._hashes))
         # Only judged once the window has filled: a cold start legitimately shows few
         # distinct frames, and calling that a loop would be a false alarm.
-        looping = len(self._hashes) >= self.window and distinct < self.min_distinct
+        # LOOPING needs the same correction as FROZEN did. Judged on the perceptual hash
+        # alone, a very static scene (night, IR, heavy compression) hashes to a single
+        # value and reads as "the capture is cycling a handful of buffers" -- the same
+        # false alarm, with the same consequence: unhealthy -> census re-arm -> every
+        # later arrival classified PREEXISTING. A real loop REPLAYS BUFFERS, so it shows
+        # pixel-exact duplicates; a static lot shows none. Require both.
+        looping = (
+            len(self._hashes) >= self.window
+            and distinct < self.min_distinct
+            and sum(self._repeats) >= self.loop_min_repeats
+        )
         # FPS is likewise only judged once the window has filled.
         fps_ok = fps >= self.min_fps or len(ts) < self.window
         ok = (not frozen) and (not looping) and age <= self.max_age and fps_ok

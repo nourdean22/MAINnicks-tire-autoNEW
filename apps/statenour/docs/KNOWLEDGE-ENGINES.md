@@ -67,7 +67,7 @@ A connected transport does not prove the Google session or every notebook action
 
 ### Recommended production evolution
 
-The localtunnel flow is suitable for experimentation, not world-class reliability. The preferred future architecture is a private, authenticated sidecar reachable through Tailscale Funnel, Cloudflare Tunnel with Access/service tokens, or another controlled transport with:
+The localtunnel flow is suitable for experimentation, not world-class reliability. The preferred future architecture is a private, authenticated sidecar reachable through Tailscale Serve (tailnet-only; Tailscale Funnel is the PUBLIC-internet variant and is the wrong tool for a private sidecar), Cloudflare Tunnel with Access/service tokens, or another controlled transport with:
 
 - stable endpoint identity;
 - authentication between Railway and sidecar;

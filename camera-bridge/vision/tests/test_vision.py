@@ -32,7 +32,7 @@ from vision.evidence import EvidenceStore  # noqa: E402
 from vision.fetch_models import PINNED, verify  # noqa: E402
 from vision.fingerprint import PrivacyToken, VehicleFingerprint, compare  # noqa: E402
 from vision.frame import Detection, Frame  # noqa: E402
-from vision.framehealth import FrameHealth  # noqa: E402
+from vision.framehealth import FrameHealth, mean_abs_diff  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 from vision.platelab import CANDIDATE, CONFIRMED, PlateLab, lookup_class  # noqa: E402
@@ -1166,3 +1166,206 @@ def test_a_rejecting_ingest_never_takes_down_the_capture_loop():
     assert sink2.send(SimpleNamespace(visit_id="v-dead", state="LEFT", seq=1),
                       camera="sign", pipeline=make_pipeline()) is False
     assert sink2.failed == 1
+
+
+def test_a_motionless_lot_is_not_a_frozen_camera():
+    """A quiet lot is the NORMAL state, not a fault. Measured on the live SHOPSIGN feed.
+
+    The freeze detector judged on an 8x8 dhash, which cannot see sensor noise or the
+    V380 overlay clock, so a motionless parking lot hashed identically frame to frame
+    and `freeze_run=8` at ~4fps meant TWO SECONDS of a quiet lot read as a dead camera.
+    Measured live before the fix: 18 of 40 frames rejected, every one frozen=True.
+
+    That is not a cosmetic false alarm. `unhealthy` sets `_was_unhealthy`, which re-arms
+    the preexisting census on recovery, so every car arriving after a quiet spell would
+    be classified PREEXISTING and no arrival could ever fire. A lot is motionless most
+    of the night; the system would have been blind every morning.
+
+    The discriminator is the raw pixels, and the margin is large: over 29 consecutive
+    live pairs of a motionless lot, ZERO were byte-identical and the minimum full-res
+    MAD was 0.26. A stalled capture hands back the same buffer: exactly 0.0.
+    """
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(7)
+
+    # A LIVE but motionless scene: faint sensor noise, nothing else moving.
+    live = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+        live.update(t, noisy)
+        t += 0.25
+    st = live.state(t)
+    assert st.frozen is False, "a motionless lot with live sensor noise is NOT a frozen camera"
+    assert st.ok is True, f"a quiet lot must stay healthy: {st}"
+
+    # A STALLED capture: the same buffer handed back again and again.
+    stalled = FrameHealth()
+    t = 1000.0
+    for _ in range(30):
+        stalled.update(t, base)
+        t += 0.25
+    st2 = stalled.state(t)
+    assert st2.frozen is True, "an identical repeated buffer IS a frozen capture"
+    assert st2.ok is False
+
+
+def test_the_freeze_epsilon_sits_below_real_sensor_noise():
+    """The threshold is only meaningful next to the number it was chosen against."""
+    base = frames(1, [[]])[0].image
+    rng = np.random.default_rng(11)
+    noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+
+    assert mean_abs_diff(base, base) == 0.0, "the same buffer differs by exactly nothing"
+    live_delta = mean_abs_diff(base, noisy)
+    assert live_delta > FrameHealth().freeze_epsilon * 5, (
+        f"live noise {live_delta:.3f} must sit well clear of the epsilon; measured live "
+        f"footage was 0.26 minimum"
+    )
+
+
+def test_a_parked_car_that_flickers_keeps_its_identity_but_a_departing_one_does_not():
+    """Measured on the live feed: 40 track births for ~7 stationary vehicles in 14 min.
+
+    The confidently-detected cars scored 0.60-1.00, so the churn was the densely-packed
+    background row dipping under the detector floor. With a flat 12-miss tolerance (4s at
+    3fps) each dip KILLED the track, and the next detection CREATED a new one -- born
+    after the boot census, and therefore a candidate for ARRIVAL. Every flicker was a
+    chance to invent a car that never drove in.
+
+    Patience must depend on what the track was doing. A parked car has not left in the
+    next four seconds. A car that was moving when it vanished probably has.
+    """
+    g = TrackGraph()
+    box = car_box(200.0)
+    t = 1000.0
+
+    # Park it: same box, held past `parked_after` (25s at ~3fps needs ~90 frames).
+    for _ in range(90):
+        g.update([Detection(box, 0.9)], t)
+        t += 0.33
+    assert len(g.tracks) == 1
+    parked_id = next(iter(g.tracks))
+    still_for = t - next(iter(g.tracks.values())).still_since
+    assert still_for >= g.parked_after, f"should read as parked, still_for={still_for:.1f}"
+
+    # Detector loses it for far longer than the moving tolerance.
+    for _ in range(g.max_misses + 20):
+        born, died = g.update([], t)
+        t += 0.33
+        assert not born
+    assert parked_id in g.tracks, "a parked car must not be declared gone after a flicker"
+    assert not died, "and must not be reported as departed"
+
+    # It comes back: the SAME track, not a new one -- so no arrival can be minted.
+    born, _ = g.update([Detection(box, 0.9)], t)
+    assert born == [], "a returning parked car is not a new arrival"
+    assert parked_id in g.tracks
+
+    # A MOVING track that vanishes is retired on the short tolerance.
+    g2 = TrackGraph()
+    t2 = 2000.0
+    for i in range(6):
+        g2.update([Detection(car_box(100.0 + 30 * i), 0.9)], t2)
+        t2 += 0.33
+    assert len(g2.tracks) == 1
+    died2 = []
+    for _ in range(g2.max_misses + 2):
+        _, d = g2.update([], t2)
+        died2.extend(d)
+        t2 += 0.33
+    assert died2, "a car that drove off must be retired promptly, not held for a minute"
+
+
+def test_one_duplicated_wgc_sample_is_not_a_loop():
+    """`WgcWindowSource.read()` legitimately hands back the same `_latest` buffer twice
+    when the capture callback is a few milliseconds late. In a quiet scene the perceptual
+    hashes already satisfy `distinct < min_distinct`, so ONE exact repeat used to flip
+    `looping`, mark the camera unhealthy, and re-arm the preexisting census -- every car
+    that arrived afterwards would have been PREEXISTING (Codex P1 on #2250)."""
+    # Textured like a real frame (a ramp, not a flat field): `dhash` samples SINGLE
+    # pixels on a 9x8 grid and compares horizontal neighbours, so wherever two sampled
+    # neighbours are within a few grey levels of each other, sensor noise flips the bit
+    # and a synthetic "quiet" scene hashes as 19 distinct frames. On this ramp adjacent
+    # samples sit ~20 levels apart, which is what real asphalt-with-gradient measured.
+    ramp = np.linspace(40, 200, 128).astype(np.uint8)
+    base = np.repeat(np.tile(ramp, (128, 1))[:, :, None], 3, axis=2)
+    rng = np.random.default_rng(7)
+
+    fh = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    for i in range(24):
+        # Sensor noise only: the perceptual hash is stable (quiet lot) but no two frames
+        # are pixel-exact ...
+        img = np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+        if i == 12:
+            img = last  # ... except this one, the late-callback duplicate
+        fh.update(float(i), img)
+        last = img
+    st = fh.state(24.0)
+    assert st.distinct < 4, "precondition: a quiet scene hashes to few distinct values"
+    assert st.looping is False, "a single repeated sample is not a cycling cache"
+    assert st.ok is True
+
+    # The same scene with a REAL loop (the same three buffers replayed) still trips it.
+    fh2 = FrameHealth(freeze_run=8, min_distinct=4, loop_min_repeats=3)
+    frames = [np.clip(base.astype(np.int16) + rng.integers(-3, 4, base.shape), 0, 255).astype(np.uint8)
+              for _ in range(3)]
+    for i in range(24):
+        fh2.update(float(i), frames[i % 3])
+    assert fh2.state(24.0).looping is True
+
+
+def test_wgc_restore_works_when_only_a_title_was_given(monkeypatch):
+    """The documented `run_live` default passes no `--hwnd`, so a restore keyed only on
+    a handle was dead code on exactly the path operators use (Codex P1 on #2250). With a
+    title, the source must resolve every matching window and un-minimise the iconic ones."""
+    from vision import capture
+
+    calls = []
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [111, 222, 333])
+    monkeypatch.setattr(capture, "restore_if_minimized",
+                        lambda h: calls.append(h) or h == 222)  # only 222 was minimised
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    assert src._restore_target() is True
+    assert calls == [111, 222, 333], "every candidate is checked; the choice of pane is not this code's job"
+    assert src.restores == 1
+
+    # Nothing minimised -> no restore counted.
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: False)
+    assert src._restore_target() is False
+    assert src.restores == 1
+
+    # An explicit handle still takes the direct path and never enumerates.
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: (_ for _ in ()).throw(AssertionError("enumerated")))
+    monkeypatch.setattr(capture, "restore_if_minimized", lambda h: h == 999)
+    src2 = capture.WgcWindowSource(window_hwnd=999)
+    assert src2._restore_target() is True
+    assert src2.restores == 1
+
+
+def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
+    """`read()` must trigger the restore itself: `open()` runs once, and a window
+    minimised part-way through a run stalls delivery while `_latest` keeps being
+    returned. Measured 2026-09-09: 401 of 873 frames suppressed for exactly this."""
+    import threading
+    import time as _t
+    from vision import capture
+
+    src = capture.WgcWindowSource(window_hwnd=None, window_title="V380")
+    src._ctrl = object()          # pretend open() already ran
+    src._lock = threading.Lock()
+    src._latest = np.zeros((10, 10, 3), dtype=np.uint8)
+    src._latest_ts = _t.time() - 30.0   # stale for 30 s
+    src.stale_restore_after = 2.0
+    src.restore_cooldown = 10.0
+
+    attempts = []
+    monkeypatch.setattr(src, "_restore_target", lambda: attempts.append(_t.time()) or False)
+    src.read()
+    assert len(attempts) == 1, "a stalled source restores"
+    src.read()
+    assert len(attempts) == 1, "... but not again inside the cooldown"
+    src._last_restore_attempt = 0.0
+    src.read()
+    assert len(attempts) == 2, "and again once the cooldown has passed"

@@ -75,6 +75,44 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
 
 const OPEN_VISIT_CAP = 500;
 
+/**
+ * WHAT THIS CAMERA CAN AND CANNOT KNOW ABOUT SERVICE.
+ *
+ * Operator, 2026-09-09, in two parts. First: "we change tires, do plugs, n small shit
+ * outside with the cars on jacks in the blue; all the mechanic work needs a lift goes
+ * inside." Then, when asked to confirm a work zone: "we will jack the cars up wherever
+ * necessary."
+ *
+ * That second sentence is the important one, and it kills a whole class of metric.
+ * OUTSIDE SERVICE HAS NO FIXED LOCATION, so it cannot be recognised by geometry. A car
+ * standing on the apron may be queueing or may be up on jacks having a plug fitted, and
+ * this system cannot tell which. An earlier version of this file tried to solve it with
+ * an `outside_*` zone; that was wrong, and a zone that can never be populated is worse
+ * than no zone -- it is a permanently-zero number that reads as "no outside work today".
+ *
+ * So the counters below claim only what the camera can actually establish:
+ *
+ *   inBays            a vehicle is inside bay 1 or bay 3    -- OBSERVED
+ *   onLotNotInBay     on the property, not in a bay         -- OBSERVED, and it
+ *                     deliberately is NOT called "waiting": some of these cars are
+ *                     being worked on where they stand.
+ *   leftWithoutBay    departed having never entered a bay   -- OBSERVED, and NOT called
+ *                     "abandoned": a finished outside tyre job looks exactly like a
+ *                     customer who gave up, and calling good business a loss is the
+ *                     worse error of the two.
+ *
+ * Wait times are only computable for vehicles that reached a bay, and are labelled as
+ * time-to-bay rather than as the shop's wait. Turning "on the lot" into a trustworthy
+ * queue needs a service-start signal the camera does not have -- a repair order opening,
+ * or a check-in -- not a cleverer polygon.
+ *
+ * BAY LAYOUT (operator): vehicles drive into bays 1 and 3 ONLY. Bay 2 holds the tire
+ * machines and bay 4 is stock, so neither ever contains a customer vehicle; drawing them
+ * as service bays would manufacture service events from cars parked in front of a
+ * machine room. Corroborated in the live frame, where tyre stacks sit in front of the
+ * rightmost opening.
+ */
+
 function num(v: unknown): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -131,6 +169,8 @@ export const lotRouter = router({
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
           SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
+          SUM(CASE WHEN departedAt IS NULL
+                    AND NOT (bayEnteredAt IS NOT NULL AND bayExitedAt IS NULL) THEN 1 ELSE 0 END) AS onLotNotInBay,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NULL
                     AND preexisting = 0 THEN 1 ELSE 0 END) AS waiting,
           SUM(CASE WHEN departedAt IS NULL AND preexisting = 1 THEN 1 ELSE 0 END) AS preexisting,
@@ -195,7 +235,16 @@ export const lotRouter = router({
         staleSeconds: total === 0 ? null : num(r.staleSeconds),
         counts: {
           onProperty,
-          waiting: num(r.waiting),
+          // Every car on the property that is not in a bay RIGHT NOW: cars that never
+          // entered one, cars that came back out, and cars that were already here at
+          // startup. This is the population the label names. `waitingForBay` is the
+          // narrower never-entered, non-preexisting set the wait clock runs on; it
+          // was the value shown here before, and it undercounted a car waiting
+          // outside after leaving a bay (Codex P2 on #2250).
+          onLotNotInBay: num(r.onLotNotInBay),
+          waitingForBay: num(r.waiting),
+          // Service, split by WHERE it happens. `inService` is the honest headline --
+          // a car on jacks outside is being worked on just as much as one on a lift.
           inBays: num(r.inBays),
           bayUnknown: num(r.bayUnknown),
           postService: num(r.postService),
@@ -203,7 +252,7 @@ export const lotRouter = router({
           preexistingWaiting: num(r.preexistingWaiting),
           arrivalsToday: num(r.arrivalsToday),
           departuresToday: num(r.departuresToday),
-          abandonedBeforeBay: num(r.abandonedBeforeBay),
+          leftWithoutBay: num(r.abandonedBeforeBay),
           arrivalTimeUnknown: num(r.arrivalTimeUnknown),
         },
         waits: {
