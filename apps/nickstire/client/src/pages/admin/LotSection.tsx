@@ -348,23 +348,26 @@ export default function LotSection() {
               icon={<Car className="w-4 h-4" />}
               color="text-primary"
             />
+            {/* NOT "Waiting". Jacking happens wherever it needs to, so this bucket holds
+                cars that are queueing AND cars being worked on where they stand. The
+                camera cannot separate them, and naming it "waiting" would turn a guess
+                into a number someone staffs against. */}
             <StatCard
-              label="Waiting"
-              value={n.counts.waiting}
+              label="On lot, not in a bay"
+              value={n.counts.onLotNotInBay}
               icon={<Clock className="w-4 h-4" />}
               color={n.waits.oldestWaitMinutes && n.waits.oldestWaitMinutes > ATTENTION_MINUTES ? "text-amber-400" : "text-foreground"}
-              trendLabel={n.waits.oldestWaitMinutes !== null ? `oldest ${formatDuration(n.waits.oldestWaitMinutes)}` : undefined}
+              trendLabel={n.waits.oldestWaitMinutes !== null ? `longest ${formatDuration(n.waits.oldestWaitMinutes)} on lot` : "includes cars on jacks"}
             />
-            {/* "In service", not "in bays": tyres, plugs and small work happen OUTSIDE
-                on jacks, and a car up on jacks is being worked on exactly as much as one
-                on a lift. Showing only indoor bays reported the shop's bread-and-butter
-                work as an empty shop. The breakdown keeps WHERE visible. */}
+            {/* Bays 1 and 3 only, and INTERIOR only. A car being plugged on the apron
+                in front of a bay is a different job with a different duration, so the
+                zone stops at the door threshold and that car stays out of this count. */}
             <StatCard
-              label="In service"
-              value={n.counts.inService}
+              label="In a bay"
+              value={n.counts.inBays}
               icon={<Wrench className="w-4 h-4" />}
               color="text-emerald-400"
-              trendLabel={`${n.counts.inBays} inside · ${n.counts.inOutsideWork} on jacks`}
+              trendLabel="pulled in · bays 1 and 3"
             />
             <StatCard
               label="Done, not left"
@@ -412,11 +415,14 @@ export default function LotSection() {
           <MetricGrid cols={4}>
             <StatCard label="Arrivals today" value={n.counts.arrivalsToday} icon={<Car className="w-4 h-4" />} />
             <StatCard label="Departures today" value={n.counts.departuresToday} icon={<LogOut className="w-4 h-4" />} />
+            {/* NOT "abandoned". A finished outside tyre job looks identical to a
+                customer who gave up, and calling good business a loss is the worse of
+                the two errors. */}
             <StatCard
-              label="Left before service"
-              value={n.counts.abandonedBeforeBay}
+              label="Left without a bay"
+              value={n.counts.leftWithoutBay}
               icon={<AlertTriangle className="w-4 h-4" />}
-              color={n.counts.abandonedBeforeBay > 0 ? "text-red-400" : "text-foreground"}
+              color="text-foreground/70"
             />
             <StatCard
               label="Arrival time unknown"
@@ -447,7 +453,8 @@ export default function LotSection() {
             </MetricGrid>
           </Panel>
 
-          <Panel title="Wait times today" icon={<Clock className="w-4 h-4" />}>
+          <Panel title="Time to bay today" icon={<Clock className="w-4 h-4" />}
+                 subtitle="Arrival to bay, for vehicles that reached bay 1 or 3. Outside jack work has no observable start, so it is not in here.">
             {n.waits.sampleSize === 0 ? (
               <div className="text-[13px] text-foreground/60">
                 No completed waits yet today. Median and P90 need at least one car
@@ -455,8 +462,8 @@ export default function LotSection() {
               </div>
             ) : (
               <MetricGrid cols={3}>
-                <StatCard label="Median wait" value={formatDuration(n.waits.medianMinutes)} icon={<Clock className="w-4 h-4" />} />
-                <StatCard label="P90 wait" value={formatDuration(n.waits.p90Minutes)} icon={<Clock className="w-4 h-4" />} />
+                <StatCard label="Median to bay" value={formatDuration(n.waits.medianMinutes)} icon={<Clock className="w-4 h-4" />} />
+                <StatCard label="P90 to bay" value={formatDuration(n.waits.p90Minutes)} icon={<Clock className="w-4 h-4" />} />
                 <StatCard label="Sample size" value={n.waits.sampleSize} icon={<Car className="w-4 h-4" />} color="text-foreground/60" />
               </MetricGrid>
             )}

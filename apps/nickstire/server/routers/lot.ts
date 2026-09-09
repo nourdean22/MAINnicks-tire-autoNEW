@@ -76,28 +76,42 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
 const OPEN_VISIT_CAP = 500;
 
 /**
- * SERVICE CAN HAPPEN OUTSIDE, AND THE METRICS HAVE TO KNOW IT.
+ * WHAT THIS CAMERA CAN AND CANNOT KNOW ABOUT SERVICE.
  *
- * Operator, 2026-09-09: "we change tires, do plugs, n small shit outside with the cars
- * on jacks in the blue; all the mechanic work needs a lift goes inside". So a vehicle up
- * on jacks on the apron is BEING SERVED, and treating service as "inside a bay" made
- * three numbers lie about the shop's bread-and-butter work:
+ * Operator, 2026-09-09, in two parts. First: "we change tires, do plugs, n small shit
+ * outside with the cars on jacks in the blue; all the mechanic work needs a lift goes
+ * inside." Then, when asked to confirm a work zone: "we will jack the cars up wherever
+ * necessary."
  *
- *   waiting            counted every outside job as still queueing
- *   oldestWaitMinutes  was dragged up by cars that were already being worked on
- *   abandonedBeforeBay counted a COMPLETED outside tyre job as a customer who gave up
+ * That second sentence is the important one, and it kills a whole class of metric.
+ * OUTSIDE SERVICE HAS NO FIXED LOCATION, so it cannot be recognised by geometry. A car
+ * standing on the apron may be queueing or may be up on jacks having a plug fitted, and
+ * this system cannot tell which. An earlier version of this file tried to solve it with
+ * an `outside_*` zone; that was wrong, and a zone that can never be populated is worse
+ * than no zone -- it is a permanently-zero number that reads as "no outside work today".
  *
- * The last one is the dangerous one: it turned ordinary good business into a
- * lost-business signal.
+ * So the counters below claim only what the camera can actually establish:
  *
- * The schema already carries what is needed -- `bayEnteredAt` is "service started" and
- * `bay` is WHERE. Zones whose name starts with `outside_` are outside work; everything
- * else is an indoor bay. The vision layer latches both, so `waiting` and
- * `leftBeforeService` become correct by construction rather than by special-casing.
+ *   inBays            a vehicle is inside bay 1 or bay 3    -- OBSERVED
+ *   onLotNotInBay     on the property, not in a bay         -- OBSERVED, and it
+ *                     deliberately is NOT called "waiting": some of these cars are
+ *                     being worked on where they stand.
+ *   leftWithoutBay    departed having never entered a bay   -- OBSERVED, and NOT called
+ *                     "abandoned": a finished outside tyre job looks exactly like a
+ *                     customer who gave up, and calling good business a loss is the
+ *                     worse error of the two.
+ *
+ * Wait times are only computable for vehicles that reached a bay, and are labelled as
+ * time-to-bay rather than as the shop's wait. Turning "on the lot" into a trustworthy
+ * queue needs a service-start signal the camera does not have -- a repair order opening,
+ * or a check-in -- not a cleverer polygon.
+ *
+ * BAY LAYOUT (operator): vehicles drive into bays 1 and 3 ONLY. Bay 2 holds the tire
+ * machines and bay 4 is stock, so neither ever contains a customer vehicle; drawing them
+ * as service bays would manufacture service events from cars parked in front of a
+ * machine room. Corroborated in the live frame, where tyre stacks sit in front of the
+ * rightmost opening.
  */
-const OUTSIDE_ZONE_PREFIX = "outside_";
-const IS_OUTSIDE = sql.raw(`bay LIKE '${OUTSIDE_ZONE_PREFIX}%'`);
-const IS_INSIDE = sql.raw(`(bay IS NULL OR bay NOT LIKE '${OUTSIDE_ZONE_PREFIX}%')`);
 
 function num(v: unknown): number {
   const n = Number(v ?? 0);
@@ -151,11 +165,7 @@ export const lotRouter = router({
           COUNT(*) AS total,
           SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) AS onProperty,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
-                    AND bayExitedAt IS NULL THEN 1 ELSE 0 END) AS inService,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
-                    AND bayExitedAt IS NULL AND ${IS_INSIDE} THEN 1 ELSE 0 END) AS inBays,
-          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
-                    AND bayExitedAt IS NULL AND ${IS_OUTSIDE} THEN 1 ELSE 0 END) AS inOutsideWork,
+                    AND bayExitedAt IS NULL THEN 1 ELSE 0 END) AS inBays,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
           SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
@@ -223,19 +233,17 @@ export const lotRouter = router({
         staleSeconds: total === 0 ? null : num(r.staleSeconds),
         counts: {
           onProperty,
-          waiting: num(r.waiting),
+          onLotNotInBay: num(r.waiting),
           // Service, split by WHERE it happens. `inService` is the honest headline --
           // a car on jacks outside is being worked on just as much as one on a lift.
-          inService: num(r.inService),
           inBays: num(r.inBays),
-          inOutsideWork: num(r.inOutsideWork),
           bayUnknown: num(r.bayUnknown),
           postService: num(r.postService),
           preexisting: num(r.preexisting),
           preexistingWaiting: num(r.preexistingWaiting),
           arrivalsToday: num(r.arrivalsToday),
           departuresToday: num(r.departuresToday),
-          abandonedBeforeBay: num(r.abandonedBeforeBay),
+          leftWithoutBay: num(r.abandonedBeforeBay),
           arrivalTimeUnknown: num(r.arrivalTimeUnknown),
         },
         waits: {
