@@ -175,15 +175,25 @@ class Pipeline:
             return None
         return self.last_frame_time + (wall_now - self.wall_at_last_message)
 
-    def force_end_open_sightings(self, reason: str, wall_now: float) -> List[Emission]:
-        """End every open sighting at the estimated frame time and let the grace timers run."""
+    def force_end_open_sightings(self, reason: str, wall_now: float,
+                                 camera: Optional[str] = None) -> List[Emission]:
+        """End every open sighting at the estimated frame time and let the grace timers run.
+
+        `camera` scopes it to one producer's sightings; see `TrackGraph.force_end_open_sightings`.
+        """
         at = self.estimated_frame_time(wall_now)
         if at is None:  # only ledger-restored visits exist: anchor virtual time on their last activity
-            at = max((v.last_activity for v in self.tracker.open_visits()), default=None)
+            # Anchored on the visits this call can actually end. A scoped call must not borrow
+            # ANOTHER camera's clock: that camera may have been running the whole time, so its
+            # last_activity is ~now, and using it would stamp this camera's departures with a
+            # time the car was demonstrably not there.
+            at = max((v.last_activity for v in self.tracker.open_visits()
+                      if camera is None or any(s.camera == camera for s in v.open_sightings())),
+                     default=None)
             if at is None:
                 return []
             self.last_frame_time, self.wall_at_last_message = at, wall_now
-        emissions = self.tracker.force_end_open_sightings(at, reason)
+        emissions = self.tracker.force_end_open_sightings(at, reason, camera)
         self.after_step(emissions)
         return emissions
 

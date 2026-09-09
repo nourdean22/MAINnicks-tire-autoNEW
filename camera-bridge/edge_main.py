@@ -446,13 +446,7 @@ def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
     construction, which is cheaper and far more robust than trying to detect the clash
     afterwards.
 
-    THE PART THIS DOES NOT FIX, stated rather than hidden: the restored sightings have no
-    live vision track to end them, so they stay open until visitd's own
-    `max_sighting_seconds` force-end fires. That is deliberate -- a car genuinely still on
-    the lot SHOULD keep its visit and its real arrival time, which is the entire point of
-    restoring -- but it does mean a car that left while the producer was down lingers until
-    that expiry. Tightening `max_sighting_seconds` is the lever; reconciling properly needs
-    vision identity to survive a restart, which it does not today.
+    This is HALF the restart story; `reconcile_restart` is the other half.
     """
     highest = 0
     prefix = f"{camera}-"
@@ -473,6 +467,48 @@ def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
         log.info("restored %s sighting(s); vision track ids start at %s so a new car cannot "
                  "inherit an old visit", highest, highest + 1)
     return highest
+
+
+def reconcile_restart(pipeline: Any, camera: str) -> int:
+    """Force-end this camera's restored sightings; returns how many visits it touched.
+
+    WHY A RESTART MUST END THEM. Every path visitd has for recognising a car it has already
+    seen -- `_by_sighting`, `_continued_visit`'s `max_age_closed` map -- is keyed on the
+    PRODUCER-ASSIGNED object id, and a fresh `TrackGraph` cannot reproduce the ids the dead
+    process handed out. So after a restart visitd genuinely cannot tell that the car now in
+    bay 2 is the car that was in bay 2 before: vision identity does not survive the process.
+
+    Leaving the orphans open was the worse of the two available wrongs. Nothing ends them --
+    no live track exists to send the `end` -- so they sat until the 12-hour
+    `max_sighting_seconds` expiry and then departed at a time the car was demonstrably long
+    gone, with the whole downtime billed into the visit. On a producer that lives on a
+    laptop, restarts are the NORMAL case, not the exception.
+
+    Force-ending is the same call visitd already makes when Frigate's object registry is
+    lost (`frigate_availability` -> `force_end_open_sightings("frigate_restart")`), and it
+    is right for the same reason: the registry that minted those ids is gone. The sightings
+    close at the last activity the OLD process recorded -- NOT at now, so the downtime is
+    not billed to the customer -- the visits go DEPARTING, and the ordinary leave grace
+    resolves them.
+
+    WHAT IT COSTS, stated rather than hidden: a car still parked through the restart opens a
+    NEW visit with a new arrival time instead of continuing its old one. That is a visible,
+    conservative wrong number -- one visit split in two -- and it is strictly better than the
+    alternative the id-seeding fix rules out, where a DIFFERENT customer silently inherits a
+    stranger's arrival time, bay and data class. Continuity across a restart would require
+    vision identity to be durable, which is a different piece of work.
+    """
+    try:
+        before = {v.visit_id for v in pipeline.tracker.open_visits()}
+        if not before:
+            return 0
+        pipeline.force_end_open_sightings("producer_restart", time.time(), camera)
+    except Exception:
+        log.exception("could not reconcile restored sightings; they will expire on max age instead")
+        return 0
+    log.info("restart reconcile: force-ended %s camera's open sightings across %s restored visit(s) "
+             "at their last recorded activity", camera, len(before))
+    return len(before)
 
 
 def build_edge(cfg: Config, args: argparse.Namespace):
@@ -553,6 +589,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         tracker=pipeline.tracker,
     )
     seed_track_ids(vision, pipeline.tracker, camera)
+    reconcile_restart(pipeline, camera)
 
     # The mode this producer returns to when NOT commissioning. Derived from the
     # CALIBRATION, never from the launch flag: a runtime started with

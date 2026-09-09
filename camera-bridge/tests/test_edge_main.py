@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import time
 import unittest
 from types import SimpleNamespace
 
@@ -569,9 +570,6 @@ def _real_emissions(pipeline, camera: str, persist: bool = False):
     return out
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class GenerationBreakTest(unittest.TestCase):
     """A track path must never span a capture generation (Codex P1 on #2255)."""
@@ -672,3 +670,132 @@ class RestartIdentityTest(unittest.TestCase):
         vision = NS(tracks=NS(_next_id=1))
         self.assertEqual(edge_main.seed_track_ids(vision, tracker, "sign"), 4)
         self.assertEqual(vision.tracks._next_id, 5)
+
+
+class RestartReconcileTest(unittest.TestCase):
+    """A producer restart invalidates vision identity, so its orphans must be ended.
+
+    The other half of Codex's P1 on #2255. `seed_track_ids` stops a NEW car inheriting an
+    old visit; this stops the old visit hanging around for 12 hours waiting for an `end`
+    that no live track exists to send.
+    """
+
+    @staticmethod
+    def _two_camera_pipeline():
+        from test_main import RAW
+
+        two = dict(RAW)
+        two["cameras"] = {
+            "lot": {"cloudDeviceId": "dev-lot", "arrivalZones": ["front_lot"]},
+            "sign": {"cloudDeviceId": "dev-sign", "arrivalZones": ["front_lot"]},
+        }
+        return make_pipeline(raw=two)
+
+    @staticmethod
+    def _drive(pipeline, oid, camera, times):
+        from test_main import EVENTS, raw
+        from visitd.frigate_events import parse_message
+
+        for kind, at in times:
+            pipeline.tracker.handle_event(parse_message(
+                EVENTS, raw(kind, oid, at, ["front_lot"], camera=camera), topic_prefix="frigate"))
+
+    def _sighting(self, pipeline, oid):
+        for visit in pipeline.tracker.open_visits():
+            if oid in visit.sightings:
+                return visit.sightings[oid]
+        self.fail(f"no open visit holds sighting {oid!r}")
+
+    def test_the_orphan_departs_AT_ITS_LAST_ACTIVITY_not_at_the_restart(self):
+        """Ending it at `now` would bill the whole downtime to the customer. The car was
+        last SEEN before the crash, and that is when its sighting has to close."""
+        fd, path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        try:
+            first = make_pipeline(ledger=Ledger(path))
+            _real_emissions(first, camera="lot", persist=True)
+            self.assertTrue(first.tracker.open_visits(), "precondition: a visit is open")
+            first.ledger.close()
+
+            pipeline, _vision, _source, *_ = edge_main.build_edge(
+                _cfg(), _args(calibration=None, ledger=path))
+            try:
+                closed = [s for v in pipeline.tracker.open_visits()
+                          for s in v.sightings.values() if s.end_time is not None]
+                self.assertTrue(closed, "the restored sighting was force-ended on startup")
+                for sighting in closed:
+                    self.assertAlmostEqual(
+                        sighting.end_time, 1012.0, places=3,
+                        msg="closed at the last activity the DEAD process recorded")
+                    self.assertLess(sighting.end_time, time.time() - 1000,
+                                    "and emphatically not at the restart's wall clock")
+            finally:
+                pipeline.ledger.close()
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    def test_it_does_NOT_depart_a_sibling_producers_cars(self):
+        """The ledger path is shared across the config, so two producers can be in one
+        SQLite file. An unscoped force-end would depart cars another camera is still
+        actively watching -- a restart of one producer silently emptying another's lot."""
+        pipeline = self._two_camera_pipeline()
+        self._drive(pipeline, "lot-1", "lot", (("new", 1000.0), ("update", 1012.0)))
+        self._drive(pipeline, "sign-1", "sign", (("new", 1000.0), ("update", 1012.0)))
+
+        pipeline.force_end_open_sightings("producer_restart", time.time(), "lot")
+
+        self.assertIsNotNone(self._sighting(pipeline, "lot-1").end_time,
+                             "the restarting producer's own sighting closed")
+        self.assertIsNone(self._sighting(pipeline, "sign-1").end_time,
+                          "the sibling producer's sighting is untouched")
+
+    def test_the_scoped_anchor_does_not_borrow_a_SIBLINGS_clock(self):
+        """The sibling has been running the whole time, so ITS last activity is ~now.
+        Anchoring on it would stamp this camera's departure with a time the car was
+        demonstrably not there -- exactly the inflated-visit bug being fixed."""
+        pipeline = self._two_camera_pipeline()
+        self._drive(pipeline, "lot-1", "lot", (("new", 1000.0), ("update", 1012.0)))
+        self._drive(pipeline, "sign-1", "sign", (("new", 8000.0), ("update", 9000.0)))
+        self.assertIsNone(pipeline.last_frame_time,
+                          "precondition: no message went through the pipeline, so the "
+                          "anchor branch is the one under test")
+
+        pipeline.force_end_open_sightings("producer_restart", time.time(), "lot")
+
+        self.assertAlmostEqual(self._sighting(pipeline, "lot-1").end_time, 1012.0, places=3)
+
+    def test_an_unscoped_call_still_ends_everything(self):
+        """Frigate owns every camera at once; its restart really does invalidate them all.
+        The new parameter must not have narrowed the existing caller."""
+        pipeline = self._two_camera_pipeline()
+        self._drive(pipeline, "lot-1", "lot", (("new", 1000.0), ("update", 1012.0)))
+        self._drive(pipeline, "sign-1", "sign", (("new", 1000.0), ("update", 1012.0)))
+
+        pipeline.force_end_open_sightings("frigate_restart", time.time())
+
+        self.assertIsNotNone(self._sighting(pipeline, "lot-1").end_time)
+        self.assertIsNotNone(self._sighting(pipeline, "sign-1").end_time)
+
+    def test_a_clean_start_is_a_no_op(self):
+        pipeline = make_pipeline()
+        self.assertEqual(edge_main.reconcile_restart(pipeline, "lot"), 0)
+
+    def test_a_reconcile_failure_never_takes_the_producer_down(self):
+        """Worst case the orphans expire on max age, which is where they were before this
+        fix. Refusing to start is strictly worse than starting with a stale visit."""
+        from types import SimpleNamespace as NS
+
+        def boom(*_a, **_kw):
+            raise RuntimeError("ledger unreadable")
+
+        broken = NS(tracker=NS(open_visits=lambda: [NS(visit_id="v1")]),
+                    force_end_open_sightings=boom)
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertEqual(edge_main.reconcile_restart(broken, "lot"), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
