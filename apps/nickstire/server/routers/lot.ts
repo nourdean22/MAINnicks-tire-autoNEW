@@ -19,16 +19,12 @@
  * than as a quiet, wrong "0".
  */
 import { z } from "zod";
-import { and, desc, eq, gte, isNull, isNotNull, sql } from "drizzle-orm";
+import { desc, gte, isNull, sql } from "drizzle-orm";
 
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { vehicleVisits, type VehicleVisit } from "../../drizzle/schema";
 import { clevelandDayStart } from "../services/autonomyControl";
-
-/** Plate/customer states carried through from the vision layer. */
-export const PLATE_STATUSES = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS"] as const;
-export const CUSTOMER_MATCHES = ["NONE", "EXACT", "CONFUSABLE_UNIQUE", "AMBIGUOUS"] as const;
 
 function minutesBetween(from: Date | null, to: Date): number | null {
   if (!from) return null;
@@ -103,10 +99,10 @@ export const lotRouter = router({
         });
       }
 
-      const lastUpdate = open.concat(today).reduce<Date | null>((acc, v) => {
-        const t = v.updatedAt ?? null;
-        return !acc || (t && t > acc) ? (t ?? acc) : acc;
-      }, null);
+      let lastUpdate: Date | null = null;
+      for (const v of open.concat(today)) {
+        if (v.updatedAt && (!lastUpdate || v.updatedAt > lastUpdate)) lastUpdate = v.updatedAt;
+      }
 
       return {
         ok: true as const,

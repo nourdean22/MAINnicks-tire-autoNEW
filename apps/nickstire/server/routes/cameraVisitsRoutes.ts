@@ -27,7 +27,7 @@ import { timingSafeEqual } from "crypto";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
-import { maskPlate, normalizePlate } from "../lib/plate";
+import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -40,7 +40,6 @@ function safeCompare(a: string, b: string): boolean {
 }
 
 const PLATE_STATUS = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS"] as const;
-const CUSTOMER_MATCH = ["NONE", "EXACT", "CONFUSABLE_UNIQUE", "AMBIGUOUS"] as const;
 
 /** ISO-8601 or epoch seconds; null stays null. An unobserved time is NOT "now". */
 const tsField = z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
@@ -64,7 +63,7 @@ const visitSchema = z.object({
 
   plateText: z.string().max(16).nullish(),
   plateStatus: z.enum(PLATE_STATUS).default("NONE"),
-  customerMatch: z.enum(CUSTOMER_MATCH).default("NONE"),
+  customerMatch: z.enum(PLATE_MATCH_CLASSES).default("NONE"),
   customerId: z.number().int().nullish(),
 
   preexisting: z.boolean().default(false),
@@ -80,8 +79,6 @@ const visitSchema = z.object({
 const bodySchema = z.object({
   visits: z.array(visitSchema).min(1).max(100),
 });
-
-export type CameraVisitInput = z.infer<typeof visitSchema>;
 
 /** Only a CONFIRMED read is durable. Everything else keeps its status, loses its text. */
 export function plateTextToStore(

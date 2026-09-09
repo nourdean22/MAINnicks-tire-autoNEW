@@ -38,11 +38,16 @@ CREATE TABLE IF NOT EXISTS vehicle_visits (
   seq              INT          NOT NULL DEFAULT 0,
 
   -- lifecycle. NULL means "not observed", never "zero".
-  arrivedAt        DATETIME     NULL,
-  waitStartedAt    DATETIME     NULL,
-  bayEnteredAt     DATETIME     NULL,
-  bayExitedAt      DATETIME     NULL,
-  departedAt       DATETIME     NULL,
+  -- TIMESTAMP NULL DEFAULT NULL, not DATETIME. DATETIME carries no timezone and
+  -- AGENTS.md records that driver-parsed TiDB DATETIME values come back shifted on
+  -- ET, which would silently corrupt every wait time and day bucket computed from
+  -- them. The explicit DEFAULT NULL also suppresses MySQL's implicit
+  -- auto-initialise on the first TIMESTAMP column.
+  arrivedAt        TIMESTAMP    NULL DEFAULT NULL,
+  waitStartedAt    TIMESTAMP    NULL DEFAULT NULL,
+  bayEnteredAt     TIMESTAMP    NULL DEFAULT NULL,
+  bayExitedAt      TIMESTAMP    NULL DEFAULT NULL,
+  departedAt       TIMESTAMP    NULL DEFAULT NULL,
   bay              VARCHAR(32)  NULL,
 
   -- identity. Advisory until EXACT or staff-confirmed.

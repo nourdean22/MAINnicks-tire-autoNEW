@@ -86,7 +86,11 @@ export function maskPhone(phone: unknown): string {
   return digits.length >= 4 ? `***-${digits.slice(-4)}` : "***";
 }
 
-export type PlateMatchClass = "EXACT" | "CONFUSABLE_UNIQUE" | "AMBIGUOUS" | "NONE";
+/** The four outcomes of a plate lookup. Single source of truth: the camera visit
+ * ingest validates `customerMatch` against this same list, so the API contract and
+ * the classifier cannot drift apart. */
+export const PLATE_MATCH_CLASSES = ["EXACT", "CONFUSABLE_UNIQUE", "AMBIGUOUS", "NONE"] as const;
+export type PlateMatchClass = (typeof PLATE_MATCH_CLASSES)[number];
 
 /**
  * Classify what a plate lookup actually found (2026-09-09).

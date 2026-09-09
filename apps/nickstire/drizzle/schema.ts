@@ -4553,11 +4553,17 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
   state: varchar("state", { length: 32 }).notNull(),
   seq: int("seq").default(0).notNull(),
 
-  arrivedAt: datetime("arrivedAt"),
-  waitStartedAt: datetime("waitStartedAt"),
-  bayEnteredAt: datetime("bayEnteredAt"),
-  bayExitedAt: datetime("bayExitedAt"),
-  departedAt: datetime("departedAt"),
+  // TIMESTAMP, not DATETIME, and deliberately. AGENTS.md: "Driver-parsed TiDB
+  // DATETIME values come back shifted on ET". DATETIME carries no timezone, so a
+  // JS Date written and read back through mysql2 shifts by the session offset --
+  // which would silently corrupt every wait time and day bucket the Lot section
+  // computes. TIMESTAMP stores UTC and converts on read, so the Date round-trip
+  // is consistent. The 2038 range is irrelevant for shop visit times.
+  arrivedAt: timestamp("arrivedAt"),
+  waitStartedAt: timestamp("waitStartedAt"),
+  bayEnteredAt: timestamp("bayEnteredAt"),
+  bayExitedAt: timestamp("bayExitedAt"),
+  departedAt: timestamp("departedAt"),
   bay: varchar("bay", { length: 32 }),
 
   /** Advisory until EXACT or staff-confirmed — never bind identity on a fuzzy read. */
