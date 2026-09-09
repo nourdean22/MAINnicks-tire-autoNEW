@@ -217,6 +217,71 @@ async function transition(actionId: string, status: "settled" | "released" | "fa
   }
 }
 
+/**
+ * How long a reservation may sit in `reserved` before the sweeper treats it as
+ * abandoned. Generous on purpose: the longest legitimate hold is one
+ * reel-pipeline pulse budget (14 min) plus assembly, so hours cannot be a live
+ * job — but a value this loose can never race a running worker.
+ */
+export const RESERVATION_STALE_HOURS = 6;
+
+/**
+ * RELEASE RESERVATIONS NOTHING WILL EVER SETTLE.
+ *
+ * `reserve()` inserts `reserved`; the worker settles or releases it at the end
+ * of the run. A crash, restart or deploy between those two points leaves the
+ * row `reserved` forever — and `spendSinceUsd` counts `reserved` alongside
+ * `settled` and `failed`, deliberately, so an in-flight job cannot be
+ * double-spent. The consequence is that an abandoned row consumes daily budget
+ * that nothing will ever return.
+ *
+ * Measured 2026-09-09: four such rows, oldest from 2026-07-20 (`reel_job_1350001`
+ * at $1.50, plus three `ref_frames_*` at $0.10). None was in the current day's
+ * window, so none was distorting today's ceiling — but one abandoned mid-day
+ * would silently shrink that day's generation budget with no way to notice
+ * except a puzzling BUDGET_DAILY_EXCEEDED.
+ *
+ * `contentGovernor` already has exactly this sweeper for its reservations; the
+ * generation ledger did not.
+ *
+ * RELEASED, not settled: we do not know the provider charged. Marking it
+ * `settled` would assert a spend we cannot evidence, and `released` is the
+ * status the codebase already uses for "reserved, then nothing happened".
+ */
+export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOURS): Promise<{ released: string[] }> {
+  const out: { released: string[] } = { released: [] };
+  try {
+    const ctx = await ledgerDb();
+    if (!ctx) return out;
+    const { and, eq, lt } = await import("drizzle-orm");
+    const cutoff = new Date(Date.now() - staleHours * 60 * 60 * 1000);
+
+    const stale = await ctx.d
+      .select()
+      .from(ctx.table)
+      .where(and(eq(ctx.table.status, "reserved"), lt(ctx.table.createdAt, cutoff)))
+      .limit(50);
+
+    for (const row of stale) {
+      await ctx.d
+        .update(ctx.table)
+        .set({ status: "released", settledAt: new Date() })
+        .where(and(eq(ctx.table.id, row.id), eq(ctx.table.status, "reserved")));
+      out.released.push(row.actionId);
+    }
+    if (out.released.length) {
+      log.warn("released stale generation reservations — no worker will settle these", {
+        count: out.released.length,
+        actionIds: out.released.slice(0, 10),
+        staleHours,
+      });
+    }
+  } catch (err) {
+    log.warn("stale-reservation sweep failed", { err: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+  }
+  return out;
+}
+
 /** Settle after success. Pass actualCostUsd only when the provider reported
  *  real usage — otherwise the reservation's flagged estimate stands. */
 export async function settle(actionId: string, actualCostUsd?: number): Promise<void> {

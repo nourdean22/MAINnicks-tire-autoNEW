@@ -408,13 +408,35 @@ export async function enqueueReelJob(
   // dry-run showed it stopping 10 of 12 real briefs.
   {
     const { HASHTAG_CAP } = await import("../../shared/episodeContract");
-    const tags = brief.hashtags ?? [];
-    if (tags.length > HASHTAG_CAP) {
-      log.warn("hashtags over the platform cap — trimming", {
-        briefId: brief.id, had: tags.length, cap: HASHTAG_CAP, dropped: tags.slice(HASHTAG_CAP),
-      });
-      brief.hashtags = tags.slice(0, HASHTAG_CAP);
+    const raw = brief.hashtags ?? [];
+
+    // DEDUPE BEFORE CAPPING, case-insensitively.
+    //
+    // The cap alone let a duplicated set through intact: reel 1320001 published
+    // #TireSafety #RoadTripReady #ClevelandAuto #EuclidOH twice each — eight
+    // tags, over the cap, and only four distinct ideas. Slicing to five would
+    // have kept #TireSafety twice and still wasted a slot. A repeated tag adds
+    // no reach and reads as sloppy on a business account, so the duplicate is
+    // the thing to remove first; the cap then applies to real tags only.
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const t of raw) {
+      const key = String(t).trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      unique.push(t);
     }
+    if (unique.length !== raw.length) {
+      log.warn("duplicate hashtags removed", {
+        briefId: brief.id, had: raw.length, distinct: unique.length,
+      });
+    }
+    if (unique.length > HASHTAG_CAP) {
+      log.warn("hashtags over the platform cap — trimming", {
+        briefId: brief.id, had: unique.length, cap: HASHTAG_CAP, dropped: unique.slice(HASHTAG_CAP),
+      });
+    }
+    brief.hashtags = unique.slice(0, HASHTAG_CAP);
   }
 
   // CONDEMNED-SCRIPT CHECK — here because this is BEFORE the spend boundary.

@@ -544,7 +544,42 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
   // Today's job is the fallback, not the priority: finishing an approved reel
   // beats starting a new one.
-  if (!job) job = todaysJob;
+  //
+  // BUT IT GETS THE SAME PARKED-QA PRE-FILTER THE DRAIN GETS.
+  //
+  // The drain skips a candidate parked on needs_paid_repair / reject /
+  // stock_fallback, because those wait on a human and read identically on every
+  // future pulse. Today's job reached `job` without that check, so the exact
+  // head-of-line stall the pre-filter exists to prevent survived on this one
+  // branch: a parked today's-job is re-selected every pulse, refused by the
+  // chain, and the whole lane stalls behind it for the rest of the ET day.
+  //
+  // Read-only (`runIfMissing: false`), same as the drain: this cannot run QA,
+  // spend, or mutate. An unreadable gate leaves the job selectable and lets the
+  // authoritative chain below decide, which fails closed on its own.
+  if (!job && todaysJob) {
+    let parked: string | null = null;
+    try {
+      const { evaluateReelPublishGate } = await import("../../services/qualityGate");
+      const g = await evaluateReelPublishGate(todaysJob.id, { runIfMissing: false });
+      if (!g.allowed && PARKED_QA_GATES.has(g.gate)) parked = g.gate;
+    } catch (err) {
+      log.warn("daily reel: parked-QA check on today's job failed; leaving it selectable", {
+        jobId: todaysJob.id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+    if (parked) {
+      log.info("daily reel: today's job is parked awaiting a human — not selecting it", {
+        jobId: todaysJob.id, gate: parked,
+      });
+      return {
+        recordsProcessed: 0,
+        details: `today's job ${todaysJob.id} parked (qa_parked:${parked}) and no drainable backlog; index not advanced`,
+      };
+    }
+    job = todaysJob;
+  }
 
   if (!job) {
     // Only ENQUEUE during the best posting hour. Publishing an already-assembled
@@ -1368,6 +1403,20 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     return {
       recordsProcessed: 0,
       details: `Generation failed for job ${job.id}: ${job.error}; no fallback media posted and index not advanced`,
+    };
+  }
+
+  // `published` and `publish_ambiguous` are real terminal states that this
+  // switch did not name, so both fell through to "Unknown job status" — a
+  // reconciled job (the ONLY writer of `published` is the reconciler) reported
+  // as an unrecognised state, which reads like corruption rather than success.
+  if (job.status === "published" || job.status === "posted") {
+    return { recordsProcessed: 0, details: `Job ${job.id} is already live (status: ${job.status}); nothing to do` };
+  }
+  if (job.status === "publish_ambiguous") {
+    return {
+      recordsProcessed: 0,
+      details: `Job ${job.id} publish outcome UNKNOWN — parked for the reconcile lane, never retried blind`,
     };
   }
 

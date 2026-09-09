@@ -1032,7 +1032,50 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
   return { findings, blocked: findings.some((f) => f.severity === "block"), checkedAt: now() };
 }
 
-export function calculateReelQualityScore(brief: ReelBrief, minScore: number = STUDIO_DEFAULTS.qualityMinScore): QualityScoreResult {
+export interface QualityScoreContext {
+  /** Recent signals from reel_jobs, the same shape buildRepetitionChecks takes. */
+  recent?: { topics: string[]; keywords: string[]; archetypes: string[]; motionLenses: string[]; objectCharacters: string[] };
+}
+
+/**
+ * The distinctiveness part. Repeating ANY of the five identity axes against the
+ * recent window costs the whole 5 points - a reel that reuses last week's topic
+ * with a new lens is still the same reel to a viewer scrolling past it.
+ */
+function distinctPart(
+  brief: ReelBrief,
+  recent?: QualityScoreContext["recent"],
+): QualityScorePart {
+  if (!recent) {
+    return {
+      label: "Distinct from recent reels",
+      max: 5,
+      ok: false,
+      points: 0,
+      detail: "Not checked - no recent-signal context supplied to the scorer",
+    };
+  }
+  const checks = buildRepetitionChecks(brief, recent);
+  const repeated = [
+    checks.topicRepeated ? "topic" : null,
+    checks.keywordRepeated ? "keyword" : null,
+    checks.archetypeRepeated ? "archetype" : null,
+    checks.motionLensRepeated ? "motion lens" : null,
+    checks.objectCharacterRepeated ? "object" : null,
+  ].filter(Boolean) as string[];
+  const ok = repeated.length === 0;
+  return {
+    label: "Distinct from recent reels",
+    max: 5,
+    ok,
+    points: ok ? 5 : 0,
+    detail: ok
+      ? `No repeat across ${recent.topics.length} recent reels`
+      : `Repeats recent ${repeated.join(", ")}`,
+  };
+}
+
+export function calculateReelQualityScore(brief: ReelBrief, minScore: number = STUDIO_DEFAULTS.qualityMinScore, opts?: QualityScoreContext): QualityScoreResult {
   const safety = runSafetyChecks(brief, () => "scored");
   const beatsOk = validateBeatCount(brief.storyboardBeats).ok;
   const lengthOk = validateReelLengthTarget(brief.storyboardBeats).ok;
@@ -1059,7 +1102,27 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
     { label: "Faceless & wordless contract", max: 10, ok: facelessWordlessOk, points: facelessWordlessOk ? 10 : 0, detail: facelessWordlessOk ? "No face/hand/limb subjects and no in-frame text or branding" : (faceBlocks[0]?.match ?? textBlocks[0]?.match ?? "Faceless/wordless violation") },
     { label: "Claim safety (no blocked claims)", max: 10, ok: claimBlocks.length === 0, points: claimBlocks.length === 0 ? 10 : 0, detail: claimBlocks.length === 0 ? "No blocked claims" : `${claimBlocks.length} blocked claim(s)` },
     { label: "Campaign keyword valid", max: 5, ok: kwOk, points: kwOk ? 5 : 0, detail: brief.campaignKeyword },
-    { label: `Winning concept >= ${STUDIO_DEFAULTS.conceptMinScore}/60`, max: 5, ok: !!(winner && scoreReelConcept(winner).passing), points: winner && scoreReelConcept(winner).passing ? 5 : 0, detail: winner ? `${scoreReelConcept(winner).total}/60` : "No winning concept" },
+    // DISTINCTIVENESS replaced a 5-point SELF-GRADE.
+    //
+    // The old part scored "winning concept >= 57/60", where all six of those
+    // sub-scores are written by the generator about its own output -
+    // conceptTournament.ts says so in its header: "'Self-score honestly' is
+    // literally in the reel prompt". A model grading itself is not a gate.
+    //
+    // What the scale was missing is the thing the corpus actually suffers from.
+    // Measured 2026-09-09 across 166 produced packs: 99 share an identical
+    // five-beat shape, 130 close with the same sentence, and the repo's own
+    // originality report scored ten machine-written reels at 0.99-1.00 against
+    // already-published content while four hand-written ones scored 0.14-0.28.
+    // Every one of those briefs cleared 70/75, because nothing in the scale
+    // could see a sibling.
+    //
+    // NO CONTEXT IS NOT A PASS. When the caller supplies no recent signals this
+    // part scores ZERO and says why, so a brief scored blind spends its slack
+    // instead of being quietly certified distinct. The repetition data already
+    // exists (getRecentReelSignals -> buildRepetitionChecks); this makes the
+    // score read it.
+    distinctPart(brief, opts?.recent),
   ];
   const score = parts.reduce((a, p) => a + p.points, 0);
   // Faceless & wordless is a HARD gate, not merely a scored part: a face/limb or
