@@ -31,10 +31,48 @@ import path from "node:path";
 
 const STUDIO = readFileSync(path.join(__dirname, "..", "client", "src", "lib", "facelessReelStudio.ts"), "utf8");
 const PROMPT = readFileSync(path.join(__dirname, "..", "client", "src", "lib", "facelessReelStudioPrompt.ts"), "utf8");
+// A gate is only as wide as its file list. This scan covered facelessReelStudio
+// alone while the identical hardcoded palette lived on in visualWorld.ts - and
+// that copy WON, because buildReelContinuityBlock returns an approved world's
+// invariants before it ever reaches its own LENS_PALETTES line.
+const WORLD = readFileSync(path.join(__dirname, "services", "visualWorld.ts"), "utf8");
 
 describe("every lens gets the world its own grammar asks for", () => {
-  it("the single hardcoded palette line is gone", () => {
-    expect(STUDIO).not.toContain("Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.");
+  it("the single hardcoded palette line is gone from EVERY writer of it", () => {
+    const dead = "graphite black and deep shadow tones with gold #FDB913 accent highlights";
+    expect(STUDIO, "facelessReelStudio still hardcodes one palette").not.toContain(dead);
+    expect(WORLD, "visualWorld still hardcodes one palette - and it wins over the lens").not.toContain(dead);
+    expect(WORLD, "the invariants block still asserts a fixed graphite-and-gold grade").not.toContain("same graphite-and-gold");
+  });
+
+  it("the visual-world path reads the palette from the reel's lens too", () => {
+    // The path that wins for any reel with an approved world, and it is LIVE:
+    // REEL_AUTO_VISUAL_WORLD is true in production (probed 2026-09-09).
+    //
+    // Assert inside the FUNCTION BODY, not across the file. A mutation run
+    // proved why: deleting the BRAND_ACCENT_RULE usage line survived a
+    // whole-file toContain, because the import statement still spells the
+    // name. The import is not the behaviour.
+    const start = WORLD.indexOf("export function buildReferenceFramePrompt");
+    expect(start, "buildReferenceFramePrompt is gone").toBeGreaterThan(-1);
+    const body = WORLD.slice(start, WORLD.indexOf("export function compileLockedInvariants"));
+    expect(body).toContain("LENS_PALETTES[brief.motionLens]");
+    expect(body, "the frame prompt no longer carries the brand accent rule").toContain("BRAND_ACCENT_RULE");
+  });
+
+  it("the metronome rule is gone from the CHECKLIST as well as the prompt", () => {
+    // The prompt retired "a cut/push/text change every 1.5-2.5s" as a ceiling
+    // masquerading as a floor. The render checklist in the studio library
+    // still recited it, so the model was told one thing and graded on another.
+    // A mutation run caught this scan being narrower than its own claim.
+    // The prompt is ALLOWED to name the retired rule - it explains why the rule
+    // was retired, and deleting that explanation is how a bad rule comes back.
+    // What must not survive is the rule PRESCRIBED as an instruction, which is
+    // what the checklist was still doing. The first version of this assertion
+    // forbade the string outright and failed on the retirement note itself.
+    expect(PROMPT, "the prompt no longer records WHY the metronome was retired")
+      .toContain('used to prescribe "a cut/push/text change every 1.5-2.5s"');
+    expect(STUDIO, "the render checklist still recites the metronome as a rule").not.toContain("1.5-2.5s");
   });
 
   it("the continuity block reads the palette from the reel's lens", () => {

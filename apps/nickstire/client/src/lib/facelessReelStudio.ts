@@ -1033,12 +1033,22 @@ export interface QualityScorePart {
   detail: string;
 }
 
+/** A condition that must hold no matter how well the reel scores elsewhere. */
+export interface QualityHardGate {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
 export interface QualityScoreResult {
   overall: number;
   gate: "pass" | "block";
   reasoning: string[];
   parts: QualityScorePart[];
   passing: boolean;
+  /** Non-offsettable conditions, evaluated separately from the total. A
+   *  failure here blocks regardless of score - see the note in the scorer. */
+  hardGates: QualityHardGate[];
 }
 
 function allBriefText(brief: ReelBrief): { text: string; where: string }[] {
@@ -1080,25 +1090,48 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
 
 export interface QualityScoreContext {
   /** Recent signals from reel_jobs, the same shape buildRepetitionChecks takes. */
-  recent?: { topics: string[]; keywords: string[]; archetypes: string[]; motionLenses: string[]; objectCharacters: string[] };
+  recent?: {
+    topics: string[]; keywords: string[]; archetypes: string[]; motionLenses: string[]; objectCharacters: string[];
+    /**
+     * Did the history read actually SUCCEED? getRecentReelSignals returns the
+     * same empty arrays whether the window was genuinely empty or the database
+     * was unreachable, and those two mean opposite things here: the first is a
+     * brief with nothing to repeat, the second is a brief nobody could check.
+     * Without this flag a DB outage scores as perfectly distinct - absent
+     * evidence read as a pass. Optional, and only `false` is treated as an
+     * outage, so a hand-built fixture stays a real answer.
+     */
+    available?: boolean;
+  };
 }
 
 /**
- * The distinctiveness part. Repeating ANY of the five identity axes against the
- * recent window costs the whole 5 points - a reel that reuses last week's topic
- * with a new lens is still the same reel to a viewer scrolling past it.
+ * The distinctiveness part. Scores one point per identity axis that is genuinely
+ * new against the recent window, so a reel reusing last week's archetype loses a
+ * point rather than the whole part. Repeating ALL FIVE is not a score at all -
+ * that is the same reel again, and the hard gate in the scorer refuses it.
  */
+/** The five signals buildRepetitionChecks compares. Also the part's max, so
+ *  the weight and the number of things being weighed cannot drift apart. */
+const DISTINCT_SIGNALS = 5;
+
 function distinctPart(
   brief: ReelBrief,
   recent?: QualityScoreContext["recent"],
 ): QualityScorePart {
-  if (!recent) {
+  // Two different nothings, and they must not read alike. A caller that never
+  // supplied context did not ask the question; a caller whose DB read failed
+  // asked and got no answer. Neither earns the points - "absent evidence is
+  // not a pass" - but only the second one is an outage worth seeing.
+  if (!recent || recent.available === false) {
     return {
       label: "Distinct from recent reels",
-      max: 5,
+      max: DISTINCT_SIGNALS,
       ok: false,
       points: 0,
-      detail: "Not checked - no recent-signal context supplied to the scorer",
+      detail: recent
+        ? "Not checked - recent-reel history was unreadable"
+        : "Not checked - no recent-signal context supplied to the scorer",
     };
   }
   const checks = buildRepetitionChecks(brief, recent);
@@ -1112,13 +1145,36 @@ function distinctPart(
   const ok = repeated.length === 0;
   return {
     label: "Distinct from recent reels",
-    max: 5,
+    max: DISTINCT_SIGNALS,
     ok,
-    points: ok ? 5 : 0,
+    // GRADUATED, one point per signal that is genuinely new.
+    //
+    // The first version scored 5 or 0, which made repeating a single signal
+    // cost as much as repeating all five. Measured against production on
+    // 2026-09-09 (47 reels in the 21-day window): 41 distinct topics but only
+    // 6 of 14 archetypes and 5 of 14 motion lenses in use. With that much
+    // concentration most new briefs repeat SOMETHING, so all-or-nothing
+    // handed nearly every brief a zero and quietly required a perfect score
+    // on all nine other parts. Graduated says what is actually true: this
+    // brief is four-fifths new.
+    points: DISTINCT_SIGNALS - repeated.length,
     detail: ok
       ? `No repeat across ${recent.topics.length} recent reels`
-      : `Repeats recent ${repeated.join(", ")}`,
+      : `Repeats recent ${repeated.join(", ")} (${DISTINCT_SIGNALS - repeated.length}/${DISTINCT_SIGNALS} signals new)`,
   };
+}
+
+/** How many of the five signals repeat, or null when the history could not be
+ *  read. null is NOT zero - it is the difference between a brief proven new
+ *  and a brief nobody checked, and the duplicate gate refuses to fire on it. */
+export function repeatedSignalCount(
+  brief: Pick<ReelBrief, "topic" | "campaignKeyword" | "archetype" | "motionLens" | "objectCharacter">,
+  recent?: QualityScoreContext["recent"],
+): number | null {
+  if (!recent || recent.available === false) return null;
+  const c = buildRepetitionChecks(brief, recent);
+  return [c.topicRepeated, c.keywordRepeated, c.archetypeRepeated, c.motionLensRepeated, c.objectCharacterRepeated]
+    .filter(Boolean).length;
 }
 
 export function calculateReelQualityScore(brief: ReelBrief, minScore: number = STUDIO_DEFAULTS.qualityMinScore, opts?: QualityScoreContext): QualityScoreResult {
@@ -1171,13 +1227,55 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
     distinctPart(brief, opts?.recent),
   ];
   const score = parts.reduce((a, p) => a + p.points, 0);
-  // Faceless & wordless is a HARD gate, not merely a scored part: a face/limb or
-  // in-frame-text block must fail the reel even if the numeric total clears the
-  // bar (otherwise a single 10-pt part loss on an 85-max scale could still pass).
-  const passing = score >= minScore && facelessWordlessOk;
-  const reasoning = parts.filter(p => !p.ok).map(p => p.detail);
+
+  // HARD GATES vs SCORED DIMENSIONS.
+  //
+  // One averaged number cannot express "this must never ship" and "this could
+  // be better" at the same time, and the arithmetic proved it: max is 75 and
+  // the threshold is 70, so there are exactly 5 points of slack - and FIVE
+  // separate 5-point parts. Any one of them can fail while the reel still
+  // passes at exactly 70. A part whose weight equals the slack cannot block
+  // anything by itself; it is decoration with a number attached.
+  //
+  // So the things that must never ship are listed here instead of trusted to
+  // the total. They are not offsettable by scoring well elsewhere, and they
+  // stay correct if the weights or the threshold are ever retuned.
+  const repeatedCount = repeatedSignalCount(brief, opts?.recent);
+  const hardGates: QualityHardGate[] = [
+    {
+      name: "Faceless & wordless contract",
+      ok: facelessWordlessOk,
+      detail: facelessWordlessOk ? "No face/hand/limb subjects and no in-frame text or branding" : (faceBlocks[0]?.match ?? textBlocks[0]?.match ?? "Faceless/wordless violation"),
+    },
+    {
+      // Already fatal today only because a 10-point loss happens to land under
+      // the threshold. Stated explicitly so it survives a retune.
+      name: "No blocked claims",
+      ok: claimBlocks.length === 0,
+      detail: claimBlocks.length === 0 ? "No blocked claims" : `${claimBlocks.length} blocked claim(s)`,
+    },
+    {
+      // The floor, not the ambition. Repeating some signals is ordinary and
+      // costs points; repeating ALL FIVE is the same reel again, and shipping
+      // it is the spam-and-repetition exposure the platform actually polices.
+      // It cannot deadlock the lane: escaping it requires changing any ONE of
+      // five signals, and the 2026-09-09 window had 8 unused archetypes and 9
+      // unused motion lenses. null (history unreadable) never fires it - an
+      // outage must not start blocking publishes.
+      name: "Not a duplicate of a recent reel",
+      ok: repeatedCount === null || repeatedCount < DISTINCT_SIGNALS,
+      detail: repeatedCount === null
+        ? "Not checked - recent-reel history unavailable"
+        : repeatedCount < DISTINCT_SIGNALS
+          ? `${DISTINCT_SIGNALS - repeatedCount} of ${DISTINCT_SIGNALS} signals differ from recent reels`
+          : "Every signal repeats a recent reel - this is that reel again",
+    },
+  ];
+  const failedGates = hardGates.filter((g) => !g.ok);
+  const passing = score >= minScore && failedGates.length === 0;
+  const reasoning = [...failedGates.map((g) => g.detail), ...parts.filter(p => !p.ok).map(p => p.detail)];
   const gate = passing ? "pass" as const : "block" as const;
-  return { overall: score, gate, reasoning, parts, passing };
+  return { overall: score, gate, reasoning, parts, passing, hardGates };
 }
 
 // ─── Deterministic preflight (Creative Compiler 2.0 Milestone 10) ──────
@@ -1660,7 +1758,7 @@ export function buildFfmpegChecklist(brief: ReelBrief): ChecklistItem[] {
     { label: "Output container/codec", ok: null, detail: `${REEL_OUTPUT_RULES.codec}, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, +faststart` },
     { label: "Clip count matches beats", ok: null, detail: `${beats.length} beat clip(s) expected from Higgsfield` },
     { label: "Total duration in band", ok: end >= REEL_OUTPUT_RULES.minSeconds && end <= REEL_OUTPUT_RULES.maxSeconds, detail: `Storyboard ends at ${end}s (target ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds}s)` },
-    { label: "Kinetic density", ok: null, detail: "A cut, push, or text change every 1.5-2.5s — no static stretches" },
+    { label: "Kinetic density", ok: null, detail: "Motion in every beat, and consecutive beats must not move at the same speed for the same reason — no static stretches, no metronome" },
     { label: "On-screen text legible at arm's length", ok: null, detail: "Manual check on a phone before export" },
     { label: "Audio mix", ok: null, detail: brief.voiceoverScript.trim() ? "VO under music; -14 LUFS target; reel must still teach muted" : "Music/SFX only; reel teaches muted by design" },
     { label: "Cover frame", ok: null, detail: brief.assetPlan.trim() || "Pick the strongest face-free frame; export 1080x1920 JPEG" },
