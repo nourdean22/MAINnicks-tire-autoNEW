@@ -1,17 +1,20 @@
 """Fetch the pinned detector weights, verifying every byte.
 
-Intel DISCONTINUED the Open Model Zoo. There is no `omz_downloader` to fall back on
-and no guarantee the storage host outlives the models, so the exact artifacts this
-system was measured against are pinned here by sha256 and fetched directly. A model
-that silently changes underneath a detector is a measurement that quietly stops
-meaning anything -- the hash is the point, not the download.
+The Open Model Zoo is, in Intel's own words in its README, "in maintenance mode as a
+source of models" -- it still exists and is still Apache-2.0, but it is no longer a
+growing source and its docs point elsewhere. That is weaker than "discontinued" (an
+earlier draft of this file said discontinued; the README refuted it), and it is still
+reason enough to pin: the fetch path is release-specific (2026.x paths 404), so the
+exact artifacts this system was measured against are pinned by sha256 and fetched
+directly. A model that silently changes underneath a detector is a measurement that
+quietly stops meaning anything -- the hash is the point, not the download.
 
     python -m vision.fetch_models --dest ov_models
     python -m vision.fetch_models --dest ov_models --verify-only
 
 Exit codes: 0 all files present and verified; 1 a fetch or hash check failed.
 
-If the host is gone, every file below is content-addressed: any mirror serving these
+If the host goes away, every file below is content-addressed: any mirror serving these
 exact sha256 digests is equivalent, and `--base-url` will take one. Do NOT "fix" a
 hash mismatch by updating the expected digest -- re-measure the detector first.
 """
@@ -25,7 +28,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Open Model Zoo release these artifacts came from. Part of the URL, so it is a pin.
+#: Open Model Zoo release these artifacts came from. Part of the URL, so it is a pin
+#: (2026.x paths 404 -- the release number is load-bearing, not decorative).
 OMZ_RELEASE = "2023.0"
 DEFAULT_BASE_URL = (
     f"https://storage.openvinotoolkit.org/repositories/open_model_zoo/{OMZ_RELEASE}/models_bin/1"
@@ -121,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
 
     dest_root = Path(args.dest).resolve()
     print(f"models root : {dest_root}")
-    print(f"omz release : {OMZ_RELEASE} (Open Model Zoo is DISCONTINUED upstream)")
+    print(f"omz release : {OMZ_RELEASE} (Open Model Zoo is in maintenance mode upstream)")
 
     failed = 0
     for pin in PINNED:
