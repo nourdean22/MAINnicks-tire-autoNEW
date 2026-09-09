@@ -106,7 +106,10 @@ class TrackGraph:
             t.last_seen = now
             t.hits += 1
             t.misses = 0
-            t.confirmable = t.confirmable or confirmable
+            # NOT `or`: latching this True meant a track seen once by a real detector
+            # kept arrival authority through a detector outage, while its path -- the
+            # input to EntryPortal -- accrued points from whatever ran instead.
+            t.confirmable = confirmable
             new_pt = t.ground_point
             if ((new_pt[0] - prev[0]) ** 2 + (new_pt[1] - prev[1]) ** 2) ** 0.5 > self.move_epsilon:
                 t.still_since = now

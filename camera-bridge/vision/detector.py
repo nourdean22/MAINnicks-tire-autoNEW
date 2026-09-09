@@ -219,12 +219,28 @@ class DetectorCouncil:
             motion_dets = self.motion_gate.detect(image)
             res.by_detector[self.motion_gate.name] = len(motion_dets)
 
-        if self.primary is None:
-            # No neural detector on this machine. Report occupancy honestly, confirm nothing.
-            res.detections = motion_dets if self.degrade_to_motion else []
+        # `can_confirm` is the enforcement mechanism for this file's hard invariant, so
+        # it has to be READ, not merely declared. It was declared on every detector and
+        # never consulted here, which left invariant 4 resting on the convention that
+        # MOG2 is wired as `motion_gate` rather than `primary`. Wire a can_confirm=False
+        # detector as `primary` and the council used to hand back arrival authority.
+        primary_can_confirm = bool(self.primary is not None and self.primary.can_confirm)
+
+        if self.primary is None or not primary_can_confirm:
+            # Either no detector at all, or only one that is not allowed to confirm.
+            # Report occupancy honestly; confirm nothing.
+            fallback = motion_dets
+            if self.primary is not None:
+                fallback = self.primary.detect(image) or motion_dets
+            res.detections = fallback if self.degrade_to_motion else []
             res.motion_only = True
             res.can_confirm_arrival = False
-            res.reason = "no vehicle detector available: motion/occupancy uncertain only"
+            res.reason = (
+                "no vehicle detector available: motion/occupancy uncertain only"
+                if self.primary is None
+                else f"detector {self.primary.name!r} is not permitted to confirm arrivals: "
+                     "motion/occupancy uncertain only"
+            )
             res.latency_ms = (time.perf_counter() - t0) * 1000.0
             return res
 
@@ -232,7 +248,7 @@ class DetectorCouncil:
         # entry-critical frame, so escalate regardless when the caller flags one.
         if self.motion_gate is not None and not motion_dets and not entry_critical:
             res.skipped_no_motion = True
-            res.can_confirm_arrival = True
+            res.can_confirm_arrival = primary_can_confirm
             res.reason = "no motion: heavy detector skipped"
             res.latency_ms = (time.perf_counter() - t0) * 1000.0
             return res
@@ -249,7 +265,7 @@ class DetectorCouncil:
             dets = self._fuse(confident, ambiguous, adj)
 
         res.detections = [d for d in dets if d.score >= self.low_conf]
-        res.can_confirm_arrival = True
+        res.can_confirm_arrival = primary_can_confirm
         res.reason = "vehicle detector ran"
         res.latency_ms = (time.perf_counter() - t0) * 1000.0
         return res

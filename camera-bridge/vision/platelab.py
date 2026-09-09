@@ -131,8 +131,17 @@ class PlateLab:
     def available(self) -> bool:
         return self.ocr_fn is not None
 
-    def observe(self, crop: np.ndarray, ts: float, quality: PlateQuality) -> Optional[PlateCandidate]:
-        """OCR one crop if it is worth reading. Returns the candidate, or None."""
+    def observe(self, crop: np.ndarray, ts: float, quality: Optional[PlateQuality] = None,
+                frame_w: Optional[int] = None, box_x1: float = 0.0,
+                box_x2: float = 0.0) -> Optional[PlateCandidate]:
+        """OCR one crop if it is worth reading. Returns the candidate, or None.
+
+        `quality` is scored HERE when the caller does not supply it. It used to be a
+        required parameter with no in-package caller, which left the 'reject junk before
+        spending OCR on it' gate opt-in and, in practice, never on."""
+        if quality is None:
+            quality = score_crop(crop, frame_w if frame_w is not None else int(crop.shape[1]),
+                                 box_x1, box_x2)
         if not self.available or not quality.usable:
             return None
         text, conf = self.ocr_fn(crop)
@@ -170,13 +179,31 @@ class PlateLab:
         denom = sum(max(0.1, m.quality) for m in members) or 1.0
         confidence = weighted / denom
 
+        # Two DIFFERENT agreements, reported separately and deliberately. `agreement` is
+        # over confusable-collapsed forms, which is the right grouping for repeated reads
+        # of one plate. But ABC1234 and ABCI234 collapse to the same key, so a canonical
+        # agreement of 1.00 can hide raw strings that disagree -- and fingerprint.compare
+        # treats two differing high-confidence plates as a HARD STOP. Reporting 1.00 for
+        # input the identity layer would call contradictory is exactly the overstated
+        # confidence this module warns about, so raw disagreement caps the verdict at
+        # CANDIDATE and both numbers are exposed.
+        raw_counts = Counter(m.text for m in members)
+        raw_top = raw_counts.most_common(1)[0][1]
+        raw_agreement = raw_top / len(members)
+        raw_distinct = len(raw_counts)
+
         second = groups.most_common(2)[1][1] if len(groups) > 1 else 0
         if reads < self.min_reads:
             verdict, reason = CANDIDATE, f"only {reads} read(s) < {self.min_reads}"
         elif second and (top_n - second) <= 0:
             verdict, reason = AMBIGUOUS, "two readings tied"
         elif agreement >= self.confirm_agreement and confidence >= self.confirm_confidence:
-            verdict, reason = CONFIRMED, f"{top_n}/{reads} agree at {confidence:.2f}"
+            if raw_distinct > 1:
+                verdict = CANDIDATE
+                reason = (f"{top_n}/{reads} agree once confusables are collapsed, but the "
+                          f"raw reads differ ({raw_distinct} distinct) - not confirmable")
+            else:
+                verdict, reason = CONFIRMED, f"{top_n}/{reads} agree at {confidence:.2f}"
         elif agreement >= self.confirm_agreement:
             verdict, reason = CANDIDATE, f"agreement ok, confidence {confidence:.2f} low"
         else:
@@ -188,8 +215,10 @@ class PlateLab:
             "canonical": top_key,
             "confidence": round(confidence, 3),
             "agreement": round(agreement, 3),
+            "rawAgreement": round(raw_agreement, 3),
             "reads": reads,
             "distinct": len(groups),
+            "rawDistinct": raw_distinct,
             "reason": reason,
             "candidates": [
                 {"text": c.text, "confidence": c.confidence, "ts": c.ts} for c in self.candidates

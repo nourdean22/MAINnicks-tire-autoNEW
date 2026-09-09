@@ -2,8 +2,11 @@
 FrameHealth: a frozen or duplicated V380 pane must not masquerade as a live feed.
 
 Pure functions of the frame stream -- no camera required, no cv2 required. Uses an
-8x8 difference hash so a frozen pane (identical consecutive frames) or a short loop
-of cached frames is detectable, plus FPS and frame age from timestamps.
+8x8 difference hash to catch two DIFFERENT failures, because they need different tests:
+a FROZEN pane is a run of identical CONSECUTIVE frames, while a LOOPING pane cycles a
+handful of cached frames and so never produces such a run. Consecutive-run detection
+alone passed a 3-frame A/B/C loop as healthy, so `distinct` over the window catches
+that. Plus FPS and frame age from timestamps.
 
 Why this matters: the desktop-capture lane reads whatever the V380 app last painted.
 If the app stalls, the last good frame keeps being captured forever and every
@@ -47,7 +50,9 @@ class HealthState:
     fps: float
     age: float          # seconds since the last frame, measured at `now`
     dup_ratio: float    # fraction of recent frames duplicating their predecessor
-    frozen: bool        # a run of near-identical frames long enough to distrust
+    frozen: bool        # a run of near-identical CONSECUTIVE frames long enough to distrust
+    looping: bool       # the window cycles too few distinct frames to be a live scene
+    distinct: int       # distinct frame hashes in the window
     ok: bool
 
 
@@ -59,14 +64,17 @@ class FrameHealth:
         freeze_run: int = 8,
         min_fps: float = 0.5,
         max_age: float = 5.0,
+        min_distinct: int = 4,
     ) -> None:
         self.window = window
         self.dup_hamming = dup_hamming
         self.freeze_run = freeze_run
         self.min_fps = min_fps
         self.max_age = max_age
+        self.min_distinct = min_distinct
         self._ts: deque[float] = deque(maxlen=window)
         self._dups: deque[bool] = deque(maxlen=window)
+        self._hashes: deque[int] = deque(maxlen=window)
         self._prev_hash: Optional[int] = None
         self._freeze_streak = 0
         self.last_ts: Optional[float] = None
@@ -84,6 +92,7 @@ class FrameHealth:
             self._freeze_streak = 0
         if h is not None:
             self._prev_hash = h
+            self._hashes.append(h)
 
     def state(self, now: float) -> HealthState:
         ts = list(self._ts)
@@ -94,8 +103,12 @@ class FrameHealth:
         age = (now - self.last_ts) if self.last_ts is not None else float("inf")
         dup_ratio = (sum(self._dups) / len(self._dups)) if self._dups else 0.0
         frozen = self._freeze_streak >= self.freeze_run
-        # FPS is only judged once the window has filled, so a healthy cold start is not
-        # reported as unhealthy.
+        distinct = len(set(self._hashes))
+        # Only judged once the window has filled: a cold start legitimately shows few
+        # distinct frames, and calling that a loop would be a false alarm.
+        looping = len(self._hashes) >= self.window and distinct < self.min_distinct
+        # FPS is likewise only judged once the window has filled.
         fps_ok = fps >= self.min_fps or len(ts) < self.window
-        ok = (not frozen) and age <= self.max_age and fps_ok
-        return HealthState(fps=fps, age=age, dup_ratio=dup_ratio, frozen=frozen, ok=ok)
+        ok = (not frozen) and (not looping) and age <= self.max_age and fps_ok
+        return HealthState(fps=fps, age=age, dup_ratio=dup_ratio, frozen=frozen,
+                           looping=looping, distinct=distinct, ok=ok)

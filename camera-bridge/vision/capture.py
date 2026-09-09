@@ -63,8 +63,11 @@ class ReplaySource(CaptureSource):
         if self._seq >= len(self._images):
             return None
         img = self._images[self._seq]
+        # Recorded frames ARE the intended content by construction, so they are verified.
+        # The pipeline fails CLOSED on a missing `window_verified`, which is right for a
+        # screen-capture source that might be occluded and wrong to leave unset here.
         f = Frame(seq=self._seq, ts=self.start_ts + self._seq / self.fps,
-                  source=self.name, image=img)
+                  source=self.name, image=img, meta={"window_verified": True})
         self._seq += 1
         return f
 
@@ -101,7 +104,11 @@ class SyntheticSource(CaptureSource):
         # A deterministic sawtooth on ALL channels: two different frames get different
         # dHashes, and a whole-frame roll changes grayscale enough to read as camera
         # motion (a single-channel pattern would be diluted by the mean-to-gray step).
-        row = ((np.arange(self.w, dtype=np.int16) % 64) + 40).astype(np.uint8)
+        # Period 100, not 64: rolled by the 32 px step a period-64 pattern alternates
+        # between just two images, which the frame-health loop detector correctly calls a
+        # loop. Period 100 gives 25 distinct frames under the same step, while a shift of
+        # 32 still moves every pixel by 32 levels -- well past the motion threshold.
+        row = ((np.arange(self.w, dtype=np.int16) % 100) + 40).astype(np.uint8)
         img = np.repeat(np.repeat(row[None, :, None], self.h, axis=0), 3, axis=2)
         dx, dy = self._shift[self._seq] if self._seq < len(self._shift) else (0, 0)
         if dx or dy:
@@ -112,7 +119,7 @@ class SyntheticSource(CaptureSource):
             if x2 > x1 and y2 > y1:
                 img[y1:y2, x1:x2] = 220
         f = Frame(seq=self._seq, ts=self.start_ts + self._seq / self.fps,
-                  source=self.name, image=img)
+                  source=self.name, image=img, meta={"window_verified": True})
         self._seq += 1
         return f
 
@@ -266,7 +273,6 @@ class V380WindowSource(CaptureSource):
 
     def _verify(self, hwnd, x: int, y: int) -> bool:
         """Is the target window really the thing painted at this point?"""
-        import ctypes
         import ctypes.wintypes as wt
         pt = wt.POINT(x, y)
         top = self._user32.WindowFromPoint(pt)

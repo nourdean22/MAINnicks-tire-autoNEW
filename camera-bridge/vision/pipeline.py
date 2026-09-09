@@ -146,7 +146,8 @@ class VisionPipeline:
         return emissions
 
     # -------------------------------------------------------------------- main step
-    def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None) -> dict:
+    def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,
+             detections_can_confirm: bool = True) -> dict:
         now = frame.ts
         if self._start_ts is None:
             self._start_ts = now
@@ -157,7 +158,9 @@ class VisionPipeline:
         # A screen-region capture silently returns whatever window overlaps the target.
         # An unverified frame is not evidence about the lot, so it cannot be allowed to
         # start, advance or end a visit.
-        if frame.meta.get("window_verified") is False:
+        # `is not True`, not `is False`: a capture source that FORGETS the key must not
+        # silently inherit arrival authority. Absent evidence is not evidence.
+        if frame.meta.get("window_verified") is not True:
             self.stats.suppressed_unverified += 1
             self._was_unhealthy = True          # recovery re-arms the preexisting census
             self.tracks.mark_degraded()
@@ -191,9 +194,13 @@ class VisionPipeline:
 
         # 3. Detection ----------------------------------------------------------
         if detections is not None:
+            # Injected detections bypass the council, so the caller must say whether they
+            # came from something allowed to confirm. Defaulting to True is safe for the
+            # test/replay harnesses that use it, but a caller feeding MOTION-derived boxes
+            # must pass detections_can_confirm=False or it inherits arrival authority.
             dets = list(detections)
-            confirmable = True
-            result = CouncilResult(detections=dets, can_confirm_arrival=True,
+            confirmable = detections_can_confirm
+            result = CouncilResult(detections=dets, can_confirm_arrival=detections_can_confirm,
                                    reason="detections injected")
         else:
             result = self.council.run(frame.image)

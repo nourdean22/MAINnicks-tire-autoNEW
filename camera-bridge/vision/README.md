@@ -21,10 +21,14 @@ gating **must** happen at the edge. That is this package.
    visits survive, marked degraded.
 3. A new visit requires **explicit entry evidence** — an outside→inside portal crossing
    on the vehicle's ground contact point. Dwell never invents an arrival.
-4. **Motion alone can never confirm an arrival.** With no neural detector present the
-   pipeline reports occupancy and refuses to create visits.
-5. A frozen, stale, or **unverified** capture cannot mint arrivals. Recovery counts as a
-   reconnect, which re-arms the preexisting census.
+4. **Motion alone can never confirm an arrival.** Enforced by reading each detector's
+   `can_confirm` flag, not by convention: a non-confirming detector wired as the
+   *primary* is refused arrival authority just as one wired as the motion gate is.
+   Injected detections must declare their own authority, and a track's authority follows
+   the current frame rather than latching on first sight.
+5. A frozen, **looping**, stale, or **unverified** capture cannot mint arrivals. The
+   verification check fails CLOSED, so a source that never sets the flag is refused
+   rather than trusted. Recovery counts as a reconnect, which re-arms the census.
 
 ## Measured on this machine, 2026-09-09
 
@@ -98,9 +102,31 @@ Without `--calibration`, `run_live` runs in **census mode**: vehicles, occupancy
 and PTZ state only. It refuses to claim arrivals, because an entry line is meaningless
 until someone has drawn where the driveway actually is.
 
+## What an independent review found
+
+An adversarial review of this package on 2026-09-09 found, and this version fixes, a
+defect that mattered: **`can_confirm` was a dead flag.** Every detector declared it and
+`DetectorCouncil.run` never read it, so invariant 4 held only because MOG2 is
+conventionally wired as the motion gate. Wired as the *primary*, a motion detector was
+granted arrival authority and emitted a real visit. The test covering that invariant would
+have passed with the flag deleted, because it exercised the `primary is None` branch
+instead. Both are fixed, and the new test is red-green verified: it fails when the defect
+is re-introduced.
+
+Four related fail-open paths went with it: injected detections hardcoded arrival
+authority; a track's `confirmable` latched True forever and survived a detector outage; a
+frame *missing* `window_verified` passed the gate that an explicit `False` failed; and a
+3-frame cached loop passed frame health because it never produces consecutive duplicates.
+
+Two honesty fixes: `PlateLab` reported canonical agreement of 1.00 for reads whose raw
+strings disagreed, which `fingerprint.compare` would call a hard contradiction, so raw
+disagreement now caps the verdict at CANDIDATE and both numbers are reported; and
+`score_crop` had no caller, leaving the "reject junk before spending OCR" gate off in
+practice.
+
 ## Claim states — do not merge these
 
-- **Implementation-complete**: every component above, 26 tests green.
+- **Implementation-complete**: every component above, **32 tests green** (including the real OpenVINO detector on the GPU).
 - **Simulation-proven**: the five invariants, via synthetic scenarios and fault injection
   driving the real `visitd` tracker.
 - **Controlled-field-proven**: detector latency and detection quality on real SHOPSIGN
