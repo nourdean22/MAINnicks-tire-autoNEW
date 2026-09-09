@@ -389,12 +389,58 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
   // The freeze is unconditional so the duration contract and the render-integrity
   // gate (expectedSec = total + SAVE_FREEZE_SECONDS) are unaffected. Only the
   // CARD is conditional: no declared ask means no burned-in ask.
+  // 3b. OPTICAL FINISH - the one thing that separates a render from footage.
+  //
+  // A generated clip is perfectly smooth. Real footage never is: a sensor adds
+  // grain that MOVES between frames, and a lens darkens toward the corners.
+  // Their absence is a large part of what "looks AI-generated" means, and no
+  // amount of prompt engineering puts them back - they are properties of the
+  // camera, not of the scene.
+  //
+  // WHAT IS DELIBERATELY NOT HERE, and why - each measured rather than assumed,
+  // on a 1080x1920 synthetic source with a flat brand-gold subject:
+  //
+  //   colour grade / temperature   REJECTED. A global warm grade is the exact
+  //     mistake LENS_PALETTES exists to undo: fourteen lens worlds, one look
+  //     imposed over all of them. The grade belongs to the lens.
+  //   highlight bloom / halation   REJECTED. Screening a blurred luma layer
+  //     lifts luma by +0.2 and costs ~10% SATURATION - it washes Nick yellow,
+  //     the one colour that must survive. Measured at two thresholds; both
+  //     cost the saturation and neither delivered visible glow.
+  //   chromatic aberration         REJECTED, and this one was a surprise.
+  //     rgbashift LOOKS like free lens realism and measured SATAVG 44.0 -> 39.8,
+  //     a 9.5% desaturation of the hero, for a 1px edge fringe. Not worth it.
+  //
+  // WHAT SURVIVED, measured on the same source (source YAVG 147.05, SATAVG 44.0):
+  //   noise=c0s (LUMA PLANE ONLY)  YAVG 146.5, SATAVG 44.0 - zero saturation
+  //     cost at every strength tried. `allf=t+u` is what makes it move frame to
+  //     frame; a static pattern reads as dirt on the lens, not as grain.
+  //     Applying it to all planes instead costs ~12% saturation, because chroma
+  //     noise steals bitrate from chroma at a fixed CRF.
+  //   vignette=PI/12               YAVG 146.2, SATAVG 43.8 - subtle corner
+  //     falloff. PI/9 was visibly heavy; PI/12 reads as a lens, not a filter.
+  //   Together: YAVG 145.6, SATAVG 43.8. The image survives; the plastic
+  //     surface does not.
+  //
+  // DEFAULT OFF, and that is not timidity. Grain is incompressible by design,
+  // and on that same smooth source it took the file from 124KB to 320KB - 2.57x
+  // at identical CRF. Instagram RE-ENCODES every upload, so grain competes for
+  // bitrate with the image itself and can leave the reel looking WORSE after
+  // their transcode than it did before. Real footage carries detail for the
+  // grain to hide behind and should cost far less, but that has not been
+  // measured on a real reel, and shipping an unmeasured bitrate multiplier to
+  // every published asset is not a call to make silently. Arm it with
+  // REEL_FILM_GRAIN=true and compare a real pair.
+  //
+  // Placed BEFORE the caption overlay so the burned-in text stays clean: real
+  // grain lives in the photographed image, and graphics go on top of it.
+  fc.push(`[vpad]${opticalFinishFilter()}[vmaster]`);
   if (opts.askText) {
     fc.push(
-      `[vpad]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
+      `[vmaster]drawtext=fontfile='${fontEsc}':textfile='caption_save.txt':fontsize=72:fontcolor=0xFDB913:borderw=6:bordercolor=black:box=1:boxcolor=black@0.6:boxborderw=28:x=(w-text_w)/2:y=h*0.12:enable='gte(t,${total.toFixed(2)})'[vout]`,
     );
   } else {
-    fc.push(`[vpad]null[vout]`);
+    fc.push(`[vmaster]null[vout]`);
   }
 
   // 4. audio: VO loud over ducked music, degrading gracefully when either is absent
@@ -464,12 +510,49 @@ export function buildFfmpegArgs(opts: FfmpegBuildOpts): string[] {
     "medium",
     "-crf",
     "20",
+    // TAG THE COLOUR SPACE. The encode wrote UNTAGGED H.264, which is not a
+    // neutral choice - it is an ambiguous one. Every decoder then guesses, and
+    // they do not guess alike: Instagram's transcoder, Safari, Chrome and QuickTime
+    // each apply their own default matrix to untagged 8-bit 4:2:0. The reel that
+    // looked right in the render can arrive on a phone washed out, crushed or
+    // shifted in hue, and nothing upstream would ever show it, because our own QA
+    // reads the same untagged file with the same assumption that produced it.
+    //
+    // Rec.709 is the correct declaration for this pipeline: the sources are 8-bit
+    // SDR, the deliverable is 1080x1920 SDR, and 709 is the HD standard every
+    // consumer surface expects. This tags what we are ALREADY producing; it does
+    // not convert anything, so no existing render changes appearance - it stops
+    // the guessing.
+    "-colorspace",
+    "bt709",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-color_range",
+    "tv",
     ...(hasAudio ? ["-c:a", "aac", "-b:a", "192k", "-ac", "2"] : ["-an"]),
     "-movflags",
     "+faststart",
     "-y",
     outPath,
   ];
+}
+
+/** Grain strength on the LUMA plane. 6 of 100 - visible as texture at arm's
+ *  length, invisible as noise. Above ~10 it reads as a broken encode. */
+export const FILM_GRAIN_STRENGTH = 6;
+
+/**
+ * The optical finish, or a no-op when it is not armed.
+ *
+ * Returns a filter string rather than a boolean so the caller cannot
+ * accidentally build an empty link label: ffmpeg needs SOMETHING between
+ * [vpad] and [vmaster], and "null" is that something.
+ */
+export function opticalFinishFilter(): string {
+  if (process.env.REEL_FILM_GRAIN !== "true") return "null";
+  return `noise=c0s=${FILM_GRAIN_STRENGTH}:allf=t+u,vignette=PI/12`;
 }
 
 // ─── I/O orchestration ──────────────────────────────────────────────

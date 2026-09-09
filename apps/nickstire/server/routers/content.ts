@@ -1781,8 +1781,17 @@ export const contentAdminRouter = router({
         });
       }
 
+      // SCORE AGAINST WHAT WE HAVE ALREADY MADE.
+      // calculateReelQualityScore's distinctiveness part scores ZERO without
+      // this context, deliberately - a brief certified "distinct" by a scorer
+      // that never saw a sibling is how 166 near-identical packs all cleared
+      // 70/75. getRecentReelSignals reports available:false on a DB fault
+      // rather than throwing; an empty window legitimately means "nothing
+      // recent to repeat", which is the same answer a healthy new account gives.
+      const { getRecentReelSignals } = await import("../services/reelRepetitionHistory");
+      const recent = await getRecentReelSignals();
       const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-      const score = calculateReelQualityScore(brief as any);
+      const score = calculateReelQualityScore(brief as any, undefined, { recent });
       if (!score.passing) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -2068,9 +2077,12 @@ export const contentAdminRouter = router({
     .mutation(async ({ input }) => {
       try {
         const { generateReelBriefAI } = await import("../services/reelBriefGen");
-        const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
+        const { scoreReelBriefWithMemory } = await import("../services/reelQualityScore");
         const { brief } = await generateReelBriefAI(input);
-        const qualityScore = calculateReelQualityScore(brief);
+        // Scored WITH the recent-reel history: without it the distinctiveness
+        // part reports "not checked" and costs its points anyway, so this lane
+        // silently required a perfect score everywhere else.
+        const qualityScore = await scoreReelBriefWithMemory(brief);
         return { success: true as const, brief, qualityScore };
       } catch (err) {
         log.error("generateReelBrief failed", { err: err instanceof Error ? err.message : String(err) });
@@ -2082,17 +2094,23 @@ export const contentAdminRouter = router({
     }),
   /** Server-authoritative reel quality gate. Re-scores an (optionally edited)
    *  brief with the same 75-pt gate the Studio UI uses, so quality is
-   *  enforceable server-side rather than advisory client-only. Pure compute —
-   *  no generation, storage, or posting. */
+   *  enforceable server-side rather than advisory client-only.
+   *
+   *  Reads the recent-reel history (one SELECT, no writes) so this returns the
+   *  SAME verdict as the enqueue path. It used to score without that context,
+   *  which made the "server-authoritative" gate disagree with the gate that
+   *  actually admits a brief — the authoritative answer was the less informed
+   *  one. Still no generation, storage or posting. */
   validateReelBrief: adminProcedure
     .input(z.object({ brief: reelBriefScoreInput }))
     .mutation(async ({ input }) => {
-      const { calculateReelQualityScore, buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+      const { buildHiggsfieldReelPromptPack } = await import("../../client/src/lib/facelessReelStudio");
+      const { scoreReelBriefWithMemory } = await import("../services/reelQualityScore");
       const brief = input.brief as unknown as ReelBrief;
       const promptPack = buildHiggsfieldReelPromptPack(brief);
       brief.promptPack = promptPack;
       brief.higgsfieldPromptPack = promptPack;
-      const qualityScore = calculateReelQualityScore(brief);
+      const qualityScore = await scoreReelBriefWithMemory(brief);
       return { qualityScore, passing: qualityScore.passing };
     }),
   probeVeoConnection: adminProcedure

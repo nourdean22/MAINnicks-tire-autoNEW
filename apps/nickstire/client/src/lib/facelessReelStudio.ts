@@ -502,6 +502,52 @@ export interface HiggsfieldBeatPrompt {
   conditioningMode?: ConditioningMode;
 }
 
+/**
+ * THE PALETTE EACH LENS ACTUALLY WANTS.
+ *
+ * One hardcoded line - "graphite black and deep shadow tones with gold #FDB913
+ * accent highlights" - was pushed into the continuity block of EVERY autonomous
+ * reel. Two problems, and the second is worse than the first.
+ *
+ * MONOTONY: 166 produced packs, and the corpus is visually interchangeable. A
+ * distinctive brand asset used as the ground instead of an accent stops being
+ * distinctive; it just becomes the only thing the account looks like.
+ *
+ * CONTRADICTION: it fought the lens grammar it was printed beside.
+ * xray_cutaway asks for "cool schematic glow, clean dark field"; blueprint_
+ * technical asks for a drafting field; tilt_shift_miniature asks for "bright
+ * even daylight". The palette line then demanded deep shadow and gold over all
+ * three. The generator received two instructions and split the difference,
+ * which is the reliable way to make everything look like the same murky
+ * AI-commercial render.
+ *
+ * Nick yellow (#FDB913) survives in every world - as an ACCENT, the 5-15% it
+ * should have been. The brand code stays; the mood changes.
+ */
+export const LENS_PALETTES: Record<MotionLens, string> = {
+  extreme_macro_push_in: "deep graphite and black field, one hard key light raking the surface, gold #FDB913 only as a rim accent on the hero edge.",
+  tilt_shift_miniature: "bright even daylight, clean saturated model-shop colours, gold #FDB913 as a single prop or marker accent.",
+  xray_cutaway: "cool schematic blue-white on a clean dark field, translucent layers, gold #FDB913 reserved for the one annotated detail.",
+  anthropomorphized_object: "practical shop lighting on neutral concrete, warm tungsten pools, gold #FDB913 accent on one prop.",
+  surreal_scale: "epic natural light with grounded shadows, palette taken from the real environment, gold #FDB913 as the single human-made accent.",
+  optical_illusion_morph: "flat even lighting and high-contrast graphic colour so the morph reads, gold #FDB913 as one of two dominant tones.",
+  hyperreal_cinematic: "deep graphite and shadow, controlled highlight roll-off, gold #FDB913 rim light - the premium world.",
+  claymation_stop_motion: "soft toy-set lighting, matte plasticine colour, visible fingerprints, gold #FDB913 as a moulded accent.",
+  blueprint_technical: "drafting blue and paper white, precise line weight, gold #FDB913 for the one callout that matters.",
+  neon_retro_futurist: "magenta and cyan neon on wet black, chrome reflections, gold #FDB913 as the warm third light.",
+  forensic_evidence_scan: "controlled dark field with one narrow inspection beam, evidence-table neutrality, gold #FDB913 on the marker only.",
+  product_ad_macro: "seamless studio sweep, soft box gradient, restrained gold #FDB913 rim - the catalogue world.",
+  weather_radar_overlay: "cold grey-blue Cleveland daylight, wet asphalt sheen, gold #FDB913 as the alert colour.",
+  warning_light_world: "near-black cabin dark with amber instrument glow, gold #FDB913 as the warning source itself.",
+};
+
+/**
+ * Nick yellow is a DISTINCTIVE ASSET, not a filter. It must appear in every
+ * reel and dominate almost none of them.
+ */
+export const BRAND_ACCENT_RULE =
+  "Nick yellow #FDB913 appears as a deliberate accent on roughly 5-15% of the frame - one edge, one marker, one light source. It is never a global colour cast or a full-field wash.";
+
 export const VISUAL_WORLD_STYLES = ["safe", "bold", "experimental"] as const;
 export type VisualWorldStyle = (typeof VISUAL_WORLD_STYLES)[number];
 
@@ -987,12 +1033,22 @@ export interface QualityScorePart {
   detail: string;
 }
 
+/** A condition that must hold no matter how well the reel scores elsewhere. */
+export interface QualityHardGate {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
 export interface QualityScoreResult {
   overall: number;
   gate: "pass" | "block";
   reasoning: string[];
   parts: QualityScorePart[];
   passing: boolean;
+  /** Non-offsettable conditions, evaluated separately from the total. A
+   *  failure here blocks regardless of score - see the note in the scorer. */
+  hardGates: QualityHardGate[];
 }
 
 function allBriefText(brief: ReelBrief): { text: string; where: string }[] {
@@ -1032,7 +1088,96 @@ export function runSafetyChecks(brief: ReelBrief, now: () => string = () => new 
   return { findings, blocked: findings.some((f) => f.severity === "block"), checkedAt: now() };
 }
 
-export function calculateReelQualityScore(brief: ReelBrief, minScore: number = STUDIO_DEFAULTS.qualityMinScore): QualityScoreResult {
+export interface QualityScoreContext {
+  /** Recent signals from reel_jobs, the same shape buildRepetitionChecks takes. */
+  recent?: {
+    topics: string[]; keywords: string[]; archetypes: string[]; motionLenses: string[]; objectCharacters: string[];
+    /**
+     * Did the history read actually SUCCEED? getRecentReelSignals returns the
+     * same empty arrays whether the window was genuinely empty or the database
+     * was unreachable, and those two mean opposite things here: the first is a
+     * brief with nothing to repeat, the second is a brief nobody could check.
+     * Without this flag a DB outage scores as perfectly distinct - absent
+     * evidence read as a pass. Optional, and only `false` is treated as an
+     * outage, so a hand-built fixture stays a real answer.
+     */
+    available?: boolean;
+  };
+}
+
+/**
+ * The distinctiveness part. Scores one point per identity axis that is genuinely
+ * new against the recent window, so a reel reusing last week's archetype loses a
+ * point rather than the whole part. Repeating ALL FIVE is not a score at all -
+ * that is the same reel again, and the hard gate in the scorer refuses it.
+ */
+/** The five signals buildRepetitionChecks compares. Also the part's max, so
+ *  the weight and the number of things being weighed cannot drift apart. */
+const DISTINCT_SIGNALS = 5;
+
+function distinctPart(
+  brief: ReelBrief,
+  recent?: QualityScoreContext["recent"],
+): QualityScorePart {
+  // Two different nothings, and they must not read alike. A caller that never
+  // supplied context did not ask the question; a caller whose DB read failed
+  // asked and got no answer. Neither earns the points - "absent evidence is
+  // not a pass" - but only the second one is an outage worth seeing.
+  if (!recent || recent.available === false) {
+    return {
+      label: "Distinct from recent reels",
+      max: DISTINCT_SIGNALS,
+      ok: false,
+      points: 0,
+      detail: recent
+        ? "Not checked - recent-reel history was unreadable"
+        : "Not checked - no recent-signal context supplied to the scorer",
+    };
+  }
+  const checks = buildRepetitionChecks(brief, recent);
+  const repeated = [
+    checks.topicRepeated ? "topic" : null,
+    checks.keywordRepeated ? "keyword" : null,
+    checks.archetypeRepeated ? "archetype" : null,
+    checks.motionLensRepeated ? "motion lens" : null,
+    checks.objectCharacterRepeated ? "object" : null,
+  ].filter(Boolean) as string[];
+  const ok = repeated.length === 0;
+  return {
+    label: "Distinct from recent reels",
+    max: DISTINCT_SIGNALS,
+    ok,
+    // GRADUATED, one point per signal that is genuinely new.
+    //
+    // The first version scored 5 or 0, which made repeating a single signal
+    // cost as much as repeating all five. Measured against production on
+    // 2026-09-09 (47 reels in the 21-day window): 41 distinct topics but only
+    // 6 of 14 archetypes and 5 of 14 motion lenses in use. With that much
+    // concentration most new briefs repeat SOMETHING, so all-or-nothing
+    // handed nearly every brief a zero and quietly required a perfect score
+    // on all nine other parts. Graduated says what is actually true: this
+    // brief is four-fifths new.
+    points: DISTINCT_SIGNALS - repeated.length,
+    detail: ok
+      ? `No repeat across ${recent.topics.length} recent reels`
+      : `Repeats recent ${repeated.join(", ")} (${DISTINCT_SIGNALS - repeated.length}/${DISTINCT_SIGNALS} signals new)`,
+  };
+}
+
+/** How many of the five signals repeat, or null when the history could not be
+ *  read. null is NOT zero - it is the difference between a brief proven new
+ *  and a brief nobody checked, and the duplicate gate refuses to fire on it. */
+export function repeatedSignalCount(
+  brief: Pick<ReelBrief, "topic" | "campaignKeyword" | "archetype" | "motionLens" | "objectCharacter">,
+  recent?: QualityScoreContext["recent"],
+): number | null {
+  if (!recent || recent.available === false) return null;
+  const c = buildRepetitionChecks(brief, recent);
+  return [c.topicRepeated, c.keywordRepeated, c.archetypeRepeated, c.motionLensRepeated, c.objectCharacterRepeated]
+    .filter(Boolean).length;
+}
+
+export function calculateReelQualityScore(brief: ReelBrief, minScore: number = STUDIO_DEFAULTS.qualityMinScore, opts?: QualityScoreContext): QualityScoreResult {
   const safety = runSafetyChecks(brief, () => "scored");
   const beatsOk = validateBeatCount(brief.storyboardBeats).ok;
   const lengthOk = validateReelLengthTarget(brief.storyboardBeats).ok;
@@ -1059,16 +1204,78 @@ export function calculateReelQualityScore(brief: ReelBrief, minScore: number = S
     { label: "Faceless & wordless contract", max: 10, ok: facelessWordlessOk, points: facelessWordlessOk ? 10 : 0, detail: facelessWordlessOk ? "No face/hand/limb subjects and no in-frame text or branding" : (faceBlocks[0]?.match ?? textBlocks[0]?.match ?? "Faceless/wordless violation") },
     { label: "Claim safety (no blocked claims)", max: 10, ok: claimBlocks.length === 0, points: claimBlocks.length === 0 ? 10 : 0, detail: claimBlocks.length === 0 ? "No blocked claims" : `${claimBlocks.length} blocked claim(s)` },
     { label: "Campaign keyword valid", max: 5, ok: kwOk, points: kwOk ? 5 : 0, detail: brief.campaignKeyword },
-    { label: `Winning concept >= ${STUDIO_DEFAULTS.conceptMinScore}/60`, max: 5, ok: !!(winner && scoreReelConcept(winner).passing), points: winner && scoreReelConcept(winner).passing ? 5 : 0, detail: winner ? `${scoreReelConcept(winner).total}/60` : "No winning concept" },
+    // DISTINCTIVENESS replaced a 5-point SELF-GRADE.
+    //
+    // The old part scored "winning concept >= 57/60", where all six of those
+    // sub-scores are written by the generator about its own output -
+    // conceptTournament.ts says so in its header: "'Self-score honestly' is
+    // literally in the reel prompt". A model grading itself is not a gate.
+    //
+    // What the scale was missing is the thing the corpus actually suffers from.
+    // Measured 2026-09-09 across 166 produced packs: 99 share an identical
+    // five-beat shape, 130 close with the same sentence, and the repo's own
+    // originality report scored ten machine-written reels at 0.99-1.00 against
+    // already-published content while four hand-written ones scored 0.14-0.28.
+    // Every one of those briefs cleared 70/75, because nothing in the scale
+    // could see a sibling.
+    //
+    // NO CONTEXT IS NOT A PASS. When the caller supplies no recent signals this
+    // part scores ZERO and says why, so a brief scored blind spends its slack
+    // instead of being quietly certified distinct. The repetition data already
+    // exists (getRecentReelSignals -> buildRepetitionChecks); this makes the
+    // score read it.
+    distinctPart(brief, opts?.recent),
   ];
   const score = parts.reduce((a, p) => a + p.points, 0);
-  // Faceless & wordless is a HARD gate, not merely a scored part: a face/limb or
-  // in-frame-text block must fail the reel even if the numeric total clears the
-  // bar (otherwise a single 10-pt part loss on an 85-max scale could still pass).
-  const passing = score >= minScore && facelessWordlessOk;
-  const reasoning = parts.filter(p => !p.ok).map(p => p.detail);
+
+  // HARD GATES vs SCORED DIMENSIONS.
+  //
+  // One averaged number cannot express "this must never ship" and "this could
+  // be better" at the same time, and the arithmetic proved it: max is 75 and
+  // the threshold is 70, so there are exactly 5 points of slack - and FIVE
+  // separate 5-point parts. Any one of them can fail while the reel still
+  // passes at exactly 70. A part whose weight equals the slack cannot block
+  // anything by itself; it is decoration with a number attached.
+  //
+  // So the things that must never ship are listed here instead of trusted to
+  // the total. They are not offsettable by scoring well elsewhere, and they
+  // stay correct if the weights or the threshold are ever retuned.
+  const repeatedCount = repeatedSignalCount(brief, opts?.recent);
+  const hardGates: QualityHardGate[] = [
+    {
+      name: "Faceless & wordless contract",
+      ok: facelessWordlessOk,
+      detail: facelessWordlessOk ? "No face/hand/limb subjects and no in-frame text or branding" : (faceBlocks[0]?.match ?? textBlocks[0]?.match ?? "Faceless/wordless violation"),
+    },
+    {
+      // Already fatal today only because a 10-point loss happens to land under
+      // the threshold. Stated explicitly so it survives a retune.
+      name: "No blocked claims",
+      ok: claimBlocks.length === 0,
+      detail: claimBlocks.length === 0 ? "No blocked claims" : `${claimBlocks.length} blocked claim(s)`,
+    },
+    {
+      // The floor, not the ambition. Repeating some signals is ordinary and
+      // costs points; repeating ALL FIVE is the same reel again, and shipping
+      // it is the spam-and-repetition exposure the platform actually polices.
+      // It cannot deadlock the lane: escaping it requires changing any ONE of
+      // five signals, and the 2026-09-09 window had 8 unused archetypes and 9
+      // unused motion lenses. null (history unreadable) never fires it - an
+      // outage must not start blocking publishes.
+      name: "Not a duplicate of a recent reel",
+      ok: repeatedCount === null || repeatedCount < DISTINCT_SIGNALS,
+      detail: repeatedCount === null
+        ? "Not checked - recent-reel history unavailable"
+        : repeatedCount < DISTINCT_SIGNALS
+          ? `${DISTINCT_SIGNALS - repeatedCount} of ${DISTINCT_SIGNALS} signals differ from recent reels`
+          : "Every signal repeats a recent reel - this is that reel again",
+    },
+  ];
+  const failedGates = hardGates.filter((g) => !g.ok);
+  const passing = score >= minScore && failedGates.length === 0;
+  const reasoning = [...failedGates.map((g) => g.detail), ...parts.filter(p => !p.ok).map(p => p.detail)];
   const gate = passing ? "pass" as const : "block" as const;
-  return { overall: score, gate, reasoning, parts, passing };
+  return { overall: score, gate, reasoning, parts, passing, hardGates };
 }
 
 // ─── Deterministic preflight (Creative Compiler 2.0 Milestone 10) ──────
@@ -1333,7 +1540,8 @@ export function buildReelContinuityBlock(
   return [
     `VISUAL CONTINUITY (identical in every shot of this reel):`,
     `Hero subject: ${character.label} - ${character.essence} First established as: ${heroAnchor}`,
-    `Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.`,
+    `Palette: ${LENS_PALETTES[brief.motionLens] ?? LENS_PALETTES.hyperreal_cinematic}`,
+    BRAND_ACCENT_RULE,
     `Same hero object design, same environment, same lighting direction, and same weather in every shot.`,
     `Never change the hero object's shape, tread/surface pattern, damage location, or color between shots.`,
   ].join("\n");
@@ -1550,7 +1758,7 @@ export function buildFfmpegChecklist(brief: ReelBrief): ChecklistItem[] {
     { label: "Output container/codec", ok: null, detail: `${REEL_OUTPUT_RULES.codec}, ${REEL_OUTPUT_RULES.pixelFormat}, ${REEL_OUTPUT_RULES.fps}fps, ${REEL_OUTPUT_RULES.resolution}, +faststart` },
     { label: "Clip count matches beats", ok: null, detail: `${beats.length} beat clip(s) expected from Higgsfield` },
     { label: "Total duration in band", ok: end >= REEL_OUTPUT_RULES.minSeconds && end <= REEL_OUTPUT_RULES.maxSeconds, detail: `Storyboard ends at ${end}s (target ${REEL_OUTPUT_RULES.minSeconds}-${REEL_OUTPUT_RULES.maxSeconds}s)` },
-    { label: "Kinetic density", ok: null, detail: "A cut, push, or text change every 1.5-2.5s — no static stretches" },
+    { label: "Kinetic density", ok: null, detail: "Motion in every beat, and consecutive beats must not move at the same speed for the same reason — no static stretches, no metronome" },
     { label: "On-screen text legible at arm's length", ok: null, detail: "Manual check on a phone before export" },
     { label: "Audio mix", ok: null, detail: brief.voiceoverScript.trim() ? "VO under music; -14 LUFS target; reel must still teach muted" : "Music/SFX only; reel teaches muted by design" },
     { label: "Cover frame", ok: null, detail: brief.assetPlan.trim() || "Pick the strongest face-free frame; export 1080x1920 JPEG" },

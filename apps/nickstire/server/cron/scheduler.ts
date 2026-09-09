@@ -18,7 +18,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { acquireCronLock, releaseCronLock } from "./index";
+import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
 
 const log = createLogger("scheduler");
 
@@ -97,10 +97,10 @@ interface TieredJob {
   timeoutMs?: number;
 }
 
-const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
-function jobTimeoutMs(job: { timeoutMs?: number }): number {
-  return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
-}
+// jobTimeoutMs lives in cron/index.ts so the tiered runner here and the
+// HTTP/staged trigger there cannot drift apart on the budget or the lock TTL
+// derived from it — they did, and the HTTP path took a 10-minute lock for a
+// 14-minute job.
 
 interface Tier {
   name: string;
@@ -1192,6 +1192,22 @@ function buildTiers(): void {
           const resumed = await resumeTimedOutReelJobs()
             .then((r) => r.resumed.length)
             .catch((e) => { log.warn("reel-pipeline: timed-out-job resume failed", { err: e instanceof Error ? e.message : String(e) }); return 0; });
+          // Then: resolve any publish whose outcome is UNKNOWN, before this
+          // pulse considers publishing anything else. An ambiguous dispatch is
+          // parked terminally by dailyReelPost (Instagram has no idempotency
+          // key, so a blind retry double-posts); this is the only thing that
+          // un-parks it, and it does so through the same reconciler and writer
+          // the operator button uses. Judgement cases stay parked.
+          const reconciled = await import("../services/publishReconcileLane")
+            .then((m) => m.reconcileAmbiguousPublishes())
+            .then((r) => r.resolvedPublished.length + r.resolvedNotPublished.length)
+            .catch((e) => { log.warn("reel-pipeline: publish reconcile lane failed", { err: e instanceof Error ? e.message : String(e) }); return 0; });
+          // And release reservations no worker will ever settle — they consume
+          // the day's generation budget until something returns them.
+          const sweptReservations = await import("../services/generationLedger")
+            .then((m) => m.sweepStaleReservations())
+            .then((r) => r.released.length)
+            .catch((e) => { log.warn("reel-pipeline: reservation sweep failed", { err: e instanceof Error ? e.message : String(e) }); return 0; });
           // ASSEMBLY RUNS BEFORE GENERATION, up to three jobs per pulse. Assembly
           // is ~1 min of ffmpeg over clips that already exist; generation is
           // ~11 min of paid rendering. When gen ran first, every finished-clip
@@ -1240,12 +1256,14 @@ function buildTiers(): void {
           const details = [
             recovered ? `recovered ${recovered}` : null,
             resumed ? `resumed ${resumed} timed-out` : null,
+            reconciled ? `reconciled ${reconciled} ambiguous publish(es)` : null,
+            sweptReservations ? `released ${sweptReservations} stale reservation(s)` : null,
             ...asms.map((a) => `assemble ${a.jobId ?? "?"}: ${a.status}`),
             gen.processed ? `gen ${gen.jobId ?? "?"}: ${gen.status}` : null,
             rep.processed ? `repair ${rep.jobId ?? "?"}: ${rep.status}` : null,
           ].filter(Boolean).join("; ");
           const result = {
-            recordsProcessed: recovered + resumed + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
+            recordsProcessed: recovered + resumed + reconciled + sweptReservations + (gen.processed ? 1 : 0) + asms.length + (rep.processed ? 1 : 0),
             details: details || "no reel jobs to process",
           };
           // Assembly/repair have already run above — this re-throws AFTER them,

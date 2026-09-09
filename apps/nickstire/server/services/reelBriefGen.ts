@@ -987,6 +987,34 @@ STRUCTURE REFERENCE — "${h.label}" (Pattern Lab, id ${h.patternId}). ` +
       `. If the topic genuinely cannot carry this shape, prioritise the topic — a forced structure reads worse than a plain one.`;
   }
 
+  // MEASURED HOOK PERFORMANCE - the account's own scoreboard.
+  //
+  // Appended after the experiment arm and the structure reference because it
+  // is evidence rather than instruction: those blocks tell the model what to
+  // try, this one tells it what already happened. Instagram reports how many
+  // viewers leave inside three seconds, and "how likely you are to watch less
+  // than three seconds" is a named prediction in Meta's own Reels ranking
+  // documentation. We have been collecting it since migration 0108.
+  //
+  // Measured 2026-09-09, one row per post, latest snapshot: 41 published
+  // posts carry a skip rate, the corpus mean is 66.4%, and Pearson r between
+  // skip rate and reach is -0.633. The best hook we have ever published held
+  // 60% of viewers; the worst held 7%. The generator had never seen any of
+  // it - every brief was written blind to how the previous hundred did.
+  //
+  // The fragment is EMPTY when the read failed or the sample is too small,
+  // so an outage teaches nothing rather than teaching from nothing.
+  try {
+    const { getMeasuredHookEvidence, buildHookEvidenceFragment } = await import("./hookPerformance");
+    const fragment = buildHookEvidenceFragment(await getMeasuredHookEvidence());
+    if (fragment) systemPrompt += `\n\n${fragment}`;
+  } catch (err) {
+    // A scoreboard that cannot be read must never stop a reel being written.
+    log.warn("measured hook evidence unavailable - generating without the scoreboard", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   const skillPayload = await applyCreativeSkills({ type: "reel_brief" });
   if ("fragment" in skillPayload && skillPayload.fragment) {
     systemPrompt += `\n\n${skillPayload.fragment}`;

@@ -46,6 +46,13 @@ interface CronJob {
   intervalMs: number;
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   enabled: boolean;
+  /**
+   * Wall-clock budget for a MANUAL run of this job, and the basis of its lock
+   * TTL. Must match the same job's tier budget in scheduler.ts - the two
+   * runners fire the same handler, and cronManualRunnerBudget.test.ts pins
+   * them equal so they cannot drift.
+   */
+  timeoutMs?: number;
 }
 
 const registeredJobs = new Map<string, CronJob>();
@@ -55,9 +62,10 @@ export function registerJob(
   name: string,
   intervalMs: number,
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>,
-  enabled = true
+  enabled = true,
+  timeoutMs?: number,
 ): void {
-  registeredJobs.set(name, { name, intervalMs, handler, enabled });
+  registeredJobs.set(name, { name, intervalMs, handler, enabled, timeoutMs });
   // LEGACY REGISTRY ONLY. This line used to read "Cron job registered: X
   // (every Nmin, enabled)" and was read, on 2026-09-08, as proof that a job
   // was scheduled — it is not. `enabled` here is this function's own parameter
@@ -77,6 +85,19 @@ export function startAllJobs(): void {
 // callers — shutdown goes through `stopTieredScheduler()` (_core/index.ts).
 
 const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
+
+/**
+ * Default wall-clock budget for one cron handler, and the accessor both runners
+ * share.
+ *
+ * Lives here rather than in scheduler.ts because BOTH entry points need it —
+ * the tiered runner and the HTTP/staged trigger in this file — and scheduler.ts
+ * already imports from this module, so the dependency only points one way.
+ */
+export const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
+export function jobTimeoutMs(job: { timeoutMs?: number }): number {
+  return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
+}
 // Lock TTL = 2× max job duration. If a dyno crashes without releasing,
 // the next acquire-attempt waits this long before stealing the lock —
 // long enough that a slow-but-alive job isn't preempted, short enough
@@ -118,6 +139,18 @@ let _lockTableMissingLogged = false;
  * concurrent processes. If locked_until is in the past, the UPDATE branch
  * steals; otherwise the row is untouched.
  */
+/**
+ * Locks this process currently holds, so shutdown can hand them back.
+ *
+ * A deploy replaces the container mid-pulse and the dying process never
+ * released its lock, so the job stayed blocked for the FULL TTL - which the
+ * per-job budget work lengthened from 10 minutes to 28 for reel-pipeline.
+ * Measured 2026-09-09: a holder took the lock at 12:41, the 12:49 deploy killed
+ * it, and reel-pipeline was skipped on every pulse until 13:09. Six deploys
+ * that day, so roughly an hour of dead pipeline nobody asked for.
+ */
+const heldLocks = new Map<string, LockToken>();
+
 export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_MS): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
@@ -148,9 +181,11 @@ export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_
     `);
     const arr = rows as Array<{ lock_token: string; holder: string }>;
     if (arr.length === 0) return { status: "held-by-other" };
-    return arr[0].lock_token === newToken
-      ? { status: "acquired", jobName, token: newToken }
-      : { status: "held-by-other" };
+    if (arr[0].lock_token !== newToken) return { status: "held-by-other" };
+    // Remember it so shutdown can hand it back instead of leaving the job
+    // blocked for a full TTL after a deploy replaces this container.
+    heldLocks.set(jobName, newToken);
+    return { status: "acquired", jobName, token: newToken };
   } catch (err) {
     // Differentiate "table missing" (expected during migration window —
     // proceed with in-memory lock) from "query error" (real bug — still
@@ -177,12 +212,55 @@ export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_
  * into a loud signal — that exact scenario is the double-fire the
  * lock subsystem exists to prevent.
  */
+/**
+ * SHORTEN, don't delete, the locks this dying process holds.
+ *
+ * Deleting outright would be wrong in the one case that matters: a SIGTERM the
+ * process survives. Shortening to a 90-second grace window keeps the
+ * double-fire guard meaningful while cutting post-deploy dead time from a full
+ * TTL to about a minute. Guarded on our own token, so a lock already stolen by
+ * another dyno is left completely alone.
+ *
+ * Never throws: shutdown must not be blocked by a lock we could not tidy.
+ */
+export const SHUTDOWN_LOCK_GRACE_SECONDS = 90;
+
+export async function relinquishHeldLocksForShutdown(): Promise<{ shortened: string[] }> {
+  const out: { shortened: string[] } = { shortened: [] };
+  if (!heldLocks.size) return out;
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return out;
+    for (const [jobName, token] of heldLocks) {
+      try {
+        const [result] = await db.execute(sql`
+          UPDATE cron_locks
+             SET locked_until = DATE_ADD(NOW(), INTERVAL ${sql.raw(String(SHUTDOWN_LOCK_GRACE_SECONDS))} SECOND)
+           WHERE name = ${jobName}
+             AND lock_token = ${token}
+             AND locked_until > DATE_ADD(NOW(), INTERVAL ${sql.raw(String(SHUTDOWN_LOCK_GRACE_SECONDS))} SECOND)
+        `);
+        if (((result as { affectedRows?: number })?.affectedRows ?? 0) > 0) out.shortened.push(jobName);
+      } catch { /* one lock failing must not stop the rest */ }
+    }
+    if (out.shortened.length) {
+      log.info("shutdown: shortened held cron locks so the next dyno can pick up", {
+        jobs: out.shortened, graceSeconds: SHUTDOWN_LOCK_GRACE_SECONDS,
+      });
+    }
+  } catch { /* shutdown is best-effort */ }
+  return out;
+}
+
 export async function releaseCronLock(lock: Extract<LockResult, { status: "acquired" }>): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return;
+    heldLocks.delete(lock.jobName);
     const [result] = await db.execute(sql`DELETE FROM cron_locks WHERE name = ${lock.jobName} AND lock_token = ${lock.token}`);
     // mysql2 returns { affectedRows: N } on DELETE
     const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
@@ -287,14 +365,32 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
   // double-fire. Same lock contract as runJob() above · skip on
   // held-by-other, proceed on acquired/fallback, release in finally
   // if acquired.
-  const lockResult = await acquireCronLock(job.name);
+  // TTL AND TIMEOUT MUST MATCH THE TIERED RUNNER, OR THIS PATH IS THE HOLE.
+  //
+  // runTier races every handler against its own budget and takes a lock whose
+  // TTL is twice that budget (scheduler.ts). This path — the /api/bridge/run-job
+  // and staged-cron trigger — did neither: it took the DEFAULT 10-minute lock
+  // and awaited the handler forever. reel-pipeline's measured run is ~11 min and
+  // its declared budget is 14, so a manually fired run outlived its own lock and
+  // the next 15-minute pulse could steal it and run the same job concurrently —
+  // two workers generating and paying for the same reel. `tier.running` does not
+  // cover this path.
+  const budgetMs = jobTimeoutMs(job);
+  const lockResult = await acquireCronLock(job.name, budgetMs * 2);
   if (lockResult.status === "held-by-other") {
     return { status: "skipped", details: "cross-dyno lock held by another process (Railway worker HTTP trigger)" };
   }
 
   const startedAt = Date.now();
+  let timedOut = false;
+  let jobTimer: NodeJS.Timeout | undefined;
   try {
-    const result = await job.handler();
+    const result = await Promise.race([
+      job.handler(),
+      new Promise<never>((_, reject) => {
+        jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, budgetMs);
+      }),
+    ]);
     const durationMs = Date.now() - startedAt;
     logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
@@ -304,8 +400,14 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
     logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     return { status: "failed", details: error };
   } finally {
-    if (lockResult.status === "acquired") {
+    if (jobTimer) clearTimeout(jobTimer);
+    // Same contract as the tiered runner: on TIMEOUT the handler is still
+    // running, so releasing the lock here would let the next tick double-fire
+    // it. Hold it and let the TTL clean up.
+    if (lockResult.status === "acquired" && !timedOut) {
       await releaseCronLock(lockResult);
+    } else if (lockResult.status === "acquired" && timedOut) {
+      log.warn(`[cron/index] ${job.name} timed out — holding lock until TTL to prevent concurrent re-fire`, { errorId: "CRON_TIMEOUT_LOCK_HELD" });
     }
   }
 }
@@ -340,7 +442,10 @@ export function registerAllJobs(): void {
     // and report a completion for a run that never happened (PR #1996 review).
     const { runTierJobHandlerUnlocked } = await import("./scheduler");
     return runTierJobHandlerUnlocked("reel-pipeline");
-  });
+    // timeoutMs 14 min below: identical to this job's tier budget. A manual run
+    // measured ~11 min, so under the 4-min default it outlived its own 10-min
+    // lock and the next pulse could steal it and generate the same reel twice.
+  }, true, 14 * 60 * 1000);
 
   registerJob("higgsfield-session-keepalive", 15 * 60 * 1000, async () => {
     // UNLOCKED on purpose: runJobByName already holds this job's cron lock.

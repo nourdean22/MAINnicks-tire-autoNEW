@@ -408,13 +408,35 @@ export async function enqueueReelJob(
   // dry-run showed it stopping 10 of 12 real briefs.
   {
     const { HASHTAG_CAP } = await import("../../shared/episodeContract");
-    const tags = brief.hashtags ?? [];
-    if (tags.length > HASHTAG_CAP) {
-      log.warn("hashtags over the platform cap — trimming", {
-        briefId: brief.id, had: tags.length, cap: HASHTAG_CAP, dropped: tags.slice(HASHTAG_CAP),
-      });
-      brief.hashtags = tags.slice(0, HASHTAG_CAP);
+    const raw = brief.hashtags ?? [];
+
+    // DEDUPE BEFORE CAPPING, case-insensitively.
+    //
+    // The cap alone let a duplicated set through intact: reel 1320001 published
+    // #TireSafety #RoadTripReady #ClevelandAuto #EuclidOH twice each — eight
+    // tags, over the cap, and only four distinct ideas. Slicing to five would
+    // have kept #TireSafety twice and still wasted a slot. A repeated tag adds
+    // no reach and reads as sloppy on a business account, so the duplicate is
+    // the thing to remove first; the cap then applies to real tags only.
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const t of raw) {
+      const key = String(t).trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      unique.push(t);
     }
+    if (unique.length !== raw.length) {
+      log.warn("duplicate hashtags removed", {
+        briefId: brief.id, had: raw.length, distinct: unique.length,
+      });
+    }
+    if (unique.length > HASHTAG_CAP) {
+      log.warn("hashtags over the platform cap — trimming", {
+        briefId: brief.id, had: unique.length, cap: HASHTAG_CAP, dropped: unique.slice(HASHTAG_CAP),
+      });
+    }
+    brief.hashtags = unique.slice(0, HASHTAG_CAP);
   }
 
   // CONDEMNED-SCRIPT CHECK — here because this is BEFORE the spend boundary.
@@ -847,6 +869,44 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     const brief = JSON.parse(job.payload) as ReelJobBrief;
     const beats = brief.storyboardBeats ?? [];
     if (!beats.length) throw new Error("brief has no storyboardBeats");
+
+    // THE CONDEMNED-SCRIPT GATE HAS TO RUN HERE TOO, NOT ONLY AT ENQUEUE.
+    //
+    // enqueueReelJob blocks a condemned script before the spend boundary, which
+    // is correct for every job created since that gate shipped. It does nothing
+    // for a row that was ALREADY QUEUED when it shipped — and those rows exist.
+    //
+    // Live example, found 2026-09-09: job 1830003 has sat `queued` since
+    // 2026-08-30 carrying the voiceover "In Ohio, it's an automatic fail for
+    // your E-Check". That claim is FALSE in 81 of Ohio's 88 counties; it is the
+    // exact assertion the 2026-08-29 claim audit condemned, reproduced verbatim
+    // under a new job id. The publish door would have refused it — after the
+    // clips were rendered and paid for.
+    //
+    // A queue is not a safe place to store an unenforced decision. Re-check at
+    // the moment of spend, where the cost actually is.
+    {
+      const { condemnedContentProblem } = await import("../../shared/reelClaimAudit");
+      const condemned = condemnedContentProblem({
+        voiceover: brief.voiceoverScript,
+        onScreenText: beats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+      });
+      if (condemned) {
+        const { eq } = await import("drizzle-orm");
+        await d.update(reelJobs)
+          .set({
+            status: "failed",
+            queueState: queueStateForReelStatus("failed"),
+            error: `REEL_SCRIPT_CONDEMNED (blocked at generation, before spend): ${condemned}`.slice(0, 1000),
+          })
+          .where(eq(reelJobs.id, job.id));
+        await releaseFailedJobReservation(job.payload, job.id);
+        log.error("condemned script BLOCKED at generation — legacy queued row, no clips generated", {
+          jobId: job.id, briefId: job.briefId, reason: condemned,
+        });
+        return { processed: true, jobId: job.id, status: "failed" };
+      }
+    }
 
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
 

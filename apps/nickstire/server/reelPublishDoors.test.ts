@@ -94,7 +94,10 @@ describe("the drain advances past ineligible jobs without publishing them", () =
     // of the ET day and an approved master waited until tomorrow.
     const todaysLookup = dailyReel.indexOf("const todaysJob = jobs[0]");
     const drainStart = dailyReel.indexOf("DRAIN THE BACKLOG FIRST");
-    const fallback = dailyReel.indexOf("if (!job) job = todaysJob;");
+    // Anchor updated 2026-09-09: today's job gained the same parked-QA
+    // pre-filter the drain has, so the assignment is now guarded. The ordering
+    // invariant - drain first, today's job only as a fallback - is unchanged.
+    const fallback = dailyReel.indexOf("if (!job && todaysJob)");
     expect(todaysLookup).toBeGreaterThan(-1);
     expect(drainStart).toBeGreaterThan(todaysLookup);
     expect(fallback).toBeGreaterThan(drainStart);

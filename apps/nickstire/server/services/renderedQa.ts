@@ -47,7 +47,17 @@ export const RENDERED_DEFECT_CODES = {
   GENERATED_TEXT_ARTIFACT: { severity: "block", meaning: "model-generated lettering/garbled text baked into a frame" },
   MALFORMED_GEOMETRY: { severity: "block", meaning: "physically impossible automotive part (warped wheel, fused geometry)" },
   LIGHTING_DRIFT: { severity: "warn", meaning: "lighting direction/temperature shifts noticeably between beats" },
-  PALETTE_DRIFT: { severity: "warn", meaning: "color grade departs from the graphite+gold world" },
+  PALETTE_DRIFT: { severity: "warn", meaning: "color grade departs from the world THIS reel declared (see the PALETTE line in the prompt)" },
+  // -- Craft codes. All warn, and deliberately unable to spend money. -------
+  // Every code above asks "is this broken?". None asks "does this look made?".
+  // A reel can pass every block gate - right object, no lettering, no hands -
+  // and still be the waxy, weightless, could-be-any-shop footage that earns
+  // 0.00 saves. These give the critic that vocabulary. They are warns because
+  // they are judgements of taste, and CRAFT_CODES below stops taste alone from
+  // ordering a paid regeneration.
+  PLASTIC_AI_LOOK: { severity: "warn", meaning: "over-smoothed waxy surfaces, absent microtexture, one uniform sheen on what should be rubber/rust/metal - reads as generated" },
+  IMPOSSIBLE_PHYSICALITY: { severity: "warn", meaning: "reflections, shadows or contact points that cannot happen: floating objects, shadowless subjects, reflected detail with no source" },
+  GENERIC_STOCK_LOOK: { severity: "warn", meaning: "competent and completely anonymous - could be any shop in any city, carries no specific vehicle, damage or place" },
   WEAK_COMPOSITION: { severity: "warn", meaning: "subject too small / centered awkwardly / dead framing" },
   CAPTION_OBSTRUCTION: { severity: "warn", meaning: "burned-in caption collides with the subject or safe zones" },
 } as const;
@@ -56,6 +66,25 @@ export const RENDERED_DEFECT_CODES = {
  *  prompt used to say "the graphite+gold world", which drifts the moment the
  *  bible changes and leaves the pixel judge grading against a different spec
  *  than the generator was given. */
+/**
+ * Craft findings describe how a render FEELS. They are recorded, persisted and
+ * countable, and they never order a paid repair by themselves.
+ *
+ * clampVerdict already refuses to let the model set SEVERITY - that comes from
+ * the registry. It does NOT own the top-level decision field, which is what
+ * actually spends: a "repair" routes through repairRouter to a paid beat
+ * regeneration under autonomousRepair.paidBeatRegeneration. Handing a
+ * subjective "this looks AI-made" judgement that lever would let taste burn the
+ * daily generation budget, and a critic having a strict day would quietly dark
+ * the lane - the failure mode that made rotation deadlocks so expensive before.
+ *
+ * So craft evidence is gathered first and gated later, once there is data on
+ * how often it fires and whether it agrees with a human. Blocks are unaffected.
+ */
+const CRAFT_CODES = new Set<RenderedDefectCode>(["PLASTIC_AI_LOOK", "IMPOSSIBLE_PHYSICALITY", "GENERIC_STOCK_LOOK"]);
+
+/** The brand palette, still used as the FALLBACK when a reel declares no
+ *  motion lens or declares one with no entry in LENS_PALETTES. */
 const BRAND_PALETTE_PROMPT = Object.values(NOIR_PALETTE).map((c) => c.prompt).join(", ") + ` (${BRAND_BIBLE_VERSION})`;
 
 export type RenderedDefectCode = keyof typeof RENDERED_DEFECT_CODES;
@@ -71,6 +100,9 @@ export interface RenderedFinding {
 
 export interface RenderedQaVerdict {
   decision: "approve" | "repair";
+  /** True when the critic asked for a repair on craft grounds alone and it was
+   *  declined. Makes the downgrade countable instead of invisible. */
+  craftOnlyRepairDeclined?: boolean;
   findings: RenderedFinding[];
   framesEvaluated: number;
   contactSheetPath?: string;
@@ -255,8 +287,23 @@ export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vis
     });
   }
   const hasBlock = findings.some((f) => f.severity === "block");
+  // A repair the model asked for on craft grounds ALONE is recorded and then
+  // declined - see CRAFT_CODES. A zero-finding repair is left alone, because
+  // that is a critic saying something is wrong it had no code for, which is
+  // real signal rather than taste.
+  const craftOnlyRepairDeclined =
+    !hasBlock &&
+    obj.decision === "repair" &&
+    findings.length > 0 &&
+    findings.every((f) => CRAFT_CODES.has(f.code));
+  if (craftOnlyRepairDeclined) {
+    log.info("craft-only repair declined - findings kept as evidence, no paid regeneration ordered", {
+      codes: findings.map((f) => f.code),
+    });
+  }
   return {
-    decision: hasBlock ? "repair" : obj.decision === "repair" ? "repair" : "approve",
+    decision: hasBlock ? "repair" : obj.decision === "repair" && !craftOnlyRepairDeclined ? "repair" : "approve",
+    craftOnlyRepairDeclined,
     findings,
     framesEvaluated,
     evaluatedAt: new Date().toISOString(),
@@ -274,6 +321,10 @@ export interface EvaluateRenderedReelInput {
     topic?: string;
     objectCharacter?: string;
     visualWorld?: { lockedInvariants?: string; heroFrameUrl?: string } | null;
+    /** Drives which palette PALETTE_DRIFT is judged against. Present on the
+     *  persisted job payload (reelPipeline stores the whole brief), and
+     *  optional here so an older payload degrades to the brand palette. */
+    motionLens?: string;
     storyboardBeats?: Array<{ beatNumber: number; visual: string }>;
   };
 }
@@ -296,12 +347,29 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
     const worldBlock = input.brief.visualWorld?.lockedInvariants
       ? `APPROVED VISUAL WORLD (every frame must match):\n${input.brief.visualWorld.lockedInvariants}`
       : "No approved visual world — judge continuity against beat 1's establishing frame.";
+    // The generator stopped painting every reel graphite+gold: LENS_PALETTES
+    // gives each motion lens the world its own grammar asks for (xray_cutaway a
+    // cool schematic field, tilt_shift_miniature bright daylight). Judging all
+    // fourteen against one fixed brand palette would report PALETTE_DRIFT on
+    // every correctly-rendered non-noir world - the critic has to grade against
+    // the spec the generator was actually handed.
+    const reelPaletteSpec = await (async () => {
+      if (!input.brief.motionLens) return BRAND_PALETTE_PROMPT;
+      try {
+        const { LENS_PALETTES, BRAND_ACCENT_RULE } = await import("../../client/src/lib/facelessReelStudio");
+        const lens = (LENS_PALETTES as Record<string, string | undefined>)[input.brief.motionLens];
+        return lens ? `${lens} Brand accent rule: ${BRAND_ACCENT_RULE}` : BRAND_PALETTE_PROMPT;
+      } catch {
+        // Degrade to the brand palette rather than skip QA over a palette lookup.
+        return BRAND_PALETTE_PROMPT;
+      }
+    })();
     const beatsDoc = (input.brief.storyboardBeats ?? []).map((b) => `beat ${b.beatNumber}: ${b.visual}`).join("\n");
     const res = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world is ${BRAND_PALETTE_PROMPT}. Judge PALETTE_DRIFT against THAT list, not against a generic "cinematic" look.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it.`,
+          content: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it.`,
         },
         {
           role: "user",

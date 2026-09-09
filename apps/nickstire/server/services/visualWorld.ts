@@ -16,6 +16,8 @@
  */
 import {
   MOTION_LENSES,
+  LENS_PALETTES,
+  BRAND_ACCENT_RULE,
   OBJECT_CHARACTERS,
   VISUAL_WORLD_STYLES,
   type ReelBrief,
@@ -49,7 +51,22 @@ export function buildReferenceFramePrompt(brief: VisualWorldBriefInput, style: V
     `Hero subject: ${character.label} — ${character.essence} Established as: ${heroAnchor}`,
     `Visual grammar: ${lens.grammar}`,
     `Style: ${STYLE_DIRECTIVES[style]}`,
-    `Palette: graphite black and deep shadow tones with gold #FDB913 accent highlights.`,
+    // THE PALETTE COMES FROM THE LENS, not from one house look.
+    //
+    // This line used to hardcode "graphite black and deep shadow tones with
+    // gold #FDB913 accent highlights" - the same string LENS_PALETTES was
+    // introduced to replace, and it survived here because the visual-world
+    // path was a second, quieter writer of the same instruction.
+    //
+    // It mattered more here than anywhere else. buildReelContinuityBlock
+    // returns an approved world's invariants EARLY, before it ever reaches its
+    // own LENS_PALETTES line, so on any reel carrying a visual world this was
+    // the palette the generator actually received - while renderedQa graded
+    // PALETTE_DRIFT against the lens palette regardless. A tilt_shift_miniature
+    // reel was told "deep shadow" and judged against "bright even daylight".
+    // The generator and its inspector were reading different specs.
+    `Palette: ${LENS_PALETTES[brief.motionLens] ?? LENS_PALETTES.hyperreal_cinematic}`,
+    BRAND_ACCENT_RULE,
     `Composition: hero object dominant, clear silhouette, generous headroom and footroom kept clean for caption overlays.`,
     // POSITIVE clean-scene phrasing, not a "DO NOT INCLUDE" list: this prompt
     // goes to the image generator AND is quoted verbatim into every beat's
@@ -70,7 +87,17 @@ export function compileLockedInvariants(brief: VisualWorldBriefInput, style: Vis
   return [
     `VISUAL WORLD (operator-approved reference frame — match it EXACTLY in every shot):`,
     `The approved hero frame was generated from: "${framePrompt}"`,
-    `Every shot shows the SAME ${character.label.toLowerCase()} — same geometry, same surface/tread pattern, same damage in the same location, same environment, same lighting direction, same ${style} styling, same graphite-and-gold #FDB913 palette.`,
+    // Deliberately does NOT name a palette.
+    //
+    // The approved frame's own prompt is quoted verbatim on the line above, and
+    // that prompt already states the palette the operator actually approved.
+    // Naming one again here means maintaining the same fact in two places, and
+    // they had already drifted: frames approved before LENS_PALETTES were
+    // genuinely graphite-and-gold, so hardcoding the new lens palette would
+    // describe an old frame as something it is not, while hardcoding the old
+    // one contradicts every new frame. Pointing at the quoted prompt is correct
+    // for both, and cannot drift again.
+    `Every shot shows the SAME ${character.label.toLowerCase()} — same geometry, same surface/tread pattern, same damage in the same location, same environment, same lighting direction, same ${style} styling, and the SAME palette and colour grade as the approved frame prompt quoted above.`,
     `Never introduce a different vehicle, wheel design, environment, weather, or color grade between shots.`,
   ].join("\n");
 }

@@ -22,6 +22,18 @@ export interface RecentReelSignals {
   archetypes: string[];
   motionLenses: string[];
   objectCharacters: string[];
+  /**
+   * Did the read succeed? Everything above is empty in BOTH the good case
+   * (nothing published in the window) and the bad one (no DB, query threw),
+   * and downstream those mean opposite things: an empty window is a brief
+   * with nothing to repeat and scores full distinctiveness marks, while an
+   * unreadable one is a brief nobody checked and must not.
+   *
+   * Without this the degrade-to-no-memory below silently converts an outage
+   * into a perfect originality score - the "absent evidence is not a pass"
+   * shape this repo has now hit more than once.
+   */
+  available: boolean;
 }
 
 export const DEFAULT_REPETITION_WINDOW_DAYS = 21;
@@ -35,12 +47,14 @@ export const DEFAULT_REPETITION_WINDOW_DAYS = 21;
  *  avoidance actually cares about. */
 const MAX_ROWS = 100;
 
+/** The no-answer value. available:false is the whole point - see the field. */
 const EMPTY: RecentReelSignals = {
   topics: [],
   keywords: [],
   archetypes: [],
   motionLenses: [],
   objectCharacters: [],
+  available: false,
 };
 
 /** Last `daysBack` days of reel_jobs, any status, reduced to the fields
@@ -62,7 +76,9 @@ export async function getRecentReelSignals(daysBack = DEFAULT_REPETITION_WINDOW_
       .orderBy(desc(reelJobs.createdAt))
       .limit(MAX_ROWS);
 
-    const signals: RecentReelSignals = { topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [] };
+    // available:true from here on - the query returned, so an empty window is a
+    // real finding ("nothing recent to repeat"), not a failure to look.
+    const signals: RecentReelSignals = { topics: [], keywords: [], archetypes: [], motionLenses: [], objectCharacters: [], available: true };
     for (const row of rows) {
       try {
         const brief = JSON.parse(row.payload) as Partial<{

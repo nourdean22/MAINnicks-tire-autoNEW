@@ -217,6 +217,126 @@ async function transition(actionId: string, status: "settled" | "released" | "fa
   }
 }
 
+/**
+ * How long a reservation may sit in `reserved` before the sweeper treats it as
+ * abandoned. Generous on purpose: the longest legitimate hold is one
+ * reel-pipeline pulse budget (14 min) plus assembly, so hours cannot be a live
+ * job — but a value this loose can never race a running worker.
+ */
+export const RESERVATION_STALE_HOURS = 6;
+
+/**
+ * RELEASE RESERVATIONS NOTHING WILL EVER SETTLE.
+ *
+ * `reserve()` inserts `reserved`; the worker settles or releases it at the end
+ * of the run. A crash, restart or deploy between those two points leaves the
+ * row `reserved` forever — and `spendSinceUsd` counts `reserved` alongside
+ * `settled` and `failed`, deliberately, so an in-flight job cannot be
+ * double-spent. The consequence is that an abandoned row consumes daily budget
+ * that nothing will ever return.
+ *
+ * Measured 2026-09-09: four such rows, oldest from 2026-07-20 (`reel_job_1350001`
+ * at $1.50, plus three `ref_frames_*` at $0.10). None was in the current day's
+ * window, so none was distorting today's ceiling — but one abandoned mid-day
+ * would silently shrink that day's generation budget with no way to notice
+ * except a puzzling BUDGET_DAILY_EXCEEDED.
+ *
+ * `contentGovernor` already has exactly this sweeper for its reservations; the
+ * generation ledger did not.
+ *
+ * RELEASED, not settled: we do not know the provider charged. Marking it
+ * `settled` would assert a spend we cannot evidence, and `released` is the
+ * status the codebase already uses for "reserved, then nothing happened".
+ */
+/**
+ * Does this reel job hold a provider operation we DISPATCHED and never resolved?
+ *
+ * `recordProviderOp` already stamps every beat attempt with an outcome, and
+ * `abandoned` means exactly one thing: we sent the request, the provider may
+ * have accepted, run and BILLED it, and we stopped watching. The data has been
+ * recorded since it was added and read by nothing.
+ *
+ * It is the difference between "this reservation is dead" and "this reservation
+ * is the only record of money that may already be gone".
+ */
+async function jobHasUnresolvedProviderOps(actionId: string): Promise<boolean> {
+  const m = /^reel_job_(\d+)$/.exec(actionId);
+  if (!m) return false;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return true; // cannot check => assume exposure; never release blind
+    const { reelJobs } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const [job] = await d.select({ payload: reelJobs.payload }).from(reelJobs).where(eq(reelJobs.id, Number(m[1]))).limit(1);
+    if (!job) return false;
+    const payload = JSON.parse(job.payload ?? "{}") as { storyboardBeats?: Array<{ providerOps?: Array<{ outcome?: string }> }> };
+    return (payload.storyboardBeats ?? []).some((b) =>
+      (b?.providerOps ?? []).some((op) => op?.outcome === "abandoned"),
+    );
+  } catch {
+    return true; // unreadable => assume exposure
+  }
+}
+
+export async function sweepStaleReservations(staleHours = RESERVATION_STALE_HOURS): Promise<{ released: string[]; retainedUnknownExposure: string[] }> {
+  const out: { released: string[]; retainedUnknownExposure: string[] } = { released: [], retainedUnknownExposure: [] };
+  try {
+    const ctx = await ledgerDb();
+    if (!ctx) return out;
+    const { and, eq, lt } = await import("drizzle-orm");
+    const cutoff = new Date(Date.now() - staleHours * 60 * 60 * 1000);
+
+    const stale = await ctx.d
+      .select()
+      .from(ctx.table)
+      .where(and(eq(ctx.table.status, "reserved"), lt(ctx.table.createdAt, cutoff)))
+      .limit(50);
+
+    for (const row of stale) {
+      // AN UNKNOWN CHARGE IS NOT A DEAD RESERVATION.
+      //
+      // Releasing here would turn "the provider may have taken $1.25" into a
+      // recorded zero — the ledger would read $0 spent while the provider's
+      // invoice reads $1.25, and the daily ceiling would be enforced against
+      // the wrong number in the permissive direction. Age is evidence that no
+      // WORKER is coming back; it is no evidence at all about what the
+      // PROVIDER did. Hold the exposure until something positively reconciles
+      // it against the provider.
+      if (await jobHasUnresolvedProviderOps(row.actionId)) {
+        out.retainedUnknownExposure.push(row.actionId);
+        continue;
+      }
+      await ctx.d
+        .update(ctx.table)
+        .set({ status: "released", settledAt: new Date() })
+        .where(and(eq(ctx.table.id, row.id), eq(ctx.table.status, "reserved")));
+      out.released.push(row.actionId);
+    }
+    if (out.released.length) {
+      log.warn("released stale generation reservations — no worker will settle these", {
+        count: out.released.length,
+        actionIds: out.released.slice(0, 10),
+        staleHours,
+      });
+    }
+    if (out.retainedUnknownExposure.length) {
+      // Deliberately a warn, not an info: this is money whose fate we do not
+      // know, held against the day's budget on purpose. It should be visible
+      // and it should be finite — a growing count here is the signal that a
+      // provider-side reconciliation lane is genuinely needed, not optional.
+      log.warn("stale reservations RETAINED — the provider may have charged for these", {
+        count: out.retainedUnknownExposure.length,
+        actionIds: out.retainedUnknownExposure.slice(0, 10),
+        why: "beat carries a provider op with outcome=abandoned; age proves the worker is gone, not that the provider did nothing",
+      });
+    }
+  } catch (err) {
+    log.warn("stale-reservation sweep failed", { err: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+  }
+  return out;
+}
+
 /** Settle after success. Pass actualCostUsd only when the provider reported
  *  real usage — otherwise the reservation's flagged estimate stands. */
 export async function settle(actionId: string, actualCostUsd?: number): Promise<void> {
