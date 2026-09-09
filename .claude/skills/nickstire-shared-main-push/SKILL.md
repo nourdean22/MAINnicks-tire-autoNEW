@@ -93,6 +93,18 @@ If `git push` fails with the pre-push hook citing the OTHER app's build:
    clean CI cycle; and read a shutdown-signal kill minutes after a main
    merge as THIS before blaming infra — rerun it, don't debug it.
 
+## A red gate whose own log says "unmodified tree" is main's condition, not yours
+
+Minutes after a merge, every sibling PR (including a docs-only one) can show
+the SAME gate red — witnessed with `knip orphan gate` immediately after
+#2220 merged: the gate's own control step printed "reports failure on an
+unmodified tree" and named three exports from #2220's files, none in the new
+diffs. Without reading that control-step message, three unrelated PRs read
+as three new regressions. Confirm the listed orphans are outside your diff
+(a docs-only PR showing the identical red is the cleanest proof), disclose it
+on the PR, spawn the fix as its own task, and do not absorb it into your own
+change.
+
 ## Local Windows path note
 
 The repo lives at `C:\Users\nourd\NOURCITY\` (in bash:

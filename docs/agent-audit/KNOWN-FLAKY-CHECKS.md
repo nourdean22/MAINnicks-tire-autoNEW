@@ -14,12 +14,12 @@ your diff of the implicated file against `origin/main` is empty.
 
 ---
 
-## `adapter parity + canaries` → `policy canaries (11 files)`
+## `adapter parity + canaries` → `policy canaries (N files)`
 
 | | |
 |---|---|
 | **Workflow** | `.github/workflows/agent-policy.yml` → `pnpm agent:verify` |
-| **Failing group** | `policy canaries (11 files)`. `adapter parity` itself passes |
+| **Failing group** | `policy canaries (N files)` — `verify.mjs` renders the LIVE file count into that label, so the number moves every time a canary is added (it read 11 when this row was first written). **Match on the words, never the count** — a number pinned here is a cache with no invalidation, and the first draft of this row went stale the same day it was written. `adapter parity` itself passes |
 | **First recorded** | 2026-08-29, PR #2014 |
 | **Frequency observed** | 2 of 4 runs on one branch, same commit range |
 | **Verdict** | **Environmental, not a code defect** |

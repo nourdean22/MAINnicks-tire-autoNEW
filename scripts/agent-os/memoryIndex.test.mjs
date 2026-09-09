@@ -22,7 +22,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -165,4 +165,80 @@ test("BREAKS: a guard that cannot see its subject exits 2, never 0", () => {
   assert.equal(r.status, 2, "a missing directory must exit 2");
   assert.notEqual(r.status, 0, "failing OPEN here would print the same green as a healthy index");
   assert.match((r.stdout ?? "") + (r.stderr ?? ""), /CANNOT CHECK/);
+});
+
+/**
+ * The default path must key off the MAIN checkout, not a linked worktree.
+ *
+ * Regression, measured 2026-09-09: run from `.claude/worktrees/<branch>/`, the
+ * guard derived its slug from the WORKTREE root and bailed "CANNOT CHECK: …
+ * -claude-worktrees-<branch>/memory is not a directory". Since AGENTS.md tells
+ * every concurrent session to work from a worktree, the guard was inert in
+ * precisely the sessions it exists to protect — failing safe, but protecting
+ * nobody.
+ *
+ * Asserted through the bail message, which names the path it derived: that is
+ * the only observable the guard exposes, and it is enough. Everything here is a
+ * throwaway git repo in tmp — no dependency on the operator's real index, which
+ * exists on no CI runner.
+ */
+test("the default memory path derives from the MAIN worktree, not a linked one", () => {
+  const base = mkdtempSync(join(tmpdir(), "mi-"));
+  const mainRoot = join(base, "mi-main");
+  const linked = join(base, "mi-tree");
+  /**
+   * STRIP EVERY GIT_* VAR. Non-negotiable, and it cost a real incident on
+   * 2026-09-09 when this helper was first written without it.
+   *
+   * lefthook runs these canaries from `agent-os-verify` inside pre-commit, and
+   * git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE to child processes.
+   * An inherited GIT_DIR makes `git init` below initialise **the real repo**
+   * rather than the tmpdir — and with no work tree in scope it writes
+   * `core.bare = true` into the SHARED `.git/config`. Every linked worktree
+   * and the primary then die with "fatal: this operation must be run in a work
+   * tree" while `git log` keeps working, so it does not even look like a git
+   * problem. Ten checkouts went down at once; the commit still succeeded,
+   * which is what makes it so easy to miss.
+   *
+   * `stop-check.test.mjs` carries the identical guard for the identical reason
+   * (2026-08-25). Any canary in this directory that shells out to git needs it.
+   */
+  const git = (args, cwd) => {
+    const env = { ...process.env };
+    for (const k of Object.keys(env)) if (k.startsWith("GIT_")) delete env[k];
+    return spawnSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  };
+
+  try {
+    mkdirSync(join(mainRoot, "scripts", "agent-os"), { recursive: true });
+    // A commit is required before a linked worktree can be created, and CI
+    // runners routinely have no git identity — set one locally rather than
+    // inheriting whatever the box has (this suite has been bitten by exactly
+    // that before).
+    if (git(["init", "-q"], mainRoot).status !== 0) return; // git unavailable: nothing to prove
+    git(["config", "user.email", "canary@example.invalid"], mainRoot);
+    git(["config", "user.name", "canary"], mainRoot);
+
+    copyFileSync(GUARD, join(mainRoot, "scripts", "agent-os", "check-memory-index.mjs"));
+    git(["add", "-A"], mainRoot);
+    if (git(["commit", "-q", "-m", "init"], mainRoot).status !== 0) return;
+    if (git(["worktree", "add", "-q", linked, "-b", "probe"], mainRoot).status !== 0) return;
+
+    // No --dir: this is the derivation under test.
+    const r = spawnSync(
+      process.execPath,
+      [join(linked, "scripts", "agent-os", "check-memory-index.mjs")],
+      { encoding: "utf8" },
+    );
+    const out = (r.stdout ?? "") + (r.stderr ?? "");
+
+    assert.match(out, /mi-main/, `slug must come from the main checkout; got:\n${out}`);
+    assert.doesNotMatch(
+      out,
+      /mi-tree/,
+      `slug leaked the LINKED worktree path — this is the 2026-09-09 regression:\n${out}`,
+    );
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });

@@ -52,8 +52,8 @@
     {
       "id": "force-push",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__push\\b[^\\n]*?(?:--force(?:-with-lease|-if-includes)?\\b|\\s-[a-eg-uw-z]*f[a-z]*\\b|\\s\\+[^\\s:+])",
-      "why": "AGENTS.md > Branching: never force-push shared history (any form: --force, --force-with-lease, bundled -uf, or a +refspec). Sibling sessions push to these branches.",
+      "pattern": "__GIT__push\\b[^;|&\\n]*?(?:--force(?:-with-lease|-if-includes)?\\b|\\s-[a-eg-uw-z]*f[a-z]*\\b|\\s\\+[^\\s:+])",
+      "why": "AGENTS.md > Branching: never force-push shared history (any form: --force, --force-with-lease, bundled -uf, or a +refspec). Sibling sessions push to these branches. The scan stops at ;/|/& (same technique as push-to-main) so the bundled-short-flag and +refspec arms cannot reach into an unrelated chained command — witnessed 2026-09-01: `git push origin <branch> && gh api ... -f body=\"...\"` was denied because `gh api`'s -f (field) flag matched the bundled-flag arm across the chain boundary.",
       "fix": "Rebase and push normally. If a rider commit is in the way, disclose it in the PR body — never rewrite it away.",
       "denyExamples": [
         "git push --force origin feature/thing",
@@ -66,7 +66,8 @@
       "allowExamples": [
         "git push origin chore/x",
         "git push --set-upstream origin chore/x",
-        "git push -u origin chore/agent-os-v1"
+        "git push -u origin chore/agent-os-v1",
+        "git push origin statenour/fix-thing && gh api graphql -f query='mutation' -f body=\"path matches [^/]+\\.(ts|tsx)$\""
       ]
     },
     {
