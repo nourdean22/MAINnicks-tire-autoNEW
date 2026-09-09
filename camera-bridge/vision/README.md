@@ -72,6 +72,19 @@ with the same title**, so `FindWindowW` returns an arbitrary one; and "pick the 
 then selects a blank window. `find_window` scores candidates by pixel standard deviation
 and caches the winner.
 
+## What is NOT deployed by this package
+
+**`docker-compose.yml` still runs `visitd` against raw Frigate MQTT events.** This package
+does not replace that consumer, so the deployed stack retains the presence-equals-arrival
+behaviour until it is wired in. Saying the false-arrival defect is "fixed" without that
+sentence would be fixing it in a lane nothing consumes.
+
+What exists today: `run_live` drives the pipeline and, with `--post-to`, POSTs visits to
+the nickstire ingest endpoint (`POST /api/camera/visits`) that backs the Lot admin
+section. That is the lab lane, end to end and honest about being a lab lane. Replacing
+the compose consumer is the next PR, and it is deliberately separate: swapping the
+production event source deserves its own reversible change with its own gates.
+
 ## Components
 
 | Module | Role |
@@ -126,7 +139,7 @@ practice.
 
 ## Claim states — do not merge these
 
-- **Implementation-complete**: every component above, **32 tests green** (including the real OpenVINO detector on the GPU).
+- **Implementation-complete**: every component above, **36 tests green** (including the real OpenVINO detector on the GPU), with every new canary red-green verified against the defect it guards.
 - **Simulation-proven**: the five invariants, via synthetic scenarios and fault injection
   driving the real `visitd` tracker.
 - **Controlled-field-proven**: detector latency and detection quality on real SHOPSIGN

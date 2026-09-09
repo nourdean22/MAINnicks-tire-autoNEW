@@ -35,6 +35,10 @@ class SceneState:
     change_frac: float
     pose_ok: bool
     inlier_ratio: Optional[float] = None
+    #: Mean absolute difference from the trusted reference pose, or None when no
+    #: reference has been set (in which case the pose is simply unknown, not matched).
+    pose_delta: Optional[float] = None
+    reference_set: bool = False
 
     @property
     def may_create_visits(self) -> bool:
@@ -47,10 +51,13 @@ class SceneLock:
         moving_frac: float = 0.33,
         pixel_delta: float = 25.0,
         settle_frames: int = 2,
+        pose_tolerance: float = 12.0,
     ) -> None:
         self.moving_frac = moving_frac
         self.pixel_delta = pixel_delta
         self.settle_frames = settle_frames
+        #: Max mean-abs-difference from the reference still counted as the same pose.
+        self.pose_tolerance = pose_tolerance
         self._prev: Optional[np.ndarray] = None
         self._ref: Optional[np.ndarray] = None
         self._settle_left = 0
@@ -79,6 +86,24 @@ class SceneLock:
 
         if self._settle_left > 0:
             self._settle_left -= 1
-            return SceneState(moving=False, change_frac=change_frac, pose_ok=False)
+            return SceneState(moving=False, change_frac=change_frac, pose_ok=False,
+                              reference_set=self._ref is not None)
 
-        return SceneState(moving=False, change_frac=change_frac, pose_ok=True)
+        # A pan that ENDS SOMEWHERE ELSE is still stationary. Settling alone therefore
+        # cannot establish that the view is the calibrated one, and the lot, portal and
+        # bay polygons belong to the reference pose -- so trusting a settled-but-unmatched
+        # view lets detections in a NEW view be read as crossings and bay occupancy.
+        # With a reference set, the pose must actually match before it is trusted.
+        if self._ref is not None:
+            if self._ref.shape != g.shape:
+                return SceneState(moving=False, change_frac=change_frac, pose_ok=False,
+                                  reference_set=True)
+            delta = float(np.abs(g - self._ref).mean())
+            return SceneState(moving=False, change_frac=change_frac,
+                              pose_ok=delta <= self.pose_tolerance,
+                              pose_delta=delta, reference_set=True)
+
+        # No reference: the pose is UNKNOWN rather than verified. Kept permissive so an
+        # uncalibrated run still tracks, but callers can see `reference_set=False`.
+        return SceneState(moving=False, change_frac=change_frac, pose_ok=True,
+                          reference_set=False)

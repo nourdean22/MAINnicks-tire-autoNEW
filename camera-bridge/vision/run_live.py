@@ -39,6 +39,71 @@ from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 
 
+class VisitSink:
+    """POSTs emissions to the nickstire visit ingest.
+
+    WHY THIS EXISTS: without it `run_live` only PRINTS, so nothing this package computes
+    reaches the ledger or the shop admin, and the honest reading of "the false-arrival P0
+    is fixed" would be "fixed in a lane nothing consumes". This is the lab lane's sink.
+    It is NOT the deployed path -- see the deployment note in README.md.
+
+    Failures are reported and swallowed: a cloud outage must never take down the vision
+    loop, and visitd already owns durable delivery for the production path.
+    """
+
+    def __init__(self, url: str, key: str) -> None:
+        self.url = url
+        self._key = key
+        self.sent = 0
+        self.failed = 0
+
+    def send(self, emission, camera: str, pipeline) -> bool:
+        import json as _json
+        import urllib.error
+        import urllib.request
+
+        visit_id = getattr(emission, "visit_id", None)
+        if not visit_id:
+            return False
+        timing = None
+        for tid, tm in getattr(pipeline, "timings", {}).items():
+            if pipeline._track_visit.get(tid) == visit_id:
+                timing = tm
+                break
+
+        def iso(ts):
+            if ts is None:
+                return None
+            import datetime as _dt
+            return _dt.datetime.fromtimestamp(ts, _dt.timezone.utc).isoformat()
+
+        row = {
+            "visitId": visit_id,
+            "camera": camera,
+            "state": getattr(emission, "state", "UNKNOWN"),
+            "seq": int(getattr(emission, "seq", 0) or 0),
+            "arrivedAt": iso(getattr(timing, "arrived_at", None)),
+            "waitStartedAt": iso(getattr(timing, "wait_started_at", None)),
+            "bayEnteredAt": iso(getattr(timing, "bay_entered_at", None)),
+            "bayExitedAt": iso(getattr(timing, "bay_exited_at", None)),
+            "departedAt": iso(getattr(timing, "departed_at", None)),
+            "preexisting": False,   # preexisting objects never reach visitd at all
+        }
+        body = _json.dumps({"visits": [row]}).encode()
+        req = urllib.request.Request(self.url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("x-sync-key", self._key)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                ok = resp.status in (200, 207)
+        except (urllib.error.URLError, OSError) as exc:
+            print(f"  ! visit POST failed ({exc}); the loop continues", flush=True)
+            self.failed += 1
+            return False
+        self.sent += 1
+        return ok
+
+
 def build_source(kind: str, hwnd: int | None, title: str, crop: bool):
     if kind == "wgc":
         src = WgcWindowSource(
@@ -82,6 +147,11 @@ def main() -> int:
     ap.add_argument("--save-frame", default=None, help="write one frame here and exit")
     ap.add_argument("--motion-gate", action="store_true",
                     help="use MOG2 as a compute trigger (it can never confirm)")
+    ap.add_argument("--post-to", default=os.environ.get("CAMERA_VISITS_URL"),
+                    help="POST visits to the nickstire ingest endpoint, "
+                         "e.g. https://nickstire.org/api/camera/visits")
+    ap.add_argument("--sync-key-env", default="CAMERA_INGEST_KEY",
+                    help="env var holding the ingest shared secret (never pass the key itself)")
     args = ap.parse_args()
 
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
@@ -129,6 +199,16 @@ def main() -> int:
     pipe = VisionPipeline(council=council, lot_map=lot_map, entry_portal=portal,
                           camera="sign", bay_names=bays, evidence=store)
 
+    sink = None
+    if args.post_to:
+        key = os.environ.get(args.sync_key_env, "")
+        if not key:
+            print(f"--post-to given but {args.sync_key_env} is unset; refusing to POST "
+                  "unauthenticated. Emissions will be printed only.")
+        else:
+            sink = VisitSink(args.post_to, key)
+            print(f"posting visits to {args.post_to}")
+
     interval = 1.0 / max(0.5, args.fps)
     t_end = time.time() + args.seconds
     vehicles_seen: list[int] = []
@@ -145,6 +225,8 @@ def main() -> int:
         for em in out.get("emissions", []):
             print(f"  {getattr(em, 'state', '?'):<18} visit={getattr(em, 'visit_id', '')[:8]} "
                   f"seq={getattr(em, 'seq', '')}", flush=True)
+            if sink is not None:
+                sink.send(em, camera="sign", pipeline=pipe)
         time.sleep(interval)
 
     s = pipe.summary()
@@ -153,6 +235,8 @@ def main() -> int:
     if vehicles_seen:
         avg = sum(vehicles_seen) / len(vehicles_seen)
         print(f"vehicles per analysed frame: mean {avg:.2f}, max {max(vehicles_seen)}")
+    if sink is not None:
+        print(f"visits posted: {sink.sent} sent, {sink.failed} failed")
     if not calibrated:
         print("\nARRIVALS NOT REPORTED: no calibration. Re-run with --save-frame, draw "
               "the lot and driveway polygons, then pass --calibration.")

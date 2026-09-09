@@ -118,6 +118,9 @@ class VisionPipeline:
 
     # ---------------------------------------------------------------- visitd bridge
     def _emit(self, kind: str, track: Track, now: float, ended: bool = False) -> list:
+        if kind == "new" and self.arrival_zone not in track.zones:
+            # The crossing that produced this event IS entry into the arrival zone.
+            track.zones = sorted({*track.zones, self.arrival_zone})
         x1, y1, x2, y2 = track.box
         after = {
             "id": f"{self.camera}-{track.track_id}",
@@ -132,7 +135,11 @@ class VisionPipeline:
             "area": int(max(0.0, x2 - x1) * max(0.0, y2 - y1)),
             "stationary": track.stationary_for(now) > 3.0,
             "motionless_count": int(track.stationary_for(now) * 5),
-            "current_zones": [] if ended else [self.arrival_zone],
+            # The track's OBSERVED zones, not a hardcoded arrival zone. Reporting the
+            # arrival zone unconditionally meant a vehicle that drove back out of the lot
+            # while still visible kept accruing dwell forever, because visitd never saw it
+            # leave and so never started its departure grace.
+            "current_zones": [] if ended else list(track.zones),
             "entered_zones": [self.arrival_zone] if kind == "new" else [],
         }
         payload = {"type": kind, "before": {}, "after": after}
@@ -214,6 +221,17 @@ class VisionPipeline:
         self._last_image = frame.image
 
         # 4. Track --------------------------------------------------------------
+        # A motion-gated SKIP means the heavy detector never ran, which is not the same
+        # as "the scene is empty". Feeding [] to the tracker would age out a legitimately
+        # STATIONARY vehicle -- exactly the parked car the motion gate stops reporting --
+        # and produce a departure that never happened.
+        if getattr(result, "skipped_no_motion", False):
+            out["suppressed"] = "no motion: detector skipped, tracks held"
+            for em in self.tracker.tick(now):
+                self.stats.visitd_states[getattr(em, "state", "?")] += 1
+                out["emissions"].append(em)
+            return out
+
         born, died = self.tracks.update(dets, now, confirmable=confirmable)
         out["born"] = born
         out["died"] = died

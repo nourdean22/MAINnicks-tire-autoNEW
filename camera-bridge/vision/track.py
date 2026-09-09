@@ -137,8 +137,20 @@ class TrackGraph:
         return born, died
 
     def mark_degraded(self) -> None:
+        """Mark every track as observed through a degraded interval.
+
+        Also DISCARDS the ground-point history of tracks that are not yet arrivals. A
+        candidate that survives a freeze, an unverified stretch or a PTZ pan would
+        otherwise keep its pre-blackout samples, and combining outside samples from
+        BEFORE the blind interval with inside samples from AFTER it reads as a portal
+        crossing that nobody observed. An arrival keeps its path: its crossing already
+        happened and is already evidenced.
+        """
         for t in self.tracks.values():
             t.degraded = True
+            if t.evidence != "arrival":
+                t.path.clear()
+                t.path.append(t.ground_point)
 
     def get(self, track_id: int) -> Optional[Track]:
         return self.tracks.get(track_id)

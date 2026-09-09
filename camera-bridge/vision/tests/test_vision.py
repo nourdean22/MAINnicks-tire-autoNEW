@@ -34,6 +34,7 @@ from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.pipeline import VisionPipeline  # noqa: E402
 from vision.platelab import CANDIDATE, CONFIRMED, PlateLab, lookup_class  # noqa: E402
 from vision.replaylab import FailureInjector, ReplayLab  # noqa: E402
+from vision.scenelock import SceneLock  # noqa: E402
 from vision.track import TrackGraph  # noqa: E402
 
 W, H = 640, 360
@@ -374,6 +375,140 @@ def test_an_occluded_capture_frame_cannot_create_a_visit():
     assert s["suppressed_unverified"] == len(boxes), s
     assert s["arrivals"] == 0, s
     assert s["visitdStates"] == {}, s
+
+
+# ------------------------------------------------- independent-review canaries
+
+def test_a_pan_that_stops_at_a_NEW_pose_is_not_trusted():
+    """Settling is not the same as being home.
+
+    A PTZ pan that ends somewhere else is perfectly stationary, so waiting for motion to
+    stop cannot establish that the view is the calibrated one. The lot, portal and bay
+    polygons belong to the reference pose, so trusting a settled-but-unmatched view lets
+    detections in a NEW view be read as crossings and bay occupancy.
+    """
+    home = frames(1, [[car_box(400.0)]])[0].image
+    away = frames(1, [[car_box(400.0)]], shift=[(260, 90)])[0].image
+
+    lock = SceneLock()
+    lock.set_reference(home)
+
+    # Sitting at home: matched, and trusted.
+    for _ in range(4):
+        st = lock.update(home)
+    assert st.reference_set is True
+    assert st.pose_ok is True
+    assert st.pose_delta is not None and st.pose_delta <= lock.pose_tolerance
+
+    # Pan away, then hold perfectly still at the new view.
+    lock.update(away)
+    for _ in range(8):
+        st = lock.update(away)
+    assert st.moving is False, "the camera really has stopped"
+    assert st.pose_ok is False, "but the view is NOT the calibrated one"
+    assert st.pose_delta > lock.pose_tolerance
+
+    # Returning home restores trust.
+    for _ in range(8):
+        st = lock.update(home)
+    assert st.pose_ok is True
+
+
+def test_a_blind_interval_cannot_be_stitched_into_a_crossing():
+    """Outside samples from BEFORE a blackout must not combine with inside samples from
+    after it. Nobody observed that crossing."""
+    # The reappearing car must MATCH the pre-blackout track, or a fresh track is born
+    # inside with no history and the stitch is impossible for an unrelated reason --
+    # which is how the first version of this test passed against the defect.
+    # ground point = x1 + 35; the lot starts at x=200, so x1 <= 164 is outside.
+    outside = [car_box(100.0), car_box(120.0), car_box(140.0), car_box(160.0)]
+    inside = [car_box(180.0), car_box(185.0), car_box(190.0), car_box(195.0)]
+
+    n_empty = 10
+    boxes: list[list[tuple]] = [[] for _ in range(n_empty)]
+    dets: list[list[Detection]] = [[] for _ in range(n_empty)]
+    for b in outside:
+        boxes.append([b]); dets.append([Detection(b, 0.9)])
+    # 6 frames of whole-frame camera motion: the blind interval.
+    blind = 6
+    for _ in range(blind):
+        boxes.append([]); dets.append([])
+    for b in inside:
+        boxes.append([b]); dets.append([Detection(b, 0.9)])
+
+    shift = [(0, 0)] * (n_empty + len(outside))
+    shift += [(32 * (i + 1), 0) for i in range(blind)]
+    shift += [(32 * blind, 0)] * len(inside)
+
+    pipe = make_pipeline()
+    for f, d in zip(frames(len(boxes), boxes, shift=shift), dets):
+        pipe.step(f, detections=d)
+
+    s = pipe.summary()
+    assert s["suppressed_camera_motion"] >= blind, s
+    assert s["arrivals"] == 0, f"a blind interval was stitched into a crossing: {s}"
+    assert s["visitdStates"] == {}, s
+
+
+def test_a_motion_gated_skip_does_not_age_out_a_parked_car():
+    """A stationary car stops producing MOG2 blobs. That is the gate saving compute, not
+    the scene emptying, and it must not end the visit."""
+    council = DetectorCouncil(
+        primary=StubDetector([[Detection(car_box(400.0), 0.9)]] * 40, name="tiny"),
+        motion_gate=StubDetector([[Detection(car_box(400.0), 0.5)]] + [[]] * 40,
+                                 name="mog2", can_confirm=False),
+    )
+    pipe = make_pipeline(council=council)
+    boxes = [[car_box(400.0)] for _ in range(30)]
+    for f in frames(30, boxes):
+        pipe.step(f)
+
+    # The car is still tracked after 29 skipped frames -- it has not been aged out.
+    assert len(pipe.tracks.tracks) == 1, pipe.summary()
+    assert pipe.summary()["visitdStates"] == {}, "a preexisting car still creates no visit"
+
+
+def test_visitd_is_told_the_zones_actually_observed():
+    """A vehicle that drives back out of the lot while still visible must be reported as
+    outside, or visitd never starts its departure grace and dwell accrues forever."""
+    class RecordingTracker:
+        def __init__(self) -> None:
+            self.payloads: list[dict] = []
+
+        def handle_event(self, ev):
+            self.payloads.append(ev)
+            return []
+
+        def tick(self, _now):
+            return []
+
+        def open_visits(self):
+            return []
+
+    rec = RecordingTracker()
+    lot_map = LotMap().add("front_lot", LOT)
+    portal = EntryPortal(Zone("front_lot", LOT), portal_zone=Zone("portal", PORTAL))
+    pipe = VisionPipeline(
+        council=DetectorCouncil(primary=StubDetector([])), lot_map=lot_map,
+        entry_portal=portal, camera="sign", tracker=rec,
+        frame_health=FrameHealth(freeze_run=10 ** 6, min_distinct=0),
+    )
+
+    seq_boxes: list[list[tuple]] = [[] for _ in range(10)]
+    seq_dets: list[list[Detection]] = [[] for _ in range(10)]
+    x = 20.0
+    for _ in range(8):                      # drive in
+        b = car_box(x); seq_boxes.append([b]); seq_dets.append([Detection(b, 0.9)]); x += 30.0
+    for _ in range(8):                      # drive back out, still visible
+        x -= 30.0
+        b = car_box(max(0.0, x)); seq_boxes.append([b]); seq_dets.append([Detection(b, 0.9)])
+
+    for f, d in zip(frames(len(seq_boxes), seq_boxes), seq_dets):
+        pipe.step(f, detections=d)
+
+    zones_seen = [tuple(p["after"]["current_zones"]) for p in rec.payloads]
+    assert ("front_lot",) in zones_seen, "inside the lot must report the lot"
+    assert () in zones_seen, "back on the street must report NO zone, not the arrival zone"
 
 
 # ---------------------------------------------------------------- geometry
