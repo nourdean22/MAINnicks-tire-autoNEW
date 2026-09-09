@@ -75,6 +75,30 @@ const minutesBetween = (from: string, toCoalesce: string[]) =>
 
 const OPEN_VISIT_CAP = 500;
 
+/**
+ * SERVICE CAN HAPPEN OUTSIDE, AND THE METRICS HAVE TO KNOW IT.
+ *
+ * Operator, 2026-09-09: "we change tires, do plugs, n small shit outside with the cars
+ * on jacks in the blue; all the mechanic work needs a lift goes inside". So a vehicle up
+ * on jacks on the apron is BEING SERVED, and treating service as "inside a bay" made
+ * three numbers lie about the shop's bread-and-butter work:
+ *
+ *   waiting            counted every outside job as still queueing
+ *   oldestWaitMinutes  was dragged up by cars that were already being worked on
+ *   abandonedBeforeBay counted a COMPLETED outside tyre job as a customer who gave up
+ *
+ * The last one is the dangerous one: it turned ordinary good business into a
+ * lost-business signal.
+ *
+ * The schema already carries what is needed -- `bayEnteredAt` is "service started" and
+ * `bay` is WHERE. Zones whose name starts with `outside_` are outside work; everything
+ * else is an indoor bay. The vision layer latches both, so `waiting` and
+ * `leftBeforeService` become correct by construction rather than by special-casing.
+ */
+const OUTSIDE_ZONE_PREFIX = "outside_";
+const IS_OUTSIDE = sql.raw(`bay LIKE '${OUTSIDE_ZONE_PREFIX}%'`);
+const IS_INSIDE = sql.raw(`(bay IS NULL OR bay NOT LIKE '${OUTSIDE_ZONE_PREFIX}%')`);
+
 function num(v: unknown): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -127,7 +151,11 @@ export const lotRouter = router({
           COUNT(*) AS total,
           SUM(CASE WHEN departedAt IS NULL THEN 1 ELSE 0 END) AS onProperty,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
-                    AND bayExitedAt IS NULL THEN 1 ELSE 0 END) AS inBays,
+                    AND bayExitedAt IS NULL THEN 1 ELSE 0 END) AS inService,
+          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
+                    AND bayExitedAt IS NULL AND ${IS_INSIDE} THEN 1 ELSE 0 END) AS inBays,
+          SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
+                    AND bayExitedAt IS NULL AND ${IS_OUTSIDE} THEN 1 ELSE 0 END) AS inOutsideWork,
           SUM(CASE WHEN departedAt IS NULL AND bayEnteredAt IS NOT NULL
                     AND bayExitedAt IS NULL AND bay IS NULL THEN 1 ELSE 0 END) AS bayUnknown,
           SUM(CASE WHEN departedAt IS NULL AND bayExitedAt IS NOT NULL THEN 1 ELSE 0 END) AS postService,
@@ -196,7 +224,11 @@ export const lotRouter = router({
         counts: {
           onProperty,
           waiting: num(r.waiting),
+          // Service, split by WHERE it happens. `inService` is the honest headline --
+          // a car on jacks outside is being worked on just as much as one on a lift.
+          inService: num(r.inService),
           inBays: num(r.inBays),
+          inOutsideWork: num(r.inOutsideWork),
           bayUnknown: num(r.bayUnknown),
           postService: num(r.postService),
           preexisting: num(r.preexisting),

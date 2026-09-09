@@ -355,11 +355,16 @@ export default function LotSection() {
               color={n.waits.oldestWaitMinutes && n.waits.oldestWaitMinutes > ATTENTION_MINUTES ? "text-amber-400" : "text-foreground"}
               trendLabel={n.waits.oldestWaitMinutes !== null ? `oldest ${formatDuration(n.waits.oldestWaitMinutes)}` : undefined}
             />
+            {/* "In service", not "in bays": tyres, plugs and small work happen OUTSIDE
+                on jacks, and a car up on jacks is being worked on exactly as much as one
+                on a lift. Showing only indoor bays reported the shop's bread-and-butter
+                work as an empty shop. The breakdown keeps WHERE visible. */}
             <StatCard
-              label="In bays"
-              value={n.counts.inBays}
+              label="In service"
+              value={n.counts.inService}
               icon={<Wrench className="w-4 h-4" />}
               color="text-emerald-400"
+              trendLabel={`${n.counts.inBays} inside · ${n.counts.inOutsideWork} on jacks`}
             />
             <StatCard
               label="Done, not left"
@@ -408,7 +413,7 @@ export default function LotSection() {
             <StatCard label="Arrivals today" value={n.counts.arrivalsToday} icon={<Car className="w-4 h-4" />} />
             <StatCard label="Departures today" value={n.counts.departuresToday} icon={<LogOut className="w-4 h-4" />} />
             <StatCard
-              label="Left before a bay"
+              label="Left before service"
               value={n.counts.abandonedBeforeBay}
               icon={<AlertTriangle className="w-4 h-4" />}
               color={n.counts.abandonedBeforeBay > 0 ? "text-red-400" : "text-foreground"}
