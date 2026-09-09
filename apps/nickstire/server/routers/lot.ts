@@ -254,21 +254,30 @@ export const lotRouter = router({
         // `arrivedAt DESC` pushed every never-observed-arrival visit to the END of the
         // ordering. Past `limit` rows those became permanently invisible — the rows the
         // schema deliberately permits were exactly the ones the table hid.
+        // The four duration columns below, explained OUT HERE rather than as `--`
+        // comments inside the template literal. `rawSqlTablesExist.test.ts` scans raw
+        // SQL for table references and does not strip comments, so ordinary prose
+        // containing the word "from" mints a phantom table -- this exact block failed
+        // that gate with a table named `the`, out of "from the wait clock". Prose in a
+        // SQL string is parseable by the auditor and unreadable to it; keep it in TS.
+        //
+        //   onPropertyMinutes      arrival -> departure or now. NULL when the arrival
+        //                          was never observed, so the UI says "first seen"
+        //                          rather than inventing a start.
+        //   sinceFirstSeenMinutes  createdAt -> departure or now. createdAt is NOT
+        //                          NULL, so an unobserved arrival still gets an honest
+        //                          floor: "here at least this long".
+        //   waitMinutes            wait clock (or arrival) -> bay, departure, or now.
+        //                          A still-waiting car keeps counting up.
+        //   bayMinutes             bay entry -> bay exit, departure, or now.
         const list = rowsOf(await d.execute(sql`
           SELECT visitId, camera, state, arrivedAt, waitStartedAt, bayEnteredAt,
                  bayExitedAt, departedAt,
                  bay, preexisting, entryEvidence, plateStatus, plateText, customerMatch,
                  estimatedFields, cameraPose,
-                 -- Time on the property. NULL when the arrival was never observed, so
-                 -- the UI can say "first seen" instead of inventing a start.
                  ${minutesBetween("arrivedAt", ["departedAt", "NOW()"])} AS onPropertyMinutes,
-                 -- Always available: createdAt is NOT NULL, so an unobserved arrival
-                 -- still yields an honest floor ("here at least this long").
                  ${minutesBetween("createdAt", ["departedAt", "NOW()"])} AS sinceFirstSeenMinutes,
-                 -- Waiting = from the wait clock (or arrival) until a bay, a departure,
-                 -- or now. Still-waiting cars keep counting up.
                  ${minutesBetween("COALESCE(waitStartedAt, arrivedAt)", ["bayEnteredAt", "departedAt", "NOW()"])} AS waitMinutes,
-                 -- In-bay time, open-ended while the car is still in the bay.
                  ${minutesBetween("bayEnteredAt", ["bayExitedAt", "departedAt", "NOW()"])} AS bayMinutes
           FROM vehicle_visits
           ${input.openOnly ? sql`WHERE departedAt IS NULL` : sql``}
