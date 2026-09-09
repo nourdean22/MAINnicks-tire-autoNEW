@@ -810,7 +810,7 @@ export async function handleRunMigrations() {
       `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS dataClass VARCHAR(16) NOT NULL DEFAULT 'PRODUCTION'`,
       `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS commissioningRunId VARCHAR(64) NULL`,
       `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_dataClass ON vehicle_visits (dataClass)`,
-      // 2026-09-09 · drizzle/0121_commissioning.sql — the human witness for a controlled
+      // 2026-09-09 · drizzle/0123_commissioning.sql — the human witness for a controlled
       // drive. TIMESTAMP(3): a portal crossing and a button press are hundreds of
       // milliseconds apart, and whole seconds would round the quantity being measured.
       `CREATE TABLE IF NOT EXISTS commissioning_runs (runId VARCHAR(64) NOT NULL, camera VARCHAR(64) NOT NULL, label VARCHAR(191) NULL, startedAt TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), endedAt TIMESTAMP(3) NULL DEFAULT NULL, startedBy VARCHAR(191) NULL, clockOffsetMs INT NULL, clockRttMs INT NULL, clockSamples INT NULL, monoOriginAt TIMESTAMP(3) NULL DEFAULT NULL, verdict VARCHAR(16) NULL, verdictReason VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (runId), INDEX idx_commissioning_runs_camera (camera, startedAt))`,

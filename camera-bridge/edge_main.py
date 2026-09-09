@@ -589,6 +589,18 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         tracker=pipeline.tracker,
     )
     seed_track_ids(vision, pipeline.tracker, camera)
+    # What is LOAD-BEARING is that this runs before the loop starts, because the pin has to
+    # be in place before ANY emission reaches `after_step`. Ordering it ahead of
+    # `reconcile_restart` specifically is defence in depth, not a requirement: reconcile
+    # evaluates at the restored last-activity, so the leave grace has not elapsed and it
+    # only ever emits DEPARTING, which queues no shop row. A mutation that swapped the two
+    # did NOT fail the test -- an earlier version of this comment claimed it would, and was
+    # wrong. Kept in this order so it stays correct if reconcile ever gains a terminal path.
+    try:
+        pipeline.shop.restore_classifications(pipeline.ledger.shop_outbox_classifications())
+    except Exception:
+        log.exception("could not restore queued visit classifications; a COMMISSIONING row "
+                      "still queued from the previous process may be recorded as PRODUCTION")
     reconcile_restart(pipeline, camera)
 
     # The mode this producer returns to when NOT commissioning. Derived from the

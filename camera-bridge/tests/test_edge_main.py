@@ -797,5 +797,140 @@ class RestartReconcileTest(unittest.TestCase):
             self.assertEqual(edge_main.reconcile_restart(broken, "lot"), 0)
 
 
+
+class RestartClassificationWiringTest(unittest.TestCase):
+    """The pin must be seeded by `build_edge`, before the loop runs.
+
+    A COMMISSIONING visit still QUEUED when the edge restarts would otherwise be rewritten
+    PRODUCTION: the scheduled launcher passes no run id, the fresh mirror comes up
+    PRODUCTION, and the shop outbox coalesces by visitId, so the restored visit's terminal
+    emission replaces the only undelivered COMMISSIONING payload there was. The server's
+    immutable columns cannot defend a row that never reached MySQL, so the test drive is
+    counted as a real customer permanently (Codex P1 on #2255, round 7).
+
+    MEASURED, both ways: without the pin the queued row becomes ("PRODUCTION", None); with
+    it, ("COMMISSIONING", "C-..."). The tick below is what makes that reachable -- see the
+    comment at the assertion.
+    """
+
+    @staticmethod
+    def _shop_cfg():
+        """A config whose shop mirror is ENABLED, or `after_step` queues no shop row at all
+        and this whole test passes for the wrong reason (it did: the first version survived
+        deleting the fix)."""
+        import dataclasses
+
+        from test_main import RAW
+        from visitd.config import build_config
+
+        raw = dict(RAW)
+        raw["backend"] = dict(raw.get("backend", {}))
+        raw["backend"]["shopUrl"] = "https://nickstire.org/api/camera/visits"
+        return dataclasses.replace(build_config(raw, environ={"CAMERA_INGEST_KEY": "k"}))
+
+    def test_a_queued_COMMISSIONING_visit_survives_a_PRODUCTION_relaunch(self):
+        fd, path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        try:
+            first = make_pipeline(ledger=Ledger(path))
+            shop_enabled(first)
+            first.shop.data_class = "COMMISSIONING"
+            first.shop.commissioning_run_id = "C-20260910-001"
+            _real_emissions(first, camera="lot", persist=True)
+            queued = first.ledger.shop_outbox_classifications()
+            self.assertTrue(queued, "precondition: a classified row is queued and undelivered")
+            self.assertTrue(all(c == "COMMISSIONING" for c, _ in queued.values()))
+            first.ledger.close()
+
+            # Relaunched by the scheduler: NO --commissioning-run, so the mirror is PRODUCTION.
+            args = _args(calibration=None, ledger=path, commissioning_run=None)
+            pipeline, *_ = edge_main.build_edge(self._shop_cfg(), args)
+            try:
+                self.assertTrue(pipeline.shop.enabled,
+                                "precondition: the mirror must be enabled or nothing is queued "
+                                "and the assertion below cannot fail")
+                self.assertEqual(pipeline.shop.data_class, "PRODUCTION",
+                                 "precondition: the fresh producer really is in production mode")
+                # PUSH PAST THE LEAVE GRACE. reconcile_restart leaves the visit DEPARTING,
+                # which queues nothing; the coalescing overwrite happens on the TERMINAL
+                # emission that follows. Asserting before this tick measured a moment the
+                # bug had not reached yet -- the first version of this test survived
+                # deleting the fix outright.
+                pipeline.tick(time.time() + 100_000)
+                self.assertFalse(pipeline.tracker.open_visits(),
+                                 "precondition: the visit reached a terminal state, which is "
+                                 "the emission that rewrites the queued row")
+                after = pipeline.ledger.shop_outbox_classifications()
+                for visit_id, (data_class, run_id) in queued.items():
+                    self.assertIn(visit_id, after, "the row is still queued after the restart")
+                    self.assertEqual(after[visit_id], (data_class, run_id),
+                                     "and reconcile_restart did NOT coalesce a PRODUCTION "
+                                     "payload over it")
+            finally:
+                pipeline.ledger.close()
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+class DoctorScriptTest(unittest.TestCase):
+    """The preflight must FAIL, not WARN, on anything that makes arrivals impossible.
+
+    A WARN leaves `$fails` at zero and the doctor exits 0 -- a green light over a camera
+    that can never confirm an arrival, which is the exact false-green it exists to
+    prevent (Codex P1 on #2255). Witnessed on this machine: weights on disk, runtime
+    absent, doctor exited 0.
+    """
+
+    def _doctor(self) -> str:
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(here, "scripts", "doctor-edge-runtime.ps1"), encoding="ascii") as fh:
+            return fh.read()
+
+    def test_a_missing_openvino_RUNTIME_is_a_FAIL(self):
+        body = self._doctor()
+        self.assertIn('Check "openvino" "FAIL"', body)
+        self.assertNotIn('Check "openvino" "WARN"', body,
+                         "a warning here exits 0 over a producer that cannot ever confirm an arrival")
+
+    def test_every_arrival_blocking_dependency_is_a_FAIL(self):
+        body = self._doctor()
+        for name in ("windows_capture", "numpy + cv2", "openvino"):
+            self.assertIn(f'Check "{name}" "FAIL"', body, f"{name} must be able to fail the preflight")
+
+    def test_the_script_stays_pure_ASCII(self):
+        """PowerShell 5.1 reads a BOM-less .ps1 as ANSI, so a stray em-dash becomes
+        mojibake and the script dies on 'the string is missing the terminator'."""
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for script in ("doctor-edge-runtime.ps1", "install-edge-runtime.ps1"):
+            with open(os.path.join(here, "scripts", script), "rb") as fh:
+                raw = fh.read()
+            bad = [(i, b) for i, b in enumerate(raw) if b > 0x7F]
+            self.assertEqual(bad, [], f"{script} has non-ASCII bytes at {bad[:3]}")
+
+
+class TestFileHygieneTest(unittest.TestCase):
+    """`unittest.main()` must be the LAST thing in the file.
+
+    Python executes top to bottom, so a class defined after it is never defined when the
+    file is run directly -- `python tests/test_edge_main.py` silently runs a subset while
+    pytest (which imports the module) collects everything and looks green. This file has
+    now grown a stranded block twice, both times by appending a new suite to the end.
+    """
+
+    def test_nothing_is_defined_after_unittest_main(self):
+        with open(os.path.abspath(__file__), encoding="utf-8") as fh:
+            body = fh.read()
+        # Anchored to column 0, or the marker literal on THIS line matches itself.
+        nl = chr(10)
+        marker = nl + 'if __name__ == "__main__":'
+        self.assertEqual(body.count(marker), 1, "exactly one top-level __main__ block")
+        tail = body[body.index(marker):]
+        self.assertNotIn(nl + "class ", tail, "a test class is stranded after unittest.main()")
+        self.assertNotIn(nl + "def ", tail, "a helper is stranded after unittest.main()")
+
+
 if __name__ == "__main__":
     unittest.main()

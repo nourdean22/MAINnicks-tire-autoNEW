@@ -524,6 +524,26 @@ class Ledger:
             for r in rows
         ]
 
+    def shop_outbox_classifications(self) -> Dict[str, Tuple[str, Optional[str]]]:
+        """{visit_id: (dataClass, commissioningRunId)} for every UNDELIVERED shop row.
+
+        Read at startup so a restart cannot silently reclassify a visit whose row never
+        reached MySQL. See `ShopMirror.restore_classifications`.
+        """
+        out: Dict[str, Tuple[str, Optional[str]]] = {}
+        with self._lock:
+            rows = self._conn.execute("SELECT visit_id, payload FROM shop_outbox").fetchall()
+        for r in rows:
+            try:
+                payload = json.loads(r["payload"])
+            except Exception:
+                continue
+            data_class = payload.get("dataClass")
+            if data_class:
+                run_id = payload.get("commissioningRunId")
+                out[str(r["visit_id"])] = (str(data_class), str(run_id) if run_id else None)
+        return out
+
     def shop_outbox_ack(self, visit_id: str, seq: int) -> bool:
         """Delete a delivered row -- ONLY if it is still the seq that was delivered.
 

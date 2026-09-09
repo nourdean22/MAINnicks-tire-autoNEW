@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildCommissioningReport,
-  estimateClockOffset,
-  machineEventsFromVisit,
-  TRUTH_EVENTS,
-  type HumanEvent,
-  type MachineEvent,
+  EDGE_SETTLE_MS, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS, assessEdgeQuiescence, buildCommissioningReport, estimateClockOffset, machineEventsFromVisit, type HumanEvent, type MachineEvent,
 } from "./commissioningReport";
 
 const T = 1_800_000_000_000;
@@ -370,5 +365,79 @@ describe("commissioning report — a wall clock that steps mid-run", () => {
     const r = buildCommissioningReport(human, machine, GOOD_CLOCK);
     expect(r.findings.join(" ")).not.toContain("stepped mid-run");
     expect(r.verdict).toBe("PASS");
+  });
+});
+
+describe("assessEdgeQuiescence — has the edge finished speaking?", () => {
+  const ENDED = 1_700_000_000_000;
+  const ok = (over: Partial<Parameters<typeof assessEdgeQuiescence>[0]> = {}) =>
+    assessEdgeQuiescence({
+      endedMs: ENDED,
+      nowMs: ENDED + EDGE_SETTLE_MS + 1_000,
+      heartbeatAgeS: 20,
+      heartbeatReceivedMs: ENDED + EDGE_SETTLE_MS + 500,
+      frameAgeS: 2,
+      outboxDepth: 0,
+      ...over,
+    });
+
+  it("settles when every condition holds", () => {
+    expect(ok()).toEqual({ settled: true, reason: null });
+  });
+
+  it("REFUSES a heartbeat that predates the grace boundary, even though it postdates End", () => {
+    // The exact defect: one second after End the queue is legitimately empty, because
+    // the departure has not been generated yet. That reading must not settle the run.
+    const r = ok({ heartbeatReceivedMs: ENDED + 1_000, heartbeatAgeS: 20 });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("predates the departure");
+  });
+
+  it("accepts a heartbeat received exactly ON the grace boundary", () => {
+    expect(ok({ heartbeatReceivedMs: ENDED + EDGE_SETTLE_MS }).settled).toBe(true);
+  });
+
+  it("REFUSES a producer that reports but sees no frames", () => {
+    // An empty queue from a dead capture is empty because nothing is produced.
+    const r = ok({ frameAgeS: QUIESCENCE_HEARTBEAT_MAX_AGE_S + 1 });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("nothing is being produced");
+  });
+
+  it("REFUSES when frame age is unknown rather than assuming it is fine", () => {
+    expect(ok({ frameAgeS: null }).settled).toBe(false);
+  });
+
+  it("waits out the settle window before judging anything", () => {
+    const r = ok({ nowMs: ENDED + 1_000 });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("giving it time");
+  });
+
+  it("will not settle a run whose end time is unreadable", () => {
+    expect(ok({ endedMs: null }).settled).toBe(false);
+  });
+
+  it("REFUSES a producer that has gone quiet, and says for how long", () => {
+    const r = ok({ heartbeatAgeS: 400 });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("400s");
+  });
+
+  it("REFUSES a producer that has never reported at all", () => {
+    const r = ok({ heartbeatAgeS: null, heartbeatReceivedMs: null });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("no producer heartbeat");
+  });
+
+  it("REFUSES while rows are still queued, and says how many", () => {
+    const r = ok({ outboxDepth: 3 });
+    expect(r.settled).toBe(false);
+    expect(r.reason).toContain("3 row(s)");
+  });
+
+  it("treats an UNKNOWN queue depth as not-drained, never as empty", () => {
+    // A failed read must not render as good news.
+    expect(ok({ outboxDepth: null }).settled).toBe(false);
   });
 });

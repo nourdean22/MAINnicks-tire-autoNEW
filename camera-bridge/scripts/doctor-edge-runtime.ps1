@@ -58,9 +58,16 @@ if ($py) {
     if ($wc -match "ok") { Check "windows_capture" "PASS" "importable (the WGC lane)" }
     else { Check "windows_capture" "FAIL" "not importable -- pip install windows-capture" }
 
+    # FAIL, not WARN. A box can hold a perfectly good XML/BIN pair and still have no
+    # runtime to execute it: `build_council` catches the unavailable detector and runs
+    # motion-only, where `can_confirm_arrival` is ALWAYS false. With a calibration present
+    # the health lattice then reports the producer HEALTHY while it records no arrival,
+    # ever -- a green light over a camera that cannot do its job, which is the precise
+    # false-green this doctor exists to prevent (Codex P1 on #2255). Witnessed on this
+    # machine 2026-09-09: weights on disk, runtime absent, doctor exited 0.
     $ov = (& $py.Source -c "import openvino; print(openvino.__version__)" 2>&1)
     if ($ov -match "^\d") { Check "openvino" "PASS" "$ov" }
-    else { Check "openvino" "WARN" "not importable -- the council degrades to MOTION-ONLY and cannot confirm an arrival" }
+    else { Check "openvino" "FAIL" "not importable -- pip install openvino. The council degrades to MOTION-ONLY and can NEVER confirm an arrival" }
 
     $np = (& $py.Source -c "import numpy, cv2; print('ok')" 2>&1)
     if ($np -match "ok") { Check "numpy + cv2" "PASS" "importable" }

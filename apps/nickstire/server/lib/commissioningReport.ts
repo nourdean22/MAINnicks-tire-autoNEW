@@ -316,6 +316,96 @@ export function buildCommissioningReport(
  * samples that are least trustworthy, while the fastest exchange is the one whose
  * one-way times are most nearly equal.
  */
+
+/**
+ * How long after End the edge is given to emit and drain the departure.
+ *
+ * The edge emits a departure only after its own leave grace, so a verdict read the
+ * instant a run ends would see a missing departure that simply had not happened yet.
+ * A clock alone is not enough either: a WAN outage can make this window pass with the
+ * terminal row still queued, freezing a missing-departure FAIL for a run that was fine
+ * (Codex P1 on #2255). Settlement therefore also requires the camera's own heartbeat to
+ * report an EMPTY outbox -- the edge saying "I have nothing left to send" is an
+ * acknowledgement, where a clock is only a hope.
+ */
+export const EDGE_SETTLE_MS = 120_000;
+
+/** A heartbeat older than this cannot vouch for the queue being empty NOW. */
+export const QUIESCENCE_HEARTBEAT_MAX_AGE_S = 180;
+
+export interface QuiescenceInputs {
+  /** When the run was ended, ms since epoch; null when unreadable. */
+  endedMs: number | null;
+  nowMs: number;
+  /** Age of the camera's latest heartbeat, seconds; null when it has never reported. */
+  heartbeatAgeS: number | null;
+  /** When that heartbeat was received, ms since epoch. */
+  heartbeatReceivedMs: number | null;
+  /**
+   * Age of the last HEALTHY frame that heartbeat saw, seconds.
+   *
+   * From `camera_runtime.lastHealthyFrameAt`, which is what the producer actually sends --
+   * `lastFrameAt` exists in the schema but no producer writes it, so a check against that
+   * column would be false forever and no run would ever settle.
+   */
+  frameAgeS: number | null;
+  /** Rows the edge still has queued for the shop. */
+  outboxDepth: number | null;
+}
+
+/**
+ * Has the edge FINISHED SPEAKING about this run? Pure, so it can be tested.
+ *
+ * Four conditions, and only the first is a clock. The rest are observations, because a
+ * verdict frozen from a guess is worse than a verdict deferred:
+ *
+ *  1. enough time for the departure grace to have run at all;
+ *  2. a heartbeat recent enough to vouch for anything;
+ *  3. that heartbeat received AFTER the grace boundary -- not merely after End. A
+ *     heartbeat one second after End reports an empty queue truthfully and says nothing
+ *     about a terminal transition that had not been generated yet, and that stale reading
+ *     stayed inside the freshness window all the way to the settle deadline, satisfying
+ *     settlement on its own (Codex P1 on #2255, second pass on this clause);
+ *  4. frames still arriving. An empty queue from a producer whose capture died is empty
+ *     because nothing is being PRODUCED, which is the opposite of "finished draining".
+ */
+export function assessEdgeQuiescence(
+  i: QuiescenceInputs,
+): { settled: boolean; reason: string | null } {
+  const enoughTime = i.endedMs !== null && i.nowMs - i.endedMs >= EDGE_SETTLE_MS;
+  if (!enoughTime) {
+    return { settled: false, reason: "the edge emits a departure only after its grace period; giving it time" };
+  }
+  if (i.heartbeatAgeS === null) {
+    return { settled: false, reason: "no producer heartbeat to confirm its queue is empty" };
+  }
+  if (i.heartbeatAgeS > QUIESCENCE_HEARTBEAT_MAX_AGE_S) {
+    return {
+      settled: false,
+      reason: `the producer has not reported for ${Math.round(i.heartbeatAgeS)}s, so it cannot vouch for its queue`,
+    };
+  }
+  const deadlineMs = (i.endedMs as number) + EDGE_SETTLE_MS;
+  if (i.heartbeatReceivedMs === null || i.heartbeatReceivedMs < deadlineMs) {
+    return {
+      settled: false,
+      reason: "the producer has not reported since the departure grace elapsed, so its last "
+        + "empty-queue reading predates the departure it would have to have emitted",
+    };
+  }
+  if (i.frameAgeS === null || i.frameAgeS > QUIESCENCE_HEARTBEAT_MAX_AGE_S) {
+    return {
+      settled: false,
+      reason: "the producer is reporting but not seeing frames, so an empty queue means "
+        + "nothing is being produced rather than everything having drained",
+    };
+  }
+  if (i.outboxDepth !== 0) {
+    return { settled: false, reason: `the edge still has ${i.outboxDepth ?? "an unknown number of"} row(s) queued for the shop` };
+  }
+  return { settled: true, reason: null };
+}
+
 export function estimateClockOffset(
   samples: Array<{ t0: number; serverMs: number; t1: number }>,
 ): ClockSync | null {

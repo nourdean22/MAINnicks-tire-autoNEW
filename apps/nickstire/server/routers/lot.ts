@@ -48,9 +48,11 @@ import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { deriveCameraState, HEALTH_THRESHOLDS } from "../lib/cameraHealth";
 import {
-  buildCommissioningReport, estimateClockOffset, machineEventsFromVisit, TRUTH_EVENTS,
+  assessEdgeQuiescence, buildCommissioningReport, EDGE_SETTLE_MS, estimateClockOffset,
+  machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
+import { isDuplicateKeyError } from "../lib/tire-order-guards";
 
 /** Start of the shop's day, in SQL, as UTC epoch seconds. Never computed in JS. */
 const ET_DAY_START = sql`UNIX_TIMESTAMP(CONVERT_TZ(DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')), 'America/New_York', '+00:00'))`;
@@ -166,10 +168,6 @@ function percentile(sorted: number[], p: number): number | null {
  * the camera's own heartbeat to report an EMPTY outbox: the edge saying "I have nothing
  * left to send" is an acknowledgement, where a clock is only a hope.
  */
-const EDGE_SETTLE_MS = 120_000;
-
-/** A heartbeat older than this cannot vouch for the queue being empty NOW. */
-const QUIESCENCE_HEARTBEAT_MAX_AGE_S = 180;
 
 /**
  * Load one commissioning run and diff it against what the machine recorded.
@@ -253,37 +251,31 @@ async function loadCommissioningReport(
   const drain = rowsOf(await d.execute(sql`
     SELECT outboxDepth,
            ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds,
+           -- lastHealthyFrameAt, NOT lastFrameAt. The first draft read the latter, which NO
+           -- producer anywhere writes (grep camera-bridge: zero hits; the heartbeat body
+           -- carries lastHealthyFrameAt only). It would have been NULL forever, so the
+           -- frames check would have been false forever and NO run would ever settle -- a
+           -- false pass swapped for a permanent hang. It is also the stronger claim, and
+           -- the one cameraHealth.ts already uses for its frames facet: a frozen camera
+           -- keeps delivering frames, just not healthy ones.
+           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastHealthyFrameAt)")} AS frameAgeSeconds,
            ${sql.raw("ROUND(UNIX_TIMESTAMP(receivedAt) * 1000)")} AS receivedMs
     FROM camera_runtime WHERE camera = ${String(run.camera)}
   `))[0];
   const drainAge = drain ? numOrNull(drain.ageSeconds) : null;
   const drainDepth = drain ? numOrNull(drain.outboxDepth) : null;
   const drainReceivedMs = drain ? numOrNull(drain.receivedMs) : null;
-  // THE ACKNOWLEDGING HEARTBEAT MUST POSTDATE THE RUN. A heartbeat sent just BEFORE End
-  // reporting an empty queue says nothing about the terminal transition -- the producer
-  // had not observed it yet. Age alone let such a heartbeat sit inside the freshness
-  // window at `endedAt + 120s` and declare a run settled that the producer then never
-  // spoke about again, freezing a false missing-departure verdict (Codex P1 on #2255).
-  // "Empty queue, measured after you finished" is the claim that actually matters.
-  const heartbeatAfterEnd =
-    drainReceivedMs !== null && endedMs !== null && drainReceivedMs > endedMs;
-  const edgeQuiet =
-    drainAge !== null && drainAge <= QUIESCENCE_HEARTBEAT_MAX_AGE_S
-    && drainDepth === 0 && heartbeatAfterEnd;
-  const enoughTime = endedMs !== null && Date.now() - endedMs >= EDGE_SETTLE_MS;
-  const settled = enoughTime && edgeQuiet;
-  const unsettledReason = settled
-    ? null
-    : !enoughTime
-      ? "the edge emits a departure only after its grace period; giving it time"
-      : drainAge === null
-        ? "no producer heartbeat to confirm its queue is empty"
-        : drainAge > QUIESCENCE_HEARTBEAT_MAX_AGE_S
-          ? `the producer has not reported for ${Math.round(drainAge)}s, so it cannot vouch for its queue`
-          : !heartbeatAfterEnd
-            ? "the producer has not reported since the run ended, so its last empty-queue "
-              + "reading predates the departure"
-            : `the edge still has ${drainDepth} row(s) queued for the shop`;
+  const drainFrameAge = drain ? numOrNull(drain.frameAgeSeconds) : null;
+  const quiescence = assessEdgeQuiescence({
+    endedMs,
+    nowMs: Date.now(),
+    heartbeatAgeS: drainAge,
+    heartbeatReceivedMs: drainReceivedMs,
+    frameAgeS: drainFrameAge,
+    outboxDepth: drainDepth,
+  });
+  const settled = quiescence.settled;
+  const unsettledReason = quiescence.reason;
 
   return {
     run: {
@@ -761,35 +753,64 @@ export const lotRouter = router({
       // out loud on site; the count is of runs for the SAME camera on the SAME ET day.
       const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
       try {
-        // COUNTED GLOBALLY FOR THE DAY, not per camera. `runId` is the table's PRIMARY
-        // KEY, so a per-camera ordinal meant the first run on each of two cameras on the
-        // same day both computed C-YYYYMMDD-001 and the second insert failed on a
-        // duplicate key (Codex P2 on #2255). A global ordinal keeps the id short enough
-        // to say out loud on site, which was the point of the format.
-        const existing = rowsOf(await d.execute(sql`
-          SELECT COUNT(*) AS n FROM commissioning_runs WHERE runId LIKE ${`C-${day}-%`}
-        `))[0];
-        const runId = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
-        // CLOSE ANY RUN ALREADY OPEN ON THIS CAMERA. The heartbeat hands the producer the
-        // most recent open run, so an abandoned one (a reloaded PWA, a killed tab) would
-        // be picked up again the moment a newer run ended -- leaving the edge in
-        // commissioning mode indefinitely and quietly excluding real visits from the
-        // shop's metrics (Codex P1 on #2255). At most one run per camera is open, ever.
-        await d.execute(sql`
-          UPDATE commissioning_runs SET endedAt = NOW(3)
-           WHERE camera = ${input.camera} AND endedAt IS NULL
-        `);
         // Corrected by the SAME offset the taps are, so the anchor and the offsets it
         // anchors live on one timeline.
         const originMs = input.monoOriginWallMs != null && clock
           ? input.monoOriginWallMs + clock.offsetMs
           : input.monoOriginWallMs ?? null;
+
+        // ALLOCATE BY INSERT-AND-RETRY, not read-then-insert.
+        //
+        // Counting first and inserting second is a race: two admin tabs, or two cameras
+        // being commissioned together, both read the same COUNT and construct the same
+        // `runId` -- which is the PRIMARY KEY, so the loser dies on a duplicate key
+        // (Codex P2 on #2255, second pass). The insert itself is the only atomic step
+        // available here, so let IT arbitrate: on a collision, recount and try the next
+        // ordinal. Bounded, because an unbounded retry on a non-collision error would
+        // spin. Counted GLOBALLY for the day so the id stays short enough to say out loud
+        // on site, which was the point of the format.
+        let runId = "";
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const existing = rowsOf(await d.execute(sql`
+            SELECT COUNT(*) AS n FROM commissioning_runs WHERE runId LIKE ${`C-${day}-%`}
+          `))[0];
+          // `n + 1`, NOT `n + 1 + attempt`. The count is re-read every iteration, so it
+          // already includes whoever won the last collision; adding the attempt on top of
+          // that skips an ordinal each time (two tabs reading n=0 would produce 001 and
+          // then 003). Progress is still guaranteed, because every collision means some
+          // other request inserted and raised the count.
+          const candidate = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
+          try {
+            await d.execute(sql`
+              INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples, monoOriginAt)
+              VALUES (${candidate}, ${input.camera}, ${input.label ?? null},
+                      ${ctx.user?.email ?? ctx.user?.name ?? "admin"},
+                      ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null},
+                      ${originMs === null ? null : sql`FROM_UNIXTIME(${originMs} / 1000)`})
+            `);
+            runId = candidate;
+            break;
+          } catch (err) {
+            if (!isDuplicateKeyError(err)) throw err;
+          }
+        }
+        if (!runId) {
+          return { ok: false as const, reason: "could not allocate a run id; try again in a moment" };
+        }
+
+        // CLOSE ANY RUN ALREADY OPEN ON THIS CAMERA -- and only now that ours exists.
+        // Closing first meant a request that then lost the id race left the camera with
+        // NO open run at all: it had ended the previous one on behalf of a run it never
+        // managed to create. Ordering it after the insert makes the failure mode "the old
+        // run stays open", which the next successful start closes. The `runId <>` guard
+        // is what keeps this from immediately ending the run we just opened. The rule it
+        // enforces is unchanged: the heartbeat hands the producer the most recent open
+        // run, so an abandoned one (a reloaded PWA, a killed tab) would otherwise be
+        // picked up again and leave the edge in commissioning mode indefinitely, quietly
+        // excluding real visits from the shop's metrics (Codex P1 on #2255).
         await d.execute(sql`
-          INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples, monoOriginAt)
-          VALUES (${runId}, ${input.camera}, ${input.label ?? null},
-                  ${ctx.user?.email ?? ctx.user?.name ?? "admin"},
-                  ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null},
-                  ${originMs === null ? null : sql`FROM_UNIXTIME(${originMs} / 1000)`})
+          UPDATE commissioning_runs SET endedAt = NOW(3)
+           WHERE camera = ${input.camera} AND endedAt IS NULL AND runId <> ${runId}
         `);
         return { ok: true as const, runId, clock };
       } catch (err) {

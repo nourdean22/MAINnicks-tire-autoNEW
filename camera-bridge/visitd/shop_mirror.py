@@ -75,6 +75,9 @@ class ShopMirror:
         #: the shop's KPIs exclude them by default; they are never deleted.
         self.data_class = data_class
         self.commissioning_run_id = commissioning_run_id
+        #: {visit_id: (dataClass, commissioningRunId)} for visits whose shop row is still
+        #: queued from a PREVIOUS process. See `restore_classifications`.
+        self._pinned: Dict[str, Tuple[str, Optional[str]]] = {}
         #: Deployment-static provenance (cameraPose / detectorName / calibrationVersion)
         #: so the columns migration 0119 added stop being sent as None. Per-emission
         #: values, when an emission carries them, win over these.
@@ -114,6 +117,7 @@ class ShopMirror:
         visit_id = emission.visit_id
         with self._lock:
             row = self._visits.get(visit_id)
+            pinned = self._pinned.get(visit_id)
             if row is None:
                 if len(self._visits) >= MAX_TRACKED_VISITS:
                     # Bounded: drop the oldest tracked visit rather than grow forever.
@@ -144,8 +148,10 @@ class ShopMirror:
                     "cameraPose": (provenance or self.provenance).get("cameraPose"),
                     "detectorName": (provenance or self.provenance).get("detectorName"),
                     "calibrationVersion": (provenance or self.provenance).get("calibrationVersion"),
-                    "dataClass": self.data_class,
-                    "commissioningRunId": self.commissioning_run_id,
+                    # A visit whose row is still queued keeps the class it was FIRST given,
+                    # even across a restart that came up in a different mode.
+                    "dataClass": pinned[0] if pinned else self.data_class,
+                    "commissioningRunId": pinned[1] if pinned else self.commissioning_run_id,
                 }
                 self._visits[visit_id] = row
 
@@ -274,6 +280,33 @@ class ShopMirror:
         with self._lock:
             self._visits.pop(visit_id, None)
 
+    def restore_classifications(self, known: Dict[str, Tuple[str, Optional[str]]]) -> int:
+        """Pin dataClass/commissioningRunId for visits whose row is still QUEUED. Returns the count.
+
+        THE LOSS THIS PREVENTS. `dataClass` is chosen once, when `row_for` first creates a
+        visit's accumulator, and the shop's ingest then treats it as immutable after
+        insert. But the accumulator is IN MEMORY, and the shop outbox coalesces by
+        visitId: one row per open visit, replaced wholesale by the newest emission.
+
+        So if a COMMISSIONING visit is still queued when the edge restarts -- the scheduled
+        launcher passes no run id, and the fresh mirror comes up PRODUCTION -- the restored
+        visit's terminal emission builds a NEW accumulator tagged PRODUCTION and overwrites
+        the only undelivered COMMISSIONING payload there was. The server's immutability
+        cannot help: that row never reached MySQL, so there is nothing there to be immutable
+        about, and the test drive is counted as a real customer forever
+        (Codex P1 on #2255). `reconcile_restart` made this reachable on EVERY restart by
+        emitting those terminal states immediately, which is what surfaced it.
+
+        Pinning from the queue makes the local outbox obey the same rule the server does.
+        """
+        if not known:
+            return 0
+        with self._lock:
+            self._pinned.update(known)
+        log.info("restored the classification of %s queued visit(s) so a restart cannot "
+                 "reclassify a row that never reached the shop", len(known))
+        return len(known)
+
     def queue_row(self, emission, camera_name: Optional[str] = None,
                   provenance: Optional[Dict[str, Optional[str]]] = None):
         """Merge one emission and return the ledger tuple (visit_id, seq, url, payload), or None.
@@ -291,6 +324,8 @@ class ShopMirror:
             # The merged row is now materialised in the ledger tuple, so the in-memory
             # accumulator is free -- and MUST be freed here rather than after delivery,
             # or a shop outage would pin every departed visit in memory until it cleared.
+            # The CLASSIFICATION pin outlives it deliberately: the terminal row is still
+            # queued, and a later emission for the same visit must not reclassify it.
             self.forget(emission.visit_id)
         return (emission.visit_id, int(emission.seq), str(self.url), row)
 
