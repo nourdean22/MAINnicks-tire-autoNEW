@@ -189,3 +189,6 @@ camera-bridge/data/
 camera-bridge/secrets/
 camera-bridge/logs/
 camera-bridge/edge-task.cmd
+# Pinned OpenVINO weights, fetched by `python -m vision.fetch_models --dest ov_models`
+# and verified by sha256 there. ~3.9 MB of binary that the pin already identifies.
+camera-bridge/ov_models/

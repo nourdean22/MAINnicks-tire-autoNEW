@@ -76,10 +76,31 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
   const [runId, setRunId] = useState<string | null>(null);
   const [taps, setTaps] = useState<LocalTap[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * Taps whose write has not come back yet.
+   *
+   * The operator naturally taps DEPARTED and reaches straight for End. If that write is
+   * still in flight, `endCommissioning` can set `endedAt` first -- and `recordTruth`
+   * REFUSES a tap on an ended run, so the mandatory tap is lost and a perfectly good
+   * drive reports INCONCLUSIVE for a missing witness (Codex P1 on #2255). End waits.
+   */
+  const [pendingTaps, setPendingTaps] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [reportRunId, setReportRunId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const monoOrigin = useRef<number>(0);
+  /**
+   * True once this page has RESUMED a run it did not start.
+   *
+   * `monoOrigin` is then this page's `performance.now()` zero, which has nothing to do
+   * with the origin the server stored when the run began -- so sending `phoneMonoMs`
+   * would have the server reconstruct every later tap from the ORIGINAL anchor plus a
+   * restarted offset, placing them however long the first session lasted too early. That
+   * is worse than no monotonic reading at all, because it is confidently wrong rather
+   * than absent (Codex P1 on #2255). Resumed taps therefore send null and fall back to
+   * their corrected wall time, which is what the resume banner already promises.
+   */
+  const resumed = useRef(false);
 
   const utils = trpc.useUtils();
   // Polled THROUGHOUT a run, not only when idle: this read carries the producer's
@@ -139,6 +160,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
       // tap as a constant error.
       const originWallMs = Date.now();
       monoOrigin.current = performance.now();
+      resumed.current = false;
       const started = await start.mutateAsync({ camera, clockSamples: samples, monoOriginWallMs: originWallMs });
       if (!started.ok) {
         setError(started.reason);
@@ -166,11 +188,17 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     const wallMs = Date.now();
     const monoMs = Math.round(performance.now() - monoOrigin.current);
     setTaps((prev) => [...prev, { event, wallMs, monoMs }]);
+    setPendingTaps((n) => n + 1);
     try {
-      const res = await record.mutateAsync({ runId, event, phoneWallMs: wallMs, phoneMonoMs: monoMs });
+      const res = await record.mutateAsync({
+        runId, event, phoneWallMs: wallMs,
+        phoneMonoMs: resumed.current ? null : monoMs,
+      });
       if (!res.ok) setError(`${event}: ${res.reason}`);
     } catch (e) {
       setError(`${event} was not saved: ${e instanceof Error ? e.message : "send failed"}`);
+    } finally {
+      setPendingTaps((n) => Math.max(0, n - 1));
     }
   }
 
@@ -185,6 +213,7 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
    * so, rather than inventing an anchor.
    */
   function resume(id: string) {
+    resumed.current = true;
     monoOrigin.current = performance.now();
     setTaps([]);
     setElapsed(0);
@@ -252,10 +281,10 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
             <button
               type="button"
               onClick={finish}
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || pendingTaps > 0}
               className="min-h-[48px] rounded-lg border border-foreground/20 px-4 text-[14px] font-semibold hover:bg-foreground/5 disabled:opacity-50"
             >
-              {busy ?? "End run"}
+              {busy ?? (pendingTaps > 0 ? "Saving taps…" : "End run")}
             </button>
           </div>
 

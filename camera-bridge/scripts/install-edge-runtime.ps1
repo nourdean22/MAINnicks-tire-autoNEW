@@ -36,6 +36,8 @@ param(
     [string]$PythonPath = "",
     [string]$ConfigPath = "",
     [string]$Calibration = "",
+    [string]$Model = "",
+    [string]$Device = "AUTO",
     [string]$Camera = "sign",
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
@@ -100,6 +102,27 @@ if (-not (Test-Path $ConfigPath)) {
     throw "Config '$ConfigPath' not found. Run: cp config.example.yaml config.yaml, then set backend.shopUrl and cameras.$Camera"
 }
 if ($Calibration -and -not (Test-Path $Calibration)) { throw "Calibration '$Calibration' not found." }
+
+# THE DETECTOR IS NOT OPTIONAL FOR ARRIVALS. Without a model `build_council()` returns a
+# council with no primary detector, whose `can_confirm_arrival` is always False -- so the
+# pipeline rejects every candidate and NO arrival is ever emitted, however good the
+# calibration is. A task installed without one would run for weeks looking healthy and
+# never record a single visit.
+if (-not $Model -and $env:VISION_OV_MODEL) { $Model = $env:VISION_OV_MODEL }
+if (-not $Model) {
+    $guess = Join-Path $root "ov_models\vehicle-detection-0200\FP16\vehicle-detection-0200.xml"
+    if (Test-Path $guess) {
+        $Model = $guess
+        Write-Host "Using the fetched model at $Model" -ForegroundColor Green
+    }
+}
+if ($Model -and -not (Test-Path $Model)) { throw "Model '$Model' not found. Fetch it: python -m vision.fetch_models --dest ov_models" }
+if (-not $Model) {
+    Write-Host "WARNING: no -Model and none found under ov_models. The producer will run" -ForegroundColor Red
+    Write-Host "         MOTION-ONLY and can never confirm an arrival -- it will look healthy" -ForegroundColor Red
+    Write-Host "         and record nothing. Fetch one first:" -ForegroundColor Red
+    Write-Host "           python -m vision.fetch_models --dest ov_models" -ForegroundColor Red
+}
 if (-not $Calibration) {
     Write-Host "NOTE: no -Calibration. The producer will run in CENSUS MODE: occupancy and health only," -ForegroundColor Yellow
     Write-Host "      no arrival can be claimed, and the shop will show the camera as CALIBRATION_INVALID." -ForegroundColor Yellow
@@ -114,7 +137,7 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out
 # Paths go into the wrapper as QUOTED cmd.exe tokens, never interpolated into an argument
 # string: a path containing & | ^ % would otherwise be re-parsed by cmd. Same rule the
 # visitd installer learned (its issue 9).
-foreach ($p in @($python, $root, $ConfigPath, $logFile, $Calibration, $secretFile)) {
+foreach ($p in @($python, $root, $ConfigPath, $logFile, $Calibration, $secretFile, $Model)) {
     if ($p -and ($p -match "[`r`n]")) { throw "Refusing to generate a wrapper: a path contains a newline ($p)." }
 }
 $pctPython = $python -replace '%', '%%'
@@ -123,6 +146,7 @@ $pctConfig = $ConfigPath -replace '%', '%%'
 $pctLog = $logFile -replace '%', '%%'
 $pctSecret = $secretFile -replace '%', '%%'
 $calArg = if ($Calibration) { ' --calibration "' + ($Calibration -replace '%', '%%') + '"' } else { '' }
+$modelArg = if ($Model) { ' --model "' + ($Model -replace '%', '%%') + '" --device "' + $Device + '"' } else { '' }
 
 # The secret is decrypted by a short inline PowerShell call and handed to the child as an
 # environment variable. It never appears on a command line (Task Manager shows those) and
@@ -138,7 +162,7 @@ cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%
@@ -175,6 +199,7 @@ try {
 Write-Host "Registered '$TaskName'." -ForegroundColor Green
 Write-Step "runs at logon as $user (WGC needs an interactive desktop; SYSTEM would stall in Session 0)"
 Write-Step "OS restarts a dead process every 1 min; the process exits 3 itself after ${StallExitSeconds}s with no frame"
+Write-Step ("detector: " + $(if ($Model) { "$Model on $Device" } else { "MOTION-ONLY -- no arrival can be confirmed" }))
 Write-Step "log: $logFile"
 Write-Step "start it now:  Start-ScheduledTask -TaskName $TaskName"
 Write-Step "check it:      powershell -File scripts/doctor-edge-runtime.ps1"

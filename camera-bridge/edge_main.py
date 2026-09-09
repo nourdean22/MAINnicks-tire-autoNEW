@@ -523,8 +523,16 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
     ap.add_argument("--calibration", default=None, help="lot/portal/bay polygons; without it, census mode")
-    ap.add_argument("--model", default=None, help="OpenVINO model xml; without it, motion-only")
-    ap.add_argument("--device", default="AUTO", help="OpenVINO device")
+    # Honour the same env vars `vision.run_live` does. Without a model `build_council`
+    # returns a council with no primary detector, whose `can_confirm_arrival` is always
+    # False -- so the pipeline rejects every candidate and NO arrival is ever emitted, no
+    # matter how good the calibration is (Codex P1 on #2255). The installer passes it
+    # explicitly; this fallback means a hand-run producer inherits the same setting.
+    ap.add_argument("--model", default=os.environ.get("VISION_OV_MODEL"),
+                    help="OpenVINO model xml (env VISION_OV_MODEL). WITHOUT IT the council is "
+                         "motion-only and cannot confirm an arrival")
+    ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
+                    help="OpenVINO device (env VISION_OV_DEVICE)")
     ap.add_argument("--motion-gate", action="store_true", default=True, help="skip the detector on still frames")
     ap.add_argument("--evidence", default=None, help="directory for evidence packets")
     ap.add_argument("--fps", type=float, default=4.0, help="analysis rate")
@@ -558,6 +566,13 @@ def run_edge(args: argparse.Namespace) -> int:
         __version__, PRODUCER_INSTANCE_ID, args.camera, mode, data_class,
         calibration_version or "none", pipeline.ledger.path,
     )
+    if not args.model:
+        log.warning(
+            "NO DETECTOR MODEL (--model / VISION_OV_MODEL): the council is motion-only, so "
+            "`can_confirm_arrival` is False and NO ARRIVAL WILL EVER BE EMITTED. Occupancy "
+            "and health still report honestly; run `python -m vision.fetch_models --dest "
+            "ov_models` and pass the xml to make arrivals possible."
+        )
     if not pipeline.shop.enabled:
         log.warning("shop ingest is NOT configured (needs backend.shopUrl and CAMERA_INGEST_KEY); "
                     "visits will persist locally and queue, but the shop admin will not update")

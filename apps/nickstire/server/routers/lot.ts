@@ -252,13 +252,24 @@ async function loadCommissioningReport(
   const endedMs = numOrNull(run.endedMs);
   const drain = rowsOf(await d.execute(sql`
     SELECT outboxDepth,
-           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds
+           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(receivedAt) * 1000)")} AS receivedMs
     FROM camera_runtime WHERE camera = ${String(run.camera)}
   `))[0];
   const drainAge = drain ? numOrNull(drain.ageSeconds) : null;
   const drainDepth = drain ? numOrNull(drain.outboxDepth) : null;
+  const drainReceivedMs = drain ? numOrNull(drain.receivedMs) : null;
+  // THE ACKNOWLEDGING HEARTBEAT MUST POSTDATE THE RUN. A heartbeat sent just BEFORE End
+  // reporting an empty queue says nothing about the terminal transition -- the producer
+  // had not observed it yet. Age alone let such a heartbeat sit inside the freshness
+  // window at `endedAt + 120s` and declare a run settled that the producer then never
+  // spoke about again, freezing a false missing-departure verdict (Codex P1 on #2255).
+  // "Empty queue, measured after you finished" is the claim that actually matters.
+  const heartbeatAfterEnd =
+    drainReceivedMs !== null && endedMs !== null && drainReceivedMs > endedMs;
   const edgeQuiet =
-    drainAge !== null && drainAge <= QUIESCENCE_HEARTBEAT_MAX_AGE_S && drainDepth === 0;
+    drainAge !== null && drainAge <= QUIESCENCE_HEARTBEAT_MAX_AGE_S
+    && drainDepth === 0 && heartbeatAfterEnd;
   const enoughTime = endedMs !== null && Date.now() - endedMs >= EDGE_SETTLE_MS;
   const settled = enoughTime && edgeQuiet;
   const unsettledReason = settled
@@ -269,7 +280,10 @@ async function loadCommissioningReport(
         ? "no producer heartbeat to confirm its queue is empty"
         : drainAge > QUIESCENCE_HEARTBEAT_MAX_AGE_S
           ? `the producer has not reported for ${Math.round(drainAge)}s, so it cannot vouch for its queue`
-          : `the edge still has ${drainDepth} row(s) queued for the shop`;
+          : !heartbeatAfterEnd
+            ? "the producer has not reported since the run ended, so its last empty-queue "
+              + "reading predates the departure"
+            : `the edge still has ${drainDepth} row(s) queued for the shop`;
 
   return {
     run: {

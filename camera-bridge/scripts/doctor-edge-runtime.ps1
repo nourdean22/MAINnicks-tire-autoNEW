@@ -19,6 +19,7 @@ param(
     [string]$TaskName = "NickEdgeProducer",
     [string]$ConfigPath = "",
     [string]$Calibration = "",
+    [string]$Model = "",
     [string]$Camera = "sign",
     [string]$WindowTitle = "V380"
 )
@@ -91,6 +92,32 @@ if ($Calibration) {
     } else { Check "calibration" "FAIL" "$Calibration not found" }
 } else {
     Check "calibration" "WARN" "none given -- CENSUS MODE: occupancy and health only, no arrival claimed"
+}
+
+# --- Detector ---------------------------------------------------------------
+# A FAIL, not a warning, and deliberately harsher than the openvino check above: a missing
+# runtime is loud, whereas a missing MODEL fails silently. `can_confirm_arrival` stays
+# False, every candidate is rejected, and the producer runs for weeks looking healthy while
+# recording nothing at all.
+if (-not $Model -and $env:VISION_OV_MODEL) { $Model = $env:VISION_OV_MODEL }
+if (-not $Model) {
+    $guess = Join-Path $root "ov_models\vehicle-detection-0200\FP16\vehicle-detection-0200.xml"
+    if (Test-Path $guess) { $Model = $guess }
+}
+if (-not $Model) {
+    Check "detector model" "FAIL" "none found -- MOTION-ONLY, no arrival can ever be confirmed. Run: python -m vision.fetch_models --dest ov_models"
+} elseif (-not (Test-Path $Model)) {
+    Check "detector model" "FAIL" "$Model does not exist"
+} else {
+    $bin = [IO.Path]::ChangeExtension($Model, ".bin")
+    if (Test-Path $bin) {
+        $mb = [math]::Round((Get-Item $bin).Length / 1MB, 1)
+        Check "detector model" "PASS" "$([IO.Path]::GetFileName($Model)) (+ $mb MB weights)"
+    } else {
+        # An .xml without its .bin loads as an empty graph -- the exact silent-failure
+        # shape this check exists for.
+        Check "detector model" "FAIL" "$Model has no matching .bin beside it"
+    }
 }
 
 # --- Secret -----------------------------------------------------------------
