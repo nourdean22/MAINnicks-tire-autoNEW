@@ -94,7 +94,9 @@ const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
  * the tiered runner and the HTTP/staged trigger in this file — and scheduler.ts
  * already imports from this module, so the dependency only points one way.
  */
-export const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
+// Module-private: read only by timeoutFor() below, and nothing outside this file
+// imports it. An export with no importer is what the orphan gate flags.
+const DEFAULT_JOB_TIMEOUT_MS = 4 * 60 * 1000;
 export function jobTimeoutMs(job: { timeoutMs?: number }): number {
   return job.timeoutMs && job.timeoutMs > 0 ? job.timeoutMs : DEFAULT_JOB_TIMEOUT_MS;
 }

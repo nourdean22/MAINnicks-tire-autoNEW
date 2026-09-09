@@ -90,3 +90,37 @@ describe("security.txt", () => {
     }
   });
 });
+
+/**
+ * THE ASSERTION THAT WAS MISSING.
+ *
+ * Everything above builds its own `express()` app and registers the route onto it, so
+ * it proves the FUNCTION works and says nothing about whether production ever calls it.
+ * It did not: `registerSecurityTxt` shipped with its only importer being this file, and
+ * nickstire.org served 404 at both paths while this suite was green. The knip orphan
+ * gate caught it as a whole unimported file on 2026-09-09; wired the same day.
+ *
+ * A route tested only against a throwaway app is the producer-without-consumer shape.
+ * This asserts the consumer.
+ */
+describe("security.txt is registered on the REAL server", () => {
+  it("is imported and called in the app bootstrap", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const bootstrap = await readFile(
+      path.join(__dirname, "_core", "index.ts"),
+      "utf-8",
+    );
+
+    expect(
+      bootstrap.includes('from "./securityTxt"'),
+      "server/_core/index.ts must import registerSecurityTxt",
+    ).toBe(true);
+
+    // Called, not merely imported — an unused import is exactly as dead as no import.
+    expect(
+      /registerSecurityTxt\s*\(\s*app\b/.test(bootstrap),
+      "server/_core/index.ts must CALL registerSecurityTxt(app, ...)",
+    ).toBe(true);
+  });
+});

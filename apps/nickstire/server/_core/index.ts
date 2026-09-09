@@ -81,6 +81,7 @@ import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
 import { registerCameraVisitsRoute } from "../routes/cameraVisitsRoutes";
+import { registerSecurityTxt } from "./securityTxt";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
 import { registerMetaRoutes } from "../routes/metaRoutes";
@@ -98,7 +99,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
-import { SITE_URL } from "@shared/business";
+import { BUSINESS, SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
@@ -489,6 +490,18 @@ async function startServer() {
   registerNourOsQueryRoute(app);
   registerCameraVisitsRoute(app);
   registerMetaRoutes(app);
+
+  // ─── /.well-known/security.txt (RFC 9116) ───────────────
+  // Wired 2026-09-09. The module and its test shipped without this call, so the
+  // ONLY importer of registerSecurityTxt was the test -- it built its own Express
+  // app, asserted the served body, and passed, while production served 404 at both
+  // paths. The knip orphan gate caught it as a whole unimported file. A route that
+  // exists only inside its own test is the producer-without-consumer shape, and a
+  // security contact nobody can fetch is worse than none: it reads as published.
+  registerSecurityTxt(app, {
+    siteUrl: SITE_URL,
+    contactPhoneHref: BUSINESS.phone.href,
+  });
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
   app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));

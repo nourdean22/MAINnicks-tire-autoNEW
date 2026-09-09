@@ -103,7 +103,7 @@ function rowsOf(result: unknown): Array<Record<string, unknown>> {
  * Nearest-rank percentile on an ascending array. Not interpolated: at n=2 the median
  * is the LOWER of the pair, which is the conservative reading for a wait time.
  */
-export function percentile(sorted: number[], p: number): number | null {
+function percentile(sorted: number[], p: number): number | null {
   if (!sorted.length) return null;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[idx];
