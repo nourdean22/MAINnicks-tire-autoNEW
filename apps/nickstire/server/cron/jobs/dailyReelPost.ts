@@ -866,7 +866,29 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         // there); the pipeline cron renders it, assembly re-runs, rendered QA
         // re-verdicts the new mp4, and a later pulse publishes only if THAT
         // passes. A failure to queue is a plain hold — never a publish.
-        if (g.gate === "auto_repair") {
+        // needs_paid_repair is auto_repair that happens to cost money. Both are
+        // "a known defect with a known fix"; the only difference is whether the
+        // fix touches the provider. When policy says spend, they take the SAME
+        // path below - requestBeatRepair prices the beat at the active provider
+        // and calls enforceAtBoundary with today's real spend, so
+        // maxGenerationCostPerDayUsd and maxRepairAttemptsPerAsset remain the
+        // ceilings and a breach is refused into the ordinary hold.
+        //
+        // Reading policy failure as "do not spend" is deliberate: an unreadable
+        // policy must never authorize money.
+        let paidRepairAllowed = false;
+        if (g.gate === "needs_paid_repair") {
+          try {
+            const { getActivePolicy } = await import("../../services/autonomyControl");
+            const pol = await getActivePolicy();
+            paidRepairAllowed = pol?.autonomousRepair?.paidBeatRegeneration === "auto";
+          } catch (polErr) {
+            log.warn("daily reel: could not read autonomousRepair policy — treating as approval_required", {
+              err: polErr instanceof Error ? polErr.message : String(polErr),
+            });
+          }
+        }
+        if (g.gate === "auto_repair" || paidRepairAllowed) {
           try {
             const { routeFinding } = await import("../../services/repairRouter");
             const target = g.findings.find(
@@ -875,7 +897,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
             if (target) {
               const { requestBeatRepair } = await import("../../services/selectiveRepair");
               const r = await requestBeatRepair({ jobId: job.id, beatNumber: target.beatNumber as number });
-              log.info(`daily reel: auto-repair queued (free lane) — beat ${r.beatNumber} on job ${job.id}`, { code: target.code });
+              log.info(`daily reel: auto-repair queued (${g.gate === "auto_repair" ? "free lane" : "POLICY-AUTHORIZED PAID"}) — beat ${r.beatNumber} on job ${job.id}`, { code: target.code, gate: g.gate });
               return { recordsProcessed: 0, details: `auto-repair queued for beat ${r.beatNumber} on job ${job.id} (${target.code}); re-verdict after re-render; index not advanced` };
             }
             // No regenerable beat-targeted finding: deterministic-only plan with

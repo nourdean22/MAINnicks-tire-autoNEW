@@ -84,6 +84,20 @@ export interface AutonomyPolicy {
     unresolvedEvidence: boolean;
   };
 
+  /**
+   * Spend the budget that is already set, without asking first.
+   *
+   * "auto" lets a needs_paid_repair verdict queue its own beat regeneration.
+   * It is NOT unbounded: the repair goes through requestBeatRepair, which
+   * prices the beat at the active provider and enforces
+   * limits.maxGenerationCostPerDayUsd and limits.maxRepairAttemptsPerAsset.
+   * Optional so policy rows written before 2026-09-09 keep validating; absent
+   * reads as approval_required.
+   */
+  autonomousRepair?: {
+    paidBeatRegeneration: PublishPermission;
+  };
+
   emergencyControls: {
     globalKillSwitch: boolean;
     generationKillSwitch: boolean;
@@ -136,6 +150,8 @@ export const DEFAULT_AUTONOMY_POLICY: AutonomyPolicy = {
     newTerritory: true,
     unresolvedEvidence: true,
   },
+
+  autonomousRepair: { paidBeatRegeneration: "approval_required" },
 
   emergencyControls: {
     globalKillSwitch: false,
