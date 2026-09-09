@@ -85,3 +85,59 @@ export function maskPhone(phone: unknown): string {
   const digits = String(phone ?? "").replace(/[^0-9]/g, "");
   return digits.length >= 4 ? `***-${digits.slice(-4)}` : "***";
 }
+
+export type PlateMatchClass = "EXACT" | "CONFUSABLE_UNIQUE" | "AMBIGUOUS" | "NONE";
+
+/**
+ * Classify what a plate lookup actually found (2026-09-09).
+ *
+ * `plateVariants` deliberately widens the search with single-character OCR
+ * confusable swaps (O/0, I/1, B/8, S/5, Z/2), so a hit is NOT necessarily the
+ * plate that was read. Until now the only signal of that was a per-row `exact`
+ * boolean inside `matches`, which is easy to miss: a caller doing
+ * `if (count === 1) linkCustomer(matches[0])` binds a CONFUSABLE match as though
+ * it were a confirmed identity.
+ *
+ * The error cost is asymmetric. Missing a customer match is annoying; attaching
+ * the wrong person's history, vehicle and bookings to a car is much worse. So the
+ * result carries an explicit class and only `EXACT` is safe to auto-link:
+ *
+ *   EXACT              exactly one stored plate equals the normalized read
+ *   CONFUSABLE_UNIQUE  no exact hit, exactly one confusable candidate — advisory,
+ *                      needs staff confirmation, never auto-bound
+ *   AMBIGUOUS          several candidates and no single exact hit — no association
+ *   NONE               nothing matched
+ *
+ * Two stored plates equal to the same read (duplicate membership rows) is
+ * AMBIGUOUS, not EXACT: the plate no longer identifies one customer.
+ */
+export function classifyPlateMatches(
+  normalized: string,
+  matches: ReadonlyArray<{ plate?: unknown }>,
+): { matchClass: PlateMatchClass; autoLinkAllowed: boolean; exactCount: number; confusableCount: number } {
+  const target = normalizePlate(normalized);
+  // Nothing matches nothing. Without this guard an unreadable plate ("") paired
+  // with a membership row that has no plate on file scored as CONFUSABLE_UNIQUE,
+  // i.e. a blank read looked like a near-miss on a real customer.
+  if (!target) {
+    return { matchClass: "NONE", autoLinkAllowed: false, exactCount: 0, confusableCount: 0 };
+  }
+
+  let exactCount = 0;
+  let confusableCount = 0;
+  for (const m of matches) {
+    const stored = normalizePlate(m.plate);
+    if (!stored) continue;          // a row with no plate on file is not a candidate
+    if (stored === target) exactCount += 1;
+    else confusableCount += 1;
+  }
+
+  let matchClass: PlateMatchClass;
+  if (exactCount === 1) matchClass = "EXACT";
+  else if (exactCount > 1) matchClass = "AMBIGUOUS";
+  else if (confusableCount === 1) matchClass = "CONFUSABLE_UNIQUE";
+  else if (confusableCount > 1) matchClass = "AMBIGUOUS";
+  else matchClass = "NONE";
+
+  return { matchClass, autoLinkAllowed: matchClass === "EXACT", exactCount, confusableCount };
+}
