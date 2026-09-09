@@ -870,6 +870,44 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     const beats = brief.storyboardBeats ?? [];
     if (!beats.length) throw new Error("brief has no storyboardBeats");
 
+    // THE CONDEMNED-SCRIPT GATE HAS TO RUN HERE TOO, NOT ONLY AT ENQUEUE.
+    //
+    // enqueueReelJob blocks a condemned script before the spend boundary, which
+    // is correct for every job created since that gate shipped. It does nothing
+    // for a row that was ALREADY QUEUED when it shipped — and those rows exist.
+    //
+    // Live example, found 2026-09-09: job 1830003 has sat `queued` since
+    // 2026-08-30 carrying the voiceover "In Ohio, it's an automatic fail for
+    // your E-Check". That claim is FALSE in 81 of Ohio's 88 counties; it is the
+    // exact assertion the 2026-08-29 claim audit condemned, reproduced verbatim
+    // under a new job id. The publish door would have refused it — after the
+    // clips were rendered and paid for.
+    //
+    // A queue is not a safe place to store an unenforced decision. Re-check at
+    // the moment of spend, where the cost actually is.
+    {
+      const { condemnedContentProblem } = await import("../../shared/reelClaimAudit");
+      const condemned = condemnedContentProblem({
+        voiceover: brief.voiceoverScript,
+        onScreenText: beats.map((b) => b?.onScreenText ?? "").filter(Boolean).join(" "),
+      });
+      if (condemned) {
+        const { eq } = await import("drizzle-orm");
+        await d.update(reelJobs)
+          .set({
+            status: "failed",
+            queueState: queueStateForReelStatus("failed"),
+            error: `REEL_SCRIPT_CONDEMNED (blocked at generation, before spend): ${condemned}`.slice(0, 1000),
+          })
+          .where(eq(reelJobs.id, job.id));
+        await releaseFailedJobReservation(job.payload, job.id);
+        log.error("condemned script BLOCKED at generation — legacy queued row, no clips generated", {
+          jobId: job.id, briefId: job.briefId, reason: condemned,
+        });
+        return { processed: true, jobId: job.id, status: "failed" };
+      }
+    }
+
     const { assertDurableStorageForGeneration, storagePut } = await import("../storage");
 
     // 2026-08-20 · the forceProvider="template_stock" rescue is GONE (silent

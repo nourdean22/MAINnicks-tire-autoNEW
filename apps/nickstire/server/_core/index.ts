@@ -86,12 +86,7 @@ import { registerMetaRoutes } from "../routes/metaRoutes";
 import { registerPushRoutes } from "../routes/pushRoutes";
 import { runServerMigrations } from "../services/migrations";
 import { apiLimiter, formLimiter, aiLimiter, uploadLimiter } from "../middleware/rateLimiters";
-import {
-  securityHeaders,
-  configureCspInlineScripts,
-  cspInlineScriptSource,
-  inlineScriptHashes,
-} from "../middleware/securityHeaders";
+import { securityHeaders } from "../middleware/securityHeaders";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
@@ -102,8 +97,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
-import { BUSINESS, SITE_URL } from "@shared/business";
-import { registerSecurityTxt } from "./securityTxt";
+import { SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
@@ -260,21 +254,6 @@ async function startServer() {
 
   // Security headers — uses the centralized middleware from securityHeaders.ts
   // (includes CSP with all allowed domains: ahrefs, GA, Meta, etc.)
-  //
-  // 2026-09-08 · production script-src is hash-based. Hash the HTML this
-  // process serves — the built index.html next to the server bundle (the same
-  // inline analytics loader every prerendered snapshot carries; parity is
-  // pinned by server/securityHeaders.test.ts). Dev serves Vite-transformed
-  // HTML whose inline scripts change → no hashes → 'unsafe-inline' as before.
-  // CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true is the no-deploy fallback.
-  {
-    const builtIndex = path.resolve(import.meta.dirname, "public", "index.html");
-    const allowUnsafe = process.env.CSP_ALLOW_UNSAFE_INLINE_SCRIPTS === "true";
-    if (!allowUnsafe && process.env.NODE_ENV !== "development" && fs.existsSync(builtIndex)) {
-      configureCspInlineScripts(inlineScriptHashes(fs.readFileSync(builtIndex, "utf8")));
-    }
-    serverLog.info(`CSP script-src inline policy: ${cspInlineScriptSource()}`);
-  }
   app.use(securityHeaders);
   // Request tracking for self-healing anomaly detection (non-blocking, ~0ms)
   app.use((_req, _res, next) => { recordRequest(); next(); });
@@ -603,10 +582,6 @@ async function startServer() {
       }),
     );
   });
-
-  // security.txt (RFC 9116) — where a researcher reports a finding. Public
-  // contact page + public phone only; the legacy /security.txt 301s here.
-  registerSecurityTxt(app, { siteUrl: SITE_URL, contactPhoneHref: BUSINESS.phone.href });
 
   // IndexNow key file — verifies host ownership so Bing/IndexNow accepts our
   // instant URL-submission pings. The key is public by design (published here);
@@ -1325,6 +1300,16 @@ process.on("SIGTERM", () => {
 
   // 2. Stop all timers (cron, SMS queue, Telegram batch, NOUR OS retry)
   try { require("../cron/scheduler").stopTieredScheduler(); } catch (e) { console.warn("[server:shutdown] scheduler stop failed:", e); }
+  // Hand back any cron lock this dyno holds, SHORTENED to a grace window rather
+  // than deleted. Without it a deploy that lands mid-pulse leaves the job locked
+  // for its whole TTL — measured 2026-09-09: reel-pipeline was skipped on every
+  // pulse from 12:49 to 13:09 because the 12:41 holder was killed by a deploy
+  // and the 28-minute TTL had to run out. Fire-and-forget: shutdown must not
+  // wait on it, and it never throws.
+  try {
+    require("../cron/index").relinquishHeldLocksForShutdown()
+      .catch((e: unknown) => console.warn("[server:shutdown] cron lock handback failed:", e));
+  } catch (e) { console.warn("[server:shutdown] cron lock handback failed:", e); }
   try { require("../sms").stopDelayedQueueProcessor(); } catch (e) { console.warn("[server:shutdown] SMS queue stop failed:", e); }
   try { require("../services/telegram").stopBatchTimer?.(); } catch (e) { console.warn("[server:shutdown] Telegram timer stop failed:", e); }
   try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch (e) { console.warn("[server:shutdown] NOUR OS bridge stop failed:", e); }
