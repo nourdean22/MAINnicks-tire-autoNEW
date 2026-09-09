@@ -81,7 +81,11 @@ class Mog2MotionDetector(Detector):
             history=history, varThreshold=var_threshold, detectShadows=True
         )
 
-    def detect(self, image: np.ndarray) -> list[Detection]:
+    def detect(self, image: Optional[np.ndarray]) -> list[Detection]:
+        # A capture gap hands None down the pipeline (FailureInjector.camera_restart does
+        # exactly this). Crashing on it would take out the whole loop on a blackout.
+        if image is None:
+            return []
         cv2 = self._cv2
         h, w = image.shape[:2]
         frame_area = float(h * w)
@@ -146,9 +150,11 @@ class OpenVinoVehicleDetector(Detector):
         self.in_h, self.in_w = int(shape[2]), int(shape[3])
         self.last_latency_ms: float = 0.0
 
-    def detect(self, image: np.ndarray) -> list[Detection]:
+    def detect(self, image: Optional[np.ndarray]) -> list[Detection]:
         import cv2
 
+        if image is None:
+            return []
         h, w = image.shape[:2]
         bgr = image[:, :, :3] if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         resized = cv2.resize(bgr, (self.in_w, self.in_h))
@@ -210,9 +216,15 @@ class DetectorCouncil:
         self.high_conf = high_conf
         self.degrade_to_motion = degrade_to_motion
 
-    def run(self, image: np.ndarray, entry_critical: bool = False) -> CouncilResult:
+    def run(self, image: Optional[np.ndarray], entry_critical: bool = False) -> CouncilResult:
         t0 = time.perf_counter()
         res = CouncilResult()
+        if image is None:
+            # No pixels is not an empty scene. Report it, confirm nothing.
+            res.can_confirm_arrival = False
+            res.reason = "no image: capture gap"
+            res.latency_ms = (time.perf_counter() - t0) * 1000.0
+            return res
 
         motion_dets: list[Detection] = []
         if self.motion_gate is not None:

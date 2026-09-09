@@ -103,6 +103,7 @@ class VisionPipeline:
         self._track_visit: dict[int, str] = {}
         self._start_ts: Optional[float] = None
         self._was_unhealthy = False
+        self._in_blind_interval = False
         self._last_image = None
 
         if tracker is not None:
@@ -186,6 +187,8 @@ class VisionPipeline:
             return out
         if self._was_unhealthy:
             # Recovery is a reconnect: anything visible now may have been there all along.
+            # Safe to fire here because the unhealthy branch RETURNS above, so reaching
+            # this line already proves the frame is usable.
             self.census.note_reconnect(now)
             self._was_unhealthy = False
 
@@ -195,9 +198,18 @@ class VisionPipeline:
         if not scene.may_create_visits:
             self.stats.suppressed_camera_motion += 1
             self.tracks.mark_degraded()
-            self.census.note_reconnect(now)
+            self._in_blind_interval = True
             out["suppressed"] = f"camera motion / untrusted pose (change={scene.change_frac:.2f})"
             return out
+
+        if self._in_blind_interval:
+            # FIRST usable frame after a blind interval: re-arm the census exactly once.
+            # This must live BELOW the scene gate. A flag test placed above it is cleared
+            # and re-set within the same step() for every frame of a long pan -- measured
+            # 14 note_reconnect calls across a 14-frame pan, i.e. no change at all from
+            # the per-frame call it was meant to replace.
+            self.census.note_reconnect(now)
+            self._in_blind_interval = False
 
         # 3. Detection ----------------------------------------------------------
         if detections is not None:

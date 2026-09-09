@@ -377,6 +377,127 @@ def test_an_occluded_capture_frame_cannot_create_a_visit():
     assert s["visitdStates"] == {}, s
 
 
+# ----------------------------------------------------------- audit canaries
+
+def test_a_big_close_vehicle_is_not_mistaken_for_a_camera_pan():
+    """The difference between a PAN and a TRUCK.
+
+    A delivery truck pulling close to the lens can cover the same raw pixel FRACTION as
+    a pan. Judging on that fraction alone silently discarded exactly the large, close,
+    valuable arrivals this system exists to catch -- and with no evidence packet, since
+    those are only written for PREEXISTING and ARRIVAL_EVIDENCE.
+    """
+    lock = SceneLock()
+    base = frames(1, [[]])[0].image
+    lock.update(base)
+
+    # A huge object filling ~45% of the frame, spatially CONCENTRATED.
+    truck = base.copy()
+    h, w = truck.shape[:2]
+    truck[: int(h * 0.9), : int(w * 0.5)] = 15
+    st_truck = lock.update(truck)
+    assert st_truck.change_frac > lock.moving_frac, "the raw fraction alone does look like motion"
+    assert st_truck.cell_frac < lock.moving_cell_frac, "but the change is concentrated"
+    assert st_truck.moving is False, "a close vehicle must not read as camera motion"
+
+    # A real pan: the whole scene shifts, so change is everywhere.
+    lock2 = SceneLock()
+    lock2.update(base)
+    panned = frames(1, [[]], shift=[(48, 0)])[0].image
+    st_pan = lock2.update(panned)
+    assert st_pan.cell_frac >= lock2.moving_cell_frac
+    assert st_pan.moving is True
+
+
+def test_a_capture_gap_does_not_crash_the_detectors():
+    """FailureInjector.camera_restart hands None down the pipeline. Crashing on a
+    blackout would take out the whole loop."""
+    council = DetectorCouncil(primary=StubDetector([[Detection(car_box(10.0), 0.9)]]))
+    res = council.run(None)
+    assert res.detections == []
+    assert res.can_confirm_arrival is False
+    assert "capture gap" in res.reason
+
+    pipe = make_pipeline()
+    out = pipe.step(Frame(seq=0, ts=1.0, source="t", image=None,
+                          meta={"window_verified": True}))
+    assert out["emissions"] == []
+
+
+def test_the_blind_window_re_arms_once_per_interval_not_once_per_frame():
+    """Count the re-arms; do not trust the flag.
+
+    `note_reconnect(now)` sets `_reconnect_until = now + grace`, so calling it on every
+    suppressed frame drags the preexisting window along behind a pan for as long as the
+    pan lasts. The first attempt at this fix tested the flag ABOVE the scene gate, where
+    it is cleared and re-set within the same step() -- measured 14 calls across a 14-frame
+    pan, exactly the per-frame behaviour it claimed to replace, while a flag-value
+    assertion passed. Assert the call COUNT: it is the thing the fix exists to change.
+    """
+    n_still, n_pan, n_after = 3, 12, 4
+    shift = ([(0, 0)] * n_still
+             + [(48 * (i + 1), 0) for i in range(n_pan)]
+             + [(48 * n_pan, 0)] * n_after)
+    boxes = [[] for _ in shift]
+
+    pipe = make_pipeline()
+    calls: list[float] = []
+    real = pipe.census.note_reconnect
+
+    def counting(now: float) -> None:
+        calls.append(now)
+        real(now)
+
+    pipe.census.note_reconnect = counting  # type: ignore[method-assign]
+    for f in frames(len(boxes), boxes, shift=shift):
+        pipe.step(f, detections=[])
+
+    assert pipe.stats.suppressed_camera_motion >= n_pan, pipe.summary()
+    assert len(calls) == 1, (
+        f"re-armed {len(calls)}x across {pipe.stats.suppressed_camera_motion} suppressed "
+        f"frames; the blind window must be re-armed once per INTERVAL"
+    )
+    assert pipe._in_blind_interval is False, "interval closed once a usable frame arrived"
+
+
+def test_every_fault_injector_runs_and_the_pipeline_survives_each():
+    """Six of the seven injectors had never been executed once. An untested fault
+    injector proves nothing about resilience -- it is a fault injector in name only."""
+    n = 24
+    boxes = [[car_box(20.0 + 6 * i)] for i in range(n)]
+    base = frames(n, boxes)
+    inj = FailureInjector(seed=7)
+
+    variants = {
+        "duplicate_frames": inj.duplicate_frames(base, every=4),
+        "freeze": inj.freeze(base, start=6, length=6),
+        "jitter_timestamps": inj.jitter_timestamps(base, max_skew=0.4),
+        "reorder": inj.reorder(base, swaps=4),
+        "camera_restart": inj.camera_restart(base, at=8, blackout=4),
+    }
+    for name, fs in variants.items():
+        pipe = make_pipeline()
+        for f in fs:
+            pipe.step(f, detections=[Detection(car_box(20.0), 0.9)])
+        s = pipe.summary()
+        assert s["frames"] == len(fs), f"{name} lost frames"
+        assert s["arrivals"] == 0, f"{name} fabricated an arrival: {s}"
+
+    # detector_outage operates on the detection stream, not the frames.
+    dets = [[Detection(car_box(20.0 + 6 * i), 0.9)] for i in range(n)]
+    starved = inj.detector_outage(dets, at=10, length=6)
+    assert starved[12] == [], "the outage window must actually be empty"
+    pipe = make_pipeline()
+    for f, d in zip(base, starved):
+        pipe.step(f, detections=d)
+    assert pipe.summary()["arrivals"] == 0
+
+    # flaky_sink: fails a set number of times, then recovers.
+    sink = FailureInjector.flaky_sink(fail_first=3)
+    results = [sink({"n": i}) for i in range(6)]
+    assert results == [False, False, False, True, True, True]
+
+
 # ------------------------------------------------- independent-review canaries
 
 def test_a_pan_that_stops_at_a_NEW_pose_is_not_trusted():
