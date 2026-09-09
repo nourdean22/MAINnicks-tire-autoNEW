@@ -6,11 +6,12 @@
 import { useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getUtmData } from "@/lib/utm";
 import {
   Wrench,
   Shield,
@@ -313,6 +314,7 @@ function PositionCard({ pos }: { pos: Position }) {
       <div className="px-6 pb-6">
         <a
           href="#apply"
+          onClick={() => trackEvent("careers_apply_cta_click", { position: pos.title, surface: "position_card" })}
           className="flex items-center justify-center gap-2 stagger-in w-full bg-primary text-primary-foreground btn-premium py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
         >
           Apply for {pos.title}
@@ -340,13 +342,21 @@ function ApplicationForm() {
   // tracked record instead of a free-text note. It must never block or fail
   // the applicant's own submission — see onSuccess below.
   const submitTechReferral = trpc.technicianReferrals.submit.useMutation();
-  const submitLead = trpc.lead.submit.useMutation({
+  // Cut over from trpc.lead.submit (the customer pipeline — scoreLead,
+  // leadConfirmationSms, opportunity queue, none of which belong on a job
+  // application) to trpc.candidates.submit, gated on drizzle/0122_candidates.sql
+  // being applied to production — see drizzle/schema.ts's `candidates` doc
+  // comment for the full rationale. candidates.submit THROWS on a real
+  // failure (unlike technicianReferrals.submit below), so onError here means
+  // the application genuinely was not saved.
+  const submitCandidate = trpc.candidates.submit.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
+      trackEvent("careers_application_submitted", { position: form.position });
       const referrerName = form.referredBy.trim();
       if (referrerName) {
         submitTechReferral.mutate({
-          leadId: data.leadId ?? null,
+          candidateId: data.id,
           referrerName,
           referrerPhone: form.referredByPhone.trim() || null,
           positionTitle: form.position,
@@ -365,7 +375,7 @@ function ApplicationForm() {
         </h3>
         <p className="text-sm text-foreground/60">
           We'll review your info and reach out within 48 hours. If you'd like to follow up,
-          call us at <a href={BUSINESS.phone.href} className="text-primary font-semibold">{BUSINESS.phone.display}</a>.
+          call us at <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("careers-post-submit")} className="text-primary font-semibold">{BUSINESS.phone.display}</a>.
         </p>
       </div>
     );
@@ -377,23 +387,36 @@ function ApplicationForm() {
       toast.error("Name and phone are required.");
       return;
     }
-    const problemText = [
-      `Position: ${form.position}`,
-      form.experience && `Experience: ${form.experience}`,
-      form.message && `About: ${form.message}`,
-      // Also carries the referrer's phone: if technicianReferrals.submit hits
-      // migrationPending (0121 not applied yet), the structured row never
-      // gets written, and this lead's `problem` text is the only place the
-      // referral claim survives — losing the phone here would be permanent.
+    // position/experience are their own columns on `candidates` now (not
+    // concatenated into a free-text blob the way lead.submit's `problem`
+    // field worked) — only the applicant's own free-text and the referrer's
+    // name/phone go into `message`. The referrer's phone still rides along
+    // here too: if technicianReferrals.submit ever hits a real DB error, this
+    // is the one place that survives it — see technicianReferrals.submit's
+    // own soft-fail comment.
+    const message = [
+      form.message,
       form.referredBy && `Referred by: ${form.referredBy}${form.referredByPhone ? ` (${form.referredByPhone})` : ""}`,
     ].filter(Boolean).join("\n");
 
-    submitLead.mutate({
+    // candidates.submit's UTM fields mirror leads' own convention but are a
+    // narrower set (no utmTerm/utmContent/gclid) — pick only what the schema
+    // declares rather than spreading getUtmData()'s full return, which would
+    // include fields candidates.submit doesn't accept.
+    const { utmSource, utmMedium, utmCampaign, landingPage, referrer, sessionId } = getUtmData();
+    submitCandidate.mutate({
       name: form.name,
       phone: form.phone,
       email: form.email || undefined,
-      problem: problemText,
-      source: "careers",
+      positionTitle: form.position,
+      experienceLevel: form.experience || null,
+      message: message || null,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      landingPage,
+      referrer,
+      sessionId,
     });
   };
 
@@ -519,10 +542,10 @@ function ApplicationForm() {
 
       <button
         type="submit"
-        disabled={submitLead.isPending}
+        disabled={submitCandidate.isPending}
         className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground btn-premium py-3.5 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {submitLead.isPending ? (
+        {submitCandidate.isPending ? (
           <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
         ) : (
           <><Send className="w-4 h-4" /> Submit Application</>
@@ -559,12 +582,13 @@ export default function Careers() {
               <span className="text-nick-yellow">You're Proud Of</span>
             </h1>
             <p className="mt-6 text-lg lg:text-xl text-foreground/65 max-w-xl leading-relaxed">
-              We're Cleveland's most-reviewed auto repair shop for a reason. We hire people who care
-              about doing the job right. If that's you, we want to talk.
+              We're rated {BUSINESS.reviews.rating} stars across {BUSINESS.reviews.countDisplay} Google reviews for a
+              reason. We hire people who care about doing the job right. If that's you, we want to talk.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 stagger-in">
               <a
                 href="#apply"
+                onClick={() => trackEvent("careers_apply_cta_click", { position: "any", surface: "hero" })}
                 className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
               >
                 Apply Now
@@ -572,6 +596,7 @@ export default function Careers() {
               </a>
               <a
                 href={BUSINESS.phone.href}
+                onClick={() => trackPhoneClick("careers-hero-inquire")}
                 className="inline-flex items-center gap-2 stagger-in border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
               >
                 <Phone className="w-4 h-4" />
@@ -683,7 +708,7 @@ export default function Careers() {
                 <Phone className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground/90">Call or stop in</p>
-                  <a href={BUSINESS.phone.href} className="text-sm text-primary hover:opacity-80 transition-opacity">{BUSINESS.phone.display}</a>
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("careers-call-or-stop-in")} className="text-sm text-primary hover:opacity-80 transition-opacity">{BUSINESS.phone.display}</a>
                   <p className="mt-1 text-xs text-foreground/45">Walk-ins welcome during business hours.</p>
                 </div>
               </div>

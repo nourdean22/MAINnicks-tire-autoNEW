@@ -1,14 +1,11 @@
 /**
  * CandidatesPanel — admin visibility for /careers job applicants.
  *
- * NOT YET LIVE as of this commit: Careers.tsx's ApplicationForm still
- * submits through trpc.lead.submit, so applicants continue to show up in
- * the Leads list above (tagged source:"careers") until a deliberate
- * follow-up cutover to trpc.candidates.submit — gated on
- * drizzle/0122_candidates.sql being applied to production first. This panel
- * renders correctly either way: empty ("No candidates yet") until that
- * cutover happens, then live once it does. See the `candidates` table's doc
- * comment in drizzle/schema.ts for the full rationale.
+ * LIVE as of 2026-09-09: drizzle/0122_candidates.sql is applied to
+ * production and Careers.tsx's ApplicationForm submits through
+ * trpc.candidates.submit. New applications land here, not in the Leads
+ * list above. See the `candidates` table's doc comment in
+ * drizzle/schema.ts for the full rationale behind why this table exists.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -74,8 +71,7 @@ export function CandidatesPanel() {
             </div>
           ) : rows.length === 0 ? (
             <p className="text-[12px] text-foreground/40">
-              No candidates yet — /careers applications still appear in Leads above until
-              the cutover to this dedicated pipeline.
+              No candidates yet.
             </p>
           ) : (
             <ul className="space-y-2">

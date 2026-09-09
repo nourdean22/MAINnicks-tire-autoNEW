@@ -160,7 +160,7 @@ describe("markPaid enforces the 90-day wait server-side, not just via the button
   });
 });
 
-describe("submit does not trust a caller-supplied leadId at face value", () => {
+describe("submit does not trust a caller-supplied leadId or candidateId at face value", () => {
   it("createTechnicianReferral looks the lead up and only keeps leadId when it is a real careers-source lead", () => {
     const fn = DB_SRC.slice(
       DB_SRC.indexOf("export async function createTechnicianReferral"),
@@ -169,6 +169,25 @@ describe("submit does not trust a caller-supplied leadId at face value", () => {
     expect(fn).toMatch(/\.from\(leads\)/);
     expect(fn).toMatch(/lead\.source !== "careers"/);
     expect(fn).toMatch(/leadId = null;/);
+  });
+
+  it("does the identical validation for candidateId — the field new (post-cutover) submissions actually use", () => {
+    const fn = DB_SRC.slice(
+      DB_SRC.indexOf("export async function createTechnicianReferral"),
+      DB_SRC.indexOf("export async function getTechnicianReferrals"),
+    );
+    expect(fn).toMatch(/\.from\(candidates\)/);
+    expect(fn).toMatch(/candidate\.source !== "careers"/);
+    expect(fn).toMatch(/candidateId = null;/);
+  });
+
+  it("the router accepts candidateId as input and passes it through", () => {
+    const submitBlock = ROUTER_SRC.slice(
+      ROUTER_SRC.indexOf("submit: publicProcedure"),
+      ROUTER_SRC.indexOf("list: adminProcedure"),
+    );
+    expect(submitBlock).toMatch(/candidateId: z\.number\(\)\.nullish\(\)/);
+    expect(submitBlock).toMatch(/candidateId: input\.candidateId/);
   });
 });
 
@@ -214,9 +233,9 @@ describe("Careers.tsx: the Google Jobs datePosted fix stays fixed, and referral 
     expect(positionBlocks?.length, "expected one datePosted per POSITIONS entry").toBe(3);
   });
 
-  it("the referral mutation fires from lead.submit's onSuccess, so it can never block the applicant's own submission from completing", () => {
+  it("the referral mutation fires from candidates.submit's onSuccess, so it can never block the applicant's own submission from completing", () => {
     const onSuccessBlock = CAREERS_SRC.slice(
-      CAREERS_SRC.indexOf("onSuccess: (data) => {"),
+      CAREERS_SRC.indexOf("submitCandidate = trpc.candidates.submit.useMutation"),
       CAREERS_SRC.indexOf("onError: () => toast.error"),
     );
     expect(onSuccessBlock).toMatch(/setSubmitted\(true\);/);
@@ -225,15 +244,16 @@ describe("Careers.tsx: the Google Jobs datePosted fix stays fixed, and referral 
     );
   });
 
-  it("the referrer's phone rides along in the durable lead fallback, not just their name", () => {
-    // If technicianReferrals.submit hits migrationPending, the structured row
-    // is never written and leads.problem is the only place this survives —
-    // dropping the phone there would be a silent, permanent data loss.
-    const problemTextBlock = CAREERS_SRC.slice(
-      CAREERS_SRC.indexOf("const problemText = ["),
-      CAREERS_SRC.indexOf("submitLead.mutate({"),
+  it("the referrer's phone rides along in the candidate's own message field, not just their name", () => {
+    // candidates.submit THROWS on a real failure (unlike technicianReferrals.submit,
+    // which soft-fails) — but if the referral write specifically fails for some
+    // other reason after the candidate row already saved, this is the one place
+    // the phone survives. Same discipline as the pre-cutover lead.problem fallback.
+    const messageBlock = CAREERS_SRC.slice(
+      CAREERS_SRC.indexOf("const message = ["),
+      CAREERS_SRC.indexOf("submitCandidate.mutate({"),
     );
-    expect(problemTextBlock).toMatch(/form\.referredByPhone/);
+    expect(messageBlock).toMatch(/form\.referredByPhone/);
   });
 });
 

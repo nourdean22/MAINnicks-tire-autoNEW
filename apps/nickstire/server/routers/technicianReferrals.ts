@@ -31,13 +31,16 @@ export const technicianReferralsRouter = router({
   /**
    * Called right after a /careers application submits, only when the
    * applicant named a referrer. Never throws to the caller on a missing
-   * table (migration 0121 not yet applied) — the applicant's own lead row
-   * already saved; losing the structured referral record must not read to
-   * them as a failed application.
+   * table — a defensive path for any environment where migration 0121
+   * hasn't been applied yet (production has it as of 2026-09-09; a fresh
+   * dev DB might not). The applicant's own candidate/lead row already
+   * saved either way; losing the structured referral record must not read
+   * to them as a failed application.
    */
   submit: publicProcedure
     .input(z.object({
       leadId: z.number().nullish(),
+      candidateId: z.number().nullish(),
       referrerName: z.string().min(1).max(255),
       referrerPhone: z.string().max(30).nullish(),
       positionTitle: z.string().max(100).nullish(),
@@ -51,6 +54,7 @@ export const technicianReferralsRouter = router({
       try {
         return await createTechnicianReferral({
           leadId: input.leadId ?? null,
+          candidateId: input.candidateId ?? null,
           referrerName,
           referrerPhone: referrerPhone || null,
           positionTitle: input.positionTitle ?? null,

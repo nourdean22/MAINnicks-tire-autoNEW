@@ -439,18 +439,26 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
-    // `submit` is a public procedure — the caller supplies leadId directly, so
-    // it cannot be trusted as-is: an unauthenticated caller could attach a
-    // fabricated $300 referral claim to an arbitrary sequential lead ID.
-    // Verify the lead exists and actually came from /careers before storing
-    // the association; otherwise keep the referral (still worth recording —
-    // the applicant's own name/phone are separate) but drop the association.
+    // `submit` is a public procedure — the caller supplies leadId/candidateId
+    // directly, so neither can be trusted as-is: an unauthenticated caller
+    // could attach a fabricated $300 referral claim to an arbitrary sequential
+    // ID. Verify each one exists and actually came from /careers before
+    // storing the association; otherwise keep the referral (still worth
+    // recording — the applicant's own name/phone are separate) but drop the
+    // association. Since Careers.tsx's cutover to candidates.submit,
+    // new referrals populate candidateId; leadId stays populated only for
+    // rows tied to a pre-cutover lead.
     let leadId = referral.leadId ?? null;
     if (leadId != null) {
       const [lead] = await db.select({ id: leads.id, source: leads.source }).from(leads).where(eq(leads.id, leadId)).limit(1);
       if (!lead || lead.source !== "careers") leadId = null;
     }
-    const result = await db.insert(technicianReferrals).values({ ...referral, leadId });
+    let candidateId = referral.candidateId ?? null;
+    if (candidateId != null) {
+      const [candidate] = await db.select({ id: candidates.id, source: candidates.source }).from(candidates).where(eq(candidates.id, candidateId)).limit(1);
+      if (!candidate || candidate.source !== "careers") candidateId = null;
+    }
+    const result = await db.insert(technicianReferrals).values({ ...referral, leadId, candidateId });
     return { success: true, id: Number(result[0].insertId) } as const;
   } catch (err) {
     if (isMissingTableError(err)) {
@@ -507,12 +515,12 @@ export async function updateTechnicianReferralStatus(
 //
 // /careers job applicants — deliberately NOT the `leads` table. See the
 // doc comment on `candidates` in drizzle/schema.ts for why this table
-// exists at all. drizzle/0122_candidates.sql creates it; hand-applied and,
-// as of this code shipping, not yet applied to production, and this table
-// is not yet written to by any live code path (Careers.tsx still submits
-// through lead.submit until a deliberate follow-up cutover). Same
-// empty-vs-error discipline as technicianReferrals regardless, so the read
-// path is correct the moment the cutover happens.
+// exists at all. drizzle/0122_candidates.sql created it; applied to
+// production 2026-09-09, and Careers.tsx's ApplicationForm submits through
+// candidates.submit as of the same date. Same empty-vs-error discipline as
+// technicianReferrals — the migrationPending path stays real defensive
+// code for any environment where 0122 hasn't been applied yet (a fresh
+// dev DB, for instance), not dead code from the cutover.
 
 export async function createCandidate(candidate: InsertCandidate) {
   const db = await getDb();

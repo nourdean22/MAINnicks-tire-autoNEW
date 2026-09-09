@@ -164,14 +164,31 @@ describe("schema: candidates.status is VARCHAR, not ENUM — the nickstire-tidb-
   });
 });
 
-describe("CANARY: Careers.tsx has NOT been cut over yet — this is a gated follow-up, not an oversight", () => {
-  it("ApplicationForm still calls trpc.lead.submit, not trpc.candidates.submit", () => {
-    expect(CAREERS_SRC).toMatch(/trpc\.lead\.submit\.useMutation/);
-    expect(CAREERS_SRC).not.toMatch(/trpc\.candidates\.submit/);
+describe("Careers.tsx IS cut over to candidates.submit (2026-09-09) — was gated on drizzle/0122_candidates.sql applying to production; it has, so this test flipped from a canary into a regression guard", () => {
+  it("ApplicationForm calls trpc.candidates.submit, not the old trpc.lead.submit", () => {
+    expect(CAREERS_SRC).toMatch(/trpc\.candidates\.submit\.useMutation/);
+    // Not a bare substring check — a code comment explaining the cutover
+    // legitimately mentions "trpc.lead.submit" by name for context. What
+    // must be gone is the actual USAGE (a live .useMutation() call on it).
+    expect(CAREERS_SRC).not.toMatch(/trpc\.lead\.submit\.useMutation/);
   });
 
-  it("when this test starts failing because someone DID cut it over: that's correct, update this test — do not revert their change", () => {
-    // Documents intent for whoever's diff makes the test above fail. No assertion.
-    expect(true).toBe(true);
+  it("submits position/experience as their own fields, not concatenated into a free-text blob the way lead.submit's `problem` field worked", () => {
+    expect(CAREERS_SRC).toMatch(/positionTitle:\s*form\.position/);
+    expect(CAREERS_SRC).toMatch(/experienceLevel:\s*form\.experience/);
+  });
+
+  it("captures UTM/attribution data on submit, matching every other lead source on the site", () => {
+    expect(CAREERS_SRC).toMatch(/getUtmData\(\)/);
+    expect(CAREERS_SRC).toMatch(/utmSource/);
+  });
+
+  it("the referral mutation now passes candidateId, not leadId, for new submissions", () => {
+    const onSuccessBlock = CAREERS_SRC.slice(
+      CAREERS_SRC.indexOf("submitCandidate = trpc.candidates.submit.useMutation"),
+      CAREERS_SRC.indexOf("onError: () => toast.error"),
+    );
+    expect(onSuccessBlock).toMatch(/candidateId:\s*data\.id/);
+    expect(onSuccessBlock).not.toMatch(/leadId:/);
   });
 });

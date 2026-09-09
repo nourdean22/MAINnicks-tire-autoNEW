@@ -3,12 +3,9 @@
  * NOT a `leads` row. See the doc comment on `candidates` in
  * drizzle/schema.ts for the full rationale.
  *
- * NOT YET WIRED INTO Careers.tsx as of this commit. Careers.tsx's
- * ApplicationForm still submits through trpc.lead.submit; cutting it over
- * to candidates.submit is a deliberate follow-up step gated on
- * drizzle/0122_candidates.sql being applied to production. This router
- * exists, is tested, and is safe to merge now — it just isn't called by
- * anything live yet.
+ * WIRED INTO Careers.tsx as of 2026-09-09: ApplicationForm submits through
+ * candidates.submit, gated on (and following) drizzle/0122_candidates.sql
+ * applying to production.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";

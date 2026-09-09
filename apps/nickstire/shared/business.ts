@@ -281,9 +281,18 @@ export type ReviewDisplayInputs = {
 };
 
 /**
- * Single rule for public review totals: **max(marketing floor, live Google, admin override)**.
- * - Floor is `BUSINESS.reviews.count` so GBP lag never shows below the canonical marketing line.
- * - When Google or admin is higher, the UI reflects the higher number.
+ * Single rule for public review totals: **prefer real data over the static baseline,
+ * never clamp a real number back up to it.**
+ *
+ * Precedence: admin override (a human explicitly set this) > live Google count (fetched
+ * this session) > `BUSINESS.reviews.count`, used ONLY as a last-resort default when
+ * neither of the above is available (API not configured, request failed, etc).
+ *
+ * 2026-09-09 fix: this used to be `max(floor, live, admin)`, so a real decrease in the
+ * live Google count (a review purge, a policy removal) could never surface — the
+ * display would silently keep showing the old, higher, now-inaccurate number forever.
+ * That inverted the whole point of fetching live data. A verified-live count, even a
+ * lower one, is more truthful than a static marketing baseline and must win outright.
  */
 export function resolveReviewDisplay(inputs: ReviewDisplayInputs): {
   numeric: number;
@@ -304,11 +313,11 @@ export function resolveReviewDisplay(inputs: ReviewDisplayInputs): {
   let numeric = floor;
   let provenance: "business" | "google" | "admin" = "business";
 
-  if (g !== null && g > numeric) {
+  if (g !== null) {
     numeric = g;
     provenance = "google";
   }
-  if (a !== null && a > numeric) {
+  if (a !== null) {
     numeric = a;
     provenance = "admin";
   }

@@ -4754,14 +4754,12 @@ export type InsertTechnicianReferral = typeof technicianReferrals.$inferInsert;
  * sync) with no way for any of those systems to know "careers" isn't a
  * sales channel, because none of them are source-aware in that direction.
  *
- * IMPORTANT — this table and its router (server/routers/candidates.ts) are
- * additive and NOT YET wired into Careers.tsx as of this commit. Cutting
- * Careers.tsx's ApplicationForm over from lead.submit to candidates.submit
- * is a deliberate follow-up step, gated on this migration
- * (drizzle/0122_candidates.sql) being applied to production first — the
- * same apply-then-wire sequencing this repo already uses for schema changes
- * that a live code path would otherwise query before the table exists. See
- * the PR description for the exact next step.
+ * This table and its router (server/routers/candidates.ts) went live
+ * 2026-09-09: drizzle/0122_candidates.sql applied to production, then
+ * Careers.tsx's ApplicationForm cut over from lead.submit to
+ * candidates.submit the same day — the apply-then-wire sequencing this repo
+ * uses for any schema change a live code path would otherwise query before
+ * the table exists.
  */
 export const candidates = mysqlTable("candidates", {
   id: int("id").autoincrement().primaryKey(),
