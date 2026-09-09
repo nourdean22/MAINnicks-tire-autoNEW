@@ -55,17 +55,40 @@ class ShopMirror:
         timeout_seconds: float = 8.0,
         transport: Optional[Transport] = None,
         bay_zones: Optional[Dict[str, frozenset]] = None,
+        data_class: str = "PRODUCTION",
+        commissioning_run_id: Optional[str] = None,
+        provenance: Optional[Dict[str, Optional[str]]] = None,
     ) -> None:
         self.url = url
         self._key = sync_key
         self.timeout_seconds = timeout_seconds
         self.transport = transport
         self.bay_zones = bay_zones or {}
+        #: PRODUCTION | COMMISSIONING | REPLAY. A commissioning run's rows carry this so
+        #: the shop's KPIs exclude them by default; they are never deleted.
+        self.data_class = data_class
+        self.commissioning_run_id = commissioning_run_id
+        #: Deployment-static provenance (cameraPose / detectorName / calibrationVersion)
+        #: so the columns migration 0119 added stop being sent as None. Per-emission
+        #: values, when an emission carries them, win over these.
+        self.provenance = dict(provenance or {})
         self._visits: Dict[str, Dict[str, object]] = {}
         self._lock = threading.Lock()
         self.sent = 0
         self.failed = 0
         self.skipped = 0
+        self.heartbeats_sent = 0
+        self.heartbeats_failed = 0
+
+    @property
+    def heartbeat_url(self) -> Optional[str]:
+        """The sibling of the visits ingest: `/api/camera/visits` -> `/api/camera/heartbeat`."""
+        if not self.url:
+            return None
+        base = str(self.url)
+        if base.endswith("/api/camera/visits"):
+            return base[: -len("/visits")] + "/heartbeat"
+        return base.rstrip("/") + "/heartbeat"
 
     @property
     def enabled(self) -> bool:
@@ -75,7 +98,8 @@ class ShopMirror:
     def _is_bay(self, camera: str, zone: Optional[str]) -> bool:
         return bool(zone) and zone in self.bay_zones.get(camera, frozenset())
 
-    def row_for(self, emission, camera_name: Optional[str] = None) -> Dict[str, object]:
+    def row_for(self, emission, camera_name: Optional[str] = None,
+                provenance: Optional[Dict[str, Optional[str]]] = None) -> Dict[str, object]:
         """Merge one emission into the visit's accumulated row and return it.
 
         Pure with respect to the network; safe to call in tests without a transport.
@@ -109,12 +133,21 @@ class ShopMirror:
                     "preexisting": False,
                     "entryEvidence": None,
                     "estimatedFields": [],
-                    "sourceGeneration": None,
-                    "cameraPose": None,
-                    "detectorName": None,
-                    "calibrationVersion": None,
+                    "sourceGeneration": (provenance or self.provenance).get("sourceGeneration"),
+                    "cameraPose": (provenance or self.provenance).get("cameraPose"),
+                    "detectorName": (provenance or self.provenance).get("detectorName"),
+                    "calibrationVersion": (provenance or self.provenance).get("calibrationVersion"),
+                    "dataClass": self.data_class,
+                    "commissioningRunId": self.commissioning_run_id,
                 }
                 self._visits[visit_id] = row
+
+            # An emission that names its own provenance overrides the static default.
+            for key, attr in (("sourceGeneration", "source_generation"), ("cameraPose", "camera_pose"),
+                              ("detectorName", "detector_name"), ("calibrationVersion", "calibration_version")):
+                val = getattr(emission, attr, None)
+                if val:
+                    row[key] = str(val)
 
             row["state"] = emission.state
             row["seq"] = int(emission.seq)
@@ -153,16 +186,49 @@ class ShopMirror:
 
             return dict(row)
 
+    def heartbeat(self, body: Dict[str, object]) -> bool:
+        """POST one producer heartbeat to the shop. Best effort; NEVER raises.
+
+        This is the infrastructure fact the shop admin lacked: before it, `lot.health`
+        inferred camera existence from visit rows, so a healthy producer on a quiet
+        lot was indistinguishable from no producer at all.
+        """
+        url = self.heartbeat_url
+        if not self.enabled or not url:
+            return False
+        try:
+            transport = self.transport
+            if transport is None:
+                from .cloud_client import requests_transport
+
+                transport = requests_transport
+            status, text = transport(
+                "POST", url, dict(body),
+                {"Content-Type": "application/json", "x-sync-key": str(self._key)},
+                self.timeout_seconds,
+            )
+        except Exception as exc:
+            self.heartbeats_failed += 1
+            log.warning("shop heartbeat transport failed camera=%s error=%s", body.get("camera"), exc)
+            return False
+        if 200 <= status < 300:
+            self.heartbeats_sent += 1
+            return True
+        self.heartbeats_failed += 1
+        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:120])
+        return False
+
     def forget(self, visit_id: str) -> None:
         with self._lock:
             self._visits.pop(visit_id, None)
 
-    def send(self, emission, camera_name: Optional[str] = None) -> bool:
+    def send(self, emission, camera_name: Optional[str] = None,
+             provenance: Optional[Dict[str, Optional[str]]] = None) -> bool:
         """Best effort. Returns True only on a 2xx. NEVER raises."""
         if not self.enabled:
             self.skipped += 1
             return False
-        row = self.row_for(emission, camera_name)
+        row = self.row_for(emission, camera_name, provenance)
         try:
             transport = self.transport
             if transport is None:

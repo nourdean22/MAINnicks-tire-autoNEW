@@ -1369,3 +1369,75 @@ def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
     src._last_restore_attempt = 0.0
     src.read()
     assert len(attempts) == 2, "and again once the cooldown has passed"
+
+
+def test_run_live_heartbeat_body_reports_what_the_producer_actually_observed():
+    """The heartbeat is the producer's own account: source generation from the mux
+    index and the restore count, frame health from the LAST HEALTHY frame (a frozen
+    capture keeps delivering frames), pose only once a reference exists."""
+    from types import SimpleNamespace
+
+    from vision import run_live
+
+    active = SimpleNamespace(name="v380-wgc", restores=2)
+    source = SimpleNamespace(active=active, index=0)
+    pipeline = SimpleNamespace(tracker=SimpleNamespace(open_visits=lambda: [1, 2]))
+    health = SimpleNamespace(fps=11.5, ok=True)
+    scene = SimpleNamespace(pose_ok=True, pose_delta=1.25, reference_set=True)
+
+    body = run_live.heartbeat_body(
+        camera="sign", seq=7, now=1_800_000_000.0, mode="SHADOW", source=source, pipeline=pipeline,
+        health_state=health, scene_state=scene, calibration_version=None, detector_name="council",
+        model_sha256="abc", last_healthy_frame_at=1_799_999_999.0, commissioning_run_id=None,
+    )
+    assert body["camera"] == "sign" and body["heartbeatSeq"] == 7 and body["mode"] == "SHADOW"
+    assert body["sourceType"] == "wgc"
+    assert body["sourceGeneration"] == "0.2", "mux index . restores -- a restore is a new generation"
+    assert body["sourceConnected"] is True and body["restores"] == 2
+    assert body["captureFps"] == 11.5 and body["frameOk"] is True
+    assert body["poseOk"] is True and body["poseDelta"] == 1.25
+    assert body["calibrationVersion"] is None, "census mode reports NO calibration, so the cloud says CALIBRATION_INVALID"
+    assert body["openVisits"] == 2
+    assert body["lastHealthyFrameAt"] == "2027-01-15T07:59:59+00:00", "UTC ISO from the producer's own clock"
+    assert body["observedAtEdge"] == "2027-01-15T08:00:00+00:00"
+    assert body["producerInstanceId"] == run_live.PRODUCER_INSTANCE_ID
+
+    # No reference pose yet -> pose is UNKNOWN (None), not falsely ok and not falsely invalid.
+    scene0 = SimpleNamespace(pose_ok=True, pose_delta=None, reference_set=False)
+    body0 = run_live.heartbeat_body(
+        camera="sign", seq=8, now=1_800_000_001.0, mode="PRODUCTION", source=source, pipeline=pipeline,
+        health_state=None, scene_state=scene0, calibration_version="sha256:abc", detector_name=None,
+        model_sha256=None, last_healthy_frame_at=None,
+    )
+    assert body0["poseOk"] is None and body0["frameOk"] is None and body0["captureFps"] is None
+    assert body0["lastHealthyFrameAt"] is None, "an unobserved time is not now"
+
+    # A source that has fallen through every lane is disconnected.
+    dead = SimpleNamespace(active=None, index=2)
+    bodyx = run_live.heartbeat_body(
+        camera="sign", seq=9, now=1_800_000_002.0, mode="PRODUCTION", source=dead, pipeline=pipeline,
+        health_state=None, scene_state=None, calibration_version=None, detector_name=None,
+        model_sha256=None, last_healthy_frame_at=None,
+    )
+    assert bodyx["sourceConnected"] is False and bodyx["sourceGeneration"] == "2.0"
+
+
+def test_visit_sink_stamps_the_data_class_on_every_row(monkeypatch):
+    """A commissioning run's rows must carry COMMISSIONING, or the first test drive is
+    counted as today's customer arrival."""
+    from types import SimpleNamespace
+
+    from vision import run_live
+
+    posted = []
+    sink = run_live.VisitSink("https://nickstire.org/api/camera/visits", "k",
+                              data_class="COMMISSIONING", commissioning_run_id="C-20260909-001")
+    monkeypatch.setattr(sink, "_post", lambda url, payload, timeout=10.0: posted.append((url, payload)) or True)
+    em = SimpleNamespace(visit_id="v1", state="CONFIRMED_ARRIVAL", seq=3)
+    pipe = SimpleNamespace(timings={}, _track_visit={})
+    assert sink.send(em, camera="sign", pipeline=pipe) is True
+    url, payload = posted[0]
+    assert url.endswith("/api/camera/visits")
+    row = payload["visits"][0]
+    assert row["dataClass"] == "COMMISSIONING" and row["commissioningRunId"] == "C-20260909-001"
+    assert sink.heartbeat_url == "https://nickstire.org/api/camera/heartbeat"

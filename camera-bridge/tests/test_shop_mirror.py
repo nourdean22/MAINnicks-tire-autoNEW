@@ -165,7 +165,7 @@ class PipelineIsolationTest(unittest.TestCase):
             sent = 0
             failed = 0
 
-            def send(self, emission, _name=None):
+            def send(self, emission, _name=None, _provenance=None):
                 calls.append(emission.state)
                 return True
 
@@ -199,3 +199,54 @@ class PipelineIsolationTest(unittest.TestCase):
         p, _raw, _topic = self._pipeline()
         self.assertFalse(p.shop.enabled,
                          "no shopUrl in the test config, so the mirror must be inert")
+
+
+class ShopHeartbeatTest(unittest.TestCase):
+    """The infrastructure fact, apart from visits."""
+
+    def test_heartbeat_goes_to_the_sibling_route_and_never_raises(self):
+        rec = Recorder(status=200)
+        m = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=rec)
+        self.assertEqual(m.heartbeat_url, "https://nickstire.org/api/camera/heartbeat")
+        self.assertTrue(m.heartbeat({"camera": "sign", "producerInstanceId": "abc", "heartbeatSeq": 1}))
+        self.assertEqual(rec.calls[0]["url"], "https://nickstire.org/api/camera/heartbeat")
+        self.assertEqual(rec.calls[0]["headers"]["x-sync-key"], "k")
+        self.assertEqual(m.heartbeats_sent, 1)
+
+        boom = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(boom=RuntimeError("down")))
+        self.assertFalse(boom.heartbeat({"camera": "sign"}))   # swallowed, counted, never raised
+        self.assertEqual(boom.heartbeats_failed, 1)
+
+        rejected = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(status=401))
+        self.assertFalse(rejected.heartbeat({"camera": "sign"}))
+        self.assertEqual(rejected.heartbeats_failed, 1)
+
+    def test_heartbeat_is_off_without_a_key_like_everything_else(self):
+        rec = Recorder()
+        self.assertFalse(ShopMirror("https://nickstire.org/api/camera/visits", None, transport=rec).heartbeat({}))
+        self.assertEqual(rec.calls, [])
+
+
+class ShopMirrorProvenanceTest(unittest.TestCase):
+    def test_rows_carry_their_data_class_and_run_id(self):
+        m = ShopMirror(None, None, data_class="COMMISSIONING", commissioning_run_id="C-20260909-001")
+        row = m.row_for(emission())
+        self.assertEqual(row["dataClass"], "COMMISSIONING")
+        self.assertEqual(row["commissioningRunId"], "C-20260909-001")
+        # The default is PRODUCTION, so an unconfigured producer keeps working.
+        self.assertEqual(ShopMirror(None, None).row_for(emission())["dataClass"], "PRODUCTION")
+
+    def test_provenance_columns_are_no_longer_sent_as_none(self):
+        static = {"cameraPose": "north-high", "detectorName": "frigate:cpu", "calibrationVersion": "zones-v3"}
+        m = ShopMirror(None, None, provenance=static)
+        row = m.row_for(emission())
+        self.assertEqual(row["cameraPose"], "north-high")
+        self.assertEqual(row["detectorName"], "frigate:cpu")
+        self.assertEqual(row["calibrationVersion"], "zones-v3")
+        # A per-call (per-camera) provenance wins over the mirror-wide default ...
+        row2 = m.row_for(emission(visit_id="v2"), provenance={"cameraPose": "east-low"})
+        self.assertEqual(row2["cameraPose"], "east-low")
+        # ... and an emission naming its own provenance wins over both.
+        e = emission(visit_id="v3")
+        e.__dict__["camera_pose"] = "moved"
+        self.assertEqual(m.row_for(e)["cameraPose"], "moved")

@@ -51,6 +51,18 @@ class CameraConfig:
     arrival_zones: Tuple[str, ...]
     bay_zones: Tuple[str, ...]
     zone_names: Dict[str, str] = field(default_factory=dict)
+    #: Deployment-static provenance forwarded to the shop read model and heartbeat.
+    #: Migration 0119 added the columns; until now the mirror sent them as None.
+    calibration_version: Optional[str] = None
+    camera_pose: Optional[str] = None
+    detector_name: Optional[str] = None
+
+    def provenance(self) -> Dict[str, Optional[str]]:
+        return {
+            "calibrationVersion": self.calibration_version,
+            "cameraPose": self.camera_pose,
+            "detectorName": self.detector_name,
+        }
 
     def spec(self) -> CameraSpec:
         """State-machine view of this camera."""
@@ -153,6 +165,9 @@ def build_config(raw: Mapping[str, Any], environ: Optional[Mapping[str, str]] = 
             arrival_zones=arrival,
             bay_zones=bays,
             zone_names={str(k): str(v) for k, v in zone_names.items()},
+            calibration_version=(str(cam["calibrationVersion"]) if cam.get("calibrationVersion") else None),
+            camera_pose=(str(cam["cameraPose"]) if cam.get("cameraPose") else None),
+            detector_name=(str(cam["detectorName"]) if cam.get("detectorName") else None),
         )
 
     links: List[TopologyLink] = []
