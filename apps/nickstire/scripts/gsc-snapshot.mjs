@@ -5,6 +5,12 @@
  * credentials.
  *
  * Run: node --env-file=.env scripts/gsc-snapshot.mjs
+ *
+ * Pass --careers for a recruiting-funnel-specific pull instead of the
+ * sitewide report: same auth, same API, just a page-dimension filter added
+ * to every query (dimensionFilterGroups, operator "contains") so results are
+ * scoped to /careers* URLs only.
+ *   Run: node --env-file=.env scripts/gsc-snapshot.mjs --careers
  */
 
 import "dotenv/config";
@@ -52,6 +58,11 @@ async function getAccessToken() {
   return j.access_token;
 }
 
+const CAREERS_MODE = process.argv.includes("--careers");
+const PAGE_FILTER = CAREERS_MODE
+  ? { dimensionFilterGroups: [{ filters: [{ dimension: "page", operator: "contains", expression: "/careers" }] }] }
+  : {};
+
 async function query(token, dimensions, rowLimit = 50, dateOffsetDays = 0) {
   const endDate = new Date(Date.now() - dateOffsetDays * 86400000).toISOString().slice(0, 10);
   const startDate = new Date(Date.now() - (dateOffsetDays + 28) * 86400000).toISOString().slice(0, 10);
@@ -60,7 +71,7 @@ async function query(token, dimensions, rowLimit = 50, dateOffsetDays = 0) {
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ startDate, endDate, dimensions, rowLimit }),
+      body: JSON.stringify({ startDate, endDate, dimensions, rowLimit, ...PAGE_FILTER }),
     },
   );
   if (!r.ok) throw new Error(`GSC query failed: ${r.status} ${await r.text()}`);
@@ -68,7 +79,7 @@ async function query(token, dimensions, rowLimit = 50, dateOffsetDays = 0) {
 }
 
 const token = await getAccessToken();
-console.log(`\n═══ GSC SNAPSHOT — ${SITE_URL} ═══`);
+console.log(`\n═══ GSC SNAPSHOT — ${SITE_URL}${CAREERS_MODE ? " (scoped to /careers*)" : ""} ═══`);
 console.log(`Date range: last 28 days\n`);
 
 // 1. Aggregate totals

@@ -7,6 +7,9 @@ import {
   customerVehicles, InsertCustomerVehicle,
   serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
+  leads,
+  technicianReferrals, InsertTechnicianReferral, TechnicianReferral,
+  candidates, InsertCandidate, Candidate,
   mechanicQA, InsertMechanicQA,
   analyticsSnapshots, InsertAnalyticsSnapshot,
   customerNotifications, InsertCustomerNotification,
@@ -411,6 +414,154 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(referrals).set({ status }).where(eq(referrals.id, id));
+  return { success: true };
+}
+
+// ─── TECHNICIAN REFERRAL QUERIES ──────────────────────
+//
+// Separate from `referrals` above (the $25/$25 customer program) — this backs
+// the $300-after-90-days TECHNICIAN referral bonus advertised on /careers.
+// drizzle/0121_technician_referrals.sql creates the table; it is hand-applied
+// and, as of this code shipping, may not yet be applied to production. Every
+// function here therefore distinguishes "table not migrated yet" from a real
+// failure, the same empty-vs-error discipline the Lot section uses for
+// vehicle_visits — a caller must never render "not yet migrated" as "zero
+// referrals" or crash the caller's own request.
+
+/** True only for MySQL's "table doesn't exist" — 1146 / ER_NO_SUCH_TABLE — never for any other error. Exported for a direct unit test rather than only exercised indirectly. */
+export function isMissingTableError(err: unknown): boolean {
+  const code = (err as { code?: string; errno?: number } | null)?.code;
+  const errno = (err as { code?: string; errno?: number } | null)?.errno;
+  return code === "ER_NO_SUCH_TABLE" || errno === 1146;
+}
+
+export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    // `submit` is a public procedure — the caller supplies leadId/candidateId
+    // directly, so neither can be trusted as-is: an unauthenticated caller
+    // could attach a fabricated $300 referral claim to an arbitrary sequential
+    // ID. Verify each one exists and actually came from /careers before
+    // storing the association; otherwise keep the referral (still worth
+    // recording — the applicant's own name/phone are separate) but drop the
+    // association. Since Careers.tsx's cutover to candidates.submit,
+    // new referrals populate candidateId; leadId stays populated only for
+    // rows tied to a pre-cutover lead.
+    let leadId = referral.leadId ?? null;
+    if (leadId != null) {
+      const [lead] = await db.select({ id: leads.id, source: leads.source }).from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (!lead || lead.source !== "careers") leadId = null;
+    }
+    let candidateId = referral.candidateId ?? null;
+    if (candidateId != null) {
+      const [candidate] = await db.select({ id: candidates.id, source: candidates.source }).from(candidates).where(eq(candidates.id, candidateId)).limit(1);
+      if (!candidate || candidate.source !== "careers") candidateId = null;
+    }
+    const result = await db.insert(technicianReferrals).values({ ...referral, leadId, candidateId });
+    return { success: true, id: Number(result[0].insertId) } as const;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      // Migration 0121 not yet applied. The applicant's own lead row (with
+      // the referrer's name preserved in its free-text notes) already saved
+      // successfully — this is a missed tracking write, not a failed
+      // application, so the caller must not surface this as an error.
+      return { success: false, migrationPending: true as const };
+    }
+    throw err;
+  }
+}
+
+export async function getTechnicianReferrals() {
+  const db = await getDb();
+  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
+  try {
+    const rows: TechnicianReferral[] = await db.select().from(technicianReferrals).orderBy(desc(technicianReferrals.createdAt)).limit(500);
+    return { available: true as const, migrationPending: false as const, rows };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferral[] };
+    }
+    throw err;
+  }
+}
+
+/** Single-row read for router-side gating (e.g. markPaid's 90-day check) — throws if the row doesn't exist. */
+export async function getTechnicianReferralById(id: number): Promise<TechnicianReferral> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select().from(technicianReferrals).where(eq(technicianReferrals.id, id)).limit(1);
+  if (!row) throw new Error(`Technician referral #${id} not found`);
+  return row;
+}
+
+export async function updateTechnicianReferralStatus(
+  id: number,
+  updates: {
+    status?: "pending" | "eligible" | "paid" | "disqualified" | "forfeited";
+    hiredAt?: Date;
+    eligibleAt?: Date;
+    paidAt?: Date;
+    disqualifiedReason?: string;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(technicianReferrals).set(updates).where(eq(technicianReferrals.id, id));
+  return { success: true };
+}
+
+// ─── CANDIDATE QUERIES ─────────────────────────────────
+//
+// /careers job applicants — deliberately NOT the `leads` table. See the
+// doc comment on `candidates` in drizzle/schema.ts for why this table
+// exists at all. drizzle/0122_candidates.sql created it; applied to
+// production 2026-09-09, and Careers.tsx's ApplicationForm submits through
+// candidates.submit as of the same date. Same empty-vs-error discipline as
+// technicianReferrals — the migrationPending path stays real defensive
+// code for any environment where 0122 hasn't been applied yet (a fresh
+// dev DB, for instance), not dead code from the cutover.
+
+export async function createCandidate(candidate: InsertCandidate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(candidates).values(candidate);
+    return { success: true, id: Number(result[0].insertId) } as const;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { success: false, migrationPending: true as const };
+    }
+    throw err;
+  }
+}
+
+export async function getCandidates() {
+  const db = await getDb();
+  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as Candidate[] };
+  try {
+    const rows: Candidate[] = await db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(500);
+    return { available: true as const, migrationPending: false as const, rows };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, migrationPending: true as const, rows: [] as Candidate[] };
+    }
+    throw err;
+  }
+}
+
+export async function updateCandidateStatus(
+  id: number,
+  updates: {
+    status?: "new" | "contacted" | "interviewing" | "hired" | "declined" | "withdrew";
+    contactedAt?: Date;
+    contactedBy?: string;
+    notes?: string;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(candidates).set(updates).where(eq(candidates.id, id));
   return { success: true };
 }
 

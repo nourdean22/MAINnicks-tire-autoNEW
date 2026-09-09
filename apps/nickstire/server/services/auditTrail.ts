@@ -80,7 +80,13 @@ export type AuditAction =
   | "proposal.approved"
   | "proposal.rejected"
   | "proposal.executed"
-  | "proposal.execution_failed";
+  | "proposal.execution_failed"
+  // 2026-09-09 · technician-referral bonus tracking (server/routers/technicianReferrals.ts)
+  | "technician_referral.marked_hired"
+  | "technician_referral.marked_paid"
+  | "technician_referral.disqualified"
+  // 2026-09-09 · candidate applications (server/routers/candidates.ts)
+  | "candidate.status_changed";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {

@@ -38,6 +38,8 @@ import {
 import { MarkContactedButton } from "./leads/MarkContactedButton";
 import { LostReasonButton } from "./leads/LostReasonButton";
 import { LeadDeliveryLog } from "./leads/LeadDeliveryLog";
+import { TechnicianReferralsPanel } from "./leads/TechnicianReferralsPanel";
+import { CandidatesPanel } from "./leads/CandidatesPanel";
 
 export default function LeadsSection() {
   // 2026-05-06 â URL-persistent filters via useUrlFilter.
@@ -252,6 +254,9 @@ export default function LeadsSection() {
         }
       />
       <SectionInsightStrip section="leads" />
+
+      <CandidatesPanel />
+      <TechnicianReferralsPanel />
 
       {unknown && (
         <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-[13px] text-amber-400">
