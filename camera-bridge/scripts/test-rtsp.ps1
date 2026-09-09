@@ -4,7 +4,7 @@
 .DESCRIPTION
     Port rule (plan 3.1/3.2):
       554 or 8899 open            -> "ONVIF-era: RTSP available" (validate with ffprobe below)
-      only 8800/9800 open         -> "LOCKED generation (Xiongmai fingerprint): replace camera, do NOT run ceshi.ini"
+      only 8800/9800 open         -> "LOCAL/P2P TRANSPORT ONLY: generation UNKNOWN from ports alone - read the firmware string"
     ffprobe runs only when 554 is open, over the known V380/Reolink/Dahua path list, with and without admin:<pw>@.
 .PARAMETER Cameras
     Hashtable name -> IP. Defaults to the two V380 units measured on 2026-09-08.
@@ -44,12 +44,38 @@ function Test-TcpPort {
     }
 }
 
+function Get-GenerationClass {
+    # Returns a STRUCTURED class, so display colour never depends on scraping the prose.
+    # The previous colour test matched "*Xiongmai -> replace*" against the verdict TEXT,
+    # and the new unknown-generation verdict mentions Xiongmai while explaining how to
+    # tell the two apart -- so every 8800/9800 camera was still painted red as
+    # "replace", preserving the exact signal this script was changed to remove.
+    param([int[]]$Open)
+    if ($Open -contains 554 -or $Open -contains 8899) { return "onvif" }
+    $others = @($Open | Where-Object { $_ -ne 8800 -and $_ -ne 9800 })
+    if (($Open -contains 8800 -or $Open -contains 9800) -and $others.Count -eq 0) { return "unknown-p2p" }
+    if ($Open.Count -eq 0) { return "unreachable" }
+    return "unclassified"
+}
+
+function Get-VerdictColor {
+    param([string]$Class)
+    switch ($Class) {
+        "onvif"       { "Green" }
+        "unreachable" { "Red" }
+        default       { "DarkYellow" }   # unknown generation is NOT a replace signal
+    }
+}
+
 function Get-GenerationVerdict {
     param([int[]]$Open)
     if ($Open -contains 554 -or $Open -contains 8899) { return "ONVIF-era: RTSP available" }
     $others = @($Open | Where-Object { $_ -ne 8800 -and $_ -ne 9800 })
     if (($Open -contains 8800 -or $Open -contains 9800) -and $others.Count -eq 0) {
-        return "LOCKED generation (Xiongmai fingerprint): replace camera, do NOT run ceshi.ini"
+        # 8800/9800 is the V380/Anyka P2P transport. It does NOT establish the generation:
+        # both Nick's cameras show this port set yet their firmware is Anyka HsAK, not Xiongmai
+        # (Hw_HsAKQQXG_WIFI_20230421, probed 2026-09-08). Read the firmware string before choosing.
+        return "LOCAL/P2P TRANSPORT ONLY (8800/9800): generation UNKNOWN from ports alone. Read the firmware in the V380 app - Hw_Hs*AK*/HwV380E* = Anyka -> try ONVIF setting or ceshi.ini; Hw_HsXM*/AppXM5*/3-lens = Xiongmai -> replace, never run ceshi.ini on it."
     }
     if ($Open.Count -eq 0) { return "No TCP port answered: check power/Wi-Fi or subnet" }
     return "Unclassified port set: read the firmware string in the V380 Pro app before acting"
@@ -92,7 +118,8 @@ foreach ($name in ($Cameras.Keys | Sort-Object)) {
     $openText = $(if ($open.Count -gt 0) { ($open -join ",") } else { "none" })
     Write-Host "  open tcp: $openText"
     $verdict = Get-GenerationVerdict -Open $open
-    $color = $(if ($verdict -like "ONVIF-era*") { "Green" } elseif ($verdict -like "LOCKED*") { "Red" } else { "DarkYellow" })
+    $class = Get-GenerationClass -Open $open
+    $color = Get-VerdictColor -Class $class
     Write-Host "  verdict: $verdict" -ForegroundColor $color
 
     $working = @()
@@ -123,4 +150,4 @@ foreach ($name in ($Cameras.Keys | Sort-Object)) {
 Write-Host ""
 Write-Host "Summary" -ForegroundColor Cyan
 $summary | Format-Table -AutoSize -Wrap | Out-String -Width 200 | Write-Host
-Write-Host "Next: an ONVIF-era camera goes into frigate/config.yml go2rtc streams; a LOCKED camera is replaced (plan section 3)." -ForegroundColor Gray
+Write-Host "Next: an ONVIF-era camera goes into frigate/config.yml go2rtc streams; an 8800/9800-only camera needs its firmware string read first (Anyka HsAK -> ceshi.ini/ONVIF unlock, plan section 3.3; Xiongmai -> replace)." -ForegroundColor Gray
