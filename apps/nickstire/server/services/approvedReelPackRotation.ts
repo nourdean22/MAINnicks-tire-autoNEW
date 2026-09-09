@@ -9,6 +9,46 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
 import { resolvePacksDir } from "./reelPackRegistry";
+import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
+import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
+
+/**
+ * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
+ *
+ * motionLens, archetype and objectCharacter were hardcoded here, so the lane
+ * that produces most of the account's reels stamped one visual grammar onto all
+ * of them. Measured 2026-09-09: of 27 reels queued and ready to publish, 26
+ * carried the identical lens. Across the 21-day window only 5 of 14 lenses and
+ * 6 of 14 archetypes appeared at all.
+ *
+ * That also silently defeated the per-lens palettes: LENS_PALETTES gives each of
+ * the fourteen lenses its own world, and a lane pinned to one lens can only ever
+ * see one of them.
+ *
+ * DETERMINISTIC, not random. The same pack must always resolve to the same lens,
+ * or a re-run produces a different reel from the same source and the repetition
+ * ledger can no longer tell a retry from a new idea. Hashing the briefId gives a
+ * stable spread: fixed per pack, distributed across packs.
+ *
+ * objectCharacter is deliberately NOT rotated. Lens and archetype are grammar -
+ * how the camera moves, how the story is shaped - and apply to any subject. The
+ * object character names the HERO of the frame, and rotating it would describe a
+ * different object from the one the pack's own storyboard is about.
+ */
+/** A pack's declared ask, if it declared one in the shape reelAsk defines. */
+function isReelAskShape(value: unknown): value is { kind: string; keyword?: string | null } {
+  if (!value || typeof value !== "object") return false;
+  const kind = (value as { kind?: unknown }).kind;
+  return kind === "profile" || kind === "dm" || kind === "save" || kind === "visit";
+}
+
+function pickForPack<T>(briefId: string, salt: string, options: readonly T[]): T {
+  const digest = createHash("sha256").update(`${briefId}::${salt}`).digest();
+  return options[digest.readUInt32BE(0) % options.length];
+}
+
+const ROTATABLE_LENSES = Object.keys(MOTION_LENSES) as MotionLens[];
+const ROTATABLE_ARCHETYPES = Object.keys(REEL_ARCHETYPES) as ReelArchetype[];
 export const APPROVED_REEL_PACK_SLUGS = [
   "2026-08-16-wheel-bearing-hum",
   "2026-08-16-check-engine-light",
@@ -296,6 +336,23 @@ export function buildBriefFromApprovedProductionPack(
   );
   return {
     id: briefId,
+    // THE PACK LANE HAD NO ASK AT ALL.
+    //
+    // This builder never read `ask`, so resolveReelAsk returned null for every
+    // pack-derived brief and the end card rendered nothing. The lane that makes
+    // most of the account's reels was publishing them with no call to action.
+    //
+    // Four packs had worked around it by burning a CTA into their last BEAT -
+    // shop name, address and phone as on-screen text, plus a spoken "stop by".
+    // That is the one place an ask must never go: beats are content, they are
+    // permanent, and no copy edit can reach them after render. askLeakageProblem
+    // refuses exactly that, which is why those four could never have shipped.
+    //
+    // Passed through when the pack declares one, and NOT defaulted when it does
+    // not. Inventing an ask for the other 95 would change what every one of them
+    // renders, and which ask a business makes is the operator's call, not a
+    // fallback's - it is recorded as an open decision rather than guessed here.
+    ...(isReelAskShape(source.ask) ? { ask: source.ask } : {}),
     topic,
     mechanicTruth: stringValue(source.mechanicTruth) || topic,
     driverConfusion: stringValue(source.driverConfusion) || stringValue(source.hookText) || topic,
@@ -306,8 +363,8 @@ export function buildBriefFromApprovedProductionPack(
     ],
     factBucket: "invisible_killers",
     campaignKeyword,
-    archetype: "tiny_cinematic_story",
-    motionLens: "extreme_macro_push_in",
+    archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
+    motionLens: pickForPack(briefId, "lens", ROTATABLE_LENSES),
     objectCharacter: "rust_creeping_villain",
     usefulAbsurdity: stringValue(source.usefulAbsurdity),
     /**
@@ -333,8 +390,8 @@ export function buildBriefFromApprovedProductionPack(
           factBucket: "myth_buster" as const,
           driverEmotion: "",
           campaignKeyword: campaignKeyword as never,
-          archetype: "tiny_cinematic_story" as const,
-          motionLens: "extreme_macro_push_in" as const,
+          archetype: pickForPack(briefId, "archetype", ROTATABLE_ARCHETYPES),
+          motionLens: pickForPack(briefId, "lens", ROTATABLE_LENSES),
           objectCharacter: "rust_creeping_villain" as const,
           usefulAbsurdity: stringValue(source.usefulAbsurdity),
           localAngle: stringValue(source.clevelandAngle),

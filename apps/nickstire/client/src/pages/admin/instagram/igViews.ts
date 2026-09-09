@@ -17,6 +17,7 @@ export type IgView =
   | "publish"
   | "community"
   | "insights"
+  | "pipeline"
   | "planning"
   | "patterns"
   | "actions"
@@ -32,6 +33,9 @@ export const IG_PRIMARY_VIEWS: Array<{ key: IgView; label: string }> = [
 ];
 
 export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [
+  // First in the list on purpose: it answers "is the machine ok, and what posts
+  // next", which is the question asked before any of the others.
+  { key: "pipeline", label: "Pipeline health" },
   { key: "planning", label: "Planning board" },
   { key: "patterns", label: "Pattern Lab" },
   { key: "actions", label: "Reel recovery (Action Center)" },
