@@ -67,11 +67,13 @@
       "startSec": 18,
       "endSec": 21,
       "visualPrompt": "Dusk parking lot, static wide shot: the same two cars parked side by side, both now with headlights lit and throwing pools across the asphalt, ambient blue-hour light falling further.",
-      "onScreenText": "Stop by and we'll take a look — Nick's Tire & Auto, 17625 Euclid Ave, Cleveland · (216) 862-0005",
+      "onScreenText": "THE SENSOR, NOT THE BULB",
       "vo": "Worth checking before buying new bulbs."
     }
   ],
-  "businessFactsUsed": ["legal.entity"],
+  "businessFactsUsed": [
+    "legal.entity"
+  ],
   "evidenceRecordsUsed": [],
   "evidenceGaps": [
     "No EvidenceRecord covers auto-headlight sensor/relay failure",
@@ -79,9 +81,12 @@
   ],
   "musicRights": "BLOCKED_NO_LEDGER",
   "estimatedCostUsd": {
-    "templateStockLane": 0.0,
+    "templateStockLane": 0,
     "seedanceLaneAssumption": 1.25
   },
   "renderAttempted": false,
-  "publishAttempted": false
+  "publishAttempted": false,
+  "ask": {
+    "kind": "visit"
+  }
 }

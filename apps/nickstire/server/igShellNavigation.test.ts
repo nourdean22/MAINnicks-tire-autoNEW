@@ -21,7 +21,12 @@ describe("view vocabulary", () => {
   it("rare surfaces live behind the gear, not in the primary row", () => {
     // "patterns" joined 2026-07-29 (Pattern Lab, Wave C′) — a deliberate
     // registry addition; this pin exists to catch ACCIDENTAL drift.
-    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["planning", "patterns", "actions", "control", "settings"]);
+    //
+    // "pipeline" joined 2026-09-09, also deliberate, and FIRST in the list on
+    // purpose: it answers "is the machine ok, and what posts next", which is the
+    // question asked before any of the others. Until it existed those answers
+    // lived only in ad-hoc SQL run against production by hand.
+    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["pipeline", "planning", "patterns", "actions", "control", "settings"]);
   });
 });
 

@@ -25,6 +25,7 @@ import {
   type DuaConcept,
   type DuaFinding,
 } from "@shared/dua";
+import { askLeakageProblem } from "@shared/reelAsk";
 
 // ─── Modes & statuses ─────────────────────────────────────────────
 
@@ -1337,6 +1338,63 @@ export function runReelPreflight(brief: ReelBrief): PreflightReport {
   // validateVoiceoverFitsRender for why nothing downstream catches it.
   const voFit = validateVoiceoverFitsRender(brief);
   if (!voFit.ok) push("production", "block", voFit.reason ?? "voiceover is longer than the rendered video");
+
+  // A LEAKED CALL TO ACTION USED TO COST A WHOLE RENDER.
+  //
+  // askLeakageProblem had exactly ONE caller - assembleReel - and assembly runs
+  // AFTER every clip has been generated and paid for. So a brief whose voiceover
+  // or beats carried a spoken ask was bought in full and then refused at the
+  // last gate, with the clips discarded.
+  //
+  // It is not a rare shape. Two of the three reel failures on 2026-09-09 were
+  // exactly this ("refusing to render: the voiceover contains a call to action
+  // (dm-us)", and a beat carrying "send this to..."), and the gate's own comment
+  // records that all three freshly generated briefs measured on 2026-08-29 had
+  // one. The generator writes them; the renderer refuses them; nothing in
+  // between was looking.
+  //
+  // Checking here makes it free. prepareCleanReelBrief regenerates on a preflight
+  // block, so a leaked ask now costs one LLM call instead of a full set of paid
+  // clips - the same reasoning that put grounding and voiceover-fit in this
+  // function rather than downstream.
+  //
+  // The render-time check STAYS. This adds a layer, it does not move one: a brief
+  // can be edited between preflight and assembly, and the surface that renders
+  // must be the surface that was checked.
+  // ONLY THE PERMANENT SURFACES. Beats and voiceover, deliberately NOT caption.
+  //
+  // A pre-spend gate should refuse what SPENDING would make permanent. Once
+  // clips are bought and assembled, a CTA burned into a beat or spoken in the
+  // voiceover cannot be taken out - the reel would have to be regenerated. A
+  // caption is editable right up to the moment of publishing, so a caption
+  // problem is not a reason to refuse a render.
+  //
+  // The render-time check in assembleReel still evaluates ALL of it, caption
+  // and declared-ask agreement included. This adds an early, cheaper layer for
+  // the irreversible half; it does not replace the full gate.
+  const leakedAsk = askLeakageProblem({
+    beats: (brief.storyboardBeats ?? []).map((b) => b.onScreenText),
+    voiceoverScript: brief.voiceoverScript,
+  });
+  // WARN, NOT BLOCK - and the reason is worth stating, because the honest
+  // severity here is "block" and this is deliberately less than that.
+  //
+  // A block changes control flow: prepareCleanReelBrief REGENERATES on one, so
+  // turning this to a block immediately re-generates every brief carrying a
+  // beat CTA. That pattern is not rare - it is what the three canonical sample
+  // briefs modelled until this same change fixed them, and it is still baked
+  // into fixtures across seven test files that assert on generation attempt
+  // counts. Flipping the severity without first sweeping those is how a green
+  // suite turns red for a reason unrelated to the defect being fixed.
+  //
+  // As a warn it still does the useful half: the leak is visible in the
+  // preflight report, before any clip is bought, instead of surfacing only as
+  // a failed job after assembly refuses it. The render-time gate in
+  // assembleReel remains the hard stop, so nothing ships with a leaked ask.
+  //
+  // To promote it: fix the leaking fixtures, then change "warn" to "block"
+  // here. reelAskPreflight.test.ts pins both halves of that contract.
+  if (leakedAsk) push("production", "warn", leakedAsk);
 
   // Production + truth: claim safety, faceless, in-frame-text (over the design)
   for (const f of runReelSafety(brief)) push(f.category, f.severity, f.message);

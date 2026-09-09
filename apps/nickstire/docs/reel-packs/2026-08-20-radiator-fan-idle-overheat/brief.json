@@ -75,7 +75,7 @@
       "startSecond": 27,
       "endSecond": 30,
       "narration": "",
-      "onScreenText": "SAVE THIS for the next time you're idling hot",
+      "onScreenText": "IT ONLY COOLS WHEN IT SPINS",
       "providerScene": "Close-up of the same dashboard temperature needle, now easing back down to mid-scale and settling still, shallow depth of field, daylight cabin, slow push-in, 9:16 vertical framing",
       "sceneStatus": "static-by-design",
       "negativePromptOverride": null
@@ -89,17 +89,55 @@
   "qualityScoreSelfEstimate": {
     "note": "self-estimate only — NOT the server's authoritative calculateReelQualityScore() re-score, which runs at enqueue and was not invoked this run",
     "dimensions": {
-      "firstFrameScrollStop": { "max": 10, "score": 7, "detail": "gauge close-up is a solid but not maximally dramatic hook frame compared to a red-zone gauge or visible steam" },
-      "mutedFirst": { "max": 10, "score": 10 },
-      "beatStructure": { "max": 5, "score": 5 },
-      "length": { "max": 5, "score": 5 },
-      "loop": { "max": 5, "score": 4, "detail": "SAVE end-card is a neutral garage frame that reads reasonably well looping back into the gauge hook, though not a perfect visual match" },
-      "sourcedFact": { "max": 10, "score": 6, "detail": "fan-at-idle cooling mechanism is well-established general automotive engineering fact, not shop-specific; no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run" },
-      "faceless": { "max": 10, "score": 10 },
-      "claimSafety": { "max": 10, "score": 10, "detail": "no diagnosis asserted as certain, no price/warranty claim, uses approved soft phrasing ('one clue', 'may need a look', 'do not guess')" },
-      "keyword": { "max": 5, "score": 5 },
-      "winningConceptGate": { "max": 5, "score": 1, "detail": "not fully awarded — running subtotal (63/70) sits close to but under the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs" }
+      "firstFrameScrollStop": {
+        "max": 10,
+        "score": 7,
+        "detail": "gauge close-up is a solid but not maximally dramatic hook frame compared to a red-zone gauge or visible steam"
+      },
+      "mutedFirst": {
+        "max": 10,
+        "score": 10
+      },
+      "beatStructure": {
+        "max": 5,
+        "score": 5
+      },
+      "length": {
+        "max": 5,
+        "score": 5
+      },
+      "loop": {
+        "max": 5,
+        "score": 4,
+        "detail": "SAVE end-card is a neutral garage frame that reads reasonably well looping back into the gauge hook, though not a perfect visual match"
+      },
+      "sourcedFact": {
+        "max": 10,
+        "score": 6,
+        "detail": "fan-at-idle cooling mechanism is well-established general automotive engineering fact, not shop-specific; no EvidenceRecord citation attached — evidenceResolver.ts not queried live this run"
+      },
+      "faceless": {
+        "max": 10,
+        "score": 10
+      },
+      "claimSafety": {
+        "max": 10,
+        "score": 10,
+        "detail": "no diagnosis asserted as certain, no price/warranty claim, uses approved soft phrasing ('one clue', 'may need a look', 'do not guess')"
+      },
+      "keyword": {
+        "max": 5,
+        "score": 5
+      },
+      "winningConceptGate": {
+        "max": 5,
+        "score": 1,
+        "detail": "not fully awarded — running subtotal (63/70) sits close to but under the informal 57/60-equivalent bar this gate implies; treat as not cleared until a real re-score runs"
+      }
     },
     "estimatedTotal": "63/75 (self-estimate) — below the 70/75 auto-pass floor; needs an evidence citation for sourcedFact and a stronger hook frame before this would likely clear the real gate"
+  },
+  "ask": {
+    "kind": "save"
   }
 }
