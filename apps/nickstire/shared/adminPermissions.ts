@@ -101,7 +101,7 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
   // same tier as the applicant flow it's attached to (front_desk fields
   // applications too), not money.manage: these mutations only update tracking
   // status, they never move money themselves — the $300 is paid by hand.
-  if (normalized.startsWith("technicianreferrals.")) return "leads.manage";
+  if (normalized.startsWith("technicianreferrals.") || normalized.startsWith("candidates.")) return "leads.manage";
   if (normalized.startsWith("lead.") || normalized.startsWith("segments.")) return "leads.manage";
   if (normalized.startsWith("booking.") || normalized.startsWith("dispatch.")) return "bookings.manage";
   if (normalized.startsWith("callback.") || normalized.startsWith("calltracking.")) return "callbacks.manage";

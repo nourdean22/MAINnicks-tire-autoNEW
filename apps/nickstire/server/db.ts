@@ -8,6 +8,7 @@ import {
   serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
   technicianReferrals, InsertTechnicianReferral, TechnicianReferral,
+  candidates, InsertCandidate, Candidate,
   mechanicQA, InsertMechanicQA,
   analyticsSnapshots, InsertAnalyticsSnapshot,
   customerNotifications, InsertCustomerNotification,
@@ -478,6 +479,60 @@ export async function updateTechnicianReferralStatus(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(technicianReferrals).set(updates).where(eq(technicianReferrals.id, id));
+  return { success: true };
+}
+
+// ─── CANDIDATE QUERIES ─────────────────────────────────
+//
+// /careers job applicants — deliberately NOT the `leads` table. See the
+// doc comment on `candidates` in drizzle/schema.ts for why this table
+// exists at all. drizzle/0122_candidates.sql creates it; hand-applied and,
+// as of this code shipping, not yet applied to production, and this table
+// is not yet written to by any live code path (Careers.tsx still submits
+// through lead.submit until a deliberate follow-up cutover). Same
+// empty-vs-error discipline as technicianReferrals regardless, so the read
+// path is correct the moment the cutover happens.
+
+export async function createCandidate(candidate: InsertCandidate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(candidates).values(candidate);
+    return { success: true, id: Number(result[0].insertId) } as const;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { success: false, migrationPending: true as const };
+    }
+    throw err;
+  }
+}
+
+export async function getCandidates() {
+  const db = await getDb();
+  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as Candidate[] };
+  try {
+    const rows: Candidate[] = await db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(500);
+    return { available: true as const, migrationPending: false as const, rows };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, migrationPending: true as const, rows: [] as Candidate[] };
+    }
+    throw err;
+  }
+}
+
+export async function updateCandidateStatus(
+  id: number,
+  updates: {
+    status?: "new" | "contacted" | "interviewing" | "hired" | "declined" | "withdrew";
+    contactedAt?: Date;
+    contactedBy?: string;
+    notes?: string;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(candidates).set(updates).where(eq(candidates.id, id));
   return { success: true };
 }
 

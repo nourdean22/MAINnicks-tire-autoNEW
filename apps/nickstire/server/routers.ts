@@ -98,6 +98,7 @@ import { proposalsRouter } from "./routers/proposals";
 import { quoteGuardRouter } from "./routers/quoteGuard";
 import { smsOpsRouter } from "./routers/smsOps";
 import { technicianReferralsRouter } from "./routers/technicianReferrals";
+import { candidatesRouter } from "./routers/candidates";
 
 export const appRouter = router({
   system: systemRouter,
@@ -144,6 +145,7 @@ export const appRouter = router({
   garage: garageRouter,
   referrals: referralsRouter,
   technicianReferrals: technicianReferralsRouter,
+  candidates: candidatesRouter,
   qa: qaRouter,
   pricing: pricingRouter,
   inspection: inspectionRouter,

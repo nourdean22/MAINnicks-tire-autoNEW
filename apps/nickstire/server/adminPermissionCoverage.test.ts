@@ -31,7 +31,7 @@ import { permissionForAdminProcedure, ADMIN_ROLES, hasAdminPermission } from "..
  * without a line here is simply not covered by the fail-open sweep below. Add yours.
  */
 const ROUTERS = `activity adStudio adminDashboard adminSecurity analytics autoLabor booking
-callTracking callback campaigns chat closedLoop content contentAdmin contentStudio controlCenter
+callTracking callback campaigns candidates chat closedLoop content contentAdmin contentStudio controlCenter
 conversion costEstimator coupons customerEvents customerNotifications customers dispatch emergency
 estimates export featureFlags financing followUps gallery garage gatewayTire gbp inspection
 instagram instagramAdmin instagramStudio intelligence invoices jobAssignments kpi lead localGrowth lot

@@ -4688,8 +4688,15 @@ export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;
  */
 export const technicianReferrals = mysqlTable("technician_referrals", {
   id: int("id").autoincrement().primaryKey(),
-  /** The referred applicant's row in `leads` (source:"careers"). */
+  /**
+   * The referred applicant's row in `leads` (source:"careers") — kept for
+   * rows created before `candidates` existed. New submissions populate
+   * `candidateId` instead, once Careers.tsx is cut over to the dedicated
+   * candidates.submit endpoint (see `candidates` table below); additive,
+   * both columns are nullable so neither cutover step can break the other.
+   */
   leadId: int("leadId").references(() => leads.id, { onDelete: "set null" }),
+  candidateId: int("candidateId").references(() => candidates.id, { onDelete: "set null" }),
   referrerName: varchar("referrerName", { length: 255 }).notNull(),
   /** Optional — lets the shop text/call the referrer when the bonus is due. */
   referrerPhone: varchar("referrerPhone", { length: 30 }),
@@ -4723,3 +4730,62 @@ export const technicianReferrals = mysqlTable("technician_referrals", {
 
 export type TechnicianReferral = typeof technicianReferrals.$inferSelect;
 export type InsertTechnicianReferral = typeof technicianReferrals.$inferInsert;
+
+/**
+ * Job applicants from /careers — a dedicated home, NOT a `leads` row.
+ *
+ * Before this table, Careers.tsx's ApplicationForm submitted through
+ * trpc.lead.submit — the same endpoint customer sales inquiries use. That
+ * meant every job applicant: got AI-urgency-scored by scoreLead() as if
+ * their application text were a car-repair problem; received the generic
+ * lead-confirmation SMS, which literally asks "What's going on with the
+ * car — tires, brakes, check engine, or something else?" (server/sms.ts,
+ * leadConfirmationSms — verified against the live function, not assumed);
+ * and entered every downstream customer-lead system (the sales opportunity
+ * queue, stale-lead follow-up crons, Meta Conversions API, Google Sheets
+ * sync) with no way for any of those systems to know "careers" isn't a
+ * sales channel, because none of them are source-aware in that direction.
+ *
+ * IMPORTANT — this table and its router (server/routers/candidates.ts) are
+ * additive and NOT YET wired into Careers.tsx as of this commit. Cutting
+ * Careers.tsx's ApplicationForm over from lead.submit to candidates.submit
+ * is a deliberate follow-up step, gated on this migration
+ * (drizzle/0122_candidates.sql) being applied to production first — the
+ * same apply-then-wire sequencing this repo already uses for schema changes
+ * that a live code path would otherwise query before the table exists. See
+ * the PR description for the exact next step.
+ */
+export const candidates = mysqlTable("candidates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  positionTitle: varchar("positionTitle", { length: 100 }),
+  experienceLevel: varchar("experienceLevel", { length: 32 }),
+  message: text("message"),
+  /** Where the application came from. VARCHAR, not ENUM — see nickstire-tidb-ddl. */
+  source: varchar("source", { length: 40 }).default("careers").notNull(),
+  /** new -> contacted -> interviewing -> hired / declined / withdrew */
+  status: varchar("status", { length: 32 }).default("new").notNull(),
+  // Attribution fields mirror `leads`' own convention (utmSource..sessionId)
+  // so funnel/source-to-hire measurement is possible from day one, not
+  // bolted on later.
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
+  sessionId: varchar("sessionId", { length: 64 }),
+  contactedAt: timestamp("contactedAt"),
+  contactedBy: varchar("contactedBy", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_candidate_phone").on(table.phone),
+  index("idx_candidate_status").on(table.status),
+  index("idx_candidate_created").on(table.createdAt),
+]);
+
+export type Candidate = typeof candidates.$inferSelect;
+export type InsertCandidate = typeof candidates.$inferInsert;
