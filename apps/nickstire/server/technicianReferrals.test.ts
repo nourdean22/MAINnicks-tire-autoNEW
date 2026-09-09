@@ -18,7 +18,7 @@
  *     silently render as "migration not applied yet" instead of a real
  *     error, and if it degrades to "true for nothing" the app would 500 on
  *     every /careers submission and every admin Leads page load until
- *     drizzle/0120_technician_referrals.sql is applied to production.
+ *     drizzle/0121_technician_referrals.sql is applied to production.
  *
  *  2. Source-level structural checks (same discipline as
  *     crossSellDeadQuery.test.ts in this file's own directory) that the

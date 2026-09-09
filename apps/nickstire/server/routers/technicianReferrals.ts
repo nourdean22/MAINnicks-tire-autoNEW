@@ -30,7 +30,7 @@ export const technicianReferralsRouter = router({
   /**
    * Called right after a /careers application submits, only when the
    * applicant named a referrer. Never throws to the caller on a missing
-   * table (migration 0120 not yet applied) — the applicant's own lead row
+   * table (migration 0121 not yet applied) — the applicant's own lead row
    * already saved; losing the structured referral record must not read to
    * them as a failed application.
    */
@@ -62,7 +62,7 @@ export const technicianReferralsRouter = router({
 
   /**
    * Empty-vs-error, same discipline as the Lot section's vehicle_visits read:
-   * `migrationPending` distinguishes "0120 not applied yet" from "zero
+   * `migrationPending` distinguishes "0121 not applied yet" from "zero
    * referrals so far" — the admin panel must render these differently.
    */
   list: adminProcedure.query(async () => {

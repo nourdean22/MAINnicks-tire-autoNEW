@@ -419,7 +419,7 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
 //
 // Separate from `referrals` above (the $25/$25 customer program) — this backs
 // the $300-after-90-days TECHNICIAN referral bonus advertised on /careers.
-// drizzle/0120_technician_referrals.sql creates the table; it is hand-applied
+// drizzle/0121_technician_referrals.sql creates the table; it is hand-applied
 // and, as of this code shipping, may not yet be applied to production. Every
 // function here therefore distinguishes "table not migrated yet" from a real
 // failure, the same empty-vs-error discipline the Lot section uses for
@@ -441,7 +441,7 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
     return { success: true, id: Number(result[0].insertId) } as const;
   } catch (err) {
     if (isMissingTableError(err)) {
-      // Migration 0120 not yet applied. The applicant's own lead row (with
+      // Migration 0121 not yet applied. The applicant's own lead row (with
       // the referrer's name preserved in its free-text notes) already saved
       // successfully — this is a missed tracking write, not a failed
       // application, so the caller must not surface this as an error.

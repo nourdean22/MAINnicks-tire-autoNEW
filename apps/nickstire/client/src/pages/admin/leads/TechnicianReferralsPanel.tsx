@@ -2,7 +2,7 @@
  * TechnicianReferralsPanel — admin visibility + payout tracking for the
  * $300-after-90-days TECHNICIAN referral bonus advertised on /careers.
  *
- * Before drizzle/0120_technician_referrals.sql, this bonus was advertised
+ * Before drizzle/0121_technician_referrals.sql, this bonus was advertised
  * with no backing record: the referrer's name lived only inside a free-text
  * note concatenated onto the applicant's `leads.problem` field, so the shop
  * had no reliable way to know who referred whom, verify the 90-day
@@ -12,7 +12,7 @@
  * services.ts referralsRouter) — do not conflate the two in this UI.
  *
  * Empty-vs-error, same discipline as the Lot section's vehicle_visits read:
- * `migrationPending` means "0120 not applied to this database yet", which is
+ * `migrationPending` means "0121 not applied to this database yet", which is
  * a different fact from "no referrals have come in" and must render
  * differently rather than both collapsing to the same blank list.
  */
@@ -85,7 +85,7 @@ export function TechnicianReferralsPanel() {
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
               <strong>Referral tracking isn't live yet.</strong> The database migration
-              (drizzle/0120_technician_referrals.sql) hasn't been applied to this
+              (drizzle/0121_technician_referrals.sql) hasn't been applied to this
               environment. New referrals from /careers still save &mdash; the
               referrer's name is preserved in the applicant's own notes until this
               is applied, but nothing here is trackable or payable yet.
