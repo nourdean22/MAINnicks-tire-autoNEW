@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import edge_main                                                       # noqa: E402
 from edge_main import EdgeLoop, edge_heartbeat_body, source_generation  # noqa: E402
+from edge_main import _locate_quality                                   # noqa: E402
+from vision.run_live import RevalidateResult                            # noqa: E402
 from test_main import make_pipeline                                     # noqa: E402
 from visitd.ledger import Ledger                                        # noqa: E402
 
@@ -2603,6 +2605,146 @@ class TrackDeathLedgerWiringTest(unittest.TestCase):
         loop = _loop(pipeline, _Vision(), _Src(), trajectories=None)
         loop.step()
         self.assertIsNone(loop.trajectories)
+
+
+class LocateQualityTest(unittest.TestCase):
+    """A revalidation pass that FOUND NOTHING used to be indistinguishable from one that
+    confirmed an unchanged layout: both returned False, both printed a line, and the only
+    counter in the loop (`edge_relocate_errors_total`) counts EXCEPTIONS, which a clean
+    `SceneNotLocated` is not. So a locator failing every pass for an hour looked exactly like
+    a window nobody had touched, while the producer went on warping every frame through a
+    binding it had stopped being able to confirm.
+
+    And when a pass DID re-bind, the match's quality figures went to a print statement and
+    nowhere else -- so the `LAYOUT_CHANGE` clip recorded that geometry had been re-bound
+    without any evidence about whether the new binding was good.
+    """
+
+    class _Spy:
+        def __init__(self):
+            self.fired = []
+
+        def trigger(self, name, ts, ctx):
+            self.fired.append((name, ctx))
+
+        def flush_all(self, now):
+            return []
+
+    def _loop_with(self, source, **kw):
+        pipeline = make_pipeline()
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        return _loop(pipeline, _Vision(), source, **kw)
+
+    def _src(self, result):
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                return result
+
+        return _Src()
+
+    def _fire(self, result, **kw):
+        spy = self._Spy()
+        loop = self._loop_with(self._src(result), relocate_seconds=10.0,
+                               clock=_Clock(1000.0), hard_cases=spy, **kw)
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        return loop, spy
+
+    @staticmethod
+    def _located(**over):
+        base = dict(scene_id="shop-left", variant="fullscreen", inliers=140,
+                    inlier_ratio=0.72, reprojection_error=1.1, runner_up=None,
+                    margin=float("inf"), homography_id="h:abc123")
+        base.update(over)
+        return SimpleNamespace(**base)
+
+    # ---------------------------------------------------------------- failures are visible
+    def test_a_pass_that_found_NOTHING_is_counted_and_named(self):
+        result = RevalidateResult(False, failure="SceneNotLocated: no scene reached the floor")
+        with self.assertLogs("edge", level="WARNING") as caught:
+            loop, _spy = self._fire(result)
+        self.assertEqual(loop.relocate_failures, 1)
+        self.assertGreaterEqual(loop.pipeline.metrics.get("edge_relocate_unconfirmed_total"), 1)
+        self.assertTrue([m for m in caught.output if "not confirming the binding" in m],
+                        "a counter that names no cause is half a decision")
+
+    def test_an_UNCHANGED_but_CONFIRMED_pass_is_not_a_failure(self):
+        """THE CANARY. If this counted, the metric would read as a fault many times an hour
+        and an operator would learn to ignore it -- which is worse than not having it."""
+        loop, _spy = self._fire(RevalidateResult(False, located=self._located()))
+        self.assertEqual(loop.relocate_failures, 0)
+        self.assertEqual(loop.pipeline.metrics.get("edge_relocate_unconfirmed_total"), 0)
+
+    def test_a_plain_BOOL_from_an_older_source_still_works(self):
+        """`revalidate()` returning a bare bool must keep working: the result type is truthy
+        on change precisely so every existing caller and stub is unaffected."""
+        loop, spy = self._fire(False)
+        self.assertEqual(loop.relocate_failures, 0)
+        self.assertEqual(loop.relocations, 0)
+        loop2, spy2 = self._fire(True)
+        self.assertEqual(loop2.relocations, 1)
+        self.assertEqual([n for n, _c in spy2.fired], ["LAYOUT_CHANGE"])
+
+    # ------------------------------------------------------------- the clip carries figures
+    def test_a_LAYOUT_CHANGE_clip_carries_the_locate_figures(self):
+        result = RevalidateResult(True, located=self._located(inliers=96, inlier_ratio=0.64))
+        _loop_, spy = self._fire(result)
+        fired = dict(spy.fired)
+        self.assertIn("LAYOUT_CHANGE", fired)
+        locate = fired["LAYOUT_CHANGE"]["locate"]
+        self.assertEqual(locate["inliers"], 96)
+        self.assertEqual(locate["inlierRatio"], 0.64)
+        self.assertEqual(locate["sceneId"], "shop-left")
+        self.assertEqual(locate["homographyId"], "h:abc123")
+
+    # ------------------------------------------------------------------- the thinness band
+    def test_a_THIN_match_is_recorded(self):
+        from vision import scenelocator as sl
+
+        result = RevalidateResult(False, located=self._located(inliers=sl.MIN_INLIERS + 1))
+        _loop_, spy = self._fire(result)
+        names = [n for n, _c in spy.fired]
+        self.assertIn("SCENE_LOCATOR_LOW_CONFIDENCE", names)
+        ctx = dict(spy.fired)["SCENE_LOCATOR_LOW_CONFIDENCE"]
+        self.assertIn("inliers", ctx["why"])
+
+    def test_a_COMFORTABLE_match_is_not(self):
+        """The canary. A band that fired on every match would be a rename of 'a locate
+        happened', and it would fill the corpus with the healthy case."""
+        _loop_, spy = self._fire(RevalidateResult(False, located=self._located()))
+        self.assertEqual([n for n, _c in spy.fired], [])
+
+    def test_NO_RUNNER_UP_is_not_a_near_tie(self):
+        """`margin` is `inf` when no other scene was a candidate at all, which is the
+        strongest possible result. Reading it as a thin margin would invert the meaning."""
+        result = RevalidateResult(False, located=self._located(margin=float("inf"),
+                                                              runner_up=None))
+        _loop_, spy = self._fire(result)
+        self.assertEqual([n for n, _c in spy.fired], [])
+
+    def test_a_NARROW_margin_over_a_real_runner_up_IS_recorded(self):
+        from vision import scenelocator as sl
+
+        result = RevalidateResult(False, located=self._located(
+            margin=sl.AMBIGUITY_MARGIN + 0.01, runner_up="shop-right"))
+        _loop_, spy = self._fire(result)
+        ctx = dict(spy.fired).get("SCENE_LOCATOR_LOW_CONFIDENCE")
+        self.assertIsNotNone(ctx, "a near-tie between two scenes is the expensive case")
+        self.assertIn("shop-right", ctx["why"])
+
+    def test_quality_of_NOTHING_is_None_and_never_a_dict_of_zeros(self):
+        """An unmeasured match and a match that scored zero are different claims, and only
+        one of them can be true."""
+        self.assertIsNone(_locate_quality(None))
 
 
 if __name__ == "__main__":

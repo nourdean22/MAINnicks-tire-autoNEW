@@ -190,6 +190,72 @@ def _round_or_none(value: Any, places: int = 3) -> Optional[float]:
         return None
 
 
+#: A match is called THIN when a quality figure sits within this multiple of the floor that
+#: would have refused it outright. 1.5 is a band, not a threshold: nothing changes behaviour
+#: at 1.5, it only decides which accepted matches are worth keeping a clip of.
+LOCATE_THIN_FACTOR = 1.5
+
+
+def _locate_quality(located: Any) -> Optional[Dict[str, Any]]:
+    """The figures a `Located` carries, flattened for a clip payload and a log.
+
+    None when there is nothing to report, never a dict of zeros -- an unmeasured match and a
+    match that scored zero are different claims and only one of them can be true.
+    """
+    if located is None:
+        return None
+    try:
+        return {
+            "sceneId": str(getattr(located, "scene_id", "")),
+            "variant": str(getattr(located, "variant", "")),
+            "inliers": int(getattr(located, "inliers", 0)),
+            "inlierRatio": _round_or_none(getattr(located, "inlier_ratio", None)),
+            "reprojectionPx": _round_or_none(getattr(located, "reprojection_error", None)),
+            "runnerUp": getattr(located, "runner_up", None),
+            "margin": _round_or_none(getattr(located, "margin", None)),
+            "homographyId": str(getattr(located, "homography_id", "")),
+        }
+    except Exception:  # noqa: BLE001 - never cost a frame over a log field
+        return None
+
+
+def _locate_is_thin(quality: Dict[str, Any]) -> Optional[str]:
+    """Name the figure that was nearly a refusal, or None when the match was comfortable.
+
+    WHAT THIS DOES NOT CATCH, said here rather than discovered later. The worst locator
+    failure this shop has actually seen was not thin: a PTZ that had been moved matched its
+    stored reference at 158 INLIERS -- nearly nine times the floor of 18 -- with a 0.81 ratio
+    and 1.33px reprojection. It was confidently, precisely wrong. What caught it was an
+    INDEPENDENT signal (the located quad sat 623px from the detected live pane, failing
+    `MIN_PANE_IOU`), and nothing about its own fit quality would ever have raised a flag.
+
+    So this is not a guard against binding the wrong scene. It is a record of the accepted
+    matches that came closest to being refused, which is a different and much smaller class,
+    and it is worth having because those are the ones whose margin is being eaten by
+    something -- a dirty lens, a re-encoded stream, a slow layout drift -- and the corpus is
+    where that trend becomes visible before the refusal.
+    """
+    from vision import scenelocator as sl
+
+    inliers = quality.get("inliers")
+    if isinstance(inliers, int) and inliers < sl.MIN_INLIERS * LOCATE_THIN_FACTOR:
+        return f"inliers={inliers} against a floor of {sl.MIN_INLIERS}"
+    ratio = quality.get("inlierRatio")
+    if ratio is not None and ratio < sl.MIN_INLIER_RATIO * LOCATE_THIN_FACTOR:
+        return f"inlierRatio={ratio} against a floor of {sl.MIN_INLIER_RATIO}"
+    margin = quality.get("margin")
+    # `inf` is the honest value for "no runner-up scene was a candidate at all", and it must
+    # never read as a near-tie. It does not, and NO EXPLICIT GUARD IS WRITTEN FOR IT: `inf`
+    # already fails this `<`, so an `and margin != float("inf")` clause would sit here
+    # advertising a protection it can never provide. A mutation sweep proved exactly that --
+    # deleting the clause turned nothing red. Same finding, and the same decision, as the
+    # reprojection cap `scenelocator.py` declines to write for the same reason.
+    if margin is not None and margin < sl.AMBIGUITY_MARGIN * LOCATE_THIN_FACTOR:
+        return (f"margin={margin} over {quality.get('runnerUp')!r} against a floor of "
+                f"{sl.AMBIGUITY_MARGIN}")
+    return None
+
+
 def _track_vitals(track: Any, now: float) -> Dict[str, Any]:
     """A dead or newborn track's own account of itself, for the hard-case context.
 
@@ -416,6 +482,9 @@ class EdgeLoop:
         self.next_relocate = clock() + relocate_seconds if relocate_seconds > 0 else 0.0
         self.revalidations = 0
         self.relocations = 0
+        #: Revalidation passes that produced NO binding -- distinct from a pass that
+        #: confirmed an unchanged layout, which is the happy case many times an hour.
+        self.relocate_failures = 0
         #: Optional `ShadowLedger`. None means no challenger is being observed, which is
         #: the system as it has always run.
         self.shadow = shadow
@@ -681,7 +750,27 @@ class EdgeLoop:
                 # through a boot-time binding all shift with nobody the wiser.
                 self.revalidations += 1
                 try:
-                    if revalidate():
+                    result = revalidate()
+                    quality = _locate_quality(getattr(result, "located", None))
+                    failure = getattr(result, "failure", None)
+                    if failure:
+                        # A PASS THAT FOUND NOTHING IS NOT A STABLE LAYOUT. Both used to
+                        # return False and print a line, so a locator failing every pass for
+                        # an hour was indistinguishable from a window nobody had touched --
+                        # while the producer went on warping every frame through a binding
+                        # it had stopped being able to confirm. `edge_relocate_errors_total`
+                        # does not cover it: a clean SceneNotLocated is not an exception.
+                        self.relocate_failures += 1
+                        self.pipeline.metrics.inc("edge_relocate_unconfirmed_total")
+                        if not getattr(self, "_relocate_failure_logged", False):
+                            self._relocate_failure_logged = True
+                            log.warning(
+                                "scene revalidation is not confirming the binding (%s); the "
+                                "producer keeps warping through the existing geometry", failure)
+                    elif quality is not None:
+                        self._note_locate_quality(now, quality)
+                    if result:
+
                         # The epoch is part of `source_generation`, so the NEXT frame takes
                         # the existing generation-break path: tracks degraded, census
                         # re-armed, no path spanning the change. Nothing extra to keep in
@@ -691,8 +780,12 @@ class EdgeLoop:
                         log.warning("scene re-located; the layout epoch advanced and the "
                                     "next frame will break the track generation")
                         if self.hard_cases is not None:
-                            self.hard_cases.trigger("LAYOUT_CHANGE", now,
-                                                    {"source": "revalidation"})
+                            # WITH THE FIGURES. A clip that records "geometry was
+                            # re-bound" and not how good the new match was cannot answer the
+                            # only question worth asking about it later.
+                            self.hard_cases.trigger(
+                                "LAYOUT_CHANGE", now,
+                                {"source": "revalidation", "locate": quality})
                 except Exception:
                     self.pipeline.metrics.inc("edge_relocate_errors_total")
                     log.exception("scene revalidation failed; the existing binding stands")
@@ -894,6 +987,28 @@ class EdgeLoop:
         return str((frame.meta or {}).get("sceneId")
                    or getattr(getattr(self.source, "binding", None), "scene_id", None)
                    or "unattributed")
+
+    def _note_locate_quality(self, now: float, quality: Dict[str, Any]) -> None:
+        """Keep a clip of an accepted scene match that came close to being refused.
+
+        The binding decides which pixels every polygon is evaluated against, and re-binding
+        to the wrong scene is unrecoverable. A match that passed while sitting just above a
+        refusal floor is the one whose margin is being eaten by something, and a clip is what
+        makes that trend visible before the pass that refuses outright.
+
+        See `_locate_is_thin` for what this deliberately does NOT catch: the confidently
+        wrong match, which scored 158 inliers against a floor of 18.
+        """
+        if self.hard_cases is None:
+            return
+        try:
+            why = _locate_is_thin(quality)
+            if why is None:
+                return
+            self.hard_cases.trigger("SCENE_LOCATOR_LOW_CONFIDENCE", now,
+                                    {"why": why, "locate": quality})
+        except Exception:  # noqa: BLE001 - corpus bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_locate_quality_errors_total")
 
     def _note_preexisting_disagreement(self, frame, out) -> None:
         """Record a car the census called already-there and the portal watched drive in.
