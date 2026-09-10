@@ -14,6 +14,7 @@ import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, 
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 import FadeIn from "@/components/FadeIn";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 import CityReviewsBlock from "@/components/CityReviewsBlock";
@@ -194,6 +195,9 @@ export default function CityPage() {
   const [, params] = useRoute("/:slug");
   const slug = params?.slug || "";
   const city = CITIES.find((c) => c.slug === slug);
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -250,7 +254,7 @@ export default function CityPage() {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="text-[13px] text-primary tracking-wider">{BUSINESS.reviews.rating} STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
+                <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS — {reviewCountDisplay} REVIEWS</span>
               </div>
               <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}
@@ -421,7 +425,7 @@ export default function CityPage() {
                 WHY {city.name.toUpperCase()} DRIVERS TRUST NICK'S
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time — and {BUSINESS.reviews.countDisplay} Google reviews at {BUSINESS.reviews.rating} stars prove it. Here's what {city.name} drivers can count on every visit.
+                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time — and {reviewCountDisplay} Google reviews at {reviewRating} stars prove it. Here's what {city.name} drivers can count on every visit.
               </p>
             </FadeIn>
             <div className="mt-10 space-y-6">

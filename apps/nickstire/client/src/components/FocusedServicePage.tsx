@@ -49,6 +49,7 @@ function slugToTitle(path: string): string {
 import BookingForm from "./BookingForm";
 import FadeIn from "./FadeIn";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown, Star, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -262,6 +263,10 @@ export interface ServicePageConfig {
 }
 
 function Hero({ config }: { config: ServicePageConfig }) {
+  // Live Google rating/count (server-cached 1h), static BUSINESS.reviews as fallback.
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
   return (
     <section className="relative min-h-[55vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
@@ -338,7 +343,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
               // strongest credibility signal next to the hero CTA, not buried
               // mid-page. Single source of truth (BUSINESS.reviews) so it
               // shows on every FocusedServicePage consumer (~30 routes).
-              { icon: <Star className="w-4 h-4 fill-current" />, text: `${BUSINESS.reviews.rating}★ · ${BUSINESS.reviews.countDisplay} reviews` },
+              { icon: <Star className="w-4 h-4 fill-current" />, text: `${reviewRating}★ · ${reviewCountDisplay} reviews` },
               { icon: <Clock className="w-4 h-4" />, text: "Same-day service" },
               { icon: <ShieldCheck className="w-4 h-4" />, text: "Walk-ins welcome" },
               // Operator pref (2026-05-30): keep DOLLAR AMOUNTS out of the hero.

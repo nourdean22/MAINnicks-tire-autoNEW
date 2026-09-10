@@ -38,6 +38,10 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     diagnose: { analyze: { useMutation: () => ({ mutateAsync: mockMutateAsync }) } },
     lead: { submit: { useMutation: () => ({ mutateAsync: mockLeadMutateAsync }) } },
+    // DiagnosePage reads live review data (2026-09-09 fix) with a static
+    // BUSINESS.reviews.* fallback when the query hasn't resolved — undefined
+    // exercises that fallback path, same as this page's real "no data yet" state.
+    reviews: { google: { useQuery: () => ({ data: undefined, isLoading: false, error: null }) } },
   },
 }));
 

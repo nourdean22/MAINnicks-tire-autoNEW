@@ -6,6 +6,7 @@ import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import BrandMark from "@/components/BrandMark";
+import { trpc } from "@/lib/trpc";
 // attribution-wave 2026-06: footer call/text links appear on EVERY page —
 // they were untracked plain anchors, dropping site-wide conversion signal.
 import { trackPhoneClick, trackEvent } from "@/components/SEO";
@@ -15,6 +16,11 @@ const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/9
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
 
 export default function SiteFooter() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+
   return (
     <footer>
       {/* ─── BRAND SIGN BANNER — actual photo of the actual sign ─── */}
@@ -299,7 +305,7 @@ export default function SiteFooter() {
                   <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
                 </div>
                 <span className="text-white text-[15px] font-bold tracking-[-0.01em]">
-                  4.9★ · {BUSINESS.reviews.countDisplay}
+                  {reviewRating}★ · {reviewCountDisplay}
                 </span>
                 <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
                   Google reviews

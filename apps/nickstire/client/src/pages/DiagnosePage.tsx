@@ -564,6 +564,9 @@ export default function DiagnosePage() {
   const formRef = useRef<HTMLDivElement>(null);
 
   const diagnoseMutation = trpc.diagnose.analyze.useMutation();
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
 
   const selectedSymptom = SYMPTOMS.find((s) => s.id === selectedSymptomId) ?? null;
   /** The illustration follows the buttons — it is not the control. */
@@ -757,7 +760,7 @@ export default function DiagnosePage() {
                   the real check happens when you pull in. Squealing or grinding? See our <Link href="/brakes" className="underline text-primary hover:text-primary-foreground font-semibold">brake symptoms list</Link>. Shaking or vibration? Check our <Link href="/tires" className="underline text-primary hover:text-primary-foreground font-semibold">tire options</Link> or <Link href="/financing" className="underline text-primary hover:text-primary-foreground font-semibold">financing for repairs</Link>.
                 </p>
                 <p className="mt-4 text-foreground/45 text-sm">
-                  Free quick check · Written quote before any work · {BUSINESS.reviews.rating}★ from {BUSINESS.reviews.countDisplay} drivers
+                  Free quick check · Written quote before any work · {reviewRating}★ from {reviewCountDisplay} drivers
                 </p>
               </FadeIn>
 

@@ -15,10 +15,18 @@
  *      early drop-off (hours open 8), "20-30% less than dealership",
  *      "24 months warranty", stale "400+" review count, "3x better".
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as pricingModule from "./pricingIntelligence";
 import { analyzeObjections, getObjectionCoaching } from "./pricingIntelligence";
 import { BUSINESS } from "@shared/business";
+
+// getObjectionCoaching now resolves live Google review data (2026-09-09 fix)
+// before falling back to BUSINESS.reviews.*. Mocked to null (= "no live
+// override available") so this test stays network/DB-free and deterministic,
+// and exercises the exact fallback path the assertions below depend on.
+vi.mock("../google-reviews", () => ({
+  getGoogleReviews: vi.fn().mockResolvedValue(null),
+}));
 
 describe("price recommender stays dead", () => {
   it("module no longer exports analyzePricing (payment-status-as-approval recommender)", () => {
@@ -48,8 +56,8 @@ describe("getObjectionCoaching · every claim traces to canon", () => {
   ];
 
   for (const objection of ALL_OBJECTIONS) {
-    it(`${objection} · no fabricated claims in script or tip`, () => {
-      const { script, tip } = getObjectionCoaching(objection);
+    it(`${objection} · no fabricated claims in script or tip`, async () => {
+      const { script, tip } = await getObjectionCoaching(objection);
       for (const claim of FABRICATED_CLAIMS) {
         expect(script).not.toMatch(claim);
         expect(tip).not.toMatch(claim);
@@ -57,14 +65,14 @@ describe("getObjectionCoaching · every claim traces to canon", () => {
     });
   }
 
-  it("trust_issue cites the canonical review count, not a stale literal", () => {
-    const { script } = getObjectionCoaching("trust_issue");
+  it("trust_issue cites the canonical review count, not a stale literal", async () => {
+    const { script } = await getObjectionCoaching("trust_issue");
     expect(script).toContain(BUSINESS.reviews.countDisplay);
     expect(script).toContain(String(BUSINESS.reviews.rating));
   });
 
-  it("price_concern cites the canonical financing providers", () => {
-    const { script } = getObjectionCoaching("price_concern");
+  it("price_concern cites the canonical financing providers", async () => {
+    const { script } = await getObjectionCoaching("price_concern");
     for (const provider of BUSINESS.financing.providers) {
       expect(script).toContain(provider);
     }

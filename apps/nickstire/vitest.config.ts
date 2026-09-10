@@ -58,6 +58,14 @@ export default defineConfig({
       "shared/**/*.test.ts",
       "client/src/__tests__/**/*.test.ts",
       "client/src/__tests__/**/*.test.tsx",
+      // Same failure mode as shared/ above, found the same way: a 2026-09
+      // regression fix for scripts/lint-brand-voice.ts needed a test, and
+      // scripts/lib/brandVoiceScope.test.ts sat in the tree — collected by
+      // nothing — until this line existed. scripts/lib/ already holds
+      // scanText.ts, deliberately extracted from lint-brand-voice.ts so it
+      // COULD be unit-tested; this glob is what makes that extraction worth
+      // anything.
+      "scripts/**/*.test.ts",
     ],
     environmentMatchGlobs: [
       ["client/src/__tests__/**", "jsdom"],

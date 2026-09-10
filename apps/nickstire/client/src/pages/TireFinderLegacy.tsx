@@ -721,6 +721,11 @@ export default function TireFinder() {
   // webhook hasn't landed yet (see the ?paid=1 effect below).
   const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
 
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+
   const handleSearch = () => {
     if (searchInput.trim().length < 3) {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
@@ -825,8 +830,8 @@ export default function TireFinder() {
               // hardcoded "1683" / "4.9" which drift from the canonical
               // BUSINESS constant. Now pulls from shared/business.ts
               // so when the GBP review count grows, schema follows.
-              ratingValue: String(BUSINESS.reviews.rating),
-              reviewCount: String(BUSINESS.reviews.count),
+              ratingValue: String(reviewRating),
+              reviewCount: String(reviewCount),
               bestRating: "5",
               worstRating: "1",
             },
@@ -1434,7 +1439,7 @@ export default function TireFinder() {
                     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
                       <span className="flex items-center gap-1.5 whitespace-nowrap">
                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shrink-0" />
-                        {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
+                        {reviewRating} stars · {reviewCountDisplay} reviews
                       </span>
                       <span className="hidden sm:inline">✓ Walk-in OK 7 days</span>
                       <span className="hidden sm:inline">✓ Same-day on in-stock</span>
@@ -1881,7 +1886,7 @@ export default function TireFinder() {
                     <Star key={i} className="w-4 h-4 fill-primary text-primary" />
                   ))}
                 </div>
-                <p className="text-sm text-foreground font-medium">{BUSINESS.reviews.rating} Stars — {BUSINESS.reviews.countDisplay} Google Reviews</p>
+                <p className="text-sm text-foreground font-medium">{reviewRating} Stars — {reviewCountDisplay} Google Reviews</p>
                 <p className="text-xs text-muted-foreground mt-1">Real reviews from real Cleveland drivers</p>
               </div>
             </motion.div>
@@ -1956,7 +1961,7 @@ export default function TireFinder() {
                   <Star key={i} className="w-5 h-5 fill-primary text-primary" />
                 ))}
               </div>
-              <p className="text-lg text-foreground font-medium mb-1">{BUSINESS.reviews.rating} Stars — {BUSINESS.reviews.countDisplay} Reviews</p>
+              <p className="text-lg text-foreground font-medium mb-1">{reviewRating} Stars — {reviewCountDisplay} Reviews</p>
               <p className="text-sm text-muted-foreground">
                 Cleveland's Euclid Ave tire shop — serving Euclid, Lakewood, Parma, and all of Northeast Ohio.
               </p>

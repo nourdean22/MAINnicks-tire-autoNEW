@@ -8,9 +8,10 @@ export default function TrustBlock({ className = "" }: { className?: string }) {
     retry: 1,
   });
 
-  const reviewCount = googleData?.totalReviews 
-    ? `${googleData.totalReviews.toLocaleString()}+` 
+  const reviewCount = googleData?.totalReviews
+    ? `${googleData.totalReviews.toLocaleString()}+`
     : BUSINESS.reviews.countDisplay;
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
 
   return (
     <div className={`bg-card/30 border border-border/30 rounded-2xl p-8 backdrop-blur-md relative overflow-hidden ${className}`}>
@@ -27,7 +28,7 @@ export default function TrustBlock({ className = "" }: { className?: string }) {
             ))}
           </div>
           <span className="font-heading font-extrabold text-2xl text-foreground">
-            {BUSINESS.reviews.rating} STAR REPUTATION
+            {reviewRating} STAR REPUTATION
           </span>
           <span className="text-xs text-foreground/60 mt-1">
             Over {reviewCount} verified Google reviews

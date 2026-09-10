@@ -6,6 +6,7 @@
 import { Check, X, AlertTriangle, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 
 type Status = "yes" | "no" | "warn";
 
@@ -18,18 +19,25 @@ interface Row {
 
 // Voice-led row labels — same data, but each line sounds like a friend
 // telling you the difference. 2026-05-05 brand-voice pass.
-const ROWS: Row[] = [
-  { feature: "Tells you the price before doing the work",        nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: "Shows you the worn part on a lift",                nicks: "yes", dealership: "warn", chain: "no"   },
-  { feature: "Done before your Uber driver gets bored",          nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: "Works on whatever you drive",                       nicks: "yes", dealership: "no",   chain: "yes"  },
-  { feature: "$10 down financing — no credit check",              nicks: "yes", dealership: "warn", chain: "no"   },
-  { feature: "Open Sunday — exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: `${BUSINESS.reviews.countDisplay} Cleveland drivers think so`, nicks: "yes", dealership: "warn", chain: "no" },
-  { feature: "Won't sell you what you don't need",               nicks: "yes", dealership: "no",   chain: "no"   },
-  { feature: "Mechanics actually trained on this stuff",         nicks: "yes", dealership: "yes",  chain: "warn" },
-  { feature: "Tells you what's wrong for free, in writing",      nicks: "yes", dealership: "no",   chain: "no"   },
-];
+//
+// A FUNCTION, not a module-level constant: the review count needs to come
+// from live data resolved at RENDER time (see ComparisonTable below), and a
+// module-level const is computed once at import time, before any component
+// — including one with a live query — ever runs.
+function buildRows(reviewCountDisplay: string): Row[] {
+  return [
+    { feature: "Tells you the price before doing the work",        nicks: "yes", dealership: "no",   chain: "warn" },
+    { feature: "Shows you the worn part on a lift",                nicks: "yes", dealership: "warn", chain: "no"   },
+    { feature: "Done before your Uber driver gets bored",          nicks: "yes", dealership: "no",   chain: "warn" },
+    { feature: "Works on whatever you drive",                       nicks: "yes", dealership: "no",   chain: "yes"  },
+    { feature: "$10 down financing — no credit check",              nicks: "yes", dealership: "warn", chain: "no"   },
+    { feature: "Open Sunday — exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
+    { feature: `${reviewCountDisplay} Cleveland drivers think so`, nicks: "yes", dealership: "warn", chain: "no" },
+    { feature: "Won't sell you what you don't need",               nicks: "yes", dealership: "no",   chain: "no"   },
+    { feature: "Mechanics actually trained on this stuff",         nicks: "yes", dealership: "yes",  chain: "warn" },
+    { feature: "Tells you what's wrong for free, in writing",      nicks: "yes", dealership: "no",   chain: "no"   },
+  ];
+}
 
 const COLUMNS = ["Nick's", "Dealership", "Chain Shop"] as const;
 
@@ -46,7 +54,7 @@ function StatusLabel({ status }: { status: Status }) {
 }
 
 /* ── Desktop Table ─────────────────────────────────────────── */
-function DesktopTable() {
+function DesktopTable({ rows }: { rows: Row[] }) {
   return (
     <div className="hidden md:block overflow-x-auto">
       <table className="w-full text-sm">
@@ -68,10 +76,10 @@ function DesktopTable() {
           </tr>
         </thead>
         <tbody>
-          {ROWS.map((row, i) => (
+          {rows.map((row, i) => (
             <tr
               key={row.feature}
-              className={`border-b border-[#2A2A2A] ${i === ROWS.length - 1 ? "border-b-0" : ""}`}
+              className={`border-b border-[#2A2A2A] ${i === rows.length - 1 ? "border-b-0" : ""}`}
             >
               <td className="py-4 px-5 text-white/70 font-medium">{row.feature}</td>
               {/* Nick's column — subtle gold left border */}
@@ -93,10 +101,10 @@ function DesktopTable() {
 }
 
 /* ── Mobile Cards ──────────────────────────────────────────── */
-function MobileCards() {
+function MobileCards({ rows }: { rows: Row[] }) {
   return (
     <div className="md:hidden space-y-4">
-      {ROWS.map((row) => (
+      {rows.map((row) => (
         <div
           key={row.feature}
           className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4"
@@ -127,6 +135,10 @@ function MobileCards() {
 
 /* ── Main Export ────────────────────────────────────────────── */
 export default function ComparisonTable() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+  const rows = buildRows(reviewCountDisplay);
+
   return (
     <section className="bg-[#141414] py-20">
       <div className="container">
@@ -140,8 +152,8 @@ export default function ComparisonTable() {
         </div>
 
         <div className="max-w-3xl mx-auto bg-[#141414] border border-[#2A2A2A] rounded-2xl p-4 lg:p-6">
-          <DesktopTable />
-          <MobileCards />
+          <DesktopTable rows={rows} />
+          <MobileCards rows={rows} />
         </div>
 
         {/* 2026-05-06 wave-39 · funnel home-page visitors to the named

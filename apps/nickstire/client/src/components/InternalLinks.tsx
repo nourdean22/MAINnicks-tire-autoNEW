@@ -6,6 +6,7 @@
 import { Link } from "wouter";
 import { ChevronRight } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 
 interface LinkItem {
   href: string;
@@ -13,7 +14,12 @@ interface LinkItem {
   desc: string;
 }
 
-const ALL_LINKS: LinkItem[] = [
+// A FUNCTION, not a module-level constant: the review count needs to come
+// from live data resolved at RENDER time (see InternalLinks below), and a
+// module-level const is computed once at import time, before any component
+// — including one with a live query — ever runs.
+function buildAllLinks(reviewCountDisplay: string): LinkItem[] {
+  return [
   // Core services
   { href: "/tires", label: "Tire Shop Near Me", desc: "New & used tires, mounting, balancing, TPMS — walk-ins" },
   { href: "/brakes", label: "Brake Repair Cleveland", desc: "Pads, rotors, calipers, brake lines — walk-ins" },
@@ -36,7 +42,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/pricing", label: "Price Estimator", desc: "Get an instant repair cost estimate" },
   { href: "/services", label: "All Services", desc: "Complete list of everything we do" },
   { href: "/specials", label: "Specials & Coupons", desc: "Current deals and discounts" },
-  { href: "/reviews", label: "Customer Reviews", desc: `4.9 stars from ${BUSINESS.reviews.countDisplay} reviews` },
+  { href: "/reviews", label: "Customer Reviews", desc: `4.9 stars from ${reviewCountDisplay} reviews` },
   { href: "/blog", label: "Repair Tips Blog", desc: "Cleveland-specific car care notes from the bay" },
   { href: "/guides", label: "Auto Repair Guides", desc: "In-depth guides from Cleveland mechanics" },
   { href: "/guides/how-to-read-tire-size", label: "How to Read Tire Size", desc: "Complete guide to tire size markings" },
@@ -75,7 +81,8 @@ const ALL_LINKS: LinkItem[] = [
   // hostile reviewer (and to Google's scaled-content lens). Same class of
   // copy fixed in SiteFooter.
   { href: "/areas-served", label: "All Areas Served", desc: "Serving Cleveland's East Side & Northeast Ohio" },
-];
+  ];
+}
 
 interface Props {
   title?: string;
@@ -84,6 +91,11 @@ interface Props {
 }
 
 export default function InternalLinks({ title = "Explore More Services", maxLinks = 12, exclude = [] }: Props) {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+  const allLinks = buildAllLinks(reviewCountDisplay);
+
   // Safe for SSR/prerender: always attempt to read pathname, fallback to "/"
   let currentPath = "/";
   try {
@@ -94,7 +106,7 @@ export default function InternalLinks({ title = "Explore More Services", maxLink
     // SSR or prerender environment — use fallback
   }
 
-  const available = ALL_LINKS.filter(
+  const available = allLinks.filter(
     (l) => l.href !== currentPath && !exclude.includes(l.href)
   );
 

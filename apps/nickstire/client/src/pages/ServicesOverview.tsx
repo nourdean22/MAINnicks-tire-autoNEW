@@ -39,6 +39,7 @@ import {
 } from "@/components/SEO";
 import ServicesDifferentiators from "@/components/ServicesDifferentiators";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 import { SERVICES, type ServiceData } from "@shared/services";
 
 const ICON_BY_SLUG: Record<string, React.ReactNode> = {
@@ -118,7 +119,13 @@ const SERVICES_PAGE_FAQ = [
 
 const AEO_ANSWER = `${BUSINESS.name} is a full-service auto repair shop at ${BUSINESS.address.full}. We handle tires, brakes, oil changes, check-engine problems, wheel alignment, electrical work, and Ohio E-Check failures for domestic, import, and European vehicles. ${BUSINESS.model.walkIns}. Get a written quote before work starts, and you don't pay until you say yes. Call ${BUSINESS.phone.display}.`;
 
-const SERVICES_META_DESCRIPTION = `Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} drivers.`;
+// A function, not a module-level const: the review rating/count need to come
+// from live data resolved at RENDER time (see ServicesOverview below), and a
+// module-level const is computed once at import time, before any component
+// — including one with a live query — ever runs.
+function servicesMetaDescription(reviewRating: number, reviewCountDisplay: string): string {
+  return `Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers.`;
+}
 
 function trackServicesAction(
   surface: string,
@@ -135,11 +142,16 @@ function trackServicesAction(
 }
 
 export default function ServicesOverview() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+
   return (
     <PageLayout showChat={true}>
       <SEOHead
         title="Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's"
-        description={SERVICES_META_DESCRIPTION}
+        description={servicesMetaDescription(reviewRating, reviewCountDisplay)}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -220,7 +232,7 @@ export default function ServicesOverview() {
                 className="inline-flex items-center gap-2 font-semibold text-foreground/80 transition-colors hover:text-primary"
               >
                 <Star className="h-4 w-4 fill-primary text-primary" />
-                {BUSINESS.reviews.rating} · {BUSINESS.reviews.countDisplay} Google reviews
+                {reviewRating} · {reviewCountDisplay} Google reviews
               </a>
               <span>{BUSINESS.hours.shortDisplay}</span>
               <span>{BUSINESS.warranty.shortDisplay}</span>
@@ -540,8 +552,8 @@ export default function ServicesOverview() {
             },
             aggregateRating: {
               "@type": "AggregateRating",
-              ratingValue: String(BUSINESS.reviews.rating),
-              reviewCount: String(BUSINESS.reviews.count),
+              ratingValue: String(reviewRating),
+              reviewCount: String(reviewCount),
             },
             hasOfferCatalog: {
               "@type": "OfferCatalog",
