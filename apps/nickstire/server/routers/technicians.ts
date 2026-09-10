@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { getDbTyped } from "../db";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import {
   getActiveTechnicians, getAllTechnicians, createTechnician,
@@ -14,6 +15,9 @@ import { sanitizeText } from "../sanitize";
 export const techniciansRouter = router({
   /** Get active technicians for public display */
   list: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Technician store unavailable - this is a read failure, not an empty team." });
+    }
     return getActiveTechnicians();
   }),
 

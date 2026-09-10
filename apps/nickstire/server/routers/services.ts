@@ -4,6 +4,7 @@
  */
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { getDbTyped } from "../db";
 import {
   createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon, redeemCouponById,
   getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
@@ -29,6 +30,9 @@ const log = createLogger("routers:services");
 
 export const couponsRouter = router({
   active: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Coupon store unavailable - this is a read failure, not an absence of offers." });
+    }
     return getActiveCoupons();
   }),
   all: adminProcedure.query(async () => {
@@ -223,6 +227,9 @@ export const referralsRouter = router({
 
 export const qaRouter = router({
   published: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Question store unavailable - this is a read failure, not an empty Q&A." });
+    }
     return getPublishedQuestions();
   }),
   ask: publicProcedure
@@ -281,9 +288,15 @@ export const pricingRouter = router({
       vehicleCategory: z.enum(["compact", "midsize", "full-size", "truck-suv"]),
     }))
     .query(async ({ input }) => {
+      if (!(await getDbTyped())) {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Pricing store unavailable - this is a read failure, not an unpriced service." });
+      }
       return getServicePricingByCategory(input.serviceType, input.vehicleCategory);
     }),
   allServices: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Pricing store unavailable - this is a read failure, not an empty price list." });
+    }
     return getAllServicePricing();
   }),
   upsert: adminProcedure
@@ -308,12 +321,20 @@ export const inspectionRouter = router({
   byToken: publicProcedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
+      if (!(await getDbTyped())) {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Inspection store unavailable - this is a read failure, not a missing report." });
+      }
       return getInspectionByToken(input.token);
     }),
   /** DVI (0101) · view-tracking beacon — token IS the auth; published only. */
   recordView: publicProcedure
     .input(z.object({ token: z.string().min(16).max(64) }))
-    .mutation(async ({ input }) => recordInspectionView(input.token)),
+    .mutation(async ({ input }) => {
+      if (!(await getDbTyped())) {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Inspection store unavailable - the view was not recorded." });
+      }
+      return recordInspectionView(input.token);
+    }),
   /**
    * DVI (0101) · per-item customer decision. The token→inspection→item
    * join is the authorization; re-deciding is allowed (people change
@@ -420,6 +441,9 @@ export const inspectionRouter = router({
 
 export const loyaltyRouter = router({
   rewards: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Rewards store unavailable - this is a read failure, not an empty catalogue." });
+    }
     return getLoyaltyRewards();
   }),
   summary: protectedProcedure.query(async ({ ctx }) => {
