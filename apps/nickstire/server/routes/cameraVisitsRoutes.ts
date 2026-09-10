@@ -162,13 +162,36 @@ const LEARNED_ONCE = new Set<string>([
  */
 const IMMUTABLE_AFTER_INSERT = new Set<string>(["dataClass", "commissioningRunId"]);
 
+/**
+ * Columns a RETENTION SCRUB has removed, which no delivery may ever put back.
+ *
+ * The seq guard alone is not enough here, and the hole is a real one (Codex P1 on #2270).
+ * The edge's durable shop outbox retries a full row indefinitely, so a delivery carrying
+ * the ORIGINAL plate text can arrive at an EQUAL seq days after `plate-retention-scrub`
+ * nulled it -- `VALUES(seq) >= seq` accepts equality by design, because a redelivery of the
+ * same emission must be idempotent. The row would then flip from SCRUBBED back to CONFIRMED
+ * with the plate text restored, past the 30-day ADR-0017 window, and nothing anywhere would
+ * report it: the scrub already ran, the cron already went green, and the next run only looks
+ * at rows older than the cutoff whose text is non-NULL -- which this one now is again, so it
+ * would be scrubbed a second time and could be restored a third.
+ *
+ * So the stored `plateStatus` gates these two columns before the seq guard is consulted.
+ * `plateText` is assigned BEFORE `plateStatus` in COLUMNS order, and MySQL evaluates
+ * ON DUPLICATE KEY UPDATE assignments left to right, so both right-hand sides read the OLD
+ * status -- the check cannot be defeated by its own update.
+ */
+const NEVER_UNSCRUBBED = new Set<string>(["plateText", "plateStatus"]);
+
 /** Every column updates only when the incoming seq is at least the stored one. */
 export const GUARDED_SET = COLUMNS.filter(
   (c) => c !== "visitId" && !IMMUTABLE_AFTER_INSERT.has(c),
 )
   .map((c) => {
     const incoming = LEARNED_ONCE.has(c) ? `COALESCE(VALUES(\`${c}\`), \`${c}\`)` : `VALUES(\`${c}\`)`;
-    return `\`${c}\` = IF(VALUES(\`seq\`) >= \`seq\`, ${incoming}, \`${c}\`)`;
+    const guarded = `IF(VALUES(\`seq\`) >= \`seq\`, ${incoming}, \`${c}\`)`;
+    return NEVER_UNSCRUBBED.has(c)
+      ? `\`${c}\` = IF(\`plateStatus\` = 'SCRUBBED', \`${c}\`, ${guarded})`
+      : `\`${c}\` = ${guarded}`;
   })
   .join(", ");
 
