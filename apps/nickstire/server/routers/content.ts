@@ -70,9 +70,36 @@ export const contentRouter = router({
   publishedArticles: publicProcedure.query(async () => {
     return getPublishedArticles();
   }),
+  // THIS FABRICATED READ COST US GOOGLE RANKINGS, not just a wrong number.
+  //
+  // getDynamicArticleBySlug returns `null` on a dead handle (content-generator.ts:449),
+  // which is the same value it returns for "no such article". BlogPost.tsx renders
+  // that as its not-found branch — "ARTICLE NOT FOUND" — and the prerenderer
+  // captured and committed exactly that, at HTTP 200, for URLs the sitemap
+  // advertises. GSC read them as Soft 404s.
+  //
+  // Measured in the 2026-09-10 refresh (run 34522396903): SIX DB-backed blog
+  // routes rendered the not-found branch, all in a 90-second window ~14 minutes
+  // into the run, right where the DB-dynamic routes are appended last. Every
+  // static article rendered fine. That is a database handle failing late in a
+  // long run being reported to the reader as "this article does not exist".
+  //
+  // ROS-083 shape: guard at the ROUTER, not the helper. The helper's `null` is
+  // load-bearing for genuinely-absent slugs, and callers distinguish the two
+  // cases only if the failure arrives as an error.
+  //
+  // A thrown SERVICE_UNAVAILABLE cannot be mistaken for an empty result: the
+  // prerenderer already refuses to write a page that renders empty, and now the
+  // server LOG names the cause instead of the run looking like a content gap.
   articleBySlug: publicProcedure
     .input(z.object({ slug: z.string().max(200) }))
     .query(async ({ input }) => {
+      if (!(await getDbTyped())) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Article store unavailable — this is a read failure, not a missing article.",
+        });
+      }
       return getDynamicArticleBySlug(input.slug);
     }),
   activeNotifications: publicProcedure.query(async () => {

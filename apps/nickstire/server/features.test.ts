@@ -514,11 +514,29 @@ describe("content-generator", () => {
     expect(["spring", "summer", "fall", "winter"]).toContain(result.season);
   });
 
-  it("content.articleBySlug returns null for nonexistent slug", async () => {
+  it("content.articleBySlug reports an unreachable store as a FAILURE, not an empty result", async () => {
+    // THIS TEST USED TO ASSERT `toBeNull()`, AND IT WAS PINNING THE BUG.
+    //
+    // There is no database in this suite, so `getDbTyped()` returns null. The
+    // procedure used to fall through to getDynamicArticleBySlug, whose
+    // `if (!db) return null` hands back the SAME value it returns for a slug
+    // that genuinely has no article. The assertion could not tell those apart,
+    // so a green here meant "either the article is missing or the database is
+    // gone" — and it read as the former.
+    //
+    // That is not academic. BlogPost.tsx renders `null` as "ARTICLE NOT FOUND";
+    // the prerenderer captured that at HTTP 200 for URLs the sitemap
+    // advertises, and Google filed them as Soft 404s. Refresh run 34522396903
+    // caught six blog routes doing it inside a 90-second window.
+    //
+    // The genuine "no such article" case still returns null and is asserted in
+    // server/articleBySlugFailsClosed.test.ts, where the db handle is mocked
+    // ALIVE so the two conditions are actually distinguishable.
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.content.articleBySlug({ slug: "nonexistent-article-slug" });
-    expect(result).toBeNull();
+    await expect(
+      caller.content.articleBySlug({ slug: "nonexistent-article-slug" }),
+    ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
   });
 
   it("contentAdmin endpoints require admin auth", async () => {
