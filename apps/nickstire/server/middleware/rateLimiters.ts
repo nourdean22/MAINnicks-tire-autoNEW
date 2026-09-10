@@ -1,7 +1,16 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
-const clientIp = (req: Request): string => {
+/**
+ * EXPORTED FOR TESTS, and deliberately so (2026-09-10).
+ * server/rateLimitBypass.test.ts re-implemented this function under a comment
+ * reading "verbatim in shape from server/middleware/rateLimiters.ts" - and it
+ * was not: the copy stopped after the comma split and omitted the IPv6 /64
+ * normalisation below entirely, so it asserted behaviour this function does not
+ * have while never running the function that gates the spoofing. A copy of a
+ * SECURITY control is the worst place for a silent instrument.
+ */
+export const clientIp = (req: Request): string => {
   // Extract real IP behind Cloudflare/Railway. Cloudflare guarantees cf-connecting-ip
   // cannot be spoofed *if* the traffic passed through CF.
   //

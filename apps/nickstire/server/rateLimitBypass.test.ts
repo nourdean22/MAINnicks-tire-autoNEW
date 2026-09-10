@@ -25,6 +25,7 @@ import type { Server } from "node:http";
 // stays green while the shipped guard drifts. Extracted to _core/batchGuard.ts
 // so these tests exercise production code.
 import { withBatchRegex, blockBatchedLimits } from "./_core/batchGuard";
+import { clientIp } from "./middleware/rateLimiters";
 
 const ORIGINAL = { ...process.env };
 afterEach(() => {
@@ -94,18 +95,10 @@ describe("batch guard fires under a RegExp mount", () => {
 });
 
 describe("x-real-ip cannot mint a fresh rate-limit bucket", () => {
-  // The fixed clientIp, verbatim in shape from server/middleware/rateLimiters.ts.
-  const clientIp = (req: express.Request): string => {
-    const cloudflareInFront = process.env.TRUST_CLOUDFLARE_HEADERS === "true";
-    const edgeSetsRealIp = process.env.TRUST_EDGE_IP_HEADERS === "true";
-    let raw =
-      (cloudflareInFront ? (req.headers["cf-connecting-ip"] as string) : "") ||
-      (edgeSetsRealIp ? (req.headers["x-real-ip"] as string) : "") ||
-      req.ip ||
-      "unknown";
-    if (raw && raw !== "unknown" && raw.includes(",")) raw = raw.split(",")[0].trim();
-    return raw;
-  };
+  // THE REAL clientIp, imported. It used to be re-implemented here as "verbatim
+  // in shape" — and it was not: the copy stopped after the comma split and left
+  // out the IPv6 /64 normalisation, so it asserted behaviour the shipped
+  // function does not have while never exercising the one that gates spoofing.
 
   const keysFor = (headers: Record<string, string>[], env: Record<string, string> = {}) => {
     process.env = { ...ORIGINAL, ...env };
