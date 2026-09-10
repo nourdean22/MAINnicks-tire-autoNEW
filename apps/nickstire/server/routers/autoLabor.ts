@@ -7,7 +7,7 @@
  * - Customer data sync
  * - Vehicle database access
  */
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
@@ -288,7 +288,7 @@ export function searchLaborJobs(query: string): LaborJobMatch[] {
 
 export const autoLaborRouter = router({
   /** Check ShopDriver Elite connection status */
-  status: adminProcedure.query(async () => {
+  status: dbAdminProcedure.query(async () => {
     const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
     const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
     const { getDbDataStaleDays, getLastSuccessfulSync } = await import("../services/shopDriverMirror");

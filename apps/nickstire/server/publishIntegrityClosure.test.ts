@@ -52,6 +52,20 @@ vi.mock("./lib/db-helper", () => ({
   dbTyped: async () => database,
   requireDb: async () => database,
 }));
+// touchAdminActivity fires maybeFireSessionResumeProbe as BACKGROUND work, and
+// that probe runs its own select. This harness feeds every select from one
+// shared FIFO (selectQueue), so a background select STEALS the entry the
+// handler was meant to get — the draft lookup then sees [] and the procedure
+// fails with "No media to publish" instead of the behaviour under test.
+//
+// It passed before only on microtask timing: the probe happened to resolve
+// after the handler. Adding one more await anywhere in the middleware chain
+// (dbAdminProcedure did exactly that) flips the order. Silence the background
+// work so the queue belongs to the subject.
+vi.mock("./lib/adminActivity", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  touchAdminActivity: () => undefined,
+}));
 vi.mock("./db", () => ({
   getDb: async () => database,
   getDbTyped: async () => database,

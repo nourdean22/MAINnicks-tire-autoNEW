@@ -10,7 +10,7 @@
  * per-role only on an explicit operator decision.
  */
 import { z } from "zod";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { deriveActor } from "../services/activityLedger";
 import {
   approveAndExecute,
@@ -30,7 +30,7 @@ const statusEnum = z.enum(PROPOSAL_STATUSES);
 
 export const proposalsRouter = router({
   /** Queue + history. Default view = needs-decision (draft + pending_review). */
-  list: adminProcedure
+  list: dbAdminProcedure
     .input(
       z
         .object({
@@ -43,12 +43,12 @@ export const proposalsRouter = router({
       return listProposals({ statuses: input?.statuses, limit: input?.limit });
     }),
 
-  get: adminProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+  get: dbAdminProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
     return getProposal(input.id);
   }),
 
   /** Tri-state: readable=false must render "?" — never a confident zero. */
-  counts: adminProcedure.query(async () => {
+  counts: dbAdminProcedure.query(async () => {
     return countReviewable();
   }),
 

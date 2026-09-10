@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDbTyped } from "../db";
-import { router, publicProcedure, adminProcedure } from "../_core/trpc";
+import { router, publicProcedure, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import {
   getPublicGalleryItems, getAllGalleryItems, createGalleryItem,
   updateGalleryItem, deleteGalleryItem,
@@ -22,7 +22,7 @@ export const galleryRouter = router({
   }),
 
   /** Get all gallery items including unpublished (admin) */
-  listAll: adminProcedure.query(async () => {
+  listAll: dbAdminProcedure.query(async () => {
     return getAllGalleryItems();
   }),
 

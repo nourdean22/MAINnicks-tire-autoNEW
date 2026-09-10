@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDbTyped } from "../db";
-import { router, publicProcedure, adminProcedure } from "../_core/trpc";
+import { router, publicProcedure, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import {
   getActiveTechnicians, getAllTechnicians, createTechnician,
   updateTechnician, deleteTechnician,
@@ -22,7 +22,7 @@ export const techniciansRouter = router({
   }),
 
   /** Get all technicians including inactive (admin) */
-  listAll: adminProcedure.query(async () => {
+  listAll: dbAdminProcedure.query(async () => {
     return getAllTechnicians();
   }),
 

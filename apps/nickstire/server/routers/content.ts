@@ -2,7 +2,7 @@
  * Content router — public content access and admin content management.
  */
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { publicProcedure, adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { getDbTyped } from "../db";
 import { contentManufacturingCampaigns, socialContentInventory } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -147,7 +147,7 @@ export const contentRouter = router({
 });
 
 export const contentAdminRouter = router({
-  allArticles: adminProcedure.query(async () => {
+  allArticles: dbAdminProcedure.query(async () => {
     return getAllDynamicArticles();
   }),
   updateArticleStatus: adminProcedure
@@ -178,7 +178,7 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
     }),
-  allNotifications: adminProcedure.query(async () => {
+  allNotifications: dbAdminProcedure.query(async () => {
     return getAllNotifications();
   }),
   toggleNotification: adminProcedure
@@ -202,7 +202,7 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
     }),
-  generationLog: adminProcedure.query(async () => {
+  generationLog: dbAdminProcedure.query(async () => {
     return getGenerationLog();
   }),
   generateContent: adminProcedure
@@ -368,7 +368,7 @@ export const contentAdminRouter = router({
   /** Genome Wave 1 slice 2: role-diverse concept tournament with an
    *  INDEPENDENT judge (replaces self-scored concept selection). Optionally
    *  chains the judged winner into a campaign genome. */
-  listCampaignGenomes: adminProcedure
+  listCampaignGenomes: dbAdminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
     .query(async ({ input }) => {
       const { listGenomes } = await import("../services/creativeMemory");
@@ -563,7 +563,7 @@ export const contentAdminRouter = router({
    *  is the one interventional test the pipeline already understands
    *  end-to-end: hook_style direct-vs-baseline, decided on shares_per_reach
    *  at the 72h horizon. Idempotent — re-starting re-asserts the same arms. */
-  startContentExperiment: adminProcedure
+  startContentExperiment: dbAdminProcedure
     .input(z.object({ preset: z.literal("hook_style_v1") }))
     .mutation(async ({ input }) => {
       void input;
@@ -819,7 +819,7 @@ export const contentAdminRouter = router({
 
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
    *  drive today's reel/carousel/photo flows from it. */
-  generateCampaignGenome: adminProcedure
+  generateCampaignGenome: dbAdminProcedure
     .input(z.object({
       campaignAsk: z.string().min(8).max(600),
       objective: z.string().max(32).optional(),
@@ -3310,7 +3310,7 @@ export const contentAdminRouter = router({
       return { ok: true, supersededJobId: input.jobId, newJobId };
     }),
   /** What happened to one request, start to finish — the run's own story. */
-  getContentRun: adminProcedure
+  getContentRun: dbAdminProcedure
     .input(z.object({ runId: z.string().min(1).max(64) }))
     .query(async ({ input }) => {
       const { getContentRun } = await import("../services/contentRun");

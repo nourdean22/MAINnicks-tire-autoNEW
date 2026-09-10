@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { eq, sql, desc, and, inArray, isNull } from "drizzle-orm";
 import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
 import { campaignEligiblePhoneSql } from "../lib/sms-eligibility";
@@ -150,7 +150,7 @@ export const campaignsRouter = router({
     }),
 
   /** Create a new SMS campaign (draft mode) */
-  create: adminProcedure
+  create: dbAdminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
       template: z.enum(["maintenance", "seasonal", "special_offer", "winback"]),
@@ -180,7 +180,7 @@ export const campaignsRouter = router({
     }),
 
   /** Preview campaign messages for a sample of customers */
-  preview: adminProcedure
+  preview: dbAdminProcedure
     .input(z.object({
       template: z.enum(["maintenance", "seasonal", "special_offer", "winback"]),
       segment: z.enum(["recent", "lapsed", "all"]),
@@ -217,7 +217,7 @@ export const campaignsRouter = router({
    * inspect affectedRows. Only one caller wins the claim; the other gets
    * 0 affected rows and bails out cleanly.
    */
-  send: adminProcedure
+  send: dbAdminProcedure
     .input(z.object({
       campaignId: z.number(),
     }))

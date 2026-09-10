@@ -13,12 +13,12 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 
 export const smsOpsRouter = router({
   /** Everything on one read: pause, gateway, queue depth, caps, counters,
    *  autonomy ladder, recent suppressions, delivery failures, pending drafts. */
-  opsStatus: adminProcedure.query(async () => {
+  opsStatus: dbAdminProcedure.query(async () => {
     const { getSmsPauseState, checkGlobalDailyCap } = await import("../services/smsControl");
     const { getSmsStats, isShopGatewayConfigured, isShopGatewayReachable } = await import("../sms");
     const { summarizeAutonomy } = await import("../services/smsAutonomy");

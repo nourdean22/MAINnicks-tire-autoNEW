@@ -270,6 +270,55 @@ export const adminProcedure = t.procedure
   .use(requireAdminIdentity)
   .use(requireFreshMfaAndPermission);
 
+/**
+ * Refuse to answer at all when the database handle is dead.
+ *
+ * WHY A MIDDLEWARE AND NOT SIXTY-FOUR COPIES. The fabricated-read class
+ * (ROS-102) is a procedure returning a made-up value — [], 0, null — from a
+ * helper whose dead-handle branch cannot be told apart from a genuine empty
+ * result. The accepted fix (ROS-083) is a guard at the ROUTER, because the
+ * helper's [] is load-bearing for other callers. That was fine for five
+ * procedures; at sixty-four it becomes a copy-paste invariant, and a
+ * copy-paste invariant is one someone eventually forgets.
+ *
+ * So the guard becomes a procedure builder. `dbAdminProcedure` is
+ * `adminProcedure` that has already refused if there is no handle. Nothing
+ * about the authorisation chain changes — this composes AFTER it.
+ *
+ * WHAT THIS IS NOT. It is not a connection health check: mysql2 pools are
+ * lazily connected, so a non-null handle proves only that a pool object
+ * exists. It answers exactly one question — "is a database configured and
+ * constructible" — which is the question the fabricated-read class turns on.
+ * A query that fails for any other reason still throws from the query itself.
+ *
+ * scripts/lib/fabricatedAdminReadScan.mjs recognises procedures declared with
+ * these builders as guarded, and server/fabricatedAdminReadGate.test.ts
+ * mutation-proves that recognition — reverting one declaration to the plain
+ * builder must put its pair back on the ratchet.
+ */
+const requireDatabase = t.middleware(async ({ next }) => {
+  const { getDbTyped } = await import("../db");
+  if (!(await getDbTyped())) {
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "The database is unavailable — this is a read failure, not an empty result.",
+    });
+  }
+  return next();
+});
+
+/** adminProcedure, but it fails closed instead of fabricating. */
+export const dbAdminProcedure = adminProcedure.use(requireDatabase);
+/** protectedProcedure, but it fails closed instead of fabricating. */
+export const dbProtectedProcedure = protectedProcedure.use(requireDatabase);
+// NO dbPublicProcedure. It was written for symmetry and had zero call sites —
+// the knip orphan gate caught it, correctly. Every public read that needed this
+// guard was already fixed inline in #2309/#2310, before the builder existed.
+// Add it back at the moment something actually uses it; an exported-but-unused
+// builder is just a thing the next reader has to check the call sites of.
+// scripts/lib/fabricatedAdminReadScan.mjs already recognises the `db` prefix on
+// all three tiers, so nothing needs changing there when it returns.
+
 export function adminPermissionProcedure(permission: AdminPermission) {
   // Plain-function .use() (not a standalone t.middleware) so the ctx type
   // inferred from adminProcedure — non-null user + adminSecurity — flows

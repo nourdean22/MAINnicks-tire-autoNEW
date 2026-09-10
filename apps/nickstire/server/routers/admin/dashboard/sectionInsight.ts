@@ -10,7 +10,7 @@
 /**
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
-import { adminProcedure } from "../../../_core/trpc";
+import { adminProcedure, dbAdminProcedure } from "../../../_core/trpc";
 import { z } from "zod";
 import { inArray } from "drizzle-orm";
 
@@ -22,7 +22,7 @@ export const sectionInsightProcedures = {
   // Read-only repeat-customer retention cohorts (one-and-done vs repeat,
   // reactivation-eligible). Powers the customers-section insight below and any
   // retention panel. NOTHING on the SMS send path.
-  retentionCohortSummary: adminProcedure.query(async () => {
+  retentionCohortSummary: dbAdminProcedure.query(async () => {
     try {
       const { getRetentionCohortSummary } = await import("../../../lib/retentionCohorts");
       return await getRetentionCohortSummary();
@@ -31,7 +31,7 @@ export const sectionInsightProcedures = {
       return null;
     }
   }),
-  sectionInsight: adminProcedure
+  sectionInsight: dbAdminProcedure
     .input(z.object({
       section: z.enum([
         "customers", "revenue", "leads", "campaigns", "callTrackingView",

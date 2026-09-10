@@ -19,7 +19,11 @@ describe("market admin router", () => {
   const src = read("server/routers/admin/market.ts");
   it("exposes summary, topQueries, topPages, report — all admin-gated", () => {
     for (const p of ["summary", "topQueries", "topPages", "report"]) {
-      expect(src, p).toMatch(new RegExp(`\\b${p}: adminProcedure`));
+      // `(?:db)?[Aa]dminProcedure` — dbAdminProcedure IS adminProcedure with a
+      // dead-handle guard composed on top (server/_core/trpc.ts), so the tier is
+      // unchanged. This pin is about ADMIN-GATING, not about which builder name
+      // the file happens to use.
+      expect(src, p).toMatch(new RegExp(`\\b${p}: (?:db)?[Aa]dminProcedure`));
     }
     expect(src).not.toMatch(/publicProcedure/);
   });
@@ -37,7 +41,7 @@ describe("market admin router", () => {
 describe("PhotoRibbon reads a public procedure (D14)", () => {
   const events = read("server/routers/admin/customerEvents.ts");
   it("the admin procedure is still admin; the public one is public and cached", () => {
-    expect(events).toMatch(/topRibbonPhotos: adminProcedure/);
+    expect(events).toMatch(/topRibbonPhotos: (?:db)?[Aa]dminProcedure/);
     expect(events).toMatch(/topRibbonPhotosPublic: publicProcedure/);
     expect(events).toMatch(/ribbonCache/);
   });

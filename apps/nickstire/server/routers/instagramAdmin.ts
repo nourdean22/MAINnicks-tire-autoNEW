@@ -20,7 +20,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { desc, sql, gte, and, eq, isNotNull } from "drizzle-orm";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { checkReviewReply, buildReplyPromptRules, hasBlockingFindings } from "@shared/reviewReplyQa";
 import { IG_ARCHETYPES } from "@shared/const";
 import { invokeLLM } from "../_core/llm";
@@ -84,7 +84,7 @@ export const instagramAdminRouter = router({
    *  + a LIVE Graph probe. Presence checks alone showed "ready" with a dead
    *  token (revoked permissions, password reset, unlinked page) — `live` is the
    *  Graph API's own answer, cached 5 minutes so UI polling can't burn quota. */
-  getConnectionStatus: adminProcedure.query(async () => {
+  getConnectionStatus: dbAdminProcedure.query(async () => {
     const { getMetaSocialStatus, getPersistedTokenMeta, verifyMetaConnectionLive } = await import("../services/metaSocial");
     const [status, token, live] = await Promise.all([
       getMetaSocialStatus(),
@@ -542,7 +542,7 @@ export const instagramAdminRouter = router({
   /** Content-intelligence bundle: fast, already-built analytics reports.
    *  accountAverages covers EVERY stored post — the headline stats used to
    *  average only the top-5 list, presenting winners as the baseline. */
-  getAnalytics: adminProcedure.query(async () => {
+  getAnalytics: dbAdminProcedure.query(async () => {
     const { getEngagementByType, getBestPostingTimes, getFollowerGrowth, getTopPosts, getAccountAverages } = await import(
       "../pipelines/instagram-data"
     );
@@ -615,7 +615,7 @@ export const instagramAdminRouter = router({
    *  Reads from analytics to provide context for the AI Copilot.
    *  topArchetypeLast30Days is computed from real ig_autopost_log data
    *  (was hardcoded to "proof" — fixed 2026-07-01 per Clarity Gate audit). */
-  getCreationBrief: adminProcedure.query(async () => {
+  getCreationBrief: dbAdminProcedure.query(async () => {
     const { getTopPosts } = await import("../pipelines/instagram-data");
     const topPosts = await getTopPosts({ limit: 5 });
 
@@ -1564,7 +1564,7 @@ Keep it under 200 characters.`;
     }),
 
   /** Publish a custom image or Reel to Instagram directly. */
-  publishPost: adminProcedure
+  publishPost: dbAdminProcedure
     .input(z.object({
       inventoryId: z.string().optional(),
       platforms: z.array(z.enum(["facebook", "instagram"])).min(1, "Select at least one platform"),

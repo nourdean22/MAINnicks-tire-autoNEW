@@ -16,7 +16,7 @@
  * GOOGLE_SERVICE_ACCOUNT_KEY) — same ones GSC reporting already uses.
  */
 import { z } from "zod";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:seoTools");
@@ -160,7 +160,7 @@ export const seoToolsRouter = router({
    *
    *  Surfaces what the gsc-audit.ts CLI script outputs, but in admin
    *  UI form so Nour doesn't have to SSH into Railway weekly. */
-  weeklyAudit: adminProcedure
+  weeklyAudit: dbAdminProcedure
     .input(z.object({
       days: z.number().min(7).max(90).default(28),
     }).optional())
@@ -216,7 +216,7 @@ export const seoToolsRouter = router({
   /** SEO fix drafts (phase 4 · GSC Act — "draft + surface"). The AI drafts an
    *  improved title + meta for the top buried service pages; a human applies the
    *  shared/services.ts edit. Read-only to the live site — nothing is written. */
-  seoFixDrafts: adminProcedure.query(async () => {
+  seoFixDrafts: dbAdminProcedure.query(async () => {
     const { getSeoFixDrafts } = await import("../services/seoFixDrafts");
     return getSeoFixDrafts();
   }),

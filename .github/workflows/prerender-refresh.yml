@@ -102,10 +102,22 @@ jobs:
       - name: Server log (always — a green run can still have failed routes)
         if: always()
         run: |
-          echo "───── first 80 lines (boot: env validation, DB connect) ─────"
-          head -n 80 apps/nickstire/tmp/regen-server.log || true
-          echo "───── last 200 lines (per-route failures) ─────"
-          tail -n 200 apps/nickstire/tmp/regen-server.log || true
+          LOG=apps/nickstire/tmp/regen-server.log
+          echo "───── log size ─────"
+          wc -l "$LOG" || true
+          # FILTER FIRST, WINDOW SECOND. Two windows have now been chosen wrong
+          # on this same investigation: `tail -n 200` missed a boot-time error,
+          # and `head -80 + tail -200` missed one in the middle, because 339
+          # routes produce thousands of lines and the interesting one sits
+          # wherever it sits. Guessing a position is the same mistake twice; grep
+          # for the SIGNAL and it does not matter where in the file it lands.
+          echo "───── every error / failed query, wherever it is ─────"
+          grep -inE "error|Failed query|ECONNREFUSED|ETIMEDOUT|denied|ER_[A-Z_]+|articleBySlug" "$LOG" \
+            | head -n 60 || echo "(no error lines matched)"
+          echo "───── first 40 lines (boot: env validation) ─────"
+          head -n 40 "$LOG" || true
+          echo "───── last 60 lines (shutdown) ─────"
+          tail -n 60 "$LOG" || true
 
       # ── Gate the artifacts BEFORE they reach main ──────────────────────
       #

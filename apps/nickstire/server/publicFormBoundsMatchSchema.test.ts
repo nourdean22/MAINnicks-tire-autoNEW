@@ -70,7 +70,18 @@ function zodMaxes(
   const routerAt = source.indexOf(`export const ${routerExport} = router({`);
   if (routerAt === -1) throw new Error(`router ${routerExport} not found`);
   const start = source.indexOf(procedureMarker, routerAt);
-  const end = source.indexOf(endMarker, start);
+  // Accept BOTH builder spellings for the end marker. dbAdminProcedure is
+  // adminProcedure with a dead-handle guard composed on top, so a procedure can
+  // move between the two without anything this file measures changing — and
+  // when three sibling routers in one file share a procedure name, the one that
+  // brackets this block is not necessarily the one that moved. Trying both
+  // keeps the bracket stable; the throw below still fires if neither is there,
+  // which is how this surfaced in the first place rather than silently
+  // measuring an empty block.
+  const candidates = [endMarker, endMarker.replace(/: adminProcedure$/, ": dbAdminProcedure")]
+    .map((m) => source.indexOf(m, start))
+    .filter((i) => i > start);
+  const end = candidates.length ? Math.min(...candidates) : -1;
   if (start === -1 || end === -1 || end <= start) {
     throw new Error(`could not bracket ${procedureMarker} inside ${routerExport}`);
   }

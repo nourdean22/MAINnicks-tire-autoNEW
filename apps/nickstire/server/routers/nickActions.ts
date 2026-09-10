@@ -7,7 +7,7 @@
  *
  * This is the tRPC router. Handler logic lives in ./nick/ sub-modules.
  */
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { IG_ARCHETYPES } from "@shared/const";
 import { logAdminAction } from "../services/auditTrail";
@@ -104,7 +104,7 @@ export const nickActionsRouter = router({
   // Caches it in-process so socialPost works immediately. `reveal`
   // returns the token once so it can be persisted to the
   // META_PAGE_ACCESS_TOKEN env var for cross-restart durability.
-  metaReconnect: adminProcedure
+  metaReconnect: dbAdminProcedure
     .input(z.object({
       userToken: z.string().min(20).max(1000),
       reveal: z.boolean().default(false),
@@ -165,13 +165,13 @@ export const nickActionsRouter = router({
   customerIntelligence: adminProcedure.query(async () => handleCustomerIntelligence()),
 
   // ─── Camera Management ────────────────────────────────
-  cameraFeed: adminProcedure
+  cameraFeed: dbAdminProcedure
     .input(z.object({ cameraId: z.string().min(1).max(50) }))
     .query(async ({ input }) => handleCameraFeed(input)),
 
-  cameras: adminProcedure.query(async () => handleCameras()),
+  cameras: dbAdminProcedure.query(async () => handleCameras()),
 
-  setCamera: adminProcedure
+  setCamera: dbAdminProcedure
     .input(z.object({
       id: z.string().min(1).max(50),
       name: z.string().min(1).max(100),
@@ -256,7 +256,7 @@ export const nickActionsRouter = router({
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
   shopDriverStatus: adminProcedure.query(async () => handleShopDriverStatus()),
   schedulerStatus: adminProcedure.query(async () => handleSchedulerStatus()),
-  cronHealth: adminProcedure.query(async () => handleCronHealth()), // wave-149 · read-only cron_log feed for the Cron Health panel
+  cronHealth: dbAdminProcedure.query(async () => handleCronHealth()), // wave-149 · read-only cron_log feed for the Cron Health panel
 
   // ─── Admin Operations ─────────────────────────────────
   triggerPrerender: adminProcedure.mutation(async () => handleTriggerPrerender()),
