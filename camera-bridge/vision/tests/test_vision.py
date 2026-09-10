@@ -660,8 +660,25 @@ def test_a_pan_that_stops_at_a_NEW_pose_is_not_trusted():
     polygons belong to the reference pose, so trusting a settled-but-unmatched view lets
     detections in a NEW view be read as crossings and bay occupancy.
     """
-    home = frames(1, [[car_box(400.0)]])[0].image
-    away = frames(1, [[car_box(400.0)]], shift=[(260, 90)])[0].image
+    # A TEXTURED SCENE, BUILT HERE, PANNED AS A WHOLE.
+    #
+    # `SyntheticSource`'s background is a horizontal sawtooth repeated down every row: it is
+    # vertically uniform and horizontally periodic, so it is unlike any camera view of
+    # anything. A vertical pan of it changes nothing at all and a horizontal pan of one
+    # period changes nothing either -- and its `shift` draws the boxes back at FIXED frame
+    # coordinates afterwards, so the one distinctive feature in the picture stays put while
+    # the wallpaper slides behind it. That is a car driving across a stationary view, which
+    # is a normal arrival and must NOT be refused, and it is the opposite of what this test
+    # is about.
+    #
+    # A PTZ pan moves the whole scene: building, sign, pavement and the cars parked on it.
+    # This builds a scene with real two-dimensional structure (coarse blocks, so it survives
+    # the 4x decimation in `gray_small`) and translates all of it.
+    rng = np.random.default_rng(20260910)
+    coarse = rng.integers(30, 220, size=(24, 42), dtype=np.int16)
+    scene = np.repeat(np.repeat(coarse, 16, axis=0), 16, axis=1)[:360, :640]
+    home = np.repeat(scene[:, :, None], 3, axis=2).astype(np.uint8)
+    away = np.roll(np.roll(home, 60, axis=1), 25, axis=0)
 
     lock = SceneLock()
     lock.set_reference(home)
