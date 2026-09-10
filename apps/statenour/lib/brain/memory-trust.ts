@@ -151,9 +151,27 @@ export function classifyTrustTier(
 }
 
 /**
- * Tiers permitted to inform a state-changing tool call or be stated as
- * fact. EXTERNAL_CONTENT is deliberately absent: it may be surfaced as a
- * labelled quote, never as something the agent knows.
+ * 2026-09-10 · PROVENANCE IS NOT AUTHORITY.
+ *
+ * This list used to be documented as the tiers permitted to "inform a
+ * state-changing tool call or be stated as fact", with AGENT_INFERRED
+ * among them. Those are two different questions and AGENT_INFERRED
+ * answers them differently:
+ *
+ *   "Nour probably wants this customer emailed today"   (an inference)
+ * is not
+ *   "Nour told me to email this customer today"          (an authority)
+ *
+ * A model inference can be useful, probable and worth surfacing while
+ * still being incapable of authorizing a side effect or of hardening
+ * into a durable fact. Collapsing the two is how an assistant becomes
+ * confidently wrong about its owner's own intentions.
+ *
+ * So the single predicate is split in two, below. This one answers only
+ * "may this be rendered as knowledge rather than fenced as hostile
+ * text?" -- a question about ATTACKER CONTROL. An inference is not
+ * attacker-controlled, so it renders (labelled); external content is,
+ * so it does not.
  */
 export const AUTHORITATIVE_TIERS: readonly TrustTier[] = [
   "OPERATOR",
@@ -163,6 +181,33 @@ export const AUTHORITATIVE_TIERS: readonly TrustTier[] = [
 
 export function isAuthoritative(tier: TrustTier): boolean {
   return AUTHORITATIVE_TIERS.includes(tier);
+}
+
+/** Clearer name for what the predicate above actually decides. */
+export const canRenderAsKnowledge = isAuthoritative;
+
+/**
+ * Tiers whose content may serve as the BASIS for a side effect -- a
+ * durable memory write, an external action, a stated commitment.
+ *
+ * AGENT_INFERRED is deliberately absent. An inference may propose,
+ * influence reasoning, trigger retrieval and generate a hypothesis; it
+ * may not, on its own, become the reason a thing was done. Promotion
+ * from inference to fact requires either the operator saying so or
+ * first-party data confirming it.
+ *
+ * EXTERNAL_CONTENT is absent for the stronger reason: it is
+ * attacker-controllable, and the whole point of the fence is that
+ * convincing the model must never be the same thing as acquiring
+ * permission.
+ */
+export const ACTION_AUTHORIZING_TIERS: readonly TrustTier[] = [
+  "OPERATOR",
+  "SYSTEM_DERIVED",
+];
+
+export function canAuthorizeSideEffect(tier: TrustTier): boolean {
+  return ACTION_AUTHORIZING_TIERS.includes(tier);
 }
 
 /**

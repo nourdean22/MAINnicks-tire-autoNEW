@@ -611,6 +611,38 @@ export async function buildBrainContext(
         (hybridRecallReport as any).provenance ??
         ((hybridRecallReport.hits?.length ?? 0) > 0 ? "OK" : "ZERO");
       recallProvenanceReason = (hybridRecallReport as any).provenanceReason;
+
+      // 2026-09-10 · PROVENANCE IS NOT AUTHORITY -- the producer.
+      //
+      // If this turn's recall came back with hits but NONE of them are
+      // action-authorizing (i.e. every one is a model inference rather
+      // than something Nour stated or first-party data established),
+      // stamp the turn. tool-policy.ts then sends any memory write on
+      // this turn to human review instead of letting NICK's own guess
+      // harden into a fact he will later be held to.
+      //
+      // Set HERE, from the rows' tiers -- never declared by the model.
+      // Same discipline as the untrustedInput fence, for the same
+      // reason: a declaration the model controls is not a control.
+      try {
+        const hits = (hybridRecallReport.hits ?? []) as Array<{ trustTier?: string }>;
+        if (hits.length > 0) {
+          const { canAuthorizeSideEffect } = await import("@/lib/brain/memory-trust");
+          const anyAuthorizing = hits.some((h) =>
+            h.trustTier ? canAuthorizeSideEffect(h.trustTier as never) : false,
+          );
+          if (!anyAuthorizing) {
+            const { updateTurnContext } = await import("@/lib/agent/turn-context");
+            updateTurnContext({ inferredBasisOnly: true });
+            log.info("turn_inferred_basis_only", { hits: hits.length });
+          }
+        }
+      } catch {
+        // Never let provenance stamping break a turn. Failing to stamp
+        // is fail-OPEN, which is why the flag is one of several controls
+        // (external mutations already require owner approval) rather
+        // than the only thing standing between an inference and a write.
+      }
       recalledHits = (hybridRecallReport.hits ?? []).map((h: any) => ({
         id: h.id ?? h.memoryId,
         content: h.content,

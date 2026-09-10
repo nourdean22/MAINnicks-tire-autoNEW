@@ -30,6 +30,16 @@ export interface TurnContext {
   untrustedInput: boolean;
   /** Private turns leave no trace and may not schedule work. */
   privateMode: boolean;
+  /**
+   * 2026-09-10 · this turn's recall set contained MODEL-INFERRED memory
+   * and nothing the operator stated or first-party data established.
+   *
+   * Sibling of `untrustedInput`, and set the same way -- by the
+   * retrieval layer from the rows' trust tiers, never declared by the
+   * model. Provenance is not authority: an inference may propose a
+   * durable fact, it may not establish one.
+   */
+  inferredBasisOnly: boolean;
 }
 
 const storage = new AsyncLocalStorage<TurnContext>();
@@ -41,6 +51,7 @@ export function withTurnContext<T>(seed: Partial<TurnContext>, fn: () => T): T {
       conversationId: seed.conversationId ?? null,
       untrustedInput: seed.untrustedInput ?? false,
       privateMode: seed.privateMode ?? false,
+      inferredBasisOnly: seed.inferredBasisOnly ?? false,
     },
     fn,
   );
@@ -56,6 +67,7 @@ export function updateTurnContext(patch: Partial<TurnContext>): void {
   if (patch.conversationId !== undefined) ctx.conversationId = patch.conversationId;
   if (patch.untrustedInput !== undefined) ctx.untrustedInput = patch.untrustedInput;
   if (patch.privateMode !== undefined) ctx.privateMode = patch.privateMode;
+  if (patch.inferredBasisOnly !== undefined) ctx.inferredBasisOnly = patch.inferredBasisOnly;
 }
 
 /**

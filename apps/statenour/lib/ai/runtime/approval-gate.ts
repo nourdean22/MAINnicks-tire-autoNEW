@@ -32,6 +32,7 @@ export async function checkApprovalGate(
     destructive: payload?.destructive,
     containsExternalContent: payload?.containsExternalContent,
     memoryWriteRequested: payload?.memoryWriteRequested,
+    basedOnInferredMemory: payload?.basedOnInferredMemory,
   });
 
   if (decision.decision === "deny") {
