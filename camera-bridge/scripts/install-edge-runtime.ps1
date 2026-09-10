@@ -41,7 +41,41 @@ param(
     [string]$Camera = "sign",
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
-    [double]$StallExitSeconds = 180.0
+    [double]$StallExitSeconds = 180.0,
+    # EVERY CAPABILITY ADDED TO THE PRODUCER NEEDS A ROUTE THROUGH HERE, or it exists only
+    # for whoever hand-runs edge_main.py. Scene localisation, the hard-case corpus, the
+    # shadow ledger and the replay lane were all shipped, tested and live-verified while
+    # being unreachable from the installed scheduled task -- which is the only way this
+    # producer actually runs unattended. `EdgeInstallerFlagDriftTest` now fails when a
+    # producer flag has no route here.
+    [string]$SceneAtlas = "",
+    [string]$Scene = "",
+    [int]$Channel = -1,
+    [string]$HardCases = "",
+    [double]$HardCaseMaxGb = 2.0,
+    [double]$RelocateSeconds = 120.0,
+    [string]$ShadowLedger = "",
+    [string]$ChallengerModel = "",
+    [string]$AdjudicatorModel = "",
+    [string]$AdjudicatorDevice = "",
+    [string]$Evidence = "",
+    [string]$Ledger = "",
+    [switch]$Replay,
+    [string]$Source = "",
+    [string]$WindowTitle = "",
+    [switch]$NoCrop,
+    [string]$Mode = "",
+    [string]$CommissioningRun = "",
+    [double]$DrainSeconds = -1,
+    [double]$PersistSeconds = -1,
+    # NOT the installer's own -DryRun (which prints the plan and installs nothing). This one
+    # is the PRODUCER's --dry-run. Naming both $DryRun made -DryRun silently bake --dry-run
+    # into the installed wrapper -- an install preview would have changed what got installed.
+    [switch]$ProducerDryRun,
+    [string]$LogLevel = "",
+    # Last-resort escape hatch so a new producer flag is usable the day it lands, before
+    # anyone adds a typed parameter for it. Passed through verbatim.
+    [string]$ExtraArgs = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +182,36 @@ $pctSecret = $secretFile -replace '%', '%%'
 $calArg = if ($Calibration) { ' --calibration "' + ($Calibration -replace '%', '%%') + '"' } else { '' }
 $modelArg = if ($Model) { ' --model "' + ($Model -replace '%', '%%') + '" --device "' + $Device + '"' } else { '' }
 
+# One helper per shape so the wrapper line stays readable and every value is %-escaped:
+# a literal % in a .cmd file is an expansion, and a path containing one would be silently
+# mangled into something else.
+function _Arg([string]$flag, [string]$value) {
+    if ([string]::IsNullOrWhiteSpace($value)) { return '' }
+    return ' ' + $flag + ' "' + ($value -replace '%', '%%') + '"'
+}
+$sceneArg      = (_Arg '--scene-atlas' $SceneAtlas) + (_Arg '--scene' $Scene)
+$channelArg    = if ($Channel -ge 0) { " --channel $Channel" } else { '' }
+$hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" } else { '' }
+$relocateArg   = " --relocate-seconds $RelocateSeconds"
+$shadowArg     = (_Arg '--shadow-ledger' $ShadowLedger) + (_Arg '--challenger-model' $ChallengerModel)
+$adjArg        = (_Arg '--adjudicator-model' $AdjudicatorModel) + (_Arg '--adjudicator-device' $AdjudicatorDevice)
+$evidenceArg   = _Arg '--evidence' $Evidence
+$ledgerArg     = _Arg '--ledger' $Ledger
+$replayArg     = if ($Replay) { ' --replay' } else { '' }
+$noCropArg     = if ($NoCrop) { ' --no-crop' } else { '' }
+$captureArg    = (_Arg '--source' $Source) + (_Arg '--window-title' $WindowTitle) + $noCropArg
+$modeArg       = (_Arg '--mode' $Mode) + (_Arg '--commissioning-run' $CommissioningRun)
+# -1 is the "operator said nothing" sentinel; 0 is a real, meaningful value for both of
+# these (drain nothing / persist every frame), so an `if ($X)` truthiness test would
+# silently discard a deliberate zero.
+$drainArg      = if ($DrainSeconds   -ge 0) { " --drain-seconds $DrainSeconds" }   else { '' }
+$persistArg    = if ($PersistSeconds -ge 0) { " --persist-seconds $PersistSeconds" } else { '' }
+# --dry-run gates the StateNour lane ONLY; the shop lane still POSTs. Its own help text
+# says so. Do not read an installed --dry-run as "this task writes nothing".
+$dryRunArg     = if ($ProducerDryRun) { ' --dry-run' } else { '' }
+$logLevelArg   = _Arg '--log-level' $LogLevel
+$extraArg      = if ($ExtraArgs) { ' ' + $ExtraArgs } else { '' }
+
 # The secret is decrypted by a short inline PowerShell call and handed to the child as an
 # environment variable. It never appears on a command line (Task Manager shows those) and
 # never reaches the log.
@@ -162,7 +226,7 @@ cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%

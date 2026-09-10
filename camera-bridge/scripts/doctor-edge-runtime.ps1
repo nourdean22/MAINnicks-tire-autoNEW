@@ -100,7 +100,10 @@ if (-not (Test-Path $ConfigPath)) {
         else { $null }
     if ($stSource) { Check "STATENOUR_SYNC_KEY" "PASS" "resolvable via $stSource" }
     else { Check "STATENOUR_SYNC_KEY" "WARN" "not set -- the AUTHORITATIVE outbox will queue forever and never drain" }
-    if ($cfg -match "(?m)^\s*shopUrl:\s*\S") { Check "backend.shopUrl" "PASS" "set" }
+    if ($cfg -match "(?m)^\s*shopUrl:\s*(\S+)") {
+        $shopUrl = $Matches[1].Trim().TrimEnd("/")
+        Check "backend.shopUrl" "PASS" $shopUrl
+    }
     else { Check "backend.shopUrl" "WARN" "not set -- visits persist locally but the shop admin never updates" }
     if ($cfg -match "(?m)^\s{2}$([regex]::Escape($Camera)):") { Check "cameras.$Camera" "PASS" "declared" }
     else { Check "cameras.$Camera" "FAIL" "not in the config -- the shop's registry keys on this exact name" }
@@ -331,14 +334,54 @@ if (-not $task) {
 }
 
 # --- Cloud reachability -----------------------------------------------------
+# `/api/health` proves the SITE is up. It does not prove the camera lane exists, and for a
+# year of this project it was the whole check -- a deploy predating `cameraVisitsRoutes`
+# would 404 every heartbeat while the doctor printed "shop reachable PASS, healthy". The
+# probe that matters is the endpoint the producer actually POSTs to.
 try {
     $r = Invoke-WebRequest -Uri "https://nickstire.org/api/health" -TimeoutSec 15 -UseBasicParsing
     $body = $r.Content | ConvertFrom-Json
-    Check "shop reachable" "PASS" "healthy, deploy $($body.deploy.commitShort)"
+    Check "shop site" "PASS" "healthy, deploy $($body.deploy.commitShort)"
 } catch {
     # WARN, not FAIL: the whole point of the durable outbox is that the producer keeps
     # sensing and queues while the shop is unreachable.
-    Check "shop reachable" "WARN" "unreachable -- the producer will queue locally and drain when it returns"
+    Check "shop site" "WARN" "unreachable -- the producer will queue locally and drain when it returns"
+}
+
+if (-not $shopUrl) {
+    Check "camera ingest lane" "WARN" "no backend.shopUrl to probe -- nothing here says the lane works"
+} else {
+    # An UNAUTHENTICATED POST with an empty body. `cameraVisitsRoutes.ts:433` checks the
+    # key and returns 401 BEFORE Zod parsing and before it ever opens the database, so this
+    # writes nothing -- it is a request the server is designed to reject. What it settles:
+    #   401 -> the route is deployed and its guard is live. The only PASS.
+    #   404 -> the running deploy has no camera lane. Every heartbeat and visit is dropped.
+    #   2xx/400/503 -> the guard did NOT reject an unauthenticated caller. That is a
+    #                  security finding, not a green: anyone on the internet can write rows.
+    foreach ($pair in @(@{name="visits"; url=$shopUrl},
+                        @{name="heartbeat"; url=($shopUrl -replace "/visits$", "/heartbeat")})) {
+        $code = $null
+        try {
+            $resp = Invoke-WebRequest -Uri $pair.url -Method POST -Body "{}" `
+                -ContentType "application/json" -TimeoutSec 15 -UseBasicParsing
+            $code = [int]$resp.StatusCode
+        } catch {
+            if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+        }
+        if ($null -eq $code) {
+            Check "ingest $($pair.name)" "WARN" "no response from $($pair.url) -- the producer will queue"
+        } elseif ($code -eq 401 -or $code -eq 403) {
+            Check "ingest $($pair.name)" "PASS" "route live and guarded (HTTP $code unauthenticated)"
+        } elseif ($code -eq 404) {
+            Check "ingest $($pair.name)" "FAIL" "HTTP 404 -- the deploy has no camera lane; every write is dropped on arrival"
+        } else {
+            Check "ingest $($pair.name)" "FAIL" "HTTP $code to an UNAUTHENTICATED POST -- the ingest guard is not rejecting anonymous writes"
+        }
+    }
+    # Deliberately NOT covered: whether the key we hold is the RIGHT key. Proving that
+    # needs an authenticated POST, which writes a production row. A present-but-wrong key
+    # shows up as 401s in the producer log on its first heartbeat, not here.
+    Check "ingest credential" "WARN" "presence checked above; CORRECTNESS is unproven until the first real heartbeat -- watch the log for 401"
 }
 
 Write-Host ""
