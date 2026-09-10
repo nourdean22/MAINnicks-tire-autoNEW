@@ -311,8 +311,13 @@ const requireDatabase = t.middleware(async ({ next }) => {
 export const dbAdminProcedure = adminProcedure.use(requireDatabase);
 /** protectedProcedure, but it fails closed instead of fabricating. */
 export const dbProtectedProcedure = protectedProcedure.use(requireDatabase);
-/** publicProcedure, but it fails closed instead of fabricating. */
-export const dbPublicProcedure = publicProcedure.use(requireDatabase);
+// NO dbPublicProcedure. It was written for symmetry and had zero call sites —
+// the knip orphan gate caught it, correctly. Every public read that needed this
+// guard was already fixed inline in #2309/#2310, before the builder existed.
+// Add it back at the moment something actually uses it; an exported-but-unused
+// builder is just a thing the next reader has to check the call sites of.
+// scripts/lib/fabricatedAdminReadScan.mjs already recognises the `db` prefix on
+// all three tiers, so nothing needs changing there when it returns.
 
 export function adminPermissionProcedure(permission: AdminPermission) {
   // Plain-function .use() (not a standalone t.middleware) so the ctx type
