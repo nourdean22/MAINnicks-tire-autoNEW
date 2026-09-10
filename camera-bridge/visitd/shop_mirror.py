@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional, Tuple
 
@@ -67,6 +68,8 @@ class ShopMirror:
         provenance: Optional[Dict[str, Optional[str]]] = None,
     ) -> None:
         self.url = url
+        #: When a delivery to the shop last SUCCEEDED. None until one has.
+        self.last_ack_at: Optional[float] = None
         self._key = sync_key
         self.timeout_seconds = timeout_seconds
         self.transport = transport
@@ -378,6 +381,12 @@ class ShopMirror:
 
         if 200 <= status < 300:
             self.sent += 1
+            # The shop's `camera_runtime.lastCloudAckAt` is rendered as `cloudAckAgeSeconds`
+            # beside the outbox depth, and `CLOUD_BACKLOG` means "sensing fine, durable queue
+            # not draining". Depth alone cannot say that: a depth of 40 that is falling and a
+            # depth of 40 that has been stuck since Tuesday read identically. This timestamp
+            # is what separates them, and nothing was ever setting it.
+            self.last_ack_at = time.time()
             return "sent"
 
         self.failed += 1

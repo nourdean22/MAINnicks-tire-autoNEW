@@ -618,6 +618,10 @@ export const lotRouter = router({
                r.sourceType, r.sourceGeneration, r.sourceConnected, r.captureFps,
                r.frameOk, r.poseOk, r.poseDelta, r.calibrationVersion, r.detectorName,
                r.modelSha256, r.inferenceP95Ms, r.outboxDepth, r.oldestOutboxAgeSeconds,
+               -- As an AGE, matching cloudAckAgeSeconds two lines down. A raw timestamp on a
+               -- card asks the reader to do date arithmetic to answer the only question they
+               -- have, which is "how long since the detector last ran".
+               ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastInferenceAt)")} AS inferenceAgeSeconds,
                r.deadLetterDepth,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastCloudAckAt) AS cloudAckAgeSeconds,
                r.diskFreeBytes, r.restores,
@@ -678,7 +682,7 @@ export const lotRouter = router({
             ? { type: str(r.sourceType), generation: str(r.sourceGeneration), fps: numOrNull(r.captureFps), restores: numOrNull(r.restores) }
             : null,
           vision: r
-            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion) }
+            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion) }
             : null,
           cloud: r
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }

@@ -1084,6 +1084,390 @@ class ArgsFixtureDriftTest(unittest.TestCase):
         self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
 
 
+class ReacquisitionTest(unittest.TestCase):
+    """When the tracker loses a car and re-acquires it as a new id, the visit layer can open
+    a SECOND visit for a vehicle that never left -- so the shop's arrival count, the one
+    number anyone actually reads, goes up by one. Both visits look perfectly well-formed,
+    which is why nothing catches it downstream.
+
+    These fire on GEOMETRY AND TIME only. Appearance would sharpen them and
+    `AppearanceBank` is written and tested for exactly this, but no re-id model is fetchable
+    at the path this repo pins, so wiring the embedder today would add a branch that never
+    executes on the only box that matters. The context carries `appearance: None` so the
+    field exists and is honestly empty.
+    """
+
+    class _Spy:
+        def __init__(self):
+            self.fired = []
+            self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+        def observe(self, ts, image):
+            pass
+
+        def trigger(self, reason, at, context=None):
+            self.fired.append((reason, dict(context or {})))
+            return True
+
+        def flush_ready(self, now):
+            return []
+
+        def flush_all(self, now):
+            return []
+
+    def _t(self, tid, x, y):
+        return SimpleNamespace(track_id=tid, box=(x - 20, y - 40, x + 20, y),
+                               ground_point=(float(x), float(y)),
+                               stationary_for=lambda _n: 0.0)
+
+    def _drive(self, steps, live_by_step=None):
+        """`steps` is a list of (ts, born, died). Returns the spy."""
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        state = {"i": 0}
+        live_by_step = live_by_step or [{} for _ in steps]
+
+        class _Src:
+            def read(self):
+                i = state["i"]
+                if i >= len(steps):
+                    return None
+                ts = steps[i][0]
+                return SimpleNamespace(ts=ts, image=np.zeros((8, 8, 3), np.uint8),
+                                       seq=i, source="fake", meta={})
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def step(self, frame):
+                i = state["i"]
+                _ts, born, died = steps[i]
+                _Vision.tracks.tracks = dict(live_by_step[i])
+                state["i"] += 1
+                return {"emissions": [], "born": list(born), "died": list(died)}
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        for _ in steps:
+            loop.step()
+        return spy
+
+    def test_a_death_and_a_nearby_birth_is_a_REACQUISITION(self):
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 300, 300)]),
+            (1002.0, [self._t(2, 310, 305)], []),
+        ])
+        reasons = [r for r, _ in spy.fired]
+        self.assertIn("TRACK_REACQUIRED", reasons)
+        ctx = dict(spy.fired[reasons.index("TRACK_REACQUIRED")][1])
+        self.assertEqual((ctx["diedTrack"], ctx["bornTrack"]), (1, 2))
+        self.assertAlmostEqual(ctx["gapSeconds"], 2.0, places=1)
+        self.assertLess(ctx["distancePx"], 20)
+        self.assertIsNone(ctx["appearance"], "the field must exist and be honestly empty")
+
+    def test_a_birth_FAR_from_the_death_is_not_a_reacquisition(self):
+        """Two customers arriving at opposite ends of the frontage are two customers. A
+        radius that swallowed the whole lot would relabel every ordinary arrival."""
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 100, 300)]),
+            (1002.0, [self._t(2, 700, 300)], []),
+        ])
+        self.assertNotIn("TRACK_REACQUIRED", [r for r, _ in spy.fired])
+
+    def test_a_birth_LONG_after_the_death_is_not_a_reacquisition(self):
+        """Same spot, minutes later, is the next customer parking where the last one did --
+        which at a shop with two bays is most of them."""
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 300, 300)]),
+            (1000.0 + 60.0, [self._t(2, 302, 301)], []),
+        ])
+        self.assertNotIn("TRACK_REACQUIRED", [r for r, _ in spy.fired])
+
+    def test_a_birth_ON_TOP_of_a_LIVE_track_is_a_SPLIT(self):
+        """The other direction: one vehicle became two. No death explains this birth, and it
+        landed on a car that is still being tracked."""
+        live = self._t(7, 400, 250)
+        spy = self._drive(
+            [(1000.0, [self._t(9, 405, 252)], [])],
+            live_by_step=[{7: live}])
+        reasons = [r for r, _ in spy.fired]
+        self.assertIn("TRACK_SPLIT", reasons)
+        ctx = dict(spy.fired[reasons.index("TRACK_SPLIT")][1])
+        self.assertEqual((ctx["bornTrack"], ctx["overlapsTrack"]), (9, 7))
+
+    def test_an_ORDINARY_arrival_fires_nothing(self):
+        """THE control. A pair of triggers that fired on every birth would bury the real
+        re-acquisitions under one clip per car, and the corpus would be worthless while
+        looking busy."""
+        spy = self._drive([(1000.0, [self._t(1, 300, 300)], [])])
+        self.assertEqual(spy.fired, [])
+
+    def test_a_reacquisition_is_reported_ONCE_not_once_per_dead_track(self):
+        """Several cars left earlier. The birth matches one of them, and reporting it
+        against each would multiply one moment into a pile of clips."""
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 300, 300), self._t(2, 305, 302), self._t(3, 310, 304)]),
+            (1001.0, [self._t(4, 306, 303)], []),
+        ])
+        self.assertEqual([r for r, _ in spy.fired].count("TRACK_REACQUIRED"), 1)
+
+    def test_it_is_a_reacquisition_OR_a_split_never_both(self):
+        """A birth explained by a death is not also an unexplained overlap. Firing both
+        would double-count one event and make the corpus's own counts unreadable."""
+        live = self._t(7, 300, 300)
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 300, 300)]),
+            (1001.0, [self._t(2, 302, 301)], []),
+        ], live_by_step=[{}, {7: live}])
+        reasons = [r for r, _ in spy.fired]
+        self.assertIn("TRACK_REACQUIRED", reasons)
+        self.assertNotIn("TRACK_SPLIT", reasons)
+
+    def test_NO_recorder_configured_costs_nothing_and_raises_nothing(self):
+        pipeline = make_pipeline()
+
+        class _Src:
+            def read(self):
+                return SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8),
+                                       seq=0, source="fake", meta={})
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def step(self, frame):
+                return {"emissions": [], "born": [self._t(1, 1, 1)] if False else [], "died": []}
+
+        loop = _loop(pipeline, _Vision(), _Src())
+        loop.step()                      # must not raise
+        self.assertIsNone(loop.hard_cases)
+
+    def test_the_death_window_is_BOUNDED_so_it_cannot_grow_into_a_history(self):
+        spy = self._drive([(1000.0 + i, [], [self._t(i, 10 * i, 300)]) for i in range(200)])
+        self.assertEqual(spy.fired, [])
+
+
+class WiredTriggersHaveCallersTest(unittest.TestCase):
+    """`TRIGGERS_WIRED` is a CLAIM that something fires each name, and the claim has been
+    wrong before: `SOURCE_FAILOVER` was listed there one commit before it had a caller, and
+    the only gate at the time checked that the name was in the vocabulary -- which it was.
+    A trigger nobody fires means that class of hard case never appears, and read back later
+    an absent class looks like a shop that never had one rather than like nothing watching.
+
+    This asserts the CALL SITE exists, which is exactly the fact `TRIGGERS_WIRED` asserts.
+    Behavioural coverage is separate and lives beside each trigger's own tests.
+    """
+
+    def test_every_WIRED_trigger_has_a_real_call_site(self):
+        import re
+        from vision.hardcase import TRIGGERS_WIRED
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sources = []
+        for sub in ("edge_main.py", os.path.join("vision", "run_live.py"),
+                    os.path.join("vision", "pipeline.py")):
+            path = os.path.join(root, sub)
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as fh:
+                    sources.append(fh.read())
+        blob = "\n".join(sources)
+        self.assertTrue(blob, "no producer sources were read; this gate is checking nothing")
+        missing = sorted(t for t in TRIGGERS_WIRED
+                         if not re.search(r'trigger\(\s*"%s"' % re.escape(t), blob))
+        self.assertEqual(
+            missing, [],
+            f"{missing} are declared WIRED and nothing calls them. Wire each one or remove "
+            f"it from TRIGGERS_WIRED -- a declared trigger with no producer promises a class "
+            f"of hard case the corpus will never contain.")
+
+    def test_the_gate_would_NOTICE_a_falsely_declared_trigger(self):
+        """The canary. Without it a broken regex would report every trigger as wired."""
+        import re
+
+        blob = 'self.hard_cases.trigger("LAYOUT_CHANGE", now, {})'
+        self.assertTrue(re.search(r'trigger\(\s*"LAYOUT_CHANGE"', blob))
+        self.assertIsNone(re.search(r'trigger\(\s*"MODEL_OOD"', blob))
+
+
+class InferenceFreshnessTest(unittest.TestCase):
+    """`lastInferenceAt` and `inferenceP95Ms` had a column, a Zod field and an ADMIN CARD
+    since migration 0120, and the producer had never sent either -- so the camera detail
+    card rendered them blank forever while `CouncilResult.latency_ms` was measured on every
+    frame and discarded. A reader with no writer, which is the same defect as a writer with
+    no reader seen from the other side.
+
+    What the pair has to buy is one distinction: a producer that has STOPPED INFERRING
+    versus one that is merely watching an empty lot. Before, both were silence.
+    """
+
+    def _council(self, by_detector, latency=12.5):
+        return SimpleNamespace(escalated=False, detections=[], latency_ms=latency,
+                               by_detector=dict(by_detector))
+
+    def _loop_with(self, councils):
+        """Drive one frame per council. `None` means the vision layer returned no council."""
+        pipeline = make_pipeline()
+        frames = [SimpleNamespace(ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8),
+                                  seq=i, source="fake", meta={})
+                  for i in range(len(councils))]
+        state = {"i": 0}
+
+        class _Src:
+            def read(self):
+                i = state["i"]
+                return frames[i] if i < len(frames) else None
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+            # `edge_heartbeat_body` reads open visits off the vision layer's tracker.
+            tracker = SimpleNamespace(open_visits=lambda: [])
+
+            def step(self, frame):
+                out = {"emissions": []}
+                c = councils[state["i"]]
+                if c is not None:
+                    out["council"] = c
+                state["i"] += 1
+                return out
+
+        loop = _loop(pipeline, _Vision(), _Src())
+        for _ in councils:
+            loop.step()
+        return loop
+
+    def test_a_frame_the_DETECTOR_judged_marks_an_inference(self):
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 2})])
+        self.assertEqual(loop.last_inference_at, 1000.0)
+        self.assertIsNotNone(loop.inference_p95_ms)
+
+    def test_a_MOTION_GATED_frame_does_NOT_mark_an_inference(self):
+        """THE semantic. A gated frame is a decision not to infer. Counting it would make a
+        producer whose detector had died look healthy for as long as the lot stayed still --
+        which is most of the day, at a tyre shop, and exactly when nobody is watching."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        self.assertIsNone(loop.last_inference_at,
+                          "the motion gate was counted as a detector inference")
+        self.assertIsNone(loop.inference_p95_ms)
+
+    def test_a_gated_frame_does_not_ERASE_an_earlier_inference(self):
+        """The other direction: going quiet must not look like never having run."""
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 3}),
+                                self._council({"mog2": 0}),
+                                self._council({"mog2": 0})])
+        self.assertEqual(loop.last_inference_at, 1000.0)
+
+    def test_p95_is_NONE_before_any_inference_never_zero(self):
+        """A zero renders on the admin card as an impossibly fast detector. "We have not
+        measured this" and "this took no time" are different claims, and only one is ever
+        true."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        self.assertIsNone(loop.inference_p95_ms)
+        self.assertNotEqual(loop.inference_p95_ms, 0.0)
+
+    def test_p95_tracks_the_SLOW_TAIL_not_the_average(self):
+        """Nineteen fast frames and one 500ms stall. The MEAN of that sample is 34.5, so an
+        assertion has to sit above the mean to discriminate -- the first version of this test
+        asserted `> 19.0`, which a mean passes comfortably, and a mutation replacing p95 with
+        a mean survived it.
+
+        The value is NEAREST-RANK, from `vision.stats.p95`: index `int(0.95 * (n - 1))` of
+        the sorted sample, which on twenty samples is the 19th value, 19.0. It is not the
+        maximum -- an earlier `int(n * 0.95)` here picked index 19 and returned the 500ms
+        outlier, disagreeing with `benchmark_openvino.py` about what p95 meant for the same
+        measurements (Codex P2 on #2275).
+        """
+        from vision.stats import p95 as shared_p95
+
+        latencies = [float(x) for x in range(1, 20)] + [500.0]
+        loop = self._loop_with([self._council({"primary": 1}, latency=x) for x in latencies])
+        mean = sum(latencies) / len(latencies)
+        self.assertEqual(loop.inference_p95_ms, shared_p95(latencies))
+        self.assertEqual(loop.inference_p95_ms, 19.0)
+        self.assertNotEqual(loop.inference_p95_ms, max(latencies),
+                            "p95 returned the maximum, which is a max and not a p95")
+        self.assertGreater(loop.inference_p95_ms, mean * 0.5)
+
+    def test_the_SHARED_p95_holds_its_contract(self):
+        """A previous version of this grepped `benchmark_openvino.py` for the string "p95(",
+        which is a presence assertion -- the shape this repo bans, written by me two hours
+        after deleting one for the same reason. What actually prevents the two definitions
+        from diverging is that there is only one function; the import is the guarantee, not
+        a test that reads source.
+
+        So this asserts the contract that one function owes.
+        """
+        from vision.stats import p95
+
+        self.assertIsNone(p95([]), "empty must be None, never 0.0")
+        self.assertEqual(p95([7.0]), 7.0)
+        # NEAREST RANK: always a value that was measured, never an interpolation.
+        for n in (3, 20, 100, 137):
+            sample = [float(i) for i in range(n)]
+            self.assertIn(p95(sample), sample)
+            self.assertEqual(p95(sample), float(int(0.95 * (n - 1))))
+        self.assertEqual(p95([5.0, 1.0, 3.0]), p95([1.0, 3.0, 5.0]),
+                         "the input order changed the answer, so it is not sorting")
+
+    def test_a_council_with_NO_by_detector_does_not_raise(self):
+        loop = self._loop_with([SimpleNamespace(escalated=False, detections=[])])
+        self.assertIsNone(loop.last_inference_at)
+
+    def test_a_frame_with_no_council_at_all_is_fine(self):
+        loop = self._loop_with([None, None])
+        self.assertIsNone(loop.last_inference_at)
+
+    def test_the_HEARTBEAT_carries_both_and_the_shop_ACCEPTS_them(self):
+        """assert-the-consumer, across the app boundary. The producer can render these
+        perfectly and still be shipping them into a schema that strips them on arrival --
+        which is how they came to be null in the first place, from the other direction.
+
+        The route is read as TEXT: importing nickstire's TypeScript from a Python test is
+        not possible, and the field list is the contract either way.
+        """
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 2}, latency=33.0)])
+        body = edge_main.edge_heartbeat_body(
+            camera="sign", seq=1, now=1001.0, mode="PRODUCTION",
+            source=SimpleNamespace(), vision=loop.vision, ledger=loop.pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name="fake", model_sha256=None, last_healthy_frame_at=None,
+            last_inference_at=loop.last_inference_at,
+            inference_p95_ms=loop.inference_p95_ms)
+        self.assertIsNotNone(body["lastInferenceAt"])
+        self.assertTrue(str(body["lastInferenceAt"]).startswith("19"),
+                        f"not an ISO timestamp: {body['lastInferenceAt']!r}")
+        self.assertAlmostEqual(body["inferenceP95Ms"], 33.0, places=1)
+
+        route = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "..", "apps", "nickstire", "server", "routes",
+                             "cameraVisitsRoutes.ts")
+        if os.path.exists(route):
+            with open(route, encoding="utf-8") as fh:
+                src = fh.read()
+            for field in ("lastInferenceAt", "inferenceP95Ms"):
+                self.assertIn(f"{field}:", src,
+                              f"the shop route has no {field} field to receive")
+                self.assertIn(f'"{field}"', src,
+                              f"{field} is declared but not in the route's column list, so "
+                              f"it is parsed and then dropped before the write")
+
+    def test_the_heartbeat_OMITS_nothing_and_sends_NULL_when_it_has_not_inferred(self):
+        """Null, not absent, and not zero. The shop's column is nullable and its card
+        distinguishes null from a number; sending 0.0 would draw a detector that answers
+        instantly on a producer that has not answered at all."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        body = edge_main.edge_heartbeat_body(
+            camera="sign", seq=1, now=1001.0, mode="PRODUCTION",
+            source=SimpleNamespace(), vision=loop.vision, ledger=loop.pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name="fake", model_sha256=None, last_healthy_frame_at=None,
+            last_inference_at=loop.last_inference_at,
+            inference_p95_ms=loop.inference_p95_ms)
+        self.assertIn("lastInferenceAt", body)
+        self.assertIsNone(body["lastInferenceAt"])
+        self.assertIsNone(body["inferenceP95Ms"])
+
+
 class TrajectoryWiringTest(unittest.TestCase):
     """A store with no points and a store nobody is feeding look identical on disk.
 
@@ -1210,16 +1594,18 @@ class HardCaseWiringTest(unittest.TestCase):
     class _Spy:
         def __init__(self, fail=False):
             self.observed, self.fired, self.flushed = [], [], 0
+            self.observed_meta = []
             self._fail = fail
             self.stats = SimpleNamespace(
                 clips_written=3, frames_written=90, bytes_written=1234,
                 dropped_cooldown=1, dropped_write_error=0, evicted_clips=0,
                 healthy=True, last_error=None)
 
-        def observe(self, ts, image):
+        def observe(self, ts, image, meta=None):
             if self._fail:
                 raise RuntimeError("observe exploded")
             self.observed.append(ts)
+            self.observed_meta.append(dict(meta or {}))
 
         def trigger(self, reason, at, context=None):
             if self._fail:

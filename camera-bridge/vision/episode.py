@@ -53,6 +53,8 @@ import base64
 import json
 import os
 import time
+
+import numpy as np
 from typing import Any, Dict, List, Optional
 
 try:  # MCAP is optional on purpose: a producer must start on a box that lacks it.
@@ -68,6 +70,7 @@ KNOWN = (
     "/camera/image",
     "/hardcase/trigger",
     "/episode/meta",
+    "/frame/meta",
     "/detections",
     "/tracks",
     "/emissions",
@@ -80,7 +83,7 @@ KNOWN = (
 
 # Channels with a real caller TODAY. The rest are declared above so a reader knows the word
 # exists, and are absent from the file so a reader knows they were never recorded.
-WIRED = ("/camera/image", "/hardcase/trigger", "/episode/meta")
+WIRED = ("/camera/image", "/hardcase/trigger", "/episode/meta", "/frame/meta")
 
 _IMAGE_SCHEMA = {
     "type": "object",
@@ -175,6 +178,19 @@ class EpisodeWriter:
         return cid
 
     # ---- writing ------------------------------------------------------------------
+    def add_frame_meta(self, ts: float, meta: Optional[dict]) -> bool:
+        """The capture provenance of one frame, recorded ALONGSIDE its pixels.
+
+        Without this an episode is pixels with no account of how they were obtained, and a
+        replay has to INVENT the missing facts. The one that matters is `window_verified`:
+        the pipeline refuses to let an unverified frame start, advance or end a visit,
+        because a screen capture silently returns whatever window overlaps the target. A
+        replay that stamped every frame verified would launder exactly the frames that
+        check exists to catch -- and the recorder buffers on every tick, so an episode
+        genuinely can contain unverified ones.
+        """
+        return self.note("/frame/meta", ts, dict(meta or {}))
+
     def add_image(self, ts: float, jpeg: bytes, topic: str = "/camera/image") -> bool:
         """One already-compressed frame. Takes JPEG bytes, never a raw array: re-encoding
         the same pixels a second time to satisfy a file format is pure waste, and the caller
@@ -252,6 +268,55 @@ class EpisodeWriter:
         if not os.path.exists(self.path) or os.path.getsize(self.path) == 0:
             return None
         return self.path
+
+
+def read_frames(path: str):
+    """Decode an episode's images back to `(ts, ndarray)`, oldest first.
+
+    This is what turns the hard-case corpus into a regression suite: a clip the system found
+    confusing once can be run through the pipeline again on every change, forever. Without
+    it an episode is a thing you look at; with it, it is a test.
+
+    Yields `(ts, image, meta)`. Yields nothing rather than raising if the file will not read -- the caller is a test
+    harness and an unreadable fixture is a fixture it must report, not an exception in the
+    middle of a run over hundreds of them. `verify()` is how you tell "empty" from "broken",
+    and the harness calls it first.
+    """
+    if not AVAILABLE:
+        return
+    try:
+        import cv2
+        from mcap.reader import make_reader
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        rows = []
+        metas = {}
+        with open(path, "rb") as fh:
+            for _schema, channel, msg in make_reader(fh).iter_messages():
+                if channel.topic == "/frame/meta":
+                    payload = json.loads(msg.data)
+                    metas[round(msg.log_time / 1e9, 3)] = payload
+                    continue
+                if channel.topic != "/camera/image":
+                    continue
+                payload = json.loads(msg.data)
+                raw = base64.b64decode(payload["data"])
+                arr = np.frombuffer(raw, dtype=np.uint8)
+                image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if image is None:
+                    continue
+                stamp = payload.get("timestamp") or {}
+                ts = float(stamp.get("sec", 0)) + float(stamp.get("nsec", 0)) / 1e9
+                rows.append((ts, image))
+        rows.sort(key=lambda r: r[0])
+        for ts, image in rows:
+            # The frame's OWN meta, or an empty dict. Empty is honest -- an episode written
+            # before this channel existed has no provenance, and the replay must not make
+            # any up.
+            yield ts, image, dict(metas.get(round(ts, 3)) or {})
+    except Exception:  # noqa: BLE001 - an unreadable episode yields nothing, never raises
+        return
 
 
 def verify(path: str) -> Optional[Dict[str, Any]]:

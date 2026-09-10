@@ -68,6 +68,13 @@ TRIGGERS_WIRED = frozenset({
     "POSE_OFF_HOME",
     "SOURCE_FAILOVER",
     "LAYOUT_CHANGE",
+    # Both fire from `EdgeLoop._note_reacquisition`, on geometry and time alone. They are
+    # the expensive pair: when the tracker loses a car and re-acquires it as a new id, the
+    # visit layer can open a SECOND visit for a vehicle that never left -- so the shop's
+    # arrival count, the one number anyone reads, goes up by one and both visits look
+    # perfectly well-formed.
+    "TRACK_REACQUIRED",
+    "TRACK_SPLIT",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in
@@ -156,15 +163,16 @@ class HardCaseRecorder:
     episodes: str = "both"
 
     stats: RecorderStats = field(default_factory=RecorderStats)
-    _buffer: Deque[Tuple[float, np.ndarray]] = field(default_factory=deque, init=False)
+    _buffer: Deque[Tuple[float, np.ndarray, dict]] = field(default_factory=deque, init=False)
     _pending: List[_Pending] = field(default_factory=list, init=False)
     _last_fired: Dict[str, float] = field(default_factory=dict, init=False)
 
-    def observe(self, ts: float, image: Optional[np.ndarray]) -> None:
+    def observe(self, ts: float, image: Optional[np.ndarray],
+                meta: Optional[dict] = None) -> None:
         """Feed the rolling window. Called on every frame, so it stays cheap and total."""
         if image is None:
             return
-        self._buffer.append((ts, image))
+        self._buffer.append((ts, image, dict(meta or {})))
         while len(self._buffer) > self.max_buffer_frames:
             self._buffer.popleft()
 
@@ -222,7 +230,7 @@ class HardCaseRecorder:
 
     def _window(self, pending: _Pending) -> List[Tuple[float, np.ndarray]]:
         lo, hi = pending.at - self.before_seconds, pending.until
-        return [(ts, img) for ts, img in self._buffer if lo <= ts <= hi]
+        return [(ts, img, meta) for ts, img, meta in self._buffer if lo <= ts <= hi]
 
     def _write(self, pending: _Pending) -> Optional[str]:
         frames = self._window(pending)
@@ -247,7 +255,7 @@ class HardCaseRecorder:
             # format would cost CPU on the box that is also running the detector, and would
             # leave the two copies subtly different for no reason.
             episode = _episode_for(clip_dir, self.episodes, pending)
-            for index, (ts, image) in enumerate(frames):
+            for index, (ts, image, fmeta) in enumerate(frames):
                 ok, buf = cv2.imencode(".jpg", image,
                                        [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality])
                 if not ok:
@@ -259,6 +267,9 @@ class HardCaseRecorder:
                 written_bytes += len(jpeg)
                 if episode is not None:
                     episode.add_image(ts, jpeg)
+                    # The frame's provenance travels WITH its pixels, so a replay
+                    # never has to invent `window_verified`.
+                    episode.add_frame_meta(ts, fmeta)
             meta = {
                 "reason": pending.reason,
                 "at": pending.at,

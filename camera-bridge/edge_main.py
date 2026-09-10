@@ -32,8 +32,9 @@ import signal
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, Optional, Tuple
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
@@ -81,6 +82,108 @@ def source_generation(source: Any) -> str:
     return f"{int(getattr(source, 'index', 0) or 0)}.{restores}.{epoch}"
 
 
+_GIT_SHA_CACHE: Dict[str, Optional[str]] = {}
+
+
+def _git_sha() -> Optional[str]:
+    """The commit this producer is running, or None. Resolved once and cached.
+
+    None on any failure, never a guess and never a placeholder like "unknown": the shop
+    renders this string, and a producer confidently reporting a SHA it invented is worse
+    than one reporting nothing. Cached because it cannot change while the process runs and
+    the heartbeat fires every 30 seconds.
+    """
+    if "sha" not in _GIT_SHA_CACHE:
+        sha = os.environ.get("EDGE_GIT_SHA")          # baked at install, if the installer did
+        if not sha:
+            try:
+                import subprocess
+
+                out = subprocess.run(["git", "rev-parse", "HEAD"],
+                                     cwd=os.path.dirname(os.path.abspath(__file__)),
+                                     capture_output=True, text=True, timeout=5)
+                sha = out.stdout.strip() if out.returncode == 0 else None
+            except Exception:  # noqa: BLE001 - no git, no repo, no answer. Not a failure.
+                sha = None
+        _GIT_SHA_CACHE["sha"] = (sha or None) and sha[:40]
+    return _GIT_SHA_CACHE["sha"]
+
+
+def _model_sha256(model_path: Optional[str]) -> Optional[str]:
+    """Digest of the model actually loaded: topology AND weights, or None.
+
+    `EdgeLoop` has always accepted `model_sha256`, threaded it into the heartbeat and had it
+    rendered on the shop's camera card -- and `main()` never passed one, so the answer to
+    "which weights is this producer running" has always been blank. That is the question
+    `fetch_models.py` exists to make answerable; it pins every artifact by sha256, and then
+    nothing reported which pinned artifact was in use.
+
+    BOTH FILES, hashed in a fixed order. An OpenVINO model is an `.xml` topology beside a
+    `.bin` of weights, and a change to either changes what the detector does -- digesting
+    only the xml would report a match across two different sets of weights, which is the
+    one thing this field must never do. Prefixed `ov:` so the value is self-describing:
+    a bare 64 hex characters invites someone to compare it against a single-file digest
+    from somewhere else and conclude the models differ when they do not.
+    """
+    if not model_path:
+        return None
+    try:
+        import hashlib
+
+        digest = hashlib.sha256()
+        base = os.path.splitext(os.path.abspath(model_path))[0]
+        found = False
+        for suffix in (".xml", ".bin"):
+            candidate = base + suffix
+            if not os.path.exists(candidate):
+                continue
+            found = True
+            with open(candidate, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        if not found:
+            return None
+        return "ov:" + digest.hexdigest()[:56]
+    except Exception:  # noqa: BLE001 - an unreadable model file is a None, never a guess
+        return None
+
+
+def _disk_free_bytes(ledger: Any) -> Optional[int]:
+    """Free space on the filesystem holding the LEDGER, or None if it cannot be read.
+
+    None rather than 0. A zero here says "the disk is full", which is the single most
+    alarming value this field can take -- reporting it because a stat call failed would page
+    someone to a disk that is fine.
+    """
+    try:
+        import shutil
+
+        path = getattr(ledger, "path", None)
+        if not path or path == ":memory:":
+            # NOT the current directory. Falling back to "." answers a question we cannot
+            # answer -- the cwd can sit on an entirely different volume from the ledger, so
+            # the number would be real, plausible, and about the wrong disk. An in-memory
+            # ledger has no disk at all.
+            return None
+        return int(shutil.disk_usage(os.path.dirname(os.path.abspath(path))).free)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+#: How long after a track dies a new one nearby still counts as the SAME car coming back.
+#: Long enough to cover a car passing behind another; short enough that two customers
+#: arriving in the same spot a minute apart are not called one.
+#: The modes the shop's heartbeat schema accepts. Mirrored from `HEARTBEAT_MODES` in
+#: cameraVisitsRoutes.ts; `test_heartbeat_contract.py` fails if the two ever disagree.
+VALID_MODES = frozenset({"PRODUCTION", "SHADOW", "COMMISSIONING"})
+
+REACQUIRE_SECONDS = 8.0
+#: ...and how close, on the ground plane, in source pixels. Roughly a car length.
+REACQUIRE_PX = 90.0
+#: A birth this close to a track that is still ALIVE is one vehicle becoming two.
+SPLIT_PX = 45.0
+
+
 def edge_heartbeat_body(
     *,
     camera: str,
@@ -93,6 +196,10 @@ def edge_heartbeat_body(
     health_state: Any,
     scene_state: Any,
     calibration_version: Optional[str],
+    last_inference_at: Optional[float] = None,
+    inference_p95_ms: Optional[float] = None,
+    last_frame_at: Optional[float] = None,
+    last_cloud_ack_at: Optional[float] = None,
     detector_name: Optional[str],
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
@@ -125,6 +232,10 @@ def edge_heartbeat_body(
         "camera": camera,
         "producerInstanceId": PRODUCER_INSTANCE_ID,
         "producerVersion": f"edge {__version__}",
+        # Which BUILD is running. `producerVersion` is a hand-bumped string that says
+        # "edge 2.1.2" for every commit in a release, so it cannot answer "is the shop
+        # running the fix I merged an hour ago" -- which is the question actually asked.
+        "gitSha": _git_sha(),
         "heartbeatSeq": int(seq),
         "observedAtEdge": _iso(now),
         "mode": mode,
@@ -145,6 +256,51 @@ def edge_heartbeat_body(
         "calibrationVersion": calibration_version,
         "detectorName": detector_name,
         "modelSha256": model_sha256,
+        # The shop has had a column, a Zod field and an ADMIN CARD for both of these since
+        # migration 0120, and the producer has never sent either -- so `inferenceP95Ms`
+        # rendered blank on the camera detail card forever while `CouncilResult.latency_ms`
+        # was being measured on every frame and thrown away. A reader with no writer.
+        #
+        # SEMANTICS, because the pair is only useful if both ends agree what it means:
+        # an "inference" is the DETECTOR running, never the motion gate. A gated frame is a
+        # decision not to infer, so on a quiet lot these go stale BY DESIGN and staleness
+        # alone is not a fault.
+        #
+        # BE EXACT ABOUT WHAT THIS PROVES, because a health field is read as a promise.
+        # These do NOT separate a dead detector from a still lot at any single instant --
+        # both render null, and on a genuinely motionless lot there is no evidence either
+        # way, which is the honest answer rather than a shortcoming. What they give you is
+        # the separation OVER TIME: a healthy producer stamps a fresh `lastInferenceAt`
+        # every time anything moves, so once the lot has had any traffic at all, a producer
+        # still reporting null has stopped inferring. Before this, no amount of traffic
+        # distinguished the two -- both were silence for as long as you cared to watch.
+        # Separating them at an instant needs a gated-frame COUNT, which needs a column.
+        # THREE MORE COLUMNS THE SHOP RENDERS AND NOBODY EVER FILLED. Found by diffing the
+        # route's HEARTBEAT_COLUMNS against the keys this body actually carries: of 30
+        # columns, 5 were never sent. `state` is derived server-side and correctly absent;
+        # the other four are here.
+        #
+        # `lastFrameAt` vs `lastHealthyFrameAt`: a frozen camera keeps delivering frames,
+        # just not healthy ones, so the pair is what separates "no frames at all" from
+        # "frames that are no good". `lot.ts:257` carries a comment from whoever hit this
+        # first -- they wanted lastFrameAt, grepped camera-bridge, found ZERO producers
+        # writing it, and switched to lastHealthyFrameAt rather than gate a run on a column
+        # that would be NULL forever. The value was already tracked on this loop; it was
+        # simply never put in the envelope.
+        "lastFrameAt": _iso(last_frame_at) if last_frame_at else None,
+        # Depth alone cannot say whether a queue is draining: a depth of 40 that is falling
+        # and a depth of 40 stuck since Tuesday read the same. This is what CLOUD_BACKLOG
+        # ("sensing fine, durable queue not draining") needs to mean anything.
+        "lastCloudAckAt": _iso(last_cloud_ack_at) if last_cloud_ack_at else None,
+        # The producer writes clips, episodes, a ledger and a trajectory store to this disk.
+        # It has a byte budget for the clips and nothing at all for the rest, and the shop
+        # renders this number -- so filling the disk was invisible from the only screen
+        # anyone watches. Measured against the LEDGER's own filesystem, which is the one
+        # that actually matters: a full disk there stops the producer recording visits.
+        "diskFreeBytes": _disk_free_bytes(ledger),
+        "lastInferenceAt": _iso(last_inference_at) if last_inference_at else None,
+        "inferenceP95Ms": (round(float(inference_p95_ms), 1)
+                           if inference_p95_ms is not None else None),
         # --- the delivery half -----------------------------------------------
         "openVisits": len(vision.tracker.open_visits()),
         "outboxDepth": ledger.shop_outbox_depth(),
@@ -196,6 +352,13 @@ class EdgeLoop:
         #: one day be measured instead of drawn by eye. Same contract as the recorder: an
         #: upgrade, never a dependency of watching the lot.
         self.trajectories = trajectories
+        #: When the DETECTOR last ran, and how long its recent runs took. Motion-gated
+        #: frames are deliberately excluded -- see `_note_inference`.
+        #: Recently-dead tracks, for spotting a re-acquisition. Bounded: this is a
+        #: few-seconds window, not a history.
+        self._recent_deaths: Deque[Tuple[int, float, float, float]] = deque(maxlen=64)
+        self.last_inference_at: Optional[float] = None
+        self._inference_ms: Deque[float] = deque(maxlen=200)
         #: How often to re-check that the located scene is still where it was. 0 disables.
         #: A startup fix is only true at startup: the operator resizes the window or goes
         #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
@@ -213,6 +376,20 @@ class EdgeLoop:
         self.challenger = challenger
         self._last_layout_epoch = None
         self.camera = camera
+        # REJECT an unknown mode at construction. Uppercasing whatever arrives turns a
+        # programming error into a value the shop rejects 400 -- and it did: a local named
+        # `mode` in main()'s hard-case block clobbered the producer's own mode, EdgeLoop
+        # cheerfully made it "BOTH", and the first heartbeat after every restart was thrown
+        # away by the shop's enum while heartbeats 2 onward looked fine.
+        #
+        # Failing HERE is the whole point. A bad mode is a bug in this file, so it should
+        # stop this file at startup where the traceback names the line, not travel across
+        # the network to be diagnosed from a Zod error in a truncated log.
+        if mode is not None and str(mode).upper() not in VALID_MODES:
+            raise ValueError(
+                f"mode={mode!r} is not one of {sorted(VALID_MODES)}. The shop's heartbeat "
+                f"schema is an enum and would reject it 400; something has assigned a "
+                f"non-mode value to this variable.")
         # UPPERCASE at assignment, exactly as `base_mode` does two lines below.
         # `--mode` takes lowercase choices ("production"), the shop's heartbeat schema is a
         # Zod enum of UPPERCASE ones, and `self.mode` was only uppercased later, inside the
@@ -226,6 +403,11 @@ class EdgeLoop:
         #: leave it, so the camera badge stayed lit after the run ended while rows were
         #: correctly tagged PRODUCTION again (Codex P2 on #2255).
         self.base_mode = (base_mode or ("SHADOW" if mode == "COMMISSIONING" else mode)).upper()
+        if self.base_mode not in VALID_MODES:
+            # `base_mode` is what `self.mode` FALLS BACK TO after every heartbeat, so an
+            # invalid one poisons every send from the second onward -- the mirror image of
+            # the bug above, and even quieter because the first heartbeat would look fine.
+            raise ValueError(f"base_mode={self.base_mode!r} is not one of {sorted(VALID_MODES)}")
         self.calibration_version = calibration_version
         self.detector_name = detector_name
         self.model_sha256 = model_sha256
@@ -348,6 +530,8 @@ class EdgeLoop:
 
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
+            self._note_inference(frame, out)
+            self._note_reacquisition(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -486,6 +670,10 @@ class EdgeLoop:
             health_state=self.last_health,
             scene_state=self.last_scene,
             calibration_version=self.calibration_version,
+            last_inference_at=self.last_inference_at,
+            inference_p95_ms=self.inference_p95_ms,
+            last_frame_at=self.last_frame_at,
+            last_cloud_ack_at=getattr(self.pipeline.shop, "last_ack_at", None),
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
@@ -501,6 +689,117 @@ class EdgeLoop:
         # `base_mode` is what lets the camera card's badge clear when a run ends.
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
+
+    def _note_reacquisition(self, frame, out) -> None:
+        """Flag the moment a track died and another was born in the same place.
+
+        WHY THIS IS THE EXPENSIVE ONE. When the tracker loses a car and re-acquires it as a
+        new id, the visit layer can open a SECOND visit for the same vehicle -- so the shop's
+        arrival count, the one number anyone actually reads, goes up by one for a car that
+        never left. It is silent by construction: both visits look perfectly well-formed.
+
+        Geometry and time only, deliberately. `TRACK_REACQUIRED` fires on a birth close in
+        space and time to a death; `TRACK_SPLIT` on a birth that lands on top of a track that
+        is still ALIVE, which is one vehicle becoming two. Appearance would sharpen both, and
+        `AppearanceBank` is written and tested for exactly this -- but no re-id model is
+        fetchable at the path this repo pins (`vehicle-reid-0001` is not at the OMZ 2023.0
+        URL; that host answers a missing path with a directory listing at HTTP 200). Wiring
+        the embedder today would add a branch that never executes on the only box that
+        matters. The context carries `appearance: null` so the field EXISTS and is honestly
+        empty, and the day a model lands it is one call, not a redesign.
+
+        This RECORDS. It does not merge, split or renumber anything -- an appearance model
+        that decides identity will happily merge two customers' cars of the same colour, and
+        the tracker's own doc says so. What it produces is a labelled clip of a moment the
+        system probably got wrong, which is what the corpus is for.
+        """
+        if self.hard_cases is None:
+            return
+        try:
+            born = list(out.get("born") or [])
+            died = list(out.get("died") or [])
+            now = frame.ts
+            for t in died:
+                gx, gy = t.ground_point
+                self._recent_deaths.append((int(t.track_id), float(gx), float(gy), now))
+            if not born:
+                return
+            live = {int(k): v for k, v in getattr(self.vision, "tracks", None).tracks.items()}                 if getattr(self.vision, "tracks", None) is not None else {}
+            for t in born:
+                bx, by = t.ground_point
+                bid = int(t.track_id)
+                for did, dx, dy, dts in reversed(self._recent_deaths):
+                    gap = now - dts
+                    if gap > REACQUIRE_SECONDS:
+                        break               # the deque is in time order; older are worse
+                    dist = ((bx - dx) ** 2 + (by - dy) ** 2) ** 0.5
+                    if dist <= REACQUIRE_PX:
+                        self.hard_cases.trigger("TRACK_REACQUIRED", now, {
+                            "diedTrack": did, "bornTrack": bid,
+                            "gapSeconds": round(gap, 2), "distancePx": round(dist, 1),
+                            "appearance": None,
+                        })
+                        break
+                else:
+                    # No death explains it. Did it appear ON TOP of a car already tracked?
+                    for other_id, other in live.items():
+                        if other_id == bid:
+                            continue
+                        ox, oy = other.ground_point
+                        if ((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5 <= SPLIT_PX:
+                            self.hard_cases.trigger("TRACK_SPLIT", now, {
+                                "bornTrack": bid, "overlapsTrack": other_id,
+                                "distancePx": round(((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5, 1),
+                                "appearance": None,
+                            })
+                            break
+        except Exception:  # noqa: BLE001 - corpus bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_reacquire_note_errors_total")
+
+    def _note_inference(self, frame, out) -> None:
+        """Record that the DETECTOR ran, and how long it took.
+
+        The motion gate is excluded on purpose. A gated frame is a decision NOT to infer,
+        so counting it would make a producer whose detector has died look perfectly healthy
+        for as long as the lot stayed still -- which is most of the day. `mog2` is the gate,
+        named the same way `_note_shadow` excludes it from being mistaken for a challenger.
+
+        The converse is the cost, and it is the right trade: on a genuinely quiet lot these
+        two fields go stale, so a reader must not treat staleness ALONE as a fault. What
+        they buy is the distinction that did not exist before, when a dead detector and an
+        empty lot were both simply silence.
+        """
+        council = out.get("council")
+        if council is None:
+            return
+        try:
+            by = dict(getattr(council, "by_detector", {}) or {})
+            if not any(name != "mog2" for name in by):
+                return                      # the gate ran and nothing else did
+            self.last_inference_at = frame.ts
+            latency = getattr(council, "latency_ms", None)
+            if latency:
+                self._inference_ms.append(float(latency))
+        except Exception:  # noqa: BLE001 - health bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_inference_note_errors_total")
+
+    @property
+    def inference_p95_ms(self) -> Optional[float]:
+        """p95 of recent detector latencies, or None when it has not run.
+
+        None, never 0.0. A zero renders on the admin card as an impossibly fast detector;
+        the absence has to stay an absence, because "we have not measured this" and "this
+        took no time" are different claims and only one of them is ever true.
+
+        NEAREST RANK, from `vision.stats.p95`, which is the convention
+        `benchmark_openvino.py` already used. This computed `int(len * 0.95)` and picked a
+        different sample on any run of twenty -- so the latency the shop displayed and the
+        latency the benchmark printed could disagree about the same measurements, with
+        nothing anywhere saying which one "p95" meant (Codex P2 on #2275).
+        """
+        from vision.stats import p95
+
+        return p95(self._inference_ms)
 
     def _note_trajectory(self, frame, out) -> None:
         """Record where every live track is standing, for later commissioning.
@@ -540,7 +839,7 @@ class EdgeLoop:
         if self.hard_cases is None:
             return
         try:
-            self.hard_cases.observe(frame.ts, frame.image)
+            self.hard_cases.observe(frame.ts, frame.image, frame.meta)
         except Exception:  # noqa: BLE001
             log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
 
@@ -602,7 +901,14 @@ class EdgeLoop:
             for path in self.hard_cases.flush_ready(ts):
                 log.info("hard case saved %s", path)
         except Exception:  # noqa: BLE001 - the corpus must never take the lot down
-            log.exception("hard-case bookkeeping failed")
+            # ONCE. This runs on every frame, so an exception that persists -- a recorder
+            # whose `observe` signature no longer matches, say -- writes four stack traces a
+            # second, and a log nobody can read is a log nobody reads. Counted every time so
+            # the frequency is still visible; described the first time so it is actionable.
+            self.pipeline.metrics.inc("edge_hard_case_errors_total")
+            if not getattr(self, "_hard_case_logged", False):
+                self._hard_case_logged = True
+                log.exception("hard-case bookkeeping failed and will stay off")
 
     def _note_shadow(self, council: Any, ts: float, image: Any = None) -> None:
         """Record what the adjudicator ALONE would have counted, beside the primary.
@@ -1130,11 +1436,19 @@ def run_edge(args: argparse.Namespace) -> int:
         # operator believe a box is recording episodes it has no library to write.
         from vision.episode import AVAILABLE as _EPISODES_AVAILABLE
 
-        mode = args.hard_case_episodes
-        if mode != "off" and not _EPISODES_AVAILABLE:
-            mode = "off (requested %s; mcap is not importable -- pip install mcap)" % mode
+        # `episode_mode`, NOT `mode`. This block used to call it `mode` and CLOBBERED the
+        # producer's own mode -- the same function-scope name, computed 400 lines earlier --
+        # so `EdgeLoop` was constructed with mode="both" and its FIRST heartbeat went out as
+        # "BOTH" and was rejected 400 by the shop's enum. Line 502 then repaired it from
+        # `base_mode` on the next tick, so heartbeats 2 onward were fine and the failure
+        # looked unreproducible: it only appears with `--hard-cases`, only on the first
+        # heartbeat after a restart, and only in a metric nobody was counting.
+        episode_mode = args.hard_case_episodes
+        if episode_mode != "off" and not _EPISODES_AVAILABLE:
+            episode_mode = ("off (requested %s; mcap is not importable -- pip install mcap)"
+                            % episode_mode)
         log.info("hard-case corpus at %s (budget %.1f GB, episodes: %s)", args.hard_cases,
-                 args.hard_case_max_gb, mode)
+                 args.hard_case_max_gb, episode_mode)
 
     trajectories = None
     if args.trajectories:
@@ -1190,6 +1504,7 @@ def run_edge(args: argparse.Namespace) -> int:
         pipeline, vision, source,
         camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
         calibration_version=calibration_version, detector_name=detector_name,
+        model_sha256=_model_sha256(args.model),
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
