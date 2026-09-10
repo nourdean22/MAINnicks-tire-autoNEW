@@ -411,6 +411,9 @@ class WgcWindowSource(CaptureSource):
         self.window_hwnd = window_hwnd
         self.window_title = window_title
         self.crop_frac = crop_frac
+        #: Set by `set_canonical()`. A WARP, not a crop -- see that method for why.
+        self._canonical = None
+        self._scene_meta: dict = {}
         self._seq = 0
         self._latest = None
         self._latest_ts = 0.0
@@ -530,16 +533,63 @@ class WgcWindowSource(CaptureSource):
             ts = self._latest_ts
         if img is None:
             return None
-        if self.crop_frac:
+        if self._canonical is not None:
+            import cv2
+
+            inverse, size = self._canonical
+            img = cv2.warpPerspective(img, inverse, size, flags=cv2.INTER_LINEAR)
+        elif self.crop_frac:
             h, w = img.shape[:2]
             fx1, fy1, fx2, fy2 = self.crop_frac
             img = np.ascontiguousarray(
                 img[int(fy1 * h): int(fy2 * h), int(fx1 * w): int(fx2 * w)]
             )
+        meta = {"window_verified": True, "delivered": self._delivered}
+        # The scene identity and layout epoch ride WITH the pixels, deliberately. A frame
+        # that cannot say which camera it came from and under which layout is a frame a
+        # downstream consumer has to guess about, and every guess here is the silent
+        # mis-binding this whole path exists to remove.
+        meta.update(self._scene_meta)
         f = Frame(seq=self._seq, ts=ts or time.time(), source=self.name, image=img,
-                  meta={"window_verified": True, "delivered": self._delivered})
+                  meta=meta)
         self._seq += 1
         return f
+
+    def read_raw(self):
+        """The latest frame WITHOUT the crop or the canonical warp.
+
+        Re-locating a scene needs the whole window, and once `set_canonical` is applied
+        `read()` returns only the warped pane -- so revalidation from `read()` would search
+        for the scene inside a picture of the scene and always "find" it at the origin. This
+        is the only way back to the pixels the locator actually needs.
+        """
+        with self._lock:
+            return None if self._latest is None else self._latest.copy()
+
+    def set_canonical(self, homography, size, scene_id: str, layout_epoch: int) -> None:
+        """Deliver every frame already warped into the calibration's own coordinates.
+
+        A WARP, NOT A CROP, and the difference is the whole point. Cropping to the located
+        quad still hands the detector pixels whose SCALE depends on how big the operator
+        made the pane: a lot polygon drawn when the pane was 677x381 describes different
+        ground once the same pane is 338x190, and nothing reports an error -- the polygon is
+        still a valid polygon, just over the wrong tarmac. Warping through the inverse
+        homography puts the pixels back into the frame the calibration was drawn in, so the
+        pane's size and position stop being inputs to any geometric decision downstream.
+
+        `crop_frac` is cleared because a warp subsumes it: the homography is expressed in
+        FULL-WINDOW coordinates, so cropping first would invalidate it.
+        """
+        import numpy as _np
+
+        self.crop_frac = None
+        self._canonical = (_np.linalg.inv(_np.asarray(homography, dtype=_np.float64)),
+                           (int(size[0]), int(size[1])))
+        self._scene_meta = {"sceneId": scene_id, "layoutEpoch": int(layout_epoch)}
+        #: Read by `source_generation`. A layout change means observations before and after
+        #: are not in the same coordinate system, so it must break a track path exactly as a
+        #: lane failover or a window restore does.
+        self.layout_epoch = int(layout_epoch)
 
     def close(self) -> None:
         if self._ctrl is not None:

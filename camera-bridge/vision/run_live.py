@@ -38,6 +38,11 @@ from vision.detector import (  # noqa: E402
 )
 from vision.evidence import EvidenceStore  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
+from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
+                               classify_motion, detect_live_region,
+                               resolve_channel, split_into_channels)
+from vision.scenelocator import (SceneNotLocated, advance,  # noqa: E402
+                                 canonicalise, load_atlas, locate)
 from vision.pipeline import VisionPipeline  # noqa: E402
 
 
@@ -143,17 +148,346 @@ class VisitSink:
         return ok
 
 
-def build_source(kind: str, hwnd: int | None, title: str, crop: bool):
+def declared_fixed_lens(calibration_path) -> bool:
+    """Does the calibration DECLARE this lens fixed? Absent means no, deliberately.
+
+    Eligibility to carry calibrated arrival geometry is a durable fact about the hardware,
+    and it has to be stated rather than inferred: a PTZ idle for four seconds is
+    indistinguishable from a camera bolted to a wall, so no length of observation can
+    establish it. Defaulting to False means an operator who says nothing gets census mode,
+    which is the safe half of the mistake.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return False
+    import json as _json
+
+    try:
+        cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - an unreadable calibration declares nothing
+        return False
+    return str(cal.get("lensType", "")).lower() == "fixed"
+
+
+def aim_at_channel(src, index: int, calibrated: bool, declared_fixed: bool = False,
+                   samples: int = 16, interval: float = 0.25) -> tuple:
+    """Point `src` at ONE channel of a multi-lens device. Returns `((x,y,w,h), kind, shift)`.
+
+    WHY A DEVICE NEEDS THIS. SHOPSIGN is a 3-in-1: two FIXED lenses covering the left and
+    right approaches to the shop, and a PTZ. The app draws all three in one window, so a
+    producer cropped to "the live video" analyses three unrelated scenes as one -- a car on
+    the left approach, the right approach and whatever the PTZ happens to face are summed
+    into a single frame, and no count taken from it means anything. Aiming at one channel is
+    what turns a 3-in-1 from one confused camera into three usable ones.
+
+    The resolution happens ONCE, at startup, against the window as it actually is, and every
+    failure raises. A resolver that fell back to a guess would point the detector at the
+    wrong lens and attribute every later arrival to the wrong side of the shop, silently.
+    """
+    src.crop_frac = None                       # the resolver needs the WHOLE window
+    frames = []
+    for _ in range(samples):
+        try:
+            frame = src.read()
+        except Exception:                      # noqa: BLE001 - a read failure is data here
+            frame = None
+        if frame is not None:
+            frames.append(frame.image)
+        time.sleep(interval)
+    if len(frames) < 4:
+        raise ChannelNotFound(
+            f"only {len(frames)} of {samples} frames could be captured from {title_of(src)!r}, "
+            "which is too few to locate a channel. The window is up but not rendering video."
+        )
+    box, kind, shift = resolve_channel(frames, index)
+    assert_channel_usable(index, kind, calibrated, declared_fixed=declared_fixed)
+    x, y, w, h = box
+    height, width = frames[0].shape[:2]
+    src.crop_frac = (x / width, y / height, (x + w) / width, (y + h) / height)
+    print(f"channel {index}: x={x} y={y} {w}x{h} motion={kind} shift={shift:.2f}px "
+          f"of a {width}x{height} window", flush=True)
+    return box, kind, shift
+
+
+def canonical_size_from(calibration_path):
+    """The canonical frame size the calibration's polygons were drawn in, or None.
+
+    A calibration file is polygons in pixels. To warp a located pane back into those
+    coordinates the producer has to know how big that frame was -- and it cannot be
+    inferred from the polygons, because a lot polygon need not touch the frame edges.
+    So the file must say, under a "canonical": [width, height] key, and a file that does
+    not say is refused rather than defaulted. Defaulting here would silently scale every
+    polygon by whatever ratio happened to be wrong.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return None
+    import json as _json
+
+    cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    size = cal.get("canonical")
+    if not size or len(size) != 2:
+        raise SceneNotLocated(
+            f"{calibration_path} has no \"canonical\": [width, height] key, so there is no "
+            "frame to warp located panes back into. Add the pixel size the polygons were "
+            "drawn against -- guessing it would rescale every polygon silently."
+        )
+    return (int(size[0]), int(size[1]))
+
+
+def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
+                 calibrated: bool = False, declared_fixed: bool = False,
+                 samples: int = 12, interval: float = 0.25):
+    """Find a KNOWN scene in the window and deliver it in canonical coordinates.
+
+    This is the layout-blind path and it supersedes both `--channel` and the measured
+    `SHOPSIGN_MAIN_PANE` constant for any camera that has an atlas. `--channel` still finds
+    a rectangle by motion; this finds THE CAMERA by appearance, which is the difference
+    between "there is video here" and "this is the left approach".
+
+    `calibration_size` is the canonical frame the lot polygon and entry portal were drawn
+    in. Every frame is warped back into it, so the pane's position and SIZE stop being
+    inputs to any geometric decision -- which is the property a crop can never have.
+
+    Refuses on: an unreadable atlas, no recognisable scene, an ambiguous one, or a named
+    scene that is not on screen. Each of those, answered with a guess, binds calibrated
+    geometry to the wrong ground and reports perfect health while doing it.
+    """
+    refs = load_atlas(atlas_dir)
+    # A CALIBRATION BELONGS TO ONE CAMERA. With `--scene` omitted, every reference stays
+    # eligible and `locate` returns whichever matched strongest -- so a single calibration
+    # file's lot and portal polygons could land on a sibling lens or the PTZ, silently, while
+    # the log cheerfully names the scene it chose. Census mode may roam; calibrated geometry
+    # may not.
+    if calibrated and scene_id is None and len({r.scene_id for r in refs}) > 1:
+        raise SceneNotLocated(
+            f"the atlas in {atlas_dir!r} holds "
+            f"{sorted({r.scene_id for r in refs})} and a calibration file was supplied, but "
+            "no --scene was named. A calibration describes ONE camera's ground; letting the "
+            "strongest match claim it would put those polygons on whichever lens happened to "
+            "win. Name the scene, or drop --calibration to run census-only."
+        )
+    if scene_id is not None:
+        refs = [r for r in refs if r.scene_id == scene_id]
+        if not refs:
+            raise SceneNotLocated(
+                f"the atlas in {atlas_dir!r} has no reference for scene {scene_id!r}; it "
+                f"holds {sorted({r.scene_id for r in load_atlas(atlas_dir)})}"
+            )
+    src.crop_frac = None                       # the locator needs the WHOLE window
+    frames = []
+    for _ in range(samples):
+        try:
+            frame = src.read()
+        except Exception:                      # noqa: BLE001 - a read failure is data here
+            frame = None
+        if frame is not None:
+            frames.append(frame.image)
+        time.sleep(interval)
+    if not frames:
+        raise SceneNotLocated(
+            f"no frames could be captured from {title_of(src)!r}, so no scene can be located"
+        )
+    # CROSS-CHECK AGAINST AN INDEPENDENT SIGNAL before binding any geometry. `panedetect`
+    # finds live video by temporal variance and knows nothing about appearance, so the two
+    # agreeing about WHERE the pane is means something that neither can establish alone.
+    #
+    # This is not defensive padding. Measured on the real window after the operator nudged
+    # the PTZ, its stored reference matched at 158 inliers with a 0.81 ratio and a 1.33px
+    # reprojection error -- every match-quality gate green -- and placed the pane 623px from
+    # where that camera's pixels actually are. The lens had panned, so the old view's content
+    # genuinely does sit elsewhere now; the homography was faithful and useless. No match
+    # quality can catch that, because the fit is correct. Only a second opinion can.
+    panes = None
+    try:
+        region = detect_live_region(frames)
+        if region is not None:
+            panes = split_into_channels(region, frames[-1]) or None
+    except Exception:  # noqa: BLE001 - no second opinion is not a reason to refuse to start
+        panes = None
+    found = locate(frames[-1], refs, panes=panes)
+    # THE REFERENCE'S OWN SIZE IS THE COORDINATE SYSTEM. `locate` returns a homography that
+    # maps FROM the matched reference's width and height; handing `warpPerspective` a
+    # different output size does not rescale that, it crops or pads it. So a calibration
+    # whose `canonical` disagrees with the reference silently shifts every polygon.
+    chosen = next((r for r in refs if r.scene_id == found.scene_id
+                   and r.variant == found.variant), None)
+    if chosen is not None and (chosen.width, chosen.height) != tuple(calibration_size):
+        raise SceneNotLocated(
+            f"reference {found.scene_id}/{found.variant} is {chosen.width}x{chosen.height} "
+            f"but the calibration's canonical frame is "
+            f"{calibration_size[0]}x{calibration_size[1]}. The homography maps from the "
+            "REFERENCE's coordinates, so a different output size crops or pads the result "
+            "rather than rescaling it -- every polygon would sit off its ground."
+        )
+    binding, _ = advance(None, found)
+    src.set_canonical(found.homography, calibration_size, found.scene_id, binding.epoch)
+    # The canonical view of a PROVEN scene is the known-good pose `SceneLock` has always
+    # asked for and never been given. Until now it auto-adopted whatever settled first,
+    # which detects drift from WHERE THE PROCESS STARTED -- useful, but blind to the case
+    # where the camera was already off-aim at start-up, because the wrong view then becomes
+    # "home" and every later frame agrees with it.
+    #
+    # Handing it a frame that appearance-matched a calibrated reference upgrades the gate
+    # from "has it moved since boot" to "is it where the polygons were drawn".
+    # THE SAME ELIGIBILITY RULE AS `--channel`, and it was missing here. Locating a scene by
+    # appearance proves WHICH camera it is; it says nothing about whether that camera can
+    # re-aim itself. Without this the atlas path took a calibration file onto any lens at
+    # all -- including a PTZ -- which is exactly the check `--channel` refuses to skip.
+    x0 = int(min(p[0] for p in found.quad))
+    y0 = int(min(p[1] for p in found.quad))
+    x1 = int(max(p[0] for p in found.quad))
+    y1 = int(max(p[1] for p in found.quad))
+    pane_frames = [f[max(0, y0):y1, max(0, x0):x1] for f in frames]
+    kind, shift = classify_motion([f for f in pane_frames if f.size])
+    assert_channel_usable(found.scene_id, kind, calibrated, declared_fixed=declared_fixed)
+    print(f"lens motion: {kind} (max {shift:.2f}px) declared_fixed={declared_fixed}",
+          flush=True)
+
+    reference = canonicalise(frames[-1], found, calibration_size)
+    print(f"scene located: {found.describe()} epoch={binding.epoch} "
+          f"canonical={calibration_size[0]}x{calibration_size[1]}", flush=True)
+
+    # RE-LOCATION, because a startup fix is only true at startup. The operator resizes the
+    # window, reorders panes or goes fullscreen mid-shift, and a binding installed once at
+    # boot then warps every later frame through stale geometry while still claiming the old
+    # sceneId and epoch -- detections evaluated against ground the pane no longer covers.
+    #
+    # It has to read RAW pixels. Once `set_canonical` is applied, `read()` returns the warped
+    # pane, so re-locating from it would search for the scene inside a picture of the scene
+    # and "find" it at the origin every time.
+    held = {"binding": binding}
+
+    def revalidate() -> bool:
+        """Re-locate and re-bind if the layout moved. Returns whether the epoch changed."""
+        raw = []
+        for _ in range(6):
+            try:
+                image = src.read_raw()
+            except Exception:  # noqa: BLE001
+                image = None
+            if image is not None:
+                raw.append(image)
+            time.sleep(0.15)
+        if len(raw) < 3:
+            return False
+        try:
+            region = detect_live_region(raw)
+            current_panes = split_into_channels(region, raw[-1]) if region is not None else None
+            fresh = locate(raw[-1], refs, panes=current_panes or None)
+        except SceneNotLocated as exc:
+            # NOT a re-bind and NOT a shutdown. Losing the scene for one sample is usually a
+            # truck filling the pane or a momentary layout animation; the pose gate -- now
+            # anchored to the calibrated view -- is the thing that catches a real drift, and
+            # it does so without tearing down a producer mid-shift.
+            print(f"scene revalidation found nothing this pass ({str(exc)[:90]}); "
+                  "keeping the existing binding", flush=True)
+            return False
+        new_binding, changed = advance(held["binding"], fresh)
+        if changed:
+            held["binding"] = new_binding
+            src.set_canonical(fresh.homography, calibration_size, fresh.scene_id,
+                              new_binding.epoch)
+            print(f"scene RE-LOCATED: {fresh.describe()} epoch={new_binding.epoch}",
+                  flush=True)
+        return changed
+
+    src.revalidate = revalidate
+    return found, binding, reference
+
+
+def title_of(src) -> str:
+    return getattr(src, "window_title", None) or getattr(src, "name", "capture")
+
+
+def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
+                 channel: int | None = None, calibrated: bool = False,
+                 scene_atlas: str | None = None, scene: str | None = None,
+                 canonical_size=None, declared_fixed: bool = False):
+    # --channel and --scene-atlas are two answers to the same question and cannot both be
+    # the answer. `--channel` finds a rectangle by MOTION; the atlas finds THE CAMERA by
+    # APPEARANCE. Silently letting one win would make the producer's aim depend on argument
+    # order, which is the kind of thing nobody discovers until the geometry is already wrong.
+    if channel is not None and scene_atlas:
+        raise ChannelNotFound(
+            "--channel and --scene-atlas both aim the producer and cannot be combined. The "
+            "atlas is strictly stronger: it proves WHICH camera it found, where --channel "
+            "only proves that a rectangle holds moving pixels. Use --channel only for a "
+            "camera with no atlas entry yet."
+        )
     if kind == "wgc":
         src = WgcWindowSource(
             window_hwnd=hwnd, window_title=title,
             crop_frac=WgcWindowSource.SHOPSIGN_MAIN_PANE if crop else None,
         )
-        return CaptureMux([src, V380WindowSource(window_title=title)])
+        if scene_atlas:
+            if not canonical_size:
+                raise SceneNotLocated(
+                    "--scene-atlas needs the canonical frame size the calibration was drawn "
+                    "in, so frames can be warped back into it. Without it the warp target "
+                    "would be a guess, which defeats the point of locating the scene."
+                )
+            _, _, reference = aim_at_scene(src, scene_atlas, scene, canonical_size,
+                                           calibrated=calibrated,
+                                           declared_fixed=declared_fixed)
+            # Stash it on the source: `build_source` has no pipeline to hand it to, and the
+            # caller that builds the pipeline does. Anything else would locate twice.
+            src.calibrated_reference = reference
+            return _solo(src, reference)
+        if channel is None:
+            return CaptureMux([src, V380WindowSource(window_title=title)])
+        aim_at_channel(src, channel, calibrated, declared_fixed=declared_fixed)
+        # NO FALLBACK LANE under --channel, deliberately: `V380WindowSource` crops by its own
+        # fixed fractions and cannot honour a channel rectangle, so a silent failover would
+        # hand the detector a different region than the operator asked for.
+        #
+        # But "no fallback" is not the same as "no wrapper". Returning the bare source broke
+        # the contract BOTH consumers rely on: `run_live` reads `source.active` and would
+        # raise AttributeError, and `edge_main` reads a missing `active` as DISCONNECTED and
+        # loses `source_generation()`, which is what stops a track spanning a capture
+        # restoration. A one-lane mux keeps the refusal and keeps the interface.
+        return _solo(src)
+    if channel is not None:
+        raise ChannelNotFound(
+            f"--channel needs the 'wgc' capture lane; {kind!r} crops by fixed fractions and "
+            "cannot be aimed at a channel rectangle."
+        )
+    if scene_atlas:
+        raise SceneNotLocated(
+            f"--scene-atlas needs the 'wgc' capture lane; {kind!r} crops by fixed fractions "
+            "and cannot deliver a canonically warped frame."
+        )
     return CaptureMux([V380WindowSource(window_title=title)])
 
 
-def build_council(model: str | None, device: str, motion_gate: bool) -> DetectorCouncil:
+def same_model(a: str | None, b: str | None) -> bool:
+    """Do these two paths name the SAME model file? Used to refuse a self-adjudicating council."""
+    if not a or not b:
+        return False
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _solo(src, calibrated_reference=None):
+    """Wrap one aimed source in a single-lane `CaptureMux`.
+
+    The mux is the INTERFACE, not just the failover. `source.active` and
+    `source_generation()` are read by both consumers, and a bare source silently fails the
+    first and blinds the second -- which is how a track ends up spanning a capture
+    restoration. One lane keeps the deliberate no-fallback behaviour and the contract.
+    """
+    mux = CaptureMux([src])
+    if calibrated_reference is not None:
+        mux.calibrated_reference = calibrated_reference
+    # Forward the revalidation hook: the loop holds the mux, not the lane inside it.
+    if getattr(src, "revalidate", None) is not None:
+        mux.revalidate = src.revalidate
+    return mux
+
+
+def build_council(model: str | None, device: str, motion_gate: bool,
+                  adjudicator_model: str | None = None,
+                  adjudicator_device: str | None = None) -> DetectorCouncil:
     primary = None
     if model:
         try:
@@ -168,7 +502,38 @@ def build_council(model: str | None, device: str, motion_gate: bool) -> Detector
             gate = Mog2MotionDetector()
         except DetectorUnavailable as exc:
             print(f"motion gate unavailable: {exc}")
-    return DetectorCouncil(primary=primary, motion_gate=gate)
+
+    # THE ADJUDICATOR SLOT, which `DetectorCouncil` has always had and production has never
+    # filled. The council escalates to it on an ambiguous box or an entry-critical frame --
+    # the two places where a mistake actually costs something -- so the intelligence is spent
+    # where it changes an outcome instead of on every quiet frame.
+    #
+    # A COUNCIL MAY NOT ADJUDICATE ITSELF, and this refusal is the load-bearing part. `_fuse`
+    # promotes an ambiguous detection by +0.25 when the adjudicator agrees with it. A model
+    # always agrees with itself, so pointing both slots at one file would hand every uncertain
+    # box a free confidence boost backed by no independent evidence at all -- silently turning
+    # "uncertain" into "confident" while the logs show a healthy escalation.
+    adjudicator = None
+    if adjudicator_model:
+        if same_model(adjudicator_model, model):
+            raise DetectorUnavailable(
+                "the adjudicator is the same model file as the primary. A model agrees with "
+                "itself, so every ambiguous box would be promoted on its own say-so. Point "
+                "--adjudicator-model at a DIFFERENT, stronger model, or leave it unset."
+            )
+        try:
+            # A LOWER threshold than the primary, deliberately. The adjudicator is the careful
+            # second look at a frame the primary already found ambiguous; running it at the
+            # primary's own cut-off would make it silent on exactly those boxes.
+            adjudicator = OpenVinoVehicleDetector(
+                adjudicator_model, device=adjudicator_device or device, conf=0.25)
+            print(f"adjudicator: {adjudicator.name} on {adjudicator_device or device}")
+        except DetectorUnavailable as exc:
+            # NOT fatal, and not silent. The council without an adjudicator is the system as
+            # it has always run; pretending the escalation exists would be the defect.
+            print(f"WARNING: adjudicator unavailable ({exc}); escalation is DISABLED and "
+                  "ambiguous frames will be judged by the primary alone")
+    return DetectorCouncil(primary=primary, motion_gate=gate, adjudicator=adjudicator)
 
 
 PRODUCER_INSTANCE_ID = uuid.uuid4().hex[:16]
@@ -234,9 +599,28 @@ def main() -> int:
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
+    ap.add_argument("--relocate-seconds", type=float, default=120.0,
+                    help="how often to re-check that the located scene is still where it "
+                         "was. A startup fix is only true at startup. 0 disables.")
+    ap.add_argument("--scene-atlas", default=None,
+                    help="directory of reference views named <scene_id>__<variant>.png; "
+                         "locates the KNOWN camera anywhere in the window and warps every "
+                         "frame into canonical coordinates")
+    ap.add_argument("--scene", default=None,
+                    help="which scene_id in the atlas this producer IS; omit to accept "
+                         "whichever known scene is on screen (refused if ambiguous)")
+    ap.add_argument("--channel", type=int, default=None,
+                    help="aim at ONE channel of a multi-lens device (0-based, left-to-right, "
+                         "top row first). Resolved once at startup; refuses rather than guesses.")
     ap.add_argument("--calibration", default=None)
     ap.add_argument("--evidence", default=None, help="directory for EvidencePackets")
     ap.add_argument("--save-frame", default=None, help="write one frame here and exit")
+    ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
+                    help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
+                         "frames. Must differ from --model; a model agrees with itself.")
+    ap.add_argument("--adjudicator-device", default=os.environ.get("VISION_OV_ADJUDICATOR_DEVICE"),
+                    help="device for the adjudicator (default: same as --device). Put it on CPU "
+                         "when the primary holds the GPU, so escalation does not contend.")
     ap.add_argument("--motion-gate", action="store_true",
                     help="use MOG2 as a compute trigger (it can never confirm)")
     ap.add_argument("--post-to", default=os.environ.get("CAMERA_VISITS_URL"),
@@ -254,7 +638,18 @@ def main() -> int:
                     help="how often to POST a producer heartbeat when --post-to is set")
     args = ap.parse_args()
 
-    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
+    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
+                          channel=args.channel, calibrated=bool(args.calibration),
+                          declared_fixed=declared_fixed_lens(args.calibration),
+                          scene_atlas=args.scene_atlas, scene=args.scene,
+                          # ONLY the atlas path warps, so only it needs the canonical frame.
+                          # Evaluating this unconditionally aborted every EXISTING calibrated
+                          # producer -- ones using the documented lot/portal/bays format with no
+                          # atlas -- before `build_source` could pick the crop or channel path
+                          # that never uses the value. A new key may not be made retroactively
+                          # mandatory for callers that do not need it.
+                          canonical_size=(canonical_size_from(args.calibration)
+                                          if args.scene_atlas else None))
     try:
         first = source.read()
     except Exception as exc:
@@ -294,7 +689,9 @@ def main() -> int:
         portal = EntryPortal(Zone("front_lot", []), portal_zone=Zone("portal", []))
         bays = []
 
-    council = build_council(args.model, args.device, args.motion_gate)
+    council = build_council(args.model, args.device, args.motion_gate,
+                            adjudicator_model=args.adjudicator_model,
+                            adjudicator_device=args.adjudicator_device)
     store = EvidenceStore(args.evidence, enabled=bool(args.evidence))
     pipe = VisionPipeline(council=council, lot_map=lot_map, entry_portal=portal,
                           camera="sign", bay_names=bays, evidence=store)
@@ -343,7 +740,22 @@ def main() -> int:
     t_end = time.time() + args.seconds
     vehicles_seen: list[int] = []
     print(f"running {args.seconds:.0f}s at ~{args.fps:g} fps ...\n", flush=True)
+    # THE LAB LOOP REVALIDATES TOO. `aim_at_scene` installs the hook and `EdgeLoop` calls
+    # it, but this standalone loop did not -- so a lab run with `--scene-atlas` kept its
+    # startup warp indefinitely through a resize, a pane reorder or a switch to fullscreen.
+    # That matters more than "it is only the lab": this loop can post visits with `--post-to`.
+    next_relocate = time.time() + args.relocate_seconds if args.relocate_seconds > 0 else 0.0
     while time.time() < t_end:
+        now = time.time()
+        if args.relocate_seconds > 0 and now >= next_relocate:
+            next_relocate = now + args.relocate_seconds
+            revalidate = getattr(source, "revalidate", None)
+            if revalidate is not None:
+                try:
+                    if revalidate():
+                        print("scene re-located; the layout epoch advanced", flush=True)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"scene revalidation failed ({exc}); the binding stands", flush=True)
         frame = source.read()
         if frame is None:
             time.sleep(interval)
