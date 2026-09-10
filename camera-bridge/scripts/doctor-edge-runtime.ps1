@@ -179,8 +179,16 @@ else { Check "capture window" "FAIL" "no window matching '$WindowTitle' -- open 
 if ($win -and $py) {
     $probe = & $py.Source (Join-Path $PSScriptRoot "probe_capture.py") $WindowTitle 24 2>&1
     $probeRc = $LASTEXITCODE
-    $line = ($probe | Select-Object -Last 1)
-    if ($probeRc -eq 0) {
+    # FIND the status line; never trust the LAST line. The probe can print its verdict and
+    # then have the native capture thread crash the interpreter on the way out, leaving
+    # "Fatal Python error:" as the final line with exit code 0 -- which this check happily
+    # reported as `live feed PASS  Fatal Python error:`. A false green inside the check
+    # written to catch false greens. No parsable status now means NOT a pass, whatever the
+    # exit code claims.
+    $line = ($probe | Where-Object { $_ -match "^status=" } | Select-Object -Last 1)
+    if (-not $line) {
+        Check "live feed" "WARN" "the probe produced no status line (rc=$probeRc): $(($probe | Select-Object -Last 1))"
+    } elseif ($probeRc -eq 0) {
         Check "live feed" "PASS" "$line"
     } elseif ($probeRc -eq 1) {
         Check "live feed" "FAIL" "$line -- the window is up but its frames are NOT usable. Open the camera's LIVE VIEW in the app; a menu or device-list pane reads as static and no arrival can ever be confirmed."

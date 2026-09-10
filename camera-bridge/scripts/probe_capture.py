@@ -16,6 +16,7 @@ Prints ONE line of `key=value` pairs for the PowerShell caller to parse, and exi
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -77,4 +78,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    code = main()
+    # HARD EXIT, deliberately. The WGC capture holds a native thread whose teardown crashes
+    # the interpreter AFTER main() has printed its verdict -- "Fatal Python error:" on a
+    # clean run, with the exit code still 0. That is harmless to the measurement and fatal
+    # to anything reading the last line of output, which is exactly what the doctor did:
+    # it reported `live feed PASS  Fatal Python error:`, a false green inside the check
+    # built to catch false greens. Flush, then leave without running destructors.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
