@@ -57,13 +57,24 @@ function clientFiles(cwd = REPO) {
 
   const out = [];
   for (const f of tracked) {
-    let head;
+    let text;
     try {
-      head = readFileSync(join(cwd, f), "utf8").slice(0, 400);
+      text = readFileSync(join(cwd, f), "utf8");
     } catch {
       continue; // deleted-but-tracked, or unreadable; not this gate's problem
     }
-    if (/^\s*["']use client["']/m.test(head)) out.push(f);
+    // THE WHOLE FILE, not a 400-char head (fixed 2026-09-10, hours after this
+    // gate shipped with that window). The directive must precede all code, but
+    // COMMENTS may precede IT — and this repo writes long doc comments, so 9
+    // client files carry "use client" past char 400, two of them in the very
+    // roots this gate was widened to cover. A detector with a truncated window,
+    // guarding against a scan list with a truncated root set.
+    //
+    // Over-counting is the SAFE error here: a false positive demands broader
+    // coverage, a false negative silently exempts a file. So this matches the
+    // directive at any line start rather than trying to prove it is the first
+    // statement.
+    if (/^[ 	]*["']use client["']\s*;?\s*$/m.test(text)) out.push(f);
   }
   return out;
 }
@@ -118,4 +129,51 @@ test("the coverage check FAILS when a client root is dropped from the scan list"
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("the detector sees a directive behind a long doc comment", () => {
+  // THE ARM THAT WOULD HAVE CAUGHT THE ORIGINAL. This gate first shipped
+  // reading only the first 400 characters of each file. The "use client"
+  // directive must precede all CODE, but comments may precede IT, and this repo
+  // writes long doc comments: 9 tracked client files carry the directive past
+  // char 400 - two of them under apps/statenour/hooks and apps/statenour/lib,
+  // the exact roots the gate had just been widened to cover. A truncated
+  // detector guarding against a truncated scan list.
+  const dir = mkdtempSync(join(tmpdir(), "late-directive-"));
+  try {
+    // Built without backslash escapes on purpose: this file is edited through
+    // shells that collapse them, which broke this very fixture once.
+    const nl = String.fromCharCode(10);
+    const f = join(dir, "late.ts");
+    const header = ["/**", ...Array(60).fill(" * padding"), " */"].join(nl) + nl;
+    assert.ok(header.length > 400, "fixture must actually exceed the old window");
+    writeFileSync(f, header + ['"use client";', "export const x = 1;", ""].join(nl));
+
+    const text = readFileSync(f, "utf8");
+    const DIRECTIVE = /^[ 	]*["']use client["']\s*;?\s*$/m;
+
+    assert.equal(DIRECTIVE.test(text), true, "whole-file read must find the late directive");
+    assert.equal(
+      DIRECTIVE.test(text.slice(0, 400)),
+      false,
+      "and the OLD 400-char window must miss it - otherwise this arm proves nothing",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the live repo actually contains such files - the arm is not hypothetical", () => {
+  // Without this, the fixture arm above could pass forever against a codebase
+  // where the case never occurs, which is a control that examines nothing.
+  const late = clientFiles().filter((f) => {
+    const t = readFileSync(join(REPO, f), "utf8");
+    const i = t.search(/["']use client["']/);
+    return i >= 400;
+  });
+  assert.ok(
+    late.length > 0,
+    "expected at least one real file with a late 'use client'; if this is now zero the " +
+      "fixture arm is the only coverage left and this assertion should be retired deliberately",
+  );
 });
