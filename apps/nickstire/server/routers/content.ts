@@ -67,7 +67,32 @@ const reelBriefScoreInput = z.object({
 }).passthrough();
 
 export const contentRouter = router({
+  // `getPublishedArticles` returns [] on a dead handle — indistinguishable from
+  // "this blog has no posts". That is the same lie as articleBySlug below, one
+  // level up: the LIST version of a fabricated read.
+  //
+  // Guarded here rather than at the helper because the helper's [] is
+  // load-bearing elsewhere: scripts/prerender.mjs loads DB blog slugs through
+  // it and applies its own `.catch(() => [])`, and breaking that would drop
+  // every dynamic post out of the prerender route list.
+  //
+  // Costs a visitor nothing. Blog.tsx does `(dbArticles || [])` and SiteMap.tsx
+  // documents the same fallback, so both still render — with the 118 static
+  // articles — exactly as they did when the read silently returned []. What
+  // changes is that the failure is now VISIBLE instead of looking like an empty
+  // blog, to us and to anything that prerenders the page.
+  //
+  // The guard is written inline, not extracted to a helper, deliberately:
+  // scripts/lib/fabricatedAdminReadScan.mjs detects it TEXTUALLY in the
+  // procedure body, so hiding it behind `await requireStore()` would leave the
+  // ratchet reporting this pair as unguarded forever.
   publishedArticles: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Article store unavailable — this is a read failure, not an empty blog.",
+      });
+    }
     return getPublishedArticles();
   }),
   // THIS FABRICATED READ COST US GOOGLE RANKINGS, not just a wrong number.
@@ -102,7 +127,18 @@ export const contentRouter = router({
       }
       return getDynamicArticleBySlug(input.slug);
     }),
+  // Same shape: [] on a dead handle reads as "nothing to announce". A shop
+  // notice that fails to load and a shop with no notices are different facts,
+  // and only one of them is worth paging someone about. NotificationBar renders
+  // nothing when the query has no data, so the visitor-facing result is
+  // unchanged either way — the difference is whether we can tell.
   activeNotifications: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Notification store unavailable — this is a read failure, not an absence of notices.",
+      });
+    }
     return getActiveNotifications();
   }),
   currentSeason: publicProcedure.query(() => {
