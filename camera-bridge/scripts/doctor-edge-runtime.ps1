@@ -307,7 +307,7 @@ if ($py) {
 
 # Trajectories: the lot polygon in force was drawn by eye and nothing measures it. This
 # says whether the producer is collecting the data that would.
-$traj = Join-Path $root "data	rajectories.sqlite"
+$traj = Join-Path $root "data\trajectories.sqlite"
 if (-not (Test-Path $traj)) {
     Check "trajectories" "WARN" "not recording -- pass --trajectories to start measuring where vehicles actually drive; the lot polygon stays a guess until then"
 } else {
