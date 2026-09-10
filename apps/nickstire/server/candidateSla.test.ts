@@ -17,6 +17,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { sliceBlock } from "./testUtils/sourceBlock";
+import { sql } from "drizzle-orm";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { slaBand, SLA_THRESHOLD_HOURS } from "./candidateSla";
 
 const APP = process.cwd();
@@ -88,6 +90,27 @@ describe("the age is computed in SQL, never from a driver-parsed Date", () => {
     expect(helper, "a literal hour count is a second source of truth").not.toMatch(
       /INTERVAL\s+\d+\s+HOUR/,
     );
+  });
+
+  it("sql.raw keeps the threshold a LITERAL, not a bind parameter", () => {
+    // The commit that wired SLA_THRESHOLD_HOURS into this query claimed the
+    // emitted SQL stayed byte-identical. That is a claim about drizzle's
+    // behaviour, so it is measured here rather than asserted in prose: a plain
+    // `${n}` interpolation becomes `INTERVAL ? HOUR` with a bound param, and
+    // whether TiDB accepts a placeholder in an INTERVAL is not something to
+    // discover in production.
+    const dialect = new MySqlDialect();
+    const raw = dialect.sqlToQuery(
+      sql`x <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(SLA_THRESHOLD_HOURS.warning))} HOUR)`,
+    );
+    const bound = dialect.sqlToQuery(sql`x <= DATE_SUB(NOW(), INTERVAL ${SLA_THRESHOLD_HOURS.warning} HOUR)`);
+
+    expect(raw.sql).toBe("x <= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+    expect(raw.params, "a literal must bind nothing").toEqual([]);
+    // The control: prove the two forms actually differ, so the assertion above
+    // is testing sql.raw rather than restating what any interpolation does.
+    expect(bound.sql).toContain("?");
+    expect(bound.params).toEqual([24]);
   });
 
   it("gates on contactedAt, not on status alone", () => {

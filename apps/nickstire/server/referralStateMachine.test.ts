@@ -114,6 +114,32 @@ describe("forfeited and disqualified stay distinct", () => {
     expect(panel).toContain("markForfeited.mutate(");
   });
 
+  it("an EARNED bonus cannot be forfeited — the second way to lose $300", () => {
+    // The transition table alone permits eligible -> forfeited, and that is
+    // right BEFORE day 90 and wrong after it: once eligibleAt passes, markPaid
+    // would succeed, which means the money is owed. Forfeiting then is not a
+    // status edit, it is refusing a debt — and the only thing standing in the
+    // way was a confirm dialog ASKING whether the tech left before day 90,
+    // which is a guard against a cooperative user, not against a stale tab.
+    // markPaid carries the mirror-image check for the mirror-image reason.
+    const block = sliceBlock(ROUTER, "markForfeited: adminProcedure", "\n});", {
+      label: "technicianReferrals.ts",
+    });
+    expect(block, "forfeit must re-read the row, not trust the client's status").toContain(
+      "getTechnicianReferralById",
+    );
+    expect(block, "forfeit must compare eligibleAt against now").toMatch(/eligibleAt.*getTime\(\)\s*<=\s*Date\.now\(\)/s);
+  });
+
+  it("the panel does not offer Forfeit once the clock is up", () => {
+    // The server refuses it; this keeps the button from inviting the attempt.
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toMatch(/clockUp\s*=\s*r\.eligibleAt/);
+    expect(panel).toMatch(/disabled=\{markForfeited\.isPending \|\| clockUp\}/);
+  });
+
   it("forfeit does not reuse the disqualified status", () => {
     const block = sliceBlock(ROUTER, "markForfeited: adminProcedure", "\n});", {
       label: "technicianReferrals.ts",

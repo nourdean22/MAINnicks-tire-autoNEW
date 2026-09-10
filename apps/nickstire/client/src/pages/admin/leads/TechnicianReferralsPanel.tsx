@@ -224,9 +224,19 @@ export function TechnicianReferralsPanel() {
                           </button>
                         );
                       })()}
-                      {r.status === "eligible" && (
+                      {r.status === "eligible" && (() => {
+                        // Once eligibleAt has passed the bonus is EARNED, so
+                        // forfeiting stops being a status edit and becomes
+                        // refusing a debt. Mirror image of Mark Paid, which is
+                        // disabled while the clock is still running. The server
+                        // refuses this too — the disable is the affordance, not
+                        // the guard.
+                        const clockUp = r.eligibleAt ? new Date(r.eligibleAt).getTime() <= Date.now() : false;
+                        return (
                         <button
                           type="button"
+                          disabled={markForfeited.isPending || clockUp}
+                          title={clockUp ? "The 90 days are up — this bonus is owed and can't be forfeited here." : undefined}
                           onClick={async () => {
                             const ok = await confirmDialog({
                               title: "Did this technician leave before 90 days?",
@@ -244,12 +254,12 @@ export function TechnicianReferralsPanel() {
                               });
                             }
                           }}
-                          disabled={markForfeited.isPending}
                           className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/15 rounded transition-colors disabled:opacity-50"
                         >
                           <X className="w-3 h-3" /> Forfeit
                         </button>
-                      )}
+                        );
+                      })()}
                       {(r.status === "pending" || r.status === "eligible") && (
                         <button
                           type="button"

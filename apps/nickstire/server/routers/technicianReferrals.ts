@@ -233,6 +233,29 @@ export const technicianReferralsRouter = router({
   markForfeited: adminProcedure
     .input(z.object({ id: z.number(), reason: z.string().min(1).max(500) }))
     .mutation(async ({ input, ctx }) => {
+      // ONCE THE 90 DAYS HAVE ELAPSED THE BONUS IS OWED, and forfeiting it is
+      // no longer a status edit — it is refusing a debt. markPaid re-checks
+      // eligibleAt for the mirror-image reason ("eligibility for the button to
+      // be SHOWN is not the same as eligibility for the payout to be OWED");
+      // without the same check here, a stale tab, a double-click or a direct
+      // mutation call could wipe out an EARNED $300, and the only thing
+      // standing in the way was a confirm dialog ASKING whether the tech left
+      // before day 90 - a guard against a cooperative user, which is precisely
+      // what markHired's own comment says is not a guard at all.
+      //
+      // A genuinely late-discovered departure (left at day 45, found out at
+      // day 95) is real but rare, and it is the case that should cost a person
+      // a conversation rather than the common case costing someone their bonus.
+      // Recording the DEPARTURE DATE would let this decide honestly instead of
+      // erring; ConfirmDialog cannot capture free text today (see the note in
+      // the disqualify handler), so this errs toward not denying money.
+      const referral = await getTechnicianReferralById(input.id);
+      if (referral.eligibleAt && referral.eligibleAt.getTime() <= Date.now()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `This referral cleared its 90 days on ${referral.eligibleAt.toISOString().split("T")[0]} — the bonus is owed, so it cannot be forfeited from here. Pay it, or handle a genuine late-discovered departure as an accounting reversal.`,
+        });
+      }
       const res = await updateTechnicianReferralStatus(
         input.id,
         { status: "forfeited", disqualifiedReason: input.reason },
