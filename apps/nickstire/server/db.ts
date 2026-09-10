@@ -609,7 +609,7 @@ export async function getReferralOrphans() {
   }
 }
 
-import { slaBand, type SlaBand } from "./candidateSla";
+import { slaBand, SLA_THRESHOLD_HOURS, type SlaBand } from "./candidateSla";
 
 /**
  * Applicants aging against the 48-hour response the careers page promises.
@@ -662,7 +662,14 @@ export async function getCandidateSlaBreaches() {
           // person kept waiting. `updateStatus` stamps contactedAt whenever it
           // writes "contacted", so the surviving set is {new, interviewing}.
           inArray(candidates.status, ["new", "interviewing"]),
-          sql`${candidates.createdAt} <= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+          // The 24 comes from SLA_THRESHOLD_HOURS.warning rather than a literal:
+          // it was hard-coded here AND declared there, so raising the surfacing
+          // threshold in one place would have left this query still returning
+          // rows the banding no longer considers late. sql.raw because the value
+          // is our own `as const` integer and drizzle would otherwise emit
+          // `INTERVAL ? HOUR` as a bind parameter — this keeps the emitted SQL
+          // byte-identical to what it was.
+          sql`${candidates.createdAt} <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(SLA_THRESHOLD_HOURS.warning))} HOUR)`,
         ),
       )
       .orderBy(candidates.createdAt)

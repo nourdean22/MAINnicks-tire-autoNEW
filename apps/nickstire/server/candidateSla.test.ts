@@ -79,6 +79,17 @@ describe("the age is computed in SQL, never from a driver-parsed Date", () => {
     expect(helper, "getTime() age arithmetic is the skew bug").not.toMatch(/getTime\(\)/);
   });
 
+  it("takes its 24-hour cutoff from the constant, not a second literal", () => {
+    // The threshold was declared in SLA_THRESHOLD_HOURS AND hard-coded as
+    // `INTERVAL 24 HOUR` here. Raising the surfacing threshold in one place
+    // would have left this query returning rows the banding no longer counts
+    // as late — the query and the label disagreeing, silently.
+    expect(helper).toContain("SLA_THRESHOLD_HOURS.warning");
+    expect(helper, "a literal hour count is a second source of truth").not.toMatch(
+      /INTERVAL\s+\d+\s+HOUR/,
+    );
+  });
+
   it("gates on contactedAt, not on status alone", () => {
     // contactedAt is the clock stop: an admin can move a candidate through
     // statuses without ever having contacted them, and the promise is about
