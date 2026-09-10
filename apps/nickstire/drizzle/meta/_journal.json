@@ -960,6 +960,13 @@
       "when": 1789300400000,
       "tag": "0123_commissioning",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "5",
+      "when": 1789300500000,
+      "tag": "0124_camera_health_counters",
+      "breakpoints": true
     }
   ]
 }
