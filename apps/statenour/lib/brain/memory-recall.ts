@@ -804,13 +804,21 @@ export function formatRecallForPrompt(hits: RecallHit[]): string {
   // before. AGENT_INFERRED is labelled but not fenced: a model's own
   // guess is not attacker-controlled, it just is not a fact.
   const lines = hits.map((h, i) => {
+    // A hit built by something that predates trust tiering has no tier.
+    // Do NOT default that to untrusted: a missing field would then fence
+    // EVERY memory, which is fail-closed in the letter and product-
+    // destroying in practice (caught by renderer-fencing.test.ts, whose
+    // own fixture pairs a gmail_thread injection row with an ordinary
+    // preferences row). Re-derive from the category instead, which is
+    // the field that actually carries provenance for ingested content.
+    const tier: TrustTier = h.trustTier ?? classifyTrustTier("unclassified", null, h.category);
     const body = disabled
       ? `${h.content} (${h.ageDays === 0 ? "today" : `${h.ageDays}d ago`}, conf=${h.confidence.toFixed(2)})`
       : `${h.content} (${renderFactStatus(h)})`;
-    if (!isAuthoritative(h.trustTier)) {
-      return `[${i + 1}] [${h.category}] ${fenceUntrustedMemory(body, h.trustTier)}`;
+    if (!isAuthoritative(tier)) {
+      return `[${i + 1}] [${h.category}] ${fenceUntrustedMemory(body, tier)}`;
     }
-    const tierMark = h.trustTier === "AGENT_INFERRED" ? " [inferred, unverified]" : "";
+    const tierMark = tier === "AGENT_INFERRED" ? " [inferred, unverified]" : "";
     return `[${i + 1}] [${h.category}]${tierMark} ${body}`;
   });
   return `Recently relevant memories (top-${hits.length} via hybrid search):\n${fenceContent("hybridRecall", "memory_recall", lines.join("\n"), { maxChars: 20_000 })}`;
