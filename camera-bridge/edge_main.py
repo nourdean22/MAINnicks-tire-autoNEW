@@ -82,6 +82,94 @@ def source_generation(source: Any) -> str:
     return f"{int(getattr(source, 'index', 0) or 0)}.{restores}.{epoch}"
 
 
+_GIT_SHA_CACHE: Dict[str, Optional[str]] = {}
+
+
+def _git_sha() -> Optional[str]:
+    """The commit this producer is running, or None. Resolved once and cached.
+
+    None on any failure, never a guess and never a placeholder like "unknown": the shop
+    renders this string, and a producer confidently reporting a SHA it invented is worse
+    than one reporting nothing. Cached because it cannot change while the process runs and
+    the heartbeat fires every 30 seconds.
+    """
+    if "sha" not in _GIT_SHA_CACHE:
+        sha = os.environ.get("EDGE_GIT_SHA")          # baked at install, if the installer did
+        if not sha:
+            try:
+                import subprocess
+
+                out = subprocess.run(["git", "rev-parse", "HEAD"],
+                                     cwd=os.path.dirname(os.path.abspath(__file__)),
+                                     capture_output=True, text=True, timeout=5)
+                sha = out.stdout.strip() if out.returncode == 0 else None
+            except Exception:  # noqa: BLE001 - no git, no repo, no answer. Not a failure.
+                sha = None
+        _GIT_SHA_CACHE["sha"] = (sha or None) and sha[:40]
+    return _GIT_SHA_CACHE["sha"]
+
+
+def _model_sha256(model_path: Optional[str]) -> Optional[str]:
+    """Digest of the model actually loaded: topology AND weights, or None.
+
+    `EdgeLoop` has always accepted `model_sha256`, threaded it into the heartbeat and had it
+    rendered on the shop's camera card -- and `main()` never passed one, so the answer to
+    "which weights is this producer running" has always been blank. That is the question
+    `fetch_models.py` exists to make answerable; it pins every artifact by sha256, and then
+    nothing reported which pinned artifact was in use.
+
+    BOTH FILES, hashed in a fixed order. An OpenVINO model is an `.xml` topology beside a
+    `.bin` of weights, and a change to either changes what the detector does -- digesting
+    only the xml would report a match across two different sets of weights, which is the
+    one thing this field must never do. Prefixed `ov:` so the value is self-describing:
+    a bare 64 hex characters invites someone to compare it against a single-file digest
+    from somewhere else and conclude the models differ when they do not.
+    """
+    if not model_path:
+        return None
+    try:
+        import hashlib
+
+        digest = hashlib.sha256()
+        base = os.path.splitext(os.path.abspath(model_path))[0]
+        found = False
+        for suffix in (".xml", ".bin"):
+            candidate = base + suffix
+            if not os.path.exists(candidate):
+                continue
+            found = True
+            with open(candidate, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        if not found:
+            return None
+        return "ov:" + digest.hexdigest()[:56]
+    except Exception:  # noqa: BLE001 - an unreadable model file is a None, never a guess
+        return None
+
+
+def _disk_free_bytes(ledger: Any) -> Optional[int]:
+    """Free space on the filesystem holding the LEDGER, or None if it cannot be read.
+
+    None rather than 0. A zero here says "the disk is full", which is the single most
+    alarming value this field can take -- reporting it because a stat call failed would page
+    someone to a disk that is fine.
+    """
+    try:
+        import shutil
+
+        path = getattr(ledger, "path", None)
+        if not path or path == ":memory:":
+            # NOT the current directory. Falling back to "." answers a question we cannot
+            # answer -- the cwd can sit on an entirely different volume from the ledger, so
+            # the number would be real, plausible, and about the wrong disk. An in-memory
+            # ledger has no disk at all.
+            return None
+        return int(shutil.disk_usage(os.path.dirname(os.path.abspath(path))).free)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def edge_heartbeat_body(
     *,
     camera: str,
@@ -96,6 +184,8 @@ def edge_heartbeat_body(
     calibration_version: Optional[str],
     last_inference_at: Optional[float] = None,
     inference_p95_ms: Optional[float] = None,
+    last_frame_at: Optional[float] = None,
+    last_cloud_ack_at: Optional[float] = None,
     detector_name: Optional[str],
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
@@ -128,6 +218,10 @@ def edge_heartbeat_body(
         "camera": camera,
         "producerInstanceId": PRODUCER_INSTANCE_ID,
         "producerVersion": f"edge {__version__}",
+        # Which BUILD is running. `producerVersion` is a hand-bumped string that says
+        # "edge 2.1.2" for every commit in a release, so it cannot answer "is the shop
+        # running the fix I merged an hour ago" -- which is the question actually asked.
+        "gitSha": _git_sha(),
         "heartbeatSeq": int(seq),
         "observedAtEdge": _iso(now),
         "mode": mode,
@@ -167,6 +261,29 @@ def edge_heartbeat_body(
         # still reporting null has stopped inferring. Before this, no amount of traffic
         # distinguished the two -- both were silence for as long as you cared to watch.
         # Separating them at an instant needs a gated-frame COUNT, which needs a column.
+        # THREE MORE COLUMNS THE SHOP RENDERS AND NOBODY EVER FILLED. Found by diffing the
+        # route's HEARTBEAT_COLUMNS against the keys this body actually carries: of 30
+        # columns, 5 were never sent. `state` is derived server-side and correctly absent;
+        # the other four are here.
+        #
+        # `lastFrameAt` vs `lastHealthyFrameAt`: a frozen camera keeps delivering frames,
+        # just not healthy ones, so the pair is what separates "no frames at all" from
+        # "frames that are no good". `lot.ts:257` carries a comment from whoever hit this
+        # first -- they wanted lastFrameAt, grepped camera-bridge, found ZERO producers
+        # writing it, and switched to lastHealthyFrameAt rather than gate a run on a column
+        # that would be NULL forever. The value was already tracked on this loop; it was
+        # simply never put in the envelope.
+        "lastFrameAt": _iso(last_frame_at) if last_frame_at else None,
+        # Depth alone cannot say whether a queue is draining: a depth of 40 that is falling
+        # and a depth of 40 stuck since Tuesday read the same. This is what CLOUD_BACKLOG
+        # ("sensing fine, durable queue not draining") needs to mean anything.
+        "lastCloudAckAt": _iso(last_cloud_ack_at) if last_cloud_ack_at else None,
+        # The producer writes clips, episodes, a ledger and a trajectory store to this disk.
+        # It has a byte budget for the clips and nothing at all for the rest, and the shop
+        # renders this number -- so filling the disk was invisible from the only screen
+        # anyone watches. Measured against the LEDGER's own filesystem, which is the one
+        # that actually matters: a full disk there stops the producer recording visits.
+        "diskFreeBytes": _disk_free_bytes(ledger),
         "lastInferenceAt": _iso(last_inference_at) if last_inference_at else None,
         "inferenceP95Ms": (round(float(inference_p95_ms), 1)
                            if inference_p95_ms is not None else None),
@@ -518,6 +635,8 @@ class EdgeLoop:
             calibration_version=self.calibration_version,
             last_inference_at=self.last_inference_at,
             inference_p95_ms=self.inference_p95_ms,
+            last_frame_at=self.last_frame_at,
+            last_cloud_ack_at=getattr(self.pipeline.shop, "last_ack_at", None),
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
@@ -1262,6 +1381,7 @@ def run_edge(args: argparse.Namespace) -> int:
         pipeline, vision, source,
         camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
         calibration_version=calibration_version, detector_name=detector_name,
+        model_sha256=_model_sha256(args.model),
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
