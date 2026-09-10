@@ -70,6 +70,33 @@ Beyond v1's list, found by reading the seams rather than the features:
 
 ---
 
+## 2.5 The correction that outranks everything above: provenance is not authority
+
+Added after a follow-up review, and it is a defect in the trust work itself rather than in the code it replaced.
+
+`AUTHORITATIVE_TIERS` contained `AGENT_INFERRED`, documented as tiers that may *"inform a state-changing tool call or be stated as fact."* That collapses two different questions:
+
+> *"Nour probably wants this customer emailed today"* (an inference)
+> is not
+> *"Nour told me to email this customer today"* (an authority)
+
+The headline risk for a privileged operator is **not** NICK inventing a YouTube channel. It is NICK taking a plausible inference and treating it as permission — `MODEL_INFERRED: prefers option B` hardening into `USER FACT: chose B`, which the operator is then held to. Once the row is written, nothing downstream can tell the two apart.
+
+**Fixed.** One predicate became two, because they answer different questions:
+
+| Predicate | Question | OPERATOR | SYSTEM_DERIVED | AGENT_INFERRED | EXTERNAL_CONTENT |
+|---|---|---|---|---|---|
+| `canRenderAsKnowledge` | is this attacker-controlled? | yes | yes | **yes** | no |
+| `canAuthorizeSideEffect` | may this be the BASIS for an effect? | yes | yes | **no** | no |
+
+**What was already right, and the earlier reports understated.** External-content taint is *already enforced at the action boundary*: `tool-policy.ts:142` sends a memory write carrying external content to review, `:183` sends an external side effect during an untrusted turn to the owner, and `:196` requires owner approval for **every** external mutation regardless. So an inference could never silently send an email. The live gap was narrower and creepier — nothing stopped an inference promoting itself into **durable memory**. That is rule 6b now.
+
+The flag is set at retrieval from the rows' tiers (`shouldStampInferredBasis`), never declared by the model — a declaration the model controls is not a control. Same discipline as the existing `untrustedInput` fence.
+
+**The distinction that keeps it usable:** no recall hits is *not* the same as inferred hits. Stamping the empty case would escalate every cold-start turn, and an approval prompt the operator sees on every turn is one they learn to click through without reading — a worse security outcome than the bug.
+
+---
+
 ## 3. Threat model — NICK is a high-privilege agent, and the standards moved
 
 All CONFIRMED-EXT, fetched 2026-09-10. **Three framing assumptions in circulation are stale:**
