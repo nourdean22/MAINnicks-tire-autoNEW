@@ -31,6 +31,8 @@
  */
 import { sql } from "drizzle-orm";
 
+import type { getDbTyped } from "../db";
+
 /** Must equal statenour's `PLATE_RETENTION_DAYS`. Operator-owned: this is a policy number,
  *  not an engineering one. Ohio HB 725 (commercial-ALPR restriction) was still in House
  *  Public Safety Committee as of its 2026-03-24 hearing, so nothing external pins it yet. */
@@ -98,7 +100,12 @@ export async function scrubExpiredPlates(now: Date = new Date()): Promise<PlateS
       return { scrubbed, batches: batches + 1, capped: false, cutoff, ...limits };
     }
   }
-  return { scrubbed, batches, capped: true, cutoff, ...limits };
+  // The loop ran out of batches -- which is NOT the same as work remaining. With exactly
+  // MAX_BATCHES * BATCH eligible rows the final update returns a full batch and clears the
+  // backlog, and reporting `capped` there pages the operator to say old plate text is still
+  // in the table when retention is in fact current (Codex P2 on #2270). A false page on a
+  // healthy night is how an alert stops being read.
+  return { scrubbed, batches, capped: await workRemains(d, cutoff), cutoff, ...limits };
 }
 
 /**
@@ -112,4 +119,27 @@ function affectedRows(res: unknown): number {
   const rows = Array.isArray(res) ? res[0] : res;
   const n = (rows as { affectedRows?: unknown } | null)?.affectedRows;
   return typeof n === "number" ? n : PLATE_SCRUB_BATCH;
+}
+
+
+/**
+ * Is there still an eligible row past the cutoff? One indexed row, not a count.
+ *
+ * Unreadable answers report TRUE. If this probe fails we do not know whether the backlog is
+ * clear, and "we could not tell" must render as the alarming answer -- a false page costs a
+ * look, a false all-clear costs the retention window.
+ */
+async function workRemains(d: Awaited<ReturnType<typeof getDbTyped>>, cutoff: Date) {
+  if (!d) return true;
+  try {
+    const res = await d.execute(sql`
+      SELECT 1 FROM vehicle_visits
+      WHERE plateText IS NOT NULL AND createdAt < ${cutoff} AND customerMatch <> 'EXACT'
+      LIMIT 1
+    `);
+    const rows = Array.isArray(res) ? res[0] : res;
+    return Array.isArray(rows) ? rows.length > 0 : true;
+  } catch {
+    return true;
+  }
 }

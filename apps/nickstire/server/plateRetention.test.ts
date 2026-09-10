@@ -6,7 +6,7 @@
  * them apart is to assert what the statement actually says and what the result actually
  * reports, so each test below names the disclosure or the data loss it prevents.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { scrubExpiredPlates, PLATE_RETENTION_DAYS } from "./services/plateRetention";
 
@@ -25,8 +25,12 @@ async function limits() {
   return { batch: r.batchSize, max: r.maxBatches };
 }
 
-/** Captures the SQL Drizzle would send, and replays a scripted affectedRows per call. */
-function fakeDb(affectedPerCall: number[]) {
+/** Captures the SQL Drizzle would send, and replays a scripted affectedRows per call.
+ *
+ * `backlogRemains` answers the post-loop "is there still an eligible row?" probe, which is
+ * a SELECT and not an UPDATE -- the two have to be answerable independently or the
+ * exact-multiple case cannot be tested at all. */
+function fakeDb(affectedPerCall: number[], backlogRemains = true) {
   const seen: string[] = [];
   const params: unknown[][] = [];
   let call = 0;
@@ -43,6 +47,10 @@ function fakeDb(affectedPerCall: number[]) {
         const isLiteral = (c: unknown) => Array.isArray((c as { value?: unknown })?.value);
         seen.push(chunks.map((c) => (isLiteral(c) ? (c as { value: string[] }).value.join("") : "?")).join(""));
         params.push(chunks.filter((c) => !isLiteral(c)).map((c) => (c instanceof Date ? c : String(c))));
+        // mysql2 returns [rows, fields] for a SELECT; `workRemains` reads res[0].length.
+        if (seen[seen.length - 1].includes("SELECT 1")) {
+          return [backlogRemains ? [{ one: 1 }] : [], []];
+        }
         const n = affectedPerCall[Math.min(call, affectedPerCall.length - 1)];
         call += 1;
         return [{ affectedRows: n }];
@@ -57,7 +65,16 @@ function mockDbModule(db: unknown) {
 
 beforeEach(() => {
   vi.resetModules();
+});
+
+// doMocks are NOT file-scoped in this repo's serial vitest -- one process, one mock
+// registry, shared by every file (apps/nickstire/AGENTS.md s3). Unmocking in `beforeEach`
+// only worked because the source-reading tests happened to run last; making a mocked test
+// the final one would leave this partial `./db` factory installed for whatever file ran
+// next, and it would fail somewhere that never imported this module (Codex P1 on #2270).
+afterEach(() => {
   vi.doUnmock("./db");
+  vi.resetModules();
 });
 
 describe("plate retention", () => {
@@ -133,13 +150,45 @@ describe("plate retention", () => {
     // The distinction the operator acts on: "retention is current" vs "retention is behind".
     // A capped run reported as clean means plate text sits past its window under a green cron.
     const { batch, max } = await limits();
-    const { db } = fakeDb([batch]);
+    const { db } = fakeDb([batch], true);          // ... and the backlog is NOT clear
     mockDbModule(db);
     const { scrubExpiredPlates: run } = await import("./services/plateRetention");
     const r = await run();
     expect(r.capped).toBe(true);
     expect(r.batches).toBe(max);
-    expect(db.execute).toHaveBeenCalledTimes(max);
+    expect(db.execute).toHaveBeenCalledTimes(max + 1);   // + the "is there more?" probe
+  });
+
+  it("does NOT report capped when the last full batch CLEARED the backlog", async () => {
+    // The exact-multiple case (Codex P2 on #2270). With exactly MAX_BATCHES * BATCH rows
+    // eligible, all 40 updates return full and the 40th empties the table -- and the old
+    // code reported `capped`, paging the operator to say old plate text remained when
+    // retention was in fact current. A false page on a healthy night is how an alert stops
+    // being read, and this one fires at most once before that happens.
+    const { batch, max } = await limits();
+    const { db } = fakeDb([batch], false);         // every batch full, nothing left after
+    mockDbModule(db);
+    const { scrubExpiredPlates: run } = await import("./services/plateRetention");
+    const r = await run();
+    expect(r.capped).toBe(false);
+    expect(r.batches).toBe(max);
+    expect(r.scrubbed).toBe(batch * max);
+  });
+
+  it("an UNREADABLE backlog probe reports capped, not all-clear", async () => {
+    // "We could not tell" must render as the alarming answer. A false page costs a look;
+    // a false all-clear costs the retention window.
+    const { batch, max } = await limits();
+    let n = 0;
+    mockDbModule({
+      execute: vi.fn(async () => {
+        n += 1;
+        if (n > max) throw new Error("probe exploded");
+        return [{ affectedRows: batch }];
+      }),
+    });
+    const { scrubExpiredPlates: run } = await import("./services/plateRetention");
+    expect((await run()).capped).toBe(true);
   });
 
   it("THROWS when the database is unavailable rather than reporting zero scrubbed", async () => {
@@ -167,13 +216,60 @@ describe("plate retention", () => {
   });
 });
 
+describe("a scrub can never be undone by a redelivery", () => {
+  /**
+   * The hole this closes (Codex P1 on #2270): the edge's durable shop outbox retries a full
+   * row indefinitely, and the ingest guard accepts `VALUES(seq) >= seq` -- equality by
+   * design, so a redelivery of the same emission is idempotent. A delivery carrying the
+   * ORIGINAL plate text can therefore land days after the scrub nulled it and put it back,
+   * past the 30-day window, with nothing reporting it: the cron already went green, and the
+   * next run only looks at rows whose text is non-NULL -- which this one now is again.
+   *
+   * The generated SQL is the behaviour here. It is the string the database executes.
+   */
+  it("gates plate columns on the STORED status, ahead of the seq guard", async () => {
+    const { GUARDED_SET } = await import("./routes/cameraVisitsRoutes");
+    for (const col of ["plateText", "plateStatus"]) {
+      const clause = GUARDED_SET.split(", `").find((c) => c.startsWith(`${col}\` =`) || c.includes(`\`${col}\` =`));
+      expect(clause, `${col} has no clause at all`).toBeTruthy();
+      expect(clause).toContain("`plateStatus` = 'SCRUBBED'");
+    }
+  });
+
+  it("does NOT freeze the other columns -- the guard is targeted, not a blanket", async () => {
+    // The matched control. A guard that wrapped every column would pass the test above
+    // while quietly making a visit's state, bay and timings unupdatable forever.
+    const { GUARDED_SET } = await import("./routes/cameraVisitsRoutes");
+    for (const col of ["state", "bay", "departedAt", "customerMatch"]) {
+      const clause = GUARDED_SET.split("`" + col + "` = ")[1] ?? "";
+      expect(clause.slice(0, 60), `${col} was frozen by the scrub guard`)
+        .not.toContain("'SCRUBBED'");
+    }
+  });
+
+  it("orders the assignments so the check reads the OLD status", async () => {
+    // MySQL evaluates ON DUPLICATE KEY UPDATE left to right, so a column referenced on the
+    // right-hand side holds whatever it has AT THAT POINT. If `plateStatus` were assigned
+    // before `plateText`, the incoming status would already have overwritten SCRUBBED and
+    // `plateText`'s guard would read the NEW value -- the check defeated by its own update.
+    const { COLUMNS } = await import("./routes/cameraVisitsRoutes");
+    expect(COLUMNS.indexOf("plateText")).toBeLessThan(COLUMNS.indexOf("plateStatus"));
+  });
+});
+
 describe("the scrub is actually SCHEDULED", () => {
-  it("appears in the daily cron tier -- a service with no caller scrubs nothing", async () => {
-    // The orphan-writer check. This module could be perfect and still never run.
-    const fs = await import("node:fs");
-    const src = fs.readFileSync(new URL("./cron/scheduler.ts", import.meta.url), "utf8");
-    expect(src).toContain('name: "plate-retention-scrub"');
-    expect(src).toContain("scrubExpiredPlates");
+  it("is registered in the DAILY tier and automatically enabled", async () => {
+    // Was a source-substring check. Both substrings survive `enabled: false` or a move out
+    // of the daily tier, so it passed while automatic daily retention had stopped -- the
+    // presence-not-behaviour shape this repo bans (Codex P1 on #2270). `getJobCadences()`
+    // reports what the scheduler will actually do.
+    const { getJobCadences } = await import("./cron/scheduler");
+    const job = getJobCadences().get("plate-retention-scrub");
+    expect(job, "the scrub is not registered with the scheduler at all").toBeTruthy();
+    expect(job!.tier).toBe("daily");
+    expect(job!.intervalMin).toBe(24 * 60);
+    expect(job!.scheduledAutomatically,
+           "registered but staged off the scheduler -- retention would never run").toBe(true);
   });
 
   it("SCRUBBED is not an ingest status -- a producer may never claim a row was scrubbed", async () => {
