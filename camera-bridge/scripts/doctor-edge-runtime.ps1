@@ -186,6 +186,14 @@ if ($win -and $py) {
     # written to catch false greens. No parsable status now means NOT a pass, whatever the
     # exit code claims.
     $line = ($probe | Where-Object { $_ -match "^status=" } | Select-Object -Last 1)
+    # LAYOUT, reported separately. The producer's crop is a fraction measured once at one
+    # window size, so a resize or a switch to 4-up silently points it at the wrong pixels.
+    # `panedetect` finds the live video by its own signal and says whether the window holds
+    # ONE camera or several, which is the thing the operator can act on.
+    $pane = ($probe | Where-Object { $_ -match "^pane=" } | Select-Object -Last 1)
+    if ($pane -match "^pane=single") { Check "camera layout" "PASS" "$pane" }
+    elseif ($pane -match "^pane=none") { Check "camera layout" "FAIL" "$pane -- the window shows no live video at all" }
+    elseif ($pane) { Check "camera layout" "WARN" "$pane -- the capture region is not ONE 16:9 camera. Select a SINGLE camera's live view, or the producer analyses several panes as one scene." }
     if (-not $line) {
         Check "live feed" "WARN" "the probe produced no status line (rc=$probeRc): $(($probe | Select-Object -Last 1))"
     } elseif ($probeRc -eq 0) {
