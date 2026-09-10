@@ -172,6 +172,37 @@ export function NickCommandLine() {
         return;
       }
 
+      // ── DIRECT ACTIONS — 2026-09-10 ──────────────────────────────
+      //
+      // `/add`, `/done`, `/mit`, `/commit` are deterministic local
+      // mutations (lib/chat/direct-actions.ts). They were fully built
+      // and migrated to tRPC, and never called from anywhere.
+      //
+      // Purely additive: the two command sets are disjoint. SLASH_COMMANDS
+      // above knows /task /capture /search /review /execute; none of the
+      // four below. So today "/add buy milk" falls through as raw text
+      // for the model to interpret -- a paid round trip, with a
+      // hallucination surface, to do an insert that needs neither.
+      //
+      // Anything runDirectAction does not recognise returns
+      // { handled: false } and flows to Nick exactly as before, so an
+      // unknown slash command behaves identically to today.
+      const raw = input.trim();
+      if (raw.startsWith("/")) {
+        setInput("");
+        void (async () => {
+          const { runDirectAction } = await import("@/lib/chat/direct-actions");
+          const result = await runDirectAction(raw);
+          // Not a direct action -- hand it to Nick, unchanged.
+          if (!result.handled) sendMessage({ text: `${command?.prefix ?? ""}${text}` });
+        })().catch(() => {
+          // The module failed to load or threw before its own guard.
+          // Fall back to the model rather than swallowing the input.
+          sendMessage({ text: `${command?.prefix ?? ""}${text}` });
+        });
+        return;
+      }
+
       setInput("");
       sendMessage({ text: `${command?.prefix ?? ""}${text}` });
     },

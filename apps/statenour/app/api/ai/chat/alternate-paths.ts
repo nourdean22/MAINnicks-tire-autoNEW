@@ -333,6 +333,93 @@ export async function runAlternatePaths(args: {
       }
 
       if (winner && winner.trim().length > 0) {
+        // ── EVIDENCE ENFORCEMENT — 2026-09-10 ───────────────────────
+        //
+        // THE only point in a live turn where a complete reply exists
+        // and has NOT been written to the socket. Everything in
+        // onFinish runs post-flush by construction, so this is where a
+        // gate can be a gate rather than a log line.
+        //
+        // Flag-gated and default-OFF, deliberately, and this is NOT the
+        // dark-wire pattern criticised elsewhere in this codebase: the
+        // difference is an explicit activation criterion. The shadow run
+        // (evidence_gate_shadow) measures the named-source
+        // false-positive rate on real traffic; when that number is
+        // tolerable, this flips. Before this existed there was no lever
+        // at all, which is the actual defect -- an operator who decided
+        // the rate was fine had no way to act on it.
+        //
+        // Only the BUFFERED path. Action turns deliberately never reach
+        // here (see the actionIntent suppression above): tool-forcing
+        // needs real streamText.
+        try {
+          const enforcementOn = getFlag("NICK_EVIDENCE_ENFORCEMENT")?.isOn ?? false;
+          if (enforcementOn) {
+            const [{ enforceGate }, { checkNamedSources }, { shapeCeiling }] = await Promise.all([
+              import("@/lib/ai/chat/gate-enforcement"),
+              import("@/lib/ai/chat/named-source-claims"),
+              import("@/lib/ai/chat/output-guardian"),
+            ]);
+            // No tool receipts are readable on this path, so the
+            // receipt channel is BLIND -- not "no tool fired". That
+            // distinction is load-bearing: blind suppresses blocking,
+            // so enforcement here can only repair length and strip
+            // unearned tags, never delete a named resource on the
+            // assumption it was invented.
+            const receipts = {
+              toolCalls: [] as Array<{ name: string }>,
+              evidenceText: "",
+              receiptsAvailable: false,
+              userText: userContent,
+            };
+            const named = checkNamedSources(winner, receipts);
+            const ceiling = shapeCeiling(turnSignal.outputShape);
+            const outcome = enforceGate({
+              draft: winner,
+              userText: userContent,
+              critic: null,
+              turnSignal,
+              contract: null,
+              evidence: {
+                unverifiedFactCount: 0,
+                totalFactCount: 0,
+                wordCount: winner.trim().split(/\s+/).filter(Boolean).length,
+                lengthCeiling: ceiling,
+                namedSources: named,
+              },
+              namedSources: named,
+              ceilingWords: ceiling,
+              reassess: (repaired) => {
+                const r = checkNamedSources(repaired, receipts);
+                return {
+                  evidence: {
+                    unverifiedFactCount: 0,
+                    totalFactCount: 0,
+                    wordCount: repaired.trim().split(/\s+/).filter(Boolean).length,
+                    lengthCeiling: ceiling,
+                    namedSources: r,
+                  },
+                  namedSources: r,
+                };
+              },
+            });
+            if (outcome.text !== winner) {
+              log.info("evidence_enforced", {
+                verdict: outcome.verdict,
+                usedFallback: outcome.usedFallback,
+                actions: outcome.actions.slice(0, 4),
+              });
+              winner = outcome.text;
+            }
+          }
+        } catch (err) {
+          // Enforcement must never cost a turn. Failing open here means
+          // today's behaviour, which is the same as the flag being off.
+          log.info("evidence_enforcement_failed", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+
         // Reuse the EXACT persist pipeline streamText would have run.
         const __altPersist = buildOnFinish({
           ...persistBase,

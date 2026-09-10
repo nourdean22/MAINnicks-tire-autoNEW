@@ -1,5 +1,5 @@
 import { nourTools } from "@/lib/ai/tools";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import {
   getBridgeToolPolicy,
   assertBridgeToolAllowed,
@@ -51,8 +51,20 @@ export function getBridgeSafeTools(protocol: "mcp" | "actions", scope?: BridgeSc
     
     let jsonSchema = { type: "object", properties: {} };
     if (handlerTool.parameters) {
-      const parsed = zodToJsonSchema(handlerTool.parameters);
-      jsonSchema = (parsed as any) || jsonSchema;
+      // 2026-09-10 · was `zodToJsonSchema` from `zod-to-json-schema`,
+      // which is ARCHIVED upstream (last release 3.25.2, 2026-03-27).
+      // An archived JSON-Schema emitter inside the tool-exposure path of
+      // a high-privilege agent is a supply-chain liability with no
+      // upside: zod 4 ships `z.toJSONSchema` natively, emitting
+      // draft-2020-12, so this deletes a dependency rather than swapping
+      // one. Kept defensive -- a schema this cannot express must degrade
+      // to the empty object, not throw and drop the tool from the
+      // bridge entirely.
+      try {
+        jsonSchema = (z.toJSONSchema(handlerTool.parameters) as any) || jsonSchema;
+      } catch {
+        // leave the permissive default; the tool stays exposed
+      }
     }
 
     exposed.push({
