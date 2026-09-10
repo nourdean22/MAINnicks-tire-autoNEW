@@ -203,4 +203,55 @@ export const technicianReferralsRouter = router({
       }).catch((e) => { log.warn("[technicianReferrals.disqualify] audit log failed:", e); });
       return { success: true };
     }),
+
+  /**
+   * The referred technician WAS hired and then left before the 90 days were
+   * up, so no bonus is owed.
+   *
+   * WHY THIS EXISTS (2026-09-10). `forfeited` was declared in the schema's
+   * status comment, typed in updateTechnicianReferralStatus's union, and given
+   * its own colour in TechnicianReferralsPanel — and written by NOTHING. A
+   * status with a colour and no writer is dead UI at best; here it was worse,
+   * because the state it names happens constantly in this trade. Techs leave
+   * inside 90 days. With no forfeit action an admin had exactly two options,
+   * both wrong: leave the referral sitting in `eligible` forever, where it
+   * overstates what the shop owes, or press Disqualify — which says the CLAIM
+   * was invalid when in fact it was perfectly good and the CONDITION simply
+   * was not met. The referrer did nothing wrong, and the record should not say
+   * they did. That distinction is the whole reason for two terminal states.
+   *
+   * ONLY from `eligible`. A `pending` referral was never confirmed hired, so
+   * there is no 90-day condition to fail — nothing to forfeit. A `paid` one is
+   * money already out: reversing it is an accounting action, not a status
+   * edit, exactly as with disqualify above.
+   *
+   * The reason rides in `disqualifiedReason` because that is the only reason
+   * column on the table and adding one needs a hand-applied migration, which
+   * is operator-gated. Read that column as "why no bonus is owed" — it now
+   * serves both terminal states, and the status beside it says which.
+   */
+  markForfeited: adminProcedure
+    .input(z.object({ id: z.number(), reason: z.string().min(1).max(500) }))
+    .mutation(async ({ input, ctx }) => {
+      const res = await updateTechnicianReferralStatus(
+        input.id,
+        { status: "forfeited", disqualifiedReason: input.reason },
+        { expectStatus: ["eligible"] },
+      );
+      if (!res.success) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Only an eligible referral can be forfeited — reload before trying again. A pending one was never hired, and a paid one needs an accounting reversal.",
+        });
+      }
+      logAdminAction({
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        action: "technician_referral.forfeited",
+        entityType: "technician_referral",
+        entityId: input.id,
+        details: `Referral #${input.id} forfeited (left before 90 days): ${input.reason}`,
+      }).catch((e) => { log.warn("[technicianReferrals.markForfeited] audit log failed:", e); });
+      return { success: true };
+    }),
 });

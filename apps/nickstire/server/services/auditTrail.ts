@@ -85,6 +85,10 @@ export type AuditAction =
   | "technician_referral.marked_hired"
   | "technician_referral.marked_paid"
   | "technician_referral.disqualified"
+  // Distinct from .disqualified on purpose: the claim was VALID and the
+  // referred tech left inside 90 days. Auditing both as one action would erase
+  // the only difference that matters when a referrer contests a lost $300.
+  | "technician_referral.forfeited"
   // 2026-09-09 · candidate applications (server/routers/candidates.ts)
   | "candidate.status_changed";
 

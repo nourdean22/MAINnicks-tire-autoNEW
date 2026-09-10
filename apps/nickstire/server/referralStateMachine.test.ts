@@ -32,10 +32,13 @@ const DB = strip(readFileSync(resolve(APP, "server/db.ts"), "utf8"));
 type Status = "pending" | "eligible" | "paid" | "disqualified" | "forfeited";
 
 /** The transition table the guards encode. */
-const ALLOWED: Record<"markHired" | "markPaid" | "disqualify", Status[]> = {
+const ALLOWED: Record<"markHired" | "markPaid" | "disqualify" | "markForfeited", Status[]> = {
   markHired: ["pending"],
   markPaid: ["eligible"],
   disqualify: ["pending", "eligible"],
+  // Only from eligible. A pending referral was never confirmed hired, so there
+  // is no 90-day condition to fail; a paid one is money already out.
+  markForfeited: ["eligible"],
 };
 
 const permits = (action: keyof typeof ALLOWED, from: Status) => ALLOWED[action].includes(from);
@@ -68,6 +71,19 @@ describe("the transition table refuses every way to pay twice", () => {
     expect(permits("markPaid", "pending")).toBe(false);
   });
 
+  it("a PAID referral cannot be forfeited", () => {
+    // Same rule as disqualify: the money is out, so this is an accounting
+    // reversal, not a status edit.
+    expect(permits("markForfeited", "paid")).toBe(false);
+  });
+
+  it("a PENDING referral cannot be forfeited — it was never hired", () => {
+    // Forfeiting means the 90-day condition was failed. A referral that was
+    // never confirmed hired has no such condition running, and recording one
+    // as forfeited would assert a hire that never happened.
+    expect(permits("markForfeited", "pending")).toBe(false);
+  });
+
   it("the legitimate path still works — the positive control", () => {
     // Without this, a table that refused EVERY transition would satisfy every
     // assertion above and silently kill the program.
@@ -75,6 +91,36 @@ describe("the transition table refuses every way to pay twice", () => {
     expect(permits("markPaid", "eligible")).toBe(true);
     expect(permits("disqualify", "pending")).toBe(true);
     expect(permits("disqualify", "eligible")).toBe(true);
+    expect(permits("markForfeited", "eligible")).toBe(true);
+  });
+});
+
+describe("forfeited and disqualified stay distinct", () => {
+  // `forfeited` shipped as a declared status with a colour in the panel and
+  // NO WRITER — the state it names (a tech leaving inside 90 days) happens
+  // constantly, and until now the only way to record it was Disqualify, which
+  // says the CLAIM was invalid when it was perfectly good.
+  it("forfeit is reachable — the status is no longer write-only", () => {
+    expect(ROUTER).toContain("markForfeited: adminProcedure");
+    expect(ROUTER).toContain('status: "forfeited"');
+  });
+
+  it("the admin panel can actually reach it", () => {
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    // A router action with no button is the same dead end in a new place.
+    expect(panel).toContain("trpc.technicianReferrals.markForfeited.useMutation");
+    expect(panel).toContain("markForfeited.mutate(");
+  });
+
+  it("forfeit does not reuse the disqualified status", () => {
+    const block = sliceBlock(ROUTER, "markForfeited: adminProcedure", "\n});", {
+      label: "technicianReferrals.ts",
+    });
+    expect(block).toMatch(/expectStatus:\s*\["eligible"\]/);
+    expect(block).toContain("CONFLICT");
+    expect(block, "forfeited must not be written as disqualified").not.toContain('status: "disqualified"');
   });
 });
 
@@ -96,7 +142,12 @@ describe("the guards are actually wired to the write path", () => {
   });
 
   it("disqualify excludes paid", () => {
-    const block = sliceBlock(ROUTER, "disqualify: adminProcedure", "\n});", {
+    // Anchored on the NEXT action, not on "\n});". That end marker used to be
+    // the router's own closing brace — fine while disqualify was last, and
+    // silently widened to cover markForfeited too the moment one was added
+    // after it. A block assertion that grows to include its neighbours is the
+    // same fail-open widening sliceBlock exists to refuse.
+    const block = sliceBlock(ROUTER, "disqualify: adminProcedure", "markForfeited: adminProcedure", {
       label: "technicianReferrals.ts",
     });
     expect(block).toMatch(/expectStatus:\s*\["pending",\s*"eligible"\]/);

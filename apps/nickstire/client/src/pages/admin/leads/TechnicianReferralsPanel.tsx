@@ -62,6 +62,14 @@ export function TechnicianReferralsPanel() {
     onSuccess: () => { toast.success("Disqualified."); invalidate(); },
     onError: () => toast.error("Couldn't update this referral."),
   });
+  // Distinct from disqualify on purpose: the claim was GOOD and the referrer
+  // did nothing wrong — the referred tech simply left before 90 days. Pressing
+  // Disqualify for that recorded a judgment about the referrer that the facts
+  // did not support, and it was the only option available until now.
+  const markForfeited = trpc.technicianReferrals.markForfeited.useMutation({
+    onSuccess: () => { toast.success("Marked forfeited — no bonus owed."); invalidate(); },
+    onError: (err) => toast.error(err.message || "Couldn't update this referral."),
+  });
 
   const rows = data?.rows ?? [];
 
@@ -216,6 +224,32 @@ export function TechnicianReferralsPanel() {
                           </button>
                         );
                       })()}
+                      {r.status === "eligible" && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await confirmDialog({
+                              title: "Did this technician leave before 90 days?",
+                              message:
+                                "Forfeits the bonus without disqualifying the referral — the claim was good, the 90-day condition just wasn't met. Use Disqualify only when the claim itself was invalid.",
+                              confirmLabel: "Mark forfeited",
+                              tone: "danger",
+                            });
+                            if (ok) {
+                              markForfeited.mutate({
+                                id: r.id,
+                                reason: r.candidateName
+                                  ? `Left before 90 days · referred ${r.candidateName}`
+                                  : "Left before 90 days · referral was NOT linked to a candidate record",
+                              });
+                            }
+                          }}
+                          disabled={markForfeited.isPending}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/15 rounded transition-colors disabled:opacity-50"
+                        >
+                          <X className="w-3 h-3" /> Forfeit
+                        </button>
+                      )}
                       {(r.status === "pending" || r.status === "eligible") && (
                         <button
                           type="button"
