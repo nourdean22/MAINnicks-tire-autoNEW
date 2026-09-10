@@ -15,15 +15,19 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { TIRES_PHOTOS } from "@/components/PhotoRibbon";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Award, ShieldCheck, Gauge } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/new-tires-cleveland",
   // 2026-05-06 wave-16 · pro photo pack: rugged tire tread closeup per
   // PLACEMENT_GUIDE.md "Tires page" row — the strongest tire-authority shot
   heroImage: "/photos/rugged-tire-tread-closeup.webp",
   title: "New Tires Cleveland — Install Package Free, Not An Upsell | Nick's",
-  description: "Cleveland new tires where mount/balance/valve stems/TPMS reset/alignment check come included, not added at the register. Major brands stocked. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  description: `Cleveland new tires where mount/balance/valve stems/TPMS reset/alignment check come included, not added at the register. Major brands stocked. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "NEW TIRES — CLEVELAND",
   h1: "NEW TIRES.\nFREE INSTALL · FREE COFFEE · FREE OPINIONS.",
   sub: "The chain advertises a tire price. They don't advertise the $266 they tack on at the register for mount, balance, valve stems, TPMS reset, alignment check, and disposal. At Nick's that's the welcome mat — it's already in the price. Major brands stocked, specialty sizes here in 24 hours, most sets installed before your coffee gets cold. Call your tire size for a live quote — friendlier than your phone bill, faster than your barista.",
@@ -129,8 +133,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function NewTiresClevelandPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

@@ -28,13 +28,17 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Car, Wrench, Activity } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/wheel-alignment-cleveland",
   heroImage: "/photos/busy-shop-action-mechanics.webp",
   title: "Wheel Alignment Cleveland · Free Pull-Check · No Pay Til Yes | Nick's",
-  description: "Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any wrench moves. You don't pay until you say yes. 4.9★ from 1,700+ drivers.",
+  description: `Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any wrench moves. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
   eyebrow: "WHEEL ALIGNMENT CLEVELAND · WALK-IN 7 DAYS",
   h1: "WHEEL ALIGNMENT CLEVELAND.\nFREE PULL-CHECK · YOU DON'T PAY UNTIL YOU SAY YES.",
   sub: "Car pulling left like it has somewhere to be? Steering wheel crooked when you're going straight? Tires wearing on the inside edge? Nick's Tire & Auto on Euclid Ave — Hunter rack, computerized four-wheel alignment, 45 minutes start to finish, walk-in 7 days. We pull-check free first so you know whether the car actually needs alignment or whether it's something else (tire pressure, suspension, balance). Serving Cleveland, Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and the surrounding metro — pull up any day we're open.",
@@ -190,8 +194,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function WheelAlignmentClevelandPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

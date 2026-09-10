@@ -3,7 +3,14 @@
  *
  * Nick's Tire AI — Anticipate & Elevate for customer-facing chat.
  * Replaces generic BROADEN_AND_SUGGEST with domain-specific behavior.
+ *
+ * 2026-09-09 · HIGH_POWERED_MODE and INTENSITY_LEVELS were module-level consts
+ * whose social-proof line carried a hardcoded "4.9 stars, 1,700+ reviews". A
+ * const is evaluated at import time and can never read an async value, so the
+ * directive told the model to cite a number that had already moved. Both are
+ * now built per call from the live figures (getReviewCopy in the caller).
  */
+import type { ReviewCopy } from "../reviewCopy";
 
 export const ANTICIPATE_AND_ELEVATE = `
 ANTICIPATE PHASE (silent — never output this):
@@ -36,23 +43,23 @@ RULES:
 - If they mention a competitor: don't badmouth, just contrast with our warranty/reviews/speed
 `;
 
-export const HIGH_POWERED_MODE = `
+export const buildHighPoweredMode = ({ rating, countDisplay }: ReviewCopy): string => `
 HIGH-POWERED MODE (elevated intensity):
 Treat every customer interaction as a conversion opportunity AND a relationship investment.
 1. PATTERN SPOTTING: If the customer asks about tires, proactively check if brakes/wheel-alignment are due. If diagnostics, check for pending recalls.
 2. SO WHAT FILTER: Every sentence must connect to saving money, saving time, avoiding danger, or reducing hassle.
 3. SCARCITY VIA TRUTH: "Drop-offs before 10am usually finish same day. Afternoon slots fill up." Only if true.
-4. SOCIAL PROOF WITH NUMBERS: Use real stats from BUSINESS context — "4.9 stars, 1,700+ reviews", "12-month warranty", "same-day turnaround".
+4. SOCIAL PROOF WITH NUMBERS: Use real stats from BUSINESS context — "${rating} stars, ${countDisplay} reviews", "12-month warranty", "same-day turnaround".
 5. NEXT STEP LOCK: End every response with one clear call-to-action. "Pull up anytime", "Drop it off tomorrow morning", "Call (216) 862-0005 to hold the slot".
 `;
 
 export type BusinessIntensity = "MINIMAL" | "STANDARD" | "HIGH";
 
-export const INTENSITY_LEVELS: Record<BusinessIntensity, string> = {
+export const buildIntensityLevels = (reviews: ReviewCopy): Record<BusinessIntensity, string> => ({
   MINIMAL: "",
   STANDARD: ANTICIPATE_AND_ELEVATE,
-  HIGH: ANTICIPATE_AND_ELEVATE + HIGH_POWERED_MODE,
-};
+  HIGH: ANTICIPATE_AND_ELEVATE + buildHighPoweredMode(reviews),
+});
 
 let globalIntensityOverride: BusinessIntensity | null = null;
 export function setBusinessIntensityOverride(i: BusinessIntensity | null) {
@@ -69,11 +76,13 @@ export function resolveBusinessIntensity(): BusinessIntensity {
 
 export function getBusinessBehaviorDirective(
   customerMessage: string | null,
+  reviews: ReviewCopy,
   intensity: BusinessIntensity = resolveBusinessIntensity(),
 ): string {
-  if (!customerMessage) return INTENSITY_LEVELS[intensity] || "";
+  const levels = buildIntensityLevels(reviews);
+  if (!customerMessage) return levels[intensity] || "";
   // If customer seems frustrated or overwhelmed, auto-damp to MINIMAL for this turn
   const frustrationSignals = /(frustrated|angry|ridiculous|scam|rip.?off|terrible|worst|never again|cancel)/i;
   if (frustrationSignals.test(customerMessage)) return "";
-  return INTENSITY_LEVELS[intensity] || "";
+  return levels[intensity] || "";
 }

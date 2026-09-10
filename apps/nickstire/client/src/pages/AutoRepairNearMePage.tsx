@@ -12,9 +12,13 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/auto-repair-near-me",
   // wave-181.x · upgraded to mechanic-actively-working-on-a-customer-car shot.
   // GSC query "auto repair near me" wants visual proof of an actual working
@@ -27,10 +31,10 @@ const CONFIG: ServicePageConfig = {
   // 3 (useful absurd: "phone bill that never breaks") + operator 4
   // (anti-pattern: chains' diagnostic fee).
   title: "Auto Repair Near Me Cleveland · Free Check · No Pay Til Yes | Nick's",
-  description: "Cleveland auto shop. Free check. Written quote. You don't pay until you say yes. Brakes, tires, oil, alignment, AC. Walk in 7 days. 4.9★ from 1,700+ drivers.",
+  description: `Cleveland auto shop. Free check. Written quote. You don't pay until you say yes. Brakes, tires, oil, alignment, AC. Walk in 7 days. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR THAT EXPLAINS ITSELF\nBEFORE IT BILLS YOU.",
-  sub: "Cleveland mechanic near me. Walk in to Nick's on Euclid Ave with a noise, a light, or a bad feeling about something — we put it on a lift, take pictures of what's worn, and hand you a written quote before any wrench touches a bolt. The chains call that 'a $99 check-out fee.' We call it Tuesday. Free check. Written quote. You don't pay until you say yes. 4.9★ from 1,700+ Cleveland drivers, walk-ins 7 days, every make and model including the European stuff your buddy said you have to drive to the dealer for.",
+  sub: `Cleveland mechanic near me. Walk in to Nick's on Euclid Ave with a noise, a light, or a bad feeling about something — we put it on a lift, take pictures of what's worn, and hand you a written quote before any wrench touches a bolt. The chains call that 'a $99 check-out fee.' We call it Tuesday. Free check. Written quote. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} Cleveland drivers, walk-ins 7 days, every make and model including the European stuff your buddy said you have to drive to the dealer for.`,
   startingPrice: "Free estimates",
   pricingTitle: "COMMON REPAIR LEVELS",
   pricingSub: "Free written estimate before any work. Labor comparable to local shops, lower than dealers. Parts at fair markup — no games.",
@@ -122,8 +126,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function AutoRepairNearMePage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

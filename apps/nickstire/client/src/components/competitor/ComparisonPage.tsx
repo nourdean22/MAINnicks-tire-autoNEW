@@ -22,9 +22,10 @@ import FadeIn from "@/components/FadeIn";
 import FaqWithSchema, { type FaqItem } from "@/components/competitor/FaqWithSchema";
 import {
   type CompetitorProfile,
-  NICKS_TIRE,
+  buildNicksTire,
   COMPETITORS,
 } from "@/data/competitors";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 
 export type ComparisonFormat = "alternative" | "vs" | "third-party" | "roundup";
@@ -482,6 +483,12 @@ export default function ComparisonPage({
   intro,
   extraFaqs,
 }: ComparisonPageProps) {
+  // Nick's own side of every comparison is live; the competitor's figures are
+  // hand-researched snapshots in COMPETITOR_REVIEWS. Hook first — before any
+  // conditional return below.
+  const { rating: reviewRating } = useReviewStats();
+  const nicksTire = buildNicksTire(reviewRating);
+
   // Default headlines per format
   const defaultH1 = (() => {
     switch (format) {
@@ -535,7 +542,7 @@ export default function ComparisonPage({
 
   // Roundup list — Nick's first, then competitors
   const roundupList: CompetitorProfile[] = format === "roundup"
-    ? [NICKS_TIRE, ...(roundupCompetitors ?? Object.values(COMPETITORS).slice(0, 6))]
+    ? [nicksTire, ...(roundupCompetitors ?? Object.values(COMPETITORS).slice(0, 6))]
     : [];
 
   return (
@@ -556,9 +563,9 @@ export default function ComparisonPage({
       {/* SIDE-BY-SIDE TABLE — for alternative + vs + third-party */}
       {format !== "roundup" && (
         <SideBySide
-          a={NICKS_TIRE}
+          a={nicksTire}
           b={format === "third-party" ? primary : primary}
-          aName={format === "third-party" ? primary.shortName : NICKS_TIRE.shortName}
+          aName={format === "third-party" ? primary.shortName : nicksTire.shortName}
           bName={format === "third-party" ? secondary?.shortName ?? "" : primary.shortName}
         />
       )}
@@ -578,7 +585,7 @@ export default function ComparisonPage({
             </FadeIn>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Honest
-                profile={format === "third-party" ? primary : NICKS_TIRE}
+                profile={format === "third-party" ? primary : nicksTire}
                 label={format === "third-party" ? primary.shortName : "Nick's Tire & Auto"}
                 tone={format === "third-party" ? "neutral" : "primary"}
               />
@@ -603,7 +610,7 @@ export default function ComparisonPage({
               </h2>
             </FadeIn>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <WhoItsFor profile={NICKS_TIRE} fitTone="primary" />
+              <WhoItsFor profile={nicksTire} fitTone="primary" />
               <WhoItsFor profile={primary} fitTone="neutral" />
               {format === "third-party" && secondary && <WhoItsFor profile={secondary} fitTone="neutral" />}
             </div>

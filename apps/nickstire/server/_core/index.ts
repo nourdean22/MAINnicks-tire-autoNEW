@@ -621,10 +621,15 @@ async function startServer() {
   // shared/business.ts canon on 2026-08-19 (prices, hours, warranty,
   // financing, rating floor). If canon changes, change BOTH places — or
   // better, derive this template from BUSINESS (follow-up).
-  app.get("/llms.txt", (_req, res) => {
+  // 2026-09-09 · the rating line is no longer one of those hand-maintained
+  // facts: getReviewCopy() resolves it live (admin override > Google > static
+  // floor, hour-cached) so a real move in the count reaches the answer engines.
+  app.get("/llms.txt", async (_req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=86400");
     const b = SITE_URL;
+    const { getReviewCopy } = await import("../lib/reviewCopy");
+    const { rating: reviewRating, countDisplay: reviewCountDisplay } = await getReviewCopy();
     res.send(`# Nick's Tire & Auto
 > Full-service auto repair and tire shop on Euclid Ave serving Cleveland, Euclid, and Northeast Ohio. Open 7 days, walk in (no appointment needed), written estimate before any work — you don't pay until you say yes.
 
@@ -632,7 +637,7 @@ async function startServer() {
 - Address: 17625 Euclid Ave, Cleveland, OH 44112
 - Phone: (216) 862-0005
 - Hours: Monday-Saturday 8AM-6PM, Sunday 9AM-4PM (open 7 days a week)
-- Rating: 4.9 stars from 1,700+ Google reviews
+- Rating: ${reviewRating} stars from ${reviewCountDisplay} Google reviews
 - Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
 - Payment programs: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)

@@ -50,6 +50,7 @@ import AcimaLeaseStrip from "@/components/payments/AcimaLeaseStrip";
 // /nonstop-nick and /book). Copy states only shipped benefits.
 import NonstopNickJoin from "@/components/NonstopNickJoin";
 import { trpc } from "@/lib/trpc";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { toast } from "sonner";
 import {
   Phone, Search, ShieldCheck, Truck, Clock, ChevronRight, ArrowLeft,
@@ -721,10 +722,7 @@ export default function TireFinder() {
   // webhook hasn't landed yet (see the ?paid=1 effect below).
   const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
 
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
-  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
-  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
-  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+  const { rating: reviewRating, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const handleSearch = () => {
     if (searchInput.trim().length < 3) {
@@ -1832,7 +1830,7 @@ export default function TireFinder() {
                   <Users className="w-7 h-7 text-primary" />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
-                  Real mechanics. 1,700+ five-star reviews.
+                  Real mechanics. {reviewCountDisplay} five-star reviews.
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
                   We do not just sell tires. The same crew has been mounting them on Euclid Ave since 2018 — they show you the tread before they sell you anything, and you don't pay until you say yes.

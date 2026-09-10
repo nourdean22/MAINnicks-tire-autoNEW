@@ -9,8 +9,12 @@
 
 import { Disc, Wrench, Activity } from "lucide-react";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/tire-shop-near-me",
   // wave-181.x · upgraded to wide-storefront shot · GSC query "tire shop
   // near me" (29,869 imp / pos 8.3 over 90d) wants visual confirmation
@@ -23,7 +27,7 @@ const CONFIG: ServicePageConfig = {
   // 3,387 imp/mo cluster. Title kept short + Sunday-differentiator.
   // Sub rewritten with operators 3 + 4 + 5.
   title: "Tire Shop Near Me Cleveland · Open 7 Days, Sunday Too | Nick's",
-  description: "Cleveland tire shop on Euclid Ave. New + used tires, free mount/balance/valve stems/alignment check on every set. Open 7 days, even Sunday. 4.9★ 1,700+ reviews.",
+  description: `Cleveland tire shop on Euclid Ave. New + used tires, free mount/balance/valve stems/alignment check on every set. Open 7 days, even Sunday. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "LOCAL TIRE SHOP",
   h1: "WALK IN. PICK A TIRE.\nLEAVE BEFORE YOUR PODCAST ENDS.",
   sub: "Cleveland's neighborhood tire shop, no Yelp filter required. Walk in, pick a tire, hand us the keys — most installs wrap before your podcast episode does. New tires, used tires, the weird sizes the chain told you to special-order in 5 days. Free mount, balance, valve stems, alignment check. Open every day we're awake. Yes, including Sunday.",
@@ -120,8 +124,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function TireShopNearMePage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

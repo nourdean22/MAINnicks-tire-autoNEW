@@ -80,8 +80,8 @@ export const instagramRouter = router({
 export const searchRouter = router({
   instant: publicProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
-    .query(({ input }) => {
-      return { results: keywordSearch(sanitizeText(input.query)) };
+    .query(async ({ input }) => {
+      return { results: await keywordSearch(sanitizeText(input.query)) };
     }),
   ai: publicProcedure
     .input(z.object({ query: z.string().min(2).max(500) }))

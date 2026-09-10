@@ -7,9 +7,13 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { DIAGNOSTICS_PHOTOS } from "@/components/PhotoRibbon";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, AlertTriangle, Clock } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/diagnostics",
   // 2026-05-06 wave-16 · pro photo pack: diagnostics page hero per
   // PLACEMENT_GUIDE.md — interior service bay with car on lift
@@ -21,7 +25,7 @@ const CONFIG: ServicePageConfig = {
   // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
   // (no competitor leads with FREE), price anchor for the full diag.
   title: "Check Engine Light Cleveland · Free Scan · No Pay Til Yes | Nick's",
-  description: "Cleveland check-engine-light shop. Free scan, plain-English read, written quote before any wrench moves. You don't pay until you say yes. 4.9★ from 1,700+ drivers. (216) 862-0005",
+  description: `Cleveland check-engine-light shop. Free scan, plain-English read, written quote before any wrench moves. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers. (216) 862-0005`,
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
   // H1 had ZERO keyword target ("THE LIGHT'S ON. WE FIND OUT *WHY*").
@@ -160,8 +164,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function DiagnosticsPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

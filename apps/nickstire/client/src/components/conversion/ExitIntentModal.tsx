@@ -25,6 +25,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "exit-intent-shown-until";
@@ -37,6 +38,7 @@ export default function ExitIntentModal() {
   const [phone, setPhone] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const submit = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -169,7 +171,7 @@ export default function ExitIntentModal() {
                   </button>
                 </div>
                 <p className="text-[10px] text-foreground/40 text-center pt-1">
-                  Or call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a> directly · ★4.9 from 1,700+ reviews
+                  Or call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a> directly · ★{reviewRating.toFixed(1)} from {reviewCountDisplay} reviews
                 </p>
               </form>
             ) : (

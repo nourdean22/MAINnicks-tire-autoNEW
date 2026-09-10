@@ -723,24 +723,24 @@ describe("gemini AI lead scoring", () => {
 import { keywordSearch, aiSearch } from "./search";
 
 describe("keyword search", () => {
-  it("returns results for 'tires'", () => {
-    const results = keywordSearch("tires");
+  it("returns results for 'tires'", async () => {
+    const results = await keywordSearch("tires");
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].type).toBe("service");
     expect(results[0].title.toLowerCase()).toContain("tire");
     expect(results[0].url).toBe("/tires");
   });
 
-  it("returns results for 'brakes'", () => {
-    const results = keywordSearch("brakes");
+  it("returns results for 'brakes'", async () => {
+    const results = await keywordSearch("brakes");
     expect(results.length).toBeGreaterThan(0);
     const serviceResult = results.find(r => r.type === "service");
     expect(serviceResult).toBeDefined();
     expect(serviceResult!.url).toBe("/brakes");
   });
 
-  it("returns results for 'check engine light'", () => {
-    const results = keywordSearch("check engine light");
+  it("returns results for 'check engine light'", async () => {
+    const results = await keywordSearch("check engine light");
     expect(results.length).toBeGreaterThan(0);
     // Should match diagnostics service or FAQ
     const hasRelevant = results.some(r =>
@@ -751,45 +751,45 @@ describe("keyword search", () => {
     expect(hasRelevant).toBe(true);
   });
 
-  it("returns results for 'book appointment'", () => {
-    const results = keywordSearch("book appointment");
+  it("returns results for 'book appointment'", async () => {
+    const results = await keywordSearch("book appointment");
     expect(results.length).toBeGreaterThan(0);
     const bookingResult = results.find(r => r.url.includes("booking"));
     expect(bookingResult).toBeDefined();
   });
 
-  it("returns empty for very short queries", () => {
-    const results = keywordSearch("a");
+  it("returns empty for very short queries", async () => {
+    const results = await keywordSearch("a");
     expect(results).toEqual([]);
   });
 
-  it("returns max 8 results", () => {
-    const results = keywordSearch("car repair service");
+  it("returns max 8 results", async () => {
+    const results = await keywordSearch("car repair service");
     expect(results.length).toBeLessThanOrEqual(8);
   });
 
-  it("results are sorted by relevance (descending)", () => {
-    const results = keywordSearch("oil change");
+  it("results are sorted by relevance (descending)", async () => {
+    const results = await keywordSearch("oil change");
     for (let i = 1; i < results.length; i++) {
       expect(results[i - 1].relevance).toBeGreaterThanOrEqual(results[i].relevance);
     }
   });
 
-  it("deduplicates results by URL", () => {
-    const results = keywordSearch("tires");
+  it("deduplicates results by URL", async () => {
+    const results = await keywordSearch("tires");
     const urls = results.map(r => r.url);
     const uniqueUrls = new Set(urls);
     expect(urls.length).toBe(uniqueUrls.size);
   });
 
-  it("returns blog results for 'maintenance tips'", () => {
-    const results = keywordSearch("maintenance tips");
+  it("returns blog results for 'maintenance tips'", async () => {
+    const results = await keywordSearch("maintenance tips");
     const hasBlog = results.some(r => r.type === "blog" || r.type === "page");
     expect(hasBlog).toBe(true);
   });
 
-  it("returns contact page for 'phone number'", () => {
-    const results = keywordSearch("phone");
+  it("returns contact page for 'phone number'", async () => {
+    const results = await keywordSearch("phone");
     const contactResult = results.find(r => r.url.includes("contact"));
     expect(contactResult).toBeDefined();
   });

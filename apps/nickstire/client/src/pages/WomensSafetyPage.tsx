@@ -7,6 +7,7 @@
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Shield, X, Check } from "lucide-react";
 
 /* ─── COMPARISON DATA ──────────────────────────────────── */
@@ -71,6 +72,7 @@ function ComparisonGrid() {
 /* ─── MAIN PAGE ─────────────────────────────────────────── */
 
 export default function WomensSafetyPage() {
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return (
     <PageLayout>
       <SEOHead
@@ -140,7 +142,7 @@ export default function WomensSafetyPage() {
             uncomfortable, tell us. We'll make it right.
           </p>
           <p className="text-primary font-semibold text-sm mt-4">
-            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; 4.9★ · 1,700+ Google Reviews
+            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; {reviewRating}★ · {reviewCountDisplay} Google Reviews
           </p>
         </div>
       </section>

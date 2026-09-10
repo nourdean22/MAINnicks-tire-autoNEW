@@ -405,60 +405,119 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
   },
 };
 
+// ─── Competitor review figures ──────────────────────────────────────
+
+/**
+ * A competitor's published review figures, hand-researched.
+ *
+ * These are the ONLY numbers on a comparison page that are legitimately
+ * frozen: they describe someone else's storefront and can only be refreshed
+ * by a person going and looking. Nick's own side of every comparison is live
+ * (see `useReviewStats`), so the derived claims — the star gap, the review
+ * depth multiple — must be COMPUTED from the two rather than typed as prose.
+ * A hand-typed "6.7× the review depth" was true the week it was written and
+ * quietly decays into a false public claim about a named competitor.
+ */
+export interface CompetitorReviewSnapshot {
+  /** Star rating as published by the source, omitted where the claim is count-only. */
+  rating?: number;
+  /** Number of reviews behind that rating. */
+  count: number;
+  /** Exactly what was counted — the scope matters to the claim's honesty. */
+  source: string;
+  /** ISO date a human last verified this. Re-check before citing it again. */
+  sourcedAt: string;
+}
+
+export const COMPETITOR_REVIEWS: Record<"firestone" | "conrads" | "mavis", CompetitorReviewSnapshot> = {
+  firestone: {
+    rating: 4.0,
+    count: 250,
+    source: "Google — Firestone's largest Cleveland location, Downtown at 3917 Prospect Ave",
+    sourcedAt: "2026-05-01",
+  },
+  conrads: {
+    count: 137,
+    source: "Trustpilot — the entire 38-store Northeast Ohio chain combined",
+    sourcedAt: "2026-05-01",
+  },
+  mavis: {
+    rating: 3.9,
+    count: 209,
+    source: "third-party aggregators for Mavis Pearl Rd, Middleburg Heights (vs 4.6 self-reported on mavis.com)",
+    sourcedAt: "2026-05-01",
+  },
+};
+
+/**
+ * Format a ratio for copy: 6.8 → "6.8", 12.0 → "12".
+ * One decimal is enough precision to stay honest without reading as spurious.
+ */
+export function formatMultiple(value: number): string {
+  return String(Number(value.toFixed(1)));
+}
+
 // ─── Nick's Tire & Auto profile ─────────────────────────────────────
 
-export const NICKS_TIRE: CompetitorProfile = {
-  slug: "nicks-tire",
-  name: "Nick's Tire & Auto",
-  shortName: "Nick's",
-  website: "nickstire.org",
-  tagline: "Pull up for tires. Drop off for repairs.",
-  founded: 2018,
-  headquarters: "17625 Euclid Ave, Cleveland, OH 44112",
-  ownership: "Independently owned and operated by Nick — mechanic + family",
-  tier: "regional-chain",
-  clevelandLocations: 1,
-  openSunday: true,
-  walkInPolicy: "walk-in",
-  usedTires: true,
-  fullServiceMechanical: true,
-  dropoffWithRideshare: true,
-  strengths: [
-    "First-come-first-served — no appointment needed, walk in any day we're awake",
-    "Open Sundays 9am-4pm — the chains close, we don't",
-    "Drop-off + Uber/Lyft pickup model — leave the car, get a ride back to work, return when it's done",
-    "Used tires from $25 installed — when a $25 used tire solves it, we don't push you to a $200 new one",
-    "Written estimate before any wrench moves — no surprise shop fees at checkout",
-    "Mechanic-owned — the person quoting you the work is the person doing it",
-    "4.9★ Google rating from real Cleveland drivers",
-    "Transparent pricing — labor, parts, and disposal fees disclosed up front",
-  ],
-  weaknesses: [
-    "Single location at 17625 Euclid Ave — if you're 30+ miles away, the chains are closer",
-    "Smaller crew than national chains — peak hours can mean a wait (we'd rather be honest about that than over-book like the chains do)",
-    "Not a fleet contract shop yet — primarily individual/family customer focus",
-    "No nationwide warranty network — what we install, we stand behind here",
-  ],
-  bestFor: [
-    "Cleveland-area drivers tired of chain upsell and surprise fees",
-    "Anyone whose tire blows on a Sunday or after-hours when the chains are closed",
-    "Drivers who can drop the car off and grab a ride to work",
-    "Used-tire shoppers — chains won't sell them; we will, and we'll inspect them honestly",
-    "Customers who want to see the worn part before authorizing the repair",
-  ],
-  notIdealFor: [
-    "Customers more than 30 miles from Euclid Ave (geography wins)",
-    "Drivers needing a specific national-chain warranty for a corporate fleet account",
-    "People who genuinely prefer the chain experience and want a waiting room with a coffee machine",
-  ],
-  commonComplaints: [
-    "Single location means peak Saturday afternoons can be busy — the trade-off for never overpromising on appointment slots",
-    "Some customers wish we had a second location closer to the West Side",
-  ],
-  pricingNotes:
-    "Used tires from $25 installed (mount, balance, valve stems, TPMS reset, alignment check — all free). New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
-  usedTireFloor: 25,
-};
+/**
+ * Nick's own profile. A FUNCTION, not a const, because one of its strengths
+ * quotes the live Google rating — a module-level constant is evaluated at
+ * import time and can never see a hook's value.
+ */
+export function buildNicksTire(reviewRating: number): CompetitorProfile {
+  return {
+    slug: "nicks-tire",
+    name: "Nick's Tire & Auto",
+    shortName: "Nick's",
+    website: "nickstire.org",
+    tagline: "Pull up for tires. Drop off for repairs.",
+    founded: 2018,
+    headquarters: "17625 Euclid Ave, Cleveland, OH 44112",
+    ownership: "Independently owned and operated by Nick — mechanic + family",
+    tier: "regional-chain",
+    clevelandLocations: 1,
+    openSunday: true,
+    walkInPolicy: "walk-in",
+    usedTires: true,
+    fullServiceMechanical: true,
+    dropoffWithRideshare: true,
+    strengths: [
+      "First-come-first-served — no appointment needed, walk in any day we're awake",
+      "Open Sundays 9am-4pm — the chains close, we don't",
+      "Drop-off + Uber/Lyft pickup model — leave the car, get a ride back to work, return when it's done",
+      "Used tires from $25 installed — when a $25 used tire solves it, we don't push you to a $200 new one",
+      "Written estimate before any wrench moves — no surprise shop fees at checkout",
+      "Mechanic-owned — the person quoting you the work is the person doing it",
+      `${reviewRating}★ Google rating from real Cleveland drivers`,
+      "Transparent pricing — labor, parts, and disposal fees disclosed up front",
+    ],
+    weaknesses: [
+      "Single location at 17625 Euclid Ave — if you're 30+ miles away, the chains are closer",
+      "Smaller crew than national chains — peak hours can mean a wait (we'd rather be honest about that than over-book like the chains do)",
+      "Not a fleet contract shop yet — primarily individual/family customer focus",
+      "No nationwide warranty network — what we install, we stand behind here",
+    ],
+    bestFor: [
+      "Cleveland-area drivers tired of chain upsell and surprise fees",
+      "Anyone whose tire blows on a Sunday or after-hours when the chains are closed",
+      "Drivers who can drop the car off and grab a ride to work",
+      "Used-tire shoppers — chains won't sell them; we will, and we'll inspect them honestly",
+      "Customers who want to see the worn part before authorizing the repair",
+    ],
+    notIdealFor: [
+      "Customers more than 30 miles from Euclid Ave (geography wins)",
+      "Drivers needing a specific national-chain warranty for a corporate fleet account",
+      "People who genuinely prefer the chain experience and want a waiting room with a coffee machine",
+    ],
+    commonComplaints: [
+      "Single location means peak Saturday afternoons can be busy — the trade-off for never overpromising on appointment slots",
+      "Some customers wish we had a second location closer to the West Side",
+    ],
+    pricingNotes:
+      "Used tires from $25 installed (mount, balance, valve stems, TPMS reset, alignment check — all free). New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
+    usedTireFloor: 25,
+  };
+}
 
 /** Helper for templates: get profile by slug, falls back to Nick's */
 export function getCompetitor(slug: string): CompetitorProfile | null {

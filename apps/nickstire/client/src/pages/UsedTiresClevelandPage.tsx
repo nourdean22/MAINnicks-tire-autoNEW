@@ -14,9 +14,13 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { DollarSign, ShieldCheck, Gauge } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/used-tires-cleveland",
   // 2026-05-06 wave-16 · pro photo pack: used tires page = primary
   // tire tread closeup per PLACEMENT_GUIDE.md "Used tires page" row
@@ -26,7 +30,7 @@ const CONFIG: ServicePageConfig = {
   // sharper "no time bombs" — operator 4 (anti-pattern of selling
   // tires nobody inspected the DOT date on).
   title: "Used Tires Cleveland · 4-Point Check · From $25 Installed | Nick's",
-  description: "Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  description: `Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
   h1: "USED TIRES CLEVELAND.\n4-POINT CHECK. NO TIME BOMBS.",
   sub: "Need a tire today, not a payment plan? We carry checked used tires in most popular sizes — fully installed, free mount, free balance. Every tire passes a 4-point check before it earns a spot on your car: tread depth measured (not eyeballed), sidewall walked for cracks, DOT date verified (no time bombs), plug history reviewed. Call your size before you drive over — we'll tell you what's on the rack and what we'd put on our own family's car.",
@@ -127,8 +131,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function UsedTiresClevelandPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

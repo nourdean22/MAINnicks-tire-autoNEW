@@ -15,14 +15,18 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/check-engine-light-diagnostic",
   // 2026-05-06 copy wave: title now names the anti-pattern that's
   // this page's whole positioning. Operators 4 + 5.
   title: "Check Engine Light Cleveland · No Parts-Swap · No Pay Til Yes | Nick's",
-  description: "Cleveland shop that tests instead of swapping parts. Free scan, written quote before any wrench moves. You don't pay until you say yes. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  description: `Cleveland shop that tests instead of swapping parts. Free scan, written quote before any wrench moves. You don't pay until you say yes. Walk-ins 7 days. ${reviewRating}★ ${reviewCountDisplay} reviews.`,
   eyebrow: "WE TEST · WE DON'T GUESS",
   h1: "WE'LL TELL YOU WHAT'S WRONG.\nNO PARTS-SWAP ROULETTE.",
   sub: "If you've been to a shop that 'tried a sensor, then another, then another' — you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost — free check, written quote, you don't pay until you say yes.",
@@ -132,8 +136,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function CheckEngineLightDiagnosticPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }
