@@ -21,7 +21,7 @@ import {
   updateTechnicianReferralStatus,
 } from "../db";
 import { sanitizeText, sanitizePhone } from "../sanitize";
-import { logAdminAction } from "../services/auditTrail";
+import { logAdminAction, getAuditTrail } from "../services/auditTrail";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:technicianReferrals");
@@ -230,6 +230,24 @@ export const technicianReferralsRouter = router({
    * is operator-gated. Read that column as "why no bonus is owed" — it now
    * serves both terminal states, and the status beside it says which.
    */
+  /**
+   * WHO DID WHAT TO THIS $300, and when.
+   *
+   * Four actions on this router write to audit_log with
+   * entityType "technician_referral" — and until now NOTHING read them back.
+   * `getAuditTrail` has existed the whole time, with zero callers, sitting in
+   * the knip baseline since 2026-08-29 under the generic reason "pre-existing,
+   * not individually reviewed": a reader and a writer both orphaned, on the one
+   * record in this app where a dispute costs real money. The actor attribution
+   * added earlier on this branch is what makes the rows worth reading at all —
+   * before it, every entry said "admin".
+   */
+  history: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      return getAuditTrail("technician_referral", input.id);
+    }),
+
   markForfeited: adminProcedure
     .input(z.object({ id: z.number(), reason: z.string().min(1).max(500) }))
     .mutation(async ({ input, ctx }) => {

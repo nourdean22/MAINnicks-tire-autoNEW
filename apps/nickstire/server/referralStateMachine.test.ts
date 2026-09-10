@@ -194,3 +194,56 @@ describe("the guards are actually wired to the write path", () => {
     );
   });
 });
+
+
+/**
+ * The audit trail is READABLE, not just written.
+ *
+ * Four actions here write to audit_log with entityType "technician_referral",
+ * and until 2026-09-10 nothing read them back: getAuditTrail existed with zero
+ * callers, sitting in the knip baseline under the generic reason "pre-existing,
+ * not individually reviewed". A writer and a reader both orphaned, on the one
+ * record in this app where a dispute costs $300.
+ */
+describe("who moved the $300 can actually be asked", () => {
+  it("the router exposes a history query over the audit log", () => {
+    expect(ROUTER).toContain("history: adminProcedure");
+    expect(ROUTER).toContain('getAuditTrail("technician_referral"');
+  });
+
+  it("getAuditTrail reports a FAILED read instead of an empty history", () => {
+    const svc = strip(readFileSync(resolve(APP, "server/services/auditTrail.ts"), "utf8"));
+    // toEndOfSource: getAuditTrail is the last declaration in that file, so
+    // there is no following anchor to slice against.
+    const fn = sliceBlock(svc, "export async function getAuditTrail", [], {
+      label: "auditTrail.ts",
+      toEndOfSource: true,
+    });
+    // It returned a bare [] from three places: dead handle, thrown query, and a
+    // genuine no-history-yet. "Nobody touched this record" is the most
+    // exonerating answer an audit trail can give, so it must never be
+    // fabricated from a read that did not run.
+    expect(fn).toMatch(/if\s*\(!d\)\s*return\s*\{\s*available:\s*false/);
+    expect(fn).toContain("return { available: true, rows }");
+    expect(fn, "a bare [] cannot distinguish failure from emptiness").not.toMatch(/return\s*\[\]/);
+  });
+
+  it("the panel renders a read failure differently from no history", () => {
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toContain("trpc.technicianReferrals.history.useQuery");
+    expect(panel).toContain('q.data?.available === false');
+    expect(panel, "the empty case must still exist - the positive control").toContain(
+      "No recorded actions yet",
+    );
+  });
+
+  it("the history query is scoped to the row the operator opened", () => {
+    // Twenty referrals must not fire twenty audit reads on mount.
+    const panel = strip(
+      readFileSync(resolve(APP, "client/src/pages/admin/leads/TechnicianReferralsPanel.tsx"), "utf8"),
+    );
+    expect(panel).toMatch(/history\.useQuery\(\{ id \}, \{ enabled: show \}\)/);
+  });
+});

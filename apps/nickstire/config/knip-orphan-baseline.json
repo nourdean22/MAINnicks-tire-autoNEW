@@ -1632,11 +1632,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/auditTrail.ts",
-      "symbol": "getAuditTrail",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/socialDeliveryIssues.ts",
       "symbol": "deriveDeliveryIssues",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"

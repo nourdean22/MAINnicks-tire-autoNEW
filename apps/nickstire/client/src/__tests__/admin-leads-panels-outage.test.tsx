@@ -64,6 +64,12 @@ vi.mock("@/lib/trpc", () => {
         markPaid: { useMutation: stub },
         disqualify: { useMutation: stub },
         markForfeited: { useMutation: stub },
+        // Per-row audit history. Its query is `enabled` only once a row is
+        // expanded, so it never fires in these tests - but the panel still
+        // READS trpc.technicianReferrals.history.useQuery at render, and a
+        // missing key here is `undefined.useQuery`, which kills every test in
+        // the file with an error naming an unrelated line.
+        history: { useQuery: () => ({ data: { available: true, rows: [] }, isLoading: false, isError: false }) },
       },
     },
   };

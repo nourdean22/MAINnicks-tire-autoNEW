@@ -19,7 +19,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Gift, Phone, Check, X } from "lucide-react";
+import { Loader2, ChevronRight, Gift, Phone, Check, X, History } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -32,6 +32,63 @@ const STATUS_STYLE: Record<string, string> = {
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
+}
+
+/**
+ * WHO MOVED THIS $300, AND WHEN.
+ *
+ * Four actions on this record write to audit_log, and until 2026-09-10 nothing
+ * read them back: `getAuditTrail` existed with zero callers, baselined as
+ * "pre-existing, not individually reviewed". A writer and a reader both
+ * orphaned, on the one record here where a dispute costs real money.
+ *
+ * Its own component on purpose - the query is `enabled` only once the operator
+ * opens THIS row, so twenty referrals do not fire twenty audit reads on mount.
+ */
+function ReferralHistory({ id }: { id: number }) {
+  const [show, setShow] = useState(false);
+  const q = trpc.technicianReferrals.history.useQuery({ id }, { enabled: show });
+
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        aria-expanded={show}
+        className="inline-flex items-center gap-1 text-[11px] text-foreground/40 hover:text-foreground/70 transition-colors"
+      >
+        <History className="w-3 h-3" /> {show ? "Hide" : "History"}
+      </button>
+      {show && (
+        <div className="mt-1.5 pl-4 border-l border-border/30">
+          {q.isLoading ? (
+            <span className="text-[11px] text-foreground/40">Loading&hellip;</span>
+          ) : q.isError || q.data?.available === false ? (
+            // NOT an empty list. "Nobody touched this record" is the most
+            // exonerating thing an audit trail can say, so a failed read must
+            // never be able to say it.
+            <span className="text-[11px] text-rose-400">
+              Couldn&rsquo;t read the audit trail &mdash; this is not &ldquo;no history&rdquo;.
+            </span>
+          ) : q.data && q.data.rows.length === 0 ? (
+            <span className="text-[11px] text-foreground/40">No recorded actions yet.</span>
+          ) : (
+            <ul className="space-y-0.5">
+              {q.data?.rows.map((e: { id: string; actor: string; action: string; createdAt: string | Date }) => (
+                <li key={e.id} className="text-[11px] text-foreground/55">
+                  <span className="text-foreground/75">{e.action.replace("technician_referral.", "")}</span>
+                  {" by "}
+                  <span className="text-foreground/75">{e.actor}</span>
+                  {" · "}
+                  {new Date(e.createdAt).toLocaleString()}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TechnicianReferralsPanel() {
@@ -296,6 +353,7 @@ export function TechnicianReferralsPanel() {
                         </button>
                       )}
                     </div>
+                    <ReferralHistory id={r.id} />
                   </li>
                 );
               })}
