@@ -32,8 +32,9 @@ import signal
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, Optional
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
@@ -93,6 +94,8 @@ def edge_heartbeat_body(
     health_state: Any,
     scene_state: Any,
     calibration_version: Optional[str],
+    last_inference_at: Optional[float] = None,
+    inference_p95_ms: Optional[float] = None,
     detector_name: Optional[str],
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
@@ -145,6 +148,28 @@ def edge_heartbeat_body(
         "calibrationVersion": calibration_version,
         "detectorName": detector_name,
         "modelSha256": model_sha256,
+        # The shop has had a column, a Zod field and an ADMIN CARD for both of these since
+        # migration 0120, and the producer has never sent either -- so `inferenceP95Ms`
+        # rendered blank on the camera detail card forever while `CouncilResult.latency_ms`
+        # was being measured on every frame and thrown away. A reader with no writer.
+        #
+        # SEMANTICS, because the pair is only useful if both ends agree what it means:
+        # an "inference" is the DETECTOR running, never the motion gate. A gated frame is a
+        # decision not to infer, so on a quiet lot these go stale BY DESIGN and staleness
+        # alone is not a fault.
+        #
+        # BE EXACT ABOUT WHAT THIS PROVES, because a health field is read as a promise.
+        # These do NOT separate a dead detector from a still lot at any single instant --
+        # both render null, and on a genuinely motionless lot there is no evidence either
+        # way, which is the honest answer rather than a shortcoming. What they give you is
+        # the separation OVER TIME: a healthy producer stamps a fresh `lastInferenceAt`
+        # every time anything moves, so once the lot has had any traffic at all, a producer
+        # still reporting null has stopped inferring. Before this, no amount of traffic
+        # distinguished the two -- both were silence for as long as you cared to watch.
+        # Separating them at an instant needs a gated-frame COUNT, which needs a column.
+        "lastInferenceAt": _iso(last_inference_at) if last_inference_at else None,
+        "inferenceP95Ms": (round(float(inference_p95_ms), 1)
+                           if inference_p95_ms is not None else None),
         # --- the delivery half -----------------------------------------------
         "openVisits": len(vision.tracker.open_visits()),
         "outboxDepth": ledger.shop_outbox_depth(),
@@ -196,6 +221,10 @@ class EdgeLoop:
         #: one day be measured instead of drawn by eye. Same contract as the recorder: an
         #: upgrade, never a dependency of watching the lot.
         self.trajectories = trajectories
+        #: When the DETECTOR last ran, and how long its recent runs took. Motion-gated
+        #: frames are deliberately excluded -- see `_note_inference`.
+        self.last_inference_at: Optional[float] = None
+        self._inference_ms: Deque[float] = deque(maxlen=200)
         #: How often to re-check that the located scene is still where it was. 0 disables.
         #: A startup fix is only true at startup: the operator resizes the window or goes
         #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
@@ -348,6 +377,7 @@ class EdgeLoop:
 
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
+            self._note_inference(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -486,6 +516,8 @@ class EdgeLoop:
             health_state=self.last_health,
             scene_state=self.last_scene,
             calibration_version=self.calibration_version,
+            last_inference_at=self.last_inference_at,
+            inference_p95_ms=self.inference_p95_ms,
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
@@ -501,6 +533,46 @@ class EdgeLoop:
         # `base_mode` is what lets the camera card's badge clear when a run ends.
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
+
+    def _note_inference(self, frame, out) -> None:
+        """Record that the DETECTOR ran, and how long it took.
+
+        The motion gate is excluded on purpose. A gated frame is a decision NOT to infer,
+        so counting it would make a producer whose detector has died look perfectly healthy
+        for as long as the lot stayed still -- which is most of the day. `mog2` is the gate,
+        named the same way `_note_shadow` excludes it from being mistaken for a challenger.
+
+        The converse is the cost, and it is the right trade: on a genuinely quiet lot these
+        two fields go stale, so a reader must not treat staleness ALONE as a fault. What
+        they buy is the distinction that did not exist before, when a dead detector and an
+        empty lot were both simply silence.
+        """
+        council = out.get("council")
+        if council is None:
+            return
+        try:
+            by = dict(getattr(council, "by_detector", {}) or {})
+            if not any(name != "mog2" for name in by):
+                return                      # the gate ran and nothing else did
+            self.last_inference_at = frame.ts
+            latency = getattr(council, "latency_ms", None)
+            if latency:
+                self._inference_ms.append(float(latency))
+        except Exception:  # noqa: BLE001 - health bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_inference_note_errors_total")
+
+    @property
+    def inference_p95_ms(self) -> Optional[float]:
+        """p95 of recent detector latencies, or None when it has not run.
+
+        None, never 0.0. A zero renders on the admin card as an impossibly fast detector;
+        the absence has to stay an absence, because "we have not measured this" and "this
+        took no time" are different claims and only one of them is ever true.
+        """
+        if not self._inference_ms:
+            return None
+        ordered = sorted(self._inference_ms)
+        return ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
 
     def _note_trajectory(self, frame, out) -> None:
         """Record where every live track is standing, for later commissioning.

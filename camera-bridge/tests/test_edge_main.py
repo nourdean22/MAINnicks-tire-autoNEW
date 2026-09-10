@@ -1084,6 +1084,156 @@ class ArgsFixtureDriftTest(unittest.TestCase):
         self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
 
 
+class InferenceFreshnessTest(unittest.TestCase):
+    """`lastInferenceAt` and `inferenceP95Ms` had a column, a Zod field and an ADMIN CARD
+    since migration 0120, and the producer had never sent either -- so the camera detail
+    card rendered them blank forever while `CouncilResult.latency_ms` was measured on every
+    frame and discarded. A reader with no writer, which is the same defect as a writer with
+    no reader seen from the other side.
+
+    What the pair has to buy is one distinction: a producer that has STOPPED INFERRING
+    versus one that is merely watching an empty lot. Before, both were silence.
+    """
+
+    def _council(self, by_detector, latency=12.5):
+        return SimpleNamespace(escalated=False, detections=[], latency_ms=latency,
+                               by_detector=dict(by_detector))
+
+    def _loop_with(self, councils):
+        """Drive one frame per council. `None` means the vision layer returned no council."""
+        pipeline = make_pipeline()
+        frames = [SimpleNamespace(ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8),
+                                  seq=i, source="fake", meta={})
+                  for i in range(len(councils))]
+        state = {"i": 0}
+
+        class _Src:
+            def read(self):
+                i = state["i"]
+                return frames[i] if i < len(frames) else None
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+            # `edge_heartbeat_body` reads open visits off the vision layer's tracker.
+            tracker = SimpleNamespace(open_visits=lambda: [])
+
+            def step(self, frame):
+                out = {"emissions": []}
+                c = councils[state["i"]]
+                if c is not None:
+                    out["council"] = c
+                state["i"] += 1
+                return out
+
+        loop = _loop(pipeline, _Vision(), _Src())
+        for _ in councils:
+            loop.step()
+        return loop
+
+    def test_a_frame_the_DETECTOR_judged_marks_an_inference(self):
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 2})])
+        self.assertEqual(loop.last_inference_at, 1000.0)
+        self.assertIsNotNone(loop.inference_p95_ms)
+
+    def test_a_MOTION_GATED_frame_does_NOT_mark_an_inference(self):
+        """THE semantic. A gated frame is a decision not to infer. Counting it would make a
+        producer whose detector had died look healthy for as long as the lot stayed still --
+        which is most of the day, at a tyre shop, and exactly when nobody is watching."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        self.assertIsNone(loop.last_inference_at,
+                          "the motion gate was counted as a detector inference")
+        self.assertIsNone(loop.inference_p95_ms)
+
+    def test_a_gated_frame_does_not_ERASE_an_earlier_inference(self):
+        """The other direction: going quiet must not look like never having run."""
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 3}),
+                                self._council({"mog2": 0}),
+                                self._council({"mog2": 0})])
+        self.assertEqual(loop.last_inference_at, 1000.0)
+
+    def test_p95_is_NONE_before_any_inference_never_zero(self):
+        """A zero renders on the admin card as an impossibly fast detector. "We have not
+        measured this" and "this took no time" are different claims, and only one is ever
+        true."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        self.assertIsNone(loop.inference_p95_ms)
+        self.assertNotEqual(loop.inference_p95_ms, 0.0)
+
+    def test_p95_tracks_the_SLOW_TAIL_not_the_average(self):
+        """Nineteen fast frames and one 500ms stall. The MEAN of that is 34.5 and the p95
+        is 500, so the assertion has to sit above the mean to discriminate -- the first
+        version of this test asserted `> 19.0`, which a mean passes comfortably, and a
+        mutation replacing p95 with a mean survived it.
+
+        The distinction is the point of the field. An operator reading a p95 is asking how
+        bad the SLOW frames are; a mean hides exactly the stall they are looking for."""
+        latencies = [float(x) for x in range(1, 20)] + [500.0]
+        loop = self._loop_with([self._council({"primary": 1}, latency=x) for x in latencies])
+        mean = sum(latencies) / len(latencies)
+        self.assertEqual(loop.inference_p95_ms, 500.0)
+        self.assertGreater(loop.inference_p95_ms, mean * 2,
+                           "the p95 is indistinguishable from the mean of this sample")
+
+    def test_a_council_with_NO_by_detector_does_not_raise(self):
+        loop = self._loop_with([SimpleNamespace(escalated=False, detections=[])])
+        self.assertIsNone(loop.last_inference_at)
+
+    def test_a_frame_with_no_council_at_all_is_fine(self):
+        loop = self._loop_with([None, None])
+        self.assertIsNone(loop.last_inference_at)
+
+    def test_the_HEARTBEAT_carries_both_and_the_shop_ACCEPTS_them(self):
+        """assert-the-consumer, across the app boundary. The producer can render these
+        perfectly and still be shipping them into a schema that strips them on arrival --
+        which is how they came to be null in the first place, from the other direction.
+
+        The route is read as TEXT: importing nickstire's TypeScript from a Python test is
+        not possible, and the field list is the contract either way.
+        """
+        loop = self._loop_with([self._council({"mog2": 1, "primary": 2}, latency=33.0)])
+        body = edge_main.edge_heartbeat_body(
+            camera="sign", seq=1, now=1001.0, mode="PRODUCTION",
+            source=SimpleNamespace(), vision=loop.vision, ledger=loop.pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name="fake", model_sha256=None, last_healthy_frame_at=None,
+            last_inference_at=loop.last_inference_at,
+            inference_p95_ms=loop.inference_p95_ms)
+        self.assertIsNotNone(body["lastInferenceAt"])
+        self.assertTrue(str(body["lastInferenceAt"]).startswith("19"),
+                        f"not an ISO timestamp: {body['lastInferenceAt']!r}")
+        self.assertAlmostEqual(body["inferenceP95Ms"], 33.0, places=1)
+
+        route = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "..", "apps", "nickstire", "server", "routes",
+                             "cameraVisitsRoutes.ts")
+        if os.path.exists(route):
+            with open(route, encoding="utf-8") as fh:
+                src = fh.read()
+            for field in ("lastInferenceAt", "inferenceP95Ms"):
+                self.assertIn(f"{field}:", src,
+                              f"the shop route has no {field} field to receive")
+                self.assertIn(f'"{field}"', src,
+                              f"{field} is declared but not in the route's column list, so "
+                              f"it is parsed and then dropped before the write")
+
+    def test_the_heartbeat_OMITS_nothing_and_sends_NULL_when_it_has_not_inferred(self):
+        """Null, not absent, and not zero. The shop's column is nullable and its card
+        distinguishes null from a number; sending 0.0 would draw a detector that answers
+        instantly on a producer that has not answered at all."""
+        loop = self._loop_with([self._council({"mog2": 0})])
+        body = edge_main.edge_heartbeat_body(
+            camera="sign", seq=1, now=1001.0, mode="PRODUCTION",
+            source=SimpleNamespace(), vision=loop.vision, ledger=loop.pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name="fake", model_sha256=None, last_healthy_frame_at=None,
+            last_inference_at=loop.last_inference_at,
+            inference_p95_ms=loop.inference_p95_ms)
+        self.assertIn("lastInferenceAt", body)
+        self.assertIsNone(body["lastInferenceAt"])
+        self.assertIsNone(body["inferenceP95Ms"])
+
+
 class TrajectoryWiringTest(unittest.TestCase):
     """A store with no points and a store nobody is feeding look identical on disk.
 
