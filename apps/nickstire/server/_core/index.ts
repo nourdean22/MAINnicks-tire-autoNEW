@@ -277,6 +277,16 @@ async function startServer() {
   app.use(withBatchRegex("callback.submit"), formLimiter);
   app.use(withBatchRegex("waitlist.join"), formLimiter);
   app.use(withBatchRegex("emergency.submit"), formLimiter);
+  // 2026-09-10 · both are public, unauthenticated, row-writing form endpoints
+  // added in #2254 and allowlisted in trpc-auth-tier.test.ts as "same tier as
+  // lead.submit" — but they were never given lead.submit's limiter, so they
+  // sat on the general apiLimiter's anon budget (100 per 15 min = 400/hour)
+  // instead of formLimiter's 10/hour. That is 40x the write budget of every
+  // comparable form, against a candidates table an operator triages by hand.
+  // technicianReferrals.submit fires from the same page's onSuccess, so one
+  // honest application spends 2 of the 10 — still far above real usage.
+  app.use(withBatchRegex("candidates.submit"), formLimiter);
+  app.use(withBatchRegex("technicianReferrals.submit"), formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);
   // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
   // but express-rate-limit only counts it as 1 request.
