@@ -75,7 +75,8 @@
       "verificationExpiresAt": "2026-09-10",
       "codeState": "merged",
       "operationalState": "visually_verified",
-      "exposure": "production"
+      "exposure": "operator_only",
+      "exposureNote": "operator_only since 2026-08-29, corrected 2026-09-10. It read `production` until now, which the ledger's own blocker contradicts: the pipeline was STAGED OFF THE SCHEDULER on 2026-08-29 (MANUAL_TRIGGER_STAGED) and generation is a human-triggered batch fired via POST /api/admin/run-staged-cron, with publishing behind the exact-asset + exact-caption human gate. `production` exposure means, in this ledger's words, a state in which 'something other than the operator's own hands can act on it' -- and nothing else can. The commit that staged it off never moved this field, so the expiry on 2026-09-10 surfaced a claim that had been false for twelve days. This is a CORRECTION, not a date pushed out to quiet a gate: the capability itself still works (30 lifetime publications) and its operationalState is untouched at visually_verified."
     },
     {
       "capabilityId": "creative-genome-core",

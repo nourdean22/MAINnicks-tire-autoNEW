@@ -149,8 +149,43 @@ describe("the repo's own ledger", () => {
     const ledger = JSON.parse(readFileSync(resolve(process.cwd(), "docs/operations/capability-ledger.json"), "utf8"));
     expect(validateLedger(ledger)).toEqual([]);
     expect(ledger.capabilities.every((c: { operationalState: string }) => c.operationalState !== "business_verified")).toBe(true);
-    const production = ledger.capabilities.filter((c: { exposure: string }) => c.exposure === "production");
-    expect(production.map((c: { capabilityId: string }) => c.capabilityId)).toEqual(["reel-pipeline-assembly"]);
+    // A CEILING, not an exact set -- which is what this test's own name says: nothing
+    // claims production exposure BEYOND the reel pipeline. The danger being guarded is a
+    // capability quietly claiming `production`, the one exposure in which something other
+    // than the operator's own hands can act on it.
+    //
+    // Written as exact equality it was also a FLOOR, pinning the reel pipeline INTO
+    // production. On 2026-08-29 that stopped being true -- the pipeline was staged off the
+    // scheduler (MANUAL_TRIGGER_STAGED), generation became a human-triggered batch and
+    // publishing sits behind a human gate -- and correcting the field to the truth failed
+    // this test, whose stated intent the correction satisfies. A guard that forbids
+    // telling the truth is pinning a falsehood, which is the failure mode this repo keeps
+    // removing. An EMPTY production set is a strictly safer state and must pass.
+    const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly"]);
+    const unexpected = ledger.capabilities
+      .filter((c: { exposure: string }) => c.exposure === "production")
+      .map((c: { capabilityId: string }) => c.capabilityId)
+      .filter((id: string) => !MAY_CLAIM_PRODUCTION.has(id));
+    expect(unexpected).toEqual([]);
+  });
+
+  it("STILL REFUSES a capability that quietly claims production exposure", () => {
+    // The canary for the loosening above. Without this, turning the exact-set assertion
+    // into a ceiling could have removed the guard's teeth entirely and scored green.
+    const ledger = JSON.parse(readFileSync(resolve(process.cwd(), "docs/operations/capability-ledger.json"), "utf8"));
+    const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly"]);
+    const withIntruder = {
+      ...ledger,
+      capabilities: [
+        ...ledger.capabilities,
+        { ...ledger.capabilities[0], capabilityId: "smuggled-in", exposure: "production" },
+      ],
+    };
+    const unexpected = withIntruder.capabilities
+      .filter((c: { exposure: string }) => c.exposure === "production")
+      .map((c: { capabilityId: string }) => c.capabilityId)
+      .filter((id: string) => !MAY_CLAIM_PRODUCTION.has(id));
+    expect(unexpected).toEqual(["smuggled-in"]);
   });
 
   it("every deployed+ capability has named a horizon, and they are NOT uniform", () => {
