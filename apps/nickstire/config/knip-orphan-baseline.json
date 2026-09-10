@@ -5185,6 +5185,11 @@
       "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
       "symbol": "parseHeartbeat",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. A one-line wrapper over the zod heartbeat schema that the route calls for every request. Exported so the body contract can be tested without a live HTTP server or database: required key fields, the PRODUCTION default for mode, and that an unparseable producer timestamp REJECTS (400) rather than degrading to null -- the same rule the visit ingest enforces."
+    },
+    {
+      "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
+      "symbol": "activeRunField",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Wired and firing -- the heartbeat response spreads it at cameraVisitsRoutes.ts:600 -- so it is exported, not orphaned, for the seam test alone. The contract it carries has THREE states where the type system only shows two: a run is open (send it), we LOOKED and found none (send explicit null -- this is what ENDS a run), or we COULD NOT LOOK (omit the key entirely). `visitd.shop_mirror.apply_active_run` holds the producer's current mode on an absent key and ends commissioning only on an explicit null, so collapsing the last two tagged the rest of a live test drive PRODUCTION on one transient DB error -- permanently, since the ingest treats dataClass as immutable after insert. Exported so `cameraVisitsRoutes.test.ts` can pin all three states and assert the two null-ish ones are NOT interchangeable; both failure directions are mutation-checked."
     }
   ]
 }
