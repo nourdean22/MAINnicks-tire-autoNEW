@@ -156,3 +156,57 @@ deaths in a band rather than a number somebody will quote.
   merging to main recomputes every open PR's merge ref. Rerun, do not debug. Read it with
   `gh api repos/<o>/<r>/actions/jobs/<id>/logs` — `gh run view --log-failed` prints nothing
   for that shape.
+
+---
+
+## 7. "V380 logs in but shows no cameras"
+
+Hit on 2026-09-10 while moving the client from the laptop to the shop PC: the app reported
+*invalid login* while apparently logged in, and after signing out on the laptop and in on the
+shop PC it showed no cameras at all.
+
+**Check the network before the account.** Login is a CLOUD call and will succeed from any
+internet connection; the device list needs to reach the cameras. A machine on a different
+router, on guest Wi-Fi, or on a separate VLAN logs in perfectly and then shows nothing, which
+is exactly the observed symptom.
+
+```powershell
+# 1. Is this machine even on the camera subnet? It must answer 192.168.0.x.
+Get-NetIPAddress -AddressFamily IPv4 |
+  Where-Object { $_.IPAddress -notlike '127.*' } |
+  Select-Object IPAddress, InterfaceAlias | Format-Table -AutoSize
+
+# 2. Can it actually reach the cameras? 8800 is the ONLY port either one exposes.
+foreach ($ip in '192.168.0.154','192.168.0.155') {
+  $c = New-Object System.Net.Sockets.TcpClient
+  try { $r = $c.BeginConnect($ip, 8800, $null, $null)
+        $ok = $r.AsyncWaitHandle.WaitOne(1000, $false) -and $c.Connected } catch { $ok = $false }
+  '{0} 8800 reachable={1}' -f $ip, $ok
+  $c.Close()
+}
+```
+
+Read the two results together:
+
+| IP is `192.168.0.x` | 8800 reachable | what it means |
+|---|---|---|
+| no | — | **This is the problem.** Wrong network segment; the app can never enumerate the cameras |
+| yes | no | On the subnet but blocked — check the Windows firewall profile and whether the NIC is on a guest/isolated SSID |
+| yes | yes | Network is fine; it is the app or the account. Sign in on a machine known to work to confirm the cameras themselves are up |
+
+**"Invalid login" while logged in is usually a stale cached session, not a concurrency
+limit.** Quit the app completely -- including the tray icon, not just the window -- before
+signing in again. Do not start by assuming the account is locked to one machine.
+
+### What the producer does when the client goes away
+
+Measured the same day. Closing the V380 window does not leave a half-blind producer running:
+WGC stops delivering a surface, `check_stall` sees no frame at all, and the producer EXITS
+after `StallExitSeconds` (default 180s). Observed exactly that -- last frame 16:49:34, process
+gone by 16:52.
+
+That is the designed behaviour: a source delivering NO FRAME is a process problem a restart
+fixes, unlike a frozen or looping camera, which is a VISION problem the pipeline reports as
+DEGRADED_VISION without restarting. **A producer started by hand does not come back on its
+own** -- only the Scheduled Task from §3 restarts it, which is the main reason to install it
+rather than run `python edge_main.py` in a terminal.
