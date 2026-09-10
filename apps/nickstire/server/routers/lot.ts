@@ -808,9 +808,26 @@ export const lotRouter = router({
         // run, so an abandoned one (a reloaded PWA, a killed tab) would otherwise be
         // picked up again and leave the edge in commissioning mode indefinitely, quietly
         // excluding real visits from the shop's metrics (Codex P1 on #2255).
+        // ORDERED BY runId, not merely "everything but mine".
+        //
+        // `runId <> mine` is not a serialisation. Two tabs starting the same camera can
+        // both INSERT (different ids, the retry loop guarantees that) before either
+        // UPDATE runs; each update then matches the other's brand-new row, both mutations
+        // return ok, and the camera is left with NO open run at all -- neither UI can arm
+        // and the producer is handed nothing (Codex P2 on #2255, round 8).
+        //
+        // Closing only STRICTLY EARLIER ids makes the outcome deterministic under any
+        // interleaving: whoever holds the highest id survives, everyone else closes,
+        // exactly one run remains open. `C-YYYYMMDD-NNN` is zero-padded and date-led, so
+        // lexicographic order is chronological order, and a run left open from a previous
+        // day sorts below today's and is closed too. The invariant this enforces is
+        // unchanged -- the heartbeat hands the producer the most recent open run, so an
+        // abandoned one (a reloaded PWA, a killed tab) would otherwise be picked up again
+        // and leave the edge in commissioning mode indefinitely, quietly excluding real
+        // visits from the shop's metrics (Codex P1 on #2255, round 5).
         await d.execute(sql`
           UPDATE commissioning_runs SET endedAt = NOW(3)
-           WHERE camera = ${input.camera} AND endedAt IS NULL AND runId <> ${runId}
+           WHERE camera = ${input.camera} AND endedAt IS NULL AND runId < ${runId}
         `);
         return { ok: true as const, runId, clock };
       } catch (err) {

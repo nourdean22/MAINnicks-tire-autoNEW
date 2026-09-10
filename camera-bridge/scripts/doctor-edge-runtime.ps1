@@ -80,6 +80,15 @@ if (-not (Test-Path $ConfigPath)) {
 } else {
     $cfg = Get-Content $ConfigPath -Raw
     Check "config.yaml" "PASS" $ConfigPath
+    # The AUTHORITATIVE lane. Without this key CloudClient.deliver_once() returns
+    # 'blocked' on every row and the StateNour outbox never drains -- silently, because a
+    # blocked row is retried rather than failed. edge_main now load_dotenv()s so a .env in
+    # this directory is enough (Codex P1 on #2255, round 8).
+    $stKey = if ($env:STATENOUR_SYNC_KEY) { $true } elseif (Test-Path (Join-Path $root ".env")) {
+        (Select-String -Path (Join-Path $root ".env") -Pattern "^\s*STATENOUR_SYNC_KEY\s*=\s*\S" -Quiet) -eq $true
+    } else { $false }
+    if ($stKey) { Check "STATENOUR_SYNC_KEY" "PASS" "resolvable (env or .env)" }
+    else { Check "STATENOUR_SYNC_KEY" "WARN" "not set -- the AUTHORITATIVE outbox will queue forever and never drain" }
     if ($cfg -match "(?m)^\s*shopUrl:\s*\S") { Check "backend.shopUrl" "PASS" "set" }
     else { Check "backend.shopUrl" "WARN" "not set -- visits persist locally but the shop admin never updates" }
     if ($cfg -match "(?m)^\s{2}$([regex]::Escape($Camera)):") { Check "cameras.$Camera" "PASS" "declared" }
@@ -157,10 +166,17 @@ if ($freeGb -lt 2) { Check "disk" "FAIL" "$freeGb GB free -- the ledger and evid
 elseif ($freeGb -lt 10) { Check "disk" "WARN" "$freeGb GB free" }
 else { Check "disk" "PASS" "$freeGb GB free" }
 
-$ledger = Join-Path $root "data\edge.sqlite"
+# PER CAMERA, matching edge_main.camera_ledger_path. Two camera processes sharing one
+# SQLite file overwrite each other's tracker state on every commit, so each gets its own;
+# a doctor that reported the unscoped path would be describing a file the producer will
+# never open (Codex P1 on #2255, round 8).
+$ledger = Join-Path $root ("data\edge-" + $Camera + ".sqlite")
+$legacy = Join-Path $root "data\edge.sqlite"
 if (Test-Path $ledger) {
     $sizeMb = [math]::Round((Get-Item $ledger).Length / 1MB, 1)
     Check "ledger" "PASS" "$ledger ($sizeMb MB) -- open visits will be restored on start"
+} elseif (Test-Path $legacy) {
+    Check "ledger" "WARN" "none for '$Camera' yet; a pre-split $legacy exists and is NO LONGER READ -- its open visits will not be restored"
 } else { Check "ledger" "PASS" "none yet; it is created on first run" }
 
 # --- Supervision ------------------------------------------------------------

@@ -282,7 +282,7 @@ class RestartRecoveryTest(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".sqlite")
         os.close(fd)
         try:
-            first = make_pipeline(ledger=Ledger(path))
+            first = make_pipeline(ledger=Ledger(edge_main.camera_ledger_path(path, "lot")))
             _real_emissions(first, camera="lot", persist=True)
             open_ids = {v.visit_id for v in first.tracker.open_visits()}
             self.assertTrue(open_ids, "precondition: a visit is open when the process dies")
@@ -520,6 +520,12 @@ class _Clock:
         self.t += dt
 
 
+def _RAW():
+    from test_main import RAW
+
+    return RAW
+
+
 def _cfg(raw=None):
     import dataclasses
 
@@ -712,7 +718,7 @@ class RestartReconcileTest(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".sqlite")
         os.close(fd)
         try:
-            first = make_pipeline(ledger=Ledger(path))
+            first = make_pipeline(ledger=Ledger(edge_main.camera_ledger_path(path, "lot")))
             _real_emissions(first, camera="lot", persist=True)
             self.assertTrue(first.tracker.open_visits(), "precondition: a visit is open")
             first.ledger.close()
@@ -832,7 +838,7 @@ class RestartClassificationWiringTest(unittest.TestCase):
         fd, path = tempfile.mkstemp(suffix=".sqlite")
         os.close(fd)
         try:
-            first = make_pipeline(ledger=Ledger(path))
+            first = make_pipeline(ledger=Ledger(edge_main.camera_ledger_path(path, "lot")))
             shop_enabled(first)
             first.shop.data_class = "COMMISSIONING"
             first.shop.commissioning_run_id = "C-20260910-001"
@@ -930,6 +936,92 @@ class TestFileHygieneTest(unittest.TestCase):
         tail = body[body.index(marker):]
         self.assertNotIn(nl + "class ", tail, "a test class is stranded after unittest.main()")
         self.assertNotIn(nl + "def ", tail, "a helper is stranded after unittest.main()")
+
+
+class LedgerIsolationTest(unittest.TestCase):
+    """One ledger file per camera process (Codex P1 on #2255, round 8).
+
+    `ledger_path` is a property of the CONFIG, because visitd proper runs every camera in
+    ONE process off one Frigate feed. The edge inverts that -- one process per camera --
+    so a shared file is not interleaving, it is mutual overwrite: `Pipeline.__init__`
+    restores EVERY open visit in the ledger and `after_step` serialises the whole tracker
+    back out, so each process periodically replaces the other camera's fresh state with a
+    stale copy, and its timers age and close the other camera's sightings.
+    """
+
+    def test_two_cameras_get_two_FILES(self):
+        a = edge_main.camera_ledger_path("data/edge.sqlite", "sign")
+        b = edge_main.camera_ledger_path("data/edge.sqlite", "lot")
+        self.assertNotEqual(a, b, "a shared file is mutual overwrite, not interleaving")
+        self.assertEqual(a, "data/edge-sign.sqlite")
+        self.assertEqual(b, "data/edge-lot.sqlite")
+
+    def test_an_in_memory_ledger_is_untouched(self):
+        """Already private to the process; renaming it would only break every test."""
+        self.assertEqual(edge_main.camera_ledger_path(":memory:", "sign"), ":memory:")
+
+    def test_an_extensionless_path_still_separates(self):
+        self.assertEqual(edge_main.camera_ledger_path("/var/lib/edge", "sign"), "/var/lib/edge-sign")
+
+    def test_a_DOTTED_DIRECTORY_does_not_fool_the_split(self):
+        """`rpartition('.')` would otherwise treat `/opt/v2.1/edge` as extension `1/edge`
+        and produce `/opt/v2-sign.1/edge` -- a path in a directory that does not exist."""
+        self.assertEqual(edge_main.camera_ledger_path("/opt/v2.1/edge", "sign"),
+                         "/opt/v2.1/edge-sign")
+
+    def test_an_EXPLICIT_ledger_flag_is_scoped_too(self):
+        """Isolation must not be losable by passing the path a different way -- the
+        installer writes one wrapper per camera and could easily pass --ledger."""
+        # An ABSOLUTE temp path: a relative one resolves against the cwd, so the test
+        # passed under `pytest camera-bridge` and failed under `pytest` from the repo root.
+        import shutil
+
+        tmp = tempfile.mkdtemp()
+        try:
+            args = _args(calibration=None, ledger=os.path.join(tmp, "custom.sqlite"), camera="lot")
+            pipeline, *_ = edge_main.build_edge(_cfg(), args)
+            try:
+                self.assertTrue(pipeline.ledger.path.endswith("custom-lot.sqlite"),
+                                f"got {pipeline.ledger.path!r}")
+            finally:
+                pipeline.ledger.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_ONE_cameras_visits_cannot_be_restored_by_ANOTHERS_process(self):
+        """The end-to-end claim: what camera A persisted must be invisible to camera B."""
+        fd, path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        made = []
+        try:
+            a = make_pipeline(ledger=Ledger(edge_main.camera_ledger_path(path, "lot")))
+            _real_emissions(a, camera="lot", persist=True)
+            self.assertTrue(a.tracker.open_visits(), "precondition: camera lot has an open visit")
+            a.ledger.close()
+
+            two = dict(_RAW())
+            two["cameras"] = {
+                "lot": {"cloudDeviceId": "dev-lot", "arrivalZones": ["front_lot"]},
+                "sign": {"cloudDeviceId": "dev-sign", "arrivalZones": ["front_lot"]},
+            }
+            b, *_ = edge_main.build_edge(_cfg(two), _args(calibration=None, ledger=path, camera="sign"))
+            made.append(b)
+            self.assertEqual(b.tracker.open_visits(), [],
+                             "the sign process must not restore -- let alone age and close -- "
+                             "the lot process's visits")
+        finally:
+            for p in made:
+                p.ledger.close()
+            for suffix in ("-lot", "-sign"):
+                base, _, ext = path.rpartition(".")
+                try:
+                    os.unlink(f"{base}{suffix}.{ext}")
+                except OSError:
+                    pass
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

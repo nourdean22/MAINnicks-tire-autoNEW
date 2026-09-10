@@ -432,6 +432,34 @@ class EdgeLoop:
 
 
 # ---------------------------------------------------------------------------- wiring
+def camera_ledger_path(path: str, camera: str) -> str:
+    """Give each camera process its OWN ledger file. `:memory:` is returned unchanged.
+
+    WHY THIS IS NOT OPTIONAL. `ledger_path` is a property of the CONFIG, not of a camera,
+    because visitd proper runs every camera in ONE process off one Frigate feed. The edge
+    inverts that: one process per camera, each with its own capture and its own
+    `VisitTracker`. Point two of them at one SQLite file and they do not merely interleave
+    -- `Pipeline.__init__` restores EVERY open visit in the ledger, and `after_step`
+    serialises that whole tracker back out, so each process periodically overwrites the
+    other camera's fresh state with its own stale copy of it, and its timers age and close
+    the other camera's sightings (Codex P1 on #2255, round 8).
+
+    Round 6b scoped the restart force-end to one camera, which was necessary and nowhere
+    near sufficient: it fixed one caller while the general last-writer-wins overwrite went
+    on every commit. Separate files remove the shared state instead of guarding each use
+    of it, which is the only version of this that stays fixed.
+
+    The derivation is applied to whatever path is in play -- config or `--ledger` -- so
+    isolation cannot be lost by passing the path a different way.
+    """
+    if path == ":memory:" or not path:
+        return path
+    base, dot, ext = path.rpartition(".")
+    if not dot or "/" in ext or "\\" in ext:
+        return f"{path}-{camera}"
+    return f"{base}-{camera}.{ext}"
+
+
 def seed_track_ids(vision: Any, tracker: Any, camera: str) -> int:
     """Push the vision track counter past every RESTORED sighting id. Returns the new floor.
 
@@ -526,8 +554,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     from vision.pipeline import VisionPipeline
     from vision.run_live import build_council, build_source
 
+    ledger_path = camera_ledger_path(args.ledger or cfg.ledger_path, args.camera)
     ledger = Ledger(
-        args.ledger or cfg.ledger_path,
+        ledger_path,
         outbox_max_depth=cfg.backend.outbox_max_depth,
         policy=cfg.policy,
     )
@@ -765,6 +794,19 @@ def run_edge(args: argparse.Namespace) -> int:
 
 
 def main(argv=None) -> int:
+    # LOAD THE ENV FILE, exactly as `visitd.main` does. The scheduled-task wrapper decrypts
+    # and exports only CAMERA_INGEST_KEY (the shop lane), while `load_config` reads the
+    # AUTHORITATIVE cloud credential from the environment as STATENOUR_SYNC_KEY. Without
+    # this the scheduled child started with no such key, `CloudClient.deliver_once()`
+    # returned `blocked` forever, and the StateNour outbox silently never drained -- the
+    # one lane whose whole purpose is durability (Codex P1 on #2255, round 8). The wrapper
+    # `cd /d`s into the camera-bridge root first, so `.env` there is what this finds.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
     try:
         return run_edge(parse_args(argv))
     except ConfigError as exc:
