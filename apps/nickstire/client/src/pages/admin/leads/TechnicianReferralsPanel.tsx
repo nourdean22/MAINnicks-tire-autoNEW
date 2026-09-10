@@ -154,6 +154,22 @@ export function TechnicianReferralsPanel() {
                       {r.status}
                     </span>
                     <span className="font-semibold text-foreground/85">{r.referrerName}</span>
+                    {/* WHO WAS REFERRED. The panel showed only the referrer,
+                        so the one question this program exists to answer —
+                        who referred whom — was unanswerable at the surface
+                        even though the row held the link. */}
+                    {r.candidateName ? (
+                      <span className="text-foreground/60">
+                        &rarr; <span className="font-medium text-foreground/80">{r.candidateName}</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider"
+                        title="This referral is not linked to a candidate record — either the association failed verification at write time, or the candidate row is gone. The payout cannot be substantiated from this row alone."
+                      >
+                        unlinked
+                      </span>
+                    )}
                     {r.referrerPhone && (
                       <a
                         href={`tel:${r.referrerPhone}`}
@@ -210,7 +226,24 @@ export function TechnicianReferralsPanel() {
                               confirmLabel: "Disqualify",
                               tone: "danger",
                             });
-                            if (ok) disqualify.mutate({ id: r.id, reason: "Disqualified by admin" });
+                            // The reason column is varchar(500) and was
+                            // receiving a constant, so it recorded nothing a
+                            // later dispute could use. This is not the full
+                            // fix — free-text capture needs an input on
+                            // ConfirmDialog, and window.prompt is banned in
+                            // client/src because iOS standalone suppresses it
+                            // silently — but it at least records the two facts
+                            // that matter when someone contests a lost $300:
+                            // whether the referral was linked to a real
+                            // candidate, and who it named.
+                            if (ok) {
+                              disqualify.mutate({
+                                id: r.id,
+                                reason: r.candidateName
+                                  ? `Disqualified by admin · referred ${r.candidateName}`
+                                  : "Disqualified by admin · referral was NOT linked to a candidate record",
+                              });
+                            }
                           }}
                           disabled={disqualify.isPending}
                           className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/15 rounded transition-colors disabled:opacity-50"

@@ -555,6 +555,19 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
  * empty orphan list is the one result an operator would most like to see, so
  * it is exactly the result that must never be fabricated.
  */
+/**
+ * A technician referral joined to the candidate it claims.
+ *
+ * `unlinked` is the load-bearing field: createTechnicianReferral NULLS
+ * candidateId when the referenced row fails verification, and an orphan row
+ * rendered identically to a linked one is a payout nobody can substantiate.
+ */
+export type TechnicianReferralRow = TechnicianReferral & {
+  candidateName: string | null;
+  candidatePhone: string | null;
+  unlinked: boolean;
+};
+
 export async function getReferralOrphans() {
   const db = await getDb();
   if (!db) return { available: false as const, rows: [] as Array<{ id: number; name: string; createdAt: Date | null; referredBy: string }> };
@@ -604,13 +617,45 @@ export async function getTechnicianReferrals() {
   // renders as "none recorded yet". Same convention adminSignals.ts already
   // uses: `available === false` marks a slice that failed rather than a slice
   // that is genuinely empty.
-  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
+  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as TechnicianReferralRow[] };
   try {
-    const rows: TechnicianReferral[] = await db.select().from(technicianReferrals).orderBy(desc(technicianReferrals.createdAt)).limit(500);
+    // LEFT JOIN the candidate. The panel rendered the referrer and never who
+    // was referred, so an operator could not answer the one question this
+    // program exists to answer — "the shop could not reliably tell who
+    // referred whom" is the reason drizzle/0121 was written at all, and the
+    // record held the link while the UI kept it hidden.
+    //
+    // A LEFT join, not an inner one: createTechnicianReferral NULLS
+    // candidateId when the referenced row fails verification (missing, or not
+    // source:"careers"), and those orphans must stay visible and be visibly
+    // DIFFERENT from linked ones rather than silently dropping out of the
+    // list — they are the rows most likely to owe someone money incorrectly.
+    const joined = await db
+      .select({
+        referral: technicianReferrals,
+        candidateName: candidates.name,
+        candidatePhone: candidates.phone,
+      })
+      .from(technicianReferrals)
+      .leftJoin(candidates, eq(technicianReferrals.candidateId, candidates.id))
+      .orderBy(desc(technicianReferrals.createdAt))
+      .limit(500);
+
+    const rows: TechnicianReferralRow[] = joined.map(
+      (j: { referral: TechnicianReferral; candidateName: string | null; candidatePhone: string | null }) => ({
+        ...j.referral,
+        candidateName: j.candidateName,
+        candidatePhone: j.candidatePhone,
+        // TRUE when the referral claims an association the candidates table
+        // cannot confirm — either it was nulled at write time, or the row has
+        // since gone. Either way the payout is unverifiable.
+        unlinked: j.referral.candidateId == null || j.candidateName == null,
+      }),
+    );
     return { available: true as const, migrationPending: false as const, rows };
   } catch (err) {
     if (isMissingTableError(err)) {
-      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferral[] };
+      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferralRow[] };
     }
     throw err;
   }
