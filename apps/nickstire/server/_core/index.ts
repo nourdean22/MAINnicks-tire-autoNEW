@@ -558,6 +558,7 @@ async function startServer() {
   // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
   app.get("/sitemap.xml", async (_req, res) => {
     const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
+    const { JOB_OPENINGS } = await import("@shared/jobOpenings");
     const { getPublishedArticles } = await import("../content-generator");
     const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
@@ -575,12 +576,26 @@ async function startServer() {
 
     const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicLastmod.keys()]));
 
+    // Job leaf pages DO have a date the server knows, which is why they are the
+    // one static-route exception to the 2026-09-07 rule above. `datePosted` is
+    // a real "last significant change" - shared/jobOpenings.ts documents that
+    // Google's job-posting content policy BANS resetting it when nothing about
+    // the role changed - so it is exactly the semantic <lastmod> asks for, and
+    // nothing like the `new Date()` that got the tag removed everywhere else.
+    // Only OPEN roles: a closed one is 404 by JobPage and must not be advertised.
+    const jobLastmod = new Map<string, Date>();
+    for (const j of JOB_OPENINGS) {
+      if (j.status !== "open") continue;
+      const d = new Date(j.datePosted);
+      if (!Number.isNaN(d.getTime())) jobLastmod.set(`/careers/${j.slug}`, d);
+    }
+
     // GSC audit 2026-07-04: never emit a URL that 301s (redirects.ts is the
     // truth). Catches registry aliases AND DB-published slugs that were later
     // redirected (e.g. /blog/car-ac-not-blowing-cold).
     const urls = [
       ...SITEMAP_ROUTES.filter(p => !isRedirectedPath(p.path)).map(p =>
-        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+        `  <url>\n    <loc>${baseUrl}${p.path}</loc>${sitemapLastmod(jobLastmod.get(p.path))}\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
       ),
       ...allBlogSlugs.filter(s => !isRedirectedPath(`/blog/${s}`)).map(s =>
         `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>${sitemapLastmod(dynamicLastmod.get(s))}\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`

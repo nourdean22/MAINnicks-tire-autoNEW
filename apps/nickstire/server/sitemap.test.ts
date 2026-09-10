@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 /**
  * Sitemap & Robots.txt structural tests.
@@ -47,5 +48,69 @@ describe("robots.txt structure", () => {
     const fs = await import("fs");
     const content = fs.readFileSync("server/_core/index.ts", "utf8");
     expect(content).toContain("robots.txt");
+  });
+});
+
+/**
+ * <lastmod> is emitted ONLY where a real date exists.
+ *
+ * THE RULE THIS SITS INSIDE (server/_core/index.ts, 2026-09-07): every sitemap
+ * entry used to carry `new Date()` at request time, so 100+ URLs claimed a
+ * change every single day. Google ignores lastmod once it is consistently
+ * wrong, so the tag was costing trust and buying nothing, and it was removed
+ * from static routes.
+ *
+ * Job leaf pages are the one exception, because they are the one static route
+ * with a date the server actually knows: shared/jobOpenings.ts carries
+ * `datePosted`, and its own comment records that Google's job-posting content
+ * policy BANS resetting it when nothing about the role changed. That is exactly
+ * the "last significant change" semantic lastmod asks for.
+ *
+ * The second test is the one that matters: an exception that quietly widened
+ * back to every route would restore the original defect, and the first test
+ * alone would still pass.
+ */
+describe("sitemap lastmod is real, never a request-time date", () => {
+  it("open job pages carry a lastmod taken from datePosted", async () => {
+    const { JOB_OPENINGS } = await import("../shared/jobOpenings");
+    const open = JOB_OPENINGS.filter((j) => j.status === "open");
+    expect(open.length, "no open roles - this assertion would be vacuous").toBeGreaterThan(0);
+    for (const j of open) {
+      expect(j.datePosted, `${j.slug} has no datePosted to emit`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8"),
+    );
+    expect(src).toContain("jobLastmod");
+    expect(src, "the map must be keyed by the same /careers/<slug> path the loc uses").toContain(
+      "jobLastmod.set(`/careers/${j.slug}`",
+    );
+    expect(src, "closed roles are 404 and must never be advertised").toContain('j.status !== "open"');
+
+    // THE ASSERTION THAT MATTERS, added after the first version of this test
+    // passed with the emission DELETED. Building the map and never emitting it
+    // is precisely the producer-with-no-consumer shape - the map existed, the
+    // dates were right, and the sitemap carried none of them. Assert the value
+    // reaches the XML, not merely that it was computed.
+    expect(src, "the map must be READ into the <url> entry, not just built").toContain(
+      "sitemapLastmod(jobLastmod.get(p.path))",
+    );
+  });
+
+  it("the static-route branch still emits NO request-time date", async () => {
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8"),
+    );
+    // The defect being guarded: a `new Date()` anywhere in the lastmod path.
+    //
+    // sliceBlock, not src.slice(src.indexOf(...)) - caught by this repo's own
+    // fail-open-slice gate on the first push of this branch. A missing anchor
+    // makes indexOf return -1, slice() then reads from the END of the file, and
+    // the assertion passes against unrelated text. sliceBlock throws instead.
+    const lastmodHelper = sliceBlock(src, "const sitemapLastmod", "// Sitemap.xml", {
+      label: "_core/index.ts",
+    });
+    expect(lastmodHelper, "lastmod must come from a supplied Date, never from now()").not.toContain("new Date()");
   });
 });
