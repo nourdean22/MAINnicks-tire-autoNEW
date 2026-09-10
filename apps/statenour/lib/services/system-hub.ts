@@ -189,8 +189,16 @@ export async function buildSystemHub() {
        * `measured: true` beside a total that was really only a floor.
        *
        * So: measured means every scan actually ran.
+       *
+       * Optional-chained on purpose. A report from a fixture, an older
+       * cache entry, or any producer that predates the field has NO
+       * `degradedReads`, and absent must read as "nothing known to be
+       * degraded" -- not as degraded, and certainly not as a crash. The
+       * first version dereferenced it directly and took down five cases
+       * in tests/lib/system-hub-measured.test.ts with
+       * "Cannot read properties of undefined".
        */
-      measured: staleReport !== null && staleReport.degradedReads.length === 0,
+      measured: staleReport !== null && (staleReport.degradedReads?.length ?? 0) === 0,
       /** Which scans were not measured. Empty on a healthy scan. */
       unmeasuredScans: staleReport?.degradedReads ?? [],
     },
