@@ -915,8 +915,14 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     mode = args.mode or ("commissioning" if args.commissioning_run else base_mode)
     if args.commissioning_run:
         mode = "commissioning"
-    data_class = "COMMISSIONING" if mode == "commissioning" else "PRODUCTION"
+    # REPLAY is a first-class lane, not a mode. The shop's every counter filters on
+    # `dataClass = 'PRODUCTION'`, so a replay producer can post real rows against live data --
+    # which is how a challenger gets evaluated against reality without touching the lot's
+    # truth. The route has accepted REPLAY since migration 0120 and nothing has ever sent it.
+    base_class = "REPLAY" if args.replay else "PRODUCTION"
+    data_class = "COMMISSIONING" if mode == "commissioning" else base_class
     pipeline.shop.data_class = data_class
+    pipeline.shop.base_data_class = base_class
     pipeline.shop.commissioning_run_id = args.commissioning_run
     # Provenance the shop stores per visit. Config values win where set; the calibration
     # hash is computed here because only this process knows which file it loaded.
@@ -1003,6 +1009,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="exit(3) after this long with NO frame at all so the supervisor restarts; "
                          "0 disables. A frozen-but-delivering camera is NOT a stall -- that is "
                          "reported as degraded vision, and restarting on it would only thrash")
+    ap.add_argument("--replay", action="store_true",
+                    help="tag every visit dataClass=REPLAY. The shop filters its counters on "
+                         "PRODUCTION, so a replay lane can post real rows against live data "
+                         "without touching the lot truth.")
     ap.add_argument("--dry-run", action="store_true", help="never POST to StateNour; the shop lane is unaffected")
     ap.add_argument("--log-level", default="INFO")
     return ap.parse_args(argv)

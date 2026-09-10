@@ -573,6 +573,7 @@ def _args(**over):
         shadow_ledger=None,
         relocate_seconds=120.0,
         challenger_model=None,
+        replay=False,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)

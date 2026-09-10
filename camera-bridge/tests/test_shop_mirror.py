@@ -529,3 +529,44 @@ class TransportMustNotTruncateTheHandshakeTest(unittest.TestCase):
         self.assertEqual(returns, ["return resp.status_code, resp.text"],
                          "the transport must hand back the WHOLE body; truncation belongs "
                          "where text is PRINTED, not where it is RETURNED")
+
+
+class ReplayLaneTest(unittest.TestCase):
+    """REPLAY is a first-class lane, and leaving commissioning must not promote it.
+
+    Every shop counter filters on `dataClass = 'PRODUCTION'`, so a replay producer can post
+    real rows against live data without touching the lot's truth -- which is how a challenger
+    gets evaluated against reality. That only holds if the tag SURVIVES a commissioning run.
+    """
+
+    def _mirror(self, **kw):
+        return ShopMirror("https://nickstire.org/api/camera/visits", "k",
+                          transport=Recorder(), **kw)
+
+    def test_leaving_commissioning_RESTORES_the_base_lane_not_a_literal(self):
+        """Hardcoding PRODUCTION here promoted a REPLAY producer's rows into the live counters
+        the moment a run ended -- and nothing would report it, because a PRODUCTION row is
+        exactly what the counters expect to see."""
+        m = self._mirror(data_class="REPLAY")
+        self.assertEqual(m.base_data_class, "REPLAY")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": {"runId": "C-1"}}')
+        self.assertEqual(m.data_class, "COMMISSIONING")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": null}')
+        self.assertEqual(m.data_class, "REPLAY", "a replay lane must come out as replay")
+
+    def test_a_PRODUCTION_producer_still_comes_back_as_PRODUCTION(self):
+        """The positive control: the fix must not change the ordinary case."""
+        m = self._mirror()
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": {"runId": "C-2"}}')
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": null}')
+        self.assertEqual(m.data_class, "PRODUCTION")
+
+    def test_COMMISSIONING_is_never_adopted_as_a_BASE(self):
+        """A mirror constructed mid-run would otherwise latch COMMISSIONING as its base and
+        never be able to leave it -- the exact shape of the `base_mode` defect next door."""
+        m = self._mirror(data_class="COMMISSIONING")
+        self.assertEqual(m.base_data_class, "PRODUCTION")
