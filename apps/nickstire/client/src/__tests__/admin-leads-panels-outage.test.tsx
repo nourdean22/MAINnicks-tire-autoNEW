@@ -31,6 +31,7 @@ const h = vi.hoisted(() => ({
   // way of the outage assertions; the tests that care set it explicitly.
   slaBreaches: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
   history: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
+  disqualifyCalls: [] as Array<{ id: number; reason: string }>,
 }));
 
 // vi.mock is hoisted above every top-level const, so the mutation stub is
@@ -63,7 +64,12 @@ vi.mock("@/lib/trpc", () => {
         orphans: { useQuery: () => ({ data: { available: true, rows: [] } }) },
         markHired: { useMutation: stub },
         markPaid: { useMutation: stub },
-        disqualify: { useMutation: stub },
+        disqualify: {
+          useMutation: () => ({
+            mutate: (v: { id: number; reason: string }) => h.disqualifyCalls.push(v),
+            isPending: false,
+          }),
+        },
         markForfeited: { useMutation: stub },
         // Per-row audit history. Its query is `enabled` only once a row is
         // expanded, so it never fires in these tests - but the panel still
@@ -90,6 +96,7 @@ beforeEach(() => {
   h.referrals = { data: undefined, isLoading: false, isError: false, error: null };
   h.slaBreaches = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
   h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+  h.disqualifyCalls = [];
 });
 
 describe("CandidatesPanel", () => {
@@ -287,5 +294,88 @@ describe("TechnicianReferralsPanel - referral history shows the reason", () => {
 
     expect(screen.getByText(/No recorded actions yet/i)).toBeTruthy();
     expect(screen.queryByText(/Couldn.t read the audit trail/i)).toBeNull();
+  });
+});
+
+/**
+ * The reason a $300 refusal records is CAPTURED, and no native primitive is used.
+ *
+ * iOS PWA standalone silently suppresses window.prompt/alert/confirm - they
+ * return null with no UI - which is the most-recurring bug class in this
+ * codebase (5+ waves). Disqualify and Forfeit used to send a CANNED string, so
+ * the audit row answered who and when and restated the question; the fix must
+ * not trade that for a primitive that does nothing on the operator's phone.
+ */
+describe("TechnicianReferralsPanel - refusal reasons are captured, not templated", () => {
+  const eligibleRow = () =>
+    ok([
+      {
+        id: 9,
+        status: "eligible",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: new Date("2026-07-01").toISOString(),
+        // Clock still running, so Forfeit is offered.
+        eligibleAt: new Date(Date.now() + 30 * 864e5).toISOString(),
+        paidAt: null,
+        createdAt: new Date("2026-07-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("never calls window.prompt - it expands an in-DOM chip list", () => {
+    const promptSpy = vi.spyOn(window, "prompt");
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+
+    expect(promptSpy, "window.prompt is suppressed in iOS PWA standalone").not.toHaveBeenCalled();
+    expect(screen.getByText(/WHY IS THE CLAIM INVALID/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Self-referral$/ })).toBeTruthy();
+    promptSpy.mockRestore();
+  });
+
+  it("forfeit offers its OWN vocabulary, not the disqualify one", () => {
+    // The whole point of two terminal states is that they answer different
+    // questions. One shared reason list would collapse that back.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /forfeit/i }));
+
+    expect(screen.getByText(/WHY IS NO BONUS OWED/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Quit before 90 days$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Self-referral$/ })).toBeNull();
+  });
+
+  it("the chosen reason reaches the mutation, with the linkage fact kept", () => {
+    // The old canned string carried exactly two facts - whether the referral was
+    // linked to a candidate, and who it named. Keeping them means this strictly
+    // ADDS information rather than trading one thin record for another.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Self-referral$/ }));
+
+    expect(h.disqualifyCalls.length).toBe(1);
+    expect(h.disqualifyCalls[0].id).toBe(9);
+    expect(h.disqualifyCalls[0].reason).toContain("Self-referral");
+    expect(h.disqualifyCalls[0].reason).toContain("Alex Kim");
+  });
+
+  it("collapsed by default - the list is not open until asked", () => {
+    // The positive control. Without it, a component that rendered its chips
+    // unconditionally would satisfy every assertion above.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+
+    expect(screen.queryByText(/WHY IS THE CLAIM INVALID/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Self-referral$/ })).toBeNull();
   });
 });
