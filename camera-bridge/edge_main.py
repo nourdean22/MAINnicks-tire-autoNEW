@@ -1314,8 +1314,20 @@ class EdgeLoop:
             except Exception:
                 log.exception("shadow stats unreadable")
         if self.relocate_seconds > 0:
-            log.info("scene revalidation ran %d time(s); the layout moved %d time(s)",
-                     self.revalidations, self.relocations)
+            # THE THIRD NUMBER IS THE POINT. Ran-vs-moved was already two facts, and the
+            # missing one is the fault: a pass that could not confirm the binding at all.
+            # Without it, "ran 24, moved 0" reads as a stable shift whether the locator
+            # confirmed the scene 24 times or failed to find it 24 times.
+            #
+            # This log line is currently the ONLY reader of `relocate_failures`. The
+            # heartbeat cannot carry it without a new column in `HEARTBEAT_COLUMNS`
+            # (`cameraVisitsRoutes.ts`), which needs a hand-applied TiDB migration and is
+            # operator-gated -- so it is named here as a known gap rather than left as a
+            # counter nobody reads. `edge_relocate_unconfirmed_total` is on the metrics
+            # registry in the meantime.
+            log.info("scene revalidation ran %d time(s); the layout moved %d time(s); "
+                     "%d pass(es) could not confirm the binding",
+                     self.revalidations, self.relocations, self.relocate_failures)
 
 
 # ---------------------------------------------------------------------------- wiring
