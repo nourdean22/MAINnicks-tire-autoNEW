@@ -38,6 +38,7 @@ import {
 } from "@/lib/ai/output-critic";
 import { parseCitations } from "@/lib/ai/memory-citations";
 import { runReplyGate, runReplyGateWithContract, formatGateSummary } from "@/lib/ai/reply-gate";
+import { shapeCeiling } from "@/lib/ai/chat/output-guardian";
 import type { ResponseContract } from "@/lib/ai/response-contract";
 import {
   factCheck,
@@ -486,7 +487,11 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
               unverifiedFactCount: unverifiedCount,
               totalFactCount: factClaims.length,
               wordCount: cleanedText.trim().split(/\s+/).filter(Boolean).length,
-              lengthCeiling: 300,
+              // Shape-aware, not hardcoded: the ceiling is 40 for sms,
+              // 120 for summary, 400 for code. Assuming prose would
+              // corrupt the E4 false-positive measurement in BOTH
+              // directions on every non-prose turn.
+              lengthCeiling: shapeCeiling(turnSignal.outputShape),
               namedSources: named,
             },
           );

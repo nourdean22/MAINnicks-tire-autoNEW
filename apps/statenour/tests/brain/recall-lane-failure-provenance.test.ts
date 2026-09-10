@@ -104,3 +104,116 @@ describe("a partial outage still serves results, and says so", () => {
     expect(report.provenanceReason).toMatch(/lane\(s\) failed/i);
   });
 });
+
+/**
+ * SELF-REVIEW REGRESSIONS -- 2026-09-10.
+ *
+ * Both of these were found by re-reading the diff, not by a failing
+ * test, which is the point: the first version of the ledger had no
+ * coverage for "some lanes died AND the survivors matched nothing", and
+ * that gap is exactly where it was wrong.
+ */
+describe("a partial outage with no hits is ERROR, not a measured ZERO", () => {
+  it("some lanes dead + survivors match nothing => ERROR", async () => {
+    // Lexical answers, but with zero rows. Vector lanes are dead.
+    queryRawUnsafe.mockImplementation((sql: unknown) => {
+      if (typeof sql === "string" && sql.includes("websearch_to_tsquery")) {
+        return Promise.resolve([]);
+      }
+      return dbDown();
+    });
+
+    const report = await recallMemoriesForQuery("something never discussed", {
+      embedding: EMBEDDING,
+      limit: 5,
+    });
+
+    expect(report.hits).toHaveLength(0);
+    // The bug: this returned "ZERO" while its own reason string called
+    // it a partial outage. A zero is trustworthy only if every lane ran.
+    expect(report.provenance).toBe("ERROR");
+    expect(report.provenanceReason).toMatch(/partial outage, not a measured empty/i);
+  });
+
+  // CONTROL: with every lane healthy and nothing matching, the zero is
+  // real and must be reported as such -- otherwise the fix above turns
+  // every genuine no-match into a scary "read failed".
+  it("CONTROL - all lanes healthy + nothing matched => a true ZERO", async () => {
+    queryRawUnsafe.mockImplementation(() => Promise.resolve([]));
+    const report = await recallMemoriesForQuery("something never discussed", {
+      embedding: EMBEDDING,
+      limit: 5,
+    });
+    expect(report.provenance).toBe("ZERO");
+    expect(report.provenanceReason).toBeUndefined();
+  });
+});
+
+describe("the embedding-outage path reports the lexical lane honestly", () => {
+  it("embedding gone AND lexical dead => says nothing was searched", async () => {
+    // The original omitted the failure sink here, so this case reported
+    // "lexical retrieval matched nothing" -- a measured zero for a lane
+    // that had thrown.
+    queryRawUnsafe.mockImplementation(dbDown);
+    const report = await recallMemoriesForQuery("the taper plan", { embedding: [], limit: 5 });
+    expect(report.provenance).toBe("ERROR");
+    expect(report.provenanceReason).toMatch(/lexical lane failed/i);
+    expect(report.provenanceReason).toMatch(/nothing was searched/i);
+  });
+
+  it("CONTROL - embedding gone but lexical RAN and matched nothing says so", async () => {
+    queryRawUnsafe.mockImplementation(() => Promise.resolve([]));
+    const report = await recallMemoriesForQuery("the taper plan", { embedding: [], limit: 5 });
+    expect(report.provenance).toBe("ERROR"); // dense lanes still did not run
+    expect(report.provenanceReason).toMatch(/ran and matched nothing/i);
+  });
+});
+
+describe("the lexical lane honours the CONTEXT_CATEGORIES anti-list", () => {
+  /**
+   * Review finding, 2026-09-10. The first version of the lexical lane
+   * had no category predicate. Every other lane in this file excludes
+   * telemetry / marker / alert rows -- the main lane post-filters on
+   * CONTEXT_CATEGORIES, the durable lane restricts in SQL. Skipping it
+   * is WORSE for lexical than for dense: lexical needs only literal
+   * token overlap, so "what happened at 3am" reaches an alert row
+   * reading "High CPU at 3am".
+   *
+   * The original justification cited a measured hit@5 = 0/28, but that
+   * finding was about DURABLE_PERSONAL_CATEGORIES losing personal facts
+   * inside a fixed KNN window -- a different filter solving a different
+   * problem.
+   */
+  it("passes the category allow-list to the query as a bound parameter", async () => {
+    let lexicalParams: unknown[] = [];
+    queryRawUnsafe.mockImplementation((sql: unknown, ...params: unknown[]) => {
+      if (typeof sql === "string" && sql.includes("websearch_to_tsquery")) {
+        lexicalParams = params;
+        expect(sql).toMatch(/bm\.category = ANY\(\$2\)/);
+      }
+      return Promise.resolve([]);
+    });
+
+    await recallMemoriesForQuery("what happened at 3am", { embedding: EMBEDDING, limit: 5 });
+
+    // $2 is the allow-list, bound (not interpolated).
+    expect(Array.isArray(lexicalParams[1])).toBe(true);
+    const cats = lexicalParams[1] as string[];
+    expect(cats.length).toBeGreaterThan(0);
+    // CONTROL: the list must still carry real conversational categories,
+    // or the "filter" is just switching the lane off -- which would pass
+    // the anti-list assertion above while deleting the feature.
+    expect(cats).toContain("preference");
+    expect(cats).toContain("decision_log");
+    // And the anti-list members must be absent. This is the invariant
+    // the finding was actually about: lexical needs only literal token
+    // overlap, so "what happened at 3am" would otherwise reach an alert
+    // row reading "High CPU at 3am".
+    expect(cats).not.toContain("telemetry");
+    expect(cats).not.toContain("alert");
+    expect(cats).not.toContain("marker");
+    // gmail_thread is inbound third-party mail -- fenced elsewhere, and
+    // it must not be a lexical recall target either.
+    expect(cats).not.toContain("gmail_thread");
+  });
+});

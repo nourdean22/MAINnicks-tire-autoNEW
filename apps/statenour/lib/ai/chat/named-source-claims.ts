@@ -148,6 +148,34 @@ export function normalizeName(raw: string): string {
     .trim();
 }
 
+/**
+ * Drop leading scaffolding words the prefix group swallowed.
+ *
+ * 2026-09-10 self-review · `NAME_THEN_NOUN_RE` allows up to four
+ * capitalized tokens before the head noun, so "Try the Daily Stoic
+ * podcast" captured the NAME as "Try the Daily Stoic". That is not
+ * cosmetic: `hasReceipt` compares normalized names against the tool
+ * result, and "try the daily stoic" does not appear in evidence
+ * containing "Daily Stoic" -- so a genuinely SEARCHED recommendation
+ * would read as unreceipted and be stripped from the reply. A
+ * false positive here deletes correct work, which is worse than the
+ * fabrication it was built to catch.
+ *
+ * STOPWORD_NAMES already enumerates this vocabulary; it was only being
+ * used to reject whole names, never to trim a prefix.
+ */
+const STOPWORDS_LOWER = new Set([...STOPWORD_NAMES].map((w) => w.toLowerCase()));
+
+function trimLeadingStopwords(raw: string): string {
+  const words = raw.trim().split(/\s+/);
+  let i = 0;
+  // Case-insensitive: the prefix group swallows lowercase connectors
+  // ("of", "the", "and") as well as capitalized leads, so matching only
+  // the capitalized forms left "the Daily Stoic" behind.
+  while (i < words.length - 1 && STOPWORDS_LOWER.has(words[i].toLowerCase())) i++;
+  return words.slice(i).join(" ");
+}
+
 function isPlausibleName(raw: string): boolean {
   const trimmed = raw.trim();
   if (trimmed.length < 3 || trimmed.length > 70) return false;
@@ -169,7 +197,7 @@ export function detectNamedSources(text: string): NamedSourceClaim[] {
   const found = new Map<string, NamedSourceClaim>();
 
   const push = (name: string, kind: string, index: number, titleMarked: boolean) => {
-    const clean = name.replace(/^["'“‘*_]+|["'”’*_]+$/g, "").trim();
+    const clean = trimLeadingStopwords(name.replace(/^["'“‘*_]+|["'”’*_]+$/g, "").trim());
     if (!isPlausibleName(clean)) return;
     const key = normalizeName(clean);
     if (!key || found.has(key)) return;

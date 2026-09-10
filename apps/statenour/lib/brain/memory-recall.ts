@@ -373,10 +373,23 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
  *     degrades to lexical instead of going blind -- which is the
  *     difference between a slow provider and an amnesiac assistant.
  *
- * Deliberately NOT category-filtered: the main dense lane post-filters
- * its top-30 against CONTEXT_CATEGORIES, and this file's own comment
- * measures that filter at hit@5 = 0/28 on the labelled corpus.
- * Reproducing it here would import the same defect.
+ * CATEGORY FILTERING -- corrected 2026-09-10 after review.
+ *
+ * The first version of this lane skipped category filtering entirely,
+ * justified by the durable-lane finding that post-filtering a top-30 KNN
+ * measured hit@5 = 0/28. That conflated two different filters. The 0/28
+ * result was about DURABLE_PERSONAL_CATEGORIES losing personal facts
+ * inside a fixed candidate window -- it said nothing about
+ * CONTEXT_CATEGORIES, whose job is an ANTI-LIST: telemetry, markers and
+ * alerts, which do not help a conversation.
+ *
+ * Skipping it was worse here than in the dense lanes, not better:
+ * lexical matching needs only literal token overlap, so "what happened
+ * at 3am" reaches an alert row reading "High CPU at 3am" that every
+ * other lane in this file is built to exclude.
+ *
+ * Filtered in SQL rather than after the fact, so LIMIT applies to
+ * eligible rows and the lane keeps its full candidate budget.
  */
 function lexicalLane(query: string, limit: number, onFail?: () => void): Promise<KnnRow[]> {
   return prisma
@@ -396,11 +409,13 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
          AND bm.confidence >= 0.3
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND bm.category = ANY($2)
          AND to_tsvector('english', bm.content) @@ websearch_to_tsquery('english', $1)
        ORDER BY ts_rank(to_tsvector('english', bm.content),
                         websearch_to_tsquery('english', $1)) DESC
        LIMIT ${limit}`,
       query,
+      [...CONTEXT_CATEGORIES],
     )
     .catch((err) => {
       log.warn("lexical_lane_failed", {
@@ -472,7 +487,16 @@ export async function recallMemoriesForQuery(
     // the 2026-09-10 audit made. The lexical lane needs no query vector,
     // so a dense-side outage costs ranking quality, not memory itself.
     log.warn("recall_no_embedding", { queryLen: query.length });
-    const lexicalOnly = await lexicalLane(query, limit);
+    // Self-review 2026-09-10 · this call originally omitted the failure
+    // sink, so a lexical lane that ALSO threw produced hits: [] and a
+    // reason reading "lexical retrieval matched nothing" -- asserting a
+    // measured zero for a lane that had errored. That is the exact
+    // empty-vs-error inversion this file exists to remove, reintroduced
+    // on the one path built to survive an outage.
+    let lexicalFailed = false;
+    const lexicalOnly = await lexicalLane(query, limit, () => {
+      lexicalFailed = true;
+    });
     const now = Date.now();
     const hits = lexicalOnly.map((r) => scoreRow(r, now)).slice(0, limit);
     return {
@@ -484,10 +508,11 @@ export async function recallMemoriesForQuery(
       // Still ERROR: the dense lanes genuinely did not run, and callers
       // must not read this as a clean result. But the hits are real.
       provenance: "ERROR",
-      provenanceReason:
-        hits.length > 0
+      provenanceReason: lexicalFailed
+        ? "query embedding unavailable AND the lexical lane failed -- nothing was searched; recall state unknown"
+        : hits.length > 0
           ? `query embedding unavailable -- degraded to lexical retrieval (${hits.length} hit${hits.length === 1 ? "" : "s"}); ranking is weaker than usual`
-          : "query embedding unavailable and lexical retrieval matched nothing -- recall state unknown",
+          : "query embedding unavailable; the lexical lane ran and matched nothing -- dense recall state unknown",
     };
   }
 
@@ -697,7 +722,14 @@ export async function recallMemoriesForQuery(
     provenance:
       scored.length > 0
         ? "OK"
-        : laneFailures.length === LANE_COUNT
+        // Self-review 2026-09-10 · this keyed only on "every lane
+        // failed", so a PARTIAL outage with no hits reported ZERO -- a
+        // measured empty -- while its own reason string called it a
+        // partial outage. Both cannot be true. A zero is trustworthy
+        // only when every lane actually ran; if any lane died, an empty
+        // result is an unknown. Same inversion this file exists to
+        // remove, one level down.
+        : laneFailures.length > 0
           ? "ERROR"
           : "ZERO",
     provenanceReason:
@@ -705,7 +737,9 @@ export async function recallMemoriesForQuery(
         ? undefined
         : laneFailures.length === LANE_COUNT
           ? `every retrieval lane failed (${laneFailures.join(", ")}) -- recall state unknown, not empty`
-          : `${laneFailures.join(", ")} lane(s) failed; results are from the surviving lane(s) and ranking is weaker than usual`,
+          : scored.length > 0
+            ? `${laneFailures.join(", ")} lane(s) failed; results are from the surviving lane(s) and ranking is weaker than usual`
+            : `${laneFailures.join(", ")} lane(s) failed and the surviving lane(s) matched nothing -- a partial outage, not a measured empty`,
   };
 }
 

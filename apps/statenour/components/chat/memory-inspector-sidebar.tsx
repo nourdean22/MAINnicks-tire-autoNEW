@@ -197,6 +197,32 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               Remembered — what Nick believes ({hits.length})
             </span>
           </div>
+          {/*
+            2026-09-10 (review) · a DEGRADED read that still returned
+            hits must not render as a clean one.
+
+            The provenance branches below only fire when `hits` is
+            empty, so the exact case the outage path was built to
+            produce -- dense retrieval down, lexical fallback returning
+            real rows, `provenance: "ERROR"` -- rendered as an ordinary
+            list with per-hit "% Match" scores and no hint that ranking
+            was degraded. The producer's own comment says "callers must
+            not read this as a clean result"; this is the consumer
+            finally honouring it.
+          */}
+          {hits.length > 0 && recallProvenance && recallProvenance !== "OK" ? (
+            <div className="flex items-start space-x-1.5 mb-3">
+              <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-300/90">
+                Degraded retrieval &mdash; these hits are real, but ranking is weaker than usual.
+                {recallProvenanceReason ? (
+                  <span className="block text-[10px] text-zinc-500 mt-0.5">
+                    {recallProvenanceReason}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
           {hits.length === 0 ? (
             // THREE STATES, never two. A failed read must not wear the
             // same clothes as an empty one.

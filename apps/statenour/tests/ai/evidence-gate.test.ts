@@ -22,6 +22,7 @@ import {
   type GateEvidence,
 } from "@/lib/ai/reply-gate";
 import { classifyTurn } from "@/lib/ai/turn-intelligence";
+import { shapeCeiling } from "@/lib/ai/chat/output-guardian";
 import {
   checkNamedSources,
   detectNamedSources,
@@ -280,5 +281,31 @@ describe("false-positive floor -- the gate must not block ordinary speech", () =
 
   it("plain prose yields no named-source claims at all", () => {
     expect(detectNamedSources(ORDINARY.join("\n"))).toHaveLength(0);
+  });
+});
+
+describe("the ceiling is shape-aware, not assumed to be prose", () => {
+  // Self-review 2026-09-10 · the shadow gate hardcoded 300. The ceiling
+  // is 40 for sms and 400 for code, so assuming prose corrupts the
+  // measurement in BOTH directions on every non-prose turn: a 70-word
+  // SMS (175% over its real ceiling) reads as fine, and a healthy
+  // 500-word code answer reads as a violation.
+  it("exposes the real ceiling per shape", () => {
+    expect(shapeCeiling("prose")).toBe(300);
+    expect(shapeCeiling("sms")).toBe(40);
+    expect(shapeCeiling("code")).toBe(400);
+    expect(shapeCeiling("summary")).toBe(120);
+  });
+
+  it("falls back to prose for an unknown or missing shape", () => {
+    expect(shapeCeiling(undefined)).toBe(300);
+    expect(shapeCeiling("not-a-shape")).toBe(300);
+  });
+
+  it("a 70-word SMS is an overrun; the same 70 words as prose is not", () => {
+    const sms = run(PLAIN_REPLY, ASK, cleanEvidence({ wordCount: 70, lengthCeiling: shapeCeiling("sms") }));
+    expect(sms.evidenceSignals.lengthOverrun).toBe(true);
+    const prose = run(PLAIN_REPLY, ASK, cleanEvidence({ wordCount: 70, lengthCeiling: shapeCeiling("prose") }));
+    expect(prose.evidenceSignals.lengthOverrun).toBe(false);
   });
 });
