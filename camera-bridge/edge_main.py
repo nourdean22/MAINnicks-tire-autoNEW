@@ -544,6 +544,16 @@ class EdgeLoop:
                     log.info("hard case saved on shutdown %s", path)
             except Exception:
                 log.exception("final hard-case flush failed")
+            # REPORT THE CORPUS AT THE ONE MOMENT SOMEONE LOOKS. An empty directory is a
+            # legitimate outcome -- a quiet shift genuinely produces no hard cases -- and it
+            # is indistinguishable on disk from a recorder whose every write failed. The
+            # heartbeat carries this for the shop; this line carries it for whoever is
+            # reading the producer's own log after a run.
+            try:
+                stats = self.hard_cases.stats
+                log.info("hard-case corpus %s healthy=%s", stats.describe(), stats.healthy)
+            except Exception:
+                log.exception("hard-case stats unreadable")
 
 
 # ---------------------------------------------------------------------------- wiring
