@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -670,6 +670,31 @@ export async function getTechnicianReferralById(id: number): Promise<TechnicianR
   return row;
 }
 
+/**
+ * Update a referral's payout state — CONDITIONALLY.
+ *
+ * TWO DEFECTS THIS REPLACES, both of which cost money rather than accuracy.
+ *
+ * 1. It reported success for a write that matched nothing. `affectedRows` was
+ *    discarded and `{ success: true }` returned unconditionally, so calling
+ *    with a nonexistent id toasted "Updated." in the admin panel while the
+ *    database was untouched. An operator marking a bonus paid had no way to
+ *    learn it had not been.
+ *
+ * 2. No transition guard. The only status precondition lived in the UI
+ *    (TechnicianReferralsPanel renders the buttons by status), so a stale tab
+ *    — or any `leads.manage` holder, a tier that includes front_desk — could
+ *    move a PAID referral back to `eligible` with a fresh 90-day clock while
+ *    `paidAt` stayed set. That is a second $300 on one referral, and the audit
+ *    row could not show it because these actions do not pass an actor.
+ *
+ * `expectStatus` makes the guard atomic: the status is part of the WHERE, so
+ * two concurrent clicks cannot both observe `pending` and both proceed. A
+ * caller that omits it is explicitly saying any state may transition.
+ *
+ * Returns `matched` so a caller can tell "not found or wrong state" from
+ * "done", instead of both looking like success.
+ */
 export async function updateTechnicianReferralStatus(
   id: number,
   updates: {
@@ -679,11 +704,24 @@ export async function updateTechnicianReferralStatus(
     paidAt?: Date;
     disqualifiedReason?: string;
   },
+  opts: { expectStatus?: Array<"pending" | "eligible" | "paid" | "disqualified" | "forfeited"> } = {},
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(technicianReferrals).set(updates).where(eq(technicianReferrals.id, id));
-  return { success: true };
+
+  const where = opts.expectStatus?.length
+    ? and(
+        eq(technicianReferrals.id, id),
+        inArray(technicianReferrals.status, opts.expectStatus),
+      )
+    : eq(technicianReferrals.id, id);
+
+  const res = await db.update(technicianReferrals).set(updates).where(where);
+  // mysql2 returns ResultSetHeader; drizzle wraps it in a tuple.
+  const matched = Number(
+    (res as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0,
+  );
+  return { success: matched > 0, matched };
 }
 
 // ─── CANDIDATE QUERIES ─────────────────────────────────

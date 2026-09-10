@@ -99,7 +99,23 @@ export const technicianReferralsRouter = router({
     .mutation(async ({ input }) => {
       const hiredAt = new Date();
       const eligibleAt = new Date(hiredAt.getTime() + NINETY_DAYS_MS);
-      await updateTechnicianReferralStatus(input.id, { status: "eligible", hiredAt, eligibleAt });
+      // ONLY from pending. Without this precondition the only guard was the
+      // UI rendering the button by status, so a stale tab could move a PAID
+      // referral back to eligible with a FRESH 90-day clock while paidAt
+      // stayed set — a second $300 on one referral. The status is part of the
+      // WHERE, so two concurrent clicks cannot both observe pending.
+      const res = await updateTechnicianReferralStatus(
+        input.id,
+        { status: "eligible", hiredAt, eligibleAt },
+        { expectStatus: ["pending"] },
+      );
+      if (!res.success) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "This referral is no longer pending — reload before marking it hired. Re-hiring an already-paid referral would start a second 90-day clock.",
+        });
+      }
       logAdminAction({
         action: "technician_referral.marked_hired",
         entityType: "technician_referral",
@@ -130,7 +146,20 @@ export const technicianReferralsRouter = router({
           message: `Not eligible until ${referral.eligibleAt ? referral.eligibleAt.toISOString().split("T")[0] : "unknown"} — the 90-day wait isn't up yet.`,
         });
       }
-      await updateTechnicianReferralStatus(input.id, { status: "paid", paidAt: new Date() });
+      // The checks above are a READ-then-write: two concurrent clicks both
+      // observe "eligible" and both proceed, paying twice. expectStatus puts
+      // the status in the WHERE so exactly one of them matches a row.
+      const paid = await updateTechnicianReferralStatus(
+        input.id,
+        { status: "paid", paidAt: new Date() },
+        { expectStatus: ["eligible"] },
+      );
+      if (!paid.success) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This referral was already paid or changed state — reload before paying it again.",
+        });
+      }
       logAdminAction({
         action: "technician_referral.marked_paid",
         entityType: "technician_referral",
@@ -143,7 +172,20 @@ export const technicianReferralsRouter = router({
   disqualify: adminProcedure
     .input(z.object({ id: z.number(), reason: z.string().min(1).max(500) }))
     .mutation(async ({ input }) => {
-      await updateTechnicianReferralStatus(input.id, { status: "disqualified", disqualifiedReason: input.reason });
+      // A PAID referral cannot be disqualified: the money is already out, so
+      // flipping the record would misstate what happened rather than undo it.
+      // Reversing a payout is an accounting action, not a status edit.
+      const dq = await updateTechnicianReferralStatus(
+        input.id,
+        { status: "disqualified", disqualifiedReason: input.reason },
+        { expectStatus: ["pending", "eligible"] },
+      );
+      if (!dq.success) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Only a pending or eligible referral can be disqualified — a paid one needs an accounting reversal, not a status change.",
+        });
+      }
       logAdminAction({
         action: "technician_referral.disqualified",
         entityType: "technician_referral",
