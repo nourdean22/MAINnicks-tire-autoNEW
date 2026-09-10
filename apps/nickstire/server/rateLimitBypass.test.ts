@@ -19,15 +19,18 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import express from "express";
 import type { Server } from "node:http";
+// THE REAL ONES, not copies. Both used to be local consts inside
+// registerCoreMiddleware, so this file re-implemented them under a comment
+// reading "verbatim from server/_core/index.ts" - which measures the copy: it
+// stays green while the shipped guard drifts. Extracted to _core/batchGuard.ts
+// so these tests exercise production code.
+import { withBatchRegex, blockBatchedLimits } from "./_core/batchGuard";
 
 const ORIGINAL = { ...process.env };
 afterEach(() => {
   process.env = { ...ORIGINAL };
 });
 
-/** The exact mount pattern server/_core/index.ts uses. */
-const withBatchRegex = (endpoint: string) =>
-  new RegExp(`^/api/trpc/(.*,)?${endpoint.replace(/\./g, "\\.")}(,.*)?$`);
 
 function listen(app: express.Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -42,15 +45,6 @@ function listen(app: express.Express): Promise<{ url: string; close: () => Promi
 }
 
 describe("batch guard fires under a RegExp mount", () => {
-  // The fixed guard, verbatim from server/_core/index.ts.
-  const blockBatchedLimits = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const path = String(req.originalUrl ?? "").split("?")[0];
-    if (path.includes(",")) {
-      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
-    }
-    next();
-  };
-
   let srv: { url: string; close: () => Promise<void> };
   beforeEach(async () => {
     const app = express();

@@ -103,6 +103,7 @@ import { BUSINESS, SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
+import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
 
 const serverLog = createLogger("server");
 
@@ -269,29 +270,13 @@ async function startServer() {
   // to ensure tRPC batch requests (comma-separated boundaries) don't bypass
   // the limiters, and to match full endpoint names exactly.
 
-  const withBatchRegex = (endpoint: string) => new RegExp(`^/api/trpc/(.*,)?${endpoint.replace(/\./g, "\\.")}(,.*)?$`);
-
-  // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
-  // but express-rate-limit only counts it as 1 request.
-  //
-  // req.originalUrl, NOT req.path. These guards are mounted with
-  // `app.use(REGEX, ...)`, and inside a mounted handler Express rewrites
-  // req.path to the path RELATIVE to the mount — which for a RegExp mount is
-  // always "/". So `req.path.includes(",")` was false on every request ever
-  // made, and this guard has never once fired. Measured with real express and
-  // this file's own withBatchRegex: POST /api/trpc/chat.message,chat.message
-  // reported req.path === "/" and returned 200.
-  //
-  // The same trap is documented in agent memory for `app.use("*")` catch-alls,
-  // which is what makes it worth naming here rather than just fixing.
-  const blockBatchedLimits = (req: any, res: any, next: any) => {
-    // Strip the query string: a comma in ?foo=a,b is not a tRPC batch.
-    const path = String(req.originalUrl ?? "").split("?")[0];
-    if (path.includes(",")) {
-      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
-    }
-    next();
-  };
+  // withBatchRegex and blockBatchedLimits now live in ./batchGuard, imported at
+  // the top of this file. They were local consts here, which meant
+  // server/rateLimitBypass.test.ts could not import them and hand-rolled its own
+  // copies — a test that re-implements what it tests passes forever while the
+  // real one drifts. The full rationale, including why this guard reads
+  // req.originalUrl rather than req.path (under a RegExp mount req.path is "/",
+  // so the comma check never once fired), is in that file's doc comment.
 
   app.use(withBatchRegex("booking.uploadPhoto"), uploadLimiter);
   app.use(withBatchRegex("booking.create"), formLimiter);
