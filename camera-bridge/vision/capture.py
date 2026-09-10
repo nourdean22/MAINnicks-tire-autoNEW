@@ -429,6 +429,10 @@ class WgcWindowSource(CaptureSource):
         #: Non-zero means somebody is minimising the camera app on the shop machine --
         #: worth surfacing as producer health rather than silently self-healing forever.
         self.restores = 0
+        #: True when this platform refused `draw_border` and the session was retried with
+        #: the default border (Windows 10). Cosmetic on the frames, but it means the box
+        #: is pre-Win11 -- worth knowing before blaming the capture for a yellow edge.
+        self.border_unsupported = False
 
     def _restore_target(self) -> bool:
         """Un-minimise whatever this source is capturing. True if anything was minimised.
@@ -452,27 +456,47 @@ class WgcWindowSource(CaptureSource):
         from windows_capture import WindowsCapture
 
         self._lock = threading.Lock()
-        kwargs = {"cursor_capture": False, "draw_border": False}
-        if self.window_hwnd is not None:
-            kwargs["window_hwnd"] = int(self.window_hwnd)
-        else:
-            kwargs["window_name"] = self.window_title
-        cap = WindowsCapture(**kwargs)
+        target = ({"window_hwnd": int(self.window_hwnd)} if self.window_hwnd is not None
+                  else {"window_name": self.window_title})
 
-        @cap.event
-        def on_frame_arrived(frame, control):  # noqa: ANN001 - library callback
-            buf = frame.frame_buffer[:, :, :3].copy()
-            with self._lock:
-                self._latest = buf
-                self._latest_ts = time.time()
-                self._delivered += 1
+        def _start(**border):
+            cap = WindowsCapture(cursor_capture=False, **border, **target)
 
-        @cap.event
-        def on_closed():  # noqa: ANN202 - library callback
-            with self._lock:
-                self._latest = None
+            @cap.event
+            def on_frame_arrived(frame, control):  # noqa: ANN001 - library callback
+                buf = frame.frame_buffer[:, :, :3].copy()
+                with self._lock:
+                    self._latest = buf
+                    self._latest_ts = time.time()
+                    self._delivered += 1
 
-        self._ctrl = cap.start_free_threaded()
+            @cap.event
+            def on_closed():  # noqa: ANN202 - library callback
+                with self._lock:
+                    self._latest = None
+
+            return cap.start_free_threaded()
+
+        # `draw_border=False` hides the yellow capture border, but TOGGLING the border at
+        # all is a Windows 11 capability. On Windows 10 the session raises "Toggling the
+        # capture border is not supported by the Graphics Capture API on this platform" --
+        # and it raises from start_free_threaded(), not from the constructor, so the whole
+        # capture object has to be rebuilt to retry.
+        #
+        # This is not cosmetic. Measured on the shop PC (Windows 10 19045) 2026-09-10: the
+        # throw killed the WGC lane outright, `CaptureMux` failed over to the mss window
+        # lane, and mss grabs SCREEN pixels at the window rect -- so the detector was fed
+        # whatever happened to overlap the V380 window (a browser video, in the corpus clip
+        # that exposed this). Every frame carried window_verified=False and nothing else
+        # said a word. A visible border is strictly better than confidently reading the
+        # wrong pixels, so fall back to the platform default rather than to another lane.
+        try:
+            self._ctrl = _start(draw_border=False)
+        except Exception as exc:
+            if "border" not in str(exc).lower():
+                raise
+            self.border_unsupported = True
+            self._ctrl = _start()
         deadline = time.time() + 5.0
         while time.time() < deadline:
             with self._lock:
