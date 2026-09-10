@@ -36,6 +36,9 @@ class Track:
     entry_reason: str = ""
     degraded: bool = False               # camera moved while this track was alive
     confirmable: bool = False            # produced by a detector allowed to confirm
+    #: Wall-clock seconds this track existed through while the tracker could not observe
+    #: the lot at all. Subtracted from stillness -- see `stationary_for`.
+    blind_seconds: float = 0.0
     path: deque[tuple[float, float]] = field(default_factory=lambda: deque(maxlen=240))
     zones: list[str] = field(default_factory=list)
 
@@ -45,7 +48,35 @@ class Track:
         return ((x1 + x2) / 2.0, y2)
 
     def stationary_for(self, now: float) -> float:
-        return max(0.0, now - self.still_since)
+        """Seconds this track has been OBSERVED holding still.
+
+        `still_since` is a timestamp, and it is written in exactly one place: the matched
+        branch of `update()`, when a track moves further than `move_epsilon`. So it does
+        not advance while the tracker is not being stepped -- but the clock does, and
+        `now - still_since` would therefore count a blind interval as stillness.
+
+        That matters because stillness buys `parked_max_misses` (150) instead of
+        `max_misses` (12). A vehicle that was actively DRIVING when the camera lost the
+        lot -- a PTZ pan, an unverified capture, an untrusted pose -- would come back
+        promoted to "parked" purely because time passed while nobody was looking, and
+        would then be held for ~37s after it left rather than ~3s. A ghost held that long
+        sits on the departed car's last position and can absorb the next detection by IoU,
+        which merges two vehicles into one visit.
+
+        `mark_degraded()` already refuses to let a path span a blind interval, for the
+        same reason in the same words: "combining outside samples from BEFORE the blind
+        interval with inside samples from AFTER it reads as a portal crossing that nobody
+        observed." Stillness across a blind interval is parking that nobody observed.
+
+        The MOTION GATE is deliberately not blind time. A gated frame means the motion
+        detector ran and reported nothing moving, which is real evidence of stillness --
+        and it is most of the day on a quiet lot. Subtracting it would strip parked
+        protection from every genuinely parked car and re-create the churn `parked_after`
+        exists to stop (measured: 40 track births for ~7 stationary vehicles in 14 min).
+        The three callers of `mark_degraded()` are the ones that mean "I could not see",
+        and they are the only ones that accrue.
+        """
+        return max(0.0, now - self.still_since - self.blind_seconds)
 
 
 class TrackGraph:
@@ -71,6 +102,10 @@ class TrackGraph:
         self.parked_max_misses = parked_max_misses
         self.tracks: dict[int, Track] = {}
         self._next_id = 1
+        #: Timestamp of the FIRST frame of the blind interval currently in progress, or
+        #: None when the tracker is being stepped normally. Set by `mark_degraded(now)`,
+        #: consumed and cleared by the next `update()`.
+        self._blind_from: Optional[float] = None
 
     def _match(self, tracks: list[Track], dets: list[Detection], thresh: float
                ) -> tuple[list[tuple[Track, Detection]], list[Track], list[Detection]]:
@@ -97,6 +132,14 @@ class TrackGraph:
     def update(self, detections: Sequence[Detection], now: float,
                confirmable: bool = True) -> tuple[list[Track], list[Track]]:
         """Advance one frame. Returns (born, died)."""
+        # CLOSE ANY BLIND INTERVAL FIRST, before matching, pruning or birth. Every track
+        # alive right now existed through it unobserved, so each one owes that span; a
+        # track BORN below did not, and gets zero because it is created after this line.
+        if self._blind_from is not None:
+            blind = max(0.0, now - self._blind_from)
+            for t in self.tracks.values():
+                t.blind_seconds += blind
+            self._blind_from = None
         dets = list(detections)
         high = [d for d in dets if d.score >= self.high_score]
         low = [d for d in dets if d.score < self.high_score]
@@ -120,6 +163,11 @@ class TrackGraph:
             new_pt = t.ground_point
             if ((new_pt[0] - prev[0]) ** 2 + (new_pt[1] - prev[1]) ** 2) ** 0.5 > self.move_epsilon:
                 t.still_since = now
+                # The debt is cleared with the timestamp it was charged against. Leaving
+                # it would keep subtracting an old blind interval from a stillness that
+                # started after it, so a car that parked following a long pan could never
+                # accumulate enough observed stillness to be treated as parked.
+                t.blind_seconds = 0.0
             t.path.append(new_pt)
 
         died: list[Track] = []
@@ -143,7 +191,13 @@ class TrackGraph:
             # detector's confidence floor. It keeps its identity far longer. A track that
             # was still MOVING when it vanished keeps the short tolerance, so a car that
             # actually drives off is retired promptly.
-            still_for = now - t.still_since
+            # THROUGH THE ACCESSOR, never `now - t.still_since` inline. This is the one
+            # place stillness is ACTED on rather than merely read, and it held its own
+            # copy of the arithmetic -- so a fix applied to `stationary_for()` alone would
+            # have corrected every display of the number and changed no decision. Same
+            # shape as the two disagreeing definitions of p95 that `vision/stats.py`
+            # exists to prevent.
+            still_for = t.stationary_for(now)
             allowed = self.parked_max_misses if still_for >= self.parked_after else self.max_misses
             if t.misses > allowed:
                 died.append(t)
@@ -163,7 +217,7 @@ class TrackGraph:
 
         return born, died
 
-    def mark_degraded(self) -> None:
+    def mark_degraded(self, now: Optional[float] = None) -> None:
         """Mark every track as observed through a degraded interval.
 
         Also DISCARDS the ground-point history of tracks that are not yet arrivals. A
@@ -172,7 +226,20 @@ class TrackGraph:
         BEFORE the blind interval with inside samples from AFTER it reads as a portal
         crossing that nobody observed. An arrival keeps its path: its crossing already
         happened and is already evidenced.
+
+        PASS `now` WHEN NOTHING WAS OBSERVED. It opens (or extends) a blind interval that
+        the next `update()` charges against every surviving track's stillness -- see
+        `Track.stationary_for`. The three pipeline gates that mean "I could not see the
+        lot" pass it.
+
+        The GENERATION-BREAK caller deliberately does not. A capture failover or a window
+        restore swaps which pixels arrive, not whether anything was observed, and the cars
+        in the new generation are overwhelmingly the same cars still parked where they
+        were. Charging them for it would strip parked protection on every restore and
+        re-create exactly the birth churn `parked_after` exists to stop.
         """
+        if now is not None and self._blind_from is None:
+            self._blind_from = now
         for t in self.tracks.values():
             t.degraded = True
             if t.evidence != "arrival":
