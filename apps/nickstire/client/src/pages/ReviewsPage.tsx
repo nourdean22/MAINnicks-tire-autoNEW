@@ -315,7 +315,7 @@ export default function ReviewsPage() {
                 <Star key={i} className="w-8 h-8 fill-yellow-500 text-yellow-500" />
               ))}
             </div>
-            <p className="text-2xl font-bold text-gray-900 mb-1">{`${BUSINESS.reviews.rating} Stars — ${BUSINESS.reviews.countDisplay} Reviews`}</p>
+            <p className="text-2xl font-bold text-gray-900 mb-1">{`${avgRating} Stars — ${totalCount.toLocaleString("en-US")}+ Reviews`}</p>
           </div>
           <div className="border-2 border-gray-300 rounded-lg p-6 mb-6 inline-block">
             <QRCodeSVG
@@ -358,7 +358,7 @@ export default function ReviewsPage() {
         {/* ─── HERO ─── */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img src={HERO_IMG} alt={`${BUSINESS.reviews.countDisplay} Cleveland drivers reviewed Nick's Tire & Auto on Google — ${BUSINESS.reviews.rating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" style={{ objectPosition: "center 42%" }} />
+            <img src={HERO_IMG} alt={`${totalCount.toLocaleString("en-US")}+ Cleveland drivers reviewed Nick's Tire & Auto on Google — ${avgRating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" style={{ objectPosition: "center 42%" }} />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
           </div>
 

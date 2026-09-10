@@ -15,8 +15,13 @@ import { BUSINESS } from "@shared/business";
 import { Link } from "wouter";
 import { GBP_REVIEW_URL } from "@shared/const";
 import FadeIn from "@/components/FadeIn";
+import { trpc } from "@/lib/trpc";
 
 function ContactSchema() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+
   const schema = {
     "@context": "https://schema.org",
     "@type": "AutoRepair",
@@ -54,8 +59,8 @@ function ContactSchema() {
     sameAs: [...BUSINESS.sameAs],
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: String(BUSINESS.reviews.rating),
-      reviewCount: String(BUSINESS.reviews.count),
+      ratingValue: String(reviewRating),
+      reviewCount: String(reviewCount),
       bestRating: "5",
     },
     // 2026-05-06 wave-16 · pro photo pack: contact page schema image
@@ -73,6 +78,11 @@ function ContactSchema() {
 }
 
 export default function Contact() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -109,7 +119,7 @@ export default function Contact() {
                 <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
-                Call us, text us, or just pull up — walk in 7 days a week, no appointment needed. We are on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio. 4.9★ from 1,700+ reviews.
+                Call us, text us, or just pull up — walk in 7 days a week, no appointment needed. We are on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio. {reviewRating}★ from {reviewCountDisplay} reviews.
               </p>
               {/* wave-181.48 · Repair Haiku trust line — same phrase as the
                   VAPI prompt, /services hero, /about tile. Cross-touchpoint
@@ -236,8 +246,8 @@ export default function Contact() {
                           <Star key={i} className="w-5 h-5 fill-nick-yellow text-primary" />
                         ))}
                       </div>
-                      <span className="font-mono text-primary text-lg font-bold">{BUSINESS.reviews.rating}</span>
-                      <span className="text-foreground/50 text-sm">from {BUSINESS.reviews.countDisplay} reviews</span>
+                      <span className="font-mono text-primary text-lg font-bold">{reviewRating}</span>
+                      <span className="text-foreground/50 text-sm">from {reviewCountDisplay} reviews</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <a

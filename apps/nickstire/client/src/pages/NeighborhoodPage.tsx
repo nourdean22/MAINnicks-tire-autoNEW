@@ -197,6 +197,8 @@ export default function NeighborhoodPage() {
     staleTime: 60 * 60 * 1000,
     retry: 1,
   });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -240,7 +242,7 @@ export default function NeighborhoodPage() {
           who land here; it just isn't advertised for indexing. */}
       <SEOHead
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
-        description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}
+        description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${reviewRating}\u2605 rated. ${BUSINESS.phone.display}`}
         canonicalPath={`/${neighborhood.slug}`}
         robots={neighborhood.indexed ? "index, follow" : "noindex, follow"}
       />
@@ -269,7 +271,7 @@ export default function NeighborhoodPage() {
                   <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                 ))}
               </div>
-              <span className="text-[13px] text-primary tracking-wider">{BUSINESS.reviews.rating} STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
+              <span className="text-[13px] text-primary tracking-wider">{reviewRating} STARS — {reviewCountDisplay} REVIEWS</span>
             </div>
             <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
               {neighborhood.headline}

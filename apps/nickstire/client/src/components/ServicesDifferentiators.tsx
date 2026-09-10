@@ -10,6 +10,7 @@ import {
 import { Link } from "wouter";
 import { trackEvent } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 
 const PROCESS_STEPS = [
   {
@@ -38,29 +39,35 @@ const PROCESS_STEPS = [
   },
 ] as const;
 
-const PROOF_CARDS = [
-  {
-    eyebrow: "THE CAPABILITY",
-    title: "ONE SHOP CAN FOLLOW THE PROBLEM",
-    icon: Wrench,
-    body: `${BUSINESS.ase.capability}. Tires, brakes, electrical faults, emissions failures, cooling, steering, engine, and transmission work can stay under one roof when the job fits our crew and equipment.`,
-    detail: "If it belongs somewhere else, we say that before you spend money.",
-  },
-  {
-    eyebrow: "THE OPERATING SYSTEM",
-    title: "AI KEEPS THE DETAILS FROM GETTING LOST",
-    icon: BrainCircuit,
-    body: "AI-assisted systems help organize calls, service history, parts research, customer updates, follow-ups, and daily shop data. That gives the crew more context and gives you a clearer answer when you call or come in.",
-    detail: "Software organizes the information. People check the car and make the call.",
-  },
-  {
-    eyebrow: "THE PUBLIC RECORD",
-    title: `${BUSINESS.reviews.countDisplay} REVIEWS. READ THEM YOURSELF.`,
-    icon: Star,
-    body: `${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} ${BUSINESS.reviews.source} reviews gives you more than a slogan. It gives you a deep public record from people who already brought us their cars.`,
-    detail: `${BUSINESS.founded.display} at one independent location on Euclid Ave.`,
-  },
-] as const;
+// A FUNCTION, not a module-level constant: the review rating/count need to
+// come from live data resolved at RENDER time (see ServicesDifferentiators
+// below), and a module-level const is computed once at import time, before
+// any component — including one with a live query — ever runs.
+function buildProofCards(reviewRating: number, reviewCountDisplay: string) {
+  return [
+    {
+      eyebrow: "THE CAPABILITY",
+      title: "ONE SHOP CAN FOLLOW THE PROBLEM",
+      icon: Wrench,
+      body: `${BUSINESS.ase.capability}. Tires, brakes, electrical faults, emissions failures, cooling, steering, engine, and transmission work can stay under one roof when the job fits our crew and equipment.`,
+      detail: "If it belongs somewhere else, we say that before you spend money.",
+    },
+    {
+      eyebrow: "THE OPERATING SYSTEM",
+      title: "AI KEEPS THE DETAILS FROM GETTING LOST",
+      icon: BrainCircuit,
+      body: "AI-assisted systems help organize calls, service history, parts research, customer updates, follow-ups, and daily shop data. That gives the crew more context and gives you a clearer answer when you call or come in.",
+      detail: "Software organizes the information. People check the car and make the call.",
+    },
+    {
+      eyebrow: "THE PUBLIC RECORD",
+      title: `${reviewCountDisplay} REVIEWS. READ THEM YOURSELF.`,
+      icon: Star,
+      body: `${reviewRating} stars across ${reviewCountDisplay} ${BUSINESS.reviews.source} reviews gives you more than a slogan. It gives you a deep public record from people who already brought us their cars.`,
+      detail: `${BUSINESS.founded.display} at one independent location on Euclid Ave.`,
+    },
+  ] as const;
+}
 
 function trackServicesAction(action: string, destination: string) {
   trackEvent("services_cta_click", {
@@ -71,6 +78,11 @@ function trackServicesAction(action: string, destination: string) {
 }
 
 export default function ServicesDifferentiators() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+  const PROOF_CARDS = buildProofCards(reviewRating, reviewCountDisplay);
+
   return (
     <section className="relative overflow-hidden border-y border-border/30 bg-card/30 py-16 lg:py-24">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(253,185,19,0.09),transparent_32%),radial-gradient(circle_at_88%_82%,rgba(34,94,168,0.08),transparent_30%)]" />

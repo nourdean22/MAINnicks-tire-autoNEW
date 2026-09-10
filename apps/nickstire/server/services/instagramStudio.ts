@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { BUSINESS } from "@shared/business";
+import { getGoogleReviews } from "../google-reviews";
 import {
   INSTAGRAM_STUDIO_VERSION,
   type InstagramCarouselSlide,
@@ -371,6 +372,11 @@ export async function generateInstagramStudioDraft(input: {
     throw new Error("NEEDS_RESEARCH: Select a valid verified record before generating this post.");
   }
 
+  const googleData = await getGoogleReviews();
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+
   const businessFacts = {
     name: BUSINESS.name,
     phone: BUSINESS.phone.display,
@@ -378,8 +384,8 @@ export async function generateInstagramStudioDraft(input: {
     neighborhood: BUSINESS.address.neighborhood,
     hours: BUSINESS.hours.fullDisplay,
     website: "nickstire.org",
-    rating: BUSINESS.reviews.rating,
-    reviewCount: BUSINESS.reviews.countDisplay,
+    rating: reviewRating,
+    reviewCount: reviewCountDisplay,
   };
 
   const system = `You are the senior social creative director for Nick's Tire & Auto.

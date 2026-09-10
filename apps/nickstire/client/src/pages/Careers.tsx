@@ -141,33 +141,35 @@ const POSITIONS: Position[] = [
 ];
 
 // ─── WHY WORK HERE ────────────────────────────────────────
-const WHY_WORK = [
-  {
-    icon: Shield,
-    heading: "Consistent work, consistent money",
-    body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is on time. This is the kind of place where you can raise a family.",
-  },
-  {
-    icon: Wrench,
-    heading: "You won't be dropping motors",
-    body: "Most of our work is tires, brakes, diagnostics, and general maintenance — the bread and butter that keeps a shop alive. You're not pulling engines on 20-year-old trucks. You're doing real work at a real pace without destroying your body.",
-  },
-  {
-    icon: TrendingUp,
-    heading: "Room to grow",
-    body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Pay scales with experience and what you bring to the table.",
-  },
-  {
-    icon: Users,
-    heading: "4.9 stars. 1,700+ reviews.",
-    body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
-  },
-  {
-    icon: Clock,
-    heading: "Predictable schedule",
-    body: `${BUSINESS.hours.display}. Sunday hours available for those who want them. No midnight calls. No drama. Show up, do good work, go home to your family.`,
-  },
-];
+function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
+  return [
+    {
+      icon: Shield,
+      heading: "Consistent work, consistent money",
+      body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is on time. This is the kind of place where you can raise a family.",
+    },
+    {
+      icon: Wrench,
+      heading: "You won't be dropping motors",
+      body: "Most of our work is tires, brakes, diagnostics, and general maintenance — the bread and butter that keeps a shop alive. You're not pulling engines on 20-year-old trucks. You're doing real work at a real pace without destroying your body.",
+    },
+    {
+      icon: TrendingUp,
+      heading: "Room to grow",
+      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Pay scales with experience and what you bring to the table.",
+    },
+    {
+      icon: Users,
+      heading: `${reviewRating} stars. ${reviewCountDisplay} reviews.`,
+      body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
+    },
+    {
+      icon: Clock,
+      heading: "Predictable schedule",
+      body: `${BUSINESS.hours.display}. Sunday hours available for those who want them. No midnight calls. No drama. Show up, do good work, go home to your family.`,
+    },
+  ];
+}
 
 // ─── CHARACTER EXPECTATIONS ───────────────────────────────
 const CHARACTER_TRAITS = [
@@ -557,6 +559,10 @@ function ApplicationForm() {
 
 // ─── PAGE ─────────────────────────────────────────────────
 export default function Careers() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+
   return (
     <PageLayout activeHref="/careers" showChat={true}>
       <SEOHead
@@ -582,7 +588,7 @@ export default function Careers() {
               <span className="text-nick-yellow">You're Proud Of</span>
             </h1>
             <p className="mt-6 text-lg lg:text-xl text-foreground/65 max-w-xl leading-relaxed">
-              We're rated {BUSINESS.reviews.rating} stars across {BUSINESS.reviews.countDisplay} Google reviews for a
+              We're rated {reviewRating} stars across {reviewCountDisplay} Google reviews for a
               reason. We hire people who care about doing the job right. If that's you, we want to talk.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 stagger-in">
@@ -626,7 +632,7 @@ export default function Careers() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
-            {WHY_WORK.map((item) => {
+            {buildWhyWork(reviewRating, reviewCountDisplay).map((item) => {
               const Icon = item.icon;
               return (
                 <div

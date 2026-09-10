@@ -84,6 +84,10 @@ export default function TireFinderV2() {
   const pkg = trpc.gatewayTire.getPackage.useQuery();
   const packageValue = pkg.data?.packageValuePerSet ?? 266;
 
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+
   const query = trpc.gatewayTire.publicSearch.useQuery(
     { size: normalize(size), category: "all", sortBy: "price-low" },
     { enabled: normalize(size).length >= 7 },
@@ -122,7 +126,7 @@ export default function TireFinderV2() {
         <section className="border-b border-border/30 bg-gradient-to-b from-primary/10 to-background py-12 sm:py-16">
           <div className="container max-w-5xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              <Star className="h-3.5 w-3.5 fill-current" /> {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
+              <Star className="h-3.5 w-3.5 fill-current" /> {reviewRating} stars · {reviewCountDisplay} reviews
             </div>
             <h1 className="mt-5 text-4xl sm:text-6xl font-black tracking-tight">Find your tires. See the price. Request them now.</h1>
             <p className="mx-auto mt-4 max-w-2xl text-base sm:text-lg text-muted-foreground">

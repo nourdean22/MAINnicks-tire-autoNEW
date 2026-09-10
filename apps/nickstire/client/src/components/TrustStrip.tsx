@@ -6,35 +6,47 @@
  */
 import { Star, Shield, Clock, ThumbsUp } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 
-const SIGNALS = [
-  {
-    icon: Star,
-    value: `${BUSINESS.reviews.rating} Stars`,
-    sub: `${BUSINESS.reviews.countDisplay} Google Reviews`,
-    iconClass: "text-nick-yellow",
-  },
-  {
-    icon: Clock,
-    value: "7 Days a Week",
-    sub: `${BUSINESS.hours.display}`,
-    iconClass: "text-primary",
-  },
-  {
-    icon: Shield,
-    value: "Family-Run",
-    sub: "On Euclid since 2018",
-    iconClass: "text-primary",
-  },
-  {
-    icon: ThumbsUp,
-    value: "No-Pressure",
-    sub: "Free estimates · You decide",
-    iconClass: "text-primary",
-  },
-];
+// A FUNCTION, not a module-level constant: the review rating/count need to
+// come from live data resolved at RENDER time (see TrustStrip below), and a
+// module-level const is computed once at import time, before any component
+// — including one with a live query — ever runs.
+function buildSignals(reviewRating: number, reviewCountDisplay: string) {
+  return [
+    {
+      icon: Star,
+      value: `${reviewRating} Stars`,
+      sub: `${reviewCountDisplay} Google Reviews`,
+      iconClass: "text-nick-yellow",
+    },
+    {
+      icon: Clock,
+      value: "7 Days a Week",
+      sub: `${BUSINESS.hours.display}`,
+      iconClass: "text-primary",
+    },
+    {
+      icon: Shield,
+      value: "Family-Run",
+      sub: "On Euclid since 2018",
+      iconClass: "text-primary",
+    },
+    {
+      icon: ThumbsUp,
+      value: "No-Pressure",
+      sub: "Free estimates · You decide",
+      iconClass: "text-primary",
+    },
+  ];
+}
 
 export default function TrustStrip() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+  const SIGNALS = buildSignals(reviewRating, reviewCountDisplay);
+
   return (
     <div className="relative border-b border-border/20 bg-[oklch(0.055_0.003_260)] py-4 overflow-hidden">
       {/* Subtle atmospheric brand-sign image behind the trust signals.

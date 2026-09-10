@@ -73,6 +73,9 @@ export default function LaborEstimator() {
   const [customerEmail, setCustomerEmail] = useState("");
 
   const estimateMutation = trpc.laborEstimate.generate.useMutation();
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
 
   const canSubmit = year && make && model && repairDescription.trim().length >= 3;
 
@@ -533,8 +536,8 @@ export default function LaborEstimator() {
               </div>
               <div>
                 <Car className="w-8 h-8 text-primary mx-auto mb-3" />
-                <h4 className="font-bold text-foreground text-sm tracking-wide">1,700+ Reviews</h4>
-                <p className="text-foreground/60 text-xs mt-1">{BUSINESS.reviews.countDisplay} reviews, {BUSINESS.reviews.rating} stars.</p>
+                <h4 className="font-bold text-foreground text-sm tracking-wide">{reviewCountDisplay} Reviews</h4>
+                <p className="text-foreground/60 text-xs mt-1">{reviewCountDisplay} reviews, {reviewRating} stars.</p>
               </div>
             </div>
           </FadeIn>

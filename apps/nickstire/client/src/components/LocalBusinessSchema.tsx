@@ -8,6 +8,7 @@
  */
 import { BUSINESS } from "@shared/business";
 import { GBP_CID } from "@shared/const";
+import { trpc } from "@/lib/trpc";
 
 interface Props {
   /**
@@ -33,6 +34,10 @@ export default function LocalBusinessSchema({
   additionalSchema,
   includeReviews = false,
 }: Props) {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCountDisplay = `${(googleData?.totalReviews ?? BUSINESS.reviews.count).toLocaleString("en-US")}+`;
+
   // Derive opening hours from the single source of truth so the schema can't
   // drift from BUSINESS.hours (structured values are "HH:MM-HH:MM").
   const [monSatOpen, monSatClose] = BUSINESS.hours.structured.monday.split("-");
@@ -111,6 +116,18 @@ export default function LocalBusinessSchema({
     // star rich results (Google policy), and emitting it on pages with NO
     // visible reviews risks a manual action. Only emit where reviews are shown
     // (includeReviews) — Home + the Reviews page — not site-wide on ~40 pages.
+    //
+    // ratingValue/reviewCount here MUST stay on the static BUSINESS.reviews
+    // floor, matching ReviewsPage.tsx's own aggregateRating block exactly —
+    // NOT the live reviewRating/reviewCountDisplay used elsewhere in this
+    // file's `description` text below. Per ReviewsPage.tsx's 2026-08-19 fix
+    // comment: this component and ReviewsPage.tsx both emit aggregateRating
+    // for the SAME @id entity on the Reviews page, and prerendered JSON-LD is
+    // baked at build/regen time regardless — a live number here doesn't stay
+    // "live" for a crawler anyway, it just risks disagreeing with the OTHER
+    // schema block on the same page (previously 1706 vs 1700 for the same
+    // entity). One static value in both places; the floor understates
+    // slightly, which is the safe direction.
     ...(includeReviews
       ? {
           aggregateRating: {
@@ -130,7 +147,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} reviews. Walk-ins 7 days, payment programs on the spot.`,
+      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${reviewRating} stars across ${reviewCountDisplay} reviews. Walk-ins 7 days, payment programs on the spot.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",

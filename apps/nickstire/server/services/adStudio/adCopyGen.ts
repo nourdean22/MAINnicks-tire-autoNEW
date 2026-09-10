@@ -9,6 +9,7 @@
 import { invokeLLM, type OutputSchema } from "../../_core/llm";
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { getGoogleReviews } from "../../google-reviews";
 import type { AdCopy } from "./adTemplate";
 
 const log = createLogger("services:adStudio:copy");
@@ -47,12 +48,16 @@ export function lintAdCopy(copy: AdCopy): string[] {
   return issues;
 }
 
-function buildSystemPrompt(angle: AdAngle, topic?: string): string {
+async function buildSystemPrompt(angle: AdAngle, topic?: string): Promise<string> {
+  const googleData = await getGoogleReviews();
+  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
   return `You are a senior Meta-ads creative director writing copy for ONE Instagram carousel AD for a local tire shop. It will be BOOSTED with real ad spend, so every word must convert and every claim must be true.
 
 BUSINESS FACTS (all owner-confirmed — use freely, accurately):
 - ${BUSINESS.name} — "${BUSINESS.tagline}". ${BUSINESS.founded.display}. ${BUSINESS.ase.display}. ${BUSINESS.languageDisplay}.
-- ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} Google reviews. ${BUSINESS.address.full}. ${BUSINESS.phone.display}.
+- ${reviewRating} stars, ${reviewCountDisplay} Google reviews. ${BUSINESS.address.full}. ${BUSINESS.phone.display}.
 - Open 7 days, walk-ins welcome, NO appointment, first come first serve. Free quick checks.
 - Financing: no credit check, $10 down, drive today (Acima/Snap/Koalafi). New tires from $89 installed. Used from $25 installed (most sizes $40-80 — the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
 
@@ -99,7 +104,7 @@ export async function generateAdCopy(input: GenerateAdCopyInput): Promise<Genera
   const angle = input.angle ?? "financing";
   const res = await invokeLLM({
     messages: [
-      { role: "system", content: buildSystemPrompt(angle, input.topic) },
+      { role: "system", content: await buildSystemPrompt(angle, input.topic) },
       { role: "user", content: "Write the ad copy now. Output ONLY the JSON object." },
     ],
     maxTokens: 2048,
