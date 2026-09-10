@@ -5190,6 +5190,11 @@
       "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
       "symbol": "activeRunField",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Wired and firing -- the heartbeat response spreads it at cameraVisitsRoutes.ts:600 -- so it is exported, not orphaned, for the seam test alone. The contract it carries has THREE states where the type system only shows two: a run is open (send it), we LOOKED and found none (send explicit null -- this is what ENDS a run), or we COULD NOT LOOK (omit the key entirely). `visitd.shop_mirror.apply_active_run` holds the producer's current mode on an absent key and ends commissioning only on an explicit null, so collapsing the last two tagged the rest of a live test drive PRODUCTION on one transient DB error -- permanently, since the ingest treats dataClass as immutable after insert. Exported so `cameraVisitsRoutes.test.ts` can pin all three states and assert the two null-ish ones are NOT interchangeable; both failure directions are mutation-checked."
+    },
+    {
+      "file": "apps/nickstire/server/testUtils/sourceBlock.ts",
+      "symbol": "(whole file)",
+      "reason": "TEST-ONLY HELPER, consumed by server/marginCoverageGuard.test.ts and server/testUtils/sourceBlock.test.ts. knip excludes *.test.ts from the project graph, so a module imported ONLY by tests reads as an orphan even though it has two real consumers. Verified by grep: sliceBlock() is imported at marginCoverageGuard.test.ts:21. Not vacuous — reverting its use fails that suite with \"the slice leaked into the next engine\"."
     }
   ]
 }
