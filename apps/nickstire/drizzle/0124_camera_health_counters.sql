@@ -1,0 +1,32 @@
+-- 0124 · camera_runtime.relocateFailures + .preexistingCrossed — two counters the
+-- producer already keeps and nobody could read.
+--
+-- WHY. Both were added to the edge producer on 2026-09-10 and both are, today, written to a
+-- log line and nowhere else. That is the writer-with-no-reader shape this codebase keeps
+-- removing, and leaving it in place means the two questions they answer can only be asked by
+-- SSH-ing to the machine the producer happens to run on.
+--
+-- relocateFailures
+--   Revalidation passes that produced NO binding. A pass that fails and a pass that confirms
+--   an unchanged layout used to be the same `false`, so a locator that had stopped being able
+--   to find the scene looked exactly like a window nobody had touched -- while the producer
+--   went on warping every frame through a binding it could no longer confirm. Sustained
+--   non-zero means the geometry under every polygon is unverified.
+--
+-- preexistingCrossed
+--   Tracks the census called `preexisting` that the entry portal then watched perform a full
+--   outside -> inside crossing: a car this system saw drive in while counting it as
+--   already-there. It is an UNDER-count of arrivals, which is the one direction nothing else
+--   here watches for -- every other guard exists to stop the count going UP wrongly.
+--   RECORDED, never promoted; the pipeline deliberately does not turn these into arrivals.
+--
+-- BOTH NULLABLE, and that is the point. A producer that predates this migration sends
+-- neither, and NULL must read as "this producer does not report it" rather than as a
+-- confident zero. `0` is a real measurement meaning "looked, found none"; NULL is the
+-- absence of a measurement, and the admin card renders them differently.
+--
+-- Additive and idempotent, same as 0120: safe to run twice, and applying it before the code
+-- that writes the columns is deployed is the intended order -- the reverse breaks ingest.
+
+ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS relocateFailures INT NULL;
+ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS preexistingCrossed INT NULL;
