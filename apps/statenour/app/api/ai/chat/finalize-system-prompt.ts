@@ -232,10 +232,19 @@ You are in Master mode - Nour's operator + strategist.
   // register or the adversarial flag, so it is safe to omit here.
   try {
     const { assessTurnRisk, buildRegisterBlock } = await import("@/lib/ai/chat/turn-risk");
-    const registerBlock = buildRegisterBlock(
-      assessTurnRisk(userContent, { toolsExpected: false, intent: turnSignal.intent }),
-    );
+    const risk = assessTurnRisk(userContent, { toolsExpected: false, intent: turnSignal.intent });
+    const registerBlock = buildRegisterBlock(risk);
     if (registerBlock) systemPrompt += `\n\n${registerBlock}`;
+    // Experiment E3 · measure the buffered share BEFORE building the
+    // buffer. Classification only — this changes no behaviour, and the
+    // number is what decides whether risk-classified buffering is
+    // affordable at all (kill criterion: >25% of turns would buffer).
+    log.info("turn_risk_classified", {
+      risk: risk.risk,
+      register: risk.register,
+      wouldBuffer: risk.buffer,
+      adversarial: risk.adversarialRequired,
+    });
   } catch (err) {
     // Never let register selection break a turn — a missing override
     // degrades to today's single shape, which is the current behaviour.

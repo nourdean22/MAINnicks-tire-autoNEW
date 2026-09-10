@@ -626,16 +626,11 @@ export async function buildBrainContext(
       // reason: a declaration the model controls is not a control.
       try {
         const hits = (hybridRecallReport.hits ?? []) as Array<{ trustTier?: string }>;
-        if (hits.length > 0) {
-          const { canAuthorizeSideEffect } = await import("@/lib/brain/memory-trust");
-          const anyAuthorizing = hits.some((h) =>
-            h.trustTier ? canAuthorizeSideEffect(h.trustTier as never) : false,
-          );
-          if (!anyAuthorizing) {
-            const { updateTurnContext } = await import("@/lib/agent/turn-context");
-            updateTurnContext({ inferredBasisOnly: true });
-            log.info("turn_inferred_basis_only", { hits: hits.length });
-          }
+        const { shouldStampInferredBasis } = await import("@/lib/brain/memory-trust");
+        if (shouldStampInferredBasis(hits)) {
+          const { updateTurnContext } = await import("@/lib/agent/turn-context");
+          updateTurnContext({ inferredBasisOnly: true });
+          log.info("turn_inferred_basis_only", { hits: hits.length });
         }
       } catch {
         // Never let provenance stamping break a turn. Failing to stamp

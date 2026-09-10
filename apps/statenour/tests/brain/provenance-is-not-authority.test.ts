@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
   canRenderAsKnowledge,
   canAuthorizeSideEffect,
+  shouldStampInferredBasis,
   ACTION_AUTHORIZING_TIERS,
   AUTHORITATIVE_TIERS,
 } from "@/lib/brain/memory-trust";
@@ -80,5 +81,45 @@ describe("an inference cannot promote itself into durable memory", () => {
   it("CONTROL - an operator-stated memory write is not escalated for this reason", () => {
     const d = evaluateToolAction(base);
     expect(d.decision).not.toBe("require_memory_review");
+  });
+});
+
+describe("the turn stamp -- when is a turn running on inference alone", () => {
+  const h = (trustTier: string) => ({ trustTier });
+
+  it("stamps a turn whose entire recall set is model inference", () => {
+    expect(shouldStampInferredBasis([h("AGENT_INFERRED"), h("AGENT_INFERRED")])).toBe(true);
+  });
+
+  it("stamps a turn running only on external content", () => {
+    expect(shouldStampInferredBasis([h("EXTERNAL_CONTENT")])).toBe(true);
+  });
+
+  // CONTROL: ONE authorizing row is enough. The stamp asks "is there any
+  // real basis here", not "is everything perfect" -- otherwise a single
+  // inferred row alongside the operator's own words would escalate the
+  // whole turn.
+  it("CONTROL - one operator-stated row is enough to clear the stamp", () => {
+    expect(shouldStampInferredBasis([h("AGENT_INFERRED"), h("OPERATOR")])).toBe(false);
+  });
+
+  it("CONTROL - system-derived data also clears it", () => {
+    expect(shouldStampInferredBasis([h("EXTERNAL_CONTENT"), h("SYSTEM_DERIVED")])).toBe(false);
+  });
+
+  /**
+   * The distinction that keeps this usable: NO hits is not the same as
+   * INFERRED hits. Stamping the empty case would escalate every
+   * cold-start turn, and an approval prompt the operator sees on every
+   * turn is one they learn to click through without reading -- which is
+   * a worse security outcome than the bug.
+   */
+  it("CONTROL - an empty recall set is NOT stamped", () => {
+    expect(shouldStampInferredBasis([])).toBe(false);
+  });
+
+  it("a row with no tier at all does not count as authorizing", () => {
+    expect(shouldStampInferredBasis([{ trustTier: undefined }])).toBe(true);
+    expect(shouldStampInferredBasis([{ trustTier: null }])).toBe(true);
   });
 });

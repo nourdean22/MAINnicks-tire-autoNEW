@@ -211,6 +211,31 @@ export function canAuthorizeSideEffect(tier: TrustTier): boolean {
 }
 
 /**
+ * Should this turn be stamped `inferredBasisOnly`?
+ *
+ * True when recall returned rows but NOT ONE of them is action-
+ * authorizing -- i.e. everything NICK is working from is its own
+ * inference or third-party text. Downstream, tool-policy sends any
+ * memory write on such a turn to human review.
+ *
+ * Extracted as a pure function so the DECISION is unit-testable without
+ * standing up the whole brain-context pipeline. The stamping call site
+ * fails open by design; a rule that only exists inside a try/catch in a
+ * 700-line orchestrator is a rule nobody can prove.
+ *
+ * NOTE the empty case: no hits means no memory basis at all, which is a
+ * different thing from an inferred one. Stamping it would escalate
+ * every cold-start turn, and an approval prompt the operator sees on
+ * every turn is one they learn to click through without reading.
+ */
+export function shouldStampInferredBasis(
+  hits: ReadonlyArray<{ trustTier?: string | null }>,
+): boolean {
+  if (hits.length === 0) return false;
+  return !hits.some((h) => !!h.trustTier && canAuthorizeSideEffect(h.trustTier as TrustTier));
+}
+
+/**
  * Wrap untrusted recall so it cannot be read as the agent's own
  * knowledge. Mirrors the fenceContent() convention already used for
  * live scrape output — the same discipline, applied to the memory that
