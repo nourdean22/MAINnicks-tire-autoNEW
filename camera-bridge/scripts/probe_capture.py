@@ -29,20 +29,46 @@ def main() -> int:
     samples = int(sys.argv[2]) if len(sys.argv) > 2 else 32
     try:
         from vision.framehealth import FrameHealth
+        from vision.panedetect import describe, detect_live_region
         from vision.run_live import build_source
     except Exception as exc:  # noqa: BLE001 - the doctor must report, never traceback
         print(f"error=import status=unavailable detail={type(exc).__name__}")
         return 2
 
+    # CROP LIKE THE PRODUCER DOES. `edge_main` defaults to the measured main pane
+    # (`SHOPSIGN_MAIN_PANE`) and only captures the whole window under an explicit
+    # `--no-crop`. This probe passed `crop=False`, so it was sampling the V380 app's
+    # sidebar, device list, toolbar and preview strip -- static furniture that is not the
+    # camera. A preflight that measures a DIFFERENT REGION than the runtime cannot certify
+    # the runtime: the chrome drags `distinct` down and makes a live pane look static.
+    # ONE capture, TWO analyses. The source is built UNCROPPED and the producer's crop is
+    # applied here, per frame.
+    #
+    # Capturing already-cropped would make the layout check decorative: the crop has
+    # already isolated a 16:9 rectangle, so `pane=single aspect=1.78` comes back no matter
+    # what the app is actually showing, and the check could never once fail. That is the
+    # same false green this probe was written to remove, one level up.
+    crop = os.environ.get("PROBE_NO_CROP", "") == ""
     try:
+        from vision.capture import WgcWindowSource
+
         src = build_source("wgc", None, title, False)
+        crop_frac = WgcWindowSource.SHOPSIGN_MAIN_PANE if crop else None
     except Exception as exc:  # noqa: BLE001
         print(f"error=source status=unavailable detail={type(exc).__name__}")
         return 2
 
+    def _apply_crop(image):
+        if crop_frac is None or image is None:
+            return image
+        h, w = image.shape[:2]
+        fx0, fy0, fx1, fy1 = crop_frac
+        return image[int(fy0 * h):int(fy1 * h), int(fx0 * w):int(fx1 * w)]
+
     fh = FrameHealth()
     state = None
     got = 0
+    raw_frames = []            # kept UNCROPPED for the layout check, see below
     for _ in range(samples):
         try:
             frame = src.read()
@@ -50,7 +76,9 @@ def main() -> int:
             frame = None
         if frame is not None:
             got += 1
-            fh.update(frame.ts, frame.image)
+            if len(raw_frames) < 24:
+                raw_frames.append(frame.image)      # FULL window, for the layout check
+            fh.update(frame.ts, _apply_crop(frame.image))   # cropped, as the producer sees
             state = fh.state(frame.ts)
         time.sleep(0.25)
 
@@ -69,10 +97,22 @@ def main() -> int:
     else:
         verdict = "slow"
 
+    # WHAT LAYOUT IS THE APP IN? A crop measured once at one window size is silently wrong
+    # after a resize or a switch to 4-up, so the layout is DETECTED and reported rather than
+    # assumed. Never fatal on its own -- it is information the operator acts on.
+    layout = "pane=unknown"
+    try:
+        if raw_frames:
+            h, w = raw_frames[0].shape[:2]
+            layout = describe(detect_live_region(raw_frames), w, h)
+    except Exception:  # noqa: BLE001 - a layout probe must never fail the health probe
+        layout = "pane=error"
+    print(layout)
+
     print(
         f"status={verdict} read={got} fps={state.fps:.2f} distinct={state.distinct} "
         f"dup_ratio={state.dup_ratio:.2f} frozen={str(state.frozen).lower()} "
-        f"looping={str(state.looping).lower()}"
+        f"looping={str(state.looping).lower()} crop={str(crop).lower()}"
     )
     return 0 if state.ok else 1
 
