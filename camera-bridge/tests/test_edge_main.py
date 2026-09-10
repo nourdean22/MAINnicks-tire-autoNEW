@@ -13,6 +13,8 @@ import time
 import unittest
 from types import SimpleNamespace
 
+import numpy as np
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import edge_main                                                       # noqa: E402
@@ -322,7 +324,7 @@ class HeartbeatTest(unittest.TestCase):
         )
         # the vision half
         self.assertEqual(body["sourceType"], "wgc")
-        self.assertEqual(body["sourceGeneration"], "0.2")
+        self.assertEqual(body["sourceGeneration"], "0.2.0")
         self.assertEqual((body["captureFps"], body["frameOk"]), (3.9, True))
         self.assertEqual((body["poseOk"], body["calibrationVersion"]), (True, "sha256:abc123"))
         self.assertEqual(body["lastHealthyFrameAt"], "2027-01-15T07:59:59+00:00")
@@ -377,7 +379,7 @@ class HeartbeatTest(unittest.TestCase):
         )
         self.assertIs(body["sourceConnected"], False)
         self.assertIsNone(body["sourceType"])
-        self.assertEqual(body["sourceGeneration"], "2.0")
+        self.assertEqual(body["sourceGeneration"], "2.0.0")
         pipeline.ledger.close()
 
     def test_the_sequence_is_monotonic_within_one_instance(self):
@@ -499,13 +501,36 @@ class SourceGenerationTest(unittest.TestCase):
     def test_a_restore_or_a_failover_is_a_NEW_generation(self):
         """A track path must never cross a generation: an outside point from one lane
         plus an inside point from another is a fabricated portal crossing."""
-        self.assertEqual(source_generation(FakeSource(index=0, restores=0)), "0.0")
-        self.assertEqual(source_generation(FakeSource(index=0, restores=3)), "0.3",
+        self.assertEqual(source_generation(FakeSource(index=0, restores=0)), "0.0.0")
+        self.assertEqual(source_generation(FakeSource(index=0, restores=3)), "0.3.0",
                          "un-minimising the capture window is a discontinuity too")
-        self.assertEqual(source_generation(FakeSource(index=1, restores=0)), "1.0")
+        self.assertEqual(source_generation(FakeSource(index=1, restores=0)), "1.0.0")
         dead = FakeSource(index=4)
         dead.active = None
-        self.assertEqual(source_generation(dead), "4.0")
+        self.assertEqual(source_generation(dead), "4.0.0")
+
+    def test_a_LAYOUT_EPOCH_change_is_a_new_generation_too(self):
+        """The reason the epoch joined this identity. A track at x=650 before a layout change
+        and a detection at x=650 after it are not the same place, and joining them
+        manufactures a portal crossing no car ever made.
+
+        Folding the epoch in here means the EXISTING generation-break path -- which already
+        degrades tracks and re-arms the pre-existing census -- handles a re-located scene
+        with no second mechanism to keep in step."""
+        src = FakeSource(index=0, restores=0)
+        before = source_generation(src)
+        src.active.layout_epoch = 2
+        after = source_generation(src)
+        self.assertNotEqual(before, after, "a layout change must break the path")
+        self.assertEqual(after, "0.0.2")
+
+    def test_a_source_with_NO_epoch_reads_as_zero_rather_than_raising(self):
+        """Most sources have no concept of a layout epoch -- the mss lane, replay, fixtures.
+        They must keep working and keep a stable generation."""
+        plain = FakeSource(index=1, restores=1)
+        if hasattr(plain.active, "layout_epoch"):
+            del plain.active.layout_epoch
+        self.assertEqual(source_generation(plain), "1.1.0")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -541,7 +566,13 @@ def _args(**over):
         window_title="V380", no_crop=True, calibration=None, model=None, device="AUTO",
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
-        dry_run=True, log_level="WARNING",
+        dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
+        stall_exit_seconds=180.0, scene_atlas=None, scene=None,
+        adjudicator_model=None, adjudicator_device=None,
+        hard_cases=None, hard_case_max_gb=2.0,
+        shadow_ledger=None,
+        relocate_seconds=120.0,
+        challenger_model=None,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1022,6 +1053,634 @@ class LedgerIsolationTest(unittest.TestCase):
                 os.unlink(path)
             except OSError:
                 pass
+
+
+class ArgsFixtureDriftTest(unittest.TestCase):
+    """`_args()` is a hand-written copy of the real parser's defaults, and a copy drifts.
+
+    It had ALREADY drifted by two keys (`persist_seconds`, `stall_exit_seconds`) before
+    this test existed -- harmlessly, because nothing in `build_edge` read them. The next
+    flag added was read, and five unrelated tests went red with an `AttributeError` from
+    inside `build_edge` that named none of this. A fixture that omits a real flag does not
+    fail where the omission is; it fails somewhere confusing and much later.
+    """
+
+    def test_the_fixture_carries_EVERY_flag_the_real_parser_defines(self):
+        real = vars(edge_main.parse_args([]))
+        missing = sorted(set(real) - set(vars(_args())))
+        self.assertEqual(
+            missing, [],
+            f"edge_main.parse_args defines {missing} and _args() does not. Add them with the "
+            "parser's own defaults, or a test calling build_edge() will fail on an "
+            "AttributeError that names nothing useful."
+        )
+
+    def test_the_fixture_invents_no_flag_the_parser_does_not_have(self):
+        """The other direction matters too: a fixture-only key lets a test exercise a flag
+        that does not exist on the command line, which proves nothing about the product."""
+        real = vars(edge_main.parse_args([]))
+        invented = sorted(set(vars(_args())) - set(real))
+        self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
+
+
+class HardCaseWiringTest(unittest.TestCase):
+    """The recorder is only worth having if the producer actually FIRES it.
+
+    Every trigger below is derived from a signal that genuinely exists in `EdgeLoop.step`'s
+    own outputs. A trigger with no real producer would leave that class absent from the
+    corpus forever, and read back later an absent class looks like a shop that never had one
+    rather than like nothing that was ever watching.
+    """
+
+    class _Spy:
+        def __init__(self, fail=False):
+            self.observed, self.fired, self.flushed = [], [], 0
+            self._fail = fail
+            self.stats = SimpleNamespace(
+                clips_written=3, frames_written=90, bytes_written=1234,
+                dropped_cooldown=1, dropped_write_error=0, evicted_clips=0,
+                healthy=True, last_error=None)
+
+        def observe(self, ts, image):
+            if self._fail:
+                raise RuntimeError("observe exploded")
+            self.observed.append(ts)
+
+        def trigger(self, reason, at, context=None):
+            if self._fail:
+                raise RuntimeError("trigger exploded")
+            self.fired.append((reason, context or {}))
+            return True
+
+        def flush_ready(self, now):
+            if self._fail:
+                raise RuntimeError("flush exploded")
+            self.flushed += 1
+            return []
+
+        def flush_all(self, now):
+            return []
+
+    def _drive(self, out, meta=None, spy=None, passes=1):
+        """Run EdgeLoop.step with a stubbed vision layer returning `out`."""
+        spy = spy or self._Spy()
+        pipeline = make_pipeline()
+        frames = [SimpleNamespace(
+            ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8), seq=i,
+            source="fake", meta=dict(meta or {})) for i in range(max(passes, 1))]
+
+        class _Src:
+            def __init__(self):
+                self.i = 0
+
+            def read(self):
+                f = frames[min(self.i, len(frames) - 1)]
+                self.i += 1
+                return f
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return dict(out)
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        for _ in range(passes):
+            loop.step()
+        return spy, loop
+
+    def test_every_frame_reaches_the_rolling_window(self):
+        spy, _ = self._drive({"emissions": []}, passes=3)
+        self.assertEqual(len(spy.observed), 3)
+
+    def test_a_LAYOUT_EPOCH_change_fires_LAYOUT_CHANGE(self):
+        """`WgcWindowSource.set_canonical` stamps the epoch into the frame, so this is a real
+        signal the moment a scene is relocated -- and the boundary at which geometry stops
+        being comparable across frames."""
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        metas = [{"layoutEpoch": 1, "sceneId": "shop-left"},
+                 {"layoutEpoch": 1, "sceneId": "shop-left"},
+                 {"layoutEpoch": 2, "sceneId": "shop-left"}]
+        frames = [SimpleNamespace(ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8),
+                                        seq=i, source="fake", meta=m)
+                  for i, m in enumerate(metas)]
+
+        class _Src:
+            def __init__(self):
+                self.i = 0
+
+            def read(self):
+                f = frames[self.i]
+                self.i += 1
+                return f
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        for _ in metas:
+            loop.step()
+        reasons = [r for r, _ in spy.fired]
+        self.assertEqual(reasons.count("LAYOUT_CHANGE"), 1,
+                         f"exactly one epoch change happened, fired {reasons}")
+        ctx = dict(spy.fired[reasons.index("LAYOUT_CHANGE")][1])
+        self.assertEqual((ctx["from"], ctx["to"]), (1, 2))
+
+    def test_the_FIRST_frame_does_not_fire_a_layout_change(self):
+        """There is nothing to have changed FROM. Firing here would put a spurious clip at
+        the start of every single producer start-up and drown the real ones."""
+        spy, _ = self._drive({"emissions": []}, meta={"layoutEpoch": 7})
+        self.assertNotIn("LAYOUT_CHANGE", [r for r, _ in spy.fired])
+
+    def test_an_UNTRUSTED_POSE_fires_POSE_OFF_HOME(self):
+        scene = SimpleNamespace(may_create_visits=False, change_frac=0.42)
+        spy, _ = self._drive({"emissions": [], "scene": scene})
+        self.assertIn("POSE_OFF_HOME", [r for r, _ in spy.fired])
+
+    def test_a_TRUSTED_pose_fires_nothing(self):
+        """The positive control: without it a trigger that fired unconditionally would pass
+        the test above while filling the disk with ordinary frames."""
+        scene = SimpleNamespace(may_create_visits=True, change_frac=0.01)
+        spy, _ = self._drive({"emissions": [], "scene": scene})
+        self.assertEqual(spy.fired, [])
+
+    def test_DISAGREEMENT_needs_the_two_detectors_to_actually_DISAGREE(self):
+        """Escalation alone is not disagreement. The council escalates on ambiguity and the
+        adjudicator usually just confirms; a clip is worth saving when the two return
+        DIFFERENT counts, which is the case a human can adjudicate from the footage."""
+        agree = SimpleNamespace(escalated=True, detections=[],
+                                      by_detector={"primary": 2, "adj": 2})
+        spy, _ = self._drive({"emissions": [], "council": agree})
+        self.assertEqual(spy.fired, [], "agreement is not a hard case")
+
+        differ = SimpleNamespace(escalated=True, detections=[],
+                                       by_detector={"primary": 1, "adj": 3})
+        spy2, _ = self._drive({"emissions": [], "council": differ})
+        self.assertIn("DETECTOR_DISAGREEMENT", [r for r, _ in spy2.fired])
+
+    def test_a_WEAK_detection_behind_a_STATE_CHANGE_fires_PORTAL_LOW_CONFIDENCE(self):
+        """The expensive kind of uncertainty: the frame that creates or denies a visit.
+
+        The emissions are the REAL tracker's, not stand-ins -- a bare sentinel would never
+        reach the persistence layer this loop actually runs, so the test would be exercising
+        a shape production never produces."""
+        emissions = _real_emissions(make_pipeline(), camera="lot")
+        weak = SimpleNamespace(escalated=False,
+                               detections=[SimpleNamespace(score=0.44)],
+                               by_detector={"primary": 1})
+        spy, _ = self._drive({"emissions": emissions, "council": weak})
+        self.assertIn("PORTAL_LOW_CONFIDENCE", [r for r, _ in spy.fired])
+
+        strong = SimpleNamespace(escalated=False,
+                                 detections=[SimpleNamespace(score=0.93)],
+                                 by_detector={"primary": 1})
+        spy2, _ = self._drive({"emissions": emissions, "council": strong})
+        self.assertEqual(spy2.fired, [], "a confident decision is not a hard case")
+
+    def test_a_weak_detection_with_NO_state_change_is_not_a_portal_case(self):
+        """A quiet lot full of low-confidence noise is not worth a clip each. The trigger is
+        the CHANGE, not the confidence on its own."""
+        weak = SimpleNamespace(escalated=False,
+                                     detections=[SimpleNamespace(score=0.44)],
+                                     by_detector={"primary": 1})
+        spy, _ = self._drive({"emissions": [], "council": weak})
+        self.assertEqual(spy.fired, [])
+
+    def test_a_RECORDER_THAT_EXPLODES_does_not_take_the_producer_down(self):
+        """The corpus is an upgrade, never a dependency of watching the lot.
+
+        The scene is UNTRUSTED on purpose, so a trigger is actually attempted and the
+        exception is raised inside the derivation rather than only inside `observe`. Driving
+        this with a quiet frame fired nothing, so the derivation's own guard went untested --
+        a mutation that let exceptions escape it survived until this fixture said otherwise."""
+        spy = self._Spy(fail=True)
+        scene = SimpleNamespace(may_create_visits=False, change_frac=0.9)
+        _, loop = self._drive({"emissions": [], "scene": scene}, spy=spy)
+        self.assertIsNotNone(loop, "the step must have completed despite the recorder raising")
+        self.assertEqual(spy.fired, [], "the spy raised, so nothing can have been recorded")
+
+    def test_the_corpus_health_has_a_REAL_consumer_and_the_heartbeat_is_not_it(self):
+        """The heartbeat once carried a `hardCases` facet. It had NO RECEIVER -- the ingest
+        schema in `cameraVisitsRoutes.ts` has no such field, so Zod stripped it and the value
+        reached nothing. Shipping a writer with no reader is the orphan defect this repo keeps
+        removing, and finding it in my own 'make a broken recorder visible' change is exactly
+        why the rule exists.
+
+        Corpus health has two consumers that are real and were verified live: the producer's
+        own shutdown log line, and the doctor's `hard-case corpus` check. This asserts the
+        facet is GONE rather than silently discarded."""
+        pipeline = make_pipeline()
+        body = edge_main.edge_heartbeat_body(
+            camera="lot", seq=1, now=1000.0, mode="SHADOW", source=FakeSource(),
+            vision=FakeVision(pipeline.tracker), ledger=pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name=None, model_sha256=None, last_healthy_frame_at=None)
+        self.assertNotIn("hardCases", body)
+        # And every key that IS sent must be one the receiver accepts.
+        self.assertIn("sourceGeneration", body)
+
+
+class SceneLockAnchorTest(unittest.TestCase):
+    """`SceneLock` has always asked for a known-good pose and never been given one.
+
+    Left to auto-adopt, it anchors on whichever frame settles first, which detects drift from
+    WHERE THE PROCESS STARTED. That is genuinely useful and it is blind to the case that
+    matters most: a camera already off-aim at start-up. There the wrong view becomes "home",
+    every later frame agrees with it, and visits are minted forever against lot, portal and
+    bay polygons belonging to a view the camera no longer has -- silently wrong, no symptom.
+
+    The atlas can now supply a frame that appearance-matched a calibrated reference, which
+    upgrades the gate from "has it moved since boot" to "is it where the polygons were drawn".
+    """
+
+    def _build(self, source):
+        two = dict(_RAW())
+        return edge_main.build_edge(_cfg(two), _args(calibration=None, camera="lot"))
+
+    def test_a_source_carrying_a_CALIBRATED_REFERENCE_anchors_the_scene_lock(self):
+        anchor = np.full((90, 160, 3), 90, np.uint8)
+        anchor[20:60, 30:120] = 200
+
+        class _Src:
+            calibrated_reference = anchor
+
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            _, vision, *_ = self._build(_Src())
+        finally:
+            rl.build_source = original
+        # The DISCRIMINATING assertion is that a reference exists BEFORE any frame has been
+        # processed. Asserting `reference_set` after an update proves nothing, because
+        # auto-adoption sets it too -- a mutation removing the anchoring entirely passed that
+        # version of this test.
+        self.assertIsNotNone(getattr(vision.scene, "_ref", None),
+                             "the calibrated pose was never handed to the scene lock")
+        self.assertTrue(vision.scene.update(anchor).reference_set)
+
+    def test_WITHOUT_one_the_lock_still_auto_adopts_exactly_as_before(self):
+        """The positive control. A change that anchored unconditionally -- or that broke the
+        fallback -- would leave every producer without an atlas unable to establish a pose at
+        all, which is worse than the gap being closed."""
+        class _Src:
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            _, vision, *_ = self._build(_Src())
+        finally:
+            rl.build_source = original
+        self.assertIsNone(getattr(vision.scene, "_ref", None),
+                          "nothing supplied a reference, so none should be set yet")
+        frame = np.full((90, 160, 3), 70, np.uint8)
+        vision.scene.update(frame)
+        vision.scene.update(frame)
+        self.assertIsNotNone(vision.scene._ref, "auto-adoption must still work")
+
+    def test_an_UNUSABLE_reference_does_not_stop_the_producer_starting(self):
+        """Anchoring is an upgrade to the pose gate, not a precondition for watching the lot.
+        A reference the lock cannot digest must degrade to auto-adoption, loudly."""
+        class _Src:
+            calibrated_reference = "not an image at all"
+
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            built = self._build(_Src())
+        finally:
+            rl.build_source = original
+        self.assertIsNotNone(built, "a bad reference must not prevent start-up")
+
+
+class ShadowWiringTest(unittest.TestCase):
+    """A challenger that records nothing is worth nothing, and one that can vote is worse."""
+
+    class _Spy:
+        def __init__(self):
+            self.noted = []
+            self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+        def note(self, subject, champion, challenger, *, at, context=None):
+            self.noted.append((subject, champion, challenger, dict(context or {})))
+            return True
+
+    class _Chal:
+        name = "challenger-v2"
+
+        def __init__(self, n):
+            self._n = n
+
+        def detect(self, image):
+            return [object()] * self._n
+
+    def _drive(self, council, spy=None, challenger_count=3):
+        spy = spy or self._Spy()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy,
+                     challenger=self._Chal(challenger_count))
+        loop.step()
+        return spy
+
+    def test_an_ESCALATED_frame_records_CHAMPION_vs_CHALLENGER(self):
+        """The challenger is run HERE, out of band, on the frame the council just judged --
+        it is not read out of `by_detector`. That distinction is the whole point: a model
+        listed in `by_detector` is inside the council, and `_fuse` lets it promote ambiguous
+        boxes and add its own, so its disagreements are not a counterfactual at all."""
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        spy = self._drive(council, challenger_count=5)
+        self.assertEqual(len(spy.noted), 1)
+        subject, champion, challenger, ctx = spy.noted[0]
+        self.assertEqual((subject, champion), ("VEHICLE_COUNT", 1))
+        self.assertEqual(challenger, 5, "the challenger's OWN count, not the adjudicator's")
+        self.assertEqual(ctx["champion"], "primary")
+        self.assertEqual(ctx["challenger"], "challenger-v2")
+
+    def test_NO_challenger_configured_records_nothing(self):
+        """A ledger with no challenger must stay empty rather than quietly recording the
+        adjudicator, which votes."""
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy)      # no challenger
+        loop.step()
+        self.assertEqual(spy.noted, [])
+
+    def test_a_frame_that_never_ESCALATED_records_nothing(self):
+        """Escalation is what produces a second opinion. Without one there is no
+        counterfactual to write, and writing the primary against itself would fill the
+        ledger with rows that agree by construction.
+
+        TWO detectors are listed on purpose. With only one, the detector-count guard returns
+        first and shadows this one entirely -- a mutation deleting the escalation check
+        survived against a single-detector fixture."""
+        council = SimpleNamespace(escalated=False, detections=[],
+                                  by_detector={"primary": 2, "adj": 5})
+        self.assertEqual(self._drive(council).noted, [],
+                         "an unescalated frame has no second opinion to record")
+
+    def test_the_MOTION_GATE_is_never_taken_as_the_CHAMPION(self):
+        """`by_detector` carries the motion gate too. Recording background subtraction as the
+        champion count would compare a vehicle detector against blob detection -- permanent
+        disagreement, and a rate that means nothing."""
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"mog2": 9, "primary": 2})
+        spy = self._drive(council, challenger_count=4)
+        self.assertEqual(len(spy.noted), 1)
+        _, champion, challenger, ctx = spy.noted[0]
+        self.assertEqual((champion, challenger), (2, 4), "mog2's 9 must not be the champion")
+        self.assertEqual(ctx["champion"], "primary")
+
+    def test_a_SHADOW_THAT_EXPLODES_does_not_take_the_producer_down(self):
+        class _Boom:
+            stats = SimpleNamespace(describe=lambda: "boom", healthy=False)
+
+            def note(self, *a, **k):
+                raise RuntimeError("ledger exploded")
+
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=_Boom())
+        loop.step()          # must not raise
+        self.assertIsNotNone(loop)
+
+    def test_NO_shadow_configured_changes_nothing(self):
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src())
+        loop.step()
+        self.assertIsNone(loop.shadow)
+
+
+class SceneRevalidationTest(unittest.TestCase):
+    """A startup fix is only true at startup.
+
+    The operator resizes the window, reorders panes or goes fullscreen mid-shift. A binding
+    installed once at boot then warps every later frame through stale geometry while still
+    claiming the old sceneId and epoch -- detections evaluated against ground the pane no
+    longer covers, with nothing anywhere reporting a problem.
+    """
+
+    def _loop_with(self, source, **kw):
+        pipeline = make_pipeline()
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        return _loop(pipeline, _Vision(), source, **kw)
+
+    def test_the_revalidator_is_CALLED_on_its_timer(self):
+        calls = []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                calls.append(1)
+                return False
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.step()
+        self.assertEqual(calls, [], "not due yet")
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertEqual(len(calls), 1, "the revalidation timer never fired")
+
+    def test_relocate_seconds_ZERO_disables_it_entirely(self):
+        """Producers with no atlas have nothing to revalidate, and a timer firing into a
+        missing hook every two minutes is noise that trains an operator to ignore the log."""
+        calls = []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                calls.append(1)
+                return False
+
+        loop = self._loop_with(_Src(), relocate_seconds=0.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(99999.0)
+        loop.step()
+        self.assertEqual(calls, [])
+
+    def test_a_source_with_NO_revalidate_hook_is_fine(self):
+        """`--channel` and the plain crop path have no atlas and no hook. They must not
+        raise every time the timer comes round."""
+        class _Src:
+            def read(self):
+                return None
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(1100.0)
+        loop.step()          # must not raise
+
+    def test_a_REVALIDATOR_THAT_RAISES_does_not_take_the_producer_down(self):
+        """Losing the scene for one sample is usually a truck filling the pane. Tearing down
+        a producer mid-shift over it would be far worse than keeping a binding the pose gate
+        is independently watching."""
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                raise RuntimeError("locator exploded")
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(1100.0)
+        loop.step()          # must not raise
+        self.assertIsNotNone(loop)
+
+    def test_a_RE_LOCATION_records_a_LAYOUT_CHANGE_hard_case(self):
+        class _Spy:
+            def __init__(self):
+                self.fired = []
+                self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+            def observe(self, ts, image):
+                pass
+
+            def trigger(self, reason, at, context=None):
+                self.fired.append(reason)
+                return True
+
+            def flush_ready(self, now):
+                return []
+
+            def flush_all(self, now):
+                return []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                return True          # the layout moved
+
+        spy = _Spy()
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0),
+                               hard_cases=spy)
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertIn("LAYOUT_CHANGE", spy.fired)
+
+    def test_NO_hard_case_is_recorded_when_the_layout_did_NOT_move(self):
+        """The positive control. A trigger that fired on every revalidation would bury the
+        real layout changes under one clip every two minutes, forever."""
+        class _Spy:
+            def __init__(self):
+                self.fired = []
+                self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+            def observe(self, ts, image):
+                pass
+
+            def trigger(self, reason, at, context=None):
+                self.fired.append(reason)
+                return True
+
+            def flush_ready(self, now):
+                return []
+
+            def flush_all(self, now):
+                return []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                return False         # nothing moved
+
+        spy = _Spy()
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0),
+                               hard_cases=spy)
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertEqual(spy.fired, [])
 
 
 if __name__ == "__main__":

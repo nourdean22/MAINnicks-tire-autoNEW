@@ -142,8 +142,24 @@ class OpenVinoVehicleDetector(Detector):
             raise DetectorUnavailable(
                 f"device {device} not available; have {core.available_devices}"
             )
-        model = core.read_model(model_xml)
-        self._compiled = core.compile_model(model, device)
+        # THE LOAD ITSELF, guarded. Everything above this raises `DetectorUnavailable` -- the
+        # contract every caller is written against -- and then the actual read was left bare.
+        # OpenVINO raises a plain RuntimeError for an IR it cannot parse, so a TRUNCATED OR
+        # CORRUPT model file crashed the producer at startup instead of degrading to the
+        # documented motion-only path. That is not hypothetical: `fetch_models.py` pins a size
+        # and a sha256 precisely because a half-finished download is a thing that happens, and
+        # the crash lands before any of that verification could have reported it.
+        try:
+            model = core.read_model(model_xml)
+            self._compiled = core.compile_model(model, device)
+        except DetectorUnavailable:
+            raise
+        except Exception as exc:  # noqa: BLE001 - any load failure is unavailability, not a crash
+            raise DetectorUnavailable(
+                f"model IR at {model_xml} could not be loaded on {device}: {type(exc).__name__}. "
+                "A truncated or corrupt download reads exactly like this -- re-run "
+                "`python vision/fetch_models.py --verify-only` to check its size and sha256."
+            ) from exc
         self._input = self._compiled.input(0)
         shape = self._input.shape
         # NCHW

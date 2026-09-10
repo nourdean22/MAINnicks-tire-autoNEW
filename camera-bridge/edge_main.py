@@ -71,7 +71,14 @@ def source_generation(source: Any) -> str:
     """
     active = getattr(source, "active", None)
     restores = int(getattr(active, "restores", 0) or 0) if active is not None else 0
-    return f"{int(getattr(source, 'index', 0) or 0)}.{restores}"
+    # THE LAYOUT EPOCH IS PART OF THE IDENTITY, and folding it in here is what makes a
+    # re-located scene safe. A track at x=650 before a layout change and a detection at
+    # x=650 after it are not the same place; joining them manufactures a portal crossing no
+    # car ever made. The generation-break path above already degrades tracks and re-arms the
+    # census for a lane failover -- which is exactly the right response -- so a layout change
+    # needs no second mechanism, only membership in the same identity.
+    epoch = int(getattr(active, "layout_epoch", 0) or 0)
+    return f"{int(getattr(source, 'index', 0) or 0)}.{restores}.{epoch}"
 
 
 def edge_heartbeat_body(
@@ -172,11 +179,34 @@ class EdgeLoop:
         drain_seconds: float = 5.0,
         stall_exit_seconds: float = 180.0,
         persist_seconds: float = 2.0,
+        hard_cases: Any = None,
+        shadow: Any = None,
+        challenger: Any = None,
+        relocate_seconds: float = 120.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
         self.vision = vision
         self.source = source
+        #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
+        #: has -- the corpus is an upgrade, never a dependency of watching the lot.
+        self.hard_cases = hard_cases
+        #: How often to re-check that the located scene is still where it was. 0 disables.
+        #: A startup fix is only true at startup: the operator resizes the window or goes
+        #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
+        #: geometry while still claiming the old sceneId.
+        self.relocate_seconds = relocate_seconds
+        self.next_relocate = clock() + relocate_seconds if relocate_seconds > 0 else 0.0
+        self.revalidations = 0
+        self.relocations = 0
+        #: Optional `ShadowLedger`. None means no challenger is being observed, which is
+        #: the system as it has always run.
+        self.shadow = shadow
+        #: Observed, never consulted. Kept out of `DetectorCouncil` on purpose --
+        #: a model inside the council votes through `_fuse`, and a voting model's
+        #: disagreements are not a counterfactual.
+        self.challenger = challenger
+        self._last_layout_epoch = None
         self.camera = camera
         self.mode = mode
         #: What this producer is when NOT commissioning, passed in from the CALIBRATION
@@ -240,6 +270,11 @@ class EdgeLoop:
         if frame is not None:
             self.frames += 1
             self.last_frame_at = self.clock()
+            # FEED THE ROLLING WINDOW FIRST, before any gate can return early. A frame
+            # dropped for a generation break or an untrusted pose is often the single most
+            # interesting frame in the clip, and a buffer fed after the gates would be
+            # missing exactly the moments the recorder exists to capture.
+            self._observe_hard_case(frame)
 
             # A TRACK PATH MUST NEVER CROSS A CAPTURE GENERATION, and this is the only
             # place that can enforce it. `CaptureMux` falls back to the next lane after
@@ -265,6 +300,16 @@ class EdgeLoop:
                     "(no path may span a source change)", self.generation, gen,
                 )
                 self.generation = gen
+                # The corpus wants this one: a lane failover or a window restore is where
+                # tracks get degraded, and the clip around it is what shows whether the
+                # break was handled correctly. Declared in `TRIGGERS_WIRED`, so it needs a
+                # caller -- this is it.
+                if self.hard_cases is not None:
+                    try:
+                        self.hard_cases.trigger("SOURCE_FAILOVER", frame.ts,
+                                                {"from": prev_generation, "to": gen})
+                    except Exception:  # noqa: BLE001
+                        log.exception("hard-case trigger failed on a generation break")
                 try:
                     self.vision.tracks.mark_degraded()
                     self.vision.census.note_reconnect(frame.ts)
@@ -289,6 +334,15 @@ class EdgeLoop:
                 self.pipeline.metrics.inc("edge_vision_errors_total")
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
+
+            self._note_hard_cases(frame, out)
+            # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
+            # bookkeeping coupled two independent subsystems: with no recorder configured
+            # the ledger silently recorded nothing, and nested one level deeper it fired
+            # only on DISAGREEMENT -- so agreements never reached the denominator and the
+            # rate a promotion gate reads would have been 1.0 forever. Both were caught by
+            # the wiring test, not by review.
+            self._note_shadow(out.get("council"), frame.ts, frame.image)
 
             hs = out.get("health") or self.vision.health.state(frame.ts)
             self.last_health = hs
@@ -370,6 +424,32 @@ class EdgeLoop:
             except Exception:
                 self.pipeline.metrics.inc("edge_heartbeat_errors_total")
                 log.exception("heartbeat error")
+        if self.relocate_seconds > 0 and now >= self.next_relocate:
+            self.next_relocate = now + self.relocate_seconds
+            revalidate = getattr(self.source, "revalidate", None)
+            if revalidate is not None:
+                # COUNTED, not just acted on. A revalidator that silently never ran looks
+                # exactly like a layout that never moved -- both produce no log line and no
+                # epoch change -- and the first of those means the producer has been warping
+                # through a boot-time binding all shift with nobody the wiser.
+                self.revalidations += 1
+                try:
+                    if revalidate():
+                        # The epoch is part of `source_generation`, so the NEXT frame takes
+                        # the existing generation-break path: tracks degraded, census
+                        # re-armed, no path spanning the change. Nothing extra to keep in
+                        # step, which is the point of folding it into that identity.
+                        self.relocations += 1
+                        self.pipeline.metrics.inc("edge_scene_relocations_total")
+                        log.warning("scene re-located; the layout epoch advanced and the "
+                                    "next frame will break the track generation")
+                        if self.hard_cases is not None:
+                            self.hard_cases.trigger("LAYOUT_CHANGE", now,
+                                                    {"source": "revalidation"})
+                except Exception:
+                    self.pipeline.metrics.inc("edge_relocate_errors_total")
+                    log.exception("scene revalidation failed; the existing binding stands")
+
         if now >= self.next_drain:
             self.next_drain = now + self.drain_seconds
             try:
@@ -410,6 +490,112 @@ class EdgeLoop:
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
 
+    def _observe_hard_case(self, frame) -> None:
+        """Push a frame into the recorder's window. Never raises: this is not the lot's job."""
+        if self.hard_cases is None:
+            return
+        try:
+            self.hard_cases.observe(frame.ts, frame.image)
+        except Exception:  # noqa: BLE001
+            log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
+
+    def _note_hard_cases(self, frame, out: Dict[str, object]) -> None:
+        """Arm a clip for anything the system just told us it was unsure about.
+
+        ONLY signals that genuinely exist here are wired. A trigger with no real producer is
+        a class of hard case the corpus will never contain, and read back later an absent
+        class looks like a shop that never had one rather than like nothing that was ever
+        watching -- so `TRIGGERS_WIRED` names exactly these and nothing more.
+        """
+        if self.hard_cases is None:
+            return
+        try:
+            ts = frame.ts
+
+            # LAYOUT CHANGE. `WgcWindowSource.set_canonical` stamps the epoch into the frame,
+            # so this is a real signal the moment a scene is relocated -- and a layout change
+            # is the boundary at which geometry stops being comparable.
+            epoch = (frame.meta or {}).get("layoutEpoch")
+            changed = (epoch is not None and self._last_layout_epoch is not None
+                       and epoch != self._last_layout_epoch)
+            if changed:
+                self.hard_cases.trigger("LAYOUT_CHANGE", ts, {
+                    "from": self._last_layout_epoch, "to": epoch,
+                    "sceneId": (frame.meta or {}).get("sceneId")})
+            if epoch is not None:
+                self._last_layout_epoch = epoch
+
+            # POSE OFF HOME. The scene gate already decides this; the clip is the evidence
+            # an operator needs to tell a real bump from a passing truck filling the frame.
+            scene = out.get("scene")
+            if scene is not None and not getattr(scene, "may_create_visits", True):
+                self.hard_cases.trigger("POSE_OFF_HOME", ts, {
+                    "changeFrac": round(float(getattr(scene, "change_frac", 0.0)), 3)})
+
+            council = out.get("council")
+            if council is not None:
+                by = dict(getattr(council, "by_detector", {}) or {})
+                # DETECTOR DISAGREEMENT. Escalation alone is not disagreement -- the council
+                # escalates on ambiguity and the adjudicator often simply confirms. What is
+                # worth a label is the two models returning DIFFERENT counts, which is the
+                # case a human can actually adjudicate from a clip.
+                if getattr(council, "escalated", False) and len(by) >= 2:
+                    counts = sorted(by.values())
+                    if counts[0] != counts[-1]:
+                        self.hard_cases.trigger("DETECTOR_DISAGREEMENT", ts, {"byDetector": by})
+
+                # PORTAL LOW CONFIDENCE. An emission on this frame means the lot's state
+                # changed; a weak best detection behind that change is the expensive kind of
+                # uncertainty, because it is the frame that creates or denies a visit.
+                if out.get("emissions"):
+                    scores = [float(getattr(d, "score", 0.0))
+                              for d in (getattr(council, "detections", None) or [])]
+                    if scores and max(scores) < 0.60:
+                        self.hard_cases.trigger("PORTAL_LOW_CONFIDENCE", ts, {
+                            "bestScore": round(max(scores), 3), "detections": len(scores)})
+
+            for path in self.hard_cases.flush_ready(ts):
+                log.info("hard case saved %s", path)
+        except Exception:  # noqa: BLE001 - the corpus must never take the lot down
+            log.exception("hard-case bookkeeping failed")
+
+    def _note_shadow(self, council: Any, ts: float, image: Any = None) -> None:
+        """Record what the adjudicator ALONE would have counted, beside the primary.
+
+        A real counterfactual with a real source: both numbers already exist on an escalated
+        frame, and the question a promotion gate asks later -- "how often does the stronger
+        model see a different number of vehicles than the cheap one, and on which frames?" --
+        cannot be answered from an aggregate score.
+
+        The adjudicator never gets a vote here. `_fuse` already decided what the council
+        returns; this only writes down what the alternative would have been.
+        """
+        if self.shadow is None or council is None:
+            return
+        if not getattr(council, "escalated", False):
+            # No escalation means no second opinion was computed. Writing the primary
+            # against itself would fill the ledger with rows that agree by construction and
+            # drag the disagreement rate toward zero for reasons having nothing to do with
+            # the challenger.
+            return
+        if self.challenger is None or image is None:
+            return
+        try:
+            by = dict(getattr(council, "by_detector", {}) or {})
+            primary = next((n for n in by if n != "mog2"), None)
+            if primary is None:
+                return
+            # THE CHALLENGER RUNS HERE, out of band, on the same frame the council just
+            # judged. Its boxes go into the ledger and nowhere else -- they never reach
+            # `_fuse`, the tracker or a visit.
+            challenger_boxes = self.challenger.detect(image)
+            self.shadow.note("VEHICLE_COUNT", by[primary], len(challenger_boxes), at=ts,
+                             context={"champion": primary,
+                                      "challenger": getattr(self.challenger, "name", "?"),
+                                      "camera": self.camera, "mode": self.mode})
+        except Exception:  # noqa: BLE001 - a research artefact never outranks the lot
+            log.exception("shadow ledger note failed")
+
     def shutdown(self) -> None:
         """Flush on the way out: commit whatever is held, then drain what we can.
 
@@ -429,6 +615,34 @@ class EdgeLoop:
             self.pipeline.drain_shop()
         except Exception:
             log.exception("final shop drain failed")
+        if self.hard_cases is not None:
+            # A producer that stops right after something confusing happened is describing a
+            # moment especially worth keeping. Dropping armed clips on the way out loses
+            # exactly the wrong ones.
+            try:
+                for path in self.hard_cases.flush_all(self.clock()):
+                    log.info("hard case saved on shutdown %s", path)
+            except Exception:
+                log.exception("final hard-case flush failed")
+            # REPORT THE CORPUS AT THE ONE MOMENT SOMEONE LOOKS. An empty directory is a
+            # legitimate outcome -- a quiet shift genuinely produces no hard cases -- and it
+            # is indistinguishable on disk from a recorder whose every write failed. The
+            # heartbeat carries this for the shop; this line carries it for whoever is
+            # reading the producer's own log after a run.
+            try:
+                stats = self.hard_cases.stats
+                log.info("hard-case corpus %s healthy=%s", stats.describe(), stats.healthy)
+            except Exception:
+                log.exception("hard-case stats unreadable")
+        if self.shadow is not None:
+            try:
+                st = self.shadow.stats
+                log.info("shadow ledger %s healthy=%s", st.describe(), st.healthy)
+            except Exception:
+                log.exception("shadow stats unreadable")
+        if self.relocate_seconds > 0:
+            log.info("scene revalidation ran %d time(s); the layout moved %d time(s)",
+                     self.revalidations, self.relocations)
 
 
 # ---------------------------------------------------------------------------- wiring
@@ -539,6 +753,31 @@ def reconcile_restart(pipeline: Any, camera: str) -> int:
     return len(before)
 
 
+def canonical_size_from(calibration_path):
+    """The canonical frame size the calibration's polygons were drawn in, or None.
+
+    A calibration file is polygons in pixels. To warp a located pane back into those
+    coordinates the producer has to know how big that frame was -- and it cannot be
+    inferred from the polygons, because a lot polygon need not touch the frame edges.
+    So the file must say, under a "canonical": [width, height] key, and a file that does
+    not say is refused rather than defaulted. Defaulting here would silently scale every
+    polygon by whatever ratio happened to be wrong.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return None
+    import json as _json
+
+    cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    size = cal.get("canonical")
+    if not size or len(size) != 2:
+        raise SceneNotLocated(
+            f"{calibration_path} has no \"canonical\": [width, height] key, so there is no "
+            "frame to warp located panes back into. Add the pixel size the polygons were "
+            "drawn against -- guessing it would rescale every polygon silently."
+        )
+    return (int(size[0]), int(size[1]))
+
+
 def build_edge(cfg: Config, args: argparse.Namespace):
     """Build the visitd pipeline first, then hand ITS tracker to the vision pipeline.
 
@@ -552,7 +791,10 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     from vision.evidence import EvidenceStore
     from vision.geometry import EntryPortal, LotMap, Zone
     from vision.pipeline import VisionPipeline
-    from vision.run_live import build_council, build_source
+    from vision.detector import DetectorUnavailable
+    from vision.run_live import (build_council, build_source,  # noqa: F401
+                                 declared_fixed_lens, same_model)
+    from vision.scenelocator import SceneNotLocated
 
     ledger_path = camera_ledger_path(args.ledger or cfg.ledger_path, args.camera)
     ledger = Ledger(
@@ -572,7 +814,17 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         )
     cam = cfg.cameras[camera]
 
-    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
+    # AIM BEFORE CALIBRATING. `--channel` is resolved against the live window and refuses
+    # to attach a calibration file to a lens it cannot prove is FIXED, so this must know
+    # whether one was supplied -- which is why it reads args.calibration rather than the
+    # parsed polygons below.
+    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
+                          channel=args.channel,
+                          calibrated=bool(args.calibration and os.path.exists(args.calibration)),
+                          declared_fixed=declared_fixed_lens(args.calibration),
+                          scene_atlas=args.scene_atlas, scene=args.scene,
+                          canonical_size=(canonical_size_from(args.calibration)
+                                          if args.scene_atlas else None))
 
     calibration_version = None
     lot_poly = portal_poly = None
@@ -605,7 +857,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         lot_map = LotMap().add(arrival_zone, [(0.0, 0.0), (1e6, 0.0), (1e6, 1e6), (0.0, 1e6)])
         portal = EntryPortal(Zone(arrival_zone, []), portal_zone=Zone("portal", []))
 
-    council = build_council(args.model, args.device, args.motion_gate)
+    council = build_council(args.model, args.device, args.motion_gate,
+                            adjudicator_model=args.adjudicator_model,
+                            adjudicator_device=args.adjudicator_device)
     vision = VisionPipeline(
         council=council,
         lot_map=lot_map,
@@ -617,6 +871,24 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         # THE JOIN: one tracker, owned by visitd, driven by vision.
         tracker=pipeline.tracker,
     )
+    # HAND SCENELOCK THE CALIBRATED POSE when the atlas proved one. Without this the lock
+    # auto-adopts whatever frame settles first, which detects drift from WHERE THE PROCESS
+    # STARTED -- genuinely useful, and blind to the case that matters most: a camera already
+    # off-aim at start-up. There the wrong view becomes "home", every later frame agrees with
+    # it, and visits are minted forever against polygons belonging to a view the camera no
+    # longer has. Silently wrong, with no symptom to notice.
+    #
+    # A frame that appearance-matched a calibrated reference upgrades the gate from "has it
+    # moved since boot" to "is it where the polygons were drawn".
+    calibrated = getattr(source, "calibrated_reference", None)
+    if calibrated is not None:
+        try:
+            vision.scene.set_reference(calibrated)
+            log.info("scene lock anchored to the CALIBRATED pose from the atlas, "
+                     "not to whichever frame settled first")
+        except Exception:
+            log.exception("could not anchor the scene lock; it will auto-adopt instead")
+
     seed_track_ids(vision, pipeline.tracker, camera)
     # What is LOAD-BEARING is that this runs before the loop starts, because the pin has to
     # be in place before ANY emission reaches `after_step`. Ordering it ahead of
@@ -671,6 +943,16 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
+    ap.add_argument("--scene-atlas", default=None,
+                    help="directory of reference views named <scene_id>__<variant>.png; "
+                         "locates the KNOWN camera anywhere in the window and warps every "
+                         "frame into canonical coordinates")
+    ap.add_argument("--scene", default=None,
+                    help="which scene_id in the atlas this producer IS; omit to accept "
+                         "whichever known scene is on screen (refused if ambiguous)")
+    ap.add_argument("--channel", type=int, default=None,
+                    help="aim at ONE channel of a multi-lens device (0-based, left-to-right, top "
+                         "row first). SHOPSIGN is a 3-in-1: two fixed lenses plus a PTZ.")
     ap.add_argument("--calibration", default=None, help="lot/portal/bay polygons; without it, census mode")
     # Honour the same env vars `vision.run_live` does. Without a model `build_council`
     # returns a council with no primary detector, whose `can_confirm_arrival` is always
@@ -682,6 +964,28 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "motion-only and cannot confirm an arrival")
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
                     help="OpenVINO device (env VISION_OV_DEVICE)")
+    ap.add_argument("--relocate-seconds", type=float, default=120.0,
+                    help="how often to re-check that the located scene is still where it was. "
+                         "A startup fix is only true at startup. 0 disables.")
+    ap.add_argument("--challenger-model", default=os.environ.get("VISION_OV_CHALLENGER"),
+                    help="a model observed but NEVER consulted for a decision. Unlike "
+                         "--adjudicator-model, which votes inside the council, this one is "
+                         "run out of band and only recorded.")
+    ap.add_argument("--shadow-ledger", default=os.environ.get("EDGE_SHADOW_LEDGER"),
+                    help="JSONL of what the adjudicator ALONE would have decided, beside the "
+                         "primary. Counterfactual only -- a challenger never gets a vote.")
+    ap.add_argument("--hard-cases", default=os.environ.get("EDGE_HARD_CASES"),
+                    help="directory for clips of moments the system found HARD -- detector "
+                         "disagreement, a weak portal decision, an off-home pose, a layout "
+                         "change. Unset means no corpus is collected.")
+    ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
+                    help="disk budget for the hard-case store; oldest clips are evicted first")
+    ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
+                    help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
+                         "frames. Must differ from --model; a model agrees with itself.")
+    ap.add_argument("--adjudicator-device", default=os.environ.get("VISION_OV_ADJUDICATOR_DEVICE"),
+                    help="device for the adjudicator (default: same as --device). Put it on CPU "
+                         "when the primary holds the GPU, so escalation does not contend.")
     ap.add_argument("--motion-gate", action="store_true", default=True, help="skip the detector on still frames")
     ap.add_argument("--evidence", default=None, help="directory for evidence packets")
     ap.add_argument("--fps", type=float, default=4.0, help="analysis rate")
@@ -734,6 +1038,55 @@ def run_edge(args: argparse.Namespace) -> int:
         log.error("metrics server unavailable host=%s port=%s error=%s", cfg.metrics_host, cfg.metrics_port, exc)
 
     pipeline.cloud.start()
+    recorder = None
+    if args.hard_cases:
+        from vision.hardcase import HardCaseRecorder
+
+        recorder = HardCaseRecorder(directory=args.hard_cases,
+                                    max_bytes=int(args.hard_case_max_gb * 1024 ** 3))
+        os.makedirs(args.hard_cases, exist_ok=True)
+        log.info("hard-case corpus at %s (budget %.1f GB)", args.hard_cases,
+                 args.hard_case_max_gb)
+
+    # A CHALLENGER IS NOT AN ADJUDICATOR, and conflating them made the previous version of
+    # this a counterfactual in name only. `--adjudicator-model` is passed into the
+    # AUTHORITATIVE council, where `_fuse` promotes ambiguous boxes it agrees with and adds
+    # boxes it alone found -- so it changes tracking and visit emission. Recording its
+    # disagreements as "what a challenger would have decided" described a model that was
+    # already deciding.
+    #
+    # `--challenger-model` is loaded here, kept OUT of the council, and run out of band by
+    # the loop. That is the only arrangement in which the ledger's central claim -- that the
+    # challenger never gets a vote -- is true by construction rather than by assertion.
+    shadow = challenger = None
+    if args.shadow_ledger and args.challenger_model:
+        from vision.detector import OpenVinoVehicleDetector
+        from vision.shadow import ShadowLedger
+
+        if same_model(args.challenger_model, args.model):
+            raise ConfigError(
+                "--challenger-model is the same file as --model, so the ledger would record "
+                "the champion disagreeing with itself. Point it at a different model."
+            )
+        try:
+            challenger = OpenVinoVehicleDetector(args.challenger_model,
+                                                 device=args.adjudicator_device or args.device,
+                                                 conf=0.25)
+            shadow = ShadowLedger(path=args.shadow_ledger,
+                                  champion_model=os.path.basename(args.model or "none"),
+                                  challenger_model=os.path.basename(args.challenger_model))
+            log.info("shadow ledger at %s observing %s (NOT in the council)",
+                     args.shadow_ledger, challenger.name)
+        except DetectorUnavailable as exc:
+            log.warning("challenger unavailable (%s); no ledger is being kept", exc)
+            challenger = shadow = None
+    elif args.shadow_ledger:
+        # REFUSING IS THE POINT. A ledger with no challenger records nothing and would sit
+        # there as an empty file, which reads later as "the challenger agreed every time"
+        # rather than "no challenger ever ran".
+        log.warning("--shadow-ledger needs --challenger-model; there is no challenger to "
+                    "observe, so no ledger is being kept")
+
     loop = EdgeLoop(
         pipeline, vision, source,
         camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
@@ -741,6 +1094,8 @@ def run_edge(args: argparse.Namespace) -> int:
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
+        hard_cases=recorder, shadow=shadow, challenger=challenger,
+        relocate_seconds=args.relocate_seconds,
     )
 
     stop = threading.Event()

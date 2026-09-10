@@ -186,6 +186,50 @@ if ($win -and $py) {
     # written to catch false greens. No parsable status now means NOT a pass, whatever the
     # exit code claims.
     $line = ($probe | Where-Object { $_ -match "^status=" } | Select-Object -Last 1)
+    # LAYOUT, reported separately. The producer's crop is a fraction measured once at one
+    # window size, so a resize or a switch to 4-up silently points it at the wrong pixels.
+    #
+    # A MULTI-CHANNEL WINDOW IS A VALID LAYOUT, and this check used to say otherwise. It
+    # told the operator to "select a SINGLE camera's live view" -- advice that is simply
+    # wrong for SHOPSIGN, which is ONE device with three lenses: two fixed, covering the
+    # left and right approaches to the shop, and a PTZ in the middle. There is no single
+    # view to select. The useful report is therefore per channel: where each one sits, and
+    # whether it is FIXED (so it may carry calibrated arrival geometry) or a PTZ (so it
+    # never may, because a pan re-aims the lens and leaves every polygon describing ground
+    # the camera no longer sees).
+    $pane  = ($probe | Where-Object { $_ -match "^pane=" } | Select-Object -Last 1)
+    $chans = @($probe | Where-Object { $_ -match "^channel=" })
+    # "no pan was seen" is NOT "this is a fixed lens" -- a PTZ idle for four seconds
+    # looks identical to a bolted-down camera, and naming them the same is what let
+    # calibrated geometry onto a lens that re-aims itself. The doctor reports what was
+    # OBSERVED and leaves eligibility to the operator declaration in the calibration.
+    $still   = @($chans | Where-Object { $_ -match "motion=no-pan-observed" })
+    $panning = @($chans | Where-Object { $_ -match "motion=panning" })
+    if ($pane -match "^pane=none") {
+        Check "camera layout" "FAIL" "$pane -- the window shows no live video at all"
+    } elseif ($pane -match "^pane=error" -or -not $pane) {
+        Check "camera layout" "WARN" "the layout probe did not report ($pane)"
+    } elseif ($chans.Count -gt 1) {
+        $detail = "$($chans.Count) channels, $($still.Count) still / $($panning.Count) panning during the sample :: " + ($chans -join " :: ")
+        if ($still.Count -ge 1) {
+            $aim = if (Test-Path (Join-Path $root "data\scene-atlas")) {
+                "Run ONE producer per channel with --scene-atlas + --scene <id>; a channel may carry calibrated geometry only if the calibration DECLARES it a fixed lens, since an idle sample never proves one"
+            } else {
+                "Run ONE producer per channel with --channel N (or build a scene atlas, which is stronger: --channel finds a rectangle, an atlas identifies the camera)"
+            }
+            Check "camera layout" "PASS" "$detail -- a multi-lens device. $aim; without either, all $($chans.Count) scenes are analysed as one frame."
+        } else {
+            Check "camera layout" "WARN" "$detail -- every channel was PANNING during the sample, so none may carry calibrated arrival geometry right now. Re-run once the cameras are at rest."
+        }
+    } elseif ($pane -match "^pane=single") {
+        if ($panning.Count -ge 1) {
+            Check "camera layout" "WARN" "$pane -- this lens was PANNING during the sample. Census counting is fine; a lot polygon drawn on it is invalidated by the next pan."
+        } else {
+            Check "camera layout" "PASS" "$pane"
+        }
+    } else {
+        Check "camera layout" "WARN" "$pane -- the live region is neither one 16:9 camera nor a tiling of 16:9 channels, so the capture is clipped or the window is partly off-screen."
+    }
     if (-not $line) {
         Check "live feed" "WARN" "the probe produced no status line (rc=$probeRc): $(($probe | Select-Object -Last 1))"
     } elseif ($probeRc -eq 0) {
@@ -216,6 +260,58 @@ if (Test-Path $ledger) {
 } elseif (Test-Path $legacy) {
     Check "ledger" "WARN" "none for '$Camera' yet; a pre-split $legacy exists and is NO LONGER READ -- its open visits will not be restored"
 } else { Check "ledger" "PASS" "none yet; it is created on first run" }
+
+# --- Scene atlas and hard-case corpus ---------------------------------------
+# WHY BOTH ARE CHECKED HERE. Each is a subsystem whose failure looks exactly like its
+# success from the outside: an atlas with no references makes the producer refuse to start
+# with a message about the atlas rather than about the camera, and a hard-case corpus that
+# is failing every write is byte-for-byte identical on disk to a shop that had no hard
+# cases. The preflight is where that ambiguity gets resolved, before it costs a shift.
+$atlasDir = Join-Path $root "data\scene-atlas"
+if (-not (Test-Path $atlasDir)) {
+    Check "scene atlas" "WARN" "none at $atlasDir -- the producer will fall back to a measured crop or --channel, which finds a rectangle but cannot prove WHICH camera it is"
+} else {
+    $refs = @(Get-ChildItem $atlasDir -Filter *.png -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -notlike "*.mask.png" })
+    if ($refs.Count -eq 0) {
+        Check "scene atlas" "FAIL" "$atlasDir exists but holds no reference images -- name them '<scene_id>__<variant>.png'"
+    } else {
+        $scenes = @($refs | ForEach-Object { ($_.BaseName -split "__")[0] } | Sort-Object -Unique)
+        $oldest = ($refs | Sort-Object LastWriteTime | Select-Object -First 1).LastWriteTime
+        $ageDays = [math]::Round(((Get-Date) - $oldest).TotalDays, 1)
+        $detail = "$($refs.Count) reference(s) for $($scenes.Count) scene(s): $($scenes -join ', '); oldest $ageDays d"
+        if ($ageDays -gt 60) {
+            Check "scene atlas" "WARN" "$detail -- references age with the seasons; add a variant rather than letting the match thin out"
+        } else {
+            Check "scene atlas" "PASS" $detail
+        }
+    }
+}
+
+$corpus = Join-Path $root "data\hard-cases"
+if (-not (Test-Path $corpus)) {
+    Check "hard-case corpus" "WARN" "not collecting -- pass --hard-cases to start building the shop-specific corpus this system learns from"
+} else {
+    $clips = @(Get-ChildItem $corpus -Directory -ErrorAction SilentlyContinue)
+    $bytes = 0
+    foreach ($c in $clips) {
+        $bytes += (Get-ChildItem $c.FullName -File -ErrorAction SilentlyContinue |
+                   Measure-Object -Property Length -Sum).Sum
+    }
+    $mb = [math]::Round($bytes / 1MB, 1)
+    # AN EMPTY CORPUS IS NOT A FAILURE and must not be reported as one. A quiet shift really
+    # does produce no hard cases. What the producer's own log and heartbeat carry, and this
+    # cannot see from the directory alone, is whether any write FAILED -- so this says what
+    # it can measure and points at the thing that knows the rest.
+    if ($clips.Count -eq 0) {
+        Check "hard-case corpus" "PASS" "$corpus is empty -- legitimate on a quiet shift. The producer log line 'hard-case corpus ... healthy=' is what distinguishes quiet from broken."
+    } else {
+        $reasons = @($clips | ForEach-Object { ($_.Name -split "-", 2)[1] } | Group-Object |
+                     Sort-Object Count -Descending | Select-Object -First 3 |
+                     ForEach-Object { "$($_.Name) x$($_.Count)" })
+        Check "hard-case corpus" "PASS" "$($clips.Count) clip(s), $mb MB; most common: $($reasons -join ', ')"
+    }
+}
 
 # --- Supervision ------------------------------------------------------------
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
