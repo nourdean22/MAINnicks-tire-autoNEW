@@ -20,7 +20,7 @@
  * STATENOUR_SYNC_KEY".)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 type QueryResult = { data: unknown; isLoading: boolean; isError: boolean; error: unknown };
 
@@ -30,6 +30,7 @@ const h = vi.hoisted(() => ({
   // Defaults to an available, empty result so the SLA banner stays out of the
   // way of the outage assertions; the tests that care set it explicitly.
   slaBreaches: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
+  history: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
 }));
 
 // vi.mock is hoisted above every top-level const, so the mutation stub is
@@ -69,7 +70,7 @@ vi.mock("@/lib/trpc", () => {
         // READS trpc.technicianReferrals.history.useQuery at render, and a
         // missing key here is `undefined.useQuery`, which kills every test in
         // the file with an error naming an unrelated line.
-        history: { useQuery: () => ({ data: { available: true, rows: [] }, isLoading: false, isError: false }) },
+        history: { useQuery: () => h.history },
       },
     },
   };
@@ -88,6 +89,7 @@ beforeEach(() => {
   h.candidates = { data: undefined, isLoading: false, isError: false, error: null };
   h.referrals = { data: undefined, isLoading: false, isError: false, error: null };
   h.slaBreaches = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+  h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
 });
 
 describe("CandidatesPanel", () => {
@@ -207,5 +209,83 @@ describe("CandidatesPanel · the SLA alarm actually paints", () => {
     expect(screen.queryByText(/awaiting reply/i)).toBeNull();
     expect(screen.queryByText(/SLA unknown/i)).toBeNull();
     expect(screen.queryByText(/waiting on a first reply/i)).toBeNull();
+  });
+});
+
+/**
+ * WHY, not just who and when.
+ *
+ * The first cut of this history list rendered action + actor + timestamp and
+ * dropped `changes` on the floor - so the single most useful field in a
+ * contested $300, the RECORDED REASON, was the one thing it did not show.
+ */
+describe("TechnicianReferralsPanel - referral history shows the reason", () => {
+  const oneReferral = () =>
+    ok([
+      {
+        id: 7,
+        status: "disqualified",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: null,
+        eligibleAt: null,
+        paidAt: null,
+        createdAt: new Date("2026-08-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("renders the recorded reason, not just the actor and timestamp", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = {
+      data: {
+        available: true,
+        rows: [
+          {
+            id: "a1",
+            actor: "nick@nickstire.org",
+            action: "technician_referral.disqualified",
+            changes: { detail: { old: null, new: "Referral #7 disqualified: referrer was the applicant" } },
+            createdAt: new Date("2026-09-01T15:04:00Z").toISOString(),
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/nick@nickstire\.org/)).toBeTruthy();
+    expect(screen.getByText(/referrer was the applicant/)).toBeTruthy();
+  });
+
+  it("a failed audit read is not an empty history", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: false, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    // "Nobody touched this record" is the most exonerating thing an audit
+    // trail can say, so a read that did not run must never be able to say it.
+    expect(screen.getByText(/Couldn.t read the audit trail/i)).toBeTruthy();
+    expect(screen.queryByText(/No recorded actions yet/i)).toBeNull();
+  });
+
+  it("still says so when there genuinely is no history - the positive control", () => {
+    // Without this, a panel that rendered the failure banner unconditionally
+    // would satisfy the test above and be badly broken.
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/No recorded actions yet/i)).toBeTruthy();
+    expect(screen.queryByText(/Couldn.t read the audit trail/i)).toBeNull();
   });
 });

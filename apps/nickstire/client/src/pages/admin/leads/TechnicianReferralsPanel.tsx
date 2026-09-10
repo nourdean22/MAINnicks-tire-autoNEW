@@ -34,6 +34,24 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
+type AuditRow = { id: string; actor: string; action: string; changes: unknown; createdAt: string | Date };
+
+/**
+ * Pull the human-readable detail out of an audit row's `changes` blob.
+ *
+ * logAdminAction writes one of two shapes: `{ detail: { old, new } }` when only
+ * a details string was passed, or `{ value: { old, new } }` when a
+ * previous/new pair was. Returns "" rather than throwing on anything else -
+ * an unrenderable audit row must not take the whole history down with it,
+ * which would turn "here is what happened" into a blank panel.
+ */
+function auditDetail(changes: unknown): string {
+  if (!changes || typeof changes !== "object") return "";
+  const c = changes as Record<string, { old?: unknown; new?: unknown } | undefined>;
+  const v = c.detail?.new ?? c.value?.new;
+  return typeof v === "string" ? v : "";
+}
+
 /**
  * WHO MOVED THIS $300, AND WHEN.
  *
@@ -74,15 +92,24 @@ function ReferralHistory({ id }: { id: number }) {
             <span className="text-[11px] text-foreground/40">No recorded actions yet.</span>
           ) : (
             <ul className="space-y-0.5">
-              {q.data?.rows.map((e: { id: string; actor: string; action: string; createdAt: string | Date }) => (
-                <li key={e.id} className="text-[11px] text-foreground/55">
-                  <span className="text-foreground/75">{e.action.replace("technician_referral.", "")}</span>
-                  {" by "}
-                  <span className="text-foreground/75">{e.actor}</span>
-                  {" · "}
-                  {new Date(e.createdAt).toLocaleString()}
-                </li>
-              ))}
+              {q.data?.rows.map((e: AuditRow) => {
+                // WHY, not just who and when. logAdminAction stores the detail
+                // string under changes.detail.new; for a disqualify or a
+                // forfeit that string carries the RECORDED REASON, which is the
+                // single most useful field in a contested $300 and was the one
+                // this list originally left out.
+                const detail = auditDetail(e.changes);
+                return (
+                  <li key={e.id} className="text-[11px] text-foreground/55">
+                    <span className="text-foreground/75">{e.action.replace("technician_referral.", "")}</span>
+                    {" by "}
+                    <span className="text-foreground/75">{e.actor}</span>
+                    {" · "}
+                    {new Date(e.createdAt).toLocaleString()}
+                    {detail && <span className="block pl-2 text-foreground/45">{detail}</span>}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
