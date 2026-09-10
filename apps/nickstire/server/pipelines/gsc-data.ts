@@ -255,7 +255,14 @@ export async function fetchSearchPerformance(
         query = "";
         page = row.keys[0] || "";
         date = row.keys[1] || "";
-        device = "desktop";   // not returned for Discover; column is NOT NULL
+        // Discover returns NO device dimension — Google rejects the request
+        // outright. Writing "desktop" is not a default, it is a positive
+        // assertion about traffic Google explicitly declined to break down:
+        // 90,000 Discover impressions (overwhelmingly mobile in reality)
+        // landing in device="desktop" would report a 92% desktop share on a
+        // property whose Web-only truth is ~20%. "unknown" is the honest
+        // value, and any device split must exclude it rather than count it.
+        device = "unknown";
         country = row.keys[2] || "usa";
       }
 

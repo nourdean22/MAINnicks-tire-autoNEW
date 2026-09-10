@@ -455,8 +455,71 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
     }
     let candidateId = referral.candidateId ?? null;
     if (candidateId != null) {
-      const [candidate] = await db.select({ id: candidates.id, source: candidates.source }).from(candidates).where(eq(candidates.id, candidateId)).limit(1);
-      if (!candidate || candidate.source !== "careers") candidateId = null;
+      const [candidate] = await db
+        .select({
+          id: candidates.id,
+          source: candidates.source,
+          phone: candidates.phone,
+          name: candidates.name,
+        })
+        .from(candidates)
+        .where(eq(candidates.id, candidateId))
+        .limit(1);
+      if (!candidate || candidate.source !== "careers") {
+        candidateId = null;
+      } else {
+        // SELF-REFERRAL GUARD. This is the $300 program; the $25 CUSTOMER
+        // program at referrals.submit has had one since it shipped
+        // (server/routers/services.ts). The twelve-times-more-valuable
+        // program had the weaker control: nothing compared the referrer to
+        // the applicant, so applying ten times naming yourself created ten
+        // pending $300 claims — $3,000 — and the admin panel had no way to
+        // show they were one person.
+        //
+        // Phone is the identity key, matching the $25 program: names are
+        // trivially varied ("Bob" / "Robert" / "bob r"), a phone is not.
+        // Same last-10-digits normalization, so "(216) 555-01 23",
+        // "216-555-0123" and "+12165550123" all collapse together.
+        const last10 = (p: string | null | undefined) => (p ?? "").replace(/\D/g, "").slice(-10);
+        const refPhone = last10(referral.referrerPhone);
+        const candPhone = last10(candidate.phone);
+        if (refPhone && refPhone === candPhone) {
+          // No PII in this line. The $25 guard logs phone10 + full name on a
+          // path any unauthenticated caller can trigger, and lint-pii cannot
+          // see it (its template-literal rules only cover console.* and
+          // new Error). Not repeating that here.
+          log.warn(`[technicianReferrals] BLOCKED self-referral · candidate #${candidateId}`);
+          return { success: false, selfReferral: true as const };
+        }
+        // Name equality is a weaker signal than phone, so it only fires when
+        // the referrer gave NO phone at all — otherwise a genuine referral
+        // between two people who share a common name would be refused.
+        if (!refPhone) {
+          const norm = (s: string | null | undefined) =>
+            (s ?? "").toLowerCase().replace(/[^a-z]/g, "");
+          if (norm(referral.referrerName) && norm(referral.referrerName) === norm(candidate.name)) {
+            log.warn(`[technicianReferrals] BLOCKED self-referral by name · candidate #${candidateId}`);
+            return { success: false, selfReferral: true as const };
+          }
+        }
+
+        // DEDUPE. There is no unique index on this table (0121 uses plain
+        // KEYs), and the applicant can refresh-and-resubmit: two candidate
+        // rows, two referral rows, two $300 claims for one hire. Scope the
+        // check to this candidate so an employee who genuinely refers several
+        // different people is unaffected.
+        const existing = await db
+          .select({ id: technicianReferrals.id })
+          .from(technicianReferrals)
+          .where(eq(technicianReferrals.candidateId, candidateId))
+          .limit(1);
+        if (existing.length > 0) {
+          log.warn(
+            `[technicianReferrals] duplicate suppressed · candidate #${candidateId} already has referral #${existing[0].id}`,
+          );
+          return { success: true, id: existing[0].id, duplicate: true as const };
+        }
+      }
     }
     const result = await db.insert(technicianReferrals).values({ ...referral, leadId, candidateId });
     return { success: true, id: Number(result[0].insertId) } as const;
