@@ -354,6 +354,25 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       unavailableHealthSources.add(source);
       return fallback;
     };
+    /**
+     * 2026-09-10 · WIDENED from the health block to every counter here.
+     *
+     * The mechanism above was already correct and already reaches the
+     * model -- `unavailableSources` is rendered by
+     * lib/ai/prompt/v2/renderer.ts:768. It was just scoped to the health
+     * reads, while nine other counters used a bare `.catch(() => 0)`.
+     *
+     * That mattered because this state feeds nick-prime-context, so a
+     * failed `task.count` arrived in NICK's context as the measured fact
+     * "0 tasks done today" -- and "you have completed nothing today" is a
+     * sentence with real weight to say to someone. Nothing distinguished
+     * it from a genuine zero, at any layer.
+     *
+     * Labels are per-counter rather than a single "counts failed" flag so
+     * the renderer can say WHICH number is missing. A degraded snapshot
+     * where only `automation.runs24h` is unreadable should not discredit
+     * the task counts that were read successfully.
+     */
     const dayStart = startOfDayUTC(0);
     const sevenDaysAgo = startOfDayUTC(7);
     const oneDayAgo = new Date(Date.now() - 86_400_000);
@@ -596,7 +615,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
       .catch(() => null),
     prisma.task
       .count({ where: { status: "DONE", deletedAt: null, updatedAt: { gte: dayStart } } })
-      .catch(() => 0),
+      .catch(healthFallback("tasks.doneToday", 0)),
     // v9.0-rc · count of DONE tasks today WITH a non-null proof JSON.
     prisma.task
       .count({
@@ -607,12 +626,12 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           proof: { not: Prisma.DbNull },
         },
       })
-      .catch(() => 0),
+      .catch(healthFallback("tasks.doneTodayWithProof", 0)),
     prisma.task
       .count({
         where: { status: "DONE", deletedAt: null, updatedAt: { gte: sevenDaysAgo } },
       })
-      .catch(() => 0),
+      .catch(healthFallback("tasks.done7d", 0)),
     prisma.task
       .count({
         where: {
@@ -622,15 +641,15 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
           proof: { not: Prisma.DbNull },
         },
       })
-      .catch(() => 0),
+      .catch(healthFallback("tasks.done7dWithProof", 0)),
     prisma.autonomousAction
       .count({ where: { result: "success", createdAt: { gte: dayStart } } })
-      .catch(() => 0),
+      .catch(healthFallback("actions.successToday", 0)),
     prisma.autonomousAction
       .count({
         where: { result: "success", createdAt: { gte: sevenDaysAgo } },
       })
-      .catch(() => 0),
+      .catch(healthFallback("actions.success7d", 0)),
     prisma.cronJobLog
       .groupBy({
         by: ["status"],
@@ -765,15 +784,15 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     `.catch(healthFallback("embeddings", [] as Array<{ total: bigint; withVec: bigint }>)),
     prisma.automationRule
       .count({ where: { enabled: true } })
-      .catch(() => 0),
+      .catch(healthFallback("automation.activeRules", 0)),
     prisma.autonomousAction
       .count({ where: { createdAt: { gte: oneDayAgo } } })
-      .catch(() => 0),
+      .catch(healthFallback("automation.runs24h", 0)),
     prisma.autonomousAction
       .count({
         where: { createdAt: { gte: oneDayAgo }, result: { not: "success" } },
       })
-      .catch(() => 0),
+      .catch(healthFallback("automation.failures24h", 0)),
   ]);
 
   const todayProof: ProofRollup = {

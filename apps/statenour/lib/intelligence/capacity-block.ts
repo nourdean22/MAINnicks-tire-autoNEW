@@ -36,6 +36,13 @@ export interface CapacityInput {
   lateCount: number;
   staleCount: number;
   doneToday: number;
+  /**
+   * 2026-09-10 · Reads that returned a fabricated fallback instead of a
+   * measurement. The `signals === null` branch below already handles a
+   * TOTAL failure honestly; this is the partial case it could not see --
+   * one dead counter among four, rendered as a confident number.
+   */
+  degradedReads?: string[];
   capacityRemainingMin: number;
   allocatedMin: number;
 }
@@ -69,6 +76,10 @@ export function renderCapacityBlock(signals: CapacityInput | null): string {
 
   const { openCount, lateCount, staleCount, doneToday, capacityRemainingMin, allocatedMin } = signals;
   const over = allocatedMin > 0 && capacityRemainingMin <= 0;
+  // A partial outage. The numbers that DID read are still real and worth
+  // showing -- suppressing all of them would trade one lie for another --
+  // but the ones that did not must not be defended as measurements.
+  const degraded = signals.degradedReads ?? [];
 
   const lines = [
     "## Capacity",
@@ -78,6 +89,15 @@ export function renderCapacityBlock(signals: CapacityInput | null): string {
       ? `Committed **${mins(allocatedMin)}**, and the realistic remainder is **gone** — anything new today displaces something already promised.`
       : `Committed **${mins(allocatedMin)}** · realistically **${mins(capacityRemainingMin)}** left.`,
   ];
+
+  if (degraded.length > 0) {
+    lines.push(
+      "",
+      `**PARTIALLY UNMEASURED** — ${degraded.join(", ")} could not be read, so any`,
+      "number above that depends on them is a fallback, not a count. Do not tell Nour",
+      "he has done nothing, or that nothing is late, on the strength of a failed read.",
+    );
+  }
 
   // Only the counts that are non-zero earn a line. A brief that lists four
   // zeroes every morning trains the eye to skip the section.

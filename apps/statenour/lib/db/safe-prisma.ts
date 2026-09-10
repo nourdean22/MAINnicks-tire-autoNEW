@@ -77,7 +77,28 @@ export function markQuotaRecovered(): void {
 export async function safeQuery<T>(
   fn: () => Promise<T>,
   fallback: T,
-  opts: { label?: string; retries?: number } = {},
+  opts: {
+    label?: string;
+    retries?: number;
+    /**
+     * 2026-09-10 · THE FABRICATION SIGNAL, MADE IN-BAND.
+     *
+     * The quota-skip branch below already logs "the value this caller
+     * returns is fabricated, not measured" -- an accurate sentence that
+     * only ever reached a log line. The CALLER, which is the thing about
+     * to render that value as a fact, had no way to know.
+     *
+     * That is how a failed `task.count` becomes "done today **0**" in
+     * NICK's prompt, and how the home header rendered "calm" off a
+     * skipped probe. Fixing the log did not fix the render.
+     *
+     * Optional and additive: every existing call site is unchanged, and
+     * a caller that renders or reasons over the value can now opt in and
+     * report it honestly. Fires for BOTH fallback paths -- the quota
+     * circuit skip and a caught quota error -- and never on success.
+     */
+    onFallback?: (reason: "quota-circuit-open" | "quota-error") => void;
+  } = {},
 ): Promise<T> {
   if (isQuotaExhausted()) {
     // THE SKIP PATH WAS ENTIRELY SILENT. This is the branch that hands a
@@ -95,6 +116,7 @@ export async function safeQuery<T>(
         note: "the value this caller returns is fabricated, not measured",
       });
     }
+    opts.onFallback?.("quota-circuit-open");
     return fallback;
   }
 
@@ -116,6 +138,7 @@ export async function safeQuery<T>(
       if (opts.label) {
         log.warn("quota circuit OPENED — Neon quota exhausted", { label: opts.label });
       }
+      opts.onFallback?.("quota-error");
       return fallback;
     }
     throw err;
