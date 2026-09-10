@@ -111,6 +111,14 @@ export const MORNING_JOBS: readonly string[] = [
 export const EVENING_JOBS: readonly string[] = [
   "/api/cron/predict",
   "/api/cron/consolidate",
+  // 2026-09-10 · the missing PRODUCER for the Revenue-Decision Channel.
+  // lib/services/revenue-decision-channel.ts was a complete engine with
+  // three live consumers and nothing writing the rows they read: the
+  // getPendingRevenueMoves chat tool returned empty forever and the
+  // Telegram approval callback could never fire. Costs one model call
+  // and one Telegram to the operator per day; idempotent per ET date, so
+  // a duplicate fan-out skips rather than paying twice.
+  "/api/cron/revenue-decision",
   // 2026-07-22 · closed-loop Experiment resolver — resolves DUE experiments
   // (accepted opportunities past their horizon) + nudges source authScore. Daily is plenty.
   "/api/cron/experiment-measure",
