@@ -81,6 +81,25 @@ def verify(path: Path, pin: PinnedFile) -> tuple[bool, str]:
     return True, "ok"
 
 
+#: Smallest plausible OpenVINO IR payload. The topology XML for the smallest model in use
+#: here is ~250 KB and the weights are megabytes; an error page is around 1 KB.
+MIN_PLAUSIBLE_BYTES = 4096
+
+
+def _implausible(content_type: str, body: bytes) -> str:
+    """Reason this response cannot be a model file, or "" when it looks like one."""
+    if "html" in content_type or "xhtml" in content_type:
+        return (f"the server returned {content_type!r}, which is a web page and not a model. "
+                "This host answers a missing path with a directory listing at HTTP 200.")
+    if len(body) < MIN_PLAUSIBLE_BYTES:
+        return (f"only {len(body)} bytes returned, below the {MIN_PLAUSIBLE_BYTES} an IR "
+                "could plausibly be -- almost certainly an error page, not a model")
+    head = body[:512].lstrip()[:64].lower()
+    if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
+        return "the body begins with an HTML document, not an OpenVINO IR"
+    return ""
+
+
 def fetch_one(pin: PinnedFile, dest_root: Path, base_url: str) -> bool:
     dest = dest_root / pin.rel_path
     ok, _ = verify(dest, pin)
@@ -96,7 +115,24 @@ def fetch_one(pin: PinnedFile, dest_root: Path, base_url: str) -> bool:
             if resp.status != 200:
                 print(f"  FAIL     {pin.rel_path}: HTTP {resp.status}")
                 return False
-            tmp.write_bytes(resp.read())
+            content_type = (resp.headers.get("Content-Type") or "").lower()
+            body = resp.read()
+        # AN HTTP 200 IS NOT A MODEL, and this storage host proves it: asking for a model
+        # that does not exist in a given release returns a DIRECTORY-LISTING PAGE with
+        # status 200 and `text/html`. Measured while adding a new pin -- the .xml and the
+        # .bin came back byte-identical at 1,061 bytes, which is the giveaway only if
+        # somebody happens to look.
+        #
+        # The existing sha256 pin catches this on every LATER run, but not on the run that
+        # matters most: the first one, where whoever is recording a new pin would compute
+        # and enshrine the hash of an error page. After that the corpus verifies perfectly
+        # forever against the wrong bytes.
+        reason = _implausible(content_type, body)
+        if reason:
+            print(f"  FAIL     {pin.rel_path}: {reason}")
+            tmp.unlink(missing_ok=True)
+            return False
+        tmp.write_bytes(body)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         print(f"  FAIL     {pin.rel_path}: {exc}")
         tmp.unlink(missing_ok=True)
