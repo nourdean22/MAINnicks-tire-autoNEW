@@ -255,7 +255,14 @@ export async function fetchSearchPerformance(
         query = "";
         page = row.keys[0] || "";
         date = row.keys[1] || "";
-        device = "desktop";   // not returned for Discover; column is NOT NULL
+        // Discover returns NO device dimension — Google rejects the request
+        // outright. Writing "desktop" is not a default, it is a positive
+        // assertion about traffic Google explicitly declined to break down:
+        // 90,000 Discover impressions (overwhelmingly mobile in reality)
+        // landing in device="desktop" would report a 92% desktop share on a
+        // property whose Web-only truth is ~20%. "unknown" is the honest
+        // value, and any device split must exclude it rather than count it.
+        device = "unknown";
         country = row.keys[2] || "usa";
       }
 
@@ -620,7 +627,15 @@ export async function getTopQueries(opts?: {
       ctr: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
         THEN ROUND((SUM(${searchPerformance.clicks}) * 100.0) / SUM(${searchPerformance.impressions}), 2)
         ELSE 0 END`,
-      avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
+      // Impression-WEIGHTED, matching getGscSummary/getGscDbReport. An
+      // unweighted AVG lets a 1-impression outlier dominate: rows
+      // (1,000 impr @ pos 3.0) and (1 impr @ pos 97.0) weight to 3.09 but
+      // average to 50.0 — the Market panel showed position 50 for a #3 query,
+      // directly under a summary card using the weighted definition.
+      avgPosition: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
+        THEN ROUND(SUM(${searchPerformance.position} * ${searchPerformance.impressions})
+                   / SUM(${searchPerformance.impressions}) / 100, 1)
+        ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(whereClause)
@@ -707,7 +722,15 @@ export async function getPagePerformance(opts?: {
       page: searchPerformance.page,
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
       impressions: sql<number>`SUM(${searchPerformance.impressions})`,
-      avgCtr: sql<number>`ROUND(AVG(${searchPerformance.ctr}) / 100, 1)`,
+      // CTR from SUMS, never AVG of stored per-row CTRs. Rows here are split by
+      // date x device x country, so averaging weights a 1-impression row equally
+      // with a 10,000-impression one. Measured: rows (1 click/1 impr) and
+      // (9 clicks/999 impr) have a true CTR of 1.0%; AVG(ctr) returns 50.5% —
+      // a 50x overstatement rendered straight onto the Market "Top pages" card.
+      // getTopQueries in this same file already did it this way.
+      avgCtr: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
+        THEN ROUND((SUM(${searchPerformance.clicks}) * 100.0) / SUM(${searchPerformance.impressions}), 1)
+        ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(
@@ -756,7 +779,7 @@ export async function detectRankingChanges(opts?: {
     .select({
       query: searchPerformance.query,
       page: searchPerformance.page,
-      avgPosition: sql<number>`AVG(${searchPerformance.position})`,
+      avgPosition: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0 THEN SUM(${searchPerformance.position} * ${searchPerformance.impressions}) / SUM(${searchPerformance.impressions}) ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(
@@ -772,7 +795,7 @@ export async function detectRankingChanges(opts?: {
     .select({
       query: searchPerformance.query,
       page: searchPerformance.page,
-      avgPosition: sql<number>`AVG(${searchPerformance.position})`,
+      avgPosition: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0 THEN SUM(${searchPerformance.position} * ${searchPerformance.impressions}) / SUM(${searchPerformance.impressions}) ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(and(
@@ -842,8 +865,8 @@ export async function findCtrOpportunities(opts?: {
       page: searchPerformance.page,
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
       impressions: sql<number>`SUM(${searchPerformance.impressions})`,
-      avgCtr: sql<number>`AVG(${searchPerformance.ctr})`,
-      avgPosition: sql<number>`AVG(${searchPerformance.position})`,
+      avgCtr: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0 THEN (SUM(${searchPerformance.clicks}) * 100.0) / SUM(${searchPerformance.impressions}) ELSE 0 END`,
+      avgPosition: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0 THEN SUM(${searchPerformance.position} * ${searchPerformance.impressions}) / SUM(${searchPerformance.impressions}) ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(
@@ -854,7 +877,7 @@ export async function findCtrOpportunities(opts?: {
     )
     .groupBy(searchPerformance.query, searchPerformance.page)
     .having(sql`SUM(${searchPerformance.impressions}) >= ${minImpressions}`)
-    .orderBy(sql`AVG(${searchPerformance.ctr}) ASC`)
+    .orderBy(sql`CASE WHEN SUM(${searchPerformance.impressions}) > 0 THEN (SUM(${searchPerformance.clicks}) * 100.0) / SUM(${searchPerformance.impressions}) ELSE 0 END ASC`)
     .limit(limit * 2); // Fetch extra to filter
 
   // Filter to queries with below-average CTR for their position
@@ -922,7 +945,15 @@ export async function detectCannibalization(opts?: {
       page: searchPerformance.page,
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
       impressions: sql<number>`SUM(${searchPerformance.impressions})`,
-      avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
+      // Impression-WEIGHTED, matching getGscSummary/getGscDbReport. An
+      // unweighted AVG lets a 1-impression outlier dominate: rows
+      // (1,000 impr @ pos 3.0) and (1 impr @ pos 97.0) weight to 3.09 but
+      // average to 50.0 — the Market panel showed position 50 for a #3 query,
+      // directly under a summary card using the weighted definition.
+      avgPosition: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
+        THEN ROUND(SUM(${searchPerformance.position} * ${searchPerformance.impressions})
+                   / SUM(${searchPerformance.impressions}) / 100, 1)
+        ELSE 0 END`,
     })
     .from(searchPerformance)
     .where(

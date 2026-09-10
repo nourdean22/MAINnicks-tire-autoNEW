@@ -361,7 +361,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           vehicleModel: c.vehicleModel ?? null,
         });
       }
-      log.info(`[declined-recovery] preloaded ${customerByPhoneLast10.size} customer contexts for ${unmatched.length} estimates`);
+      log.info(`[declined-recovery] preloaded ${customerByPhoneLast10.size} customer contexts for ${unmatched.length} estimates`); // pii-allow: both values are COUNTS (Map.size, array length). The rule matches "Phone" inside the map variable name, not a logged phone number.
     }
   } catch (e) {
     log.warn("[declined-recovery] customer-context preload failed · falling back to generic templates", {

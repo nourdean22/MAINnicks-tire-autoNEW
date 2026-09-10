@@ -1197,6 +1197,45 @@ const UTILITY_PAGES: RouteEntry[] = [
     prerender: false,
   },
   {
+    // Google requires JobPosting markup on the LEAF page for a SINGLE job and
+    // forbids it on a list page. Verified in production 2026-09-10: /careers
+    // carried three JobPosting objects and this URL 404'd.
+    path: "/careers/automotive-technician",
+    priority: 0.7,
+    changefreq: "weekly",
+    title: "Automotive Technician Job — Cleveland OH | Nick’s Tire & Auto",
+    description: "Hiring a mid-to-senior automotive technician in Cleveland, OH. Diagnostics, brakes, suspension, drivetrain. Consistent volume, no flat-rate grind. Apply in 2 minutes.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // Google requires JobPosting markup on the LEAF page for a SINGLE job and
+    // forbids it on a list page. Verified in production 2026-09-10: /careers
+    // carried three JobPosting objects and this URL 404'd.
+    path: "/careers/service-advisor",
+    priority: 0.7,
+    changefreq: "weekly",
+    title: "Service Advisor Job — Cleveland OH | Nick’s Tire & Auto",
+    description: "Hiring a service advisor in Cleveland, OH. Translate technician findings honestly, no pressure upsells. Fast-paced family-run shop. Apply in 2 minutes.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // Google requires JobPosting markup on the LEAF page for a SINGLE job and
+    // forbids it on a list page. Verified in production 2026-09-10: /careers
+    // carried three JobPosting objects and this URL 404'd.
+    path: "/careers/tire-technician",
+    priority: 0.7,
+    changefreq: "weekly",
+    title: "Tire Technician Job — Cleveland OH | Nick’s Tire & Auto",
+    description: "Hiring a tire / hybrid technician in Cleveland, OH. Mounting, balancing, TPMS, flat repair. One of Cleveland’s busiest tire operations. Apply in 2 minutes.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
     path: "/careers",
     priority: 0.7,
     changefreq: "weekly",
@@ -1376,6 +1415,10 @@ export function getRouteByPath(path: string): RouteEntry | undefined {
  * both directions.
  */
 export const DYNAMIC_ROUTE_PREFIXES = [
+  // Leaf job pages. Without this the server 404s every /careers/<slug> for
+  // bot crawlers, which would make the JobPosting markup unreachable by the
+  // only consumer that matters.
+  "/careers/",
   "/blog/",
   "/guides/",
   "/tires/",

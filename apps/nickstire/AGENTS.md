@@ -64,8 +64,10 @@ report a red, not "verify failed".
 > out at 60s under concurrent load) · **serial → 5,858 passed, 0 failed, exit 0, 81.11s.** Serial is
 > both correct *and* 2.3× faster here; parallelism was buying contention, not speed.
 
-> **Typecheck blind spot.** `scripts/` sits outside the typecheck project, so a broken import in a
-> script passes every gate and fails only at runtime. Run the scripts you change.
+> **Typecheck blind spots — TWO.** `scripts/` sits outside the typecheck project, so a broken
+> import in a script passes every gate and fails only at runtime. Run the scripts you change.
+> And `tsconfig.json` excludes `**/*.test.ts` (but NOT `.test.tsx`), so a syntactically broken
+> `.test.ts` exits `pnpm run check` GREEN and fails only under vitest — witnessed 2026-09-10.
 
 ## 3 · Test hygiene — serial mode shares one process
 

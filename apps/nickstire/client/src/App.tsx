@@ -107,6 +107,7 @@ const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 // City + Neighborhood templates. Audit-confirmed structural dead weight.
 // Restore from git history at wave-181.97 if rankings drop signal real value.
 const Careers = lazy(() => import("./pages/Careers"));
+const JobPage = lazy(() => import("./pages/JobPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
@@ -422,6 +423,10 @@ function Router() {
                 intersection grid. */}
             {/* Careers */}
             <Route path={"/careers"} component={Careers} />
+            {/* Leaf job pages — exactly one JobPosting each. Google forbids the
+                markup on a list page; verified live 2026-09-10 that /careers
+                carried three and these URLs 404'd. */}
+            <Route path={"/careers/:slug"} component={JobPage} />
             {/* Women's Safety & Pit Stop Experience */}
             <Route path={"/womens-safety"} component={WomensSafetyPage} />
             {/* Legal pages */}

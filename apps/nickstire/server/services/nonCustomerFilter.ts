@@ -80,7 +80,7 @@ export interface InternalLine {
 
 export const INTERNAL_LINES: readonly InternalLine[] = [
   {
-    last10: "2168488888",
+    last10: "2168488888", // pii-allow: the OPERATOR'S OWN mobile, hardcoded on purpose as the internal-line filter so the recovery crons stop texting him (he had already received 18 automated customer messages across 8 lanes). Removing it re-breaks that guard. Not allowlisted globally because, unlike the shop main/VAPI/Twilio lines, this one is not public.
     note: "Operator's own mobile — confirmed by the operator 2026-08-25. Held 1 unpaid invoice ($846.72) that the recovery cron was about to text him about. Had already received 18 automated customer messages across 8 lanes.",
   },
   {
