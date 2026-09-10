@@ -39,6 +39,7 @@ import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import { detectExecuteFinalized } from "@/lib/ai/response-contract";
 import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
+import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -361,8 +362,20 @@ export async function buildBrainContext(
                     : "query under 10 chars -- hybrid recall lane not attempted",
             } as never),
           ),
+      // 2026-09-10 · the TIMEOUT is the fourth way grounding can vanish.
+      // buildTruthGroundingBlock now distinguishes "nothing to ground"
+      // from "the lookup threw", but a 3s timeout bypasses that entirely
+      // and used to fall back to null -- no block, no explanation, and
+      // L4's protection silently gone on exactly the slow-database turns
+      // where a task count is most likely to be stale in the model's
+      // head. Fall back to the same declaration the module makes for
+      // itself rather than to silence.
       truthGroundingMod
-        ? withTimeout(truthGroundingMod.buildTruthGroundingBlock(messages as never), 3000, null)
+        ? withTimeout(
+            truthGroundingMod.buildTruthGroundingBlock(messages as never),
+            3000,
+            TRUTH_GROUNDING_UNAVAILABLE,
+          )
         : Promise.resolve(null),
       contradictionInjectorMod
         ? withTimeout(contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }), 3000, null)

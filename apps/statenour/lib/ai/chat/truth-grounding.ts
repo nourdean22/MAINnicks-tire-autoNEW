@@ -74,7 +74,47 @@ function extractEntities(text: string): string[] {
  * different number. Skips Inbox missions (catch-alls, not user
  * projects) to keep grounding focused on real entities.
  */
-async function groundMissionByName(name: string): Promise<GroundFact | null> {
+/**
+ * 2026-09-10 · "no fact" had THREE causes and one spelling.
+ *
+ * `null` meant all of: this entity is not a project (by far the common
+ * case -- ENTITY_PATTERN matches any capitalised run, so most turns
+ * produce entities that were never missions), this is an Inbox
+ * catch-all, and THE DATABASE READ THREW.
+ *
+ * Only the third is a signal, and it is the one that silently removes
+ * the protection this whole module exists to provide: the header
+ * promises "the model can't claim 15 with a contradicting fact in its
+ * system context", and on a failed read there is no contradicting fact
+ * and nothing anywhere says so.
+ *
+ * The distinction has to be made HERE, because by the time the caller
+ * sees an empty list the reason is gone.
+ */
+/**
+ * The one declaration used for BOTH ways grounding can go missing:
+ * every per-entity lookup throwing, and the whole call timing out in
+ * brain-context. One string, so the two paths cannot drift into saying
+ * different things about the same condition.
+ */
+export const TRUTH_GROUNDING_UNAVAILABLE = [
+  "## TRUTH GROUNDING - UNAVAILABLE this turn",
+  "The verified-state lookup did not complete, so no database facts are in this context.",
+  "Their absence is NOT evidence that a project has no tasks, or does not exist.",
+  "Do not state a task count, a project status, or whether something exists from memory.",
+  "Call the relevant tool, or say plainly that you could not verify it.",
+  "",
+].join("\n");
+
+type GroundOutcome =
+  /** Looked it up; here is the verified state. */
+  | { kind: "fact"; fact: GroundFact }
+  /** Looked it up; this entity is simply not a groundable project. */
+  | { kind: "none" }
+  /** Could NOT look it up. Says nothing about whether the project exists. */
+  | { kind: "failed" };
+
+async function groundMissionByName(name: string): Promise<GroundOutcome> {
   try {
     const mission = await prisma.mission.findFirst({
       where: {
@@ -83,8 +123,8 @@ async function groundMissionByName(name: string): Promise<GroundFact | null> {
       },
       select: { id: true, title: true, status: true },
     });
-    if (!mission) return null;
-    if (isInboxMission(mission.title)) return null;
+    if (!mission) return { kind: "none" };
+    if (isInboxMission(mission.title)) return { kind: "none" };
     const [open, done, total] = await Promise.all([
       prisma.task.count({
         where: {
@@ -101,11 +141,14 @@ async function groundMissionByName(name: string): Promise<GroundFact | null> {
       }),
     ]);
     return {
-      entity: mission.title,
-      fact: `Project "${mission.title}" (${mission.status}) currently has ${total} task${total === 1 ? "" : "s"} (${open} open, ${done} done). Verified at the start of this turn.`,
+      kind: "fact",
+      fact: {
+        entity: mission.title,
+        fact: `Project "${mission.title}" (${mission.status}) currently has ${total} task${total === 1 ? "" : "s"} (${open} open, ${done} done). Verified at the start of this turn.`,
+      },
     };
   } catch {
-    return null;
+    return { kind: "failed" };
   }
 }
 
@@ -146,17 +189,43 @@ export async function buildTruthGroundingBlock(
   // prisma.task.count queries, so serially this was up to 15 sequential
   // round-trips on the hot chat path. Settle all, then apply the
   // same cap (3) AFTER, preserving the prior `facts` shape + ordering.
-  const facts: GroundFact[] = (
-    await Promise.all(allEntities.map(groundMissionByName))
-  )
-    .filter((f): f is GroundFact => f !== null)
+  const outcomes = await Promise.all(allEntities.map(groundMissionByName));
+  const facts: GroundFact[] = outcomes
+    .filter((o): o is { kind: "fact"; fact: GroundFact } => o.kind === "fact")
+    .map((o) => o.fact)
     .slice(0, 3);
-  if (facts.length === 0) return "";
+  /**
+   * A lookup that THREW is the only outcome worth declaring. "Not a
+   * project" is the ordinary case on most turns -- ENTITY_PATTERN
+   * matches any capitalised run, so announcing it would make this block
+   * fire constantly and teach the model to skip it, which is how a
+   * warning stops being one.
+   */
+  const lookupFailed = outcomes.some((o) => o.kind === "failed");
+
+  if (facts.length === 0 && !lookupFailed) return "";
+
+  if (facts.length === 0) {
+    // Nothing verified, and the reason is that verification could not
+    // run. The silence here is what let the model answer a "how many
+    // tasks" question from memory with nothing to contradict it -- the
+    // exact scenario this module's header describes preventing.
+    return TRUTH_GROUNDING_UNAVAILABLE;
+  }
 
   return [
     "## TRUTH GROUNDING — verified state at turn start",
     "These facts come straight from the database. If you're tempted to claim a different number, STOP and re-read.",
     ...facts.map((f) => `· ${f.fact}`),
+    // Partial failure: what IS here is verified; what is missing proves
+    // nothing. The same distinction the recall path draws between a
+    // degraded read and a failed one.
+    ...(lookupFailed
+      ? [
+          "",
+          "PARTIAL: one or more lookups failed this turn. The facts above are verified; anything NOT listed was not checked and must not be asserted from memory.",
+        ]
+      : []),
     "",
   ].join("\n");
 }
