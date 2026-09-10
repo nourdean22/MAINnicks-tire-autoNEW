@@ -492,18 +492,34 @@ describe("content-generator", () => {
     expect(["spring", "summer", "fall", "winter"]).toContain(season);
   });
 
-  it("content.activeNotifications returns an array without error", async () => {
+  // BOTH OF THESE USED TO ASSERT `Array.isArray(result)`, AND BOTH WERE PINNING
+  // THE BUG — the same way the articleBySlug test above was.
+  //
+  // There is no database in this suite. "Returns an array without error" was
+  // only ever true because the helper fabricated an empty one on a dead handle,
+  // so the assertion could not distinguish "no notices / no posts" from "the
+  // store is gone" — and it read as the former. An empty blog and an
+  // unreachable blog are different facts; only one is worth waking someone for,
+  // and only one should ever be prerendered and handed to Google.
+  //
+  // The visitor-facing behaviour is unchanged: NotificationBar renders nothing
+  // without data, and Blog.tsx/SiteMap.tsx both fall back to `|| []`. What
+  // changed is that the failure is no longer invisible.
+
+  it("content.activeNotifications reports an unreachable store as a FAILURE", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.content.activeNotifications();
-    expect(Array.isArray(result)).toBe(true);
+    await expect(caller.content.activeNotifications()).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+    });
   });
 
-  it("content.publishedArticles returns an array without error", async () => {
+  it("content.publishedArticles reports an unreachable store as a FAILURE", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.content.publishedArticles();
-    expect(Array.isArray(result)).toBe(true);
+    await expect(caller.content.publishedArticles()).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+    });
   });
 
   it("content.currentSeason returns a valid season object", async () => {
