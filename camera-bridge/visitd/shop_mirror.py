@@ -244,7 +244,12 @@ class ShopMirror:
             self.apply_active_run(text)
             return True
         self.heartbeats_failed += 1
-        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:120])
+        # 1200, not 120. A Zod rejection names the offending path and the values it
+        # expected, and all of that sits PAST 120 characters -- the live 400 above read
+        # `...{"code":"invalid_value","values":["PRODUCTION",...,"path":["mode` and stopped,
+        # so the log showed a rejection whose reason was cut off mid-word. Same fix as the
+        # cloud lane got earlier today; this lane had the identical defect.
+        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:1200])
         return False
 
     def apply_active_run(self, response_text) -> Optional[str]:
@@ -379,5 +384,5 @@ class ShopMirror:
         # 401 is the one worth naming: it is almost always a missing CAMERA_INGEST_KEY.
         reason = "shop_sync_key_rejected" if status == 401 else f"http_{status}"
         log.warning("shop mirror rejected visit=%s status=%s reason=%s body=%r",
-                    item.get("visit_id"), status, reason, str(text)[:120])
+                    item.get("visit_id"), status, reason, str(text)[:1200])
         return "rejected"

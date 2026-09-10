@@ -213,7 +213,13 @@ class EdgeLoop:
         self.challenger = challenger
         self._last_layout_epoch = None
         self.camera = camera
-        self.mode = mode
+        # UPPERCASE at assignment, exactly as `base_mode` does two lines below.
+        # `--mode` takes lowercase choices ("production"), the shop's heartbeat schema is a
+        # Zod enum of UPPERCASE ones, and `self.mode` was only uppercased later, inside the
+        # loop. So every heartbeat sent before that line ran was rejected 400 -- the shop's
+        # camera-health lattice heard nothing from a producer that was running perfectly.
+        # Witnessed live on the first heartbeat of a real run, 2026-09-10.
+        self.mode = (mode or "PRODUCTION").upper()
         #: What this producer is when NOT commissioning, passed in from the CALIBRATION
         #: rather than inferred from `mode`. Inferring it meant a runtime launched with
         #: `--commissioning-run` adopted COMMISSIONING as its own baseline and could never
@@ -508,11 +514,25 @@ class EdgeLoop:
             return
         try:
             scene = getattr(getattr(self.source, "binding", None), "scene_id", None) or "default"
+            # `self.vision`, NOT `self.pipeline`. The visitd pipeline carries metrics, the
+            # shop lane and the visit tracker; the TRACK GRAPH lives on the vision layer.
+            # Reading it off the wrong object raised on every single frame -- 128 of them
+            # before anyone looked -- and the producer carried on perfectly, because this
+            # is the one subsystem that must never take the lot down.
             self.trajectories.observe(
-                frame.ts, list(self.pipeline.tracks.tracks.values()),
+                frame.ts, list(self.vision.tracks.tracks.values()),
                 scene=str(scene), generation=str(source_generation(self.source)))
-        except Exception:  # noqa: BLE001 - commissioning data is never worth a producer
+        except Exception as exc:  # noqa: BLE001 - commissioning data is never worth a producer
             self.pipeline.metrics.inc("edge_trajectory_errors_total")
+            # LOG IT, once. The counter alone said 128 somethings had gone wrong and named
+            # none of them; finding out which line meant reproducing the call by hand.
+            # A swallowed exception that is counted but never described is only half a
+            # decision -- the half that protects the producer, not the half that is
+            # actionable. `_trajectory_logged` keeps a per-frame failure out of the log.
+            if not getattr(self, "_trajectory_logged", False):
+                self._trajectory_logged = True
+                log.warning("trajectory recording is failing and will stay off: %s: %s",
+                            type(exc).__name__, exc)
 
 
     def _observe_hard_case(self, frame) -> None:
@@ -940,12 +960,25 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     mode = args.mode or ("commissioning" if args.commissioning_run else base_mode)
     if args.commissioning_run:
         mode = "commissioning"
+    # UPPERCASE HERE, at the source. `--mode` takes lowercase choices and the shop's
+    # heartbeat schema is a Zod enum of UPPERCASE ones, so every consumer of this value
+    # needs the uppercase form -- the startup log line, the first heartbeat, and EdgeLoop.
+    # Uppercasing it only inside EdgeLoop fixed the steady state and left the FIRST
+    # heartbeat after every restart rejected 400, which is precisely the heartbeat an
+    # operator watches for when they have just restarted something.
+    mode = mode.upper()
+    base_mode = base_mode.upper()
     # REPLAY is a first-class lane, not a mode. The shop's every counter filters on
     # `dataClass = 'PRODUCTION'`, so a replay producer can post real rows against live data --
     # which is how a challenger gets evaluated against reality without touching the lot's
     # truth. The route has accepted REPLAY since migration 0120 and nothing has ever sent it.
     base_class = "REPLAY" if args.replay else "PRODUCTION"
-    data_class = "COMMISSIONING" if mode == "commissioning" else base_class
+    # UPPERCASE both sides. `mode` is normalised above and this comparison was against the
+    # lowercase literal, so it silently stopped matching: a commissioning run would have been
+    # tagged dataClass=PRODUCTION and counted as a real customer in the shop's KPIs, which is
+    # the exact confusion `IMMUTABLE_AFTER_INSERT` exists to prevent downstream.
+    # `OneAuthorityTest` caught it in the same edit that caused it.
+    data_class = "COMMISSIONING" if mode == "COMMISSIONING" else base_class
     pipeline.shop.data_class = data_class
     pipeline.shop.base_data_class = base_class
     pipeline.shop.commissioning_run_id = args.commissioning_run
