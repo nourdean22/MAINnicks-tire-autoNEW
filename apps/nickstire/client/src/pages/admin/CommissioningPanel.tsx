@@ -86,6 +86,19 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
    */
   const [pendingTaps, setPendingTaps] = useState(0);
   /**
+   * Taps whose POST failed. They are NOT lost measurements -- the instant, the event and
+   * both clocks were captured locally the moment the thumb landed -- they are simply
+   * unsent, so they can be replayed verbatim.
+   *
+   * WHY THIS MATTERS MORE THAN IT LOOKS. A tap that never reaches the server is absent
+   * from `commissioning_truth_events`, so the report sees a machine arrival with no human
+   * tap to account for it and says the camera invented it. One dropped packet on a phone
+   * in a parking lot would therefore render as a verdict AGAINST a camera that was working
+   * perfectly -- a confident wrong number, which is the whole class of defect this feature
+   * exists to remove. Surfacing an error mid-drive is not enough: the operator is driving.
+   */
+  const [unsentTaps, setUnsentTaps] = useState<LocalTap[]>([]);
+  /**
    * A run whose End we have sent but whose producer has not acknowledged.
    *
    * Symmetric with arming, and for the same reason. The edge learns a run ENDED only from
@@ -225,9 +238,13 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
         runId, event, phoneWallMs: wallMs,
         phoneMonoMs: resumed.current ? null : monoMs,
       });
-      if (!res.ok) setError(`${event}: ${res.reason}`);
+      if (!res.ok) {
+        setError(`${event}: ${res.reason}`);
+        setUnsentTaps((prev) => [...prev, { event, wallMs, monoMs }]);
+      }
     } catch (e) {
       setError(`${event} was not saved: ${e instanceof Error ? e.message : "send failed"}`);
+      setUnsentTaps((prev) => [...prev, { event, wallMs, monoMs }]);
     } finally {
       setPendingTaps((n) => Math.max(0, n - 1));
     }
@@ -274,10 +291,43 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
     }
   }
 
+  /** Replay every unsent tap. Returns how many are STILL unsent. */
+  async function resendUnsent(id: string): Promise<number> {
+    const queued = unsentTaps;
+    if (!queued.length) return 0;
+    const stillFailing: LocalTap[] = [];
+    for (const t of queued) {
+      try {
+        const res = await record.mutateAsync({
+          runId: id, event: t.event, phoneWallMs: t.wallMs,
+          phoneMonoMs: resumed.current ? null : t.monoMs,
+        });
+        if (!res.ok) stillFailing.push(t);
+      } catch {
+        stillFailing.push(t);
+      }
+    }
+    setUnsentTaps(stillFailing);
+    return stillFailing.length;
+  }
+
   async function finish() {
     if (!runId) return;
     setBusy("Ending run…");
     try {
+      // REPLAY BEFORE CLOSING. A tap that never reached the server would leave a machine
+      // event unaccounted for, and the report would call that an invented arrival -- a FAIL
+      // for a camera that was fine. The run stays OPEN while any remain, because ending it
+      // would freeze a verdict computed from an incomplete witness.
+      const stillUnsent = await resendUnsent(runId);
+      if (stillUnsent > 0) {
+        setError(
+          `${stillUnsent} tap(s) still have not reached the server, so this run cannot be `
+          + `scored yet — the report would blame the camera for the missing taps. The run is `
+          + `still open; check the connection and press End run again.`,
+        );
+        return;
+      }
       // CHECK `ok` BEFORE CHANGING LOCAL STATE. The mutation reports a database or
       // migration failure as a RESOLVED `{ ok: false, reason }`, so `mutateAsync` does not
       // throw. Clearing `runId` on that payload would close the screen while the run is
@@ -313,6 +363,15 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
               <div className="text-[13px] text-foreground/60">
                 <Timer className="mr-1 inline h-3.5 w-3.5" />
                 {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} · {taps.length} taps
+                {unsentTaps.length > 0 && (
+                  // Visible DURING the drive, not discovered at End. A tap that never
+                  // reached the server would make the report blame the camera for the
+                  // gap, so the operator needs to know while they can still do something
+                  // about it — move, wait, or re-tap.
+                  <span className="ml-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[12px] font-semibold text-amber-300">
+                    {unsentTaps.length} unsent
+                  </span>
+                )}
               </div>
             </div>
             <button
