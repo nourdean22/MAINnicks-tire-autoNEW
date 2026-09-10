@@ -85,13 +85,25 @@ class RecorderStats:
     dropped_unknown_trigger: int = 0
     dropped_write_error: int = 0
     evicted_clips: int = 0
+    episodes_written: int = 0
+    #: An episode that could not be written or could not be read back. Counted separately
+    #: from `dropped_write_error` because the CLIP is still on disk and still useful: losing
+    #: the replayable view is a degradation, not a lost sample, and folding the two together
+    #: would make the recorder look broken over a missing convenience.
+    episodes_failed: int = 0
+    #: The budget cannot hold even one clip. Not a write failure -- the clip is on disk --
+    #: but the store can never grow, which is a thing an operator must be told rather than
+    #: left to infer from a directory that stays at exactly one entry.
+    budget_too_small: bool = False
     last_error: Optional[str] = None
 
     def describe(self) -> str:
         return (f"clips={self.clips_written} frames={self.frames_written} "
                 f"bytes={self.bytes_written} dropped_cooldown={self.dropped_cooldown} "
                 f"dropped_unknown={self.dropped_unknown_trigger} "
-                f"dropped_error={self.dropped_write_error} evicted={self.evicted_clips}"
+                f"dropped_error={self.dropped_write_error} evicted={self.evicted_clips} "
+                f"episodes={self.episodes_written}/{self.episodes_written + self.episodes_failed}"
+                + (" BUDGET_TOO_SMALL" if self.budget_too_small else "")
                 + (f" last_error={self.last_error}" if self.last_error else ""))
 
     @property
@@ -135,6 +147,13 @@ class HardCaseRecorder:
     #: consecutive frames; without this the disk fills with one event.
     cooldown_seconds: float = 60.0
     jpeg_quality: int = 82
+    #: "both" writes an MCAP episode ALONGSIDE the numbered JPEGs; "off" writes only the
+    #: JPEGs; "replace" deletes the JPEGs once the episode has been re-read and proven
+    #: complete. Default is "both" deliberately: the episode format is new here, and the
+    #: numbered frames are what every existing tool and test in this repo reads. "replace"
+    #: is the intended steady state and halves the bytes -- move to it once episodes have
+    #: earned it in the field, not on the day they land.
+    episodes: str = "both"
 
     stats: RecorderStats = field(default_factory=RecorderStats)
     _buffer: Deque[Tuple[float, np.ndarray]] = field(default_factory=deque, init=False)
@@ -223,13 +242,23 @@ class HardCaseRecorder:
 
             os.makedirs(clip_dir, exist_ok=True)
             written_bytes = 0
+            # imENcode, not imWRITE: the same JPEG bytes go to the numbered file AND to the
+            # episode. Re-compressing identical pixels a second time to satisfy a second
+            # format would cost CPU on the box that is also running the detector, and would
+            # leave the two copies subtly different for no reason.
+            episode = _episode_for(clip_dir, self.episodes, pending)
             for index, (ts, image) in enumerate(frames):
-                frame_path = os.path.join(clip_dir, f"{index:04d}.jpg")
-                ok = cv2.imwrite(frame_path, image,
-                                 [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality])
+                ok, buf = cv2.imencode(".jpg", image,
+                                       [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality])
                 if not ok:
-                    raise OSError(f"cv2.imwrite refused {frame_path}")
-                written_bytes += os.path.getsize(frame_path)
+                    raise OSError(f"cv2.imencode refused frame {index}")
+                jpeg = buf.tobytes()
+                frame_path = os.path.join(clip_dir, f"{index:04d}.jpg")
+                with open(frame_path, "wb") as fh:
+                    fh.write(jpeg)
+                written_bytes += len(jpeg)
+                if episode is not None:
+                    episode.add_image(ts, jpeg)
             meta = {
                 "reason": pending.reason,
                 "at": pending.at,
@@ -238,6 +267,12 @@ class HardCaseRecorder:
                 "frames": len(frames),
                 "context": pending.context,
             }
+            if episode is not None:
+                episode.note("/hardcase/trigger", pending.at,
+                             {"reason": pending.reason, "context": pending.context})
+                written_bytes += _finish_episode(episode, meta, len(frames), self.stats)
+                if self.episodes == "replace" and self.stats.episodes_written and                         meta.get("episode"):
+                    written_bytes -= _drop_frames(clip_dir)
             with open(os.path.join(clip_dir, "case.json"), "w", encoding="utf-8") as fh:
                 json.dump(meta, fh, indent=2)
             written_bytes += os.path.getsize(os.path.join(clip_dir, "case.json"))
@@ -280,9 +315,20 @@ class HardCaseRecorder:
             return
         sizes = {c: _dir_size(c) for c in clips}
         total = sum(sizes.values())
-        for clip in clips:
+        # NEVER evict the newest clip, even when it alone exceeds the budget.
+        #
+        # Without this the store empties completely and STAYS empty: every clip written is
+        # immediately over budget, so every clip is immediately deleted, forever, while
+        # `healthy` stays True because no WRITE ever failed. An operator reads an empty
+        # directory as a quiet shop. Keeping one clip is bounded -- a clip cannot exceed
+        # `max_buffer_frames` frames -- and one over-budget clip is a far better outcome
+        # than a recorder that has silently recorded nothing since the day it was configured.
+        #
+        # Reachable in practice as of the episode work: writing both the JPEGs and an
+        # episode roughly doubles a clip, which halves the budget that can hold one.
+        for clip in clips[:-1] if clips else []:
             if total <= self.max_bytes:
-                return
+                break
             try:
                 for entry in os.listdir(clip):
                     os.remove(os.path.join(clip, entry))
@@ -293,6 +339,83 @@ class HardCaseRecorder:
                 return
             total -= sizes[clip]
             self.stats.evicted_clips += 1
+        if total > self.max_bytes:
+            # Say it, rather than letting a permanently-over-budget store look normal. This
+            # is a CONFIGURATION fact -- the budget cannot hold a single clip -- and the
+            # operator is the only one who can fix it.
+            self.stats.budget_too_small = True
+            if self.stats.last_error is None:
+                self.stats.last_error = (
+                    f"byte budget {self.max_bytes} cannot hold one clip ({total} on disk); "
+                    "keeping the newest anyway -- raise --hard-case-max-gb")
+
+
+def _drop_frames(clip_dir: str) -> int:
+    """Remove the numbered JPEGs the episode now holds. Returns the bytes reclaimed.
+
+    Only ever called after `verify()` reported a COMPLETE episode whose image count matches
+    the frames written. Any failure here leaves the frames alone -- a clip with both copies
+    wastes disk; a clip with neither is a lost sample.
+    """
+    freed = 0
+    try:
+        for name in sorted(os.listdir(clip_dir)):
+            if name.endswith(".jpg"):
+                path = os.path.join(clip_dir, name)
+                size = os.path.getsize(path)
+                os.remove(path)
+                freed += size
+    except Exception:  # noqa: BLE001 - keeping both copies is the safe failure
+        pass
+    return freed
+
+
+def _episode_for(clip_dir: str, mode: str, pending: "_Pending"):
+    """An open EpisodeWriter for this clip, or None when episodes are off/unavailable.
+
+    Import is local and failure returns None: a box without `mcap` installed must still
+    record hard cases. An episode is a better view of a clip, never a precondition for one.
+    """
+    if mode == "off":
+        return None
+    try:
+        from vision.episode import EpisodeWriter, AVAILABLE
+
+        if not AVAILABLE:
+            return None
+        writer = EpisodeWriter(os.path.join(clip_dir, "episode.mcap"),
+                               frame_id=pending.reason)
+        return writer if writer.open else None
+    except Exception:  # noqa: BLE001 - never let the replay format cost us the sample
+        return None
+
+
+def _finish_episode(episode, meta: dict, expected_images: int, stats: "RecorderStats") -> int:
+    """Close, re-read, and return the episode's bytes. Deletes nothing on its own.
+
+    The re-read is the point. `close()` returning a path means the writer did not raise,
+    which is not the same claim as "the frames are in there and can be got out again" --
+    and the second claim is the only one that could ever justify removing the originals.
+    """
+    from vision.episode import verify
+
+    path = episode.close(meta)
+    if not path:
+        stats.episodes_failed += 1
+        stats.last_error = f"episode: {episode.stats.describe()}"
+        return 0
+    seen = verify(path)
+    ok = bool(seen and seen.get("complete")
+              and seen["topics"].get("/camera/image", 0) == expected_images)
+    if not ok:
+        stats.episodes_failed += 1
+        stats.last_error = (
+            f"episode wrote but did not read back: {seen}" if seen
+            else "episode wrote but would not re-open at all")
+        return os.path.getsize(path)
+    stats.episodes_written += 1
+    meta["episode"] = {"messages": seen["messages"], "topics": seen["topics"]}
+    return os.path.getsize(path)
 
 
 def _dir_size(path: str) -> int:

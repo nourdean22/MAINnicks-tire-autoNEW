@@ -799,7 +799,7 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
       }
     } catch (err) {
       const phoneTail = rc.phone?.replace(/\D/g, "").slice(-4) || "";
-      log.warn(`Failed to upsert customer ${rc.name}/...${phoneTail}`, { error: err instanceof Error ? err.message : String(err) });
+      log.warn(`Failed to upsert customer ...${phoneTail}`, { error: err instanceof Error ? err.message : String(err) }); // pii-allow: phoneTail is DELIBERATELY masked to the last 4 digits one line above and is the only handle on which record failed; the full name was removed.
     }
   }
 

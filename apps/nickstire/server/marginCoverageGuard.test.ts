@@ -18,6 +18,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
+import { sliceBlock } from "./testUtils/sourceBlock";
 import { join } from "path";
 
 import {
@@ -237,10 +238,27 @@ describe("canary - the consumer cannot silently re-fabricate the number", () => 
 
   it("a query failure reads as unavailable, not as 0%", () => {
     const revenue = stripComments(readFileSync(join(process.cwd(), "server/services/engines/revenue.ts"), "utf-8"));
-    const start = revenue.indexOf("export async function analyzeProfitMargins");
     // Bound the slice to THIS function - other engines have their own catch
     // blocks and would otherwise be swept into the assertion.
-    const tail = revenue.slice(start, revenue.indexOf(String.fromCharCode(10) + "// ", start));
+    //
+    // THE BOUND USED TO NOT EXIST. It read
+    //   revenue.slice(start, revenue.indexOf("\n// ", start))
+    // against a source that had just been through stripComments(), whose
+    // /^\s*\/\/.*$/gm pass removes every full-line comment - so the anchor could
+    // never match. indexOf returned -1, String.slice read that as an offset from
+    // the END of the string, and the "bound" silently ran to EOF, sweeping in
+    // analyzePaymentTrends, analyzeTicketTrend and analyzeRevenueConcentration:
+    // precisely the three functions the comment above says must be excluded.
+    // Detected at runtime 2026-09-10 (9 hits in one run), not by reading.
+    // sliceBlock throws instead of widening; see server/testUtils/sourceBlock.ts.
+    const tail = sliceBlock(revenue, "export async function analyzeProfitMargins", "\nexport ", {
+      label: "server/services/engines/revenue.ts",
+    });
+
+    // The bound is asserted, not assumed - without this the widening returns
+    // silently and every expectation below reads three engines' worth of code.
+    expect(tail, "the slice leaked into the next engine").not.toContain("analyzePaymentTrends");
+
     expect(tail).toContain('basis: "unavailable" as const');
     expect(tail).not.toMatch(/overallMargin:\s*0\b/);
   });

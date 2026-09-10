@@ -207,7 +207,7 @@ export async function runFollowupCadence(): Promise<RunResult> {
       await d.update(voiceFollowups).set({ vapiCallId: call.callId })
         .where(and(eq(voiceFollowups.bookingId, b.id), eq(voiceFollowups.touch, touch)));
       placed++;
-      log.info(`[followup-cadence] placed ${touch} call ${call.callId} for booking ${b.id} (${firstName})`);
+      log.info(`[followup-cadence] placed ${touch} call ${call.callId} for booking ${b.id}`);
     } else {
       // Claimed-then-failed is TERMINAL (the UNIQUE blocks a retry) — better to
       // miss one touch than risk a double-dial. Other touches still fire.

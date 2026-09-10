@@ -233,7 +233,7 @@ export async function sendCustomerMessage(
         });
       }
     } catch (e) {
-      log.error(`Failed to send confirmation SMS to ${order.customerPhone}:`, e);
+      log.error(`Failed to send confirmation SMS for order ${order.orderNumber}:`, e);
     }
   }
 
@@ -271,7 +271,7 @@ export async function sendCustomerMessage(
           });
         }
       } catch (e) {
-        log.error(`Failed to send confirmation email to ${order.customerEmail}:`, e);
+        log.error(`Failed to send confirmation email for order ${order.orderNumber}:`, e);
       }
     }
   }

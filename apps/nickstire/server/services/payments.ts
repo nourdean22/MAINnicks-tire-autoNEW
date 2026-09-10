@@ -212,7 +212,7 @@ export async function createMembershipCheckout(params: {
 
     if (!session.url) return { error: "Membership signup failed — Stripe returned no checkout URL." };
 
-    log.info(`Nonstop Nick checkout ${session.id} created for ${params.phone}`);
+    log.info(`Nonstop Nick checkout ${session.id} created`);
     return { url: session.url, sessionId: session.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

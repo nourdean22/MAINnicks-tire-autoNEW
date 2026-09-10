@@ -74,6 +74,16 @@ class ShopMirror:
         #: PRODUCTION | COMMISSIONING | REPLAY. A commissioning run's rows carry this so
         #: the shop's KPIs exclude them by default; they are never deleted.
         self.data_class = data_class
+        #: What this producer is when NOT commissioning. Leaving a run used to hardcode
+        #: PRODUCTION, which silently PROMOTED a REPLAY producer's rows into the shop's
+        #: counters -- the same defect already fixed for `mode` via `base_mode`, in the
+        #: field next door. A replay lane must come out of commissioning as replay.
+        #:
+        #: COMMISSIONING is never a base. It is a transient state a producer is IN, so a
+        #: mirror constructed mid-run falls back to PRODUCTION -- the same rule `base_mode`
+        #: applies when it maps COMMISSIONING to SHADOW. The caller overrides this when it
+        #: knows better, which is how `--replay` reaches it.
+        self.base_data_class = "PRODUCTION" if data_class == "COMMISSIONING" else data_class
         self.commissioning_run_id = commissioning_run_id
         #: {visit_id: (dataClass, commissioningRunId)} for visits whose shop row is still
         #: queued from a PREVIOUS process. See `restore_classifications`.
@@ -234,7 +244,12 @@ class ShopMirror:
             self.apply_active_run(text)
             return True
         self.heartbeats_failed += 1
-        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:120])
+        # 1200, not 120. A Zod rejection names the offending path and the values it
+        # expected, and all of that sits PAST 120 characters -- the live 400 above read
+        # `...{"code":"invalid_value","values":["PRODUCTION",...,"path":["mode` and stopped,
+        # so the log showed a rejection whose reason was cut off mid-word. Same fix as the
+        # cloud lane got earlier today; this lane had the identical defect.
+        log.warning("shop heartbeat rejected camera=%s status=%s body=%r", body.get("camera"), status, str(text)[:1200])
         return False
 
     def apply_active_run(self, response_text) -> Optional[str]:
@@ -270,10 +285,14 @@ class ShopMirror:
             self.commissioning_run_id = str(run_id)
             self.data_class = "COMMISSIONING"
         else:
-            log.warning("leaving commissioning mode (run %s ended); visits are PRODUCTION again",
-                        self.commissioning_run_id)
+            log.warning("leaving commissioning mode (run %s ended); visits are %s again",
+                        self.commissioning_run_id, self.base_data_class)
             self.commissioning_run_id = None
-            self.data_class = "PRODUCTION"
+            # RESTORE THE BASE, never a literal. Hardcoding PRODUCTION here promoted a
+            # REPLAY producer's rows into the shop's live counters the moment a commissioning
+            # run ended -- and nothing would have reported it, because a PRODUCTION row is
+            # exactly what the counters expect to see.
+            self.data_class = self.base_data_class
         return self.commissioning_run_id
 
     def forget(self, visit_id: str) -> None:
@@ -365,5 +384,5 @@ class ShopMirror:
         # 401 is the one worth naming: it is almost always a missing CAMERA_INGEST_KEY.
         reason = "shop_sync_key_rejected" if status == 401 else f"http_{status}"
         log.warning("shop mirror rejected visit=%s status=%s reason=%s body=%r",
-                    item.get("visit_id"), status, reason, str(text)[:120])
+                    item.get("visit_id"), status, reason, str(text)[:1200])
         return "rejected"

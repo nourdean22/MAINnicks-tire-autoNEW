@@ -20,13 +20,17 @@
  * STATENOUR_SYNC_KEY".)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 type QueryResult = { data: unknown; isLoading: boolean; isError: boolean; error: unknown };
 
 const h = vi.hoisted(() => ({
   candidates: { data: undefined, isLoading: false, isError: false, error: null } as QueryResult,
   referrals: { data: undefined, isLoading: false, isError: false, error: null } as QueryResult,
+  // Defaults to an available, empty result so the SLA banner stays out of the
+  // way of the outage assertions; the tests that care set it explicitly.
+  slaBreaches: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
+  history: { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null } as QueryResult,
 }));
 
 // vi.mock is hoisted above every top-level const, so the mutation stub is
@@ -36,19 +40,37 @@ vi.mock("@/lib/trpc", () => {
   const stub = () => ({ mutate: () => {}, isPending: false });
   return {
     trpc: {
+      // This mock is a hand-rolled SECOND REGISTRY of the procedures these
+      // panels call, and it drifts silently: a panel that reaches for a
+      // procedure absent here reads `undefined.useMutation` and every test in
+      // the file dies at render with an error that names the mutation's
+      // onError line, not the missing key. Add the entry whenever a panel
+      // gains a call.
       useUtils: () => ({
-        candidates: { list: { invalidate: () => {} } },
+        candidates: { list: { invalidate: () => {} }, slaBreaches: { invalidate: () => {} } },
         technicianReferrals: { list: { invalidate: () => {} } },
       }),
       candidates: {
         list: { useQuery: () => h.candidates },
+        slaBreaches: { useQuery: () => h.slaBreaches },
         updateStatus: { useMutation: stub },
       },
       technicianReferrals: {
         list: { useQuery: () => h.referrals },
+        // Reconciliation exceptions. Defaults to an empty, available result so
+        // these tests assert the OUTAGE branches without the orphan banner
+        // interfering; its own behaviour is covered separately.
+        orphans: { useQuery: () => ({ data: { available: true, rows: [] } }) },
         markHired: { useMutation: stub },
         markPaid: { useMutation: stub },
         disqualify: { useMutation: stub },
+        markForfeited: { useMutation: stub },
+        // Per-row audit history. Its query is `enabled` only once a row is
+        // expanded, so it never fires in these tests - but the panel still
+        // READS trpc.technicianReferrals.history.useQuery at render, and a
+        // missing key here is `undefined.useQuery`, which kills every test in
+        // the file with an error naming an unrelated line.
+        history: { useQuery: () => h.history },
       },
     },
   };
@@ -66,6 +88,8 @@ afterEach(cleanup);
 beforeEach(() => {
   h.candidates = { data: undefined, isLoading: false, isError: false, error: null };
   h.referrals = { data: undefined, isLoading: false, isError: false, error: null };
+  h.slaBreaches = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+  h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
 });
 
 describe("CandidatesPanel", () => {
@@ -122,5 +146,146 @@ describe("TechnicianReferralsPanel", () => {
 
     expect(screen.getByText(/No technician referrals recorded yet/i)).toBeTruthy();
     expect(screen.queryByText(/Database unavailable/i)).toBeNull();
+  });
+});
+
+/**
+ * The 48-hour careers promise, on screen. server/candidateSla.test.ts asserts
+ * the query is not gated on `open` and that the header references the count —
+ * both source assertions, which pass for markup that never paints. This mounts
+ * it.
+ */
+describe("CandidatesPanel · the SLA alarm actually paints", () => {
+  const waiting = (rows: unknown[]) => ({ available: true, rows });
+
+  it("shows the waiting count", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.slaBreaches = {
+      data: waiting([{ id: 1, name: "Dana Reyes", createdAt: null, hoursWaiting: 51, band: "breached" }]),
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<CandidatesPanel />);
+
+    expect(screen.getByText(/1 awaiting reply/i)).toBeTruthy();
+    expect(screen.getByText(/still\s+waiting on a first reply/i)).toBeTruthy();
+    expect(screen.getByText(/51h/)).toBeTruthy();
+  });
+
+  it("says the age is unknown rather than printing a fabricated number", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.slaBreaches = {
+      data: waiting([{ id: 2, name: "Sam Okafor", createdAt: null, hoursWaiting: null, band: "breached" }]),
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<CandidatesPanel />);
+
+    // `Number(null)` is 0, so the naive version rendered "0h" — a confident,
+    // wrong, and maximally reassuring number for the row we know least about.
+    expect(screen.getByText(/age unknown/i)).toBeTruthy();
+    expect(screen.queryByText(/^0h$/)).toBeNull();
+  });
+
+  it("paints SLA UNKNOWN when the breach read itself failed", () => {
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.slaBreaches = { data: { available: false, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<CandidatesPanel />);
+
+    // Silence here is indistinguishable from "nobody is waiting" — the exact
+    // fabricated zero the rest of this file exists to catch.
+    expect(screen.getByText(/SLA unknown/i)).toBeTruthy();
+  });
+
+  it("stays quiet when nobody is actually waiting — the positive control", () => {
+    // Without this, a badge hardcoded to render would satisfy every assertion
+    // above and alarm permanently, which trains the operator to ignore it.
+    h.candidates = { data: ok([]), isLoading: false, isError: false, error: null };
+    h.slaBreaches = { data: waiting([]), isLoading: false, isError: false, error: null };
+    render(<CandidatesPanel />);
+
+    expect(screen.queryByText(/awaiting reply/i)).toBeNull();
+    expect(screen.queryByText(/SLA unknown/i)).toBeNull();
+    expect(screen.queryByText(/waiting on a first reply/i)).toBeNull();
+  });
+});
+
+/**
+ * WHY, not just who and when.
+ *
+ * The first cut of this history list rendered action + actor + timestamp and
+ * dropped `changes` on the floor - so the single most useful field in a
+ * contested $300, the RECORDED REASON, was the one thing it did not show.
+ */
+describe("TechnicianReferralsPanel - referral history shows the reason", () => {
+  const oneReferral = () =>
+    ok([
+      {
+        id: 7,
+        status: "disqualified",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: null,
+        eligibleAt: null,
+        paidAt: null,
+        createdAt: new Date("2026-08-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("renders the recorded reason, not just the actor and timestamp", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = {
+      data: {
+        available: true,
+        rows: [
+          {
+            id: "a1",
+            actor: "nick@nickstire.org",
+            action: "technician_referral.disqualified",
+            changes: { detail: { old: null, new: "Referral #7 disqualified: referrer was the applicant" } },
+            createdAt: new Date("2026-09-01T15:04:00Z").toISOString(),
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/nick@nickstire\.org/)).toBeTruthy();
+    expect(screen.getByText(/referrer was the applicant/)).toBeTruthy();
+  });
+
+  it("a failed audit read is not an empty history", () => {
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: false, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    // "Nobody touched this record" is the most exonerating thing an audit
+    // trail can say, so a read that did not run must never be able to say it.
+    expect(screen.getByText(/Couldn.t read the audit trail/i)).toBeTruthy();
+    expect(screen.queryByText(/No recorded actions yet/i)).toBeNull();
+  });
+
+  it("still says so when there genuinely is no history - the positive control", () => {
+    // Without this, a panel that rendered the failure banner unconditionally
+    // would satisfy the test above and be badly broken.
+    h.referrals = { data: oneReferral(), isLoading: false, isError: false, error: null };
+    h.history = { data: { available: true, rows: [] }, isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /history/i }));
+
+    expect(screen.getByText(/No recorded actions yet/i)).toBeTruthy();
+    expect(screen.queryByText(/Couldn.t read the audit trail/i)).toBeNull();
   });
 });

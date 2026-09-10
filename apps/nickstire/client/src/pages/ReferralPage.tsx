@@ -22,7 +22,23 @@ export default function ReferralPage() {
   });
 
   const submitReferral = trpc.referrals.submit.useMutation({
-    onSuccess: () => setSubmitted(true),
+    // referrals.submit RESOLVES with { success: false, error } when its
+    // self-referral guard trips — it does not throw, so onError never runs.
+    // This callback ignored `data` entirely and showed the success screen
+    // regardless: a blocked user read "REFERRAL SUBMITTED — you both get $25",
+    // nothing was written, the guard's own message never rendered, and they
+    // came back expecting a credit that was never owed.
+    //
+    // A resolved mutation is not a successful one. Read the payload.
+    onSuccess: (data) => {
+      // `success` is typed `boolean` rather than a literal on both arms, so the
+      // union does not discriminate on it; narrow on the presence of `error`.
+      if (data && data.success === false) {
+        toast.error("error" in data ? data.error : "That referral couldn't be accepted.");
+        return;
+      }
+      setSubmitted(true);
+    },
     onError: () => toast.error("Referral couldn't be submitted. Please try again."),
   });
 

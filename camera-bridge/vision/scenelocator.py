@@ -87,7 +87,26 @@ RANSAC_THRESHOLD_PX = 3.0
 AMBIGUITY_MARGIN = 1.35
 #: Quad corner movement, in window pixels, that counts as the layout having actually moved
 #: rather than the estimate jittering. Below it the binding is held, so the epoch is stable.
-EPOCH_MOVE_PX = 6.0
+#:
+#: MEASURED, after a live run proved the first value wrong. Eight successive locates of an
+#: UNCHANGED fullscreen window moved corners by up to 13.1px individually and 23.3px
+#: peak-to-peak -- against a threshold of 6.0. So the epoch advanced on pure estimation
+#: noise, and because the epoch is part of `source_generation`, every one of those false
+#: advances DEGRADED THE TRACKS AND RE-ARMED THE CENSUS. A supervised producer reached
+#: epoch 4 in ten minutes on a window nobody touched, which is precisely the failure this
+#: module's own docstring warns about: "a system that never keeps a track cannot detect an
+#: arrival at all."
+#:
+#: 40 sits above the measured 23.3 with margin. A REAL layout change -- windowed to
+#: fullscreen -- moves corners by hundreds of pixels, so the two are not close.
+EPOCH_MOVE_PX = 40.0
+#: Consecutive re-locations that must AGREE the pane moved before the epoch advances.
+#:
+#: This is the part that does not depend on getting the threshold exactly right. A single
+#: unlucky locate can exceed any tolerance; two in a row landing in the same new place is a
+#: layout change. Costs one revalidation interval of delay on a real move, which is nothing
+#: against continuously shredding the tracks.
+EPOCH_CONFIRMATIONS = 2
 
 
 class SceneNotLocated(RuntimeError):
@@ -641,7 +660,7 @@ def canonicalise(frame: np.ndarray, located: Located, size: Tuple[int, int]) -> 
                                flags=cv2.INTER_LINEAR)
 
 
-@dataclass(frozen=True)
+@dataclass
 class SceneBinding:
     """What the producer currently believes it is looking at, and since when.
 
@@ -657,6 +676,9 @@ class SceneBinding:
     epoch: int
     quad: Tuple[Tuple[float, float], ...]
     homography_id: str
+    #: How many consecutive re-locations have now said the pane moved. Reset by any
+    #: observation that agrees with the binding, so a single outlier cannot accumulate.
+    pending_moves: int = 0
 
     def same_place_as(self, located: Located, move_px: float = EPOCH_MOVE_PX) -> bool:
         if located.scene_id != self.scene_id:
@@ -666,15 +688,36 @@ class SceneBinding:
 
 
 def advance(previous: Optional[SceneBinding], located: Located,
-            move_px: float = EPOCH_MOVE_PX) -> Tuple[SceneBinding, bool]:
+            move_px: float = EPOCH_MOVE_PX,
+            confirmations: int = EPOCH_CONFIRMATIONS) -> Tuple[SceneBinding, bool]:
     """Fold a fresh location into the running binding. Returns `(binding, epoch_changed)`.
 
     Holding the epoch across estimation jitter is as important as advancing it across a real
     move: an epoch that ticked every frame would terminate every track continuously, and a
     system that never keeps a track cannot detect an arrival at all.
     """
-    if previous is not None and previous.same_place_as(located, move_px):
+    if previous is None:
+        return SceneBinding(scene_id=located.scene_id, epoch=1, quad=located.quad,
+                            homography_id=located.homography_id), True
+
+    if previous.same_place_as(located, move_px):
+        # Agreement clears any pending move: a single outlier must not accumulate toward a
+        # confirmation across minutes of otherwise stable observations.
+        previous.pending_moves = 0
         return previous, False
-    epoch = 1 if previous is None else previous.epoch + 1
-    return SceneBinding(scene_id=located.scene_id, epoch=epoch, quad=located.quad,
+
+    # A DIFFERENT SCENE is not a jitter question -- the identity changed, and no amount of
+    # waiting makes that more true. Advance immediately.
+    if located.scene_id != previous.scene_id:
+        return SceneBinding(scene_id=located.scene_id, epoch=previous.epoch + 1,
+                            quad=located.quad,
+                            homography_id=located.homography_id), True
+
+    previous.pending_moves += 1
+    if previous.pending_moves < confirmations:
+        # Same scene, moved further than tolerance, but only once so far. Hold the binding:
+        # advancing here is what shredded the tracks on estimation noise.
+        return previous, False
+    return SceneBinding(scene_id=located.scene_id, epoch=previous.epoch + 1,
+                        quad=located.quad,
                         homography_id=located.homography_id), True

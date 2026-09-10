@@ -51,6 +51,28 @@ description = "Ahrefs Web Analytics site key — a public client-side identifier
 regexTarget = "match"
 regexes = [
   '''data-key=["'][A-Za-z0-9+/=_-]{16,64}["']''',
+  # THE SAME KEY, THE OTHER SHAPE (added 2026-09-10). The regex above matches
+  # the rendered HTML ATTRIBUTE `data-key="..."`, which exists in 339 files.
+  # The key also appears as a JavaScript CALL - `setAttribute('data-key', '...')`,
+  # a comma rather than an `=` - in 340, including client/index.html itself,
+  # which is where the prerendered copies come from. The regex above never
+  # matched that form, so the entry read as if it covered the Ahrefs key while
+  # covering only half of it. It went unnoticed because gitleaks scans
+  # base..head: the 336 pre-existing files are not new lines in any range. Three
+  # re-added careers leaf pages put the call form back in a diff and the gate
+  # fired on line 173 of each.
+  #
+  # Written against the MATCH TEXT, not the source line: regexTarget="match"
+  # above means each allowlist regex is applied to what the rule captured,
+  # which gitleaks reported as `data-key', '<value>'` - no `setAttribute`, no
+  # closing paren. A regex written against the full line looks right in review
+  # and never fires, which is the same failure this entry is fixing.
+  #
+  # Matched by EXACT VALUE, following the IndexNow entry below, so this cannot
+  # exempt any other token - only this specific Ahrefs
+  # Web Analytics site key, which is served in plaintext to every visitor of
+  # every page and is public by design, exactly like a GA measurement ID.
+  "data-key', 'DCheKV/YJsF9d6vmJuHNBg'",
   # IndexNow verification key — same shape of false positive as the Ahrefs
   # entry above (a required public identifier, flagged only because gitleaks
   # scans base..head and this was the first PR to introduce it as new lines).

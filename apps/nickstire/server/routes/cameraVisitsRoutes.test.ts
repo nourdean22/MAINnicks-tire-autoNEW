@@ -26,6 +26,21 @@ describe("camera visit ingest — plate durability", () => {
 });
 
 describe("camera visit ingest — the seq guard covers every column", () => {
+  /** The assignment for ONE column, sliced out of the combined SET clause.
+   *
+   *  Splitting on the backtick-quoted column name is what lets these tests assert what a
+   *  column's guard DOES without pinning the exact text around it -- the failure mode that
+   *  turned a strengthened guard into two red tests. */
+  const clauseFor = (set: string, col: string): string => {
+    // Split on the ONLY thing that separates two assignments: a ", " followed by a
+    // backtick-quoted identifier and " = ". Values contain ", `col`" too -- inside
+    // COALESCE -- but those are followed by ")", never by " = ", so the lookahead does not
+    // match them. Slicing to the first "), `" instead cut the clause in half, which is how
+    // the first attempt at this helper turned one red test into a different red test.
+    const parts = set.split(/, (?=`\w+` = )/);
+    return parts.find((part) => part.startsWith(`\`${col}\` = `)) ?? "";
+  };
+
   it("guards EVERY updatable column, so a new column cannot skip monotonicity", () => {
     // The invariant is enforced by the ON DUPLICATE KEY UPDATE clause, not by a
     // read-then-write, and it only holds if every assignment carries the guard. A
@@ -34,12 +49,16 @@ describe("camera visit ingest — the seq guard covers every column", () => {
     const immutable = ["dataClass", "commissioningRunId"];
     const updatable = COLUMNS.filter((c) => c !== "visitId" && !immutable.includes(c));
     for (const col of updatable) {
-      // The PREFIX, not the whole assignment: the `then` branch legitimately differs
-      // between a plain replace and the COALESCE the learned-once columns use. What must
-      // hold for EVERY column is that the same seq comparison gates it.
-      expect(GUARDED_SET, `${col} is not seq-guarded`).toContain(
-        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, `,
-      );
+      // The seq comparison must gate every column. It is asserted as PRESENT IN THE
+      // COLUMN'S CLAUSE rather than as its literal opening, because a column may carry an
+      // ADDITIONAL outer guard: `plateText` and `plateStatus` are wrapped in a
+      // `plateStatus = 'SCRUBBED'` check so a retention scrub cannot be undone by a
+      // redelivery. That wrapping does not skip monotonicity -- it adds a condition in
+      // front of it -- and the earlier prefix assertion could not tell the two apart, so
+      // it failed a change that strengthened the very thing it protects.
+      const clause = clauseFor(GUARDED_SET, col);
+      expect(clause, `${col} has no assignment at all`).toBeTruthy();
+      expect(clause, `${col} is not seq-guarded`).toContain("IF(VALUES(`seq`) >= `seq`, ");
     }
     expect(GUARDED_SET.split("IF(VALUES(`seq`)").length - 1).toBe(updatable.length);
   });
@@ -51,14 +70,21 @@ describe("camera visit ingest — the seq guard covers every column", () => {
     // a complete row with nulls. A routine restart would silently erase a visit's timing
     // (Codex P1 on #2255). A car does not un-arrive, so COALESCE is always right here.
     for (const col of ["arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt", "bay", "entryEvidence", "evidenceRef"]) {
-      expect(GUARDED_SET, `${col} can be nulled by a restart`).toContain(
-        `\`${col}\` = IF(VALUES(\`seq\`) >= \`seq\`, COALESCE(VALUES(\`${col}\`), \`${col}\`), \`${col}\`)`,
+      expect(clauseFor(GUARDED_SET, col), `${col} can be nulled by a restart`).toContain(
+        `COALESCE(VALUES(\`${col}\`), \`${col}\`)`,
       );
     }
     // But a value that legitimately CHANGES is still replaced outright -- COALESCE
     // everywhere would freeze the state machine at its first non-null reading.
-    expect(GUARDED_SET).toContain("`state` = IF(VALUES(`seq`) >= `seq`, VALUES(`state`), `state`)");
-    expect(GUARDED_SET).toContain("`plateStatus` = IF(VALUES(`seq`) >= `seq`, VALUES(`plateStatus`), `plateStatus`)");
+    expect(clauseFor(GUARDED_SET, "state")).toContain("VALUES(`state`)");
+    expect(clauseFor(GUARDED_SET, "state")).not.toContain("COALESCE");
+    // `plateStatus` replaces outright too -- it is a reading, not a thing learned once --
+    // but it additionally cannot be moved OFF 'SCRUBBED'. Asserted as two facts about the
+    // clause rather than as one literal string, because the literal could no longer tell
+    // "still replaced outright" from "no longer guarded at all".
+    expect(clauseFor(GUARDED_SET, "plateStatus")).toContain("VALUES(`plateStatus`)");
+    expect(clauseFor(GUARDED_SET, "plateStatus")).not.toContain("COALESCE");
+    expect(clauseFor(GUARDED_SET, "plateStatus")).toContain("`plateStatus` = 'SCRUBBED'");
   });
 
   it("the DATA CLASS is fixed at insert: a restart cannot reclassify a visit", () => {

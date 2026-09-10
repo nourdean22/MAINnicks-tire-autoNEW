@@ -199,7 +199,7 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
           await new Promise(r => setTimeout(r, 500)); // Rate limit
         } catch (e) {
           log.warn("[services/emailCampaigns] email send failed:", e);
-          log.warn(`Email send failed for ${cust.firstName}`);
+          log.warn(`Email send failed for customer #${cust.id}`);
         }
       }
     } else {

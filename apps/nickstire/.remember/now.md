@@ -1,8 +1,54 @@
-# Session ledger — nickstire
+# Session ledger - nickstire
 
-**Updated: 2026-09-09** (IN FLIGHT — four PRs open: #2234 docs/freeze · #2236 camera-bridge vision
-platform · #2238 admin Lot section (THIS app) · #2241 visitd shop mirror. See the 2026-09-09 section
-directly below; the 2026-09-08 close-out follows it.)
+**Updated: 2026-09-10** (CLOSED - #2266, #2268 and #2272 all merged and deployed. Nothing of mine is
+open. See the 2026-09-10 section below; the 2026-09-09 section follows it.)
+
+## 2026-09-10 · fail-open source slices, careers job pages, and a live cloaking incident I caused
+
+**SHIPPED:** #2266 (squash `5946e7dfa`, 17 commits) · #2268 (`a40390ce4`) · #2272 (`7d4e8e3c3`).
+
+**THE INCIDENT, because it will happen again to whoever forgets.** I dispatched
+`prerender-refresh.yml` with `--ref nickstire/fail-open-source-slices`. The ref chose the CODE and had
+no say over the DESTINATION - every git command in its commit step named the literal `main` - so it
+rendered that branch's `/careers/<slug>` routes and pushed the artifacts to main, which had no such
+routes and no `JobPage.tsx`. `server/prerender-middleware.ts:147,150` resolves prerendered HTML by
+FILE EXISTENCE alone, with no routes-manifest check, so the pages WERE served. Measured live on one
+URL: **Googlebot 200 / 53,813 bytes / full JobPosting, Chrome 404 / "Page Not Found"** - cloaking by
+Google's own definition, on a job posting. #2268 removed the three artifacts (both UAs 404), #2266
+then landed the routes AND artifacts together so the pages became real (both UAs 200, verified in a
+browser). Root cause fixed in #2266: `TARGET_BRANCH: ${{ github.ref_name }}`.
+**A green "Prerender refresh" reads identically whether it wrote where you asked or to main - read
+the push refspec in the log, not the job conclusion.** `[skip ci]` skips workflows, NOT the Railway deploy.
+
+**Defect shape that dominated the day: an instrument measuring something other than its subject.**
+Two tests in `rateLimitBypass.test.ts` re-implemented what they tested (the tRPC batch guard, and
+`clientIp` - a SECURITY control whose copy silently omitted the IPv6 /64 normalisation). A knip
+baseline entry was keyed on `"(whole file)"`, the label the gate PRINTS, where it STORES `symbol:
+null`. A gitleaks allowlist regex was written against the source line when `regexTarget = "match"`
+applies it to the captured text. Three CI-watch Monitors piped to a `jq` that is not installed and
+silently reported nothing. Each looked correct in review and could never fire.
+Extract and import the real symbol, then MUTATE THE REAL ONE to prove the test fires.
+
+**Also landed:** the 48-hour /careers SLA alarm (badge in the panel HEADER, deliberately not behind
+the collapse - the collapse WAS the original defect); `forfeited` gained a writer, with an
+`eligibleAt` guard so an EARNED $300 cannot be refused; the `$300` audit trail became readable
+(4 writers, 0 readers - `getAuditTrail` had sat with zero callers, baselined as "not individually
+reviewed") and now renders the recorded REASON, not just actor and timestamp.
+
+**OPEN, for the operator:**
+- `disqualify` has no `eligibleAt` guard. Deliberate: fraud found on day 95 must stay actionable.
+- Both `disqualify` and `markForfeited` send a CANNED reason string, not operator-typed text.
+  `ConfirmDialog` cannot capture free text; `window.prompt` is banned in `client/src` (iOS standalone
+  suppresses it silently). Needs a dialog input - that is the next real improvement here.
+- `apps/nickstire/.env.example` carries an UNSTAGED 29-line deletion of the `REEL_FILM_GRAIN` block,
+  dirty since before 2026-09-10 and NOT mine. That flag is LIVE (`reelAssembly.ts:573`,
+  `FILM_GRAIN_STRENGTH = 8`), so the deletion is a doc regression for working code, and the block
+  held measured cost data (1.18x at strength 8, 6.40x at 12). Left untouched - sibling session's tree.
+
+**Environment:** standalone `jq` was absent; installed 1.8.2 and copied to `C:/Users/nourd/bin/jq.exe`
+(on the Bash tool's PATH). `winget upgrade jq` will NOT propagate to that copy. `tsconfig.json`
+excludes `**/*.test.ts` (not `.test.tsx`), so a broken test file exits `pnpm run check` GREEN - now
+documented in `apps/nickstire/AGENTS.md`.
 
 ## 2026-09-09 · admin Lot section + camera vision audit wave
 

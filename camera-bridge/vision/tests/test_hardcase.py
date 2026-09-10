@@ -144,6 +144,45 @@ def test_the_DISK_store_is_capped_and_evicts_the_OLDEST_first(tmp_path):
     assert remaining == sorted(remaining), "clip names sort by time, so this pins the order"
 
 
+def test_a_budget_too_small_for_ONE_clip_keeps_the_newest_and_SAYS_SO(tmp_path):
+    """The store must never evict itself to nothing.
+
+    With a budget below one clip, every clip written is instantly over budget and instantly
+    deleted -- forever -- while `healthy` stays True, because no WRITE ever failed. The
+    directory then reads exactly like a quiet shop that produced no hard cases. Keeping the
+    newest is bounded (a clip cannot exceed `max_buffer_frames` frames) and is the only
+    outcome that leaves the operator anything at all to look at.
+
+    Reachable in practice since episodes: writing both copies roughly doubles a clip.
+    """
+    rec = _rec(tmp_path, before_seconds=1.0, after_seconds=0.0, cooldown_seconds=0.0,
+               max_bytes=1)
+    for i, reason in enumerate(["TRACK_SPLIT", "REID_AMBIGUOUS", "MODEL_OOD"]):
+        base = 1000.0 + i * 100
+        _frames(rec, start=base, count=8)
+        rec.trigger(reason, base + 2.0)
+        rec.flush_ready(base + 99.0)
+    remaining = [d for d in os.listdir(tmp_path) if os.path.isdir(tmp_path / d)]
+    assert len(remaining) == 1, f"expected exactly the newest clip, got {remaining}"
+    assert rec.stats.budget_too_small, "an unusable budget was never reported"
+    # assert-the-consumer: a flag nothing renders is a flag nobody acts on.
+    assert "BUDGET_TOO_SMALL" in rec.stats.describe()
+    assert rec.stats.last_error and "raise --hard-case-max-gb" in rec.stats.last_error
+
+
+def test_a_budget_that_FITS_does_not_cry_wolf(tmp_path):
+    """The positive control. A `budget_too_small` that were always True would pass the test
+    above and permanently disable eviction's own alarm."""
+    rec = _rec(tmp_path, before_seconds=1.0, after_seconds=0.0, cooldown_seconds=0.0,
+               max_bytes=50 * 1024 * 1024)
+    _frames(rec, start=1000.0, count=8)
+    rec.trigger("TRACK_SPLIT", 1002.0)
+    rec.flush_ready(1099.0)
+    assert not rec.stats.budget_too_small
+    assert "BUDGET_TOO_SMALL" not in rec.stats.describe()
+    assert rec.stats.evicted_clips == 0
+
+
 def test_flush_all_saves_an_armed_clip_when_the_producer_STOPS_mid_window(tmp_path):
     """A producer that stops right after something confusing happened is describing a moment
     especially worth keeping. Discarding it on shutdown loses exactly the wrong clip."""

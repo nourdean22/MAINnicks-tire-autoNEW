@@ -159,7 +159,18 @@ class CloudClient:
             return "sent"
         if status and is_permanent(status):
             reason = "sync_key_rejected" if status == 401 else f"http_{status}"
-            log.error("cloud dropped event_id=%s device=%s status=%s reason=%s body=%r", item.event_id, item.device_id, status, reason, text[:120])
+            # 1200, not 120. A PERMANENT drop is the one delivery outcome whose REASON is
+            # the entire point of the log line, and a validation failure says which field it
+            # rejected -- which is exactly the part a 120-character cap cuts off. Measured:
+            # a real 400 logged as `fieldErrors":{"data":["Invalid input: ex` and the answer
+            # was in the next twenty characters.
+            #
+            # The full text is also stored in the dead letter below, but a dead-letter row is
+            # drained on the next successful run, so by the time anyone reads the log the
+            # evidence can be gone. Same lesson as the commissioning P0 on this branch:
+            # truncate where text is PRINTED, and only where the reader loses nothing.
+            log.error("cloud dropped event_id=%s device=%s status=%s reason=%s body=%r",
+                      item.event_id, item.device_id, status, reason, text[:1200])
             self.ledger.outbox_fail(item.id, f"{status}: {text}", permanent=True)
             self.metrics.inc("visitd_cloud_events_total", labels={"result": "dropped"})
             self.metrics.inc("visitd_cloud_dropped_total", labels={"reason": reason})

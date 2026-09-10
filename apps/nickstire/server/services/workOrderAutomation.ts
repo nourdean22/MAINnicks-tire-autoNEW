@@ -195,7 +195,7 @@ export async function autoCreateLeadFromBooking(data: {
       .where(and(eq(leads.phone, data.phone), gte(leads.createdAt, fiveMinAgo)))
       .limit(1);
     if (recent) {
-      log.info(`Lead already exists for phone ${data.phone} (lead #${recent.id}), skipping auto-create from booking #${data.id}`);
+      log.info(`Lead already exists (lead #${recent.id}), skipping auto-create from booking #${data.id}`);
       return;
     }
 
@@ -227,7 +227,7 @@ export async function autoCreateLeadFromBooking(data: {
       status: "new",
     });
 
-    log.info(`Auto-created lead from booking #${data.id} for ${data.name}`);
+    log.info(`Auto-created lead from booking #${data.id}`);
 
     // Telegram alert for visibility
     try {
@@ -338,7 +338,7 @@ export async function enrollInDripCampaign(
       const { hasActiveDripEnrollment } = await import("./dripProcessor");
       const activeOther = await hasActiveDripEnrollment(customer.phone);
       if (activeOther && activeOther !== campaign.id) {
-        log.info(`Drip skip (cross-campaign): ${customer.name} already in ${activeOther}, not enrolling in ${campaign.name}`);
+        log.info(`Drip skip (cross-campaign): already in ${activeOther}, not enrolling in ${campaign.name}`);
         return;
       }
     } catch (e) { log.warn("[services/workOrderAutomation] cross-campaign check failed:", e); }
@@ -357,7 +357,7 @@ export async function enrollInDripCampaign(
       metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
     });
     if (!claimed) {
-      log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
+      log.info(`Drip skip: already enrolled in ${campaign.name}`);
       return;
     }
 
@@ -379,12 +379,12 @@ export async function enrollInDripCampaign(
       const { smsOutcome } = await import("../lib/smsOutcome");
       const outcome = smsOutcome(await sendSms(customer.phone, finalMsg, { via: "shop" }));
       if (outcome === "failed" || outcome === "uncertain") {
-        log.warn(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome} — enrollment kept, step 2 will still fire)`);
+        log.warn(`Drip enrolled: ${campaign.name} (step 1 ${outcome} — enrollment kept, step 2 will still fire)`);
       } else {
-        log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 ${outcome})`);
+        log.info(`Drip enrolled → ${campaign.name} (step 1 ${outcome})`);
       }
     } else {
-      log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 skipped — sms_retention_sequences off)`);
+      log.info(`Drip enrolled → ${campaign.name} (step 1 skipped — sms_retention_sequences off)`);
     }
   } catch (err: unknown) {
     log.warn(`Drip enrollment failed: ${(err as Error).message}`);
