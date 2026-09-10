@@ -356,15 +356,23 @@ class VisitTracker:
         out, self._force_ended = self._force_ended, {}
         return out
 
-    def force_end_open_sightings(self, at: float, reason: str) -> List[Emission]:
+    def force_end_open_sightings(self, at: float, reason: str,
+                                 camera: Optional[str] = None) -> List[Emission]:
         """End every open sighting at the estimated time `at` (Frigate lost its object registry).
 
         The visits then go DEPARTING and reach LEFT / PASS_THROUGH through the normal grace,
         exactly as a Frigate `end` would, with estimated=True on what is emitted.
+
+        `camera` scopes it to one producer's sightings. Frigate owns every camera at once, so it
+        passes None and ends them all; an EDGE producer owns exactly ONE camera while sharing the
+        ledger path with its siblings, so ending everything on its restart would depart cars the
+        other producers are still watching.
         """
         ended = 0
         for visit in list(self._visits.values()):
             for sighting in visit.open_sightings():
+                if camera is not None and sighting.camera != camera:
+                    continue
                 self._force_end(sighting, at)
                 ended += 1
         if not ended:

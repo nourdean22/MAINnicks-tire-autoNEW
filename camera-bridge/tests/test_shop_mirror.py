@@ -264,6 +264,30 @@ class ShopOutboxLedgerTest(unittest.TestCase):
         self.assertEqual(len(rows), 1, "50 emissions for one visit are ONE queued row")
         self.assertEqual(rows[0]["seq"], 50, "and it is the newest, which is the only one carrying information")
 
+    def test_it_reports_the_CLASSIFICATION_of_every_queued_row(self):
+        """What a restarting producer reads to avoid reclassifying an undelivered visit."""
+        led = self._ledger()
+        led.commit_step([], [], [("v1", 3, "u", {"visitId": "v1", "seq": 3,
+                                                 "dataClass": "COMMISSIONING",
+                                                 "commissioningRunId": "C-1"})])
+        led.commit_step([], [], [("v2", 4, "u", {"visitId": "v2", "seq": 4,
+                                                 "dataClass": "PRODUCTION",
+                                                 "commissioningRunId": None})])
+        self.assertEqual(led.shop_outbox_classifications(),
+                         {"v1": ("COMMISSIONING", "C-1"), "v2": ("PRODUCTION", None)})
+
+    def test_a_row_with_no_dataClass_is_omitted_rather_than_guessed(self):
+        led = self._ledger()
+        led.commit_step([], [], [("v1", 3, "u", {"visitId": "v1", "seq": 3})])
+        self.assertEqual(led.shop_outbox_classifications(), {})
+
+    def test_an_unparseable_payload_cannot_take_the_producer_down_at_startup(self):
+        led = self._ledger()
+        led.commit_step([], [], [("v1", 3, "u", {"visitId": "v1", "dataClass": "COMMISSIONING"})])
+        with led._lock:
+            led._conn.execute("UPDATE shop_outbox SET payload = ? WHERE visit_id = ?", ("{not json", "v1"))
+        self.assertEqual(led.shop_outbox_classifications(), {}, "skipped, not raised")
+
     def test_an_older_seq_cannot_walk_a_queued_row_backwards(self):
         led = self._ledger()
         led.commit_step([], [], [("v1", 9, "u", {"visitId": "v1", "seq": 9, "state": "LEFT"})])
@@ -309,3 +333,118 @@ class ShopOutboxLedgerTest(unittest.TestCase):
         # ... and the ledger is still usable afterwards: a rollback is not a poisoned handle.
         led.commit_step([], [], [("v-ok", 1, "u", {"visitId": "v-ok"})])
         self.assertEqual(led.shop_outbox_depth(), 1)
+
+
+class CommissioningHandshakeTest(unittest.TestCase):
+    """The producer LEARNS about a run from the heartbeat reply (Codex P1 on #2255).
+
+    `startCommissioning` only writes a database row. Without this the edge stayed in
+    PRODUCTION: the controlled drive would enter the shop's real KPIs, its visits would
+    carry no run id, and the report would find no machine events to compare against.
+    """
+
+    def _mirror(self, **kw):
+        return ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(), **kw)
+
+    def test_it_ADOPTS_the_run_the_shop_reports(self):
+        m = self._mirror()
+        self.assertEqual(m.data_class, "PRODUCTION")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": {"runId": "C-20260910-001"}}')
+        self.assertEqual(m.commissioning_run_id, "C-20260910-001")
+        self.assertEqual(m.data_class, "COMMISSIONING")
+        # And rows written from now on carry it.
+        row = m.row_for(emission())
+        self.assertEqual(row["dataClass"], "COMMISSIONING")
+        self.assertEqual(row["commissioningRunId"], "C-20260910-001")
+
+    def test_an_EXPLICIT_null_ends_commissioning_mode(self):
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        with self.assertLogs("visitd", level="WARNING"):
+            m.apply_active_run('{"activeCommissioningRun": null}')
+        self.assertIsNone(m.commissioning_run_id)
+        self.assertEqual(m.data_class, "PRODUCTION")
+
+    def test_a_reply_WITHOUT_the_field_leaves_the_mode_alone(self):
+        """An older shop deployment that does not send the field must not silently
+        reclassify a run that is already under way."""
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        m.apply_active_run('{"accepted": true, "state": "HEALTHY"}')
+        self.assertEqual(m.commissioning_run_id, "C-1")
+        self.assertEqual(m.data_class, "COMMISSIONING")
+
+    def test_GARBAGE_leaves_the_mode_alone_and_never_raises(self):
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        for junk in ("not json at all", "", b"\x00\x01", None, 42, "[1,2,3]"):
+            m.apply_active_run(junk)
+        self.assertEqual(m.commissioning_run_id, "C-1")
+
+    def test_re_reporting_the_SAME_run_is_a_no_op_and_does_not_log(self):
+        """A 30-second heartbeat would otherwise announce the same run all day."""
+        m = self._mirror(data_class="COMMISSIONING", commissioning_run_id="C-1")
+        m.apply_active_run('{"activeCommissioningRun": {"runId": "C-1"}}')
+        self.assertEqual(m.commissioning_run_id, "C-1")
+
+    def test_a_SUCCESSFUL_heartbeat_applies_the_reply(self):
+        """The positive control for the wiring: a 2xx must actually feed the body through."""
+        class ReplyRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"activeCommissioningRun": {"runId": "C-FROM-REPLY"}}'
+
+        m = ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=ReplyRecorder())
+        with self.assertLogs("visitd", level="WARNING"):
+            self.assertTrue(m.heartbeat({"camera": "sign"}))
+        self.assertEqual(m.commissioning_run_id, "C-FROM-REPLY")
+
+
+class RestartClassificationTest(unittest.TestCase):
+    """A COMMISSIONING row still QUEUED must survive the restart that coalesces over it.
+
+    Codex P1 on #2255, round 7. `dataClass` is chosen once, when `row_for` first builds a
+    visit's accumulator, and the shop's ingest treats it as immutable after insert. But
+    the accumulator is in MEMORY and the shop outbox coalesces by visitId -- one row per
+    open visit, replaced wholesale. So a restart that comes up PRODUCTION (the scheduled
+    launcher passes no run id) rebuilds the accumulator and overwrites the only
+    undelivered COMMISSIONING payload there was. The server cannot defend a row that
+    never reached it.
+    """
+
+    def _mirror(self, **kw):
+        return ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=Recorder(), **kw)
+
+    def test_a_queued_COMMISSIONING_visit_is_not_reclassified_by_a_PRODUCTION_restart(self):
+        fresh = self._mirror()                      # restarted: no run id, so PRODUCTION
+        self.assertEqual(fresh.data_class, "PRODUCTION")
+        with self.assertLogs("visitd", level="INFO"):
+            self.assertEqual(
+                fresh.restore_classifications({"v1": ("COMMISSIONING", "C-20260910-001")}), 1)
+
+        row = fresh.row_for(emission(visit_id="v1", state="LEFT", seq=9))
+        self.assertEqual(row["dataClass"], "COMMISSIONING",
+                         "the test drive stays a test drive across the restart")
+        self.assertEqual(row["commissioningRunId"], "C-20260910-001")
+
+    def test_a_visit_with_no_queued_row_still_takes_the_CURRENT_mode(self):
+        """The pin is not a global override -- a genuinely new car after the restart is
+        production, which is the whole point of the producer having left commissioning."""
+        fresh = self._mirror()
+        fresh.restore_classifications({"v1": ("COMMISSIONING", "C-1")})
+        row = fresh.row_for(emission(visit_id="v2"))
+        self.assertEqual(row["dataClass"], "PRODUCTION")
+        self.assertIsNone(row["commissioningRunId"])
+
+    def test_the_pin_SURVIVES_the_terminal_emission_that_frees_the_accumulator(self):
+        """`queue_row` forgets the accumulator on a terminal state so a shop outage cannot
+        pin every departed visit in memory. The CLASSIFICATION must outlive that: the
+        terminal row is still queued, and a later emission for the same visit would
+        otherwise rebuild it under the current mode -- the same bug one step later."""
+        fresh = self._mirror()
+        fresh.restore_classifications({"v1": ("COMMISSIONING", "C-1")})
+        fresh.queue_row(emission(visit_id="v1", state="LEFT", seq=9))   # frees the accumulator
+        again = fresh.row_for(emission(visit_id="v1", state="LEFT", seq=10))
+        self.assertEqual(again["dataClass"], "COMMISSIONING")
+
+    def test_restoring_nothing_is_a_no_op_and_says_nothing(self):
+        fresh = self._mirror()
+        self.assertEqual(fresh.restore_classifications({}), 0)

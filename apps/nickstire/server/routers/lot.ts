@@ -47,7 +47,15 @@ import { sql } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { dbTyped } from "../lib/db-helper";
 import { deriveCameraState, HEALTH_THRESHOLDS } from "../lib/cameraHealth";
+import {
+  assessEdgeQuiescence, buildCommissioningReport, EDGE_SETTLE_MS, estimateClockOffset,
+  machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
+} from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
+import { isDuplicateKeyError } from "../lib/tire-order-guards";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:lot");
 
 /** Start of the shop's day, in SQL, as UTC epoch seconds. Never computed in JS. */
 const ET_DAY_START = sql`UNIX_TIMESTAMP(CONVERT_TZ(DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')), 'America/New_York', '+00:00'))`;
@@ -147,6 +155,193 @@ function percentile(sorted: number[], p: number): number | null {
   if (!sorted.length) return null;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[idx];
+}
+
+/**
+ * The MINIMUM wait after a run ends before its verdict may be recorded.
+ *
+ * The edge emits a terminal state only after its departure grace and then drains the shop
+ * projection on a timer with retries, so the last events of a run legitimately arrive
+ * after the operator has pressed End.
+ *
+ * ⚠ ELAPSED TIME ALONE IS NOT QUIESCENCE, and treating it as such was the bug. The shop
+ * outbox retries an unreachable row INDEFINITELY, so a two-minute WAN outage would let
+ * this window pass with the terminal row still queued -- freezing a missing-departure
+ * FAIL for a run that was fine (Codex P1 on #2255). Settlement therefore also requires
+ * the camera's own heartbeat to report an EMPTY outbox: the edge saying "I have nothing
+ * left to send" is an acknowledgement, where a clock is only a hope.
+ */
+
+/**
+ * Load one commissioning run and diff it against what the machine recorded.
+ *
+ * Shared by the report query and the end mutation so the two can never disagree about the
+ * same run. Every timestamp is converted to epoch MILLISECONDS by SQL
+ * (`ROUND(UNIX_TIMESTAMP(col) * 1000)`) rather than by parsing a Date in JS: this is a
+ * measurement of sub-second differences, and a driver timezone shift would not look wrong
+ * here -- it would look like a catastrophic pipeline latency.
+ */
+async function loadCommissioningReport(
+  d: NonNullable<Awaited<ReturnType<typeof dbTyped>>>,
+  runId: string,
+  toleranceMs: number,
+) {
+  const run = rowsOf(await d.execute(sql`
+    SELECT runId, camera, label, verdict, clockOffsetMs, clockRttMs, clockSamples,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(startedAt) * 1000)")} AS startedMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(endedAt) * 1000)")} AS endedMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(monoOriginAt) * 1000)")} AS monoOriginMs
+    FROM commissioning_runs WHERE runId = ${runId}
+  `))[0];
+  if (!run) return null;
+
+  // Both clocks come back: the wall reading (corrected by the run's offset) AND the
+  // monotonic offset. The report prefers the monotonic one and discloses any disagreement,
+  // because a phone that stepped its wall clock mid-run would otherwise fail a correct
+  // pipeline with a jump it recorded about itself.
+  const taps = rowsOf(await d.execute(sql`
+    SELECT event, phoneMonoMs,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(COALESCE(correctedAt, phoneWallAt)) * 1000)")} AS atMs
+    FROM commissioning_truth_events
+    WHERE runId = ${runId}
+    ORDER BY COALESCE(correctedAt, phoneWallAt) ASC
+  `));
+
+  const visits = rowsOf(await d.execute(sql`
+    SELECT visitId, arrivedAt, bayEnteredAt, departedAt
+    FROM vehicle_visits WHERE commissioningRunId = ${runId}
+  `));
+
+  const clock = run.clockSamples === null || run.clockSamples === undefined
+    ? null
+    : { offsetMs: num(run.clockOffsetMs), rttMs: num(run.clockRttMs), samples: num(run.clockSamples) };
+
+  // ANCHOR THE MONOTONIC TAPS TO THE PHONE'S OWN ZERO POINT. `phoneMonoMs` counts from the
+  // instant the CLIENT zeroed its timer, which is after `startCommissioning` returned;
+  // anchoring to the server's `startedAt` would add the whole request round trip to every
+  // tap as a constant error, so a slow start would read as a wall-clock step or push a
+  // valid run past the tolerance (Codex P2 on #2255). Fall back to `startedAt` only for
+  // runs recorded before the anchor existed -- and those keep the old, slightly-off
+  // behaviour rather than silently losing their monotonic reading altogether.
+  const startedMs = numOrNull(run.startedMs);
+  const monoOriginMs = numOrNull(run.monoOriginMs) ?? startedMs;
+  const report = buildCommissioningReport(
+    taps
+      .filter((t) => t.atMs !== null && t.atMs !== undefined)
+      .map((t) => ({
+        event: String(t.event),
+        atMs: num(t.atMs),
+        monoAtMs: monoOriginMs === null || t.phoneMonoMs === null || t.phoneMonoMs === undefined
+          ? null
+          : monoOriginMs + num(t.phoneMonoMs),
+      })),
+    visits.flatMap((v) => machineEventsFromVisit({
+      visitId: String(v.visitId),
+      arrivedAt: (v.arrivedAt as Date | string | null) ?? null,
+      bayEnteredAt: (v.bayEnteredAt as Date | string | null) ?? null,
+      departedAt: (v.departedAt as Date | string | null) ?? null,
+    })),
+    clock,
+    { toleranceMs },
+  );
+
+  // HAS THE EDGE FINISHED SPEAKING? Two conditions, and the second is the one that makes
+  // this an observation rather than a guess: enough time for the departure grace, AND the
+  // camera's own latest heartbeat reporting an EMPTY shop outbox. A queue that is still
+  // draining -- or a producer that has gone quiet and cannot vouch for anything -- leaves
+  // the run unsettled, so a WAN outage postpones the verdict instead of freezing a wrong one.
+  const endedMs = numOrNull(run.endedMs);
+  const drain = rowsOf(await d.execute(sql`
+    SELECT outboxDepth,
+           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds,
+           -- lastHealthyFrameAt, NOT lastFrameAt. The first draft read the latter, which NO
+           -- producer anywhere writes (grep camera-bridge: zero hits; the heartbeat body
+           -- carries lastHealthyFrameAt only). It would have been NULL forever, so the
+           -- frames check would have been false forever and NO run would ever settle -- a
+           -- false pass swapped for a permanent hang. It is also the stronger claim, and
+           -- the one cameraHealth.ts already uses for its frames facet: a frozen camera
+           -- keeps delivering frames, just not healthy ones.
+           ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(lastHealthyFrameAt)")} AS frameAgeSeconds,
+           ${sql.raw("ROUND(UNIX_TIMESTAMP(receivedAt) * 1000)")} AS receivedMs
+    FROM camera_runtime WHERE camera = ${String(run.camera)}
+  `))[0];
+  const drainAge = drain ? numOrNull(drain.ageSeconds) : null;
+  const drainDepth = drain ? numOrNull(drain.outboxDepth) : null;
+  const drainReceivedMs = drain ? numOrNull(drain.receivedMs) : null;
+  const drainFrameAge = drain ? numOrNull(drain.frameAgeSeconds) : null;
+  const quiescence = assessEdgeQuiescence({
+    endedMs,
+    nowMs: Date.now(),
+    heartbeatAgeS: drainAge,
+    heartbeatReceivedMs: drainReceivedMs,
+    frameAgeS: drainFrameAge,
+    outboxDepth: drainDepth,
+  });
+  const settled = quiescence.settled;
+  const unsettledReason = quiescence.reason;
+
+  return {
+    run: {
+      runId: String(run.runId),
+      camera: String(run.camera),
+      label: (run.label as string | null) ?? null,
+      startedMs,
+      endedMs,
+      open: !run.endedMs,
+      clock,
+      settled,
+      unsettledReason,
+      settleSeconds: Math.round(EDGE_SETTLE_MS / 1000),
+    },
+    report,
+  };
+}
+
+/**
+ * Record the verdict of every SETTLED run in `runIds` that needs it. Returns how many.
+ *
+ * Called from the history read, which the panel polls, so a finished run finalises on its
+ * own instead of waiting for somebody to reopen the report -- the UI opens the report once,
+ * immediately, while it is still provisional, so a reopen-triggered write meant the chip
+ * stayed blank forever (Codex P2 on #2255).
+ *
+ * The stored verdict is REWRITTEN, not written once. A frozen answer sounds tidier, but a
+ * late-arriving departure legitimately changes it, and a permanently wrong FAIL on the
+ * record is worse than a value that converges. It only ever moves while the run is
+ * settled, so it cannot flap.
+ */
+async function finalizeSettledVerdicts(
+  d: NonNullable<Awaited<ReturnType<typeof dbTyped>>>,
+  runIds: string[],
+): Promise<number> {
+  let written = 0;
+  for (const runId of runIds) {
+    try {
+      const built = await loadCommissioningReport(d, runId, 3000);
+      if (!built || !built.run.settled) continue;
+      await d.execute(sql`
+        UPDATE commissioning_runs
+           SET verdict = ${built.report.verdict},
+               verdictReason = ${(built.report.findings[0] ?? "").slice(0, 500) || null}
+         WHERE runId = ${runId}
+      `);
+      written++;
+    } catch (err) {
+      // One run that cannot be finalised must not stop the others, and must never fail
+      // the history read the operator is actually looking at -- so this stays caught.
+      //
+      // But it must not be SILENT. A settled run with no verdict looks exactly like a run
+      // still settling, so a finalizer that throws on every call (a schema drift, a driver
+      // change) would leave every verdict unwritten forever with nothing anywhere saying
+      // why: the operator would read "provisional" and wait for something that is never
+      // coming. Found in this branch's own adversarial re-read.
+      log.warn("could not finalise a settled commissioning verdict", {
+        runId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return written;
 }
 
 export const lotRouter = router({
@@ -523,4 +718,282 @@ export const lotRouter = router({
       };
     }
   }),
+
+  // ─── Commissioning: the human witness ────────────────────────────────────
+  //
+  // A controlled drive-in is the only evidence separating "the pipeline is green" from
+  // "the pipeline is right". The phone records what a person SAW; these procedures store
+  // it and diff it against what the machine recorded.
+  //
+  // Every timestamp below is turned into epoch MILLISECONDS by SQL
+  // (`ROUND(UNIX_TIMESTAMP(col) * 1000)`), never by parsing a Date in JS: driver-parsed
+  // TiDB timestamps come back shifted on ET, and this is precisely a measurement of
+  // sub-second differences, so a four-hour shift would not even look wrong -- it would
+  // look like a catastrophic pipeline latency.
+
+  /**
+   * Server time, for the phone's clock-offset estimate.
+   *
+   * The phone calls this several times, records its own send/receive instants around each
+   * call, and keeps the exchange with the LOWEST round-trip: a delayed packet biases the
+   * estimate one way only, so the fastest exchange is the one whose one-way times are
+   * most nearly equal. Deliberately does no database work — a query that waited on TiDB
+   * would measure the database, not the network.
+   */
+  clock: adminProcedure.query(() => ({ ok: true as const, serverMs: Date.now() })),
+
+  startCommissioning: adminProcedure
+    .input(z.object({
+      camera: z.string().min(1).max(64),
+      label: z.string().max(191).optional(),
+      /** Round trips measured by the phone: t0/t1 are ITS clock, serverMs is ours. */
+      clockSamples: z.array(z.object({
+        t0: z.number(), serverMs: z.number(), t1: z.number(),
+      })).max(20).default([]),
+      /**
+       * The phone's wall clock at the instant it zeroed its monotonic timer. Taps are
+       * reconstructed from THIS plus `phoneMonoMs`, not from the server's `startedAt`:
+       * the two differ by the whole start-request round trip, and folding that into every
+       * tap as a constant error would make a slow start look like a wall-clock step.
+       */
+      monoOriginWallMs: z.number().int().nullish(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      const clock = estimateClockOffset(input.clockSamples);
+      // Run ids are date-scoped and sequential so the operator can say "C-20260910-001"
+      // out loud on site; the count is of runs for the SAME camera on the SAME ET day.
+      const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
+      try {
+        // Corrected by the SAME offset the taps are, so the anchor and the offsets it
+        // anchors live on one timeline.
+        const originMs = input.monoOriginWallMs != null && clock
+          ? input.monoOriginWallMs + clock.offsetMs
+          : input.monoOriginWallMs ?? null;
+
+        // ALLOCATE BY INSERT-AND-RETRY, not read-then-insert.
+        //
+        // Counting first and inserting second is a race: two admin tabs, or two cameras
+        // being commissioned together, both read the same COUNT and construct the same
+        // `runId` -- which is the PRIMARY KEY, so the loser dies on a duplicate key
+        // (Codex P2 on #2255, second pass). The insert itself is the only atomic step
+        // available here, so let IT arbitrate: on a collision, recount and try the next
+        // ordinal. Bounded, because an unbounded retry on a non-collision error would
+        // spin. Counted GLOBALLY for the day so the id stays short enough to say out loud
+        // on site, which was the point of the format.
+        let runId = "";
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const existing = rowsOf(await d.execute(sql`
+            SELECT COUNT(*) AS n FROM commissioning_runs WHERE runId LIKE ${`C-${day}-%`}
+          `))[0];
+          // `n + 1`, NOT `n + 1 + attempt`. The count is re-read every iteration, so it
+          // already includes whoever won the last collision; adding the attempt on top of
+          // that skips an ordinal each time (two tabs reading n=0 would produce 001 and
+          // then 003). Progress is still guaranteed, because every collision means some
+          // other request inserted and raised the count.
+          const candidate = `C-${day}-${String(num(existing?.n ?? 0) + 1).padStart(3, "0")}`;
+          try {
+            await d.execute(sql`
+              INSERT INTO commissioning_runs (runId, camera, label, startedBy, clockOffsetMs, clockRttMs, clockSamples, monoOriginAt)
+              VALUES (${candidate}, ${input.camera}, ${input.label ?? null},
+                      ${ctx.user?.email ?? ctx.user?.name ?? "admin"},
+                      ${clock?.offsetMs ?? null}, ${clock?.rttMs ?? null}, ${clock?.samples ?? null},
+                      ${originMs === null ? null : sql`FROM_UNIXTIME(${originMs} / 1000)`})
+            `);
+            runId = candidate;
+            break;
+          } catch (err) {
+            if (!isDuplicateKeyError(err)) throw err;
+          }
+        }
+        if (!runId) {
+          return { ok: false as const, reason: "could not allocate a run id; try again in a moment" };
+        }
+
+        // CLOSE ANY RUN ALREADY OPEN ON THIS CAMERA -- and only now that ours exists.
+        // Closing first meant a request that then lost the id race left the camera with
+        // NO open run at all: it had ended the previous one on behalf of a run it never
+        // managed to create. Ordering it after the insert makes the failure mode "the old
+        // run stays open", which the next successful start closes. The `runId <>` guard
+        // is what keeps this from immediately ending the run we just opened. The rule it
+        // enforces is unchanged: the heartbeat hands the producer the most recent open
+        // run, so an abandoned one (a reloaded PWA, a killed tab) would otherwise be
+        // picked up again and leave the edge in commissioning mode indefinitely, quietly
+        // excluding real visits from the shop's metrics (Codex P1 on #2255).
+        // ORDERED BY runId, not merely "everything but mine".
+        //
+        // `runId <> mine` is not a serialisation. Two tabs starting the same camera can
+        // both INSERT (different ids, the retry loop guarantees that) before either
+        // UPDATE runs; each update then matches the other's brand-new row, both mutations
+        // return ok, and the camera is left with NO open run at all -- neither UI can arm
+        // and the producer is handed nothing (Codex P2 on #2255, round 8).
+        //
+        // Closing only STRICTLY EARLIER ids makes the outcome deterministic under any
+        // interleaving: whoever holds the highest id survives, everyone else closes,
+        // exactly one run remains open. `C-YYYYMMDD-NNN` is zero-padded and date-led, so
+        // lexicographic order is chronological order, and a run left open from a previous
+        // day sorts below today's and is closed too. The invariant this enforces is
+        // unchanged -- the heartbeat hands the producer the most recent open run, so an
+        // abandoned one (a reloaded PWA, a killed tab) would otherwise be picked up again
+        // and leave the edge in commissioning mode indefinitely, quietly excluding real
+        // visits from the shop's metrics (Codex P1 on #2255, round 5).
+        await d.execute(sql`
+          UPDATE commissioning_runs SET endedAt = NOW(3)
+           WHERE camera = ${input.camera} AND endedAt IS NULL AND runId < ${runId}
+        `);
+        return { ok: true as const, runId, clock };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not start the run" };
+      }
+    }),
+
+  recordTruth: adminProcedure
+    .input(z.object({
+      runId: z.string().min(1).max(64),
+      event: z.enum(TRUTH_EVENTS),
+      /** The phone's wall clock at the tap, epoch ms. */
+      phoneWallMs: z.number().int(),
+      /** Milliseconds since the run started, from a MONOTONIC source. Survives a clock step. */
+      phoneMonoMs: z.number().int().nullish(),
+      note: z.string().max(191).nullish(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const run = rowsOf(await d.execute(sql`
+          SELECT clockOffsetMs, endedAt FROM commissioning_runs WHERE runId = ${input.runId}
+        `))[0];
+        if (!run) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+        // A tap after the run ended is refused rather than silently appended: the report
+        // is a record of one bounded drive, and a late tap would move its verdict.
+        if (run.endedAt) return { ok: false as const, reason: `run ${input.runId} has already ended` };
+
+        const offset = numOrNull(run.clockOffsetMs);
+        const correctedMs = offset === null ? null : input.phoneWallMs + offset;
+        await d.execute(sql`
+          INSERT INTO commissioning_truth_events (runId, event, phoneWallAt, phoneMonoMs, correctedAt)
+          VALUES (${input.runId}, ${input.event},
+                  FROM_UNIXTIME(${input.phoneWallMs} / 1000),
+                  ${input.phoneMonoMs ?? null},
+                  ${correctedMs === null ? null : sql`FROM_UNIXTIME(${correctedMs} / 1000)`})
+        `);
+        return { ok: true as const, event: input.event, correctedMs };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not record the tap" };
+      }
+    }),
+
+  endCommissioning: adminProcedure
+    .input(z.object({ runId: z.string().min(1).max(64), toleranceMs: z.number().int().min(100).max(60_000).default(3000) }))
+    .mutation(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        await d.execute(sql`
+          UPDATE commissioning_runs SET endedAt = NOW(3) WHERE runId = ${input.runId} AND endedAt IS NULL
+        `);
+        // PERSIST THE VERDICT. It used to be computed on demand and never stored, so the
+        // history list rendered a `verdict` column that no code path ever wrote -- every
+        // finished run showed a blank chip forever (Codex P2 on #2255). Recomputing it on
+        // every history render would also mean a run's verdict could silently change months
+        // later if the tolerances were retuned; freezing it at the end of the run is what
+        // makes it a RECORD rather than a live opinion.
+        const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
+        if (!built) return { ok: true as const, verdict: null, provisional: true, findings: [] };
+        // Never persisted here: a run that ended a second ago has not settled by
+        // construction. The report query freezes it once the window has passed.
+        return {
+          ok: true as const,
+          verdict: built.report.verdict,
+          provisional: true,
+          findings: built.report.findings,
+        };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "could not end the run" };
+      }
+    }),
+
+  commissioningRuns: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).default({ limit: 10 }))
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const rows = rowsOf(await d.execute(sql`
+          SELECT r.runId, r.camera, r.label, r.verdict, r.clockOffsetMs, r.clockRttMs, r.clockSamples,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(r.startedAt) * 1000)")} AS startedMs,
+                 ${sql.raw("ROUND(UNIX_TIMESTAMP(r.endedAt) * 1000)")} AS endedMs,
+                 (SELECT COUNT(*) FROM commissioning_truth_events e WHERE e.runId = r.runId) AS taps,
+                 (SELECT COUNT(*) FROM vehicle_visits v WHERE v.commissioningRunId = r.runId) AS visits
+          FROM commissioning_runs r
+          ORDER BY r.startedAt DESC
+          LIMIT ${input.limit}
+        `));
+        // Finalise here rather than in the report: this is the read the panel polls, so a
+        // completed run records its verdict without anyone reopening anything.
+        await finalizeSettledVerdicts(
+          d,
+          rows.filter((r) => r.endedMs && !r.verdict).map((r) => String(r.runId)),
+        );
+        const acknowledged = rowsOf(await d.execute(sql`
+          SELECT camera, commissioningRunId, mode,
+                 ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(receivedAt)")} AS ageSeconds
+          FROM camera_runtime
+        `));
+        const ackByCamera = new Map(acknowledged.map((a) => [String(a.camera), a]));
+
+        return {
+          ok: true as const,
+          runs: rows.map((r) => ({
+            runId: String(r.runId),
+            camera: String(r.camera),
+            label: (r.label as string | null) ?? null,
+            verdict: (r.verdict as string | null) ?? null,
+            startedMs: numOrNull(r.startedMs),
+            endedMs: numOrNull(r.endedMs),
+            open: !r.endedMs,
+            taps: num(r.taps),
+            visits: num(r.visits),
+            clock: r.clockSamples === null || r.clockSamples === undefined
+              ? null
+              : { offsetMs: num(r.clockOffsetMs), rttMs: num(r.clockRttMs), samples: num(r.clockSamples) },
+            // Has the PRODUCER acknowledged this exact run? The panel keeps the run screen
+            // disarmed until it has: the edge only learns of a run on its next heartbeat,
+            // and a car driven during that gap is recorded as PRODUCTION with no run id --
+            // which the now-immutable ingest fields make unrepairable.
+            acknowledged: (() => {
+              const a = ackByCamera.get(String(r.camera));
+              if (!a) return false;
+              const age = numOrNull(a.ageSeconds);
+              return String(a.commissioningRunId ?? "") === String(r.runId)
+                && age !== null && age <= QUIESCENCE_HEARTBEAT_MAX_AGE_S;
+            })(),
+          })),
+        };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning_runs read failed" };
+      }
+    }),
+
+  /** The diff: what the human witnessed vs what the machine recorded, and a verdict. */
+  commissioningReport: adminProcedure
+    .input(z.object({ runId: z.string().min(1).max(64), toleranceMs: z.number().int().min(100).max(60_000).default(3000) }))
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+      try {
+        const built = await loadCommissioningReport(d, input.runId, input.toleranceMs);
+        if (!built) return { ok: false as const, reason: `no commissioning run ${input.runId}` };
+        // Recording happens in the history read, which the panel polls -- so a finished
+        // run finalises whether or not anyone opens this. Doing it here too keeps a report
+        // opened long after the fact from showing a verdict the history has not caught up
+        // with yet.
+        if (built.run.settled) await finalizeSettledVerdicts(d, [input.runId]);
+        return { ok: true as const, ...built };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "commissioning report failed" };
+      }
+    }),
 });
