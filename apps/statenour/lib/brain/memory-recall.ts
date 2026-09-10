@@ -274,6 +274,8 @@ export type RecallProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
  * either way) — this lane, not more HNSW effort, is what closes the gap.
  */
 const DURABLE_KNN_LIMIT = 10;
+/** main + durable + lexical. Used to tell "all lanes failed" from "some did". */
+const LANE_COUNT = 3;
 
 /**
  * RRF-merge the two lane orderings (k=60, equal weights — exactly the
@@ -376,7 +378,7 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
  * measures that filter at hit@5 = 0/28 on the labelled corpus.
  * Reproducing it here would import the same defect.
  */
-function lexicalLane(query: string, limit: number): Promise<KnnRow[]> {
+function lexicalLane(query: string, limit: number, onFail?: () => void): Promise<KnnRow[]> {
   return prisma
     .$queryRawUnsafe<KnnRow[]>(
       `SELECT bm.id::text AS memory_id, bm.category::text AS category,
@@ -404,6 +406,7 @@ function lexicalLane(query: string, limit: number): Promise<KnnRow[]> {
       log.warn("lexical_lane_failed", {
         err: err instanceof Error ? err.message.slice(0, 200) : String(err),
       });
+      onFail?.();
       return [] as KnnRow[];
     });
 }
@@ -427,6 +430,20 @@ export async function recallMemoriesForQuery(
 ): Promise<RecallReport> {
   const t0 = Date.now();
   const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
+
+  // 2026-09-10 (review #2267 P2) · PER-LANE FAILURE LEDGER.
+  //
+  // Each lane below catches its own error and returns []. That is right
+  // for resilience -- one dead lane must not take the turn down -- but
+  // it recreates, one level lower, the exact defect this file's
+  // provenance work exists to remove: if every lane throws, `scored` is
+  // empty and the result would report a measured ZERO. During a Postgres
+  // or pgvector outage the panel would then say "searched memory,
+  // nothing matched" when in truth nothing was searched at all.
+  //
+  // The catches record WHICH lane failed; the provenance mapper at the
+  // bottom reads this ledger instead of inferring from `scored.length`.
+  const laneFailures: string[] = [];
 
   if (!query?.trim()) {
     return {
@@ -542,6 +559,7 @@ export async function recallMemoriesForQuery(
       log.warn("durable_knn_failed", {
         err: err instanceof Error ? err.message.slice(0, 200) : String(err),
       });
+      laneFailures.push("durable");
       return [] as KnnRow[];
     });
 
@@ -579,12 +597,13 @@ export async function recallMemoriesForQuery(
     log.warn("knn_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
+    laneFailures.push("main");
     return [] as KnnRow[];
   });
 
-  // 2026-09-10 · the lexical lane runs alongside the two dense lanes.
+  // the lexical lane runs alongside the two dense lanes.
   // KNN_TOP is reused as its ceiling so one lane cannot swamp the fusion.
-  const lexicalPromise = lexicalLane(query, KNN_TOP);
+  const lexicalPromise = lexicalLane(query, KNN_TOP, () => laneFailures.push("lexical"));
   const [rows, durableRows, lexicalRows] = await Promise.all([
     mainPromise,
     durablePromise,
@@ -673,9 +692,20 @@ export async function recallMemoriesForQuery(
     scanned: scannedCount,
     hits: scored,
     avgKnnDistance,
-    // A measured zero. Distinct from every ERROR return above -- this
-    // one means the lanes actually executed.
-    provenance: scored.length > 0 ? "OK" : "ZERO",
+    // Read the LEDGER, not `scored.length`. An empty result means
+    // "nothing matched" only when the searches actually ran.
+    provenance:
+      scored.length > 0
+        ? "OK"
+        : laneFailures.length === LANE_COUNT
+          ? "ERROR"
+          : "ZERO",
+    provenanceReason:
+      laneFailures.length === 0
+        ? undefined
+        : laneFailures.length === LANE_COUNT
+          ? `every retrieval lane failed (${laneFailures.join(", ")}) -- recall state unknown, not empty`
+          : `${laneFailures.join(", ")} lane(s) failed; results are from the surviving lane(s) and ranking is weaker than usual`,
   };
 }
 

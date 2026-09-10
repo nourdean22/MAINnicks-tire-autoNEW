@@ -230,6 +230,13 @@ export function ChatIsland() {
         if (!response.ok) return;
         const report = (await response.json()) as {
           hits?: Array<{ id?: string; memoryId?: string; content?: string; category?: string; similarity?: number; knnDistance?: number }>;
+          // 2026-09-10 · the route already returns these (it spreads the
+          // whole RecallReport); the client simply was not reading them,
+          // so opening the panel OVERWROTE the provenance the SSE event
+          // had just delivered and an errored recall reverted to looking
+          // like a plain empty result.
+          provenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+          provenanceReason?: string;
         };
         const hits = (report.hits ?? []).map((hit, index) => ({
           id: hit.id ?? hit.memoryId ?? `hit-${index}`,
@@ -243,8 +250,17 @@ export function ChatIsland() {
         }));
         setMemoryData(hits, contradictions);
         setMemoryFetchedAt(new Date());
-      } catch {
-        // Abort and network failures preserve the last known memory view.
+        setRecallProvenance(report.provenance);
+        setRecallProvenanceReason(report.provenanceReason);
+      } catch (err) {
+        // An ABORT is ordinary (the panel closed, or the query changed):
+        // keep the last known view untouched. A real failure is not
+        // ordinary -- say the read failed rather than leaving a stale
+        // list looking freshly confirmed.
+        if ((err as { name?: string })?.name !== "AbortError") {
+          setRecallProvenance("ERROR");
+          setRecallProvenanceReason("could not refresh memory for this turn -- showing the last known view");
+        }
       }
     })();
     return () => controller.abort();
