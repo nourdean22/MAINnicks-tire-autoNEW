@@ -1431,6 +1431,55 @@ def test_wgc_restore_works_when_only_a_title_was_given(monkeypatch):
     assert src2.restores == 1
 
 
+def test_largest_titled_window_picks_the_pane_not_a_sibling_dialog(monkeypatch):
+    """Several V380 windows share one title, so a name is not an aim.
+
+    Measured on the shop PC 2026-09-10: the client had a 1280x720 feed, a 362x382 login
+    window and a 440x350 "Tips" dialog, ALL titled exactly "V380". Handing the name to
+    WindowsCapture let it choose the dialog, which WGC refused outright, and the mux then
+    failed over to the mss screen lane and captured whatever overlapped the window.
+    """
+    from vision import capture
+
+    sizes = {111: 362 * 382, 222: 1280 * 720, 333: 440 * 350}
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [111, 222, 333])
+    monkeypatch.setattr(capture, "normal_area", lambda h: sizes[h])
+
+    assert capture.largest_titled_window("V380") == 222
+
+
+def test_largest_titled_window_ranks_a_minimised_pane_by_its_restored_size(monkeypatch):
+    """The canary for measuring with rcNormalPosition instead of GetWindowRect.
+
+    A minimised window's RECT is its ~160x28 taskbar placement -- smaller than the dialog
+    in front of it. Rank on that and the capture aims at the dialog precisely when the
+    operator has minimised the camera app, which is also exactly when the restore path is
+    supposed to save it. Sizes below are the ones measured on the shop PC.
+    """
+    from vision import capture
+
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [222, 333])
+
+    # What a GetWindowRect-based picker would have seen: the dialog wins. This asserts the
+    # bug is real, not hypothetical -- without it the test below proves nothing.
+    rect_like = {222: 160 * 28, 333: 440 * 350}
+    monkeypatch.setattr(capture, "normal_area", lambda h: rect_like[h])
+    assert capture.largest_titled_window("V380") == 333, "precondition: rect sizes pick the dialog"
+
+    # What rcNormalPosition reports for the same two windows: the pane wins again.
+    placement_like = {222: 1280 * 720, 333: 440 * 350}
+    monkeypatch.setattr(capture, "normal_area", lambda h: placement_like[h])
+    assert capture.largest_titled_window("V380") == 222
+
+
+def test_largest_titled_window_is_none_when_nothing_matches(monkeypatch):
+    """No match must fall through to the library's own name matching, not to hwnd=0."""
+    from vision import capture
+
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [])
+    assert capture.largest_titled_window("V380") is None
+
+
 def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
     """`read()` must trigger the restore itself: `open()` runs once, and a window
     minimised part-way through a run stalls delivery while `_latest` keeps being

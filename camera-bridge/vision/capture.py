@@ -377,6 +377,68 @@ def restore_minimized_titled(title: str) -> int:
     """
     return sum(1 for h in find_windows_titled(title) if restore_if_minimized(h))
 
+
+def normal_area(hwnd: int) -> int:
+    """Area of `hwnd` at its RESTORED size, in pixels. 0 when it cannot be measured.
+
+    `GetWindowPlacement().rcNormalPosition`, deliberately, NOT `GetWindowRect`. A
+    minimised window's rect is its ~160x28 taskbar placement, which is SMALLER than a
+    440x350 dialog -- so a rect-based comparison ranks a minimised video pane below the
+    dialog sitting in front of it and the capture aims at the dialog. Measured on the shop
+    PC 2026-09-10: feed rect 1280x720 normally, 160x28 minimised, against a 440x350
+    sibling. rcNormalPosition reports 1280x720 in both states.
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+    except Exception:
+        return 0
+
+    class _PLACEMENT(ctypes.Structure):
+        _fields_ = [("length", ctypes.c_uint), ("flags", ctypes.c_uint),
+                    ("showCmd", ctypes.c_uint), ("ptMin", wt.POINT),
+                    ("ptMax", wt.POINT), ("rcNormal", wt.RECT)]
+
+    try:
+        wp = _PLACEMENT()
+        wp.length = ctypes.sizeof(_PLACEMENT)
+        if not ctypes.windll.user32.GetWindowPlacement(wt.HWND(hwnd), ctypes.byref(wp)):
+            return 0
+        r = wp.rcNormal
+        return max(0, r.right - r.left) * max(0, r.bottom - r.top)
+    except Exception:
+        return 0
+
+
+def largest_titled_window(title: str) -> Optional[int]:
+    """The BIGGEST window matching `title`, or None. Capture must aim here, not at a name.
+
+    `restore_minimized_titled` above notes that the V380 client publishes several
+    top-level windows under one title and says the choice "is decided elsewhere by pixel
+    content". That is true of which CHANNEL to read, and false of which WINDOW to attach
+    to: pixel content cannot rescue a capture bound to the wrong HWND.
+
+    Handing `window_name` to WindowsCapture makes the library pick, and it picks by name
+    alone. Measured on the shop PC 2026-09-10, V380 had THREE visible windows all titled
+    exactly "V380" -- the 1280x720 feed, a 362x382 login window, and a 440x350 "Tips"
+    performance dialog. The library chose the Tips dialog, which WGC then refused outright
+    ("Failed to convert item to `GraphicsCaptureItem`"), so the mux failed over to the mss
+    screen lane and the detector was fed whatever overlapped the window.
+
+    Size is the discriminator that survives all three: the video pane is the largest thing
+    the client owns, and every sibling is a dialog. Measured from `rcNormalPosition`, not
+    `GetWindowRect`, so a MINIMISED feed window still measures 1280x720 instead of its
+    ~160x28 minimised placement and still outranks a dialog -- otherwise the restore path
+    could never fire, because selection would have discarded the window it needs to restore.
+    """
+    best: Optional[int] = None
+    best_area = 0
+    for hwnd in find_windows_titled(title):
+        area = normal_area(hwnd)
+        if area > best_area:
+            best, best_area = hwnd, area
+    return best
+
 class WgcWindowSource(CaptureSource):
     """Windows Graphics Capture of one window. The best desktop lane, measured.
 
@@ -433,6 +495,11 @@ class WgcWindowSource(CaptureSource):
         #: the default border (Windows 10). Cosmetic on the frames, but it means the box
         #: is pre-Win11 -- worth knowing before blaming the capture for a yellow edge.
         self.border_unsupported = False
+        #: The handle `open()` picked when none was supplied. Recorded so a capture that
+        #: went to the wrong window is answerable after the fact -- the corpus clip that
+        #: exposed this carried an hwnd in /frame/meta and nothing that said how it was
+        #: chosen.
+        self.resolved_hwnd: Optional[int] = None
 
     def _restore_target(self) -> bool:
         """Un-minimise whatever this source is capturing. True if anything was minimised.
@@ -456,8 +523,19 @@ class WgcWindowSource(CaptureSource):
         from windows_capture import WindowsCapture
 
         self._lock = threading.Lock()
-        target = ({"window_hwnd": int(self.window_hwnd)} if self.window_hwnd is not None
-                  else {"window_name": self.window_title})
+        if self.window_hwnd is not None:
+            target = {"window_hwnd": int(self.window_hwnd)}
+        else:
+            # Resolve the handle HERE rather than handing the library a name to match.
+            # `largest_titled_window` explains why: several V380 windows share one title
+            # and name-matching picked a dialog. Fall back to the name only when the
+            # enumeration finds nothing, so behaviour is unchanged on a box where it does.
+            resolved = largest_titled_window(self.window_title) if self.window_title else None
+            if resolved is not None:
+                target = {"window_hwnd": int(resolved)}
+                self.resolved_hwnd = int(resolved)
+            else:
+                target = {"window_name": self.window_title}
 
         def _start(**border):
             cap = WindowsCapture(cursor_capture=False, **border, **target)
