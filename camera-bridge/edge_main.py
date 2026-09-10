@@ -175,6 +175,21 @@ def _disk_free_bytes(ledger: Any) -> Optional[int]:
 #: arriving in the same spot a minute apart are not called one.
 #: The modes the shop's heartbeat schema accepts. Mirrored from `HEARTBEAT_MODES` in
 #: cameraVisitsRoutes.ts; `test_heartbeat_contract.py` fails if the two ever disagree.
+def _round_or_none(value: Any, places: int = 3) -> Optional[float]:
+    """Round a float, or keep None as None.
+
+    `round(x or 0.0, 3)` would turn "not measured" into a confident 0.0 -- and for
+    `poseDelta` a zero reads as a PERFECT match to the reference, which is the opposite of
+    "we have no reference to compare against".
+    """
+    if value is None:
+        return None
+    try:
+        return round(float(value), places)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _track_vitals(track: Any, now: float) -> Dict[str, Any]:
     """A dead or newborn track's own account of itself, for the hard-case context.
 
@@ -927,10 +942,38 @@ class EdgeLoop:
 
             # POSE OFF HOME. The scene gate already decides this; the clip is the evidence
             # an operator needs to tell a real bump from a passing truck filling the frame.
+            #
+            # RECORD WHICH CONDITION FIRED. `may_create_visits` is `(not moving) and
+            # pose_ok`, so it goes false for TWO unrelated reasons -- the camera is panning
+            # right now, or the view no longer matches its reference -- and this used to
+            # record only `changeFrac`, the input to the SECOND one. Measured over 32 clips
+            # from a real shift: 14 of them carried changeFrac <= 0.005, which is
+            # essentially no change at all. Read back, those say "the pose gate suppressed
+            # frames while the pose was perfect", which is not what happened and points any
+            # investigation at the wrong half of the condition.
+            #
+            # The name stays POSE_OFF_HOME because it is the vocabulary the corpus already
+            # uses and renaming a trigger orphans every clip recorded under the old one;
+            # `cause` is what a reader should believe.
             scene = out.get("scene")
             if scene is not None and not getattr(scene, "may_create_visits", True):
+                moving = bool(getattr(scene, "moving", False))
+                pose_ok = bool(getattr(scene, "pose_ok", True))
                 self.hard_cases.trigger("POSE_OFF_HOME", ts, {
-                    "changeFrac": round(float(getattr(scene, "change_frac", 0.0)), 3)})
+                    # "moving" and "pose" are the two halves; "both" is a real third case and
+                    # collapsing it into either one would hide a panning camera whose view
+                    # has ALSO drifted, which is the worst of the three.
+                    "cause": ("both" if moving and not pose_ok
+                              else "moving" if moving
+                              else "pose" if not pose_ok
+                              else "neither"),
+                    "moving": moving,
+                    "poseOk": pose_ok,
+                    "changeFrac": round(float(getattr(scene, "change_frac", 0.0)), 3),
+                    "poseDelta": _round_or_none(getattr(scene, "pose_delta", None)),
+                    "inlierRatio": _round_or_none(getattr(scene, "inlier_ratio", None)),
+                    "referenceSet": bool(getattr(scene, "reference_set", False)),
+                })
 
             council = out.get("council")
             if council is not None:
