@@ -34,8 +34,15 @@ def main() -> int:
         print(f"error=import status=unavailable detail={type(exc).__name__}")
         return 2
 
+    # CROP LIKE THE PRODUCER DOES. `edge_main` defaults to the measured main pane
+    # (`SHOPSIGN_MAIN_PANE`) and only captures the whole window under an explicit
+    # `--no-crop`. This probe passed `crop=False`, so it was sampling the V380 app's
+    # sidebar, device list, toolbar and preview strip -- static furniture that is not the
+    # camera. A preflight that measures a DIFFERENT REGION than the runtime cannot certify
+    # the runtime: the chrome drags `distinct` down and makes a live pane look static.
+    crop = os.environ.get("PROBE_NO_CROP", "") == ""
     try:
-        src = build_source("wgc", None, title, False)
+        src = build_source("wgc", None, title, crop)
     except Exception as exc:  # noqa: BLE001
         print(f"error=source status=unavailable detail={type(exc).__name__}")
         return 2
@@ -72,7 +79,7 @@ def main() -> int:
     print(
         f"status={verdict} read={got} fps={state.fps:.2f} distinct={state.distinct} "
         f"dup_ratio={state.dup_ratio:.2f} frozen={str(state.frozen).lower()} "
-        f"looping={str(state.looping).lower()}"
+        f"looping={str(state.looping).lower()} crop={str(crop).lower()}"
     )
     return 0 if state.ok else 1
 
