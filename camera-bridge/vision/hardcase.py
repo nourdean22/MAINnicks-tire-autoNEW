@@ -82,6 +82,11 @@ TRIGGERS_WIRED = frozenset({
     # outside -> inside crossing is a car the system watched drive in while counting it as
     # already-there, and the clip is what shows which of the two was right.
     "PREEXISTING_DISAGREEMENT",
+    # Fires from `EdgeLoop._note_locate_quality` on an ACCEPTED scene match that sat close to
+    # a refusal floor. Deliberately not a guard against binding the WRONG scene -- the worst
+    # real case matched at 158 inliers against a floor of 18 and was caught by an independent
+    # signal, not by its own fit quality.
+    "SCENE_LOCATOR_LOW_CONFIDENCE",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in

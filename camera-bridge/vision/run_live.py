@@ -23,6 +23,7 @@ Use --save-frame to write one frame you can draw those polygons on.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import json
 import os
 import uuid
@@ -356,8 +357,13 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     # and "find" it at the origin every time.
     held = {"binding": binding}
 
-    def revalidate() -> bool:
-        """Re-locate and re-bind if the layout moved. Returns whether the epoch changed."""
+    def revalidate() -> RevalidateResult:
+        """Re-locate and re-bind if the layout moved.
+
+        Truthy when the epoch changed, so `if revalidate():` still reads correctly; the
+        result also carries WHY a pass produced nothing and, on a re-bind, how good the
+        match was. See `RevalidateResult`.
+        """
         raw = []
         for _ in range(6):
             try:
@@ -368,7 +374,9 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
                 raw.append(image)
             time.sleep(0.15)
         if len(raw) < 3:
-            return False
+            # Not a locator failure: the WINDOW did not give us enough to look at. Named
+            # separately because the response differs -- this one is a capture problem.
+            return RevalidateResult(False, failure=f"only {len(raw)}/6 raw frames readable")
         try:
             region = detect_live_region(raw)
             current_panes = split_into_channels(region, raw[-1]) if region is not None else None
@@ -380,7 +388,7 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
             # it does so without tearing down a producer mid-shift.
             print(f"scene revalidation found nothing this pass ({str(exc)[:90]}); "
                   "keeping the existing binding", flush=True)
-            return False
+            return RevalidateResult(False, failure=f"SceneNotLocated: {str(exc)[:160]}")
         new_binding, changed = advance(held["binding"], fresh)
         if changed:
             held["binding"] = new_binding
@@ -388,10 +396,46 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
                               new_binding.epoch)
             print(f"scene RE-LOCATED: {fresh.describe()} epoch={new_binding.epoch}",
                   flush=True)
-        return changed
+        # `fresh` is carried on BOTH branches. An unchanged pass still measured the match,
+        # and that measurement is how a binding that is quietly getting worse becomes
+        # visible before the day it flips to the wrong scene.
+        return RevalidateResult(changed, located=fresh)
 
     src.revalidate = revalidate
     return found, binding, reference
+
+
+@dataclass(frozen=True)
+class RevalidateResult:
+    """What a re-location pass actually found, not just whether it re-bound.
+
+    `revalidate()` used to return a bare bool, and the two facts it conflated are the two
+    that matter. `False` meant EITHER "the layout has not moved" -- the happy case, many
+    times an hour -- OR "the locator found nothing this pass", which is the producer failing
+    to confirm the binding every polygon depends on. Both printed a line and returned the
+    same value, so a locator that had failed every pass for an hour was indistinguishable
+    from a stable window, and the only counter in the loop
+    (`edge_relocate_errors_total`) counts EXCEPTIONS, which a clean `SceneNotLocated` is not.
+
+    And when it DID re-bind, `Located`'s quality figures -- the inlier count, the ratio, the
+    margin over the runner-up scene -- went to a print statement and nowhere else. So the
+    `LAYOUT_CHANGE` clip recorded that geometry had been re-bound without recording any
+    evidence about whether the new binding was any good, on the one operation this module's
+    own docstring calls unrecoverable when it is wrong.
+
+    TRUTHY WHEN THE EPOCH CHANGED, so every existing `if revalidate():` caller and every
+    test stub that returns a plain bool keeps working unchanged. Readers that want the
+    detail ask for it defensively.
+    """
+
+    changed: bool
+    located: Optional["Located"] = None
+    #: Why a pass produced no binding, or None when it succeeded. A STRING rather than a
+    #: flag: "found nothing" and "the window was not readable" want different responses.
+    failure: Optional[str] = None
+
+    def __bool__(self) -> bool:
+        return bool(self.changed)
 
 
 def title_of(src) -> str:
