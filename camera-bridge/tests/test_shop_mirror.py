@@ -448,3 +448,84 @@ class RestartClassificationTest(unittest.TestCase):
     def test_restoring_nothing_is_a_no_op_and_says_nothing(self):
         fresh = self._mirror()
         self.assertEqual(fresh.restore_classifications({}), 0)
+
+
+class TransportMustNotTruncateTheHandshakeTest(unittest.TestCase):
+    """The commissioning handshake travelled through a LOGGING truncation (P0, 2026-09-09).
+
+    `requests_transport` returned `resp.text[:300]`, a cap meant for log lines, sitting at
+    a DATA boundary. But the heartbeat reply is not diagnostic text -- it IS the handshake,
+    and `apply_active_run` parses it as JSON to learn which run the operator started.
+
+    MEASURED against production: the reply is 423 chars, so 123 were cut, the truncated
+    JSON raised JSONDecodeError, and `apply_active_run` swallowed it by design (it has to
+    survive a malformed reply from an older shop). The tail that was lost is exactly the
+    payload the feature depends on. Pressing "Start a run" could never reach the producer.
+
+    WHY NO EXISTING TEST CAUGHT IT: every test injects a fake transport that returns the
+    whole body, so the truncation existed only on the real network path. These tests pin
+    the CONTRACT instead -- a reply longer than any plausible cap must still be adopted.
+    """
+
+    def _mirror(self, transport):
+        return ShopMirror("https://nickstire.org/api/camera/visits", "k", transport=transport)
+
+    def test_a_LONG_reply_still_arms_the_run(self):
+        # A realistic reply: the real one carries state, facets, reason and transition
+        # before `activeCommissioningRun`, which is why the run id lands past 300 chars.
+        import json as _json
+
+        payload = {
+            "accepted": True,
+            "state": "CALIBRATION_INVALID",
+            "facets": {"producer": "alive", "source": "connected", "frames": "fresh",
+                       "pose": "ok", "calibration": "missing", "cloud": "ok"},
+            "reason": "no calibration: census mode, arrivals are not authorised",
+            "transition": {"from": "CALIBRATION_INVALID", "to": "CALIBRATION_INVALID",
+                           "reason": "producer restarted (new instance id)"},
+            "activeCommissioningRun": {"runId": "C-20260909-001", "label": None},
+        }
+        body = _json.dumps(payload)
+        self.assertGreater(len(body), 300, "precondition: the run id sits past the old 300-char cap")
+
+        m = self._mirror(lambda *a, **k: (200, body))
+        with self.assertLogs("visitd", level="WARNING"):
+            m.heartbeat({"camera": "sign"})
+        self.assertEqual(m.commissioning_run_id, "C-20260909-001",
+                         "a reply longer than the old cap must still arm the run")
+        self.assertEqual(m.data_class, "COMMISSIONING")
+
+    def test_a_TRUNCATED_reply_is_the_failure_this_pins(self):
+        """The old behaviour, stated explicitly so the regression is unmistakable."""
+        import json as _json
+
+        payload = {
+            "accepted": True, "state": "CALIBRATION_INVALID",
+            "facets": {"producer": "alive", "source": "connected", "frames": "fresh",
+                       "pose": "ok", "calibration": "missing", "cloud": "ok"},
+            "reason": "no calibration: census mode, arrivals are not authorised",
+            "transition": {"from": "CALIBRATION_INVALID", "to": "CALIBRATION_INVALID",
+                           "reason": "producer restarted (new instance id)"},
+            "activeCommissioningRun": {"runId": "C-20260909-001", "label": None},
+        }
+        cut = _json.dumps(payload)[:300]          # exactly what the transport used to hand back
+        m = self._mirror(lambda *a, **k: (200, cut))
+        m.heartbeat({"camera": "sign"})
+        self.assertIsNone(m.commissioning_run_id,
+                          "a truncated reply cannot arm anything -- this is the bug, pinned")
+        self.assertEqual(m.data_class, "PRODUCTION")
+
+    def test_the_real_transport_returns_the_WHOLE_body(self):
+        """The fix at its source: no slice at the data boundary."""
+        import inspect
+
+        from visitd.cloud_client import requests_transport
+
+        # CODE ONLY, not comments. The fix's own comment quotes the old `resp.text[:300]`
+        # to record what went wrong, and a naive substring check flagged that explanation
+        # as the defect -- a guard tripping on its own documentation.
+        code = [ln.split("#", 1)[0] for ln in inspect.getsource(requests_transport).splitlines()]
+        returns = [ln.strip() for ln in code if ln.strip().startswith("return ")]
+        self.assertEqual(returns, ["return resp.status_code, resp.text"],
+                         "the transport must hand back the WHOLE body; truncation belongs "
+                         "where text is PRINTED, not where it is RETURNED")
