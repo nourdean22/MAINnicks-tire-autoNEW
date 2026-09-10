@@ -4652,6 +4652,19 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   diskFreeBytes: bigint("diskFreeBytes", { mode: "number" }),
   /** Times the producer had to un-minimise its capture window. Non-zero = somebody is minimising the camera app. */
   restores: int("restores"),
+  /**
+   * Revalidation passes that produced NO binding — distinct from a pass that confirmed an
+   * unchanged layout, which is the happy case many times an hour. Sustained non-zero means
+   * the producer can no longer confirm the geometry every polygon is evaluated against.
+   * NULL = this producer does not report it; 0 = it looked and found none.
+   */
+  relocateFailures: int("relocateFailures"),
+  /**
+   * Cars the census called `preexisting` that the entry portal then watched drive in — an
+   * UNDER-count of arrivals, the one direction nothing else here watches for. Recorded,
+   * never promoted. NULL = not reported; 0 = looked and found none.
+   */
+  preexistingCrossed: int("preexistingCrossed"),
   state: varchar("state", { length: 32 }).notNull(),
   stateSince: timestamp("stateSince"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
