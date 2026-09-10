@@ -379,3 +379,64 @@ describe("TechnicianReferralsPanel - refusal reasons are captured, not templated
     expect(screen.queryByRole("button", { name: /^Self-referral$/ })).toBeNull();
   });
 });
+
+/**
+ * Every control that COMMITS a $300 refusal is thumb-sized.
+ *
+ * The admin runs as an installed iOS PWA - a phone - and this app documents a
+ * 48x48px minimum touch target. The chip list inherited px-2 py-1 sizing from
+ * LostReasonButton and rendered ~24px tall, half that, with adjacent chips a
+ * thumb-width apart. A mis-tap does not merely annoy: it records the WRONG
+ * REASON against a contested payout, asserting something false where the old
+ * canned string merely said nothing. Nothing enforces the 48px rule, so this
+ * does.
+ */
+describe("TechnicianReferralsPanel - the reason chips are actually tappable", () => {
+  const eligibleRow = () =>
+    ok([
+      {
+        id: 11,
+        status: "eligible",
+        referrerName: "Pat Lang",
+        referrerPhone: null,
+        candidateName: "Alex Kim",
+        candidatePhone: null,
+        positionTitle: null,
+        bonusAmountCents: 30000,
+        hiredAt: new Date("2026-07-01").toISOString(),
+        eligibleAt: new Date(Date.now() + 30 * 864e5).toISOString(),
+        paidAt: null,
+        createdAt: new Date("2026-07-01").toISOString(),
+        unlinked: false,
+      },
+    ]);
+
+  it("every committing chip carries the 48px minimum, and so does cancel", () => {
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /disqualify/i }));
+
+    const chips = ["Self-referral", "Referrer not an employee", "Duplicate claim", "Other"];
+    for (const label of chips) {
+      const el = screen.getByRole("button", { name: new RegExp(`^${label}$`) });
+      expect(el.className, `${label} chip is below the 48px touch minimum`).toContain("min-h-[48px]");
+      expect(el.className, `${label} chip is below the 48px touch minimum`).toContain("min-w-[48px]");
+    }
+    // The thumb that misses cancel lands on a chip, and the chip commits.
+    const cancel = screen.getByRole("button", { name: /cancel/i });
+    expect(cancel.className).toContain("min-h-[48px]");
+    expect(cancel.className).toContain("min-w-[48px]");
+  });
+
+  it("the forfeit list is held to the same minimum", () => {
+    // Asserting only the disqualify list would leave the sibling free to drift -
+    // they are separate JSX branches sharing one className expression today, and
+    // nothing guarantees they stay shared.
+    h.referrals = { data: eligibleRow(), isLoading: false, isError: false, error: null };
+    render(<TechnicianReferralsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /forfeit/i }));
+
+    const el = screen.getByRole("button", { name: /^Quit before 90 days$/ });
+    expect(el.className).toContain("min-h-[48px]");
+  });
+});
