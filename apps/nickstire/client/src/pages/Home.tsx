@@ -530,7 +530,7 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
-              Read all 1,700+ reviews <ArrowRight className="w-3.5 h-3.5" />
+              Read all {totalReviews.toLocaleString()}+ reviews <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </FadeIn>

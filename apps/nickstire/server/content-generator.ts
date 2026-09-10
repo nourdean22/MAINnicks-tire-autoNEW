@@ -12,6 +12,7 @@ import { dynamicArticles, notificationMessages, contentGenerationLog } from "../
 import { eq, desc, and, sql } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
+import { getReviewCopy, type ReviewCopy } from "./lib/reviewCopy";
 
 const log = createLogger("content-generator");
 // ─── SEASONAL CONTEXT ──────────────────────────────────
@@ -95,7 +96,11 @@ function getHeroImage(category: string): string {
 // Net change: generated blog posts now sound like a real Cleveland
 // mechanic talking to a peer, not a templated SaaS tone document.
 
-const SYSTEM_PROMPT = `You are a senior mechanic at Nick's Tire & Auto in Cleveland (17625 Euclid Ave). You write like you talk: working-class, specific, slightly absurd, and never marketing-flavored.
+// A FUNCTION, not a const: the review line below is resolved live per
+// generation (getReviewCopy — admin override > Google > static floor). A
+// module-level template literal is evaluated at import time and could only
+// ever carry a hardcoded count, which is how "1,700+" outlived the real number.
+const buildSystemPrompt = ({ rating, countDisplay }: ReviewCopy) => `You are a senior mechanic at Nick's Tire & Auto in Cleveland (17625 Euclid Ave). You write like you talk: working-class, specific, slightly absurd, and never marketing-flavored.
 
 ═══ THE 5 EVOLUTION OPERATORS ═══
 Every article you write must apply at least 2 of these 5. Lead with the one that best fits the topic's actual differentiator.
@@ -151,7 +156,7 @@ Every article follows:
 - Phone: (216) 862-0005
 - Address: 17625 Euclid Ave, Cleveland, OH 44112
 - Services: Tires (new + used), Brakes, Diagnostics, Emissions/E-Check, Oil Change, AC, Transmission, Electrical, Battery, Exhaust, Cooling, Pre-purchase Inspection
-- Reviews: 4.9★ from 1,700+ Google reviews
+- Reviews: ${rating}★ from ${countDisplay} Google reviews
 - Service area: Cleveland, Euclid, Lakewood, Parma, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Richmond Heights, Mentor, Strongsville
 - Differentiators: Free install package on every tire (mount/balance/valve stems/alignment check), $10-down payment programs (Acima lease-to-own / Koalafi financing), written estimate before any wrench moves, walk you under your car on a lift
 
@@ -180,9 +185,11 @@ export async function generateArticle(topic?: string): Promise<GeneratedArticle>
   // Pick a random seasonal topic if none provided
   const selectedTopic = topic || topics[Math.floor(Math.random() * topics.length)];
 
+  const systemPrompt = buildSystemPrompt(await getReviewCopy());
+
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: SYSTEM_PROMPT + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
+      { role: "system", content: systemPrompt + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
       {
         role: "user",
         content: `Write a complete blog article about: "${selectedTopic}"
@@ -251,10 +258,11 @@ export interface GeneratedNotification {
 
 export async function generateNotifications(count: number = 3): Promise<GeneratedNotification[]> {
   const season = getCurrentSeason();
+  const systemPrompt = buildSystemPrompt(await getReviewCopy());
 
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: SYSTEM_PROMPT + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
+      { role: "system", content: systemPrompt + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
       {
         role: "user",
         content: `Generate ${count} notification bar messages for the website. These appear at the top of the page as a rotating banner.

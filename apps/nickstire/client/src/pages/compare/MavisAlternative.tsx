@@ -1,11 +1,20 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
-import { COMPETITORS } from "@/data/competitors";
+import { COMPETITORS, COMPETITOR_REVIEWS, formatRating } from "@/data/competitors";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
  * /mavis-tire-alternative-cleveland
  * Format 1: Alternative — Mavis Discount Tire (now also owns NTB).
+ *
+ * Note the comparison here is INTERNAL to Mavis — its self-reported 4.6 vs the
+ * 3.9 drivers leave on neutral aggregators — so that 0.7 gap is a fixed fact
+ * about their two numbers, not a function of Nick's. Only Nick's own side goes
+ * live.
  */
 export default function MavisAlternative() {
+  const { ratingDisplay: reviewRatingDisplay, countDisplay: reviewCountDisplay } = useReviewStats();
+  const mavis = COMPETITOR_REVIEWS.mavis;
+
   return (
     <ComparisonPage
       format="alternative"
@@ -38,7 +47,7 @@ export default function MavisAlternative() {
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "Why does Mavis Pearl Rd show different star ratings on different sites?",
-          answer: "Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but 3.9 stars on third-party aggregators (209 reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: 4.9 stars consistently across Google, Yelp, and BBB on 1,700+ reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.",
+          answer: `Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but ${formatRating(mavis.rating ?? 0)} stars on third-party aggregators (${mavis.count} reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: ${reviewRatingDisplay} stars consistently across Google, Yelp, and BBB on ${reviewCountDisplay} reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.`,
         },
       ]}
     />

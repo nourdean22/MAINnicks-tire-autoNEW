@@ -13,9 +13,13 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { MapPin, Star, Wrench } from "lucide-react";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/moes-tire-euclid",
   // Hero shows the actual Moe's Tire & Auto sign + 4 open service bays + priced tire stacks.
   // wave-181.x · upgraded to the literal-match photo · the GSC query "moe's tires euclid"
@@ -23,10 +27,10 @@ const CONFIG: ServicePageConfig = {
   // location. The filename itself carries the keyword for image-search ranking.
   heroImage: "/photos/moes-tire-euclid-cleveland-ohio-service-bays.webp",
   title: "Moe's Tire is Now Nick's · 17625 Euclid Ave Cleveland",
-  description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
+  description: `Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. ${reviewRating}★ across ${reviewCountDisplay} Google reviews. Walk-ins 7 days. (216) 862-0005`,
   eyebrow: "MOE'S TIRE EUCLID — SAME CORNER, NEW CHAPTER",
   h1: "MOE'S TIRE EUCLID IS NOW NICK'S TIRE & AUTO",
-  sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. Same owner, sharper service, and a coffee maker that's still standing after all these years. If you came here for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",
+  sub: `Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. Same owner, sharper service, and a coffee maker that's still standing after all these years. If you came here for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: ${reviewRating}★ across ${reviewCountDisplay} verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.`,
   startingPrice: "Used tires from $25 · installed free",
   pricingTitle: "WHAT WE DO HERE NOW",
   pricingSub: "Same building, expanded services. Tires, brakes, oil, diagnostics, alignment — full-service auto repair on Euclid Ave.",
@@ -43,7 +47,7 @@ const CONFIG: ServicePageConfig = {
     "We expanded beyond tires — full-service auto repair: brakes, oil, diagnostics, alignment, A/C, exhaust, electrical.",
     "Used tires still on the rack — from $25 installed, every tire 4-point checked before it goes on a customer's car.",
     "$10-down payment programs added — Acima, Snap, Koalafi, American First. Soft pull only, no FICO ding.",
-    "4.9★ across 1,700+ verified Google reviews — earned, not bought.",
+    `${reviewRating}★ across ${reviewCountDisplay} verified Google reviews — earned, not bought.`,
     "Walk-ins welcome 7 days a week. Sunday hours 9 AM–4 PM. Free check, written quote, you don't pay until you say yes.",
     "We show you the problem on a lift before any work starts. You see the cost before we touch the car.",
   ],
@@ -52,7 +56,7 @@ const CONFIG: ServicePageConfig = {
     { q: "What happened to Moe's Tire on Euclid Avenue?", a: "The shop simply changed its name to Nick's Tire & Auto — same owner, same corner of Euclid Ave. We kept the focus on honest, fair-priced tire and auto service for Cleveland's east side, and over time added more services (brakes, oil, diagnostics, alignment) and $10-down payment programs the shop didn't offer in the earlier tire-only days. Same address: 17625 Euclid Ave." },
     { q: "Do you still sell used tires like Moe's did?", a: "Yes — used tires are still core to what we do. Pricing starts at $25 installed (mount, balance, valve stems). The difference now: every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on a customer's car. We don't sell tires we wouldn't put on our own family's cars. Walk in or call your size to confirm stock: (216) 862-0005." },
     { q: "Is the address the same as Moe's Tire?", a: "Yes — 17625 Euclid Ave, Cleveland OH 44112. Same corner of Euclid Ave you remembered. Open 7 days: Mon–Sat 8 AM–6 PM, Sunday 9 AM–4 PM. Walk-ins welcome — no appointment needed." },
-    { q: "Do you accept the same customers Moe's did?", a: "Absolutely. If you were a regular at Moe's, you'll be treated like one here. Many of our current regulars came over from the Moe's days. We respect that history — and we earned the 4.9★ / 1,700+ reviews by treating every customer the same way: honest diagnostics, written estimates before any work, no upsells. (216) 862-0005." },
+    { q: "Do you accept the same customers Moe's did?", a: `Absolutely. If you were a regular at Moe's, you'll be treated like one here. Many of our current regulars came over from the Moe's days. We respect that history — and we earned the ${reviewRating}★ / ${reviewCountDisplay} reviews by treating every customer the same way: honest diagnostics, written estimates before any work, no upsells. (216) 862-0005.` },
     { q: "What services do you offer that Moe's didn't?", a: "Moe's was tire-focused. Nick's Tire & Auto is full-service: tires (new + used + flat repair), brakes (pads, rotors, calipers, ABS), oil change (conventional + synthetic), diagnostics (check engine light, OBD-II), wheel alignment, A/C repair, transmission, electrical, battery, exhaust, emissions/E-Check. Plus $10-down financing on any service — no credit check, approved in 90 seconds, drive away today." },
     { q: "Are you open on Sunday like Moe's used to be?", a: "Yes — open 7 days. Sunday hours: 9 AM to 4 PM. Most repairs done same-day. Walk-ins welcome — most Sundays we have multiple bays free." },
     { q: "Can I get financing here?", a: "Yes — that's one of the biggest changes. $10 down, no credit check, approved in 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most customers approved $500–$5,000. You drive away today, pay over time. No hard credit pull. Apply at the counter or online before you walk in." },
@@ -66,9 +70,9 @@ const CONFIG: ServicePageConfig = {
     heading: "Why drivers from the Moe's days come back.",
     stats: [
       {
-        value: "4.9",
+        value: String(reviewRating),
         unit: "★ Google rating",
-        consequence: "Across 1,700+ verified reviews. Earned over years of honest work — not bought, not gamed. Real customers, real receipts.",
+        consequence: `Across ${reviewCountDisplay} verified reviews. Earned over years of honest work — not bought, not gamed. Real customers, real receipts.`,
       },
       {
         value: "$10",
@@ -114,8 +118,9 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function MoesTireBridgePage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

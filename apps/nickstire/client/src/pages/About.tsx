@@ -12,7 +12,7 @@ import {
   MapPin, Quote,
 } from "lucide-react";
 import FadeIn from "@/components/FadeIn";
-import { trpc } from "@/lib/trpc";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
@@ -41,15 +41,13 @@ const DIAG_IMG = "/photos/busy-shop-action-mechanics.webp";
 const WAITING_IMG = "/photos/nicks-tire-auto-customer-waiting-area-cleveland.webp";
 
 export default function About() {
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
-  const rating = googleData?.rating ?? 4.9;
-  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const { rating, count: totalReviews, countDisplay: reviewCountDisplay } = useReviewStats();
 
   return (
     <PageLayout activeHref="/about" showChat={true}>
       <SEOHead
         title="About Nick's Tire & Auto · Cleveland's Honest Crew Since 2018"
-        description={`Family-run auto repair on Euclid Ave. 4.9★ Google rating across ${BUSINESS.reviews.countDisplay} reviews, ${BUSINESS.warranty.display}, and a coffee maker older than half our customers. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
+        description={`Family-run auto repair on Euclid Ave. ${rating.toFixed(1)}★ Google rating across ${reviewCountDisplay} reviews, ${BUSINESS.warranty.display}, and a coffee maker older than half our customers. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
         canonicalPath="/about"
       />
 
@@ -86,7 +84,7 @@ export default function About() {
                 Nick's Tire & Auto has served East Side Cleveland from the same Euclid Ave corner since 2018 — many neighbors first knew the shop as Moe's Tire & Auto. Same owner, same corner: we simply changed the name to Nick's. The mission never changed — give East Side drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
               </p>
               <p className="text-foreground/70 mb-4">
-                What started as a small independent shop has grown into Cleveland's 4.9★, {totalReviews.toLocaleString()}-review East Side shop — real customers, real reviews, no marketing budget.
+                What started as a small independent shop has grown into Cleveland's {rating.toFixed(1)}★, {totalReviews.toLocaleString()}-review East Side shop — real customers, real reviews, no marketing budget.
               </p>
               <p className="text-foreground/70">
                 We're not a chain. We're not a dealership. We're your neighbors — and we treat your car like it belongs to one.
@@ -173,7 +171,7 @@ export default function About() {
                   Most shops hand you a bill and hope you don't ask questions. We walk you under the car, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
-                  The price we quote is the price you pay. That approach has earned us a {BUSINESS.reviews.rating}-star rating across {totalReviews.toLocaleString()}+ Google reviews from Cleveland drivers who keep coming back.
+                  The price we quote is the price you pay. That approach has earned us a {rating.toFixed(1)}-star rating across {totalReviews.toLocaleString()}+ Google reviews from Cleveland drivers who keep coming back.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
                   We even built a free Diagnose tool — describe your car's symptoms before you come in, no pressure, no obligation.
@@ -198,7 +196,7 @@ export default function About() {
                 In our customers' words
               </div>
               <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight uppercase">
-                4.9★ from {totalReviews.toLocaleString()}+ Cleveland drivers.
+                {rating.toFixed(1)}★ from {totalReviews.toLocaleString()}+ Cleveland drivers.
                 <span className="block text-primary text-2xl lg:text-3xl mt-2 normal-case">
                   These are three of them.
                 </span>

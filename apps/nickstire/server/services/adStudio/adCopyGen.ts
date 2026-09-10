@@ -9,16 +9,23 @@
 import { invokeLLM, type OutputSchema } from "../../_core/llm";
 import { createLogger } from "../../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { getGoogleReviews } from "../../google-reviews";
+import { getReviewCopy, type ReviewCopy } from "../../lib/reviewCopy";
 import type { AdCopy } from "./adTemplate";
 
 const log = createLogger("services:adStudio:copy");
 
-export const AD_ANGLES = {
-  financing: "FINANCING-LED: '$10 down, drive today' + no-credit-check + new tires from $89. Kill the price objection first; create urgency to act now.",
-  free_check: "OFFER-LED: a free tire/safety check as the no-brainer hook that drives walk-ins. Low friction, safety-forward but calm (never scary).",
-  trust: "TRUST-LED: 4.9 stars / 1,700+ reviews / since 2018 / ASE-certified / 7-days walk-in. Why Cleveland keeps coming back — social proof as the engine.",
-} as const;
+/**
+ * Angle guidance, built per generation. The trust angle names the rating and
+ * review count, so these are functions rather than string constants: a
+ * module-level literal is fixed at import time and its "4.9 stars / 1,700+
+ * reviews" outlived the real figures. Keys are unchanged, so AdAngle still
+ * derives from this object.
+ */
+export const AD_ANGLES: Record<"financing" | "free_check" | "trust", (reviews: ReviewCopy) => string> = {
+  financing: () => "FINANCING-LED: '$10 down, drive today' + no-credit-check + new tires from $89. Kill the price objection first; create urgency to act now.",
+  free_check: () => "OFFER-LED: a free tire/safety check as the no-brainer hook that drives walk-ins. Low friction, safety-forward but calm (never scary).",
+  trust: ({ rating, countDisplay }) => `TRUST-LED: ${rating} stars / ${countDisplay} reviews / since 2018 / ASE-certified / 7-days walk-in. Why Cleveland keeps coming back — social proof as the engine.`,
+};
 export type AdAngle = keyof typeof AD_ANGLES;
 
 export interface GenerateAdCopyInput {
@@ -49,10 +56,8 @@ export function lintAdCopy(copy: AdCopy): string[] {
 }
 
 async function buildSystemPrompt(angle: AdAngle, topic?: string): Promise<string> {
-  const googleData = await getGoogleReviews();
-  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
-  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
-  const reviewCountDisplay = `${reviewCount.toLocaleString("en-US")}+`;
+  const reviews = await getReviewCopy();
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = reviews;
   return `You are a senior Meta-ads creative director writing copy for ONE Instagram carousel AD for a local tire shop. It will be BOOSTED with real ad spend, so every word must convert and every claim must be true.
 
 BUSINESS FACTS (all owner-confirmed — use freely, accurately):
@@ -61,7 +66,7 @@ BUSINESS FACTS (all owner-confirmed — use freely, accurately):
 - Open 7 days, walk-ins welcome, NO appointment, first come first serve. Free quick checks.
 - Financing: no credit check, $10 down, drive today (Acima/Snap/Koalafi). New tires from $89 installed. Used from $25 installed (most sizes $40-80 — the band MUST travel with $25). Any tire, any brand. Under-20-minute installs. 12-month parts / 90-day labor warranty.
 
-ANGLE FOR THIS AD: ${AD_ANGLES[angle]}${topic ? `\nOPERATOR STEER: weave in this topic/season: ${topic}.` : ""}
+ANGLE FOR THIS AD: ${AD_ANGLES[angle](reviews)}${topic ? `\nOPERATOR STEER: weave in this topic/season: ${topic}.` : ""}
 
 HARD CLAIM-SAFETY RULES:
 - BANNED words: quality, premium, luxury, tier, trusted, best, perfect, #1, guaranteed, cheapest. No superlatives, no fake guarantees, no fearmongering.

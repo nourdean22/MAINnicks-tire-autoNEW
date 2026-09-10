@@ -24,11 +24,15 @@
  * slash (`//careers`) instead.
  */
 
+import { refuseMangledPaths } from "./lib/sitePathArg.mjs";
 const SITE_URL = "https://nickstire.org";
 const INDEXNOW_KEY = "d274e03f24e4438599616695d23dab67";
 const KEY_LOCATION = `${SITE_URL}/${INDEXNOW_KEY}.txt`;
 
 const paths = process.argv.slice(2);
+
+refuseMangledPaths(paths, { scriptName: "indexnow-submit.mjs" });
+
 const urlList = (paths.length ? paths : ["/careers"]).map(
   (p) => `${SITE_URL}${p.startsWith("/") ? p : `/${p}`}`,
 );

@@ -47,6 +47,7 @@ import FearCalibrationBlock from "@/components/conversion/FearCalibrationBlock";
 import LossAversionStat from "@/components/conversion/LossAversionStat";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 // 2026-05-06 wave-16 · photos swapped to the new pro photo pack per
 // PLACEMENT_GUIDE.md. The storefront-hero photo shows the FULL yellow
@@ -644,6 +645,8 @@ function Services() {
 
 // ─── WHY US — Split layout ───────────────────────────────
 function WhyUs() {
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+
   return (
     <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
       <div className="container">
@@ -669,7 +672,7 @@ function WhyUs() {
                 <span className="text-primary">Then we fix it.</span>
               </h2>
               <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
-                Most Cleveland auto shops hand you a bill and hope you don't ask questions. We hand you a flashlight and walk you under your own car. The worn parts don't lie. Neither do we. On Euclid Ave since 2018, 4.9★ from 1,700+ reviews, and a coffee maker older than half our customers.
+                Most Cleveland auto shops hand you a bill and hope you don't ask questions. We hand you a flashlight and walk you under your own car. The worn parts don't lie. Neither do we. On Euclid Ave since 2018, {reviewRating}★ from {reviewCountDisplay} reviews, and a coffee maker older than half our customers.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -750,7 +753,7 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
-              Read all 1,700+ reviews <ArrowRight className="w-3.5 h-3.5" />
+              Read all {totalReviews.toLocaleString()}+ reviews <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </FadeIn>

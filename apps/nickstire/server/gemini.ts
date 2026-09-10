@@ -17,6 +17,7 @@ import { invokeLLM } from "./_core/llm";
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "./lib/logger";
 import { getBusinessBehaviorDirective, resolveBusinessIntensity } from "./lib/ai-behavior/business-behavior-directive";
+import { getReviewCopy } from "./lib/reviewCopy";
 
 const log = createLogger("gemini");
 // ─── TEMPORAL HELPERS ────────────────────────────────────
@@ -134,9 +135,16 @@ export interface NickAIContext {
 /**
  * Build the full system prompt with temporal, seasonal, competitive,
  * and memory context injected.
+ *
+ * ASYNC since 2026-09-09: the competitive-positioning block quotes the shop's
+ * rating and review count, and those come from getReviewCopy() (admin override
+ * > live Google > static floor, hour-cached) rather than a literal that goes
+ * stale and gets repeated to customers as fact.
  */
-export function buildSystemPrompt(ctx: NickAIContext = {}): string {
+export async function buildSystemPrompt(ctx: NickAIContext = {}): Promise<string> {
   const now = ctx.now ?? new Date();
+  const reviews = await getReviewCopy();
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = reviews;
   const temporal = getTemporalContext(now);
   const memoryBlock = ctx.memories
     ? `\n--- RETURNING CUSTOMER CONTEXT ---\nYou remember the following from previous conversations with this customer. Use this naturally — don't list it back to them, but reference it when relevant (e.g., "How's the Camry running?" or "Last time you mentioned brake noise").\n${ctx.memories}`
@@ -242,7 +250,7 @@ ${personalityBlock}
 ${temporal}
 ${sentimentDirective}
 Competitive positioning (use when relevant, don't force it):
-- 4.9 stars with 1,700+ Google reviews — one of the highest-rated shops in Northeast Ohio
+- ${reviewRating} stars with ${reviewCountDisplay} Google reviews — one of the highest-rated shops in Northeast Ohio
 - 12-month parts / 90-day labor warranty on repairs, in writing (no mileage cap)
 - No-credit-check payment programs available (Acima, Snap, Koalafi, American First Finance)
 - Walk-ins welcome 7 days a week — most competitors require appointments
@@ -329,7 +337,7 @@ When a customer seems ready to come in:
   // the actual last user message so angry/scam/ripoff customers get a
   // softer empathy-first response instead of HIGH-POWERED scarcity pitch.
   const intensity = resolveBusinessIntensity();
-  const directive = getBusinessBehaviorDirective(ctx.lastUserMessage ?? null, intensity);
+  const directive = getBusinessBehaviorDirective(ctx.lastUserMessage ?? null, reviews, intensity);
   if (directive) {
     return base + `\n\n## BEHAVIOR DIRECTIVE (intensity: ${intensity.toLowerCase()})\n${directive}`;
   }
@@ -337,8 +345,12 @@ When a customer seems ready to come in:
   return base;
 }
 
-// Backward-compatible static prompt for code that doesn't pass context
-const NICK_SYSTEM_PROMPT = buildSystemPrompt();
+// `const NICK_SYSTEM_PROMPT = buildSystemPrompt()` used to sit here — a
+// "backward-compatible static prompt" that nothing imported or read (its only
+// reference was its own declaration). Once buildSystemPrompt became async it
+// would have fired a Places fetch and a shop_settings read at module load, on
+// every import of this file, and parked the result in an unawaited promise.
+// Deleted rather than awaited: there was no consumer to keep compatible.
 
 // Max messages to keep in session context (prevents unbounded growth)
 const MAX_SESSION_MESSAGES = 20;
@@ -440,7 +452,7 @@ export async function chatWithAssistant(
   // wave-140 · lastUserMessage extracted from the trailing user turn so the
   // business-behavior-directive's frustration auto-damp regex can fire.
   const lastUser = [...recentMessages].reverse().find((m) => m.role === "user");
-  const systemPrompt = buildSystemPrompt({
+  const systemPrompt = await buildSystemPrompt({
     memories: memoryContext,
     lastUserMessage: lastUser?.content,
     ...extraContext,

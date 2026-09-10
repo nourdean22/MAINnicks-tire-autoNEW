@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { getReviewCopy } from "../lib/reviewCopy";
 const log = createLogger("invoice");
 
 export interface InvoiceData {
@@ -29,8 +30,16 @@ export interface InvoiceData {
   notes?: string;
 }
 
-/** Generate HTML invoice content */
-export function generateInvoiceHTML(data: InvoiceData): string {
+/**
+ * Generate HTML invoice content.
+ *
+ * ASYNC since 2026-09-09: the footer quotes the shop's rating and review count,
+ * which now come from getReviewCopy() (admin override > live Google > static
+ * floor, hour-cached) instead of a literal that printed on every invoice long
+ * after the real number moved. No call sites existed to update.
+ */
+export async function generateInvoiceHTML(data: InvoiceData): Promise<string> {
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = await getReviewCopy();
   const rows = data.lineItems
     .map(
       (item) => `
@@ -105,7 +114,7 @@ export function generateInvoiceHTML(data: InvoiceData): string {
   <!-- Footer -->
   <div style="text-align:center;padding-top:20px;border-top:1px solid #21262D">
     <p style="font-size:11px;color:#8B949E">Thank you for choosing Nick's Tire & Auto!</p>
-    <p style="font-size:11px;color:#8B949E">nickstire.org | (216) 862-0005 | 4.9★ (1,700+ reviews)</p>
+    <p style="font-size:11px;color:#8B949E">nickstire.org | (216) 862-0005 | ${reviewRating}★ (${reviewCountDisplay} reviews)</p>
   </div>
 </div>
 </body>

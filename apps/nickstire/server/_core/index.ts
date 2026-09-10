@@ -277,6 +277,19 @@ async function startServer() {
   app.use(withBatchRegex("callback.submit"), formLimiter);
   app.use(withBatchRegex("waitlist.join"), formLimiter);
   app.use(withBatchRegex("emergency.submit"), formLimiter);
+  // 2026-09-10 · both are public, unauthenticated, row-writing form endpoints
+  // added in #2254 and allowlisted in trpc-auth-tier.test.ts as "same tier as
+  // lead.submit" — but they were never given lead.submit's limiter, so they
+  // sat on the general apiLimiter's anon budget (100 per 15 min = 400/hour)
+  // instead of formLimiter's 10/hour. That is 40x the write budget of every
+  // comparable form, against a candidates table an operator triages by hand.
+  // technicianReferrals.submit fires from the same page's onSuccess, so one
+  // honest application spends 2 of the 10 — still far above real usage.
+  // referrals.submit ($25/$25 customer program) was public and unlimited from
+  // before either of the two below — same class, same fix.
+  app.use(withBatchRegex("referrals.submit"), formLimiter);
+  app.use(withBatchRegex("candidates.submit"), formLimiter);
+  app.use(withBatchRegex("technicianReferrals.submit"), formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);
   // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
   // but express-rate-limit only counts it as 1 request.
@@ -621,10 +634,15 @@ async function startServer() {
   // shared/business.ts canon on 2026-08-19 (prices, hours, warranty,
   // financing, rating floor). If canon changes, change BOTH places — or
   // better, derive this template from BUSINESS (follow-up).
-  app.get("/llms.txt", (_req, res) => {
+  // 2026-09-09 · the rating line is no longer one of those hand-maintained
+  // facts: getReviewCopy() resolves it live (admin override > Google > static
+  // floor, hour-cached) so a real move in the count reaches the answer engines.
+  app.get("/llms.txt", async (_req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=86400");
     const b = SITE_URL;
+    const { getReviewCopy } = await import("../lib/reviewCopy");
+    const { rating: reviewRating, countDisplay: reviewCountDisplay } = await getReviewCopy();
     res.send(`# Nick's Tire & Auto
 > Full-service auto repair and tire shop on Euclid Ave serving Cleveland, Euclid, and Northeast Ohio. Open 7 days, walk in (no appointment needed), written estimate before any work — you don't pay until you say yes.
 
@@ -632,7 +650,7 @@ async function startServer() {
 - Address: 17625 Euclid Ave, Cleveland, OH 44112
 - Phone: (216) 862-0005
 - Hours: Monday-Saturday 8AM-6PM, Sunday 9AM-4PM (open 7 days a week)
-- Rating: 4.9 stars from 1,700+ Google reviews
+- Rating: ${reviewRating} stars from ${reviewCountDisplay} Google reviews
 - Warranty: 12-month parts / 90-day labor, in writing (no mileage cap)
 - No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
 - Payment programs: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
