@@ -120,6 +120,30 @@ const PII_PATTERNS = [
   // masked and one raw field on the SAME line stands down — which is why the
   // five raw leaks this widening exposed were masked rather than excused.
   {
+    // NO word boundaries around the PII term, deliberately. Probed against the
+    // exact lines that were shipping: an interpolated "refPhone10" has no
+    // boundary before "Phone" OR after it, and "input.referrerPhone" has none
+    // before — so the \b-anchored form caught NEITHER of the two real leaks.
+    // camelCase suffixes are the dominant shape in this codebase, so anchoring
+    // on word boundaries is anchoring on the one shape that does not occur.
+    // Over-matching is the correct direction for a PII linter, and these
+    // findings are maskable.
+    pattern: /\blog\.(log|info|warn|error|debug|trace)\s*\([^;]*\$\{[^}]*(phone|email|firstname|lastname|customername|vin|address)[^}]*\}/gi,
+    maskable: true,
+    why: "log.* with PII template literal · straight to stdout and the Railway log retention window; server/lib/logger.ts performs no redaction of any kind",
+    fix: "Drop the value from the message · log an opaque id instead · or use the mask helpers",
+  },
+
+  // The rule ABOVE is new (2026-09-10) and the reason is worth keeping: log.*
+  // template literals were invisible to this linter. This rule covered
+  // console.*, the Error rule below covered throws, and the app's own logger —
+  // the thing server code actually calls — sat in the gap between them. Two
+  // log.warn lines in referrals.submit were emitting a full phone and a full
+  // email on a path any unauthenticated caller can trigger, while an --audit
+  // run reported 4 violations across 892 files and named neither. Note this
+  // rule's own `why` text has always said "same exposure as log.*", so the
+  // gap was described in the file and not covered by it.
+  {
     pattern: /\bconsole\.(log|info|warn|error|debug)\s*\([^;]*\$\{[^}]*\b(phone|email|firstName|lastName|customerName|vin|address)\b[^}]*\}/gi,
     maskable: true,
     why: "console.* with PII template literal · same Railway-log exposure as log.* + worse (often left in dev path that ships)",
