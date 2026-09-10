@@ -39,6 +39,12 @@ class Track:
     #: Wall-clock seconds this track existed through while the tracker could not observe
     #: the lot at all. Subtracted from stillness -- see `stationary_for`.
     blind_seconds: float = 0.0
+    #: The miss tolerance actually applied when this track was retired, or None while it is
+    #: alive. The tracker REPORTING its own decision, rather than a reader re-deriving it
+    #: from `stationary_for` and `parked_after` and hoping neither has moved since. Read by
+    #: the death ledger, which needs "was this vehicle being treated as settling or as
+    #: parked?" to be a recorded fact rather than an inference.
+    retired_allowed: Optional[int] = None
     path: deque[tuple[float, float]] = field(default_factory=lambda: deque(maxlen=240))
     zones: list[str] = field(default_factory=list)
 
@@ -200,6 +206,7 @@ class TrackGraph:
             still_for = t.stationary_for(now)
             allowed = self.parked_max_misses if still_for >= self.parked_after else self.max_misses
             if t.misses > allowed:
+                t.retired_allowed = allowed
                 died.append(t)
         for t in died:
             self.tracks.pop(t.track_id, None)

@@ -2440,5 +2440,116 @@ class SceneRevalidationTest(unittest.TestCase):
         self.assertEqual(spy.fired, [])
 
 
+class TrackDeathLedgerWiringTest(unittest.TestCase):
+    """A ledger nobody feeds and a shop with no track deaths look identical on disk.
+
+    This is the same shape that let `_note_trajectory` record nothing for 128 frames while
+    the producer looked perfectly healthy, and the same shape the shadow-ledger comment in
+    `EdgeLoop.step` records. `_note_deaths` is a WRITER, so it needs a test that proves the
+    call site exists -- an unwired one would leave the re-acquisition rate with a numerator
+    and no denominator, which is precisely the state this whole change is undoing.
+    """
+
+    class _Store:
+        def __init__(self):
+            self.deaths = []
+            self.marks = []
+
+        def observe(self, now, tracks, *, scene, generation):
+            return 0
+
+        def note_deaths(self, now, dead, *, scene, generation):
+            self.deaths.append((now, [t.track_id for t in dead], scene, generation))
+            return len(self.deaths)
+
+        def mark_reacquired(self, scene, track_id, death_ts, tolerance=0.5):
+            self.marks.append((scene, track_id, death_ts))
+            return True
+
+    def _dead(self, track_id):
+        return SimpleNamespace(track_id=track_id, box=(10.0, 10.0, 60.0, 80.0),
+                               ground_point=(35.0, 80.0), born_ts=990.0, score=0.8,
+                               hits=5, misses=13, evidence="candidate", degraded=False,
+                               retired_allowed=12, stationary_for=lambda _n: 1.0)
+
+    def _drive(self, out, store, meta=None):
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta=meta if meta is not None else {})
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def __init__(self, o):
+                self._o = o
+
+            def step(self, _frame):
+                return self._o
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, _Vision(out), _Src(), trajectories=store)
+        loop.step()
+        return loop
+
+    def test_a_retired_track_REACHES_the_ledger(self):
+        store = self._Store()
+        self._drive({"emissions": [], "died": [self._dead(7)], "born": []}, store)
+        self.assertEqual(len(store.deaths), 1, "the hook never reached the store")
+        _now, ids, _scene, _gen = store.deaths[0]
+        self.assertEqual(ids, [7])
+
+    def test_a_frame_with_no_deaths_writes_NOTHING(self):
+        """Not an empty row, not a zero: nothing. A ledger that logged every quiet frame
+        would bury the events it exists to hold."""
+        store = self._Store()
+        self._drive({"emissions": [], "died": [], "born": []}, store)
+        self.assertEqual(store.deaths, [])
+
+    def test_deaths_are_filed_under_the_FRAME_S_OWN_sceneId(self):
+        """Same attribution rule as the trajectory points, and it must be the SAME rule:
+        `mark_reacquired` looks the row back up by scene, so a writer and a reader that
+        disagree here produce a ledger whose re-acquisition rate is silently always zero."""
+        store = self._Store()
+        self._drive({"emissions": [], "died": [self._dead(3)], "born": []}, store,
+                    meta={"sceneId": "shop-left"})
+        self.assertEqual(store.deaths[0][2], "shop-left")
+
+    def test_a_ledger_that_EXPLODES_does_not_take_the_producer_down(self):
+        class _Boom(TrackDeathLedgerWiringTest._Store):
+            def note_deaths(self, *a, **k):
+                raise RuntimeError("ledger exploded")
+
+        pipeline = make_pipeline()
+        with self.assertLogs("edge", level="WARNING") as caught:
+            self._drive({"emissions": [], "died": [self._dead(1)], "born": []}, _Boom())
+        self.assertTrue([m for m in caught.output if "death ledger is failing" in m],
+                        "a swallowed exception that names no cause is half a decision")
+
+    def test_the_ledger_is_OPTIONAL(self):
+        """A producer started without `--trajectories` must run exactly as before."""
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def step(self, _f):
+                return {"emissions": [], "died": [], "born": []}
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, _Vision(), _Src(), trajectories=None)
+        loop.step()
+        self.assertIsNone(loop.trajectories)
+
+
 if __name__ == "__main__":
     unittest.main()
