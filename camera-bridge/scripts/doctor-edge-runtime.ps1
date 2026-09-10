@@ -84,10 +84,21 @@ if (-not (Test-Path $ConfigPath)) {
     # 'blocked' on every row and the StateNour outbox never drains -- silently, because a
     # blocked row is retried rather than failed. edge_main now load_dotenv()s so a .env in
     # this directory is enough (Codex P1 on #2255, round 8).
-    $stKey = if ($env:STATENOUR_SYNC_KEY) { $true } elseif (Test-Path (Join-Path $root ".env")) {
-        (Select-String -Path (Join-Path $root ".env") -Pattern "^\s*STATENOUR_SYNC_KEY\s*=\s*\S" -Quiet) -eq $true
-    } else { $false }
-    if ($stKey) { Check "STATENOUR_SYNC_KEY" "PASS" "resolvable (env or .env)" }
+    # CHECK WHAT THE SCHEDULED TASK WILL SEE, not what this shell inherited.
+    #
+    # The task runs AtLogOn and therefore gets a FRESH environment including User- and
+    # Machine-scope variables. A doctor that read only $env: would report WARN forever on a
+    # machine where the key was set after the current shell started -- a false negative,
+    # and exactly as misleading as the false green this check was added to prevent.
+    # Persisted scopes are read from the registry via [Environment], which is what a new
+    # process actually inherits.
+    $stSource = if ($env:STATENOUR_SYNC_KEY) { "process env" }
+        elseif ([Environment]::GetEnvironmentVariable("STATENOUR_SYNC_KEY", "User")) { "User scope (the scheduled task inherits this)" }
+        elseif ([Environment]::GetEnvironmentVariable("STATENOUR_SYNC_KEY", "Machine")) { "Machine scope" }
+        elseif ((Test-Path (Join-Path $root ".env")) -and
+                (Select-String -Path (Join-Path $root ".env") -Pattern "^\s*STATENOUR_SYNC_KEY\s*=\s*\S" -Quiet)) { ".env (loaded by edge_main)" }
+        else { $null }
+    if ($stSource) { Check "STATENOUR_SYNC_KEY" "PASS" "resolvable via $stSource" }
     else { Check "STATENOUR_SYNC_KEY" "WARN" "not set -- the AUTHORITATIVE outbox will queue forever and never drain" }
     if ($cfg -match "(?m)^\s*shopUrl:\s*\S") { Check "backend.shopUrl" "PASS" "set" }
     else { Check "backend.shopUrl" "WARN" "not set -- visits persist locally but the shop admin never updates" }

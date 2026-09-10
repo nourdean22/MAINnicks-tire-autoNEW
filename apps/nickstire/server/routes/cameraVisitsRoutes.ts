@@ -405,6 +405,30 @@ export const HEARTBEAT_GUARDED_SET = (() => {
 
 const epoch = (d: Date | null | undefined): number | null => (d ? Math.floor(d.getTime() / 1000) : null);
 
+export type ActiveRun = { runId: string; label: string | null };
+
+/**
+ * THREE states, not two, and the producer depends on telling them apart.
+ *
+ * `visitd.shop_mirror.apply_active_run` holds its current mode when the key is ABSENT and
+ * ends commissioning only on an EXPLICIT null. So:
+ *
+ *   a run is open      -> send it
+ *   looked, none open  -> send null   (this is what ENDS a run)
+ *   could NOT look     -> omit it     (a transient DB error must not end a live run)
+ *
+ * The third case is the one that was wrong: the route always sent the key, so one failed
+ * query mid-run told the producer the run was over and the rest of the test drive was
+ * tagged PRODUCTION -- permanently, since the ingest treats dataClass as immutable after
+ * insert. The second case is the one it is easy to break while fixing the third: omitting
+ * the key on a successful empty read would mean a run could be started and never ended.
+ */
+export function activeRunField(
+  activeRun: ActiveRun | null | undefined,
+): Record<string, unknown> {
+  return activeRun === undefined ? {} : { activeCommissioningRun: activeRun };
+}
+
 export function registerCameraHeartbeatRoute(app: Express): void {
   app.post("/api/camera/heartbeat", async (req: Request, res: Response) => {
     const key = process.env.CAMERA_INGEST_KEY || process.env.STATENOUR_SYNC_KEY || "";
@@ -526,7 +550,15 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       // The producer then REPORTS the run id in its next heartbeat, which lands in
       // `camera_runtime.commissioningRunId` -- so the admin can show that the edge has
       // actually acknowledged the run rather than assuming it did.
-      let activeRun: { runId: string; label: string | null } | null = null;
+      // `undefined` means COULD NOT LOOK; `null` means LOOKED AND THERE IS NONE. The
+      // producer relies on that distinction and the first version of this did not make
+      // it: `apply_active_run` keeps its current mode when the key is ABSENT and ends
+      // commissioning only on an EXPLICIT null, but this route always sent the key. So a
+      // single transient DB error mid-run sent `null`, the producer left commissioning,
+      // and the REST OF THE TEST DRIVE was tagged PRODUCTION -- permanently, because the
+      // ingest treats dataClass as immutable after insert. That is the exact failure
+      // dataClass exists to prevent. Found in this branch's own adversarial re-read.
+      let activeRun: { runId: string; label: string | null } | null | undefined;
       try {
         const openRun = (await d.execute(sql`
           SELECT runId, label FROM commissioning_runs
@@ -534,15 +566,23 @@ export function registerCameraHeartbeatRoute(app: Express): void {
           ORDER BY startedAt DESC LIMIT 1
         `)) as unknown;
         const list = (Array.isArray(openRun) ? openRun[0] : openRun) as Array<Record<string, unknown>> | undefined;
-        if (Array.isArray(list) && list.length) {
-          activeRun = { runId: String(list[0].runId), label: (list[0].label as string | null) ?? null };
-        }
+        // EXPLICITLY null when the query succeeded and found nothing. Leaving it undefined
+        // here would omit the key on a successful empty read, and the producer holds its
+        // mode when the key is absent -- so a run could be started but never ENDED. The
+        // sentinel only means "could not look"; "looked, found none" must still say null.
+        activeRun = Array.isArray(list) && list.length
+          ? { runId: String(list[0].runId), label: (list[0].label as string | null) ?? null }
+          : null;
       } catch {
-        // A missing commissioning table (migration 0121 unapplied) must NOT break the
+        // A missing commissioning table (migration 0123 unapplied) must NOT break the
         // heartbeat: producer health is the more important of the two, and a producer
         // that cannot report itself because a newer feature is half-deployed would be a
         // strictly worse outcome than one that simply never enters commissioning mode.
-        activeRun = null;
+        //
+        // Left UNDEFINED, not null, so the key is omitted and a producer already in a run
+        // holds its mode instead of being told the run ended. Before the table exists the
+        // producer has no run to hold, so this reads the same as before for that case.
+        activeRun = undefined;
       }
 
       console.info(
@@ -556,7 +596,8 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         facets: verdict.facets,
         reason: verdict.reason,
         transition,
-        activeCommissioningRun: activeRun,
+        // Omitted entirely when the run could not be read; see `activeRunField`.
+        ...activeRunField(activeRun),
       });
     } catch (err) {
       return res.status(500).json({ error: err instanceof Error ? err.message : "heartbeat write failed" });

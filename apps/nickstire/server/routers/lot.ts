@@ -53,6 +53,9 @@ import {
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
 import { isDuplicateKeyError } from "../lib/tire-order-guards";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:lot");
 
 /** Start of the shop's day, in SQL, as UTC epoch seconds. Never computed in JS. */
 const ET_DAY_START = sql`UNIX_TIMESTAMP(CONVERT_TZ(DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York')), 'America/New_York', '+00:00'))`;
@@ -323,9 +326,19 @@ async function finalizeSettledVerdicts(
          WHERE runId = ${runId}
       `);
       written++;
-    } catch {
+    } catch (err) {
       // One run that cannot be finalised must not stop the others, and must never fail
-      // the history read the operator is actually looking at.
+      // the history read the operator is actually looking at -- so this stays caught.
+      //
+      // But it must not be SILENT. A settled run with no verdict looks exactly like a run
+      // still settling, so a finalizer that throws on every call (a schema drift, a driver
+      // change) would leave every verdict unwritten forever with nothing anywhere saying
+      // why: the operator would read "provisional" and wait for something that is never
+      // coming. Found in this branch's own adversarial re-read.
+      log.warn("could not finalise a settled commissioning verdict", {
+        runId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
   return written;

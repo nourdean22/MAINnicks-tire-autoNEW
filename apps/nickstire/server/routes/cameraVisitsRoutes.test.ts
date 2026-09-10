@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  COLUMNS, GUARDED_SET, plateTextToStore,
-  HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, HEARTBEAT_ACCEPT, parseHeartbeat,
-} from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -282,5 +279,31 @@ describe("camera heartbeat ingest — the guard must survive a producer RESTART"
     const updatable = HEARTBEAT_COLUMNS.filter((c) => c !== "camera");
     expect(new Set(order)).toEqual(new Set([...updatable, "receivedAt", "stateSince"]));
     expect(HEARTBEAT_ACCEPT).toContain("producerInstanceId");
+  });
+});
+
+describe("camera heartbeat — the commissioning run has THREE states, not two", () => {
+  it("an open run is sent", () => {
+    expect(activeRunField({ runId: "C-20260910-001", label: null }))
+      .toEqual({ activeCommissioningRun: { runId: "C-20260910-001", label: null } });
+  });
+
+  it("LOOKED AND FOUND NONE sends an explicit null — this is what ENDS a run", () => {
+    // The producer holds its mode on an absent key, so omitting this would mean a
+    // commissioning run could be started and then never ended.
+    expect(activeRunField(null)).toEqual({ activeCommissioningRun: null });
+  });
+
+  it("COULD NOT LOOK omits the key entirely, so a live run is not ended by a DB blip", () => {
+    // One transient query failure mid-run used to send null, which took the producer out
+    // of commissioning and tagged the rest of the test drive PRODUCTION — permanently,
+    // because the ingest treats dataClass as immutable after insert.
+    expect(activeRunField(undefined)).toEqual({});
+    expect(Object.prototype.hasOwnProperty.call(activeRunField(undefined), "activeCommissioningRun"))
+      .toBe(false);
+  });
+
+  it("the two null-ish states are NOT interchangeable", () => {
+    expect(activeRunField(null)).not.toEqual(activeRunField(undefined));
   });
 });
