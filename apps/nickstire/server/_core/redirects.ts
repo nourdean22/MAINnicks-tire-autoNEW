@@ -136,6 +136,18 @@ const REDIRECTS: RedirectRule[] = [
   // slug still serving a 200 SPA shell (soft-404). The other three
   // above already 301 correctly in prod.
   { from: "/blog/pothole-season-suspension-damage", to: "/auto-repair-near-me", reason: "deleted blog post; soft-404. No suspension page — routes to the general-repair hub, matching /suspension-repair-cleveland" },
+
+  // 2026-09-10 · GSC soft-404 audit. /tires/info was registered in App.tsx
+  // against GenericServicePage, whose matcher is useRoute("/:slug") — a SINGLE
+  // path segment. "/tires/info" has two, so it never matched, `service` was
+  // always null, and the page rendered its own not-found branch. What shipped
+  // was HTTP 200, title "Service Not Found", visible copy "SERVICE NOT FOUND",
+  // robots noindex,nofollow — at sitemap priority 0.8 in group "service", with
+  // the registry advertising it as "Tire Services Cleveland — New & Used".
+  // Nothing in the app ever linked to it. Google was handed a sitemap URL that
+  // resolves to a dead end and told not to index it, which is both halves of a
+  // contradiction at once. /tires (priority 1.0) is the real page.
+  { from: "/tires/info", to: "/tires", reason: "never rendered: /:slug is single-segment, so this always hit GenericServicePage's not-found branch at HTTP 200. 301 rather than delete — the URL was in the sitemap, so Google has it" },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.

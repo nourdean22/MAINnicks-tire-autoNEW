@@ -385,7 +385,6 @@ function Router() {
             {/* Customer Portal */}
             <Route path={"/portal"} component={CustomerPortal} />
             {/* Tire Info (service page) */}
-            <Route path={"/tires/info"} component={GenericServicePage} />
             {/* Tire size pages (30 pages — programmatic SEO) */}
             <Route path={"/tires/:size"} component={TireSizePage} />
             {/* FAQ page */}

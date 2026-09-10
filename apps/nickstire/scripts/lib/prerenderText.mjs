@@ -45,12 +45,30 @@ import { join, dirname } from "node:path";
  * ONE LIST. prerender.mjs:289 already carried a comment pointing at the other
  * copy; a comment is not a mechanism.
  */
+// AND THEN IT HAPPENED A THIRD TIME. Hours after the list above was widened to
+// cover the in-flight state, an audit of sitemap-vs-noindex found
+// /tires/info serving HTTP 200 with the visible copy "SERVICE NOT FOUND" and
+// the title "Service Not Found" — at sitemap priority 0.8, group "service".
+// The list had "PAGE NOT FOUND". It did not have "SERVICE NOT FOUND".
+//
+// Twice is a coincidence; three times is the method being wrong. A list of copy
+// somebody remembered to enumerate will always trail the copy somebody wrote.
+// So the list below is now DERIVED BY MEASUREMENT — every uppercase
+// "<WORD> NOT FOUND" heading in client/src, enumerated with a grep — and
+// server/prerenderEmptyArtifactGate.test.ts re-derives it from the source on
+// every run and fails if the two disagree. Adding a new not-found page without
+// adding its string here is now a red test, not a silent hole.
 export const SOFT_404_MARKERS = [
-  "ARTICLE NOT FOUND",
-  "PAGE NOT FOUND",
+  "ARTICLE NOT FOUND", // BlogPost.tsx:469
+  "PAGE NOT FOUND", // CityPage.tsx:210, SeasonalPage.tsx:118, NeighborhoodPage.tsx:212
+  "SERVICE NOT FOUND", // GenericServicePage.tsx:127
+  "GUIDE NOT FOUND", // GuidePage.tsx:46
+  "CUSTOMER NOT FOUND", // admin/customers/CustomerProfile.tsx:169 — never
+  // prerendered, but listed so the derived test needs no exceptions to argue
+  // about. An exception list is the same failure mode one level up.
   // The unsettled branch. Without this the retry never fires and the empty
   // capture is committed.
-  "LOADING ARTICLE",
+  "LOADING ARTICLE", // BlogPost.tsx:458
 ];
 
 /**

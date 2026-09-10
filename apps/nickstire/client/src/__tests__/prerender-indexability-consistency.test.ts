@@ -120,6 +120,61 @@ describe("prerender indexability consistency", () => {
   });
 });
 
+/**
+ * THE CHECK ABOVE COVERS NEIGHBOURHOODS. THE SITEMAP IS WIDER THAN THAT.
+ *
+ * Everything above iterates NEIGHBORHOODS, and on 2026-09-10 that is 100% of
+ * its subject list against 146 sitemap routes. Two routes outside that list
+ * were in exactly the state this file exists to prevent — advertised in the
+ * sitemap while their committed snapshot said `noindex`, which is GSC's
+ * "Excluded by 'noindex'" bucket and a direct contradiction: the sitemap asks
+ * Google to index a page that tells Google not to.
+ *
+ *   · /refer   — ReferralPage.tsx:62 sets robots="noindex, follow" on purpose,
+ *                and routes.ts said sitemap: true. Now sitemap: false.
+ *   · /tires/info — registered against GenericServicePage, whose matcher is
+ *                useRoute("/:slug"), ONE segment. Two-segment path, never
+ *                matched, so it rendered the not-found branch: HTTP 200, title
+ *                "Service Not Found", copy "SERVICE NOT FOUND", noindex — at
+ *                priority 0.8 in group "service". Now 301s to /tires.
+ *
+ * A gate is only as wide as its subject list. This block takes the subject list
+ * from SITEMAP_ROUTES itself, so it cannot fall behind the thing it guards.
+ */
+describe("no sitemap route advertises a page that refuses to be indexed", () => {
+  const withSnapshot = SITEMAP_ROUTES.map((route) => {
+    const file =
+      route.path === "/"
+        ? join(PRERENDERED, "index.html")
+        : join(PRERENDERED, route.path.slice(1), "index.html");
+    if (!existsSync(file)) return null;
+    const robots = /<meta\b[^>]*\bname=["']robots["'][^>]*>/i.exec(readFileSync(file, "utf8"))?.[0] ?? "";
+    return { path: route.path, robots };
+  }).filter((r): r is { path: string; robots: string } => r !== null);
+
+  it("read real snapshots for the whole sitemap — the positive control", () => {
+    // Without this, a wrong PRERENDERED path makes every route resolve to "no
+    // snapshot", the assertion below inspects an empty list, and the green
+    // means nothing.
+    expect(withSnapshot.length).toBeGreaterThan(100);
+    expect(withSnapshot.some((r) => r.robots !== "")).toBe(true);
+  });
+
+  it("every sitemap route's snapshot is indexable", () => {
+    const contradictions = withSnapshot
+      .filter((r) => /noindex/i.test(r.robots))
+      .map((r) => `${r.path}: in the sitemap but its snapshot says ${r.robots}`);
+    expect(
+      contradictions,
+      `\n${contradictions.join("\n")}\n\n` +
+        `Either drop the route from the sitemap (sitemap: false in shared/routes.ts)\n` +
+        `or stop emitting noindex on the page. Shipping both puts the URL in GSC's\n` +
+        `"Excluded by 'noindex'" bucket, where it counts against the site and\n` +
+        `converts nothing.\n`,
+    ).toEqual([]);
+  });
+});
+
 describe("canary — the checker actually catches the drift it exists for", () => {
   // A real, IN-SCOPE (group:"neighborhood") neighborhood that HAS a committed
   // noindex snapshot. Pretending it is indexed:true is exactly the PR #2094

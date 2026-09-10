@@ -481,16 +481,15 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
-  {
-    path: "/tires/info",
-    priority: 0.8,
-    changefreq: "monthly",
-    title: "Tire Services Cleveland — New & Used | Nick's Tire & Auto",
-    description: "Cleveland's largest new & used tire selection. Free mounting, balancing, TPMS reset, alignment check with every tire. Flat repair from $15. Walk-ins welcome 7 days.",
-    group: "service",
-    sitemap: true,
-    prerender: true,
-  },
+  // 2026-09-10 · /tires/info REMOVED. It was registered against
+  // GenericServicePage, whose matcher is useRoute("/:slug") — one segment — so a
+  // two-segment path never matched and the page always rendered its own
+  // not-found branch: HTTP 200, title "Service Not Found", visible copy
+  // "SERVICE NOT FOUND", robots noindex,nofollow, while this entry advertised it
+  // to Google at priority 0.8 as "Tire Services Cleveland". Nothing linked to
+  // it. It now 301s to /tires (server/_core/redirects.ts), which is the real
+  // page at priority 1.0 — and the sitemap builder already drops redirected
+  // paths, so it cannot come back through this file.
   { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland OH — Nick's Tire & Auto", description: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland OH — Nick's Tire & Auto", description: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Repair Cleveland — Nick's Tire & Auto", description: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
@@ -1131,7 +1130,15 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Referral Program — Nick's Tire & Auto Cleveland",
     description: "Refer a friend to Nick's Tire & Auto and you both save on auto repair. Earn rewards on tires, brakes, oil changes, and more. Cleveland's best referral program.",
     group: "utility",
-    sitemap: true,
+    // 2026-09-10 · sitemap FALSE. ReferralPage.tsx:62 sets
+    // robots="noindex, follow" deliberately, and this said sitemap: true — so
+    // every crawl of it landed in GSC's "Excluded by 'noindex'" bucket: we were
+    // asking Google to index a page that tells Google not to. Of the two ways
+    // to end the contradiction, dropping it from the sitemap is the reversible
+    // one; flipping the page to index changes what is publicly searchable and
+    // is an operator call, not a cleanup. Still prerendered — the page is real
+    // and linked internally, it just is not advertised.
+    sitemap: false,
     prerender: true,
   },
   {
