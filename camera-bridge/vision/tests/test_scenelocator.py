@@ -12,7 +12,8 @@ import pytest
 from vision.scenelocator import (MAX_EDGE_TILT_DEG, MIN_INLIERS, MIN_SIDE_PX, SceneBinding,
                                  SceneNotLocated, _linear_is_sane, _quad_is_sane, advance,
                                  build_reference,
-                                 canonicalise, load_atlas, locate, locate_all)
+                                 canonicalise, lands_on_a_pane, load_atlas, locate,
+                                 locate_all)
 
 
 def _scene(seed: int, size=(320, 180)) -> np.ndarray:
@@ -421,3 +422,91 @@ def test_the_matcher_actually_CONSULTS_the_linear_sanity_rule(monkeypatch):
     monkeypatch.setattr(scenelocator, "_linear_is_sane", lambda H: "refused by the probe")
     with pytest.raises(SceneNotLocated, match="could be located"):
         locate(frame, [ref])
+
+
+# --- The pane cross-check: an independent signal, because match quality cannot catch this --
+
+
+def test_a_quad_that_lands_on_a_detected_pane_is_accepted():
+    """The positive control. A rule that rejected everything would make the test below pass
+    while blocking every legitimate match."""
+    pane = (497, 503, 1559, 877)
+    quad = ((497.0, 503.0), (2056.0, 503.0), (2056.0, 1380.0), (497.0, 1380.0))
+    assert lands_on_a_pane(quad, [pane])
+
+
+def test_the_MEASURED_PTZ_FALSE_POSITIVE_is_rejected():
+    """Real numbers from the real window. After the operator nudged the PTZ, its stored
+    reference still matched at 158 inliers, ratio 0.81, a sane quad and 1.33px reprojection
+    -- every gate green -- and placed the pane at x=1120 when the pane is at x=497.
+
+    Nothing was broken. The lens had panned, so the old view's CONTENT really does sit
+    somewhere else now and the homography faithfully reported where. The answer is faithful
+    and useless, because the rectangle is not where that camera's pixels are. Only an
+    INDEPENDENT signal catches it: `panedetect` finds live video by temporal variance and
+    knows nothing about appearance, so the two agreeing means something."""
+    panes = [(497, 65, 779, 438), (1276, 65, 779, 438), (497, 503, 1559, 877)]
+    false_positive = ((1120.0, 465.8), (2611.0, 465.8), (2611.0, 1383.8), (1120.0, 1383.8))
+    assert not lands_on_a_pane(false_positive, panes)
+
+    # ... and the genuine `shop-right` hit from the same run still passes.
+    genuine = ((1265.7, 47.9), (2064.7, 47.9), (2064.7, 504.9), (1265.7, 504.9))
+    assert lands_on_a_pane(genuine, panes)
+
+
+def test_NO_PANES_means_no_opinion_rather_than_an_invented_verdict():
+    """A caller with no independent signal must not have one fabricated for it. Returning
+    False here would silently disable the locator for every caller that cannot run pane
+    detection; returning True says 'this rule cannot judge', which is the truth."""
+    quad = ((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0))
+    assert lands_on_a_pane(quad, None)
+    assert lands_on_a_pane(quad, [])
+
+
+def test_locate_all_DROPS_a_hit_that_does_not_land_on_a_pane():
+    """End to end through the real entry point, not just the helper."""
+    refs = [build_reference(SHOPSIGN, "left", "day")]
+    frame = _multi_window([(SHOPSIGN, (300, 200, 500, 281))])
+    assert [f.scene_id for f in locate_all(frame, refs)] == ["left"]
+    elsewhere = [(1000, 600, 200, 112)]        # a pane nowhere near the match
+    assert locate_all(frame, refs, panes=elsewhere) == []
+    on_target = [(300, 200, 500, 281)]
+    assert [f.scene_id for f in locate_all(frame, refs, panes=on_target)] == ["left"]
+
+
+def test_locate_REFUSES_when_the_only_match_is_off_pane():
+    refs = [build_reference(SHOPSIGN, "left", "day")]
+    frame = _multi_window([(SHOPSIGN, (300, 200, 500, 281))])
+    with pytest.raises(SceneNotLocated, match="could be located"):
+        locate(frame, refs, panes=[(1000, 600, 200, 112)])
+
+
+def test_a_scene_is_found_across_a_LARGE_UPSCALE(tmp_path):
+    """The fullscreen case, in miniature. ORB correspondences thin out badly when the live
+    instance is much larger than the stored reference -- measured on the real window, a 2.3x
+    jump took shop-right from 71 inliers down to 7 and the scene was lost entirely."""
+    ref = build_reference(SHOPSIGN, "shopsign", "small")     # 320x180 reference
+    big = _window(SHOPSIGN, at=(100, 100), window=(2304, 1464), pane=(1600, 900))
+    found = locate(big, [ref])
+    assert found.scene_id == "shopsign"
+    x = min(p[0] for p in found.quad)
+    y = min(p[1] for p in found.quad)
+    assert abs(x - 100) < 40 and abs(y - 100) < 40, f"located at {x:.0f},{y:.0f}"
+
+
+def test_the_HOMOGRAPHY_from_a_downscaled_search_still_warps_full_frame_pixels():
+    """The quad and the homography are lifted back from a downscaled search separately, so a
+    correct quad proves nothing about the matrix -- and the matrix is what `canonicalise`
+    uses. A mutation that left the homography in downscaled coordinates passed every other
+    test here while making the canonical warp silently wrong, which is the precise failure
+    the whole module exists to prevent."""
+    ref = build_reference(SHOPSIGN, "shopsign", "small")
+    big = _window(SHOPSIGN, at=(100, 100), window=(2304, 1464), pane=(1600, 900))
+    found = locate(big, [ref])
+    back = canonicalise(big, found, (SHOPSIGN.shape[1], SHOPSIGN.shape[0]))
+    a = back.astype(np.float32).mean(axis=2)
+    b = SHOPSIGN.astype(np.float32).mean(axis=2)
+    corr = float(np.corrcoef(a.ravel(), b.ravel())[0, 1])
+    assert corr > 0.8, (
+        f"the canonical warp does not line up (r={corr:.2f}) -- the homography was not "
+        "lifted out of the downscaled search frame")

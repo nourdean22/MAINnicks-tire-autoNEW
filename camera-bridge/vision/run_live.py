@@ -39,7 +39,8 @@ from vision.detector import (  # noqa: E402
 from vision.evidence import EvidenceStore  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
-                               resolve_channel)
+                               detect_live_region, resolve_channel,
+                               split_into_channels)
 from vision.scenelocator import (SceneNotLocated, advance, load_atlas,  # noqa: E402
                                  locate)
 from vision.pipeline import VisionPipeline  # noqa: E402
@@ -251,7 +252,24 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
         raise SceneNotLocated(
             f"no frames could be captured from {title_of(src)!r}, so no scene can be located"
         )
-    found = locate(frames[-1], refs)
+    # CROSS-CHECK AGAINST AN INDEPENDENT SIGNAL before binding any geometry. `panedetect`
+    # finds live video by temporal variance and knows nothing about appearance, so the two
+    # agreeing about WHERE the pane is means something that neither can establish alone.
+    #
+    # This is not defensive padding. Measured on the real window after the operator nudged
+    # the PTZ, its stored reference matched at 158 inliers with a 0.81 ratio and a 1.33px
+    # reprojection error -- every match-quality gate green -- and placed the pane 623px from
+    # where that camera's pixels actually are. The lens had panned, so the old view's content
+    # genuinely does sit elsewhere now; the homography was faithful and useless. No match
+    # quality can catch that, because the fit is correct. Only a second opinion can.
+    panes = None
+    try:
+        region = detect_live_region(frames)
+        if region is not None:
+            panes = split_into_channels(region, frames[-1]) or None
+    except Exception:  # noqa: BLE001 - no second opinion is not a reason to refuse to start
+        panes = None
+    found = locate(frames[-1], refs, panes=panes)
     binding, _ = advance(None, found)
     src.set_canonical(found.homography, calibration_size, found.scene_id, binding.epoch)
     print(f"scene located: {found.describe()} epoch={binding.epoch} "

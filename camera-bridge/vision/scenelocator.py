@@ -62,6 +62,11 @@ MIN_SIDE_PX = 24.0
 #: Largest condition number the homography's linear part may have. A scaled, axis-aligned
 #: pane maps to ~1.0 (uniform scale); anything past this has collapsed a dimension.
 MAX_CONDITION = 8.0
+#: How much a located quad must overlap a detected live pane before geometry may be bound
+#: to it. 0.6 accepts the few-pixel disagreement between an appearance match and a
+#: temporal-variance one; it rejects the measured PTZ false positive, whose quad sat 623px
+#: from the real pane.
+MIN_PANE_IOU = 0.6
 #: Absolute minimum inliers. Below this a homography is fitting noise, whatever its ratio.
 MIN_INLIERS = 18
 #: Inliers as a fraction of matches. A low ratio with a high count is a repeated texture
@@ -340,8 +345,47 @@ def _match_one(frame_kps, frame_desc, ref: SceneReference, window: Tuple[int, in
     return ref, corners, H, inliers, ratio, reproj
 
 
+#: Frame scales tried, in order, when searching for a scene. 1.0 first: it is both the
+#: common case and the cheapest.
+#:
+#: WHY THIS EXISTS, measured on the real window rather than guessed. ORB is scale-invariant
+#: across its own pyramid, but correspondences thin out badly when the live instance is much
+#: LARGER than the stored reference -- which is exactly what happens the moment an operator
+#: puts the app fullscreen. Measured across a 2.3x jump (1280x720 windowed to 2304x1464
+#: fullscreen), with the references unchanged:
+#:
+#:     scale 1.00   shop-left 5 inliers   shop-right 7    shop-ptz 27
+#:     scale 0.43   shop-left 10          shop-right 71   shop-ptz 43
+#:
+#: A control reference built from the fullscreen frame itself matched at 2020 inliers, ratio
+#: 0.93, which proves the machinery was never the problem -- only the scale gap was.
+#:
+#: The fix is to bring the instance back toward the reference's scale. It is NOT to lower the
+#: inlier floor: that would have made this case "pass" while admitting precisely the thin,
+#: low-ratio fits (0.37-0.40) the floor exists to reject.
+SEARCH_SCALES = (1.0, 0.6, 0.43, 0.3)
+
+
+def _scaled(frame: np.ndarray, scale: float) -> np.ndarray:
+    if scale == 1.0:
+        return frame
+    import cv2
+
+    height, width = frame.shape[:2]
+    return cv2.resize(frame, (max(1, int(width * scale)), max(1, int(height * scale))),
+                      interpolation=cv2.INTER_AREA)
+
+
+def _unscale(H: np.ndarray, scale: float) -> np.ndarray:
+    """Lift a homography found on a downscaled frame back into full-frame coordinates."""
+    if scale == 1.0:
+        return np.asarray(H, dtype=np.float64)
+    return np.diag([1.0 / scale, 1.0 / scale, 1.0]) @ np.asarray(H, dtype=np.float64)
+
+
 def locate(frame: np.ndarray, references: Sequence[SceneReference],
-           require_axis_aligned: bool = True) -> Located:
+           require_axis_aligned: bool = True,
+           panes: Optional[Sequence[Tuple[int, int, int, int]]] = None) -> Located:
     """Find the best-supported known scene in `frame`. Raises rather than guessing.
 
     Every reference is tried, not just the first that clears the bar, because the decision
@@ -353,12 +397,24 @@ def locate(frame: np.ndarray, references: Sequence[SceneReference],
 
     if not references:
         raise SceneNotLocated("no references were supplied, so no scene can be identified")
-    grey = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    kps, desc = _orb().detectAndCompute(grey, None)
-    window = (int(frame.shape[0]), int(frame.shape[1]))
-
-    scored = [r for r in (_match_one(kps, desc, ref, window, require_axis_aligned)
-                          for ref in references) if r is not None]
+    scored: List[tuple] = []
+    for scale in SEARCH_SCALES:
+        view = _scaled(frame, scale)
+        grey = view if view.ndim == 2 else cv2.cvtColor(view, cv2.COLOR_BGR2GRAY)
+        kps, desc = _orb().detectAndCompute(grey, None)
+        window = (int(view.shape[0]), int(view.shape[1]))
+        hits = [r for r in (_match_one(kps, desc, ref, window, require_axis_aligned)
+                            for ref in references) if r is not None]
+        hits = [h for h in hits
+                if lands_on_a_pane(tuple((x / scale, y / scale) for x, y in h[1]), panes)]
+        if hits:
+            # Lift every result back into FULL-FRAME coordinates before it leaves this loop.
+            # A quad left in downscaled pixels is a silently wrong rectangle downstream --
+            # exactly the class of error this module exists to remove.
+            scored = [(ref, tuple((x / scale, y / scale) for x, y in corners),
+                       _unscale(H, scale), inl, ratio, reproj)
+                      for ref, corners, H, inl, ratio, reproj in hits]
+            break
     if not scored:
         raise SceneNotLocated(
             f"none of the {len(references)} known scenes could be located in this "
@@ -436,6 +492,48 @@ def load_atlas(directory: str) -> List[SceneReference]:
     return refs
 
 
+def _bbox(quad) -> Tuple[float, float, float, float]:
+    xs = [p[0] for p in quad]
+    ys = [p[1] for p in quad]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _iou(a, b) -> float:
+    ax0, ay0, ax1, ay1 = a
+    bx0, by0, bx1, by1 = b
+    ix = max(0.0, min(ax1, bx1) - max(ax0, bx0))
+    iy = max(0.0, min(ay1, by1) - max(ay0, by0))
+    inter = ix * iy
+    union = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
+    return 0.0 if union <= 0 else inter / union
+
+
+def lands_on_a_pane(quad, panes: Optional[Sequence[Tuple[int, int, int, int]]],
+                    min_iou: float = MIN_PANE_IOU) -> bool:
+    """Does this located quad actually sit on a live video pane?
+
+    THE FALSE POSITIVE THIS KILLS, measured on the real window. After the operator nudged the
+    PTZ, its stored reference still matched at 158 inliers with a 0.81 inlier ratio, a sane
+    quad and a 1.33px reprojection error -- every gate green -- and placed the pane at x=1120
+    when the pane is actually at x=497. Nothing was broken: the lens had panned, so the old
+    view's CONTENT genuinely does sit somewhere else now, and the homography faithfully
+    reported where. The answer is faithful and useless, because the rectangle it describes is
+    not where that camera's pixels are.
+
+    No amount of match quality can catch this, which is the point: it is a confident, correct
+    fit to a scene that has moved. What catches it is an INDEPENDENT signal -- `panedetect`
+    finds live video by temporal variance, which knows nothing about appearance -- and the
+    two must agree about where the pane is before geometry may be bound to it.
+
+    `panes=None` means the caller has no independent opinion, and then this cannot judge:
+    it returns True rather than inventing a verdict.
+    """
+    if not panes:
+        return True
+    box = _bbox(quad)
+    return any(_iou(box, (x, y, x + w, y + h)) >= min_iou for x, y, w, h in panes)
+
+
 def _boxes_overlap(a, b, limit: float = 0.30) -> bool:
     ax0, ax1 = min(p[0] for p in a), max(p[0] for p in a)
     ay0, ay1 = min(p[1] for p in a), max(p[1] for p in a)
@@ -449,7 +547,8 @@ def _boxes_overlap(a, b, limit: float = 0.30) -> bool:
 
 
 def locate_all(frame: np.ndarray, references: Sequence[SceneReference],
-               require_axis_aligned: bool = True) -> List[Located]:
+               require_axis_aligned: bool = True,
+               panes: Optional[Sequence[Tuple[int, int, int, int]]] = None) -> List[Located]:
     """EVERY known scene present in the frame, strongest first. Never raises; may be empty.
 
     WHY THIS EXISTS SEPARATELY FROM `locate`. A 3-in-1 device puts three cameras on screen
@@ -471,11 +570,31 @@ def locate_all(frame: np.ndarray, references: Sequence[SceneReference],
 
     if not references:
         return []
-    grey = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    kps, desc = _orb().detectAndCompute(grey, None)
-    window = (int(frame.shape[0]), int(frame.shape[1]))
-    scored = [r for r in (_match_one(kps, desc, ref, window, require_axis_aligned)
-                          for ref in references) if r is not None]
+    # ACCUMULATE ACROSS SCALES rather than stopping at the first that finds anything. A
+    # multi-lens window legitimately holds a large pane that matches at 1.0 and small ones
+    # that only match downscaled, so breaking early would silently return a subset -- and a
+    # subset is indistinguishable from "that camera is not on screen".
+    scored: List[tuple] = []
+    best_for: dict = {}
+    for scale in SEARCH_SCALES:
+        view = _scaled(frame, scale)
+        grey = view if view.ndim == 2 else cv2.cvtColor(view, cv2.COLOR_BGR2GRAY)
+        kps, desc = _orb().detectAndCompute(grey, None)
+        window = (int(view.shape[0]), int(view.shape[1]))
+        for hit in (_match_one(kps, desc, ref, window, require_axis_aligned)
+                    for ref in references):
+            if hit is None:
+                continue
+            ref, corners, H, inl, ratio, reproj = hit
+            lifted = tuple((x / scale, y / scale) for x, y in corners)
+            if not lands_on_a_pane(lifted, panes):
+                continue
+            key = (ref.scene_id, ref.variant)
+            if key in best_for and best_for[key][3] >= inl:
+                continue
+            best_for[key] = (ref, tuple((x / scale, y / scale) for x, y in corners),
+                             _unscale(H, scale), inl, ratio, reproj)
+    scored = list(best_for.values())
     scored.sort(key=lambda r: (r[3], -r[5]), reverse=True)
 
     out: List[Located] = []
