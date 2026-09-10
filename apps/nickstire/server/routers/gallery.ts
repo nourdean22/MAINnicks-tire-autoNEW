@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { getDbTyped } from "../db";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import {
   getPublicGalleryItems, getAllGalleryItems, createGalleryItem,
@@ -14,6 +15,9 @@ import { sanitizeText } from "../sanitize";
 export const galleryRouter = router({
   /** Get published gallery items (public) */
   list: publicProcedure.query(async () => {
+    if (!(await getDbTyped())) {
+      throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Gallery store unavailable - this is a read failure, not an empty gallery." });
+    }
     return getPublicGalleryItems();
   }),
 
