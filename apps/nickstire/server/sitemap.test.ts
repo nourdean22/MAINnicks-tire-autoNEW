@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 /**
  * Sitemap & Robots.txt structural tests.
@@ -102,7 +103,14 @@ describe("sitemap lastmod is real, never a request-time date", () => {
       fs.readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8"),
     );
     // The defect being guarded: a `new Date()` anywhere in the lastmod path.
-    const lastmodHelper = src.slice(src.indexOf("const sitemapLastmod"), src.indexOf("const sitemapLastmod") + 400);
+    //
+    // sliceBlock, not src.slice(src.indexOf(...)) - caught by this repo's own
+    // fail-open-slice gate on the first push of this branch. A missing anchor
+    // makes indexOf return -1, slice() then reads from the END of the file, and
+    // the assertion passes against unrelated text. sliceBlock throws instead.
+    const lastmodHelper = sliceBlock(src, "const sitemapLastmod", "// Sitemap.xml", {
+      label: "_core/index.ts",
+    });
     expect(lastmodHelper, "lastmod must come from a supplied Date, never from now()").not.toContain("new Date()");
   });
 });
