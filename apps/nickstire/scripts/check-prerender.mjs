@@ -28,12 +28,22 @@ if (!fs.existsSync(PRERENDER_DIR)) {
   process.exit(2);
 }
 
-// Compute expected set from PRERENDER_ROUTES + BLOG_SLUGS via tsx.
+// Compute the expected set AND the sitemap subset from ONE tsx call. A second
+// nested -e string would be a second place for the two lists to drift apart.
+//
+// NO ARROW FUNCTIONS in this payload. It is a double-quoted shell string, and
+// Windows reads the ">" in "=>" as a redirect — which surfaces as
+// "SyntaxError: Invalid or unexpected token" with nothing pointing at the
+// real cause. Use function declarations and for-loops here.
 const expectedJson = execSync(
-  `node --import tsx -e "import { PRERENDER_ROUTES, BLOG_SLUGS } from './shared/routes.ts'; const e = []; for (const r of PRERENDER_ROUTES) e.push(r.path === '/' ? 'index.html' : r.path.replace(/^\\//, '') + '/index.html'); for (const s of BLOG_SLUGS) e.push('blog/' + s + '/index.html'); console.log(JSON.stringify(e));"`,
+  `node --import tsx -e "import { PRERENDER_ROUTES, BLOG_SLUGS, SITEMAP_ROUTES } from './shared/routes.ts'; function f(p){ return p === '/' ? 'index.html' : p.replace(/^\\//, '') + '/index.html'; } const e = []; for (const r of PRERENDER_ROUTES) e.push(f(r.path)); for (const s of BLOG_SLUGS) e.push('blog/' + s + '/index.html'); const m = []; for (const r of SITEMAP_ROUTES) m.push(f(r.path)); console.log(JSON.stringify({ e: e, m: m }));"`,
   { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
 );
-const expected = new Set(JSON.parse(expectedJson));
+const parsed = JSON.parse(expectedJson);
+const expected = new Set(parsed.e);
+/** Artifacts for URLs we advertise to crawlers. A gap here is indexed, not just uncrawled. */
+const sitemapExpected = new Set(parsed.m);
+
 
 // Compute actual set from prerendered/.
 const actual = new Set();
@@ -62,6 +72,34 @@ if (missing.length > 0) {
 if (extra.length > 0 && process.env.VERBOSE) {
   console.log("\nExtras (prerendered but not in source — usually fine):");
   for (const e of extra.slice(0, 50)) console.log("  - " + e);
+}
+
+// A tolerance of 5 was hiding a real regression. On 2026-09-10 three job leaf
+// pages shipped with sitemap:true + prerender:true, their artifacts were never
+// generated, and this gate printed all three by name and then exited 0 —
+// "OK." — because 3 <= 5. Three URLs sat in the sitemap serving an empty SPA
+// shell to crawlers while a brand-new test suite reported the fix as shipped,
+// because that suite asserted the registry BOOLEAN rather than the artifact.
+//
+// A missing artifact for a SITEMAP route is never tolerable: the URL is
+// advertised, so the empty shell is what gets indexed. The count tolerance
+// survives only for non-sitemap prerender entries, where a gap costs crawl
+// budget rather than an indexed blank page.
+const missingSitemap = missing.filter((m) => sitemapExpected.has(m));
+if (missingSitemap.length > 0) {
+  console.error(
+    [
+      "",
+      `FAIL: ${missingSitemap.length} SITEMAP route(s) have no prerendered artifact.`,
+      "These URLs are advertised to crawlers and would serve an empty shell:",
+      ...missingSitemap.map((m) => "  - " + m),
+      "",
+      "Run the prerender refresh workflow — it carries GOOGLE_MAPS_API_KEY.",
+      "A local 'pnpm run regen' without that key strips the live review cards",
+      "from /reviews.",
+    ].join("\n")
+  );
+  process.exit(1);
 }
 
 if (missing.length > 5) {

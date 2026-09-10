@@ -48,11 +48,49 @@ describe("one job per leaf page", () => {
     }
   });
 
-  it("every open opening's leaf route is in the sitemap and prerendered", () => {
+  it("every open opening's leaf route is flagged for sitemap and prerender", () => {
     for (const job of openJobOpenings()) {
       const route = ROUTES.find((r) => r.path === jobOpeningPath(job.slug));
       expect(route?.sitemap, `${job.slug} leaf is not in the sitemap`).toBe(true);
-      expect(route?.prerender, `${job.slug} leaf is not prerendered`).toBe(true);
+      expect(route?.prerender, `${job.slug} leaf is not FLAGGED for prerender`).toBe(true);
+    }
+  });
+
+  it("the prerendered ARTIFACT Googlebot is served actually matches", () => {
+    // THE GAP THIS FILE ORIGINALLY SHIPPED WITH. The assertion above checks a
+    // REGISTRY BOOLEAN — a config flag saying a page ought to be prerendered.
+    // Googlebot is served prerendered/<path>/index.html, and that file is
+    // produced by a separate regen step. So the first version of this suite
+    // went green while the artifact still carried three JobPostings on
+    // /careers and no file at all for the three new leaves — a config flag
+    // reporting a fix the crawler could not see.
+    //
+    // scripts/check-prerender.mjs did not catch it either: it only fails above
+    // FIVE missing files, and this change adds exactly three.
+    const read = (p: string) => {
+      try {
+        return readFileSync(resolve(APP, p), "utf8");
+      } catch {
+        return null;
+      }
+    };
+
+    const list = read("prerendered/careers/index.html");
+    expect(list, "prerendered/careers/index.html is missing entirely").not.toBeNull();
+    const listBlocks = (list!.match(/"@type"s*:s*"JobPosting"/g) ?? []).length;
+    expect(
+      listBlocks,
+      `the artifact Googlebot receives for /careers still carries ${listBlocks} JobPosting object(s) — run the prerender refresh`,
+    ).toBe(0);
+
+    for (const job of openJobOpenings()) {
+      const html = read(`prerendered/careers/${job.slug}/index.html`);
+      expect(
+        html,
+        `prerendered/careers/${job.slug}/index.html does not exist — this URL is in the sitemap and serves an empty SPA shell to crawlers`,
+      ).not.toBeNull();
+      const n = (html!.match(/"@type"s*:s*"JobPosting"/g) ?? []).length;
+      expect(n, `${job.slug} artifact carries ${n} JobPosting objects, expected exactly 1`).toBe(1);
     }
   });
 
@@ -88,13 +126,20 @@ describe("JobPosting schema correctness", () => {
     }
   });
 
-  it("validThrough is in the FUTURE relative to datePosted", () => {
-    // A validThrough already past on the day it ships is worse than none: it
-    // tells Google to drop a job that is genuinely open.
+  it("validThrough has not already passed — checked against NOW, not datePosted", () => {
+    // The first version compared validThrough to datePosted. "2026-12-31 is
+    // after 2026-09-09" is true FOREVER, so on 2027-01-01 all three postings
+    // would silently expire out of Google Jobs while this test stayed green —
+    // an assertion that can never fail is not a guard.
+    const now = Date.now();
     for (const job of openJobOpenings()) {
       expect(
         new Date(job.validThrough).getTime(),
-        `${job.slug}: validThrough is not after datePosted`,
+        `${job.slug}: validThrough ${job.validThrough} has PASSED — the posting is expired in Google's eyes while the role is still open`,
+      ).toBeGreaterThan(now);
+      expect(
+        new Date(job.validThrough).getTime(),
+        `${job.slug}: validThrough precedes datePosted`,
       ).toBeGreaterThan(new Date(job.datePosted).getTime());
     }
   });
