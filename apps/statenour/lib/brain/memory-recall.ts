@@ -207,7 +207,38 @@ export interface RecallReport {
   // was unmeasured — `hitCount` was logged, the actual distance signal
   // was computed (per-hit) and discarded. -1 when no hits.
   avgKnnDistance: number;
+  /**
+   * 2026-09-10 · EMPTY vs ERROR vs UNMEASURED.
+   *
+   * `hits: []` used to mean four different things -- genuine no-match,
+   * a failed query embedding, an invalid embedding, and an empty query
+   * -- and every one of them rendered in the Memory Inspector as the
+   * same "(0) No semantic memory hits retrieved". The 2026-09-10 audit
+   * caught exactly that: a turn synthesising weeks of context showed
+   * (0), which read as "Nick believes nothing about you" when it
+   * almost certainly meant "the embedding call fell over".
+   *
+   * This lane has NO min-score and its durable sub-lane returns up to
+   * 10 rows unconditionally, so a true zero against a populated corpus
+   * is nearly impossible. A `(0)` here is therefore far more likely to
+   * be a failure than a miss -- which is precisely why the two must
+   * never render the same.
+   *
+   * Vocabulary matches the existing panel contract in
+   * components/brain/contradiction-resolution-panel.tsx.
+   */
+  provenance: RecallProvenance;
+  /** Human-readable cause when provenance is ERROR or UNMEASURED. */
+  provenanceReason?: string;
 }
+
+/**
+ * OK        - the search ran and returned rows.
+ * ZERO      - the search ran and genuinely matched nothing.
+ * ERROR     - the read failed. State unknown, NOT empty.
+ * UNMEASURED- the read never ran (guard/precondition not met).
+ */
+export type RecallProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
 
 /**
  * 2026-08-27 · durable-lane fusion (levers run, eval-datasets/levers*-2026-08-27).
@@ -267,7 +298,15 @@ export async function recallMemoriesForQuery(
   const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
 
   if (!query?.trim()) {
-    return { query, durationMs: 0, scanned: 0, hits: [], avgKnnDistance: -1 };
+    return {
+      query,
+      durationMs: 0,
+      scanned: 0,
+      hits: [],
+      avgKnnDistance: -1,
+      provenance: "UNMEASURED",
+      provenanceReason: "empty query -- recall never ran",
+    };
   }
 
   // 1. Get embedding for the query
@@ -277,7 +316,15 @@ export async function recallMemoriesForQuery(
   }
   if (!queryEmb || queryEmb.length === 0) {
     log.warn("recall_no_embedding", { queryLen: query.length });
-    return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
+    return {
+      query,
+      durationMs: Date.now() - t0,
+      scanned: 0,
+      hits: [],
+      avgKnnDistance: -1,
+      provenance: "ERROR",
+      provenanceReason: "query embedding unavailable -- recall could not run",
+    };
   }
 
   const padded = padToTargetDim(queryEmb);
@@ -289,7 +336,15 @@ export async function recallMemoriesForQuery(
   for (let i = 0; i < padded.length; i++) {
     if (!Number.isFinite(padded[i])) {
       log.warn("recall_invalid_embedding", { idx: i, val: padded[i] });
-      return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
+      return {
+        query,
+        durationMs: Date.now() - t0,
+        scanned: 0,
+        hits: [],
+        avgKnnDistance: -1,
+        provenance: "ERROR",
+        provenanceReason: "query embedding contained a non-finite value",
+      };
     }
   }
   const vecLit = `[${padded.join(",")}]`;
@@ -489,6 +544,9 @@ export async function recallMemoriesForQuery(
     scanned: scannedCount,
     hits: scored,
     avgKnnDistance,
+    // A measured zero. Distinct from every ERROR return above -- this
+    // one means the lanes actually executed.
+    provenance: scored.length > 0 ? "OK" : "ZERO",
   };
 }
 
@@ -521,6 +579,69 @@ export function renderFactStatus(hit: RecallHit): string {
  * the whole memory index documents. Kill-switch:
  * RECALL_FACT_AGE_DISABLED=1 restores the legacy last_seen rendering.
  */
+/**
+ * 2026-09-10 · what the Memory Inspector should SAY about a recall.
+ *
+ * The audit's finding was a rendering failure, not only a retrieval one:
+ * "REMEMBERED -- WHAT NICK BELIEVES (0)" is what the operator saw when
+ * the embedding call had fallen over, and it reads as "Nick has no
+ * memory of you" rather than "the memory read failed". Those are
+ * opposite claims and they were rendering identically.
+ *
+ * Pure, so the panel and any server-side summary cannot drift.
+ * `unlock` names what would move the number -- an empty state that does
+ * not say how to leave it is a dead end.
+ */
+export interface RecallStateView {
+  provenance: RecallProvenance;
+  /** One line, operator-facing. Never says "0" unless a search truly ran. */
+  headline: string;
+  /** What would change this reading. Null when nothing is wrong. */
+  unlock: string | null;
+  /** True when the count is a fact about memory; false when it is a fact about the instrument. */
+  countIsMeaningful: boolean;
+}
+
+export function describeRecallState(
+  hitCount: number,
+  provenance: RecallProvenance,
+  reason?: string,
+): RecallStateView {
+  switch (provenance) {
+    case "OK":
+      return {
+        provenance,
+        headline: `${hitCount} memor${hitCount === 1 ? "y" : "ies"} retrieved`,
+        unlock: null,
+        countIsMeaningful: true,
+      };
+    case "ZERO":
+      // A real zero, and it needs its denominator: this lane has no
+      // min-score and its durable sub-lane returns rows unconditionally,
+      // so a genuine zero means the corpus had nothing in range at all.
+      return {
+        provenance,
+        headline: "Searched memory -- nothing matched this turn",
+        unlock: "Recall ran against every eligible memory and found no match above the category filter.",
+        countIsMeaningful: true,
+      };
+    case "ERROR":
+      return {
+        provenance,
+        headline: "Memory read failed -- state unknown, not empty",
+        unlock: reason ?? "The recall lane errored or timed out. Nick may well remember this; the lookup did not complete.",
+        countIsMeaningful: false,
+      };
+    case "UNMEASURED":
+      return {
+        provenance,
+        headline: "Memory not queried this turn",
+        unlock: reason ?? "Recall was not attempted for this turn.",
+        countIsMeaningful: false,
+      };
+  }
+}
+
 export function formatRecallForPrompt(hits: RecallHit[]): string {
   if (hits.length === 0) return "";
   // S-1 completion (2026-09-02 self-review) · this block renders BrainMemory

@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { stripVerifierBanner } from "@/lib/ai/chat/fabrication-rewriter";
 
 /** A conversation-list row · matches the legacy `/api/ai/chat` shape. */
 export interface ConversationListRow {
@@ -232,7 +233,14 @@ export async function readConversation(args: {
     messages: conversation.messages.map((m) => ({
       id: m.id,
       role: m.role,
-      content: m.content,
+      // 2026-09-10 · strip the verifier banner before the bubble renders
+      // it. `stripVerifierBanner` has existed since 2026-07-11 with this
+      // exact job -- its docstring says "the warning chip already
+      // conveys the diagnostic visually" -- and had ZERO production
+      // callers, so every rewritten turn shipped a raw system trace in
+      // Nick's own voice. The banner stays in the persisted row for L3
+      // and audits; the ActionClaimWarning chip carries the disclosure.
+      content: stripVerifierBanner(m.content),
       model: m.model,
       attachments: m.attachments,
       parts: m.parts,

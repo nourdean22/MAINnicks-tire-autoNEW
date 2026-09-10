@@ -89,6 +89,8 @@ export interface BuildBrainContextOutput {
   deeperContextCount: number;
   deeperContextTypes: string[];
   recalledHits?: any[];
+  recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+  recallProvenanceReason?: string;
   /** Wave 0 (2026-09-08) · per-turn overlap between the two recall lanes (lib/brain/lane-overlap.ts). */
   laneOverlap?: LaneOverlap;
   /** Wave 3 (2026-09-08) · the deterministic query plan this turn ran under (lib/brain/query-plan.ts). */
@@ -145,6 +147,10 @@ export async function buildBrainContext(
   let contextBlocksFired: ContextBlocksFired = { ...EMPTY_FIRED };
   let finalContextMemories: string | null = null;
   let recalledHits: any[] = [];
+  // Provenance for recalledHits. "ZERO" is a measured empty; "ERROR" and
+  // "UNMEASURED" mean the count is not a fact about memory at all.
+  let recallProvenance: "OK" | "ZERO" | "ERROR" | "UNMEASURED" = "UNMEASURED";
+  let recallProvenanceReason: string | undefined;
   let contextualRankedIds: string[] = [];
   let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
   let laneOverlap: LaneOverlap | undefined;
@@ -316,9 +322,44 @@ export async function buildBrainContext(
       (userContent.length > 10 || forceRecall) && predictivePrefetchMod
         ? withTimeout(predictivePrefetchMod.prefetchIntents(userContent), 3000, [])
         : Promise.resolve([]),
+      // 2026-09-10 · EMPTY vs ERROR vs UNMEASURED.
+      //
+      // This lane feeds the "REMEMBERED -- WHAT NICK BELIEVES (N)"
+      // counter in the Memory Inspector, and it had FOUR ways to render
+      // "(0)" that the operator could not tell apart:
+      //   a) the embedding came back [] (embedUserMessage fail-softs on
+      //      a 12s timeout), so the guard below skipped the lane whole;
+      //   b) withTimeout's 3s budget expired;
+      //   c) recallMemoriesForQuery threw;
+      //   d) the search really ran and matched nothing.
+      // Only (d) is an empty memory. (a)-(c) are a broken instrument,
+      // and the 2026-09-10 audit read one of them as "Nick remembers
+      // nothing about me".
+      //
+      // Note the asymmetry with the three sibling lanes above: they all
+      // accept `|| forceRecall`, this one does not -- so an embedding
+      // blip silently zeroes the ONE lane the panel counts. That is the
+      // turn-to-turn inconsistency the audit observed.
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
-        ? withTimeout(memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }), 3000, null)
-        : Promise.resolve(null),
+        ? withTimeout(
+            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }),
+            3000,
+            // withTimeout cannot distinguish a rejection from an expiry;
+            // both are a FAILED read, so both must say so.
+            { hits: [], provenance: "ERROR", provenanceReason: "hybrid recall timed out or threw (3s budget)" } as never,
+          )
+        : Promise.resolve(
+            ({
+              hits: [],
+              provenance: userEmbedding.length === 0 && userContent.length > 10 ? "ERROR" : "UNMEASURED",
+              provenanceReason:
+                !memoryRecallMod
+                  ? "memory-recall module unavailable -- lane not attempted"
+                  : userEmbedding.length === 0 && userContent.length > 10
+                    ? "query embedding unavailable -- hybrid recall lane skipped entirely"
+                    : "query under 10 chars -- hybrid recall lane not attempted",
+            } as never),
+          ),
       truthGroundingMod
         ? withTimeout(truthGroundingMod.buildTruthGroundingBlock(messages as never), 3000, null)
         : Promise.resolve(null),
@@ -555,6 +596,10 @@ export async function buildBrainContext(
       console.info("[brain-context] query_plan", JSON.stringify({ classes: queryPlan.classes, asOf: queryPlan.asOf?.toISOString() ?? null, exactTerms: queryPlan.exactTerms, subQueries: queryPlan.subQueries.length }));
     }
     if (hybridRecallReport) {
+      recallProvenance =
+        (hybridRecallReport as any).provenance ??
+        ((hybridRecallReport.hits?.length ?? 0) > 0 ? "OK" : "ZERO");
+      recallProvenanceReason = (hybridRecallReport as any).provenanceReason;
       recalledHits = (hybridRecallReport.hits ?? []).map((h: any) => ({
         id: h.id ?? h.memoryId,
         content: h.content,
@@ -587,6 +632,11 @@ export async function buildBrainContext(
       hybridRecall: !!hybridRecallBlock,
     });
   } catch (err) {
+    // 2026-09-10 · the whole block assembly threw, so recalledHits is
+    // still []. Say the read FAILED -- do not let the Memory Inspector
+    // render a confident "(0) Nick believes nothing" off a crash.
+    recallProvenance = "ERROR";
+    recallProvenanceReason = "brain block assembly threw -- recall state unknown";
     log.warn("brain_blocks_failed", { err: err instanceof Error ? err.message : String(err) });
   }
 
@@ -626,6 +676,8 @@ export async function buildBrainContext(
     deeperContextCount,
     deeperContextTypes,
     recalledHits,
+    recallProvenance,
+    recallProvenanceReason,
     laneOverlap,
     queryPlan,
     evidencePack,
