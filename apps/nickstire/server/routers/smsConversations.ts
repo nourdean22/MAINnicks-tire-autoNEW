@@ -75,6 +75,22 @@ export const smsConversationsRouter = router({
 
   /** Get unread conversation count (admin) */
   unreadCount: adminProcedure.query(async () => {
+    // getUnreadConversationCount returns 0 when the DB handle is gone, and 0 is
+    // indistinguishable from "everyone has been answered". This is a BADGE: a
+    // fabricated zero removes it, and the operator reads an absent badge as an
+    // empty inbox while real customer texts sit unanswered.
+    //
+    // Guarded HERE rather than by changing the helper's signature - the same
+    // shape ROS-083 established for getCallbackRequests in routers/callback.ts,
+    // where the [] is deliberate at the helper because adminBundle.ts consumes
+    // it inside a Promise.allSettled.
+    const { getDb } = await import("../db");
+    if (!(await getDb())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — the unread count is unknown, not zero.",
+      });
+    }
     return { count: await getUnreadConversationCount() };
   }),
 
