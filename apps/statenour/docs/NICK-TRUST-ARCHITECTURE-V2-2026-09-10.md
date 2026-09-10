@@ -61,11 +61,12 @@ Beyond v1's list, found by reading the seams rather than the features:
 
 1. **The receipt content existed and was discarded.** `walkToolTelemetry` read `call.result` to detect soft errors, then kept only `{name, ok, durationMs, args}`. CONFIRMED-CODE. So *any* receipt-based check was structurally blind — it could see that a tool fired, never what it resolved. Fixed: `resultDigest`.
 2. **Recall had no lexical fallback, so an embedding blip was indistinguishable from amnesia.** The lane is hard-gated on `userEmbedding.length > 0` (`brain-context.ts:319`) and, uniquely among four lanes, does not accept `|| forceRecall`. CONFIRMED-CODE. Fixed: the tsvector lane needs no query vector, so recall now degrades instead of going dark.
-3. **The Hybrid Recall block is not marked `critical`** (`brain-context.ts:463`), so the 0.12 reranker cutoff can drop it from the prompt *even when hits exist*. The panel then truthfully reports memories the model never saw. **This is a second, distinct failure nobody has been looking for**, and it would read to the operator exactly like the first.
+3. **The Hybrid Recall block was not marked `critical`**, so the 0.12 reranker cutoff could drop it from the prompt *even when hits exist* — the panel would then truthfully report memories the model never saw. A second, quieter failure than the "(0)", reading to the operator exactly the same way. Every sibling recall block (Evidence Pack, Context Memories, Truth Grounding) was already `critical`; this one was the exception. **Fixed.**
 4. **The category filter runs after the KNN** (`:425`), and the file's own comment measures it at **hit@5 = 0/28**. Post-filtering a fixed candidate set is a classic recall killer.
 5. **`trustTier` exists in the schema with the right four values and zero readers or writers.** CONFIRMED-CODE (`prisma/schema.prisma:1756`). A scraped article ranks identically to something Nour said. The audit asked for actor attribution; the column has been sitting there.
-6. **Deletion does not propagate to embeddings.** `brain_memories.deleted_at` is honoured in recall SQL, but `vector_embeddings` rows are not removed. A deleted memory's vector survives. INFERRED from the schema and the recall filters; needs a row-count check. This is exactly OWASP AISVS **8.3.1**.
-7. **No abstention metric anywhere.** Every scorer measures what was said; none measures whether "I don't know" was correct. Given LoCoMo's identical blind spot, this is an industry-wide hole, not just NICK's.
+6. ~~**Deletion does not propagate to embeddings.**~~ **RETRACTED — I checked, and it does.** `dropEmbeddingsForMemories` (`lib/brain/memory-tombstone.ts:39`) is called at every real deletion site: `reasoning/engine.ts:1536` and `:1555`, `memory-consolidation.ts:319`, `memory-manager.ts:674`, with a test at `tests/brain/expiry-soft-delete.test.ts`. CONFIRMED-CODE. The remaining `brainMemory.deleteMany` calls are idempotency/lock rows that carry no embeddings. I am leaving the retraction visible rather than deleting the line: this claim was marked INFERRED and it was still wrong, which is the argument for the tagging discipline, not against it. OWASP AISVS **8.3.1** is satisfied here.
+7. **Inbound email was classified as first-party data.** `classifyTrustTier` reads `(source, createdBy)`, but for captured mail the provenance lives in the **category** (`gmail_thread`, `categories.ts:492` — "captured INBOUND mail"). The classifier could not see the one field that says a stranger wrote it, so every captured email ranked as `SYSTEM_DERIVED` and rendered into the prompt as something Nick knows. **Found by a test that I initially assumed was my own bug.** Anyone who can email Nour could write to that store. Fixed: category is now checked *before* the operator shortcut, so a cron stamping `createdBy="user"` cannot launder a stranger's mail into `OPERATOR` — while `gmail_outgoing` (Nour's own sent mail) deliberately stays authoritative.
+8. **No abstention metric anywhere.** Every scorer measures what was said; none measures whether "I don't know" was correct. Given LoCoMo's identical blind spot, this is an industry-wide hole, not just NICK's.
 
 ---
 
@@ -95,9 +96,9 @@ That is the control that stops the SpAIware class, and it is directly implementa
 |---|---|---|---|---|---|
 | 1 | Fabricated named resource ships as fact | High | **Observed** | Was nil; now shadow-gated | Receipt gate + enforcement (built) |
 | 2 | Memory read fails, renders as "believes nothing" | High | **Observed** | Was nil; now three-state | Provenance + lexical degrade (shipped) |
-| 3 | Poisoned memory written from tool output | **Critical** | Unmeasured | **Nil** | AISVS 8.2.3: `trustTier` on write, never auto-trust tool output |
-| 4 | Deleted memory survives in `vector_embeddings` | High | INFERRED likely | **Nil** | AISVS 8.3.1: cascade delete + a test |
-| 5 | Recall block dropped by reranker while panel shows hits | Med | Unmeasured | **Nil** | Mark Hybrid Recall `critical` |
+| 3 | Poisoned memory read back as knowledge | **Critical** | Unmeasured | **Nil → fenced** | **Mitigated at the retrieval boundary** — `EXTERNAL_CONTENT` is now wrapped in `<untrusted-memory>` before it reaches the prompt. Write-time tiering still open |
+| 4 | ~~Deleted memory survives in `vector_embeddings`~~ | — | **Retracted** | Covered | Already correct: `dropEmbeddingsForMemories` + `expiry-soft-delete.test.ts` |
+| 5 | ~~Recall block dropped by reranker while panel shows hits~~ | Med | Unmeasured | — | **Fixed** — Hybrid Recall now `critical` |
 | 6 | Indirect injection via scraped content | High | Unmeasured | Partial (`fenceContent`) | CaMeL-shaped quarantine for tool output |
 | 7 | Over-blocking gate degrades good replies | Med | Unmeasured | Shadow metrics | E4 before enforcement |
 
@@ -129,6 +130,7 @@ Every row CONFIRMED-EXT on 2026-09-10 via the GitHub/HF APIs. **The most valuabl
 
 | Role | Choice | Why it wins |
 |---|---|---|
+| **Trust tiering** | `lib/brain/memory-trust.ts` — already in-repo, previously unwired | Its first production consumer shipped 2026-09-10. Nothing to install |
 | **Claim ↔ evidence entailment** | [`cross-encoder/nli-deberta-v3-base`](https://huggingface.co/cross-encoder/nli-deberta-v3-base) — 184M, Apache-2.0, **9 ONNX variants in-repo**, 354k downloads | The single highest-value find. Runs **in-process in Node** via [transformers.js](https://github.com/huggingface/transformers.js); no Python sidecar. Turns claim verification from an LLM call into a local classifier |
 | **Reranking** | [`Alibaba-NLP/gte-reranker-modernbert-base`](https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base) — 150M, Apache-2.0, **2.6M downloads**, ONNX in-repo | Highest adoption of any modern reranker verified; official quantized ONNX in the same repo. Not on anyone's shortlist |
 | **Evals** | [promptfoo](https://github.com/promptfoo/promptfoo) — MIT, 0.123.0 (2026-09-10), 25k★ | Only serious harness that runs natively here without Python; large *deterministic* assertion set separate from LLM-judge metrics |
@@ -165,7 +167,7 @@ Two properties dense retrieval structurally cannot have:
 1. **Exact terms survive paraphrase.** "the taper plan" can sit far away in embedding space while sharing the literal token.
 2. **It needs no query vector** — so an embedding outage degrades ranking instead of erasing memory. That was the actual mechanism behind "(0)".
 
-**Still open:** mark Hybrid Recall `critical`; move or delete the post-KNN category filter (its own comment measures it at hit@5 = 0/28); feed `queryPlan.exactTerms`, which is currently computed and `console.info`'d.
+**Still open:** move or delete the post-KNN category filter (its own comment measures it at hit@5 = 0/28); feed `queryPlan.exactTerms`, which is currently computed and `console.info`'d.
 
 **Explicitly rejected: ParadeDB / `pg_search`.** Real and healthy (9.2k★, v0.25.6, 2026-08-27) — and **AGPL-3.0**, on **Neon**, which gates extensions. Adopting a search engine to fix a wiring problem is the most seductive available mistake.
 
@@ -240,10 +242,9 @@ Explicitly **not** self-healing: the reply gate. A gate that relaxes its own thr
 
 **Next, in order:**
 1. **Read the shadow numbers** (E2/E4). Nothing else is gated on opinion.
-2. **AISVS 8.2.3** — write `trustTier` on ingest; never auto-trust tool output into memory. Highest-severity open item (FMEA #3).
-3. **Mark Hybrid Recall `critical`**; delete or move the category filter.
-4. **Check deletion propagation into `vector_embeddings`** (FMEA #4) — one query answers it.
-5. **Wire enforcement on the buffered path**, once E4 says the FP rate is tolerable.
+2. ~~**AISVS 8.2.3**~~ — **partly shipped.** Trust tiers are now derived at *read* time (`classifyTrustTier` is a pure function of columns already populated, so no backfill of 158 write sites was needed) and `EXTERNAL_CONTENT` is fenced out of the prompt. **Still open:** populating the `trust_tier` column for SQL-side filtering, and *ranking* by tier rather than only labelling. The clean shape is a single Prisma client extension, not 158 edits.
+3. **Delete or move the post-KNN category filter** (its own comment measures it at hit@5 = 0/28).
+4. **Wire enforcement on the buffered path**, once E4 says the FP rate is tolerable.
 6. **Prototype the ONNX NLI verifier** in-process for claim↔evidence entailment.
 
 **Do NOT build yet:** a memory framework, a graph store, durable execution, multi-agent debate, a second database. None is justified by evidence at one operator's scale.
@@ -277,7 +278,7 @@ If only four things ship: **the receipt gate wired to real evidence (done), thre
 | **E2** | How often does recall actually fail? | Read `recall_provenance` for 7 days — **already instrumented** | zero |
 | **E4** | Does the named-source check over-block? | Read `evidence_gate_shadow` for 7 days — **already instrumented** | zero |
 | **E3** | What share of turns are high-risk? | `assessTurnRisk` is pure; replay over stored transcripts | ~1h |
-| **E7** | Do deleted memories survive in `vector_embeddings`? | One SQL join | minutes |
+| ~~E7~~ | ~~Do deleted memories survive in `vector_embeddings`?~~ | **Answered by code read — they do not.** Retired | — |
 | **E8** | Is Hybrid Recall being dropped by the reranker? | Log block-survival | ~1h |
 | **E5** | Does removing the category filter improve hit@5? | Offline, labelled corpus | ~half day |
 | **E1** | Does `search_query` help? | **Prerequisite: confirm Cohere serves query embeddings in prod** | ~half day |
@@ -294,7 +295,7 @@ If only four things ship: **the receipt gate wired to real evidence (done), thre
 | Real recall failure rate | E2 (shipped) |
 | Named-source FP rate on real traffic | E4 (shipped) |
 | Which provider actually serves `getEmbedding` in prod | Log the provider on the embedding call |
-| Whether `deleted_at` propagates to vectors | E7 |
+| ~~Whether `deleted_at` propagates to vectors~~ | **Resolved: it does.** `memory-tombstone.ts:39`, four call sites |
 | Whether Hybrid Recall reaches the prompt | E8 |
 | Corpus size by category | `SELECT category, count(*)` |
 | Real turn distribution / buffered share | E3 |

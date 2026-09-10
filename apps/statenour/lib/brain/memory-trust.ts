@@ -60,11 +60,35 @@ const EXTERNAL_EXACT = new Set([
   "wkyc-3",
   "inside-evs",
   "car-driver",
+  // 2026-09-10 · defence in depth. These are CATEGORY slugs, handled
+  // properly by EXTERNAL_CATEGORIES below -- but if one ever arrives in
+  // the `source` column instead, failing closed costs a missed recall
+  // and failing open costs a durable injection.
+  "gmail_thread",
+  "inbound",
 ]);
 
 const EXTERNAL_PREFIXES = ["web:", "rss:", "scrape:", "firecrawl", "news:", "telegram:", "email:"];
 
 const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
+
+/**
+ * 2026-09-10 · CATEGORIES that carry third-party text.
+ *
+ * Found by a test, not by review: `classifyTrustTier("gmail_thread",
+ * "nick")` returned SYSTEM_DERIVED, because for inbound mail the
+ * provenance is recorded in the CATEGORY, not in `source`. The
+ * classifier could not see the one field that says "a stranger wrote
+ * this" -- so every captured email ranked as first-party derived data
+ * and rendered into the prompt as something Nick knows.
+ *
+ * `gmail_thread` is captured INBOUND mail (categories.ts:492) and is
+ * attacker-controllable: anyone who can email Nour can write to it.
+ * `gmail_outgoing` is deliberately ABSENT -- that is the operator's own
+ * sent mail, which is exactly the OPERATOR tier, and demoting it would
+ * fence Nour's own words back at him.
+ */
+const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article"]);
 
 const AGENT_PREFIXES = ["nick", "agent:", "llm:", "distillation", "output_critic", "judge-eval"];
 
@@ -90,10 +114,21 @@ export function looksLikeExternalHost(source: string): boolean {
  */
 export function classifyTrustTier(
   source: string | null | undefined,
-  createdBy?: string | null
+  createdBy?: string | null,
+  /**
+   * 2026-09-10 · optional, because for some rows (inbound mail) the
+   * provenance lives here and nowhere else. Checked BEFORE the operator
+   * shortcut: a cron that stamps createdBy="user" while ingesting a
+   * stranger's email must not thereby launder it into OPERATOR.
+   */
+  category?: string | null,
 ): TrustTier {
   const s = (source ?? "").trim().toLowerCase();
   const by = (createdBy ?? "").trim().toLowerCase();
+  const cat = (category ?? "").trim().toLowerCase();
+
+  // Third-party text stays third-party no matter who filed it.
+  if (cat && EXTERNAL_CATEGORIES.has(cat)) return "EXTERNAL_CONTENT";
 
   // An explicit human author outranks whatever the source slug says.
   if (by === "user" || by === "operator" || by === "nour") return "OPERATOR";

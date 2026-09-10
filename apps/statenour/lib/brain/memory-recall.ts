@@ -25,6 +25,12 @@ import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
 import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
 import { reciprocalRankFusion } from "@/lib/brain/rrf";
+// 2026-09-10 · lib/brain/memory-trust.ts was written and unit-tested and
+// had ZERO production importers -- the schema even carries a trust_tier
+// column with an index and no reader or writer. This is that module's
+// first consumer. OWASP AISVS C08 8.2.3 is the control it implements:
+// tool and agent output must not be treated as trusted memory.
+import { classifyTrustTier, isAuthoritative, fenceUntrustedMemory, type TrustTier } from "@/lib/brain/memory-trust";
 
 const log = rootLogger.withSurface("brain/memory-recall");
 
@@ -195,6 +201,16 @@ export interface RecallHit {
   factAgeDays: number;
   knnDistance: number;
   finalScore: number;
+  /**
+   * 2026-09-10 · derived, not stored. `classifyTrustTier` is a pure
+   * function of (source, created_by), both of which are already
+   * populated on every row -- so the tier is exact at read time and
+   * needs no backfill of the 158 write sites. The `trust_tier` column
+   * remains a denormalized cache for SQL-side filtering, and is
+   * deliberately NOT read here: a stale cache would be worse than the
+   * function.
+   */
+  trustTier: TrustTier;
 }
 
 export interface RecallReport {
@@ -297,6 +313,9 @@ type KnnRow = {
   last_seen: Date;
   created_at: Date;
   distance: number;
+  /** 2026-09-10 · provenance columns, for trust-tier classification. */
+  source: string | null;
+  created_by: string | null;
 };
 
 /** Shared lane scorer. Module-level since 2026-09-10 so the lexical
@@ -327,6 +346,7 @@ function scoreRow(r: KnnRow, now: number): RecallHit {
       factAgeDays,
       knnDistance: r.distance,
       finalScore: Math.round(finalScore * 1000) / 1000,
+      trustTier: classifyTrustTier(r.source, r.created_by, r.category),
     };
   }
 
@@ -364,6 +384,7 @@ function lexicalLane(query: string, limit: number): Promise<KnnRow[]> {
               substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
               bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
               bm.last_seen, bm.created_at,
+              bm.source::text AS source, bm.created_by::text AS created_by,
               -- Presented as a DISTANCE so the shared scorer needs no
               -- special case: higher ts_rank -> smaller distance.
               (1.0 - LEAST(ts_rank(to_tsvector('english', bm.content),
@@ -492,7 +513,8 @@ export async function recallMemoriesForQuery(
     .$queryRawUnsafe<KnnRow[]>(
       `WITH durable AS MATERIALIZED (
          SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
-                bm.seen_count, bm.last_seen, bm.created_at, ve.embedding_vec_1536
+                bm.seen_count, bm.last_seen, bm.created_at,
+                bm.source, bm.created_by, ve.embedding_vec_1536
          FROM vector_embeddings ve
          JOIN brain_memories bm
            ON bm.id = ve."sourceId"
@@ -508,6 +530,7 @@ export async function recallMemoriesForQuery(
               substring(content, 1, ${MAX_CONTENT_LEN})::text AS content,
               confidence::float AS confidence, seen_count::int AS seen_count,
               last_seen, created_at,
+              source::text AS source, created_by::text AS created_by,
               (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM durable
        ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
@@ -533,6 +556,8 @@ export async function recallMemoriesForQuery(
          bm.seen_count::int AS seen_count,
          bm.last_seen,
          bm.created_at,
+         bm.source::text AS source,
+         bm.created_by::text AS created_by,
          (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings ve
        JOIN brain_memories bm
@@ -760,12 +785,33 @@ export function formatRecallForPrompt(hits: RecallHit[]): string {
   } catch {
     disabled = false; // flag infra failure → new (truthful) rendering
   }
+  // 2026-09-10 · TRUST TIER at the retrieval boundary.
+  //
+  // OWASP AISVS C08 8.2.3: "agent outputs and tool outputs are not
+  // automatically written to trusted agent memory without explicit
+  // source validation." NICK's memory ingests scraped pages, mail
+  // threads and model inferences alongside things Nour actually said,
+  // and until now they all rendered into the prompt as one
+  // undifferentiated list of things "Nick believes".
+  //
+  // That is the memory-poisoning surface OWASP ASI06 names, and the
+  // published attacks (SpAIware; the Gemini conditional-instruction
+  // bypass) work precisely because retrieved external text is read back
+  // as the agent's own knowledge. Fencing it does not stop a poisoned
+  // row being stored -- it stops the stored row being obeyed.
+  //
+  // EXTERNAL_CONTENT is wrapped and labelled; everything else renders as
+  // before. AGENT_INFERRED is labelled but not fenced: a model's own
+  // guess is not attacker-controlled, it just is not a fact.
   const lines = hits.map((h, i) => {
-    if (disabled) {
-      const ageStr = h.ageDays === 0 ? "today" : `${h.ageDays}d ago`;
-      return `[${i + 1}] [${h.category}] ${h.content} (${ageStr}, conf=${h.confidence.toFixed(2)})`;
+    const body = disabled
+      ? `${h.content} (${h.ageDays === 0 ? "today" : `${h.ageDays}d ago`}, conf=${h.confidence.toFixed(2)})`
+      : `${h.content} (${renderFactStatus(h)})`;
+    if (!isAuthoritative(h.trustTier)) {
+      return `[${i + 1}] [${h.category}] ${fenceUntrustedMemory(body, h.trustTier)}`;
     }
-    return `[${i + 1}] [${h.category}] ${h.content} (${renderFactStatus(h)})`;
+    const tierMark = h.trustTier === "AGENT_INFERRED" ? " [inferred, unverified]" : "";
+    return `[${i + 1}] [${h.category}]${tierMark} ${body}`;
   });
   return `Recently relevant memories (top-${hits.length} via hybrid search):\n${fenceContent("hybridRecall", "memory_recall", lines.join("\n"), { maxChars: 20_000 })}`;
 }

@@ -501,7 +501,18 @@ export async function buildBrainContext(
         ? [{ name: "Evidence Pack", content: `# EVIDENCE PACK\n${evidencePackBlock}`, critical: true }]
         : [
             { name: "Context Memories", content: contextMemories ? `# CONTEXT MEMORIES\n${truncateFenced(contextMemories, mode === "deep" ? 2000 : 1000)}` : "", critical: true },
-            { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "" },
+            // 2026-09-10 · marked CRITICAL. This is the one block the
+            // Memory Inspector counts ("REMEMBERED -- WHAT NICK BELIEVES
+            // (N)"), and while non-critical the 0.12 reranker cutoff
+            // (RERANK_DROP below) could drop it from the prompt EVEN WHEN
+            // HITS EXIST -- so the panel truthfully reported memories the
+            // model never saw. That is a second, quieter failure than the
+            // "(0)" the 2026-09-10 audit caught, and it reads to the
+            // operator exactly the same way: Nick ignoring what he knows.
+            // The other recall-bearing blocks (Evidence Pack, Context
+            // Memories, Truth Grounding) were already critical; this one
+            // being the odd exception was the defect.
+            { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "", critical: true },
           ]),
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
