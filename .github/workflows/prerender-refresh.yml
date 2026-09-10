@@ -81,9 +81,19 @@ jobs:
 
       # The regen script points at this log when the server fails to boot,
       # but it was never surfaced in CI — runs #21-#23 failed blind.
-      - name: Server boot log (on failure)
-        if: failure()
-        run: cat apps/nickstire/tmp/regen-server.log || true
+      # ALWAYS, not `if: failure()`. The 2026-09-10 refresh SUCCEEDED — 333 of 339
+      # routes rendered — while six DB-backed blog routes rendered their
+      # not-found branch inside a 90-second window ~14 minutes in. The cause of
+      # that lives in the server log, and this step was gated on job failure, so
+      # the run that most needed it threw it away. A partially-degraded run is
+      # exactly the case where the log is worth having and the only case where
+      # `if: failure()` withholds it.
+      #
+      # Tail, not the whole file: it is a full prod-server boot log and the last
+      # 200 lines carry the DB errors that matter.
+      - name: Server log (always — a green run can still have failed routes)
+        if: always()
+        run: tail -n 200 apps/nickstire/tmp/regen-server.log || true
 
       # ── Gate the artifacts BEFORE they reach main ──────────────────────
       #
