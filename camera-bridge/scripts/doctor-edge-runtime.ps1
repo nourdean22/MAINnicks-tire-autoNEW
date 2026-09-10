@@ -305,6 +305,20 @@ if ($py) {
     }
 }
 
+# Trajectories: the lot polygon in force was drawn by eye and nothing measures it. This
+# says whether the producer is collecting the data that would.
+$traj = Join-Path $root "data	rajectories.sqlite"
+if (-not (Test-Path $traj)) {
+    Check "trajectories" "WARN" "not recording -- pass --trajectories to start measuring where vehicles actually drive; the lot polygon stays a guess until then"
+} else {
+    try {
+        $rows = (& $py.Source -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute('select count(*), count(distinct track_id) from track_points').fetchone())" $traj 2>&1)
+        Check "trajectories" "PASS" "$rows (points, distinct tracks) -- commission with: python -m vision.trajectory --store data/trajectories.sqlite --calibration <calib> --out proposal.json"
+    } catch {
+        Check "trajectories" "WARN" "present but unreadable: $_"
+    }
+}
+
 $corpus = Join-Path $root "data\hard-cases"
 if (-not (Test-Path $corpus)) {
     Check "hard-case corpus" "WARN" "not collecting -- pass --hard-cases to start building the shop-specific corpus this system learns from"

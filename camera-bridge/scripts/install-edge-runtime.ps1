@@ -55,6 +55,7 @@ param(
     [double]$HardCaseMaxGb = 2.0,
     [ValidateSet("", "off", "both", "replace")]
     [string]$HardCaseEpisodes = "",
+    [string]$Trajectories = "",
     [double]$RelocateSeconds = 120.0,
     [string]$ShadowLedger = "",
     [string]$ChallengerModel = "",
@@ -194,6 +195,7 @@ function _Arg([string]$flag, [string]$value) {
 $sceneArg      = (_Arg '--scene-atlas' $SceneAtlas) + (_Arg '--scene' $Scene)
 $channelArg    = if ($Channel -ge 0) { " --channel $Channel" } else { '' }
 $episodeArg    = _Arg '--hard-case-episodes' $HardCaseEpisodes
+$trajArg       = _Arg '--trajectories' $Trajectories
 $hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" + $episodeArg } else { '' }
 $relocateArg   = " --relocate-seconds $RelocateSeconds"
 $shadowArg     = (_Arg '--shadow-ledger' $ShadowLedger) + (_Arg '--challenger-model' $ChallengerModel)
@@ -229,7 +231,7 @@ cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%

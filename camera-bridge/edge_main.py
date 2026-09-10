@@ -180,6 +180,7 @@ class EdgeLoop:
         stall_exit_seconds: float = 180.0,
         persist_seconds: float = 2.0,
         hard_cases: Any = None,
+        trajectories: Any = None,
         shadow: Any = None,
         challenger: Any = None,
         relocate_seconds: float = 120.0,
@@ -191,6 +192,10 @@ class EdgeLoop:
         #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
         #: has -- the corpus is an upgrade, never a dependency of watching the lot.
         self.hard_cases = hard_cases
+        #: Optional `TrajectoryStore`. Where vehicles actually went, so the lot polygon can
+        #: one day be measured instead of drawn by eye. Same contract as the recorder: an
+        #: upgrade, never a dependency of watching the lot.
+        self.trajectories = trajectories
         #: How often to re-check that the located scene is still where it was. 0 disables.
         #: A startup fix is only true at startup: the operator resizes the window or goes
         #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
@@ -336,6 +341,7 @@ class EdgeLoop:
                 out = {"emissions": [], "suppressed": "vision error"}
 
             self._note_hard_cases(frame, out)
+            self._note_trajectory(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -489,6 +495,25 @@ class EdgeLoop:
         # `base_mode` is what lets the camera card's badge clear when a run ends.
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
+
+    def _note_trajectory(self, frame, out) -> None:
+        """Record where every live track is standing, for later commissioning.
+
+        Deliberately NOT recorded on a SUPPRESSED frame. A frame the pipeline refused for
+        pose or motion reasons is exactly a frame whose geometry is untrusted, and a point
+        taken from one would poison the very map it feeds -- the commissioner cannot tell a
+        bad point from a good one once it is a row in a table.
+        """
+        if self.trajectories is None or out.get("suppressed"):
+            return
+        try:
+            scene = getattr(getattr(self.source, "binding", None), "scene_id", None) or "default"
+            self.trajectories.observe(
+                frame.ts, list(self.pipeline.tracks.tracks.values()),
+                scene=str(scene), generation=str(source_generation(self.source)))
+        except Exception:  # noqa: BLE001 - commissioning data is never worth a producer
+            self.pipeline.metrics.inc("edge_trajectory_errors_total")
+
 
     def _observe_hard_case(self, frame) -> None:
         """Push a frame into the recorder's window. Never raises: this is not the lot's job."""
@@ -986,6 +1011,11 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "change. Unset means no corpus is collected.")
     ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
                     help="disk budget for the hard-case store; oldest clips are evicted first")
+    ap.add_argument("--trajectories", default=os.environ.get("EDGE_TRAJECTORIES"),
+                    help="SQLite path recording where vehicles actually drove, at 1 Hz. Feeds "
+                         "`python -m vision.trajectory`, which PROPOSES a lot polygon measured "
+                         "from real traffic instead of drawn by eye, and diffs it against the "
+                         "one in force. Unset means nothing is recorded.")
     ap.add_argument("--hard-case-episodes", choices=["off", "both", "replace"], default="both",
                     help="write each hard case ALSO as an MCAP episode -- one indexed, "
                          "self-contained file Foxglove/Rerun can scrub through time, instead "
@@ -1073,6 +1103,17 @@ def run_edge(args: argparse.Namespace) -> int:
         log.info("hard-case corpus at %s (budget %.1f GB, episodes: %s)", args.hard_cases,
                  args.hard_case_max_gb, mode)
 
+    trajectories = None
+    if args.trajectories:
+        from vision.trajectory import TrajectoryStore
+
+        trajectories = TrajectoryStore(args.trajectories)
+        # Say which. "recording" and "configured but could not open its file" are different
+        # facts, and only one of them will have anything in it when someone goes to commission.
+        log.info("trajectories -> %s (%s)", args.trajectories,
+                 "recording at 1 Hz" if trajectories.open
+                 else f"NOT recording: {trajectories.stats.last_error}")
+
     # A CHALLENGER IS NOT AN ADJUDICATOR, and conflating them made the previous version of
     # this a counterfactual in name only. `--adjudicator-model` is passed into the
     # AUTHORITATIVE council, where `_fuse` promotes ambiguous boxes it agrees with and adds
@@ -1119,7 +1160,7 @@ def run_edge(args: argparse.Namespace) -> int:
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
-        hard_cases=recorder, shadow=shadow, challenger=challenger,
+        hard_cases=recorder, trajectories=trajectories, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
     )
 
