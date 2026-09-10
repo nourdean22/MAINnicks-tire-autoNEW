@@ -46,6 +46,10 @@ vi.mock("@/lib/trpc", () => {
       },
       technicianReferrals: {
         list: { useQuery: () => h.referrals },
+        // Reconciliation exceptions. Defaults to an empty, available result so
+        // these tests assert the OUTAGE branches without the orphan banner
+        // interfering; its own behaviour is covered separately.
+        orphans: { useQuery: () => ({ data: { available: true, rows: [] } }) },
         markHired: { useMutation: stub },
         markPaid: { useMutation: stub },
         disqualify: { useMutation: stub },

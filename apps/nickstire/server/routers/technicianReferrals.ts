@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   createTechnicianReferral,
   getTechnicianReferrals,
+  getReferralOrphans,
   getTechnicianReferralById,
   updateTechnicianReferralStatus,
 } from "../db";
@@ -72,6 +73,19 @@ export const technicianReferralsRouter = router({
    */
   list: adminProcedure.query(async () => {
     return getTechnicianReferrals();
+  }),
+
+  /**
+   * Candidates who named a referrer but have no structured referral row.
+   *
+   * submit above is deliberately soft-fail so a referral write can never break
+   * the applicant's own submission. This is the other half of that decision:
+   * without it a lost $300 obligation is invisible to the applicant, the
+   * referrer and the operator alike, surviving only as free text in
+   * candidates.message that no surface renders.
+   */
+  orphans: adminProcedure.query(async () => {
+    return getReferralOrphans();
   }),
 
   /**

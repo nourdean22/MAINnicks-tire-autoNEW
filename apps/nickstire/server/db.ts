@@ -535,6 +535,67 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
   }
 }
 
+/**
+ * Candidates who SAID they were referred but have no structured referral row.
+ *
+ * THE INVARIANT THIS ENFORCES. technicianReferrals.submit is deliberately
+ * soft-fail: it returns { success: false } rather than throwing, so a failed
+ * referral write never breaks the applicant's own submission. That is the right
+ * call for the applicant and the wrong place to stop for the shop — a lost
+ * $300 obligation is currently invisible to the applicant, the referrer AND the
+ * operator, surviving only as free text inside candidates.message.
+ *
+ * Careers.tsx folds "Referred by: <name> (<phone>)" into that message field
+ * precisely as a hedge. This turns the hedge into a recoverable signal instead
+ * of a note nobody reads: the correct rule is not "we attempted a referral
+ * write" but "a candidate who names a referrer either HAS a structured referral
+ * or produces a visible anomaly".
+ *
+ * Returns `available: false` on a dead handle rather than an empty list — an
+ * empty orphan list is the one result an operator would most like to see, so
+ * it is exactly the result that must never be fabricated.
+ */
+export async function getReferralOrphans() {
+  const db = await getDb();
+  if (!db) return { available: false as const, rows: [] as Array<{ id: number; name: string; createdAt: Date | null; referredBy: string }> };
+  try {
+    const rows = await db
+      .select({
+        id: candidates.id,
+        name: candidates.name,
+        createdAt: candidates.createdAt,
+        message: candidates.message,
+      })
+      .from(candidates)
+      .where(
+        and(
+          sql`${candidates.message} LIKE '%Referred by:%'`,
+          sql`NOT EXISTS (SELECT 1 FROM technician_referrals tr WHERE tr.candidateId = ${candidates.id})`,
+        ),
+      )
+      .orderBy(desc(candidates.createdAt))
+      .limit(200);
+
+    return {
+      available: true as const,
+      rows: rows.map((r: { id: number; name: string; createdAt: Date | null; message: string | null }) => ({
+        id: r.id,
+        name: r.name,
+        createdAt: r.createdAt,
+        // Surface just the referrer fragment, not the applicant's whole
+        // free-text answer — the operator needs the name to reconcile, not
+        // the candidate's personal statement.
+        referredBy: (r.message ?? "").match(/Referred by:\s*(.+)/)?.[1]?.trim() ?? "(unparsed)",
+      })),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, rows: [] as Array<{ id: number; name: string; createdAt: Date | null; referredBy: string }> };
+    }
+    throw err;
+  }
+}
+
 export async function getTechnicianReferrals() {
   const db = await getDb();
   // available:false, NOT an empty list. `!db` means the connection itself is

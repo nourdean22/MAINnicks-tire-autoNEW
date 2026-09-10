@@ -38,6 +38,13 @@ export function TechnicianReferralsPanel() {
   const [open, setOpen] = useState(true);
   const utils = trpc.useUtils();
   const { data, isLoading, isError, error } = trpc.technicianReferrals.list.useQuery(undefined, { enabled: open });
+  // Candidates who named a referrer but have no structured referral row. The
+  // submit path is deliberately soft-fail so a referral write can never break
+  // the applicant's own submission; this is the other half of that decision.
+  // Without a surface, a lost $300 obligation exists only as free text in
+  // candidates.message that nothing renders — which is a producer with no
+  // consumer, the shape this repo has the most recorded history of shipping.
+  const orphans = trpc.technicianReferrals.orphans.useQuery(undefined, { enabled: open });
 
   const invalidate = () => utils.technicianReferrals.list.invalidate();
   const markHired = trpc.technicianReferrals.markHired.useMutation({
@@ -78,6 +85,32 @@ export function TechnicianReferralsPanel() {
 
       {open && (
         <div className="border-t border-border/20 px-4 py-3">
+          {/* Reconciliation exceptions come FIRST: an unpaid $300 obligation
+              matters more than the list of ones already recorded, and it must
+              not be something the operator has to scroll past the happy path
+              to notice. */}
+          {orphans.data?.available && orphans.data.rows.length > 0 && (
+            <div className="mb-3 border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
+              <strong>
+                {orphans.data.rows.length} referral{orphans.data.rows.length === 1 ? "" : "s"} need
+                reconciling.
+              </strong>{" "}
+              These applicants named a referrer, but no structured referral was recorded — the
+              claim survives only as text on the application. Someone is owed $300 and the
+              program cannot see it.
+              <ul className="mt-2 space-y-1">
+                {orphans.data.rows.slice(0, 8).map((o: { id: number; name: string; createdAt: string | Date | null; referredBy: string }) => (
+                  <li key={o.id} className="text-amber-300/90">
+                    #{o.id} · {o.name} — referred by {o.referredBy}
+                    {o.createdAt ? ` · ${new Date(o.createdAt).toLocaleDateString()}` : ""}
+                  </li>
+                ))}
+              </ul>
+              {orphans.data.rows.length > 8 && (
+                <p className="mt-1 opacity-70">…and {orphans.data.rows.length - 8} more.</p>
+              )}
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center gap-2 text-[12px] text-foreground/40">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading&hellip;
