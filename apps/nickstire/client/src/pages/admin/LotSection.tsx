@@ -168,7 +168,7 @@ type CameraHealth = {
   commissioningRunId: string | null;
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
-  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   openVisits: number;
 };
@@ -305,6 +305,23 @@ function CameraCard({ c }: { c: CameraHealth }) {
                 inferred {c.vision.inferenceAgeSeconds < 90
                   ? `${Math.max(0, Math.round(c.vision.inferenceAgeSeconds))}s ago`
                   : `${Math.round(c.vision.inferenceAgeSeconds / 60)}m ago`}
+              </span>
+            )}
+            {/*
+              BOTH ONLY WHEN NON-ZERO, and both amber. They are faults, not statistics: a
+              healthy producer reports 0 for each all day, and a row that carried "geometry
+              unconfirmed 0x" on every camera forever would be read past within a week.
+              `> 0` also means NULL never renders -- a producer that does not report the
+              counter says nothing here, rather than claiming a zero nobody measured.
+            */}
+            {typeof c.vision?.relocateFailures === "number" && c.vision.relocateFailures > 0 && (
+              <span className="text-amber-400" title="Revalidation passes that produced no binding. The producer is still warping frames through geometry it can no longer confirm.">
+                geometry unconfirmed {c.vision.relocateFailures}×
+              </span>
+            )}
+            {typeof c.vision?.preexistingCrossed === "number" && c.vision.preexistingCrossed > 0 && (
+              <span className="text-amber-400" title="Cars the census called already-there that the entry portal then watched drive in. Their arrivals were never counted.">
+                missed arrivals {c.vision.preexistingCrossed}
               </span>
             )}
             {c.cloud && c.cloud.outboxDepth !== null && <span>outbox {c.cloud.outboxDepth}</span>}

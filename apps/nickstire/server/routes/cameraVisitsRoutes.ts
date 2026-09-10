@@ -343,6 +343,13 @@ const heartbeatSchema = z.object({
   lastCloudAckAt: tsField,
   diskFreeBytes: z.number().nullish(),
   restores: z.number().int().nullish(),
+  /**
+   * Revalidation passes that produced NO binding. `nullish`, not defaulted: a producer that
+   * does not track it has not measured zero of them, and the card distinguishes the two.
+   */
+  relocateFailures: z.number().int().nullish(),
+  /** Cars the census called already-there that the portal then watched drive in. */
+  preexistingCrossed: z.number().int().nullish(),
 });
 export function parseHeartbeat(body: unknown) {
   return heartbeatSchema.safeParse(body);
@@ -355,7 +362,7 @@ export const HEARTBEAT_COLUMNS = [
   "lastFrameAt", "lastHealthyFrameAt", "captureFps", "frameOk", "poseOk", "poseDelta",
   "calibrationVersion", "detectorName", "modelSha256", "lastInferenceAt", "inferenceP95Ms",
   "openVisits", "outboxDepth", "oldestOutboxAgeSeconds", "deadLetterDepth", "lastCloudAckAt",
-  "diskFreeBytes", "restores", "state",
+  "diskFreeBytes", "restores", "relocateFailures", "preexistingCrossed", "state",
 ] as const;
 
 /** A newer sequence from the same producer, or any sequence from a new producer instance. */
@@ -515,6 +522,8 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       lastCloudAckAt: b.lastCloudAckAt ?? null,
       diskFreeBytes: b.diskFreeBytes ?? null,
       restores: b.restores ?? null,
+      relocateFailures: b.relocateFailures ?? null,
+      preexistingCrossed: b.preexistingCrossed ?? null,
       state: verdict.state,
     };
 

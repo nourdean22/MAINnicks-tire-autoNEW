@@ -624,7 +624,7 @@ export const lotRouter = router({
                ${sql.raw("UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastInferenceAt)")} AS inferenceAgeSeconds,
                r.deadLetterDepth,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastCloudAckAt) AS cloudAckAgeSeconds,
-               r.diskFreeBytes, r.restores,
+               r.diskFreeBytes, r.restores, r.relocateFailures, r.preexistingCrossed,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.stateSince) AS stateForSeconds,
                (SELECT COUNT(*) FROM vehicle_visits o
                  WHERE o.camera = r.camera AND o.departedAt IS NULL
@@ -682,7 +682,7 @@ export const lotRouter = router({
             ? { type: str(r.sourceType), generation: str(r.sourceGeneration), fps: numOrNull(r.captureFps), restores: numOrNull(r.restores) }
             : null,
           vision: r
-            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion) }
+            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed) }
             : null,
           cloud: r
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }

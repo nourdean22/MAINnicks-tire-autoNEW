@@ -319,6 +319,8 @@ def edge_heartbeat_body(
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
     commissioning_run_id: Optional[str] = None,
+    relocate_failures: Optional[int] = None,
+    preexisting_crossed: Optional[int] = None,
 ) -> Dict[str, object]:
     """The producer's account of itself, merging BOTH halves of what it knows.
 
@@ -422,6 +424,14 @@ def edge_heartbeat_body(
         "oldestOutboxAgeSeconds": None if oldest is None else int(oldest),
         "deadLetterDepth": ledger.dead_letter_depth(),
         "restores": int(getattr(active, "restores", 0) or 0) if active is not None else 0,
+        # BOTH None-PRESERVING, and that is the whole reason they are Optional rather than
+        # defaulted to 0. A producer that does not track one of these has NOT measured zero
+        # of them, and the shop's card says "not reported" for null and a number for 0 --
+        # collapsing them here would put a confident zero on the card for a question nobody
+        # asked, which is the defect shape this repo keeps removing.
+        "relocateFailures": None if relocate_failures is None else int(relocate_failures),
+        "preexistingCrossed": (None if preexisting_crossed is None
+                               else int(preexisting_crossed)),
     }
 
 
@@ -826,6 +836,11 @@ class EdgeLoop:
             # the admin would never see commissioning end -- and this field exists
             # precisely to prove what the edge acknowledged.
             commissioning_run_id=self.pipeline.shop.commissioning_run_id,
+            # `getattr` with a None default, deliberately: a vision layer or loop that does
+            # not carry the counter reports NOTHING rather than a fabricated 0.
+            relocate_failures=getattr(self, "relocate_failures", None),
+            preexisting_crossed=getattr(
+                getattr(self.vision, "stats", None), "preexisting_crossed", None),
         )
         ok = self.pipeline.shop.heartbeat(body)
         # The reply may have switched the mode either way; keep the loop's view in step so
