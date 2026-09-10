@@ -579,6 +579,7 @@ class EdgeLoop:
 
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
+            self._note_deaths(frame, out)
             self._note_inference(frame, out)
             self._note_reacquisition(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
@@ -798,6 +799,18 @@ class EdgeLoop:
                             "died": vitals, "born": _track_vitals(t, now),
                             "appearance": None,
                         })
+                        # FLAG THE LEDGER ROW. `_note_deaths` wrote this death a moment ago
+                        # with `reacquired = 0`; without this the ledger holds a correct
+                        # denominator and no numerator, which is the same table this whole
+                        # change exists to stop being. Best-effort by construction: it fails
+                        # to match when the ledger was enabled mid-run and the death predates
+                        # the table, and that is a real 0 rather than an error.
+                        if self.trajectories is not None:
+                            try:
+                                self.trajectories.mark_reacquired(
+                                    self._scene_id(frame), did, dts)
+                            except Exception:  # noqa: BLE001
+                                self.pipeline.metrics.inc("edge_track_death_errors_total")
                         break
                 else:
                     # No death explains it. Did it appear ON TOP of a car already tracked?
@@ -862,6 +875,67 @@ class EdgeLoop:
 
         return p95(self._inference_ms)
 
+    def _scene_id(self, frame) -> str:
+        """Which pixel space this frame is of. ONE definition, three callers.
+
+        The trajectory store, the death ledger and the re-acquisition flag all key on this,
+        and they must agree exactly: a writer and a reader that each spell the fallback
+        chain out inline are one edit away from disagreeing silently, and the symptom would
+        be a ledger reporting a 0% re-acquisition rate -- which reads as a finding rather
+        than as a wiring fault. (I wrote that exact mismatch while adding the flag: the
+        write used the full chain and the lookup used two thirds of it.)
+
+        The FRAME'S OWN `sceneId` is authoritative. `WgcWindowSource.set_canonical` stamps
+        it into every frame's meta; `source.binding` is the fallback for sources that do
+        not, and it does not exist on the WGC source -- reading it first filed every point
+        under "default" for four hours of real traffic.
+        """
+        return str((frame.meta or {}).get("sceneId")
+                   or getattr(getattr(self.source, "binding", None), "scene_id", None)
+                   or "unattributed")
+
+    def _note_deaths(self, frame, out) -> None:
+        """Record EVERY track the tracker just retired, and why it was allowed to die.
+
+        THE ASYMMETRY THIS EXISTS TO FIX. `TRACK_REACQUIRED` records the deaths that were
+        followed by a nearby birth -- a numerator. Nothing recorded the rest, so the question
+        the corpus is for ("of the tracks that die, which ones do we lose and get back?")
+        had no denominator, and the only remaining route to one was inference over
+        `track_points`. That route does not work: `_note_trajectory` skips every suppressed
+        frame, so the point table has recording gaps over a minute long and cannot be split
+        into track lifetimes by time alone. Two attempts at it produced two confident,
+        mutually inconsistent answers, which is the correct amount of trust to place in
+        either.
+
+        NOT gated on `out["suppressed"]`, unlike `_note_trajectory`. Every suppression
+        branch in `VisionPipeline.step()` returns before `tracks.update()` runs, so `died`
+        is empty on a suppressed frame and the gate would be a no-op today -- but writing
+        that invariant into an `if` here turns a future refactor that moves one branch below
+        the tracker into a silent blind spot in the one table that would have shown it.
+
+        A death is also not a SAMPLE, so unlike a trajectory point it is never downsampled:
+        measured at ~2.7 a minute against 4 points a second per track.
+        """
+        if self.trajectories is None:
+            return
+        dead = out.get("died") or []
+        if not dead:
+            return
+        try:
+            # Same attribution as `_note_trajectory`, and for the same reason: the frame's
+            # own `sceneId` is the only authoritative one, and pooling two lenses into a
+            # single bucket produces a confident answer from data that merely looks abundant.
+            scene = self._scene_id(frame)
+            self.trajectories.note_deaths(
+                frame.ts, dead, scene=str(scene),
+                generation=str(source_generation(self.source)))
+        except Exception as exc:  # noqa: BLE001 - a ledger is never worth a producer
+            self.pipeline.metrics.inc("edge_track_death_errors_total")
+            if not getattr(self, "_deaths_logged", False):
+                self._deaths_logged = True
+                log.warning("the track-death ledger is failing and will stay off: %s: %s",
+                            type(exc).__name__, exc)
+
     def _note_trajectory(self, frame, out) -> None:
         """Record where every live track is standing, for later commissioning.
 
@@ -881,9 +955,7 @@ class EdgeLoop:
             # Pooling is not a cosmetic loss. A two-lens device is two different pixel
             # spaces, and a commissioner fitting one polygon across both would produce a
             # confident, meaningless answer from data that looks abundant.
-            scene = ((frame.meta or {}).get("sceneId")
-                     or getattr(getattr(self.source, "binding", None), "scene_id", None)
-                     or "unattributed")
+            scene = self._scene_id(frame)
             # `self.vision`, NOT `self.pipeline`. The visitd pipeline carries metrics, the
             # shop lane and the visit tracker; the TRACK GRAPH lives on the vision layer.
             # Reading it off the wrong object raised on every single frame -- 128 of them
