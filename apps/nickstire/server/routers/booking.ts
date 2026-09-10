@@ -525,6 +525,17 @@ export const bookingRouter = router({
     }),
 
   list: adminProcedure.query(async () => {
+    // getBookings returns [] on a dead handle, and for a tire shop an empty
+    // bookings list does not read as "the read failed" - it reads as a QUIET
+    // DAY. Nobody investigates a quiet day. ROS-083 shape: the honesty lives at
+    // the read, not in the helper, whose [] other callers depend on.
+    const { getDb } = await import("../db");
+    if (!(await getDb())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — the booking list is unknown, not empty.",
+      });
+    }
     return getBookings();
   }),
 
@@ -744,6 +755,15 @@ export const bookingRouter = router({
   statusByPhone: publicProcedure
     .input(z.object({ phone: z.string().min(7).max(20), ref: z.string().min(3).optional() }))
     .query(async ({ input }) => {
+      // Same reasoning as statusByRef below: [] here tells a customer their
+      // appointment does not exist, when the truth is that we could not check.
+      const { getDb } = await import("../db");
+      if (!(await getDb())) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "We can't look up bookings right now — please call us. This does not mean your booking is missing.",
+        });
+      }
       const rows = await getBookingByPhone(input.phone);
       const list = Array.isArray(rows) ? rows : [];
       // code-review 2026-07-09 · the old guard read `.referenceCode` off the
@@ -761,6 +781,18 @@ export const bookingRouter = router({
   statusByRef: publicProcedure
     .input(z.object({ ref: z.string().min(3).max(20) }))
     .query(async ({ input }) => {
+      // PUBLIC, and that makes this the worst of the three. getBookingByRef
+      // returns null on a dead handle, and null renders to a CUSTOMER as "we
+      // have no record of that booking" - which invites a no-show or a panicked
+      // call to a shop that cannot look it up either. "We can't check right
+      // now" is the true answer and the far better one.
+      const { getDb } = await import("../db");
+      if (!(await getDb())) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "We can't look up bookings right now — please call us. This does not mean your booking is missing.",
+        });
+      }
       return getBookingByRef(input.ref);
     }),
 

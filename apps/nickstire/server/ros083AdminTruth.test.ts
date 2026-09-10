@@ -122,3 +122,44 @@ describe("reminder stats · DB-down is not 'nothing scheduled'", () => {
     await expect(callQuery(remindersRouter, "stats")).rejects.toThrow(/unknown, not zero/i);
   });
 });
+
+describe("bookings · DB-down is not a quiet day", () => {
+  // getBookings returns [] on a dead handle. For a tire shop an empty bookings
+  // list does not read as "the read failed" - it reads as a QUIET DAY, and
+  // nobody investigates a quiet day.
+  it("the admin list throws rather than showing no appointments", async () => {
+    const { bookingRouter } = await import("./routers/booking");
+    await expect(callQuery(bookingRouter, "list")).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("says unknown, not empty", async () => {
+    const { bookingRouter } = await import("./routers/booking");
+    await expect(callQuery(bookingRouter, "list")).rejects.toThrow(/unknown, not empty/i);
+  });
+});
+
+describe("customer booking lookup · DB-down is not 'no such booking'", () => {
+  // These two are PUBLIC, which makes them the worst of the set: a null renders
+  // to a CUSTOMER as "we have no record of that booking", inviting a no-show or
+  // a panicked call to a shop that cannot look it up either.
+  it("statusByRef throws instead of reporting the booking missing", async () => {
+    const { bookingRouter } = await import("./routers/booking");
+    await expect(callQuery(bookingRouter, "statusByRef", { ref: "ABC123" })).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("statusByPhone throws instead of reporting no bookings", async () => {
+    const { bookingRouter } = await import("./routers/booking");
+    await expect(
+      callQuery(bookingRouter, "statusByPhone", { phone: "2165550123" }),
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("tells the customer we could not CHECK, not that they have no booking", async () => {
+    // The wording is the whole point on a public surface. "Not found" and
+    // "could not look up" are opposite messages to someone with an appointment.
+    const { bookingRouter } = await import("./routers/booking");
+    await expect(callQuery(bookingRouter, "statusByRef", { ref: "ABC123" })).rejects.toThrow(
+      /does not mean your booking is missing/i,
+    );
+  });
+});
