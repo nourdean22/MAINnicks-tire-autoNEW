@@ -1100,6 +1100,28 @@ export const brainTools = {
       // below. Purely additive -- the ILIKE arms still apply, so an
       // empty/unparseable tsquery or a missing index degrades to exactly
       // the old behaviour rather than breaking recall.
+      // 2026-09-10 · READ FAILURES ARE NOT EMPTY RESULTS.
+      //
+      // The totals below already got this right ("null on failure, never
+      // 0 -- a count that could not be read is UNKNOWN"). The ROWS did
+      // not: both findMany calls ended in `.catch((): never[] => [])`,
+      // so a Postgres outage produced { count: 0, returned: 0,
+      // reflections: [], brainDumps: [] } -- a payload in which every
+      // field says "nothing matched" and the only dissent is a boolean
+      // named `countExact`, which is about precision, not failure.
+      //
+      // NICK reads that and says "I searched your reflections and found
+      // nothing about X." He did not search. Same species as the recall
+      // provenance defect, in the tool layer.
+      //
+      // Two DIFFERENT failures, kept apart on purpose:
+      //   · an FTS lane dying is DEGRADATION -- the ILIKE arms still run,
+      //     so results are real but recall is narrower;
+      //   · a findMany dying is a FAILED READ -- the list is not evidence
+      //     of anything.
+      const degradedLanes: string[] = [];
+      const failedReads: string[] = [];
+
       const ftsFor = async (
         table: "reflections" | "brain_dumps",
         columns: string[],
@@ -1121,6 +1143,7 @@ export const brainTools = {
           void import("@/lib/utils/error-log").then(({ logError }) =>
             logError("ai.tools.brain", err, { fn: `searchReflections.fts.${table}` }, "warn"),
           );
+          degradedLanes.push(`${table} full-text`);
           return [];
         }
       };
@@ -1175,7 +1198,10 @@ export const brainTools = {
           orderBy: { createdAt: "desc" },
           take: limit,
           select: { id: true, date: true, category: true, insight: true, evidence: true, actionable: true },
-        }).catch((): never[] => []),
+        }).catch((): never[] => {
+          failedReads.push("reflections");
+          return [];
+        }),
         prisma.brainDump.findMany({
           where: {
             OR: [
@@ -1190,15 +1216,49 @@ export const brainTools = {
           orderBy: { createdAt: "desc" },
           take: limit,
           select: { id: true, date: true, summary: true, rawThoughts: true, patterns: true, moodBefore: true },
-        }).catch((): never[] => []),
+        }).catch((): never[] => {
+          failedReads.push("brain dumps");
+          return [];
+        }),
         // Totals. `null` on failure, never 0 -- a count that could not be
         // read is UNKNOWN, and reporting it as zero would reintroduce the
         // exact confident-wrong-number this change exists to remove.
         prisma.reflection.count({ where: reflectionWhere }).catch((): null => null),
         prisma.brainDump.count({ where: dumpWhere }).catch((): null => null),
       ]);
+      /**
+       * The honesty channel. `error` is the shape this same file already
+       * uses for a failed tool (getBlindSpots returns
+       * `{ error, blindSpots: [] }`), and it is a STRING because that is
+       * what a language model actually reads -- a boolean named
+       * `countExact` sitting beside four fields that all say zero did not
+       * survive contact with the model.
+       *
+       * A partial failure is reported as a partial failure: if one source
+       * answered and the other died, the rows that came back are real and
+       * must stay usable. What must not survive is the inference that
+       * what is missing from the list is missing from the corpus.
+       */
+      const readFailureNote =
+        failedReads.length > 0
+          ? `READ FAILED for ${failedReads.join(" and ")}. ` +
+            (failedReads.length === 2
+              ? "Nothing was searched. This is NOT a measured zero -- do not say nothing matched, and do not conclude the subject is absent from the corpus. Say the lookup failed."
+              : "The surviving source was searched and its rows are real, but this result is incomplete -- do not conclude the subject is absent from the corpus.")
+          : undefined;
+      const degradedNote =
+        degradedLanes.length > 0
+          ? `Full-text search degraded (${degradedLanes.join(", ")}); matching fell back to substring only, so recall is narrower than usual and some real matches may be missing.`
+          : undefined;
+
       return {
         query,
+        ...(readFailureNote ? { error: readFailureNote } : {}),
+        ...(degradedNote ? { degraded: degradedNote } : {}),
+        // A count is only a measurement when the read behind it ran.
+        // Reporting 0 here after a failed read is the same confident
+        // wrong number the totals below were already fixed to avoid.
+        countIsMeaningful: failedReads.length === 0,
         // 2026-08-29 · `count` is the TOTAL across both sources. The chat
         // card (components/chat/tool-result-registry.tsx) reads
         // `count ?? results ?? reflections.length` -- with no `count` it

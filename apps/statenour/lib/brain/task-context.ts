@@ -120,9 +120,33 @@ function formatLine(t: TaskRow, prefix: string): string {
 }
 
 /**
+ * 2026-09-10 · an EMPTY queue and an UNREADABLE queue are different answers.
+ *
+ * This block used to return "" for both, and the difference matters more
+ * here than almost anywhere: the queue is the thing Nour asks about most
+ * directly ("what am I working on"). With no block and no explanation,
+ * NICK answers from an absent context and tells him he has nothing in
+ * progress -- a false statement about the operator's own work, in NICK's
+ * voice, on a turn where the only thing that actually happened was a
+ * failed database read.
+ *
+ * A genuinely empty queue still returns "" (see below). That is a real
+ * measurement and must stay silent, or every cleared-queue day would
+ * come with a warning attached.
+ */
+export const TASK_QUEUE_UNAVAILABLE = [
+  "## Nour's task queue - UNAVAILABLE this turn",
+  "The task-queue read failed, so no queue is in this context.",
+  "This is NOT an empty queue. Do not say he has nothing in progress, nothing",
+  "due, or nothing overdue -- you could not look.",
+  "If he asks what he is working on, say the lookup failed and offer to retry.",
+].join("\n");
+
+/**
  * Build the system-prompt block. Called by the chat route every turn.
- * Non-blocking: returns empty string on any error so we never tank
- * the stream because of a task-context failure.
+ * Non-blocking: never throws, so a task-context failure cannot tank the
+ * stream -- but it now SAYS it failed rather than looking like an empty
+ * queue (see TASK_QUEUE_UNAVAILABLE above).
  */
 export async function buildTaskContextBlock(): Promise<string> {
   try {
@@ -186,6 +210,6 @@ export async function buildTaskContextBlock(): Promise<string> {
     return lines.join("\n");
   } catch (err) {
     log.warn("build_failed", { err: err instanceof Error ? err.message : String(err) });
-    return "";
+    return TASK_QUEUE_UNAVAILABLE;
   }
 }

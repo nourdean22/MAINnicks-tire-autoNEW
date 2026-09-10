@@ -20,7 +20,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, ChevronRight, Gift, Phone, Check, X, History } from "lucide-react";
-import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import { ReferralReasonButton } from "./ReferralReasonButton";
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "text-amber-400 bg-amber-500/10",
@@ -142,18 +142,10 @@ export function TechnicianReferralsPanel() {
     onSuccess: () => { toast.success("Marked paid."); invalidate(); },
     onError: (err) => toast.error(err.message || "Couldn't update this referral."),
   });
-  const disqualify = trpc.technicianReferrals.disqualify.useMutation({
-    onSuccess: () => { toast.success("Disqualified."); invalidate(); },
-    onError: () => toast.error("Couldn't update this referral."),
-  });
-  // Distinct from disqualify on purpose: the claim was GOOD and the referrer
-  // did nothing wrong — the referred tech simply left before 90 days. Pressing
-  // Disqualify for that recorded a judgment about the referrer that the facts
-  // did not support, and it was the only option available until now.
-  const markForfeited = trpc.technicianReferrals.markForfeited.useMutation({
-    onSuccess: () => { toast.success("Marked forfeited — no bonus owed."); invalidate(); },
-    onError: (err) => toast.error(err.message || "Couldn't update this referral."),
-  });
+  // disqualify and markForfeited moved INTO ReferralReasonButton, which owns a
+  // mutation per row. At panel level a single shared `isPending` disabled every
+  // row's button while any one row was writing - the same reason
+  // LostReasonButton owns its own mutation.
 
   const rows = data?.rows ?? [];
 
@@ -312,72 +304,26 @@ export function TechnicianReferralsPanel() {
                         // Once eligibleAt has passed the bonus is EARNED, so
                         // forfeiting stops being a status edit and becomes
                         // refusing a debt. Mirror image of Mark Paid, which is
-                        // disabled while the clock is still running. The server
-                        // refuses this too — the disable is the affordance, not
+                        // disabled while the clock still runs. The server
+                        // refuses this too - the disable is the affordance, not
                         // the guard.
                         const clockUp = r.eligibleAt ? new Date(r.eligibleAt).getTime() <= Date.now() : false;
                         return (
-                        <button
-                          type="button"
-                          disabled={markForfeited.isPending || clockUp}
-                          title={clockUp ? "The 90 days are up — this bonus is owed and can't be forfeited here." : undefined}
-                          onClick={async () => {
-                            const ok = await confirmDialog({
-                              title: "Did this technician leave before 90 days?",
-                              message:
-                                "Forfeits the bonus without disqualifying the referral — the claim was good, the 90-day condition just wasn't met. Use Disqualify only when the claim itself was invalid.",
-                              confirmLabel: "Mark forfeited",
-                              tone: "danger",
-                            });
-                            if (ok) {
-                              markForfeited.mutate({
-                                id: r.id,
-                                reason: r.candidateName
-                                  ? `Left before 90 days · referred ${r.candidateName}`
-                                  : "Left before 90 days · referral was NOT linked to a candidate record",
-                              });
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/15 rounded transition-colors disabled:opacity-50"
-                        >
-                          <X className="w-3 h-3" /> Forfeit
-                        </button>
+                          <ReferralReasonButton
+                            referralId={r.id}
+                            action="forfeit"
+                            candidateName={r.candidateName}
+                            disabled={clockUp}
+                            disabledTitle="The 90 days are up - this bonus is owed and can't be forfeited here."
+                          />
                         );
                       })()}
                       {(r.status === "pending" || r.status === "eligible") && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const ok = await confirmDialog({
-                              title: "Disqualify this referral?",
-                              message: "This removes it from the payout queue. This can't be undone from here.",
-                              confirmLabel: "Disqualify",
-                              tone: "danger",
-                            });
-                            // The reason column is varchar(500) and was
-                            // receiving a constant, so it recorded nothing a
-                            // later dispute could use. This is not the full
-                            // fix — free-text capture needs an input on
-                            // ConfirmDialog, and window.prompt is banned in
-                            // client/src because iOS standalone suppresses it
-                            // silently — but it at least records the two facts
-                            // that matter when someone contests a lost $300:
-                            // whether the referral was linked to a real
-                            // candidate, and who it named.
-                            if (ok) {
-                              disqualify.mutate({
-                                id: r.id,
-                                reason: r.candidateName
-                                  ? `Disqualified by admin · referred ${r.candidateName}`
-                                  : "Disqualified by admin · referral was NOT linked to a candidate record",
-                              });
-                            }
-                          }}
-                          disabled={disqualify.isPending}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/15 rounded transition-colors disabled:opacity-50"
-                        >
-                          <X className="w-3 h-3" /> Disqualify
-                        </button>
+                        <ReferralReasonButton
+                          referralId={r.id}
+                          action="disqualify"
+                          candidateName={r.candidateName}
+                        />
                       )}
                     </div>
                     <ReferralHistory id={r.id} />

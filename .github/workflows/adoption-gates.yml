@@ -53,7 +53,14 @@ jobs:
           echo "canary OK: ast-grep still sees native-dialog violations"
 
       - name: gate - no native dialogs in either PWA's client code
-        run: pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app apps/statenour/components apps/statenour/features apps/nickstire/client/src
+        # apps/statenour/hooks and apps/statenour/lib were MISSING here until
+        # 2026-09-10. hooks/ is 32 of 32 files "use client"; lib/ holds 9 more.
+        # So 41 client files sat outside a gate whose own job description
+        # (AGENTS.md enforcement map) says it blocks native dialogs in BOTH
+        # PWAs' CLIENT TREES. The canary above proves the RULE fires; nothing
+        # proved the SCAN LIST covers the code - which is why
+        # scripts/agent-os/dialogGateCoverage.test.mjs now asserts exactly that.
+        run: pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan -c config/adoption-gates/sgconfig.yml apps/statenour/app apps/statenour/components apps/statenour/features apps/statenour/hooks apps/statenour/lib apps/nickstire/client/src
 
       - name: canary - dependency-cruiser must fail on the bad fixtures, on the RULES
         run: |

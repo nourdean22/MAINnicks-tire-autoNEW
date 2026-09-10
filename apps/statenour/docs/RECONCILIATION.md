@@ -1,5 +1,73 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-10 · "Empty is not error" wave: five layers where a failed read looked like a fact · PR #2271 (`c518a48a2`)
+>
+> Operator instruction: implement the pasted NICK audit + APEX brief, "check the accuracy of everything",
+> "I don't want a single detail missed". Continues the trust work merged as #2267 (`7519911d2`).
+>
+> **The pattern.** A read fails, the failure is swallowed into an empty value, and something downstream
+> renders that empty as a *measurement*. Every instance had the same tell: **one surface was already
+> honest and the other was not.** #2267 made the Memory Inspector tell the operator "Memory read failed --
+> state unknown, not empty" and left the MODEL with a prompt byte-identical to a clean empty search. So in
+> the same turn the panel reported a failure while NICK said "I don't have anything on that" with the
+> confidence of a search he never completed. L1's TRUTH RULE cannot catch that: it bans claiming a
+> past-tense ACTION without a tool call, and nothing bans asserting the ABSENCE of a memory you failed to
+> read -- from inside the turn those two are indistinguishable unless code puts the difference in context.
+>
+> **Five instances closed, each with a canary measured against the unfixed code:**
+>
+> 1. **recall -> prompt.** `lib/ai/chat/recall-failure-notice.ts`. Three states kept distinct: ERROR ("you
+>    did not successfully look"), OK+reason+hits (rows are real, ranking degraded), and silence for a true
+>    ZERO / UNMEASURED / clean OK. Emitted from the FINAL provenance *after* brain-context's try/catch --
+>    the first version sat in `rawBlocks`, i.e. only on the path where assembly SUCCEEDED, which is the one
+>    path that is not a failed read (review P1). An unavailable recall module is now a failed read, not
+>    UNMEASURED (review P2). The reason string is sanitized: it is a system-prompt sink.
+> 2. **The tool wrapper was an amplifier.** `wrapToolsWithEmptyHandling`'s `isEmptyDataObject` matched
+>    `{error, data: []}` and **replaced** it with `success: true, "Query completed successfully"` -- a tool
+>    that reported its own failure had that report deleted. Thrown and timed-out executes were already
+>    handled correctly; the one path it got wrong was the codebase's own convention of returning the error
+>    in the result value.
+> 3. **`searchReflections` was half-honest.** Its totals already said "null on failure, never 0"; both
+>    `findMany` calls still ended in `.catch(() => [])`. Now `error` + `countIsMeaningful`, with a dead FTS
+>    lane reported as `degraded` (the ILIKE arms still ran, rows are real) rather than as a failed read.
+> 4. **L4 truth-grounding.** `null` meant "not a project" AND "the read threw" AND, via a 3s timeout in
+>    brain-context, "we never found out". Split into a discriminated outcome; both failure paths share one
+>    `TRUTH_GROUNDING_UNAVAILABLE` string so they cannot drift.
+> 5. **The task queue.** `buildTaskContextBlock` returned `""` for an empty queue and a failed read alike --
+>    the block whose absence is most directly read as a fact ("what am I working on" -> "nothing").
+>
+> **Plus `tests/ui/domain-boundary.test.ts`**, compiling the repo's prose rule ("business shit belongs on
+> nicks tire admin", quoted at `stats/page.tsx:20`) into a check. A naive grep returns nine files and is
+> wrong about six: a comment STATING the rule and an href LINKING to the shop admin look identical to a
+> text search. Comments stripped, shop-targeted links exempted, four remaining hits frozen with per-file
+> judgements (2 leaks, 1 borderline, 1 legitimate). Scoped to product surfaces -- `app/api/**` is the
+> bridge and is excluded with its own canary asserting the bridge exists AND names the shop.
+>
+> **Method note.** Every canary was run against the unfixed code. That measurement demoted two of the
+> tool-wrapper "canaries" to PINs: they passed either way, because `data` was non-empty in one and absent
+> in the other, so interception never fired. A test that passes against the unfixed code proves nothing.
+> Controls carry the other half -- genuine empties still wrap, a cleared task queue still renders nothing --
+> without which "delete the empty handling" would have scored green.
+>
+> **Corrections made to my own earlier findings, rather than dropped:** `canAuthorizeSideEffect` is NOT
+> dark wiring (a file-list grep hides same-file call chains; it is reached via `shouldStampInferredBasis`);
+> the post-KNN `CONTEXT_CATEGORIES` filter must NOT be removed (the `hit@5 = 0/28` figure was already fixed
+> by *widening* the list); and `memory-inspector-sidebar.tsx` should NOT call `describeRecallState` -- the
+> panel's hand-rolled version models degraded-with-hits and the legacy no-provenance case, and the helper
+> models neither. The helper's missing consumer was the prompt, which is item 1.
+>
+> Receipts: 255 test files, 3,081 passed, exit 0 · `tsc --noEmit` clean · 12 CI checks green (typecheck,
+> both knip gates, ast-grep + dependency-cruiser, adapter parity, completion-authority, gitleaks, security,
+> e2e, turbo-affected verify). Two earlier verify runs were cancelled mid-`build` by a sibling session
+> merging 5 PRs into main and invalidating the `2271/merge` ref; merging main into the branch fixed it.
+>
+> **Still operator-gated:** `NICK_EVIDENCE_ENFORCEMENT` is wired on the buffered path with an explicit
+> activation criterion, but flipping it needs the shadow false-positive rate from prod `evidence_gate_shadow`
+> rows -- and there is no offline corpus to substitute (`data/persona-corpus/` is a README).
+> `fast-check` sits in `pnpm-lock.yaml` at 3.23.2 but is **transitive only**; declaring it needs an install,
+> which is banned inside a junctioned worktree.
+
+
 > ## 2026-09-08 · Camera vision wave 0: the arrival pipeline that never received an event · 3 PRs + plan
 >
 > Operator instruction, on-site at the shop: "update whatever you need for the cameras ... the whole nine
