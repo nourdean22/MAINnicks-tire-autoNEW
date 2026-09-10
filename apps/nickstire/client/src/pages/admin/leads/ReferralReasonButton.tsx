@@ -122,7 +122,10 @@ export function ReferralReasonButton({
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="px-2 py-1 text-foreground/40 hover:text-foreground/70 text-[12px] leading-none"
+            // Sized with the chips deliberately. A cancel too small to hit is not a
+            // minor annoyance here - the thumb that misses it lands on a chip, and
+            // the chip commits.
+            className="min-h-[48px] min-w-[48px] px-3 text-foreground/40 hover:text-foreground/70 text-[16px] leading-none"
             aria-label="Cancel"
           >
             ×
@@ -141,7 +144,14 @@ export function ReferralReasonButton({
               type="button"
               onClick={() => submit(reason)}
               disabled={mutation.isPending}
-              className={`px-2 py-1.5 bg-card border ${tone.border} ${tone.text} text-[10px] tracking-wide ${tone.bg} disabled:opacity-50 transition-colors rounded`}
+              // min-h-[48px]/min-w-[48px]: these chips COMMIT an irreversible $300
+              // refusal in one tap, on a phone. At the inherited px-2 py-1 sizing
+              // they render ~24px tall - half the 48x48 minimum this app documents
+              // - with adjacent chips a thumb-width apart. A mis-tap here does not
+              // just annoy: it records the WRONG REASON against a contested payout,
+              // which asserts something false where the old canned string merely
+              // said nothing. Bigger is the point, not a style preference.
+              className={`min-h-[48px] min-w-[48px] px-3 py-2 bg-card border ${tone.border} ${tone.text} text-[11px] tracking-wide ${tone.bg} disabled:opacity-50 transition-colors rounded`}
             >
               {reason}
             </button>
