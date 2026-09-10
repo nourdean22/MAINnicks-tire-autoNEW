@@ -219,7 +219,7 @@ export async function processReviewRequestQueue() {
     } else {
       await markReviewRequestFailed(req.id, result.error || "Unknown error");
       failed++;
-      log.error(`[ReviewRequest] Failed for ${req.customerName}: ${result.error}`);
+      log.error(`[ReviewRequest] Failed for request #${req.id}: ${result.error}`);
     }
 
     // Small delay between sends to avoid Twilio rate limits

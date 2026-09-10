@@ -197,6 +197,14 @@ const PII_PATTERNS = [
     // (216-555-XXXX cannot be a subscriber) — handled in ruleViolates.
     allowDigits: new Set(["2168620005", "2164249249", "2167699977"]),
     fictionExchange: true,
+    // 2026-09-10 · skipComments. This rule was flagging PROSE THAT EXPLAINS
+    // WHY a number is hardcoded — three of its four nonCustomerFilter.ts hits
+    // were doc comments describing the internal-line guard, not code emitting
+    // a number. guard-red-team names mention-vs-execution as the largest
+    // source of guard false positives, and a check that fails on its own
+    // documentation is one a frustrated reader deletes. The flag already
+    // existed on this linter and this rule simply never set it.
+    skipComments: true,
   },
   {
     pattern: /[a-zA-Z0-9._%+-]+@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com\b/g,

@@ -196,7 +196,7 @@ export async function runConfirmationCalls(): Promise<RunResult> {
         .set({ agentphoneCallId: call.callId, status: "dialing" })
         .where(eq(confirmationCalls.id, attemptId));
       placed++;
-      log.info(`[confirmation-calls] placed VAPI call ${call.callId} for booking ${b.id} (${firstName})`);
+      log.info(`[confirmation-calls] placed VAPI call ${call.callId} for booking ${b.id}`);
     } else {
       if (attemptId !== null) {
         await d
