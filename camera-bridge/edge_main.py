@@ -90,6 +90,7 @@ def edge_heartbeat_body(
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
     commissioning_run_id: Optional[str] = None,
+    hard_cases: Any = None,
 ) -> Dict[str, object]:
     """The producer's account of itself, merging BOTH halves of what it knows.
 
@@ -114,7 +115,30 @@ def edge_heartbeat_body(
         source_type = None
 
     oldest = ledger.shop_outbox_oldest_age(now)
+    # THE RECORDER'S OWN HEALTH, carried where a human already looks. Without this a
+    # recorder whose every write fails is indistinguishable from a shop that simply had no
+    # hard cases: the directory is empty in both stories, and only one of them is fine. The
+    # key is present ONLY when a recorder exists, so an older producer stays honest about
+    # having none rather than reporting a healthy zero it cannot vouch for.
+    hard_case_facet: Dict[str, object] = {}
+    if hard_cases is not None:
+        try:
+            st = hard_cases.stats
+            hard_case_facet = {"hardCases": {
+                "clips": st.clips_written,
+                "frames": st.frames_written,
+                "bytes": st.bytes_written,
+                "droppedCooldown": st.dropped_cooldown,
+                "droppedError": st.dropped_write_error,
+                "evicted": st.evicted_clips,
+                "healthy": bool(st.healthy),
+                "lastError": st.last_error,
+            }}
+        except Exception:  # noqa: BLE001 - telemetry about the recorder cannot break the heartbeat
+            hard_case_facet = {"hardCases": {"healthy": False, "lastError": "stats unreadable"}}
+
     return {
+        **hard_case_facet,
         "camera": camera,
         "producerInstanceId": PRODUCER_INSTANCE_ID,
         "producerVersion": f"edge {__version__}",
@@ -172,11 +196,16 @@ class EdgeLoop:
         drain_seconds: float = 5.0,
         stall_exit_seconds: float = 180.0,
         persist_seconds: float = 2.0,
+        hard_cases: Any = None,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
         self.vision = vision
         self.source = source
+        #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
+        #: has -- the corpus is an upgrade, never a dependency of watching the lot.
+        self.hard_cases = hard_cases
+        self._last_layout_epoch = None
         self.camera = camera
         self.mode = mode
         #: What this producer is when NOT commissioning, passed in from the CALIBRATION
@@ -240,6 +269,11 @@ class EdgeLoop:
         if frame is not None:
             self.frames += 1
             self.last_frame_at = self.clock()
+            # FEED THE ROLLING WINDOW FIRST, before any gate can return early. A frame
+            # dropped for a generation break or an untrusted pose is often the single most
+            # interesting frame in the clip, and a buffer fed after the gates would be
+            # missing exactly the moments the recorder exists to capture.
+            self._observe_hard_case(frame)
 
             # A TRACK PATH MUST NEVER CROSS A CAPTURE GENERATION, and this is the only
             # place that can enforce it. `CaptureMux` falls back to the next lane after
@@ -289,6 +323,8 @@ class EdgeLoop:
                 self.pipeline.metrics.inc("edge_vision_errors_total")
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
+
+            self._note_hard_cases(frame, out)
 
             hs = out.get("health") or self.vision.health.state(frame.ts)
             self.last_health = hs
@@ -397,6 +433,7 @@ class EdgeLoop:
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
+            hard_cases=self.hard_cases,
             # ONLY what the mirror is currently tagging rows with. Falling back to the
             # launch flag would keep re-reporting a run the producer had already left, so
             # the admin would never see commissioning end -- and this field exists
@@ -409,6 +446,75 @@ class EdgeLoop:
         # `base_mode` is what lets the camera card's badge clear when a run ends.
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
+
+    def _observe_hard_case(self, frame) -> None:
+        """Push a frame into the recorder's window. Never raises: this is not the lot's job."""
+        if self.hard_cases is None:
+            return
+        try:
+            self.hard_cases.observe(frame.ts, frame.image)
+        except Exception:  # noqa: BLE001
+            log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
+
+    def _note_hard_cases(self, frame, out: Dict[str, object]) -> None:
+        """Arm a clip for anything the system just told us it was unsure about.
+
+        ONLY signals that genuinely exist here are wired. A trigger with no real producer is
+        a class of hard case the corpus will never contain, and read back later an absent
+        class looks like a shop that never had one rather than like nothing that was ever
+        watching -- so `TRIGGERS_WIRED` names exactly these and nothing more.
+        """
+        if self.hard_cases is None:
+            return
+        try:
+            ts = frame.ts
+
+            # LAYOUT CHANGE. `WgcWindowSource.set_canonical` stamps the epoch into the frame,
+            # so this is a real signal the moment a scene is relocated -- and a layout change
+            # is the boundary at which geometry stops being comparable.
+            epoch = (frame.meta or {}).get("layoutEpoch")
+            changed = (epoch is not None and self._last_layout_epoch is not None
+                       and epoch != self._last_layout_epoch)
+            if changed:
+                self.hard_cases.trigger("LAYOUT_CHANGE", ts, {
+                    "from": self._last_layout_epoch, "to": epoch,
+                    "sceneId": (frame.meta or {}).get("sceneId")})
+            if epoch is not None:
+                self._last_layout_epoch = epoch
+
+            # POSE OFF HOME. The scene gate already decides this; the clip is the evidence
+            # an operator needs to tell a real bump from a passing truck filling the frame.
+            scene = out.get("scene")
+            if scene is not None and not getattr(scene, "may_create_visits", True):
+                self.hard_cases.trigger("POSE_OFF_HOME", ts, {
+                    "changeFrac": round(float(getattr(scene, "change_frac", 0.0)), 3)})
+
+            council = out.get("council")
+            if council is not None:
+                by = dict(getattr(council, "by_detector", {}) or {})
+                # DETECTOR DISAGREEMENT. Escalation alone is not disagreement -- the council
+                # escalates on ambiguity and the adjudicator often simply confirms. What is
+                # worth a label is the two models returning DIFFERENT counts, which is the
+                # case a human can actually adjudicate from a clip.
+                if getattr(council, "escalated", False) and len(by) >= 2:
+                    counts = sorted(by.values())
+                    if counts[0] != counts[-1]:
+                        self.hard_cases.trigger("DETECTOR_DISAGREEMENT", ts, {"byDetector": by})
+
+                # PORTAL LOW CONFIDENCE. An emission on this frame means the lot's state
+                # changed; a weak best detection behind that change is the expensive kind of
+                # uncertainty, because it is the frame that creates or denies a visit.
+                if out.get("emissions"):
+                    scores = [float(getattr(d, "score", 0.0))
+                              for d in (getattr(council, "detections", None) or [])]
+                    if scores and max(scores) < 0.60:
+                        self.hard_cases.trigger("PORTAL_LOW_CONFIDENCE", ts, {
+                            "bestScore": round(max(scores), 3), "detections": len(scores)})
+
+            for path in self.hard_cases.flush_ready(ts):
+                log.info("hard case saved %s", path)
+        except Exception:  # noqa: BLE001 - the corpus must never take the lot down
+            log.exception("hard-case bookkeeping failed")
 
     def shutdown(self) -> None:
         """Flush on the way out: commit whatever is held, then drain what we can.
@@ -429,6 +535,15 @@ class EdgeLoop:
             self.pipeline.drain_shop()
         except Exception:
             log.exception("final shop drain failed")
+        if self.hard_cases is not None:
+            # A producer that stops right after something confusing happened is describing a
+            # moment especially worth keeping. Dropping armed clips on the way out loses
+            # exactly the wrong ones.
+            try:
+                for path in self.hard_cases.flush_all(self.clock()):
+                    log.info("hard case saved on shutdown %s", path)
+            except Exception:
+                log.exception("final hard-case flush failed")
 
 
 # ---------------------------------------------------------------------------- wiring
@@ -708,9 +823,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
     ap.add_argument("--scene-atlas", default=None,
-                    help="directory of reference views named <scene_id>__<variant>.png; locates the KNOWN camera anywhere in the window and warps frames into canonical coordinates")
+                    help="directory of reference views named <scene_id>__<variant>.png; "
+                         "locates the KNOWN camera anywhere in the window and warps every "
+                         "frame into canonical coordinates")
     ap.add_argument("--scene", default=None,
-                    help="which scene_id in the atlas this producer IS; omit to accept whichever known scene is on screen (refused if two are ambiguous)")
+                    help="which scene_id in the atlas this producer IS; omit to accept "
+                         "whichever known scene is on screen (refused if ambiguous)")
     ap.add_argument("--channel", type=int, default=None,
                     help="aim at ONE channel of a multi-lens device (0-based, left-to-right, top "
                          "row first). SHOPSIGN is a 3-in-1: two fixed lenses plus a PTZ.")
@@ -725,6 +843,12 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "motion-only and cannot confirm an arrival")
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
                     help="OpenVINO device (env VISION_OV_DEVICE)")
+    ap.add_argument("--hard-cases", default=os.environ.get("EDGE_HARD_CASES"),
+                    help="directory for clips of moments the system found HARD -- detector "
+                         "disagreement, a weak portal decision, an off-home pose, a layout "
+                         "change. Unset means no corpus is collected.")
+    ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
+                    help="disk budget for the hard-case store; oldest clips are evicted first")
     ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
                     help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
                          "frames. Must differ from --model; a model agrees with itself.")
@@ -783,6 +907,16 @@ def run_edge(args: argparse.Namespace) -> int:
         log.error("metrics server unavailable host=%s port=%s error=%s", cfg.metrics_host, cfg.metrics_port, exc)
 
     pipeline.cloud.start()
+    recorder = None
+    if args.hard_cases:
+        from vision.hardcase import HardCaseRecorder
+
+        recorder = HardCaseRecorder(directory=args.hard_cases,
+                                    max_bytes=int(args.hard_case_max_gb * 1024 ** 3))
+        os.makedirs(args.hard_cases, exist_ok=True)
+        log.info("hard-case corpus at %s (budget %.1f GB)", args.hard_cases,
+                 args.hard_case_max_gb)
+
     loop = EdgeLoop(
         pipeline, vision, source,
         camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
@@ -790,6 +924,7 @@ def run_edge(args: argparse.Namespace) -> int:
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
+        hard_cases=recorder,
     )
 
     stop = threading.Event()

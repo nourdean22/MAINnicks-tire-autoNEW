@@ -13,6 +13,8 @@ import time
 import unittest
 from types import SimpleNamespace
 
+import numpy as np
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import edge_main                                                       # noqa: E402
@@ -544,6 +546,7 @@ def _args(**over):
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
         adjudicator_model=None, adjudicator_device=None,
+        hard_cases=None, hard_case_max_gb=2.0,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1052,6 +1055,212 @@ class ArgsFixtureDriftTest(unittest.TestCase):
         real = vars(edge_main.parse_args([]))
         invented = sorted(set(vars(_args())) - set(real))
         self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
+
+
+class HardCaseWiringTest(unittest.TestCase):
+    """The recorder is only worth having if the producer actually FIRES it.
+
+    Every trigger below is derived from a signal that genuinely exists in `EdgeLoop.step`'s
+    own outputs. A trigger with no real producer would leave that class absent from the
+    corpus forever, and read back later an absent class looks like a shop that never had one
+    rather than like nothing that was ever watching.
+    """
+
+    class _Spy:
+        def __init__(self, fail=False):
+            self.observed, self.fired, self.flushed = [], [], 0
+            self._fail = fail
+            self.stats = SimpleNamespace(
+                clips_written=3, frames_written=90, bytes_written=1234,
+                dropped_cooldown=1, dropped_write_error=0, evicted_clips=0,
+                healthy=True, last_error=None)
+
+        def observe(self, ts, image):
+            if self._fail:
+                raise RuntimeError("observe exploded")
+            self.observed.append(ts)
+
+        def trigger(self, reason, at, context=None):
+            if self._fail:
+                raise RuntimeError("trigger exploded")
+            self.fired.append((reason, context or {}))
+            return True
+
+        def flush_ready(self, now):
+            if self._fail:
+                raise RuntimeError("flush exploded")
+            self.flushed += 1
+            return []
+
+        def flush_all(self, now):
+            return []
+
+    def _drive(self, out, meta=None, spy=None, passes=1):
+        """Run EdgeLoop.step with a stubbed vision layer returning `out`."""
+        spy = spy or self._Spy()
+        pipeline = make_pipeline()
+        frames = [SimpleNamespace(
+            ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8), seq=i,
+            source="fake", meta=dict(meta or {})) for i in range(max(passes, 1))]
+
+        class _Src:
+            def __init__(self):
+                self.i = 0
+
+            def read(self):
+                f = frames[min(self.i, len(frames) - 1)]
+                self.i += 1
+                return f
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return dict(out)
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        for _ in range(passes):
+            loop.step()
+        return spy, loop
+
+    def test_every_frame_reaches_the_rolling_window(self):
+        spy, _ = self._drive({"emissions": []}, passes=3)
+        self.assertEqual(len(spy.observed), 3)
+
+    def test_a_LAYOUT_EPOCH_change_fires_LAYOUT_CHANGE(self):
+        """`WgcWindowSource.set_canonical` stamps the epoch into the frame, so this is a real
+        signal the moment a scene is relocated -- and the boundary at which geometry stops
+        being comparable across frames."""
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        metas = [{"layoutEpoch": 1, "sceneId": "shop-left"},
+                 {"layoutEpoch": 1, "sceneId": "shop-left"},
+                 {"layoutEpoch": 2, "sceneId": "shop-left"}]
+        frames = [SimpleNamespace(ts=1000.0 + i, image=np.zeros((8, 8, 3), np.uint8),
+                                        seq=i, source="fake", meta=m)
+                  for i, m in enumerate(metas)]
+
+        class _Src:
+            def __init__(self):
+                self.i = 0
+
+            def read(self):
+                f = frames[self.i]
+                self.i += 1
+                return f
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        for _ in metas:
+            loop.step()
+        reasons = [r for r, _ in spy.fired]
+        self.assertEqual(reasons.count("LAYOUT_CHANGE"), 1,
+                         f"exactly one epoch change happened, fired {reasons}")
+        ctx = dict(spy.fired[reasons.index("LAYOUT_CHANGE")][1])
+        self.assertEqual((ctx["from"], ctx["to"]), (1, 2))
+
+    def test_the_FIRST_frame_does_not_fire_a_layout_change(self):
+        """There is nothing to have changed FROM. Firing here would put a spurious clip at
+        the start of every single producer start-up and drown the real ones."""
+        spy, _ = self._drive({"emissions": []}, meta={"layoutEpoch": 7})
+        self.assertNotIn("LAYOUT_CHANGE", [r for r, _ in spy.fired])
+
+    def test_an_UNTRUSTED_POSE_fires_POSE_OFF_HOME(self):
+        scene = SimpleNamespace(may_create_visits=False, change_frac=0.42)
+        spy, _ = self._drive({"emissions": [], "scene": scene})
+        self.assertIn("POSE_OFF_HOME", [r for r, _ in spy.fired])
+
+    def test_a_TRUSTED_pose_fires_nothing(self):
+        """The positive control: without it a trigger that fired unconditionally would pass
+        the test above while filling the disk with ordinary frames."""
+        scene = SimpleNamespace(may_create_visits=True, change_frac=0.01)
+        spy, _ = self._drive({"emissions": [], "scene": scene})
+        self.assertEqual(spy.fired, [])
+
+    def test_DISAGREEMENT_needs_the_two_detectors_to_actually_DISAGREE(self):
+        """Escalation alone is not disagreement. The council escalates on ambiguity and the
+        adjudicator usually just confirms; a clip is worth saving when the two return
+        DIFFERENT counts, which is the case a human can adjudicate from the footage."""
+        agree = SimpleNamespace(escalated=True, detections=[],
+                                      by_detector={"primary": 2, "adj": 2})
+        spy, _ = self._drive({"emissions": [], "council": agree})
+        self.assertEqual(spy.fired, [], "agreement is not a hard case")
+
+        differ = SimpleNamespace(escalated=True, detections=[],
+                                       by_detector={"primary": 1, "adj": 3})
+        spy2, _ = self._drive({"emissions": [], "council": differ})
+        self.assertIn("DETECTOR_DISAGREEMENT", [r for r, _ in spy2.fired])
+
+    def test_a_WEAK_detection_behind_a_STATE_CHANGE_fires_PORTAL_LOW_CONFIDENCE(self):
+        """The expensive kind of uncertainty: the frame that creates or denies a visit.
+
+        The emissions are the REAL tracker's, not stand-ins -- a bare sentinel would never
+        reach the persistence layer this loop actually runs, so the test would be exercising
+        a shape production never produces."""
+        emissions = _real_emissions(make_pipeline(), camera="lot")
+        weak = SimpleNamespace(escalated=False,
+                               detections=[SimpleNamespace(score=0.44)],
+                               by_detector={"primary": 1})
+        spy, _ = self._drive({"emissions": emissions, "council": weak})
+        self.assertIn("PORTAL_LOW_CONFIDENCE", [r for r, _ in spy.fired])
+
+        strong = SimpleNamespace(escalated=False,
+                                 detections=[SimpleNamespace(score=0.93)],
+                                 by_detector={"primary": 1})
+        spy2, _ = self._drive({"emissions": emissions, "council": strong})
+        self.assertEqual(spy2.fired, [], "a confident decision is not a hard case")
+
+    def test_a_weak_detection_with_NO_state_change_is_not_a_portal_case(self):
+        """A quiet lot full of low-confidence noise is not worth a clip each. The trigger is
+        the CHANGE, not the confidence on its own."""
+        weak = SimpleNamespace(escalated=False,
+                                     detections=[SimpleNamespace(score=0.44)],
+                                     by_detector={"primary": 1})
+        spy, _ = self._drive({"emissions": [], "council": weak})
+        self.assertEqual(spy.fired, [])
+
+    def test_a_RECORDER_THAT_EXPLODES_does_not_take_the_producer_down(self):
+        """The corpus is an upgrade, never a dependency of watching the lot.
+
+        The scene is UNTRUSTED on purpose, so a trigger is actually attempted and the
+        exception is raised inside the derivation rather than only inside `observe`. Driving
+        this with a quiet frame fired nothing, so the derivation's own guard went untested --
+        a mutation that let exceptions escape it survived until this fixture said otherwise."""
+        spy = self._Spy(fail=True)
+        scene = SimpleNamespace(may_create_visits=False, change_frac=0.9)
+        _, loop = self._drive({"emissions": [], "scene": scene}, spy=spy)
+        self.assertIsNotNone(loop, "the step must have completed despite the recorder raising")
+        self.assertEqual(spy.fired, [], "the spy raised, so nothing can have been recorded")
+
+    def test_the_HEARTBEAT_carries_the_recorders_own_health(self):
+        """Without this a recorder whose every write fails is indistinguishable from a shop
+        that had no hard cases -- the directory is empty in both stories."""
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        body = edge_main.edge_heartbeat_body(
+            camera="lot", seq=1, now=1000.0, mode="SHADOW", source=FakeSource(),
+            vision=FakeVision(pipeline.tracker), ledger=pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name=None, model_sha256=None, last_healthy_frame_at=None,
+            hard_cases=spy)
+        self.assertIn("hardCases", body)
+        self.assertEqual(body["hardCases"]["clips"], 3)
+        self.assertTrue(body["hardCases"]["healthy"])
+
+    def test_the_heartbeat_OMITS_the_facet_when_there_is_no_recorder(self):
+        """Absent is honest; a healthy zero would be a claim the producer cannot vouch for."""
+        pipeline = make_pipeline()
+        body = edge_main.edge_heartbeat_body(
+            camera="lot", seq=1, now=1000.0, mode="SHADOW", source=FakeSource(),
+            vision=FakeVision(pipeline.tracker), ledger=pipeline.ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name=None, model_sha256=None, last_healthy_frame_at=None)
+        self.assertNotIn("hardCases", body)
 
 
 if __name__ == "__main__":

@@ -438,9 +438,12 @@ def main() -> int:
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
     ap.add_argument("--scene-atlas", default=None,
-                    help="directory of reference views named <scene_id>__<variant>.png; locates the KNOWN camera anywhere in the window and warps frames into canonical coordinates")
+                    help="directory of reference views named <scene_id>__<variant>.png; "
+                         "locates the KNOWN camera anywhere in the window and warps every "
+                         "frame into canonical coordinates")
     ap.add_argument("--scene", default=None,
-                    help="which scene_id in the atlas this producer IS; omit to accept whichever known scene is on screen (refused if two are ambiguous)")
+                    help="which scene_id in the atlas this producer IS; omit to accept "
+                         "whichever known scene is on screen (refused if ambiguous)")
     ap.add_argument("--channel", type=int, default=None,
                     help="aim at ONE channel of a multi-lens device (0-based, left-to-right, "
                          "top row first). Resolved once at startup; refuses rather than guesses.")
