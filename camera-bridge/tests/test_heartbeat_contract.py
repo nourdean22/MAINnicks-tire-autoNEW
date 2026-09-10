@@ -394,5 +394,66 @@ class HeartbeatValueTest(unittest.TestCase):
             self.assertIsNone(body[field], f"{field} rendered a value from nothing")
 
 
+class UnmeasuredIsNotZeroTest(unittest.TestCase):
+    """NULL means "this producer does not report it". 0 means "it looked and found none".
+
+    Two of the heartbeat's counters exist only on producers new enough to keep them, and the
+    shop stores both columns NULLABLE precisely so the two claims stay apart -- migration 0124
+    says so, the admin card renders a number only when it is greater than zero, and the whole
+    justification for a nullable column rather than `NOT NULL DEFAULT 0` rests on it.
+
+    None of which was TESTED. A mutation replacing `None if x is None else int(x)` with
+    `int(x or 0)` passed all 19 contract tests: the producer would have reported a confident
+    zero for a question nobody asked, the card would have shown a clean "0 missed arrivals"
+    for a producer that has never counted them, and every gate stayed green. That is the same
+    failed-read-renders-as-a-confident-zero shape this repo has spent whole days removing, and
+    the argument against it lived only in prose.
+    """
+
+    def _body(self, **over):
+        vision = SimpleNamespace(
+            tracker=SimpleNamespace(open_visits=lambda: []),
+            stats=SimpleNamespace(**over.pop("stats", {})),
+        )
+        # Mirrors the fixture above: a real temp path so `_disk_free_bytes` has something to
+        # measure, and `shop_outbox_oldest_age` under its actual name.
+        ledger = SimpleNamespace(
+            path=os.path.join(tempfile.mkdtemp(), "edge-sign.sqlite"),
+            shop_outbox_depth=lambda: 0, dead_letter_depth=lambda: 0,
+            shop_outbox_oldest_age=lambda now: None)
+        kwargs = dict(
+            camera="sign", seq=1, now=1000.0, mode="PRODUCTION",
+            source=SimpleNamespace(), vision=vision, ledger=ledger,
+            health_state=None, scene_state=None, calibration_version=None,
+            detector_name="fake", model_sha256=None, last_healthy_frame_at=None,
+            last_inference_at=1000.0, inference_p95_ms=12.0,
+            last_frame_at=1000.0, last_cloud_ack_at=1000.0)
+        kwargs.update(over)
+        return edge_main.edge_heartbeat_body(**kwargs)
+
+    def test_an_UNREPORTED_counter_is_null_and_never_zero(self):
+        body = self._body()
+        for field in ("relocateFailures", "preexistingCrossed"):
+            self.assertIn(field, body, f"{field} must be PRESENT so the shop can store null")
+            self.assertIsNone(
+                body[field],
+                f"{field} came back {body[field]!r} for a producer that does not report it. "
+                f"NULL is 'not measured'; 0 is 'looked and found none', and the admin card "
+                f"and migration 0124 both depend on telling them apart.")
+
+    def test_a_REAL_zero_survives_as_zero(self):
+        """The other direction, and the one a truthiness test breaks. A producer that HAS
+        looked and found none must report 0 -- suppressing it would hide a healthy reading
+        behind the same null as a producer that cannot count."""
+        body = self._body(relocate_failures=0, preexisting_crossed=0)
+        self.assertEqual(body["relocateFailures"], 0)
+        self.assertEqual(body["preexistingCrossed"], 0)
+
+    def test_a_real_COUNT_is_carried_through(self):
+        body = self._body(relocate_failures=7, preexisting_crossed=3)
+        self.assertEqual(body["relocateFailures"], 7)
+        self.assertEqual(body["preexistingCrossed"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
