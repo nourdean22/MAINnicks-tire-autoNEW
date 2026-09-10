@@ -26,7 +26,7 @@ const STATUS_OPTIONS = ["new", "contacted", "interviewing", "hired", "declined",
 export function CandidatesPanel() {
   const [open, setOpen] = useState(true);
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.candidates.list.useQuery(undefined, { enabled: open });
+  const { data, isLoading, isError, error } = trpc.candidates.list.useQuery(undefined, { enabled: open });
 
   const updateStatus = trpc.candidates.updateStatus.useMutation({
     onSuccess: () => {
@@ -61,6 +61,21 @@ export function CandidatesPanel() {
           {isLoading ? (
             <div className="flex items-center gap-2 text-[12px] text-foreground/40">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading&hellip;
+            </div>
+          ) : isError ? (
+            // Was absent entirely: a failed query left data undefined, rows
+            // fell back to [], and the panel rendered "No candidates yet" — a
+            // confident zero for a read that never happened. The sibling
+            // TechnicianReferralsPanel already branched on this.
+            <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
+              <strong>Couldn't load candidates.</strong> This is a read failure, not an
+              empty list — applications may exist that aren't shown.
+              {error?.message ? <span className="block mt-1 opacity-80">{error.message}</span> : null}
+            </div>
+          ) : data?.available === false ? (
+            <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
+              <strong>Database unavailable.</strong> The candidates table could not be
+              read, so this is not "no applicants" — it is "we don't know".
             </div>
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
