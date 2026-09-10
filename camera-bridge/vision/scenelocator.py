@@ -484,6 +484,23 @@ def load_atlas(directory: str) -> List[SceneReference]:
                     f"reference, so it would mask the wrong pixels"
                 )
         refs.append(build_reference(image, scene_id, variant or "default", mask))
+    # EVERY VARIANT OF ONE SCENE MUST SHARE ITS CANONICAL SIZE. A `SceneReference` treats its
+    # own image dimensions as the canonical frame, and the homography that wins is later
+    # rendered into the single size named by the calibration file. If two variants of a scene
+    # differ in size, WHICH ONE MATCHED silently changes the coordinate system the lot and
+    # portal polygons live in -- cropping, padding or rescaling the geometry with no error
+    # anywhere. Refusing here is the only place that can catch it.
+    sizes: Dict[str, tuple] = {}
+    for ref in refs:
+        seen = sizes.setdefault(ref.scene_id, (ref.width, ref.height, ref.variant))
+        if (ref.width, ref.height) != seen[:2]:
+            raise SceneNotLocated(
+                f"scene {ref.scene_id!r} has variants of different sizes: {seen[2]!r} is "
+                f"{seen[0]}x{seen[1]} but {ref.variant!r} is {ref.width}x{ref.height}. Every "
+                "variant of a scene defines the SAME canonical frame, so a mismatch would "
+                "silently rescale the lot and portal polygons depending on which one matched."
+            )
+
     if not refs:
         raise SceneNotLocated(
             f"no reference images in {directory!r}. Name them '<scene_id>__<variant>.png' "

@@ -324,7 +324,7 @@ class HeartbeatTest(unittest.TestCase):
         )
         # the vision half
         self.assertEqual(body["sourceType"], "wgc")
-        self.assertEqual(body["sourceGeneration"], "0.2")
+        self.assertEqual(body["sourceGeneration"], "0.2.0")
         self.assertEqual((body["captureFps"], body["frameOk"]), (3.9, True))
         self.assertEqual((body["poseOk"], body["calibrationVersion"]), (True, "sha256:abc123"))
         self.assertEqual(body["lastHealthyFrameAt"], "2027-01-15T07:59:59+00:00")
@@ -379,7 +379,7 @@ class HeartbeatTest(unittest.TestCase):
         )
         self.assertIs(body["sourceConnected"], False)
         self.assertIsNone(body["sourceType"])
-        self.assertEqual(body["sourceGeneration"], "2.0")
+        self.assertEqual(body["sourceGeneration"], "2.0.0")
         pipeline.ledger.close()
 
     def test_the_sequence_is_monotonic_within_one_instance(self):
@@ -501,13 +501,36 @@ class SourceGenerationTest(unittest.TestCase):
     def test_a_restore_or_a_failover_is_a_NEW_generation(self):
         """A track path must never cross a generation: an outside point from one lane
         plus an inside point from another is a fabricated portal crossing."""
-        self.assertEqual(source_generation(FakeSource(index=0, restores=0)), "0.0")
-        self.assertEqual(source_generation(FakeSource(index=0, restores=3)), "0.3",
+        self.assertEqual(source_generation(FakeSource(index=0, restores=0)), "0.0.0")
+        self.assertEqual(source_generation(FakeSource(index=0, restores=3)), "0.3.0",
                          "un-minimising the capture window is a discontinuity too")
-        self.assertEqual(source_generation(FakeSource(index=1, restores=0)), "1.0")
+        self.assertEqual(source_generation(FakeSource(index=1, restores=0)), "1.0.0")
         dead = FakeSource(index=4)
         dead.active = None
-        self.assertEqual(source_generation(dead), "4.0")
+        self.assertEqual(source_generation(dead), "4.0.0")
+
+    def test_a_LAYOUT_EPOCH_change_is_a_new_generation_too(self):
+        """The reason the epoch joined this identity. A track at x=650 before a layout change
+        and a detection at x=650 after it are not the same place, and joining them
+        manufactures a portal crossing no car ever made.
+
+        Folding the epoch in here means the EXISTING generation-break path -- which already
+        degrades tracks and re-arms the pre-existing census -- handles a re-located scene
+        with no second mechanism to keep in step."""
+        src = FakeSource(index=0, restores=0)
+        before = source_generation(src)
+        src.active.layout_epoch = 2
+        after = source_generation(src)
+        self.assertNotEqual(before, after, "a layout change must break the path")
+        self.assertEqual(after, "0.0.2")
+
+    def test_a_source_with_NO_epoch_reads_as_zero_rather_than_raising(self):
+        """Most sources have no concept of a layout epoch -- the mss lane, replay, fixtures.
+        They must keep working and keep a stable generation."""
+        plain = FakeSource(index=1, restores=1)
+        if hasattr(plain.active, "layout_epoch"):
+            del plain.active.layout_epoch
+        self.assertEqual(source_generation(plain), "1.1.0")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -548,6 +571,7 @@ def _args(**over):
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0,
         shadow_ledger=None,
+        relocate_seconds=120.0,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1466,6 +1490,158 @@ class ShadowWiringTest(unittest.TestCase):
         loop = _loop(pipeline, _Vision(), _Src())
         loop.step()
         self.assertIsNone(loop.shadow)
+
+
+class SceneRevalidationTest(unittest.TestCase):
+    """A startup fix is only true at startup.
+
+    The operator resizes the window, reorders panes or goes fullscreen mid-shift. A binding
+    installed once at boot then warps every later frame through stale geometry while still
+    claiming the old sceneId and epoch -- detections evaluated against ground the pane no
+    longer covers, with nothing anywhere reporting a problem.
+    """
+
+    def _loop_with(self, source, **kw):
+        pipeline = make_pipeline()
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        return _loop(pipeline, _Vision(), source, **kw)
+
+    def test_the_revalidator_is_CALLED_on_its_timer(self):
+        calls = []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                calls.append(1)
+                return False
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.step()
+        self.assertEqual(calls, [], "not due yet")
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertEqual(len(calls), 1, "the revalidation timer never fired")
+
+    def test_relocate_seconds_ZERO_disables_it_entirely(self):
+        """Producers with no atlas have nothing to revalidate, and a timer firing into a
+        missing hook every two minutes is noise that trains an operator to ignore the log."""
+        calls = []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                calls.append(1)
+                return False
+
+        loop = self._loop_with(_Src(), relocate_seconds=0.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(99999.0)
+        loop.step()
+        self.assertEqual(calls, [])
+
+    def test_a_source_with_NO_revalidate_hook_is_fine(self):
+        """`--channel` and the plain crop path have no atlas and no hook. They must not
+        raise every time the timer comes round."""
+        class _Src:
+            def read(self):
+                return None
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(1100.0)
+        loop.step()          # must not raise
+
+    def test_a_REVALIDATOR_THAT_RAISES_does_not_take_the_producer_down(self):
+        """Losing the scene for one sample is usually a truck filling the pane. Tearing down
+        a producer mid-shift over it would be far worse than keeping a binding the pose gate
+        is independently watching."""
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                raise RuntimeError("locator exploded")
+
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0))
+        loop.clock = _Clock(1100.0)
+        loop.step()          # must not raise
+        self.assertIsNotNone(loop)
+
+    def test_a_RE_LOCATION_records_a_LAYOUT_CHANGE_hard_case(self):
+        class _Spy:
+            def __init__(self):
+                self.fired = []
+                self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+            def observe(self, ts, image):
+                pass
+
+            def trigger(self, reason, at, context=None):
+                self.fired.append(reason)
+                return True
+
+            def flush_ready(self, now):
+                return []
+
+            def flush_all(self, now):
+                return []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                return True          # the layout moved
+
+        spy = _Spy()
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0),
+                               hard_cases=spy)
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertIn("LAYOUT_CHANGE", spy.fired)
+
+    def test_NO_hard_case_is_recorded_when_the_layout_did_NOT_move(self):
+        """The positive control. A trigger that fired on every revalidation would bury the
+        real layout changes under one clip every two minutes, forever."""
+        class _Spy:
+            def __init__(self):
+                self.fired = []
+                self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+            def observe(self, ts, image):
+                pass
+
+            def trigger(self, reason, at, context=None):
+                self.fired.append(reason)
+                return True
+
+            def flush_ready(self, now):
+                return []
+
+            def flush_all(self, now):
+                return []
+
+        class _Src:
+            def read(self):
+                return None
+
+            def revalidate(self):
+                return False         # nothing moved
+
+        spy = _Spy()
+        loop = self._loop_with(_Src(), relocate_seconds=10.0, clock=_Clock(1000.0),
+                               hard_cases=spy)
+        loop.clock = _Clock(1100.0)
+        loop.step()
+        self.assertEqual(spy.fired, [])
 
 
 if __name__ == "__main__":

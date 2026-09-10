@@ -510,3 +510,24 @@ def test_the_HOMOGRAPHY_from_a_downscaled_search_still_warps_full_frame_pixels()
     assert corr > 0.8, (
         f"the canonical warp does not line up (r={corr:.2f}) -- the homography was not "
         "lifted out of the downscaled search frame")
+
+
+def test_atlas_variants_of_ONE_SCENE_must_share_a_canonical_size(tmp_path):
+    """A `SceneReference` treats its own dimensions as the canonical frame, and the winning
+    homography is rendered into the single size the calibration names. Two variants of
+    different sizes would make WHICH ONE MATCHED silently change the coordinate system the
+    lot and portal polygons live in -- rescaling geometry with no error anywhere."""
+    import cv2
+    cv2.imwrite(str(tmp_path / "left__day.png"), SHOPSIGN)                       # 320x180
+    cv2.imwrite(str(tmp_path / "left__night.png"), _scene(31, size=(640, 360)))  # different
+    with pytest.raises(SceneNotLocated, match="different sizes"):
+        load_atlas(str(tmp_path))
+
+
+def test_variants_of_DIFFERENT_scenes_may_differ_in_size(tmp_path):
+    """The positive control, and it matters: a 3-in-1 has small fixed lenses and a large PTZ
+    pane, so requiring one size across the whole atlas would reject the real device."""
+    import cv2
+    cv2.imwrite(str(tmp_path / "left__day.png"), SHOPSIGN)
+    cv2.imwrite(str(tmp_path / "ptz__day.png"), _scene(31, size=(640, 360)))
+    assert {r.scene_id for r in load_atlas(str(tmp_path))} == {"left", "ptz"}

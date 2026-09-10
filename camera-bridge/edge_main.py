@@ -71,7 +71,14 @@ def source_generation(source: Any) -> str:
     """
     active = getattr(source, "active", None)
     restores = int(getattr(active, "restores", 0) or 0) if active is not None else 0
-    return f"{int(getattr(source, 'index', 0) or 0)}.{restores}"
+    # THE LAYOUT EPOCH IS PART OF THE IDENTITY, and folding it in here is what makes a
+    # re-located scene safe. A track at x=650 before a layout change and a detection at
+    # x=650 after it are not the same place; joining them manufactures a portal crossing no
+    # car ever made. The generation-break path above already degrades tracks and re-arms the
+    # census for a lane failover -- which is exactly the right response -- so a layout change
+    # needs no second mechanism, only membership in the same identity.
+    epoch = int(getattr(active, "layout_epoch", 0) or 0)
+    return f"{int(getattr(source, 'index', 0) or 0)}.{restores}.{epoch}"
 
 
 def edge_heartbeat_body(
@@ -198,6 +205,7 @@ class EdgeLoop:
         persist_seconds: float = 2.0,
         hard_cases: Any = None,
         shadow: Any = None,
+        relocate_seconds: float = 120.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -206,6 +214,14 @@ class EdgeLoop:
         #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
         #: has -- the corpus is an upgrade, never a dependency of watching the lot.
         self.hard_cases = hard_cases
+        #: How often to re-check that the located scene is still where it was. 0 disables.
+        #: A startup fix is only true at startup: the operator resizes the window or goes
+        #: fullscreen mid-shift and a boot-time binding then warps every frame through stale
+        #: geometry while still claiming the old sceneId.
+        self.relocate_seconds = relocate_seconds
+        self.next_relocate = clock() + relocate_seconds if relocate_seconds > 0 else 0.0
+        self.revalidations = 0
+        self.relocations = 0
         #: Optional `ShadowLedger`. None means no challenger is being observed, which is
         #: the system as it has always run.
         self.shadow = shadow
@@ -417,6 +433,32 @@ class EdgeLoop:
             except Exception:
                 self.pipeline.metrics.inc("edge_heartbeat_errors_total")
                 log.exception("heartbeat error")
+        if self.relocate_seconds > 0 and now >= self.next_relocate:
+            self.next_relocate = now + self.relocate_seconds
+            revalidate = getattr(self.source, "revalidate", None)
+            if revalidate is not None:
+                # COUNTED, not just acted on. A revalidator that silently never ran looks
+                # exactly like a layout that never moved -- both produce no log line and no
+                # epoch change -- and the first of those means the producer has been warping
+                # through a boot-time binding all shift with nobody the wiser.
+                self.revalidations += 1
+                try:
+                    if revalidate():
+                        # The epoch is part of `source_generation`, so the NEXT frame takes
+                        # the existing generation-break path: tracks degraded, census
+                        # re-armed, no path spanning the change. Nothing extra to keep in
+                        # step, which is the point of folding it into that identity.
+                        self.relocations += 1
+                        self.pipeline.metrics.inc("edge_scene_relocations_total")
+                        log.warning("scene re-located; the layout epoch advanced and the "
+                                    "next frame will break the track generation")
+                        if self.hard_cases is not None:
+                            self.hard_cases.trigger("LAYOUT_CHANGE", now,
+                                                    {"source": "revalidation"})
+                except Exception:
+                    self.pipeline.metrics.inc("edge_relocate_errors_total")
+                    log.exception("scene revalidation failed; the existing binding stands")
+
         if now >= self.next_drain:
             self.next_drain = now + self.drain_seconds
             try:
@@ -602,6 +644,9 @@ class EdgeLoop:
                 log.info("shadow ledger %s healthy=%s", st.describe(), st.healthy)
             except Exception:
                 log.exception("shadow stats unreadable")
+        if self.relocate_seconds > 0:
+            log.info("scene revalidation ran %d time(s); the layout moved %d time(s)",
+                     self.revalidations, self.relocations)
 
 
 # ---------------------------------------------------------------------------- wiring
@@ -750,7 +795,8 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     from vision.evidence import EvidenceStore
     from vision.geometry import EntryPortal, LotMap, Zone
     from vision.pipeline import VisionPipeline
-    from vision.run_live import build_council, build_source
+    from vision.run_live import (build_council, build_source,  # noqa: F401
+                                 declared_fixed_lens)
     from vision.scenelocator import SceneNotLocated
 
     ledger_path = camera_ledger_path(args.ledger or cfg.ledger_path, args.camera)
@@ -778,6 +824,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
                           channel=args.channel,
                           calibrated=bool(args.calibration and os.path.exists(args.calibration)),
+                          declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
                           canonical_size=canonical_size_from(args.calibration))
 
@@ -919,6 +966,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "motion-only and cannot confirm an arrival")
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
                     help="OpenVINO device (env VISION_OV_DEVICE)")
+    ap.add_argument("--relocate-seconds", type=float, default=120.0,
+                    help="how often to re-check that the located scene is still where it was. "
+                         "A startup fix is only true at startup. 0 disables.")
     ap.add_argument("--shadow-ledger", default=os.environ.get("EDGE_SHADOW_LEDGER"),
                     help="JSONL of what the adjudicator ALONE would have decided, beside the "
                          "primary. Counterfactual only -- a challenger never gets a vote.")
@@ -1019,6 +1069,7 @@ def run_edge(args: argparse.Namespace) -> int:
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
         hard_cases=recorder, shadow=shadow,
+        relocate_seconds=args.relocate_seconds,
     )
 
     stop = threading.Event()

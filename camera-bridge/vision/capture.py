@@ -555,6 +555,17 @@ class WgcWindowSource(CaptureSource):
         self._seq += 1
         return f
 
+    def read_raw(self):
+        """The latest frame WITHOUT the crop or the canonical warp.
+
+        Re-locating a scene needs the whole window, and once `set_canonical` is applied
+        `read()` returns only the warped pane -- so revalidation from `read()` would search
+        for the scene inside a picture of the scene and always "find" it at the origin. This
+        is the only way back to the pixels the locator actually needs.
+        """
+        with self._lock:
+            return None if self._latest is None else self._latest.copy()
+
     def set_canonical(self, homography, size, scene_id: str, layout_epoch: int) -> None:
         """Deliver every frame already warped into the calibration's own coordinates.
 
@@ -575,6 +586,10 @@ class WgcWindowSource(CaptureSource):
         self._canonical = (_np.linalg.inv(_np.asarray(homography, dtype=_np.float64)),
                            (int(size[0]), int(size[1])))
         self._scene_meta = {"sceneId": scene_id, "layoutEpoch": int(layout_epoch)}
+        #: Read by `source_generation`. A layout change means observations before and after
+        #: are not in the same coordinate system, so it must break a track path exactly as a
+        #: lane failover or a window restore does.
+        self.layout_epoch = int(layout_epoch)
 
     def close(self) -> None:
         if self._ctrl is not None:

@@ -148,7 +148,27 @@ class VisitSink:
         return ok
 
 
-def aim_at_channel(src, index: int, calibrated: bool,
+def declared_fixed_lens(calibration_path) -> bool:
+    """Does the calibration DECLARE this lens fixed? Absent means no, deliberately.
+
+    Eligibility to carry calibrated arrival geometry is a durable fact about the hardware,
+    and it has to be stated rather than inferred: a PTZ idle for four seconds is
+    indistinguishable from a camera bolted to a wall, so no length of observation can
+    establish it. Defaulting to False means an operator who says nothing gets census mode,
+    which is the safe half of the mistake.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return False
+    import json as _json
+
+    try:
+        cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - an unreadable calibration declares nothing
+        return False
+    return str(cal.get("lensType", "")).lower() == "fixed"
+
+
+def aim_at_channel(src, index: int, calibrated: bool, declared_fixed: bool = False,
                    samples: int = 16, interval: float = 0.25) -> tuple:
     """Point `src` at ONE channel of a multi-lens device. Returns `((x,y,w,h), kind, shift)`.
 
@@ -179,7 +199,7 @@ def aim_at_channel(src, index: int, calibrated: bool,
             "which is too few to locate a channel. The window is up but not rendering video."
         )
     box, kind, shift = resolve_channel(frames, index)
-    assert_channel_usable(index, kind, calibrated)
+    assert_channel_usable(index, kind, calibrated, declared_fixed=declared_fixed)
     x, y, w, h = box
     height, width = frames[0].shape[:2]
     src.crop_frac = (x / width, y / height, (x + w) / width, (y + h) / height)
@@ -283,6 +303,52 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     reference = canonicalise(frames[-1], found, calibration_size)
     print(f"scene located: {found.describe()} epoch={binding.epoch} "
           f"canonical={calibration_size[0]}x{calibration_size[1]}", flush=True)
+
+    # RE-LOCATION, because a startup fix is only true at startup. The operator resizes the
+    # window, reorders panes or goes fullscreen mid-shift, and a binding installed once at
+    # boot then warps every later frame through stale geometry while still claiming the old
+    # sceneId and epoch -- detections evaluated against ground the pane no longer covers.
+    #
+    # It has to read RAW pixels. Once `set_canonical` is applied, `read()` returns the warped
+    # pane, so re-locating from it would search for the scene inside a picture of the scene
+    # and "find" it at the origin every time.
+    held = {"binding": binding}
+
+    def revalidate() -> bool:
+        """Re-locate and re-bind if the layout moved. Returns whether the epoch changed."""
+        raw = []
+        for _ in range(6):
+            try:
+                image = src.read_raw()
+            except Exception:  # noqa: BLE001
+                image = None
+            if image is not None:
+                raw.append(image)
+            time.sleep(0.15)
+        if len(raw) < 3:
+            return False
+        try:
+            region = detect_live_region(raw)
+            current_panes = split_into_channels(region, raw[-1]) if region is not None else None
+            fresh = locate(raw[-1], refs, panes=current_panes or None)
+        except SceneNotLocated as exc:
+            # NOT a re-bind and NOT a shutdown. Losing the scene for one sample is usually a
+            # truck filling the pane or a momentary layout animation; the pose gate -- now
+            # anchored to the calibrated view -- is the thing that catches a real drift, and
+            # it does so without tearing down a producer mid-shift.
+            print(f"scene revalidation found nothing this pass ({str(exc)[:90]}); "
+                  "keeping the existing binding", flush=True)
+            return False
+        new_binding, changed = advance(held["binding"], fresh)
+        if changed:
+            held["binding"] = new_binding
+            src.set_canonical(fresh.homography, calibration_size, fresh.scene_id,
+                              new_binding.epoch)
+            print(f"scene RE-LOCATED: {fresh.describe()} epoch={new_binding.epoch}",
+                  flush=True)
+        return changed
+
+    src.revalidate = revalidate
     return found, binding, reference
 
 
@@ -293,7 +359,7 @@ def title_of(src) -> str:
 def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                  channel: int | None = None, calibrated: bool = False,
                  scene_atlas: str | None = None, scene: str | None = None,
-                 canonical_size=None):
+                 canonical_size=None, declared_fixed: bool = False):
     # --channel and --scene-atlas are two answers to the same question and cannot both be
     # the answer. `--channel` finds a rectangle by MOTION; the atlas finds THE CAMERA by
     # APPEARANCE. Silently letting one win would make the producer's aim depend on argument
@@ -318,19 +384,23 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                     "would be a guess, which defeats the point of locating the scene."
                 )
             _, _, reference = aim_at_scene(src, scene_atlas, scene, canonical_size)
-            # Stash it on the source: `build_source` has no pipeline to hand it to,
-            # and the caller that builds the pipeline does. Anything else would mean
-            # locating the scene twice.
+            # Stash it on the source: `build_source` has no pipeline to hand it to, and the
+            # caller that builds the pipeline does. Anything else would locate twice.
             src.calibrated_reference = reference
-            return src
+            return _solo(src, reference)
         if channel is None:
             return CaptureMux([src, V380WindowSource(window_title=title)])
-        aim_at_channel(src, channel, calibrated)
-        # NO mux fallback under --channel, deliberately. `V380WindowSource` crops by its own
+        aim_at_channel(src, channel, calibrated, declared_fixed=declared_fixed)
+        # NO FALLBACK LANE under --channel, deliberately: `V380WindowSource` crops by its own
         # fixed fractions and cannot honour a channel rectangle, so a silent failover would
-        # hand the detector a different region than the operator asked for -- the exact
-        # substitution this flag exists to prevent. One lane, or a loud failure.
-        return src
+        # hand the detector a different region than the operator asked for.
+        #
+        # But "no fallback" is not the same as "no wrapper". Returning the bare source broke
+        # the contract BOTH consumers rely on: `run_live` reads `source.active` and would
+        # raise AttributeError, and `edge_main` reads a missing `active` as DISCONNECTED and
+        # loses `source_generation()`, which is what stops a track spanning a capture
+        # restoration. A one-lane mux keeps the refusal and keeps the interface.
+        return _solo(src)
     if channel is not None:
         raise ChannelNotFound(
             f"--channel needs the 'wgc' capture lane; {kind!r} crops by fixed fractions and "
@@ -352,6 +422,23 @@ def same_model(a: str | None, b: str | None) -> bool:
         return os.path.samefile(a, b)
     except OSError:
         return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _solo(src, calibrated_reference=None):
+    """Wrap one aimed source in a single-lane `CaptureMux`.
+
+    The mux is the INTERFACE, not just the failover. `source.active` and
+    `source_generation()` are read by both consumers, and a bare source silently fails the
+    first and blinds the second -- which is how a track ends up spanning a capture
+    restoration. One lane keeps the deliberate no-fallback behaviour and the contract.
+    """
+    mux = CaptureMux([src])
+    if calibrated_reference is not None:
+        mux.calibrated_reference = calibrated_reference
+    # Forward the revalidation hook: the loop holds the mux, not the lane inside it.
+    if getattr(src, "revalidate", None) is not None:
+        mux.revalidate = src.revalidate
+    return mux
 
 
 def build_council(model: str | None, device: str, motion_gate: bool,
@@ -506,8 +593,16 @@ def main() -> int:
 
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
                           channel=args.channel, calibrated=bool(args.calibration),
+                          declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
-                          canonical_size=canonical_size_from(args.calibration))
+                          # ONLY the atlas path warps, so only it needs the canonical frame.
+                          # Evaluating this unconditionally aborted every EXISTING calibrated
+                          # producer -- ones using the documented lot/portal/bays format with no
+                          # atlas -- before `build_source` could pick the crop or channel path
+                          # that never uses the value. A new key may not be made retroactively
+                          # mandatory for callers that do not need it.
+                          canonical_size=(canonical_size_from(args.calibration)
+                                          if args.scene_atlas else None))
     try:
         first = source.read()
     except Exception as exc:

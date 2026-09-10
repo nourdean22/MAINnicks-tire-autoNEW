@@ -234,7 +234,20 @@ PAN_THRESHOLD_PX = 2.0
 
 
 def classify_motion(frames: Sequence[np.ndarray]) -> tuple[str, float]:
-    """FIXED or PTZ, from whole-frame displacement. Returns `(verdict, max_shift_px)`.
+    """Did this view PAN during the sample? Returns `(verdict, max_shift_px)`.
+
+    THE VERDICTS ARE `panning`, `no-pan-observed` AND `unknown`, and the middle one is
+    deliberately not called "fixed". This function watches a few seconds of video; it can
+    prove that a lens MOVED and it can never prove that a lens CANNOT move. A PTZ parked
+    during the sample is indistinguishable from a bolted-down camera, and calling that
+    "fixed" is precisely the overclaim that would let calibrated geometry onto a lens which
+    re-aims itself an hour later.
+
+    MEASURED, on the real device: all three channels of the SHOPSIGN 3-in-1 returned
+    "fixed" under the old naming -- including the PTZ, which was simply idle. The operator
+    then nudged it and its stored reference began matching 623px from where that camera's
+    pixels are. The classification was not wrong about the pixels; the WORD was wrong about
+    the hardware.
 
     WHY THIS MATTERS MORE THAN IT LOOKS. A PTZ invalidates its own calibration every time
     it pans: a lot polygon drawn on it points at different ground the moment it moves, and
@@ -261,7 +274,7 @@ def classify_motion(frames: Sequence[np.ndarray]) -> tuple[str, float]:
     for i in range(1, len(grey)):
         (dx, dy), _ = cv2.phaseCorrelate(grey[i - 1], grey[i])
         worst = max(worst, float((dx * dx + dy * dy) ** 0.5))
-    return ("ptz" if worst > PAN_THRESHOLD_PX else "fixed"), worst
+    return ("panning" if worst > PAN_THRESHOLD_PX else "no-pan-observed"), worst
 
 
 class ChannelNotFound(RuntimeError):
@@ -303,8 +316,9 @@ def resolve_channel(frames: Sequence[np.ndarray], index: int) -> tuple:
     return (x, y, w, h), kind, shift
 
 
-def assert_channel_usable(index: int, kind: str, calibrated: bool) -> None:
-    """Refuse to attach CALIBRATED arrival logic to a channel that is not proven FIXED.
+def assert_channel_usable(index: int, kind: str, calibrated: bool,
+                          declared_fixed: bool = False) -> None:
+    """Refuse CALIBRATED arrival logic on a lens not DECLARED fixed, or observed panning.
 
     A calibration file is a set of polygons in pixel coordinates: the lot, the entry portal,
     the bays. Those coordinates mean something only while the lens keeps pointing where it
@@ -319,16 +333,40 @@ def assert_channel_usable(index: int, kind: str, calibrated: bool) -> None:
     """
     if not calibrated:
         return
-    if kind == "fixed":
-        return
-    detail = ("it PANS, so any polygon drawn on it describes ground the lens leaves behind"
-              if kind == "ptz" else
-              "its motion could not be classified from the sampled frames")
-    raise ChannelNotFound(
-        f"channel {index} was given a calibration file but {detail}. Point --calibration at "
-        "a FIXED channel, or drop it and run this channel in census mode, which needs no "
-        "geometry. Refusing rather than silently scoring arrivals against the wrong ground."
-    )
+
+    # OBSERVED MOTION VETOES EVERYTHING, including an operator's declaration. A lens declared
+    # fixed that is seen panning is a contradiction, and the safe reading of a contradiction
+    # is that the declaration is stale -- somebody re-purposed the channel, or wired the
+    # index wrongly. Believing the label over the pixels is how geometry ends up over the
+    # wrong ground with a green light.
+    if kind == "panning":
+        raise ChannelNotFound(
+            f"channel {index} was OBSERVED PANNING, so it cannot carry calibrated arrival "
+            "geometry: every polygon drawn on it describes ground the lens leaves behind. "
+            "If this channel is declared fixed, the declaration is stale or the index is "
+            "wrong -- refusing rather than scoring arrivals against ground the camera left."
+        )
+
+    # AN IDLE SAMPLE IS NOT A FIXED LENS. This is the correction that matters. A few seconds
+    # of video can prove a lens MOVED; nothing in it can prove a lens CANNOT move, and a PTZ
+    # parked during start-up looks exactly like a bolted-down camera. Eligibility therefore
+    # comes from a DURABLE operator declaration, and the observation is only ever allowed to
+    # veto it.
+    if not declared_fixed:
+        raise ChannelNotFound(
+            f"channel {index} was given a calibration file but is not DECLARED a fixed lens. "
+            "No pan was seen in the startup sample, and that is not evidence: a PTZ idle for "
+            "four seconds is indistinguishable from a camera bolted to a wall. Declare the "
+            "lens fixed in the calibration (\"lensType\": \"fixed\") if it genuinely is, "
+            "or run this channel in census mode, which needs no geometry."
+        )
+
+    if kind != "no-pan-observed":
+        raise ChannelNotFound(
+            f"channel {index} is declared fixed but its motion could not be classified from "
+            "the sampled frames, so the declaration could not be checked against the pixels. "
+            "Refusing rather than trusting a label nothing corroborated."
+        )
 
 
 def describe(region: Optional[LiveRegion], width: int, height: int) -> str:

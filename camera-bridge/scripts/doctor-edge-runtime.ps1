@@ -199,27 +199,31 @@ if ($win -and $py) {
     # the camera no longer sees).
     $pane  = ($probe | Where-Object { $_ -match "^pane=" } | Select-Object -Last 1)
     $chans = @($probe | Where-Object { $_ -match "^channel=" })
-    $fixed = @($chans | Where-Object { $_ -match "motion=fixed" })
-    $ptz   = @($chans | Where-Object { $_ -match "motion=ptz" })
+    # "no pan was seen" is NOT "this is a fixed lens" -- a PTZ idle for four seconds
+    # looks identical to a bolted-down camera, and naming them the same is what let
+    # calibrated geometry onto a lens that re-aims itself. The doctor reports what was
+    # OBSERVED and leaves eligibility to the operator declaration in the calibration.
+    $still   = @($chans | Where-Object { $_ -match "motion=no-pan-observed" })
+    $panning = @($chans | Where-Object { $_ -match "motion=panning" })
     if ($pane -match "^pane=none") {
         Check "camera layout" "FAIL" "$pane -- the window shows no live video at all"
     } elseif ($pane -match "^pane=error" -or -not $pane) {
         Check "camera layout" "WARN" "the layout probe did not report ($pane)"
     } elseif ($chans.Count -gt 1) {
-        $detail = "$($chans.Count) channels, $($fixed.Count) fixed / $($ptz.Count) ptz :: " + ($chans -join " :: ")
-        if ($fixed.Count -ge 1) {
+        $detail = "$($chans.Count) channels, $($still.Count) still / $($panning.Count) panning during the sample :: " + ($chans -join " :: ")
+        if ($still.Count -ge 1) {
             $aim = if (Test-Path (Join-Path $root "data\scene-atlas")) {
-                "Run ONE producer per FIXED channel with --scene-atlas + --scene <id>, which proves WHICH camera it found and warps it into calibrated coordinates"
+                "Run ONE producer per channel with --scene-atlas + --scene <id>; a channel may carry calibrated geometry only if the calibration DECLARES it a fixed lens, since an idle sample never proves one"
             } else {
-                "Run ONE producer per FIXED channel with --channel N (or build a scene atlas, which is stronger: --channel finds a rectangle, an atlas identifies the camera)"
+                "Run ONE producer per channel with --channel N (or build a scene atlas, which is stronger: --channel finds a rectangle, an atlas identifies the camera)"
             }
             Check "camera layout" "PASS" "$detail -- a multi-lens device. $aim; without either, all $($chans.Count) scenes are analysed as one frame."
         } else {
-            Check "camera layout" "WARN" "$detail -- no channel could be proven FIXED in this sample, so none may carry calibrated arrival logic yet. Re-run while the lot is quiet, or run census-only."
+            Check "camera layout" "WARN" "$detail -- every channel was PANNING during the sample, so none may carry calibrated arrival geometry right now. Re-run once the cameras are at rest."
         }
     } elseif ($pane -match "^pane=single") {
-        if ($ptz.Count -ge 1) {
-            Check "camera layout" "WARN" "$pane -- this lens PANS. Census counting is fine; a lot polygon drawn on it is invalidated by the next pan."
+        if ($panning.Count -ge 1) {
+            Check "camera layout" "WARN" "$pane -- this lens was PANNING during the sample. Census counting is fine; a lot polygon drawn on it is invalidated by the next pan."
         } else {
             Check "camera layout" "PASS" "$pane"
         }

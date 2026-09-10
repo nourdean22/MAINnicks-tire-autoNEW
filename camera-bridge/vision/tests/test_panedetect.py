@@ -161,7 +161,7 @@ def _still(size=(320, 180), frames=10):
 
 def test_a_PAN_is_detected_as_ptz():
     verdict, shift = classify_motion(_panning())
-    assert verdict == "ptz", f"a sliding frame must read as PTZ (shift {shift:.2f}px)"
+    assert verdict == "panning", f"a sliding frame must read as PTZ (shift {shift:.2f}px)"
     assert shift > PAN_THRESHOLD_PX
 
 
@@ -170,7 +170,7 @@ def test_a_CAR_crossing_a_FIXED_frame_is_not_mistaken_for_a_pan():
     frame displacement can, and a fixed camera watching traffic must stay FIXED or its
     calibration would be thrown away every time a vehicle drove past."""
     verdict, shift = classify_motion(_still())
-    assert verdict == "fixed", f"local motion must not read as a pan (shift {shift:.2f}px)"
+    assert verdict == "no-pan-observed", f"local motion must not read as a pan (shift {shift:.2f}px)"
     assert shift < PAN_THRESHOLD_PX
 
 
@@ -185,7 +185,7 @@ SHOPSIGN_PANES = [(426, 65, 338, 190), (764, 65, 338, 190), (426, 255, 677, 381)
 
 
 def test_a_FIXED_channel_may_carry_calibration():
-    assert_channel_usable(0, "fixed", calibrated=True)      # must not raise
+    assert_channel_usable(0, "no-pan-observed", calibrated=True, declared_fixed=True)      # must not raise
 
 
 def test_a_PTZ_channel_is_REFUSED_calibration():
@@ -193,16 +193,16 @@ def test_a_PTZ_channel_is_REFUSED_calibration():
     describes ground the camera left behind, and frames, heartbeats and detections all
     stay healthy while every arrival is scored against geometry that no longer exists."""
     with pytest.raises(ChannelNotFound, match="channel 2"):
-        assert_channel_usable(2, "ptz", calibrated=True)
+        assert_channel_usable(2, "panning", calibrated=True, declared_fixed=True)
 
 
 def test_UNKNOWN_motion_is_refused_too_because_unproven_is_not_fixed():
     with pytest.raises(ChannelNotFound):
-        assert_channel_usable(1, "unknown", calibrated=True)
+        assert_channel_usable(1, "unknown", calibrated=True, declared_fixed=True)
 
 
 def test_census_mode_needs_no_geometry_so_a_PTZ_is_fine():
-    assert_channel_usable(2, "ptz", calibrated=False)       # must not raise
+    assert_channel_usable(2, "panning", calibrated=False)       # must not raise
 
 
 def test_resolve_channel_returns_the_rectangle_AND_the_motion_class():
@@ -210,7 +210,7 @@ def test_resolve_channel_returns_the_rectangle_AND_the_motion_class():
     (x, y, w, h), kind, shift = resolve_channel(frames, 0)
     assert (w / h) == pytest.approx(NATIVE_ASPECT, rel=0.1)
     assert y < 200, "channel 0 is the top-left lens"
-    assert kind == "fixed" and shift < PAN_THRESHOLD_PX
+    assert kind == "no-pan-observed" and shift < PAN_THRESHOLD_PX
 
 
 def test_resolve_channel_REFUSES_an_out_of_range_index_instead_of_clamping():
@@ -225,3 +225,46 @@ def test_resolve_channel_REFUSES_a_dead_window_instead_of_returning_a_box():
     dead = [np.zeros((360, 640, 3), np.uint8) for _ in range(8)]
     with pytest.raises(ChannelNotFound, match="no live video"):
         resolve_channel(dead, 0)
+
+
+# --- Fixed-lens eligibility is DECLARED, and observation may only veto it ----------------
+
+
+def test_an_IDLE_SAMPLE_is_not_a_fixed_lens():
+    """The correction that matters, and it came from the real device. All three channels of
+    the SHOPSIGN 3-in-1 read "fixed" under the old naming -- including the PTZ, which was
+    simply parked. The operator then nudged it and its stored reference began matching 623px
+    from where that camera's pixels are.
+
+    A few seconds of video can prove a lens MOVED. Nothing in it can prove a lens CANNOT."""
+    with pytest.raises(ChannelNotFound, match="not DECLARED a fixed lens"):
+        assert_channel_usable(0, "no-pan-observed", calibrated=True, declared_fixed=False)
+
+
+def test_OBSERVED_PANNING_vetoes_even_an_operator_declaration():
+    """A lens declared fixed that is seen panning is a contradiction, and the safe reading is
+    that the DECLARATION is stale -- somebody re-purposed the channel or wired the index
+    wrongly. Believing the label over the pixels is how geometry ends up over the wrong
+    ground with a green light."""
+    with pytest.raises(ChannelNotFound, match="OBSERVED PANNING"):
+        assert_channel_usable(2, "panning", calibrated=True, declared_fixed=True)
+
+
+def test_a_DECLARED_fixed_lens_with_no_pan_seen_is_allowed():
+    """The positive control. Without it, a rule that refused everything would pass both tests
+    above while making calibrated arrivals impossible on any camera."""
+    assert_channel_usable(0, "no-pan-observed", calibrated=True, declared_fixed=True)
+
+
+def test_an_UNCORROBORATED_declaration_is_refused():
+    """Declared fixed, but the sample could not classify the motion at all -- so the label
+    was never checked against the pixels. A declaration nothing corroborated is a claim."""
+    with pytest.raises(ChannelNotFound, match="could not be classified"):
+        assert_channel_usable(1, "unknown", calibrated=True, declared_fixed=True)
+
+
+def test_CENSUS_MODE_needs_no_declaration_at_all():
+    """Counting cars in a frame needs no geometry, so none of this applies. A PTZ is a
+    perfectly good census camera."""
+    assert_channel_usable(2, "panning", calibrated=False, declared_fixed=False)
+    assert_channel_usable(0, "no-pan-observed", calibrated=False, declared_fixed=False)

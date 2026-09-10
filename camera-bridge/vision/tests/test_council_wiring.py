@@ -132,6 +132,11 @@ def test_a_CORRUPT_model_file_degrades_instead_of_crashing_the_producer(tmp_path
 
     `fetch_models.py` pins a size and a sha256 precisely because half-finished downloads
     happen, which is what makes this reachable rather than theoretical."""
+    # This one needs OpenVINO actually installed. Without it the constructor raises
+    # DetectorUnavailable at the IMPORT check, several branches before the load this test is
+    # about -- the right exception type for the wrong reason, which is not evidence. CI runs
+    # without the runtime, so the dependency is declared instead of the test failing there.
+    pytest.importorskip("openvino", reason="the load path only exists when the runtime does")
     from vision.detector import OpenVinoVehicleDetector
 
     corrupt = tmp_path / "truncated.xml"
