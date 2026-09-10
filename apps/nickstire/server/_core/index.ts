@@ -285,6 +285,9 @@ async function startServer() {
   // comparable form, against a candidates table an operator triages by hand.
   // technicianReferrals.submit fires from the same page's onSuccess, so one
   // honest application spends 2 of the 10 — still far above real usage.
+  // referrals.submit ($25/$25 customer program) was public and unlimited from
+  // before either of the two below — same class, same fix.
+  app.use(withBatchRegex("referrals.submit"), formLimiter);
   app.use(withBatchRegex("candidates.submit"), formLimiter);
   app.use(withBatchRegex("technicianReferrals.submit"), formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);

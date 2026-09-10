@@ -722,7 +722,7 @@ export default function TireFinder() {
   // webhook hasn't landed yet (see the ?paid=1 effect below).
   const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
 
-  const { rating: reviewRating, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const handleSearch = () => {
     if (searchInput.trim().length < 3) {

@@ -16,7 +16,7 @@ import { Link } from "wouter";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
-const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/brakes",
   // 2026-05-06 wave-16 · pro photo pack: under-car brake repair action
   // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
@@ -194,6 +194,6 @@ export default function BrakeRepairPage() {
   // FAQPage block on /brakes — exactly the "Duplicate field FAQPage"
   // GSC error the template's own comment warns against. Removed; the
   // template's built-in is the single source of truth.
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

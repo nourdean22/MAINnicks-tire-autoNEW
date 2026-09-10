@@ -38,7 +38,7 @@ export default function ExitIntentModal() {
   const [phone, setPhone] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const submit = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -171,7 +171,7 @@ export default function ExitIntentModal() {
                   </button>
                 </div>
                 <p className="text-[10px] text-foreground/40 text-center pt-1">
-                  Or call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a> directly · ★{reviewRating.toFixed(1)} from {reviewCountDisplay} reviews
+                  Or call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a> directly · ★{reviewRating} from {reviewCountDisplay} reviews
                 </p>
               </form>
             ) : (

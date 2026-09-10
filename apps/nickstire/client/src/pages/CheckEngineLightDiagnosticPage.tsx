@@ -21,7 +21,7 @@ import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
-const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/check-engine-light-diagnostic",
   // 2026-05-06 copy wave: title now names the anti-pattern that's
   // this page's whole positioning. Operators 4 + 5.
@@ -139,6 +139,6 @@ const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServiceP
 });
 
 export default function CheckEngineLightDiagnosticPage() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

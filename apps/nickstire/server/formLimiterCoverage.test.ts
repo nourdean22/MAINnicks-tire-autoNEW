@@ -47,6 +47,7 @@ const PUBLIC_WRITE_FORMS: readonly string[] = [
   "emergency.submit",
   "candidates.submit",
   "technicianReferrals.submit",
+  "referrals.submit",
   "booking.create",
   "waitlist.join",
   "fleet.submit",

@@ -476,8 +476,12 @@ export function formatRating(value: number): string {
  * Nick's own profile. A FUNCTION, not a const, because one of its strengths
  * quotes the live Google rating — a module-level constant is evaluated at
  * import time and can never see a hook's value.
+ *
+ * Takes the DISPLAY string, not the number: the value is only ever
+ * interpolated into a bullet, and interpolating the raw number renders a
+ * round 4.0 as "4". See useReviewStats' ratingDisplay.
  */
-export function buildNicksTire(reviewRating: number): CompetitorProfile {
+export function buildNicksTire(reviewRatingDisplay: string): CompetitorProfile {
   return {
     slug: "nicks-tire",
     name: "Nick's Tire & Auto",
@@ -501,7 +505,7 @@ export function buildNicksTire(reviewRating: number): CompetitorProfile {
       "Used tires from $25 installed — when a $25 used tire solves it, we don't push you to a $200 new one",
       "Written estimate before any wrench moves — no surprise shop fees at checkout",
       "Mechanic-owned — the person quoting you the work is the person doing it",
-      `${reviewRating}★ Google rating from real Cleveland drivers`,
+      `${reviewRatingDisplay}★ Google rating from real Cleveland drivers`,
       "Transparent pricing — labor, parts, and disposal fees disclosed up front",
     ],
     weaknesses: [

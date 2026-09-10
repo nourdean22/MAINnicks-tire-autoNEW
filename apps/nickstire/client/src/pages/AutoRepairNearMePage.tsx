@@ -18,7 +18,7 @@ import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
-const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/auto-repair-near-me",
   // wave-181.x · upgraded to mechanic-actively-working-on-a-customer-car shot.
   // GSC query "auto repair near me" wants visual proof of an actual working
@@ -129,6 +129,6 @@ const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServiceP
 });
 
 export default function AutoRepairNearMePage() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

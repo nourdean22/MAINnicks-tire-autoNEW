@@ -19,7 +19,7 @@ import { MapPin, Star, Wrench } from "lucide-react";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
-const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/moes-tire-euclid",
   // Hero shows the actual Moe's Tire & Auto sign + 4 open service bays + priced tire stacks.
   // wave-181.x · upgraded to the literal-match photo · the GSC query "moe's tires euclid"
@@ -121,6 +121,6 @@ const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServiceP
 });
 
 export default function MoesTireBridgePage() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

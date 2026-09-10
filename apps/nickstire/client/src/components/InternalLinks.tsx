@@ -17,7 +17,7 @@ interface LinkItem {
 // to come from live data resolved at RENDER time (see InternalLinks below),
 // and a module-level const is computed once at import time, before any
 // component — including one with a live query — ever runs.
-function buildAllLinks(reviewCountDisplay: string, reviewRating: number): LinkItem[] {
+function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkItem[] {
   return [
   // Core services
   { href: "/tires", label: "Tire Shop Near Me", desc: "New & used tires, mounting, balancing, TPMS — walk-ins" },
@@ -41,7 +41,7 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: number): LinkIt
   { href: "/pricing", label: "Price Estimator", desc: "Get an instant repair cost estimate" },
   { href: "/services", label: "All Services", desc: "Complete list of everything we do" },
   { href: "/specials", label: "Specials & Coupons", desc: "Current deals and discounts" },
-  { href: "/reviews", label: "Customer Reviews", desc: `${reviewRating.toFixed(1)} stars from ${reviewCountDisplay} reviews` },
+  { href: "/reviews", label: "Customer Reviews", desc: `${reviewRating} stars from ${reviewCountDisplay} reviews` },
   { href: "/blog", label: "Repair Tips Blog", desc: "Cleveland-specific car care notes from the bay" },
   { href: "/guides", label: "Auto Repair Guides", desc: "In-depth guides from Cleveland mechanics" },
   { href: "/guides/how-to-read-tire-size", label: "How to Read Tire Size", desc: "Complete guide to tire size markings" },
@@ -90,7 +90,7 @@ interface Props {
 }
 
 export default function InternalLinks({ title = "Explore More Services", maxLinks = 12, exclude = [] }: Props) {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   const allLinks = buildAllLinks(reviewCountDisplay, reviewRating);
 
   // Safe for SSR/prerender: always attempt to read pathname, fallback to "/"

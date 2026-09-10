@@ -8,7 +8,7 @@ import { useReviewStats } from "@/hooks/useReviewStats";
  * Lists Nick's first + 6 honest alternatives from the COMPETITORS set.
  */
 export default function BestTireShopsCleveland() {
-  const { rating: reviewRating } = useReviewStats();
+  const { ratingDisplay: reviewRating } = useReviewStats();
 
   return (
     <ComparisonPage

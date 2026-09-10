@@ -58,7 +58,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   const [creating, setCreating] = useState(false);
   // Mirrors the live numbers the real step-3 SMS renders, so the operator
   // previewing a sequence sees exactly what the customer will receive.
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const { data: segmentCounts } = trpc.winback.segmentCounts.useQuery();
   // 2026-05-23 · was bare. Caught by try/catch at the call site
@@ -171,7 +171,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               <>
                 <StepPreview step={1} delay="Immediately" desc="6+ months: Free safety inspection for returning customers" />
                 <StepPreview step={2} delay="Day 7" desc="Cost warning: $200 brake job → $800 rotor replacement" />
-                <StepPreview step={3} delay="Day 14" desc={`Final: No hard feelings, still here, ${reviewRating.toFixed(1)}★ ${reviewCountDisplay} reviews`} />
+                <StepPreview step={3} delay="Day 14" desc={`Final: No hard feelings, still here, ${reviewRating}★ ${reviewCountDisplay} reviews`} />
               </>
             )}
             {segment === "tire_customer" && (

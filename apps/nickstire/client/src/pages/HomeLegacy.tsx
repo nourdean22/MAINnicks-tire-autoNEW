@@ -645,7 +645,7 @@ function Services() {
 
 // ─── WHY US — Split layout ───────────────────────────────
 function WhyUs() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
 
   return (
     <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
@@ -672,7 +672,7 @@ function WhyUs() {
                 <span className="text-primary">Then we fix it.</span>
               </h2>
               <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
-                Most Cleveland auto shops hand you a bill and hope you don't ask questions. We hand you a flashlight and walk you under your own car. The worn parts don't lie. Neither do we. On Euclid Ave since 2018, {reviewRating.toFixed(1)}★ from {reviewCountDisplay} reviews, and a coffee maker older than half our customers.
+                Most Cleveland auto shops hand you a bill and hope you don't ask questions. We hand you a flashlight and walk you under your own car. The worn parts don't lie. Neither do we. On Euclid Ave since 2018, {reviewRating}★ from {reviewCountDisplay} reviews, and a coffee maker older than half our customers.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">

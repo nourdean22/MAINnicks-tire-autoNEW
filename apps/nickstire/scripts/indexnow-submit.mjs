@@ -24,33 +24,14 @@
  * slash (`//careers`) instead.
  */
 
+import { refuseMangledPaths } from "./lib/sitePathArg.mjs";
 const SITE_URL = "https://nickstire.org";
 const INDEXNOW_KEY = "d274e03f24e4438599616695d23dab67";
 const KEY_LOCATION = `${SITE_URL}/${INDEXNOW_KEY}.txt`;
 
 const paths = process.argv.slice(2);
 
-/**
- * The header above documents the MSYS leading-slash trap. A comment does not
- * stop it: on 2026-09-09 a bare `/careers` reached IndexNow's LIVE API as
- * `https://nickstire.org/C:/Program Files/Git/careers`. This is the gate.
- *
- * A legitimate site path never contains a drive letter, a backslash, or a
- * colon, so anything carrying one was rewritten by the shell before Node saw
- * it. Refuse the whole run rather than submitting a junk URL to a live
- * third-party index — a bad submission cannot be recalled.
- */
-const MANGLED = /^[A-Za-z]:|\\|:/;
-const mangled = paths.filter((p) => MANGLED.test(p));
-if (mangled.length) {
-  console.error("REFUSING TO SUBMIT — argument looks shell-mangled, not a site path:");
-  for (const p of mangled) console.error(`  ${p}`);
-  console.error("\nGit Bash on Windows rewrites a bare /path into an absolute Windows path");
-  console.error("before Node sees it. Drop the leading slash:");
-  console.error("  node scripts/indexnow-submit.mjs careers");
-  console.error("or prefix MSYS_NO_PATHCONV=1, or double the slash (//careers).");
-  process.exit(1);
-}
+refuseMangledPaths(paths, { scriptName: "indexnow-submit.mjs" });
 
 const urlList = (paths.length ? paths : ["/careers"]).map(
   (p) => `${SITE_URL}${p.startsWith("/") ? p : `/${p}`}`,

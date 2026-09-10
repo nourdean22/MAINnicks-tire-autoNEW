@@ -486,7 +486,7 @@ export default function ComparisonPage({
   // Nick's own side of every comparison is live; the competitor's figures are
   // hand-researched snapshots in COMPETITOR_REVIEWS. Hook first — before any
   // conditional return below.
-  const { rating: reviewRating } = useReviewStats();
+  const { ratingDisplay: reviewRating } = useReviewStats();
   const nicksTire = buildNicksTire(reviewRating);
 
   // Default headlines per format

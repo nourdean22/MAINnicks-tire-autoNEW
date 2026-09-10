@@ -72,7 +72,7 @@ function ComparisonGrid() {
 /* ─── MAIN PAGE ─────────────────────────────────────────── */
 
 export default function WomensSafetyPage() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return (
     <PageLayout>
       <SEOHead

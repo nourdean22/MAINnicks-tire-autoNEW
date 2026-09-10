@@ -25,6 +25,7 @@
  * trips correctly and this script normalizes it internally either way).
  */
 
+import { refuseMangledPaths } from "./lib/sitePathArg.mjs";
 import "dotenv/config";
 import crypto from "node:crypto";
 
@@ -71,6 +72,10 @@ async function getAccessToken() {
 }
 
 const args = process.argv.slice(2);
+// Same MSYS trap as indexnow-submit.mjs, same gate. This endpoint is Google's
+// Indexing API — a junk URL burns a slice of a hard daily quota and cannot be
+// recalled. Flags are excluded: only real path arguments are checked.
+refuseMangledPaths(args.filter((a) => !a.startsWith("--")), { scriptName: "indexing-api-submit.mjs" });
 const isDelete = args.includes("--delete");
 const path = args.find((a) => !a.startsWith("--")) || "/careers";
 const url = `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;

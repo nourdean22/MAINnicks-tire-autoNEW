@@ -13,7 +13,7 @@ import { Disc, AlertTriangle, Clock } from "lucide-react";
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
 // before any hook can run — so it could only ever carry the static floor.
-const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServicePageConfig => ({
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/diagnostics",
   // 2026-05-06 wave-16 · pro photo pack: diagnostics page hero per
   // PLACEMENT_GUIDE.md — interior service bay with car on lift
@@ -167,6 +167,6 @@ const buildConfig = (reviewRating: number, reviewCountDisplay: string): ServiceP
 });
 
 export default function DiagnosticsPage() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
   return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }
