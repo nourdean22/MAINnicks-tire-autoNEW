@@ -125,10 +125,25 @@ try {
   } else {
     console.error(`REJECTED (HTTP ${r.status}): ${text.slice(0, 500)}`);
     if (r.status === 403) {
-      console.error(
-        "403 usually means the service account isn't yet added as an Owner on the " +
-        "nickstire.org Search Console property — see this file's header comment.",
-      );
+      // TWO DIFFERENT CAUSES share this status, and guessing one sent a reader
+      // to the wrong console (witnessed 2026-09-10). Read the body: Google
+      // names which it is.
+      const disabledApi = /has not been used in project|is disabled/i.test(text);
+      const lines403 = disabledApi
+        ? [
+            "403 - THE API ITSELF IS DISABLED in the Cloud project. This is NOT a",
+            "Search Console permission problem. Enable Web Search Indexing API for the",
+            "project named in the message above, at",
+            "console.cloud.google.com/apis/library/indexing.googleapis.com , wait a",
+            "minute for it to propagate, then retry.",
+          ]
+        : [
+            "403 - the service account is probably not yet added as an Owner on the",
+            "nickstire.org Search Console property. See this file header comment.",
+            "If the body above mentions the API being disabled, that is the OTHER",
+            "cause: enable Web Search Indexing API in the Cloud project instead.",
+          ];
+      console.error(lines403.join(String.fromCharCode(10)));
     }
     process.exitCode = 1;
   }
