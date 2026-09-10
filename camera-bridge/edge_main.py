@@ -812,7 +812,17 @@ class EdgeLoop:
         if self.trajectories is None or out.get("suppressed"):
             return
         try:
-            scene = getattr(getattr(self.source, "binding", None), "scene_id", None) or "default"
+            # THE FRAME'S OWN sceneId. `WgcWindowSource.set_canonical` stamps it into every
+            # frame's meta, which is the only place it is authoritative -- `source.binding`
+            # does not exist, so this read `None` and filed EVERY point under "default".
+            # Measured after four hours of real traffic: 7,228 points, 69 tracks, one bucket.
+            #
+            # Pooling is not a cosmetic loss. A two-lens device is two different pixel
+            # spaces, and a commissioner fitting one polygon across both would produce a
+            # confident, meaningless answer from data that looks abundant.
+            scene = ((frame.meta or {}).get("sceneId")
+                     or getattr(getattr(self.source, "binding", None), "scene_id", None)
+                     or "unattributed")
             # `self.vision`, NOT `self.pipeline`. The visitd pipeline carries metrics, the
             # shop lane and the visit tracker; the TRACK GRAPH lives on the vision layer.
             # Reading it off the wrong object raised on every single frame -- 128 of them

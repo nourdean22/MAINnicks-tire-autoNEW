@@ -221,6 +221,21 @@ class TrajectoryStore:
         except Exception:  # noqa: BLE001
             return []
 
+    def scenes(self) -> List[str]:
+        """Scene ids that actually have points, most-recorded first.
+
+        Exists so a refusal can NAME the alternatives. "0 points for shop-left" and "0 points
+        for anything" are different problems with different fixes, and an operator told only
+        the first will wait for traffic that is arriving under another name.
+        """
+        if self._conn is None:
+            return []
+        try:
+            return [r[0] for r in self._conn.execute(
+                "SELECT scene, COUNT(*) c FROM track_points GROUP BY scene ORDER BY c DESC")]
+        except Exception:  # noqa: BLE001
+            return []
+
     def close(self) -> None:
         if self._conn is not None:
             try:
@@ -335,6 +350,18 @@ class TrajectoryCommissioner:
             "scene": scene, "points": len(pts), "tracks": len(tracks),
             "canonical": list(self.canonical), "generatedAt": time.time(),
         }
+        # A scene NOBODY HAS RECORDED is not a quiet scene. Both render as zero points, and
+        # "not enough traffic yet" tells an operator to wait for data that is being filed
+        # under another name -- or under no name, because of a typo. Say which.
+        if scene is not None and not pts:
+            known = self.store.scenes()
+            return {**base, "ready": False, "why": (
+                f"no points are recorded for scene {scene!r}. "
+                + (f"The store has: {', '.join(known)}. Did you mean one of those?"
+                   if known else
+                   "The store has NO points for any scene, so nothing is being recorded at "
+                   "all -- check that the producer was started with --trajectories."))}
+
         if len(tracks) < MIN_TRACKS or len(pts) < MIN_POINTS:
             return {**base, "ready": False, "why": (
                 f"not enough traffic yet: {len(tracks)}/{MIN_TRACKS} tracks, "
@@ -463,6 +490,47 @@ class TrajectoryCommissioner:
         }
 
 
+def diagnose(store: "TrajectoryStore", canonical: Tuple[int, int],
+             scene: Optional[str] = None) -> Dict[str, Any]:
+    """Where the vehicles ACTUALLY were, and which insets survive it.
+
+    A refusal that only says "too narrow" leaves the operator with no next move. This
+    reports the measurement behind it: how much ground the traffic covers, where, how deep
+    it is at its widest, and what each candidate inset would keep. From that they can widen
+    the view, lower the inset deliberately, or -- the answer this shop's first real run gave
+    -- discover that the camera is not seeing the ground they thought it was.
+    """
+    import cv2
+
+    pts = store.points(scene)
+    grid = _occupancy(pts, canonical)
+    region = _region_mask(grid)
+    out: Dict[str, Any] = {
+        "scene": scene, "points": len(pts), "tracks": len({p[1] for p in pts}),
+        "cellsTouched": int(np.count_nonzero(grid)),
+        "regionCells": int(np.count_nonzero(region)),
+        "canonical": list(canonical),
+    }
+    if not region.any():
+        out["why"] = "no region: no cell was touched by enough distinct tracks"
+        return out
+    dist = cv2.distanceTransform(region, cv2.DIST_L2, 3)
+    ys, xs = np.nonzero(region)
+    out["inradiusPx"] = round(float(dist.max()) * CELL_PX, 1)
+    out["bbox"] = {"x0": int(xs.min()) * CELL_PX, "x1": int(xs.max()) * CELL_PX,
+                   "y0": int(ys.min()) * CELL_PX, "y1": int(ys.max()) * CELL_PX}
+    out["coverageOfFrame"] = round(
+        float(np.count_nonzero(region)) / max(1, region.size), 4)
+    out["insets"] = [
+        {"px": px,
+         "keepsFraction": round(float(np.count_nonzero(_erode_px(region, float(px), CELL_PX)))
+                                / max(1, np.count_nonzero(region)), 3),
+         "usable": bool(np.count_nonzero(_erode_px(region, float(px), CELL_PX))
+                        / max(1, np.count_nonzero(region)) >= MIN_RETAINED_FRACTION)}
+        for px in (8, 16, 24, 32, 40, 45, 60)]
+    return out
+
+
 def write_proposal(proposal: Dict[str, Any], path: str) -> str:
     """Write the proposal to `path`. Refuses to write over a calibration.
 
@@ -499,6 +567,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--inset-px", type=float, default=INSET_PX,
                     help="how far to pull the lot in from the measured drivable region")
     ap.add_argument("--out", default=None, help="write the proposal here (never a calib name)")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="report WHERE the vehicles actually were and which insets survive, "
+                         "instead of proposing. Use it when a proposal is refused.")
     args = ap.parse_args(argv)
 
     current = None
@@ -520,6 +591,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not store.open:
         print(f"cannot read {args.store}: {store.stats.last_error}")
         return 2
+    if args.diagnose:
+        d = diagnose(store, canonical, args.scene)
+        print(f"scene={d['scene']}  tracks={d['tracks']}  points={d['points']}")
+        print(f"cells touched by >= {MIN_TRACKS_PER_CELL} distinct tracks: {d['cellsTouched']}"
+              f"  -> region {d['regionCells']} cells")
+        if "bbox" in d:
+            b = d["bbox"]
+            print(f"the ground vehicles actually use: x {b['x0']}..{b['x1']}  "
+                  f"y {b['y0']}..{b['y1']}  of a {d['canonical'][0]}x{d['canonical'][1]} frame")
+            print(f"  that is {d['coverageOfFrame']:.1%} of the frame, "
+                  f"{d['inradiusPx']:.0f}px deep at its widest")
+            print()
+            for row in d["insets"]:
+                print(f"  inset {row['px']:2d}px -> keeps {row['keepsFraction']:6.1%}"
+                      + ("   <- usable" if row["usable"] else ""))
+        else:
+            print(d.get("why", ""))
+        return 0
     p = TrajectoryCommissioner(store, canonical=canonical,
                                inset_px=args.inset_px).propose(args.scene, current)
 
