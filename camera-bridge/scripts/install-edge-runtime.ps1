@@ -53,6 +53,8 @@ param(
     [int]$Channel = -1,
     [string]$HardCases = "",
     [double]$HardCaseMaxGb = 2.0,
+    [ValidateSet("", "off", "both", "replace")]
+    [string]$HardCaseEpisodes = "",
     [double]$RelocateSeconds = 120.0,
     [string]$ShadowLedger = "",
     [string]$ChallengerModel = "",
@@ -191,7 +193,8 @@ function _Arg([string]$flag, [string]$value) {
 }
 $sceneArg      = (_Arg '--scene-atlas' $SceneAtlas) + (_Arg '--scene' $Scene)
 $channelArg    = if ($Channel -ge 0) { " --channel $Channel" } else { '' }
-$hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" } else { '' }
+$episodeArg    = _Arg '--hard-case-episodes' $HardCaseEpisodes
+$hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" + $episodeArg } else { '' }
 $relocateArg   = " --relocate-seconds $RelocateSeconds"
 $shadowArg     = (_Arg '--shadow-ledger' $ShadowLedger) + (_Arg '--challenger-model' $ChallengerModel)
 $adjArg        = (_Arg '--adjudicator-model' $AdjudicatorModel) + (_Arg '--adjudicator-device' $AdjudicatorDevice)

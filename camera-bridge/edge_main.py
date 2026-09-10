@@ -986,6 +986,12 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "change. Unset means no corpus is collected.")
     ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
                     help="disk budget for the hard-case store; oldest clips are evicted first")
+    ap.add_argument("--hard-case-episodes", choices=["off", "both", "replace"], default="both",
+                    help="write each hard case ALSO as an MCAP episode -- one indexed, "
+                         "self-contained file Foxglove/Rerun can scrub through time, instead "
+                         "of a folder of pictures. 'replace' drops the numbered JPEGs once the "
+                         "episode has been re-read and proven complete (measured smaller than "
+                         "the JPEGs it replaces); 'off' keeps today's behaviour exactly.")
     ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
                     help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
                          "frames. Must differ from --model; a model agrees with itself.")
@@ -1053,10 +1059,19 @@ def run_edge(args: argparse.Namespace) -> int:
         from vision.hardcase import HardCaseRecorder
 
         recorder = HardCaseRecorder(directory=args.hard_cases,
-                                    max_bytes=int(args.hard_case_max_gb * 1024 ** 3))
+                                    max_bytes=int(args.hard_case_max_gb * 1024 ** 3),
+                                    episodes=args.hard_case_episodes)
         os.makedirs(args.hard_cases, exist_ok=True)
-        log.info("hard-case corpus at %s (budget %.1f GB)", args.hard_cases,
-                 args.hard_case_max_gb)
+        # Say WHICH it is. "episodes: both" and "episodes: off (mcap not importable)" are
+        # different facts, and a log line that reported only the requested mode would let an
+        # operator believe a box is recording episodes it has no library to write.
+        from vision.episode import AVAILABLE as _EPISODES_AVAILABLE
+
+        mode = args.hard_case_episodes
+        if mode != "off" and not _EPISODES_AVAILABLE:
+            mode = "off (requested %s; mcap is not importable -- pip install mcap)" % mode
+        log.info("hard-case corpus at %s (budget %.1f GB, episodes: %s)", args.hard_cases,
+                 args.hard_case_max_gb, mode)
 
     # A CHALLENGER IS NOT AN ADJUDICATOR, and conflating them made the previous version of
     # this a counterfactual in name only. `--adjudicator-model` is passed into the

@@ -569,7 +569,7 @@ def _args(**over):
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
         adjudicator_model=None, adjudicator_device=None,
-        hard_cases=None, hard_case_max_gb=2.0,
+        hard_cases=None, hard_case_max_gb=2.0, hard_case_episodes="both",
         shadow_ledger=None,
         relocate_seconds=120.0,
         challenger_model=None,

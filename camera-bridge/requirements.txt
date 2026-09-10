@@ -2,3 +2,9 @@ paho-mqtt==2.1.0
 requests==2.34.2
 PyYAML==6.0.3
 python-dotenv==1.2.2
+
+# Replayable hard-case episodes (vision/episode.py). MIT. OPTIONAL by construction:
+# `vision.episode.AVAILABLE` is False without it and the producer records JPEG clips
+# exactly as before -- pinned here so a fresh box gets the replay view, never so that
+# a box missing it fails to record.
+mcap>=1.4.0

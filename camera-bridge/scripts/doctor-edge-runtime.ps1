@@ -291,6 +291,20 @@ if (-not (Test-Path $atlasDir)) {
     }
 }
 
+# Episodes: can this box even WRITE one? A producer configured for episodes on a box with
+# no `mcap` degrades silently to JPEG-only -- correct behaviour, and invisible until someone
+# goes looking for a replay file that was never going to exist.
+if ($py) {
+    $mc = (& $py.Source -c "import mcap, sys; print(getattr(mcap,'__version__','present'))" 2>&1)
+    if ($mc -match "^[0-9]|present") {
+        Check "episode writer" "PASS" "mcap $mc -- hard cases also write episode.mcap (Foxglove/Rerun)"
+    } else {
+        # WARN, not FAIL: the clip is still recorded, and the clip is the evidence. What is
+        # lost is the replayable VIEW of it, which costs debugging time, not data.
+        Check "episode writer" "WARN" "mcap not importable -- hard cases record JPEGs only, no replayable episode. pip install mcap"
+    }
+}
+
 $corpus = Join-Path $root "data\hard-cases"
 if (-not (Test-Path $corpus)) {
     Check "hard-case corpus" "WARN" "not collecting -- pass --hard-cases to start building the shop-specific corpus this system learns from"
