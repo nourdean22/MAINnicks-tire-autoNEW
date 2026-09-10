@@ -8,13 +8,22 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import {
-  scrubExpiredPlates,
-  PLATE_RETENTION_DAYS,
-  PLATE_SCRUB_BATCH,
-  PLATE_SCRUB_MAX_BATCHES,
-  PLATE_SCRUBBED_STATUS,
-} from "./services/plateRetention";
+import { scrubExpiredPlates, PLATE_RETENTION_DAYS } from "./services/plateRetention";
+
+/** The value STORED in `vehicle_visits.plateStatus`. Pinned as a literal on purpose: it is
+ *  a data contract other code and humans read back, so importing the constant would let a
+ *  rename pass this suite while silently changing what is in the database. */
+const STORED_SCRUBBED = "SCRUBBED";
+
+/** Read off the result rather than imported, so the numbers under test are exactly the ones
+ *  the cron reports to the operator. */
+async function limits() {
+  const { db } = fakeDb([0]);
+  mockDbModule(db);
+  const { scrubExpiredPlates: run } = await import("./services/plateRetention");
+  const r = await run();
+  return { batch: r.batchSize, max: r.maxBatches };
+}
 
 /** Captures the SQL Drizzle would send, and replays a scripted affectedRows per call. */
 function fakeDb(affectedPerCall: number[]) {
@@ -86,7 +95,7 @@ describe("plate retention", () => {
     await run(new Date("2026-09-10T00:00:00Z"));
     expect(seen[0]).toContain("plateText = NULL");
     // A reader must be able to say "the policy removed it", not "the camera saw nothing".
-    expect(params[0].flat()).toContain(PLATE_SCRUBBED_STATUS);
+    expect(params[0].flat()).toContain(STORED_SCRUBBED);
   });
 
   it("cuts off exactly PLATE_RETENTION_DAYS before the run, not before 'now' at read time", async () => {
@@ -110,11 +119,12 @@ describe("plate retention", () => {
   });
 
   it("keeps batching while each batch comes back FULL", async () => {
-    const { db } = fakeDb([PLATE_SCRUB_BATCH, PLATE_SCRUB_BATCH, 7]);
+    const { batch } = await limits();
+    const { db } = fakeDb([batch, batch, 7]);
     mockDbModule(db);
     const { scrubExpiredPlates: run } = await import("./services/plateRetention");
     const r = await run();
-    expect(r.scrubbed).toBe(PLATE_SCRUB_BATCH * 2 + 7);
+    expect(r.scrubbed).toBe(batch * 2 + 7);
     expect(r.batches).toBe(3);
     expect(r.capped).toBe(false);
   });
@@ -122,13 +132,14 @@ describe("plate retention", () => {
   it("reports CAPPED when the safety stop fires, and never as a clean run", async () => {
     // The distinction the operator acts on: "retention is current" vs "retention is behind".
     // A capped run reported as clean means plate text sits past its window under a green cron.
-    const { db } = fakeDb([PLATE_SCRUB_BATCH]);
+    const { batch, max } = await limits();
+    const { db } = fakeDb([batch]);
     mockDbModule(db);
     const { scrubExpiredPlates: run } = await import("./services/plateRetention");
     const r = await run();
     expect(r.capped).toBe(true);
-    expect(r.batches).toBe(PLATE_SCRUB_MAX_BATCHES);
-    expect(db.execute).toHaveBeenCalledTimes(PLATE_SCRUB_MAX_BATCHES);
+    expect(r.batches).toBe(max);
+    expect(db.execute).toHaveBeenCalledTimes(max);
   });
 
   it("THROWS when the database is unavailable rather than reporting zero scrubbed", async () => {
@@ -170,6 +181,6 @@ describe("the scrub is actually SCHEDULED", () => {
     const src = fs.readFileSync(new URL("./routes/cameraVisitsRoutes.ts", import.meta.url), "utf8");
     const line = src.split("\n").find((l) => l.includes("const PLATE_STATUS ="));
     expect(line).toBeTruthy();
-    expect(line).not.toContain(PLATE_SCRUBBED_STATUS);
+    expect(line).not.toContain(STORED_SCRUBBED);
   });
 });

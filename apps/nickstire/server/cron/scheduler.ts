@@ -1911,16 +1911,17 @@ function buildTiers(): void {
             await Promise.resolve(
               alertSystem(
                 "Plate retention scrub hit its batch cap with work still pending",
-                `Scrubbed ${r.scrubbed} rows over ${r.batches} batches and stopped. Plate text older ` +
-                  `than ${PLATE_RETENTION_DAYS} days is still in vehicle_visits. Investigate before ` +
-                  `the next run: a cap means a backfill, a clock jump, or a policy change.`,
+                `Scrubbed ${r.scrubbed} rows over ${r.batches} batches of ${r.batchSize} and hit the ` +
+                  `${r.maxBatches}-batch stop. Plate text older than ${PLATE_RETENTION_DAYS} days is still ` +
+                  `in vehicle_visits. Investigate before the next run: a cap means a backfill, a clock ` +
+                  `jump, or a policy change.`,
               ),
             ).catch(() => { /* alerting must not fail the scrub it reports on */ });
           }
           return {
             recordsProcessed: r.scrubbed,
             details: r.capped
-              ? `CAPPED after ${r.scrubbed} rows -- retention is BEHIND`
+              ? `CAPPED after ${r.scrubbed} rows (${r.batches}x${r.batchSize}) -- retention is BEHIND`
               : `${r.scrubbed} plate(s) scrubbed, retention current to ${r.cutoff.toISOString().slice(0, 10)}`,
           };
         },

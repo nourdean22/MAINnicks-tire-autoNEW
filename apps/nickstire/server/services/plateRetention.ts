@@ -36,18 +36,23 @@ import { sql } from "drizzle-orm";
  *  Public Safety Committee as of its 2026-03-24 hearing, so nothing external pins it yet. */
 export const PLATE_RETENTION_DAYS = 30;
 
-/** The status a scrubbed row carries. Not a member of the ingest enum, by design. */
-export const PLATE_SCRUBBED_STATUS = "SCRUBBED";
+/** The status a scrubbed row carries. Not a member of the ingest enum, by design.
+ *  Deliberately NOT exported: it is a value STORED in the database and read back by other
+ *  code and by humans, so its test must pin the literal string. A test importing this
+ *  constant would keep passing through a rename that silently changed the stored contract. */
+const PLATE_SCRUBBED_STATUS = "SCRUBBED";
 
 /** Rows touched per statement. TiDB bounds transaction size, and an unbounded UPDATE over a
  *  table that has been collecting for a year is exactly the shape that gets killed halfway
- *  and leaves the operator unable to say what was scrubbed. */
-export const PLATE_SCRUB_BATCH = 500;
+ *  and leaves the operator unable to say what was scrubbed.
+ *  Reported on the result rather than exported: an operator reading "capped after 20000 rows"
+ *  needs to know it was 40 batches of 500, and a constant nothing renders tells nobody that. */
+const PLATE_SCRUB_BATCH = 500;
 
 /** Safety stop. A run that wants more than this has hit something structural -- a clock
  *  jump, a backfill, a policy change -- and should be looked at rather than grinding all
  *  night. It reports `capped`, so a truncated run can never read as a completed one. */
-export const PLATE_SCRUB_MAX_BATCHES = 40;
+const PLATE_SCRUB_MAX_BATCHES = 40;
 
 export interface PlateScrubResult {
   scrubbed: number;
@@ -56,6 +61,10 @@ export interface PlateScrubResult {
    *  run as a clean one: the difference is "retention is current" vs "retention is behind". */
   capped: boolean;
   cutoff: Date;
+  /** The batching this run used. On the result so the cron's operator message can say what
+   *  a cap actually means -- "40 batches of 500" -- instead of an opaque row count. */
+  batchSize: number;
+  maxBatches: number;
 }
 
 /**
@@ -71,6 +80,7 @@ export async function scrubExpiredPlates(now: Date = new Date()): Promise<PlateS
   const d = await getDbTyped();
   if (!d) throw new Error("plate retention: database unavailable, nothing was scrubbed");
 
+  const limits = { batchSize: PLATE_SCRUB_BATCH, maxBatches: PLATE_SCRUB_MAX_BATCHES };
   let scrubbed = 0;
   let batches = 0;
   for (; batches < PLATE_SCRUB_MAX_BATCHES; batches++) {
@@ -84,9 +94,11 @@ export async function scrubExpiredPlates(now: Date = new Date()): Promise<PlateS
     `);
     const affected = affectedRows(res);
     scrubbed += affected;
-    if (affected < PLATE_SCRUB_BATCH) return { scrubbed, batches: batches + 1, capped: false, cutoff };
+    if (affected < PLATE_SCRUB_BATCH) {
+      return { scrubbed, batches: batches + 1, capped: false, cutoff, ...limits };
+    }
   }
-  return { scrubbed, batches, capped: true, cutoff };
+  return { scrubbed, batches, capped: true, cutoff, ...limits };
 }
 
 /**

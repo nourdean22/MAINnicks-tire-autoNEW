@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-02 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-09-10 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -16,12 +16,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
 | heartbeat | every 5m | 3 / 1 |
-| pulse | every 15m | 20 / 2 |
+| pulse | every 15m | 22 / 0 |
 | hourly | every 2h | 34 / 1 |
-| daily | every 1d | 50 / 0 |
+| daily | every 1d | 51 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 117 tiered jobs (113 scheduled automatically, 4 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 118 tiered jobs (116 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -44,12 +44,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `daily-reel-post` | no | no | yes | — |
 | `dashboard-sync` | no | no | yes | Sync admin dashboard tiles to fresh data |
 | `gateway-order-status-poll` | yes | no | yes | — |
-| `higgsfield-session-keepalive` | no | no | **STAGED — HTTP trigger only** | — |
+| `higgsfield-session-keepalive` | no | no | yes | — |
 | `ig-autopost` | no | no | yes | — |
 | `overdue-reply-alert` | yes | no | yes | — |
 | `proposal-orphan-sweep` | no | no | yes | — |
 | `reel-comment-responder` | no | no | yes | — |
-| `reel-pipeline` | no | no | **STAGED — HTTP trigger only** | — |
+| `reel-pipeline` | no | no | yes | — |
 | `revenue-pulse` | yes | no | yes | — |
 | `scheduled-posts` | no | no | yes | — |
 | `sms-gateway-health` | no | no | yes | — |
@@ -131,6 +131,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `monte-carlo-forecast` | no | no | yes | — |
 | `no-show-detection` | no | no | yes | — |
 | `pipelines-auto-run` | no | no | yes | — |
+| `plate-retention-scrub` | no | no | yes | Nulls plate text on `vehicle_visits` rows past the 30-day ADR-0017 window, sparing EXACT customer matches. Reads nothing until a plate recogniser is wired. |
 | `prediction-outcomes-resolve` | no | no | yes | — |
 | `pricing-intelligence` | no | no | yes | — |
 | `prompt-evolution-weekly` | no | no | yes | — |
