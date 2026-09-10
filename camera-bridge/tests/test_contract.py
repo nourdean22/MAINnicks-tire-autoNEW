@@ -106,3 +106,73 @@ class TimestampTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NullsAreOmittedTest(unittest.TestCase):
+    """The shop's schema marks these fields OPTIONAL, and Zod `.optional()` accepts a MISSING
+    key -- never `null`. Python's None serialises to null, so every field this producer had
+    nothing to say about arrived as a value the receiver actively rejects, and the whole
+    event came back 400 "Invalid vehicle event payload".
+
+    Caught by running a producer against the real StateNour endpoint, not by a test.
+    """
+
+    def _left_emission(self):
+        import dataclasses
+        flds = {f.name: f for f in dataclasses.fields(Emission)}
+        required = [n for n, f in flds.items()
+                    if f.default is dataclasses.MISSING
+                    and f.default_factory is dataclasses.MISSING]
+        kw = {n: None for n in required}
+        kw.update({"visit_id": "v1", "state": "LEFT", "seq": 5, "sighting_id": "sign-8",
+                   "at": 1789045764.2, "camera": "sign", "zone": None,
+                   "dwell_seconds": 472.3, "zone_dwell": {"front_lot": 472.3},
+                   "plate": {"status": "NONE", "text": None, "normalizedText": None,
+                             "confidence": 0.0, "provider": "frigate_lpr", "reads": 0}})
+        return Emission(**{k: v for k, v in kw.items() if k in flds})
+
+    def test_no_NULL_reaches_the_wire_for_an_optional_field(self):
+        """Measured on a real LEFT emission: confidence, estimated, label, priority,
+        stationary, zone and zoneName were all null, plus text and normalizedText inside
+        plate. Every one is optional-but-not-nullable on the receiver."""
+        body = build_event(self._left_emission(), "v380-shopsign", "Shop Sign", {}, "0.17.2")
+        data = body["data"]
+        self.assertEqual([k for k, v in data.items() if v is None], [],
+                         "an optional field must be OMITTED, never sent as null")
+        plate = data.get("plate") or {}
+        self.assertEqual([k for k, v in plate.items() if v is None], [])
+        # The fields that DO have values must still be there.
+        self.assertEqual(data["state"], "LEFT")
+        self.assertEqual(data["visitId"], "v1")
+        self.assertAlmostEqual(data["dwellSeconds"], 472.3)
+        self.assertEqual(data["zoneDwell"], {"front_lot": 472.3})
+
+    def test_METADATA_keeps_its_nulls_because_they_MEAN_something(self):
+        """`metadata` is typed `z.record(z.string(), z.unknown())`, which accepts null -- and
+        its nulls carry information. `frigateEndTime: null` says the event has not ended,
+        which is not the same claim as the key being absent."""
+        body = build_event(self._left_emission(), "v380-shopsign", "Shop Sign", {}, "0.17.2")
+        meta = body["data"]["metadata"]
+        self.assertIn("frigateEndTime", meta)
+        self.assertIsNone(meta["frigateEndTime"], "a null here is a fact, not an absence")
+
+    def test_a_FULLY_POPULATED_event_is_unchanged(self):
+        """The positive control. A rule that stripped real values would pass the test above
+        while quietly deleting the payload."""
+        import dataclasses
+        flds = {f.name: f for f in dataclasses.fields(Emission)}
+        kw = {f.name: None for f in dataclasses.fields(Emission)}
+        kw.update({"visit_id": "v2", "state": "CONFIRMED_ARRIVAL", "seq": 3,
+                   "sighting_id": "sign-9", "at": 1789045764.2, "camera": "sign",
+                   "zone": "front_lot", "dwell_seconds": 45.2, "zone_dwell": {"front_lot": 45.2},
+                   "priority": "high", "label": "car", "confidence": 0.9951,
+                   "stationary": False, "estimated": True,
+                   "plate": {"status": "NONE", "confidence": 0.0, "reads": 0}})
+        body = build_event(Emission(**{k: v for k, v in kw.items() if k in flds}),
+                           "v380-shopsign", "Shop Sign", {}, "0.17.2")
+        d = body["data"]
+        self.assertEqual(d["zone"], "front_lot")
+        self.assertEqual(d["label"], "car")
+        self.assertAlmostEqual(d["confidence"], 0.9951)
+        self.assertIs(d["stationary"], False, "False is a VALUE and must survive")
+        self.assertIs(d["estimated"], True)
