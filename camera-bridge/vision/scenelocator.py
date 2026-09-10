@@ -38,6 +38,7 @@ trust it. Ambiguity between two scenes is also a refusal, not a coin flip.
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -58,6 +59,9 @@ MAX_EDGE_TILT_DEG = 6.0
 #: The shortest side a real video pane may have. Below this there is nothing to detect a
 #: vehicle in, so a quad this thin is a failed fit, not an observation.
 MIN_SIDE_PX = 24.0
+#: Largest condition number the homography's linear part may have. A scaled, axis-aligned
+#: pane maps to ~1.0 (uniform scale); anything past this has collapsed a dimension.
+MAX_CONDITION = 8.0
 #: Absolute minimum inliers. Below this a homography is fitting noise, whatever its ratio.
 MIN_INLIERS = 18
 #: Inliers as a fraction of matches. A low ratio with a high count is a repeated texture
@@ -176,6 +180,39 @@ def build_reference(image: np.ndarray, scene_id: str, variant: str = "default",
                           keypoints=tuple(kps), descriptors=desc)
 
 
+def _linear_is_sane(H) -> Optional[str]:
+    """Is the homography's linear part a plausible scale, or has it collapsed? Reason or None.
+
+    MEASURED, because the first version of this check asserted something false. It rejected
+    a non-positive determinant on the stated grounds that "a negative determinant means the
+    fit mirrored the scene" -- and a deliberately mirrored scene produces a determinant of
+    +0.14. The sign never goes negative here, so that branch could not fire and its comment
+    was simply wrong. It is gone.
+
+    CONDITIONING is the part that carries real information. The same measurement: a genuine
+    axis-aligned pane match gives a condition number of 1.01, and the degenerate fit from
+    the mirrored frame gives 204.68 -- a 200x separation, which is a signal, not a hunch.
+
+    Stated honestly, this is DEFENCE IN DEPTH and not the rule doing the work today: the
+    inlier floor rejects that mirrored frame first (4 inliers against a floor of 18), so
+    removing this check does not turn any end-to-end test red. It earns its place by
+    covering the case the inlier floor cannot -- enough points agreeing on a transform that
+    has flattened one dimension -- and it is unit-tested directly rather than left as a
+    guard nobody can prove fires.
+    """
+    linear = np.asarray(H, dtype=np.float64)[:2, :2]
+    if not np.isfinite(linear).all():
+        return "the homography's linear part is not finite"
+    singular = np.linalg.svd(linear, compute_uv=False)
+    if singular[-1] <= 1e-9:
+        return "the homography is singular: it maps the pane onto a line"
+    condition = float(singular[0] / singular[-1])
+    if condition > MAX_CONDITION:
+        return (f"the homography's condition number is {condition:.1f}, so it has flattened "
+                f"one dimension rather than scaling a pane")
+    return None
+
+
 def _quad_is_sane(quad: np.ndarray, window: Tuple[int, int],
                   require_axis_aligned: bool) -> Optional[str]:
     """Degeneracy checks. Returns a REASON when the quad is not believable, else None.
@@ -292,6 +329,9 @@ def _match_one(frame_kps, frame_desc, ref: SceneReference, window: Tuple[int, in
     if not np.isfinite(reproj):
         return None
 
+    if _linear_is_sane(H) is not None:
+        return None
+
     quad = cv2.perspectiveTransform(ref.canonical_corners, H)
     reason = _quad_is_sane(quad, window, require_axis_aligned)
     if reason:
@@ -344,6 +384,56 @@ def locate(frame: np.ndarray, references: Sequence[SceneReference],
                    homography=best[2], inliers=best[3], inlier_ratio=best[4],
                    reprojection_error=best[5],
                    runner_up=other[0].scene_id if other else None, margin=margin)
+
+
+def load_atlas(directory: str) -> List[SceneReference]:
+    """Load an operator-curated set of reference views from `<scene_id>__<variant>.png`.
+
+    WHY AN ATLAS RATHER THAN ONE REFERENCE IMAGE. One image eventually betrays you. The
+    same forecourt at noon, at dusk, under sodium light, in rain and under snow does not
+    share enough gradient structure for a single descriptor set to cover -- the match simply
+    stops finding inliers one evening, and a locator that refuses is a producer that stops.
+    Several variants of the SAME `scene_id` all map into the SAME canonical frame, so which
+    variant matched is a diagnostic and never a difference in geometry.
+
+    A sibling `<scene_id>__<variant>.mask.png` restricts features to STATIC LANDMARKS --
+    roofline, bay framing, poles, curb, permanent signage. This matters more than it looks:
+    features found on a parked car locate the CAR, and the car leaves. Masking is how the
+    atlas learns the bones of the building rather than today's arrangement of vehicles.
+
+    Raises on an empty or unreadable directory rather than returning an empty list, because
+    an empty atlas would make every later `locate` fail with a confusing message about zero
+    references instead of the real problem, which is here.
+    """
+    import cv2
+
+    if not os.path.isdir(directory):
+        raise SceneNotLocated(f"scene atlas directory {directory!r} does not exist")
+    refs: List[SceneReference] = []
+    for name in sorted(os.listdir(directory)):
+        stem, ext = os.path.splitext(name)
+        if ext.lower() not in (".png", ".jpg", ".jpeg") or stem.endswith(".mask"):
+            continue
+        image = cv2.imread(os.path.join(directory, name), cv2.IMREAD_COLOR)
+        if image is None:
+            raise SceneNotLocated(f"atlas entry {name!r} could not be decoded as an image")
+        scene_id, _, variant = stem.partition("__")
+        mask_path = os.path.join(directory, f"{stem}.mask.png")
+        mask = None
+        if os.path.exists(mask_path):
+            mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+            if mask is None or mask.shape[:2] != image.shape[:2]:
+                raise SceneNotLocated(
+                    f"the mask for {name!r} is unreadable or a different size than the "
+                    f"reference, so it would mask the wrong pixels"
+                )
+        refs.append(build_reference(image, scene_id, variant or "default", mask))
+    if not refs:
+        raise SceneNotLocated(
+            f"no reference images in {directory!r}. Name them '<scene_id>__<variant>.png' "
+            "-- for example 'shopsign-left__day-clear.png'."
+        )
+    return refs
 
 
 def _boxes_overlap(a, b, limit: float = 0.30) -> bool:

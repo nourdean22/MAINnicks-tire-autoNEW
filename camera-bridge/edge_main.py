@@ -539,6 +539,31 @@ def reconcile_restart(pipeline: Any, camera: str) -> int:
     return len(before)
 
 
+def canonical_size_from(calibration_path):
+    """The canonical frame size the calibration's polygons were drawn in, or None.
+
+    A calibration file is polygons in pixels. To warp a located pane back into those
+    coordinates the producer has to know how big that frame was -- and it cannot be
+    inferred from the polygons, because a lot polygon need not touch the frame edges.
+    So the file must say, under a "canonical": [width, height] key, and a file that does
+    not say is refused rather than defaulted. Defaulting here would silently scale every
+    polygon by whatever ratio happened to be wrong.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return None
+    import json as _json
+
+    cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    size = cal.get("canonical")
+    if not size or len(size) != 2:
+        raise SceneNotLocated(
+            f"{calibration_path} has no \"canonical\": [width, height] key, so there is no "
+            "frame to warp located panes back into. Add the pixel size the polygons were "
+            "drawn against -- guessing it would rescale every polygon silently."
+        )
+    return (int(size[0]), int(size[1]))
+
+
 def build_edge(cfg: Config, args: argparse.Namespace):
     """Build the visitd pipeline first, then hand ITS tracker to the vision pipeline.
 
@@ -553,6 +578,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     from vision.geometry import EntryPortal, LotMap, Zone
     from vision.pipeline import VisionPipeline
     from vision.run_live import build_council, build_source
+    from vision.scenelocator import SceneNotLocated
 
     ledger_path = camera_ledger_path(args.ledger or cfg.ledger_path, args.camera)
     ledger = Ledger(
@@ -578,7 +604,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     # parsed polygons below.
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
                           channel=args.channel,
-                          calibrated=bool(args.calibration and os.path.exists(args.calibration)))
+                          calibrated=bool(args.calibration and os.path.exists(args.calibration)),
+                          scene_atlas=args.scene_atlas, scene=args.scene,
+                          canonical_size=canonical_size_from(args.calibration))
 
     calibration_version = None
     lot_poly = portal_poly = None
@@ -677,6 +705,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
+    ap.add_argument("--scene-atlas", default=None,
+                    help="directory of reference views named <scene_id>__<variant>.png; locates the KNOWN camera anywhere in the window and warps frames into canonical coordinates")
+    ap.add_argument("--scene", default=None,
+                    help="which scene_id in the atlas this producer IS; omit to accept whichever known scene is on screen (refused if two are ambiguous)")
     ap.add_argument("--channel", type=int, default=None,
                     help="aim at ONE channel of a multi-lens device (0-based, left-to-right, top "
                          "row first). SHOPSIGN is a 3-in-1: two fixed lenses plus a PTZ.")

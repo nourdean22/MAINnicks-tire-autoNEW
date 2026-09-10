@@ -10,8 +10,9 @@ import numpy as np
 import pytest
 
 from vision.scenelocator import (MAX_EDGE_TILT_DEG, MIN_INLIERS, MIN_SIDE_PX, SceneBinding,
-                                 SceneNotLocated, _quad_is_sane, advance, build_reference,
-                                 canonicalise, locate, locate_all)
+                                 SceneNotLocated, _linear_is_sane, _quad_is_sane, advance,
+                                 build_reference,
+                                 canonicalise, load_atlas, locate, locate_all)
 
 
 def _scene(seed: int, size=(320, 180)) -> np.ndarray:
@@ -320,3 +321,103 @@ def test_locate_all_is_EMPTY_rather_than_raising_when_nothing_is_recognised():
     refs = [build_reference(SHOPSIGN, "left", "day")]
     assert locate_all(_multi_window([(OTHER_CAMERA, (426, 255, 677, 381))]), refs) == []
     assert locate_all(_multi_window([(SHOPSIGN, (0, 0, 640, 360))]), []) == []
+
+
+# --- The atlas: several appearances of one camera, all mapping to one canonical frame ----
+
+
+def _write_atlas(tmp_path, entries):
+    import cv2
+    for name, image in entries:
+        cv2.imwrite(str(tmp_path / name), image)
+    return str(tmp_path)
+
+
+def test_the_atlas_loads_scene_and_variant_from_the_FILENAME(tmp_path):
+    d = _write_atlas(tmp_path, [("shopsign-left__day-clear.png", SHOPSIGN),
+                                ("shopsign-left__night.png", _scene(31)),
+                                ("bay-cam__day.png", OTHER_CAMERA)])
+    refs = load_atlas(d)
+    assert {(r.scene_id, r.variant) for r in refs} == {
+        ("shopsign-left", "day-clear"), ("shopsign-left", "night"), ("bay-cam", "day")}
+
+
+def test_TWO_VARIANTS_of_one_camera_both_answer_with_the_SAME_scene_id(tmp_path):
+    """One reference image eventually betrays you: noon and dusk do not share enough
+    gradient structure for one descriptor set. Variants are how the same camera stays
+    findable across the day -- and which one matched must never change the geometry."""
+    night = _scene(31)
+    d = _write_atlas(tmp_path, [("shopsign-left__day.png", SHOPSIGN),
+                                ("shopsign-left__night.png", night)])
+    refs = load_atlas(d)
+    assert locate(_window(SHOPSIGN, at=(300, 200), pane=(500, 281)), refs).scene_id == "shopsign-left"
+    assert locate(_window(night, at=(300, 200), pane=(500, 281)), refs).scene_id == "shopsign-left"
+
+
+def test_an_EMPTY_atlas_directory_is_refused_where_the_problem_actually_IS(tmp_path):
+    """Returning an empty list would surface later as a confusing 'no references supplied'
+    from `locate`, pointing at the wrong place entirely."""
+    with pytest.raises(SceneNotLocated, match="no reference images"):
+        load_atlas(str(tmp_path))
+    with pytest.raises(SceneNotLocated, match="does not exist"):
+        load_atlas(str(tmp_path / "nope"))
+
+
+def test_a_MASK_of_the_wrong_size_is_refused_rather_than_masking_the_wrong_pixels(tmp_path):
+    import cv2
+    d = _write_atlas(tmp_path, [("shopsign-left__day.png", SHOPSIGN)])
+    cv2.imwrite(str(tmp_path / "shopsign-left__day.mask.png"), np.full((50, 50), 255, np.uint8))
+    with pytest.raises(SceneNotLocated, match="different size"):
+        load_atlas(d)
+
+
+def test_a_MASK_restricts_features_to_the_landmarks_it_marks(tmp_path):
+    """Features found on a parked car locate the CAR, and the car leaves. Masking is how the
+    atlas learns the bones of the building instead of today's arrangement of vehicles."""
+    import cv2
+    d = _write_atlas(tmp_path, [("shopsign-left__day.png", SHOPSIGN)])
+    mask = np.zeros(SHOPSIGN.shape[:2], np.uint8)
+    mask[:90, :] = 255                       # only the top half counts as landmark
+    cv2.imwrite(str(tmp_path / "shopsign-left__day.mask.png"), mask)
+    masked = load_atlas(d)[0]
+    unmasked = build_reference(SHOPSIGN, "shopsign-left", "day")
+    assert len(masked.keypoints) < len(unmasked.keypoints), (
+        f"the mask changed nothing: {len(masked.keypoints)} vs {len(unmasked.keypoints)}")
+    assert all(kp.pt[1] < 95 for kp in masked.keypoints), "a feature escaped the mask"
+
+
+def test_a_MIRRORED_homography_is_rejected_because_no_pane_is_shown_flipped(tmp_path):
+    """A negative determinant means the fit folded the scene over. It is a fit that failed,
+    not a camera that mirrors -- and the quad it projects can look perfectly reasonable."""
+    import cv2
+    ref = build_reference(SHOPSIGN, "shopsign", "day")
+    frame = _window(np.ascontiguousarray(SHOPSIGN[:, ::-1]), at=(300, 200), pane=(500, 281))
+    with pytest.raises(SceneNotLocated):
+        locate(frame, [ref])
+
+
+def test_a_SINGULAR_or_FLATTENED_homography_is_rejected():
+    """Measured separation: a genuine axis-aligned pane match conditions at 1.01, the
+    degenerate fit from a mirrored frame at 204.68."""
+    assert _linear_is_sane(np.eye(3)) is None
+    assert _linear_is_sane(np.diag([2.5, 2.5, 1.0])) is None, "uniform scale is a real pane"
+    flat = np.array([[2.5, 0, 0], [0, 0.05, 0], [0, 0, 1.0]])       # condition 50
+    assert "flattened" in (_linear_is_sane(flat) or "")
+    singular = np.array([[1.0, 2.0, 0], [0.5, 1.0, 0], [0, 0, 1.0]])  # rank-deficient 2x2
+    assert "singular" in (_linear_is_sane(singular) or "")
+    assert "not finite" in (_linear_is_sane(np.full((3, 3), np.nan)) or "")
+
+
+def test_the_matcher_actually_CONSULTS_the_linear_sanity_rule(monkeypatch):
+    """A wiring assertion, and it is here because a mutation proved it was needed: deleting
+    the call site from `_match_one` turned no test red. The rule is defence in depth -- the
+    inlier floor rejects today's degenerate frames first -- so no realistic frame reaches
+    it, and without this the call could be dropped silently and the depth would be gone."""
+    from vision import scenelocator
+
+    ref = build_reference(SHOPSIGN, "shopsign", "day")
+    frame = _window(SHOPSIGN, at=(300, 200), pane=(500, 281))
+    assert locate(frame, [ref]).scene_id == "shopsign"          # positive control first
+    monkeypatch.setattr(scenelocator, "_linear_is_sane", lambda H: "refused by the probe")
+    with pytest.raises(SceneNotLocated, match="could be located"):
+        locate(frame, [ref])

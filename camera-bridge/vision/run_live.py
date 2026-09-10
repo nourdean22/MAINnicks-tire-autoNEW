@@ -40,6 +40,8 @@ from vision.evidence import EvidenceStore  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
                                resolve_channel)
+from vision.scenelocator import (SceneNotLocated, advance, load_atlas,  # noqa: E402
+                                 locate)
 from vision.pipeline import VisionPipeline  # noqa: E402
 
 
@@ -185,17 +187,111 @@ def aim_at_channel(src, index: int, calibrated: bool,
     return box, kind, shift
 
 
+def canonical_size_from(calibration_path):
+    """The canonical frame size the calibration's polygons were drawn in, or None.
+
+    A calibration file is polygons in pixels. To warp a located pane back into those
+    coordinates the producer has to know how big that frame was -- and it cannot be
+    inferred from the polygons, because a lot polygon need not touch the frame edges.
+    So the file must say, under a "canonical": [width, height] key, and a file that does
+    not say is refused rather than defaulted. Defaulting here would silently scale every
+    polygon by whatever ratio happened to be wrong.
+    """
+    if not calibration_path or not os.path.exists(calibration_path):
+        return None
+    import json as _json
+
+    cal = _json.loads(open(calibration_path, "rb").read().decode("utf-8"))
+    size = cal.get("canonical")
+    if not size or len(size) != 2:
+        raise SceneNotLocated(
+            f"{calibration_path} has no \"canonical\": [width, height] key, so there is no "
+            "frame to warp located panes back into. Add the pixel size the polygons were "
+            "drawn against -- guessing it would rescale every polygon silently."
+        )
+    return (int(size[0]), int(size[1]))
+
+
+def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
+                 samples: int = 12, interval: float = 0.25):
+    """Find a KNOWN scene in the window and deliver it in canonical coordinates.
+
+    This is the layout-blind path and it supersedes both `--channel` and the measured
+    `SHOPSIGN_MAIN_PANE` constant for any camera that has an atlas. `--channel` still finds
+    a rectangle by motion; this finds THE CAMERA by appearance, which is the difference
+    between "there is video here" and "this is the left approach".
+
+    `calibration_size` is the canonical frame the lot polygon and entry portal were drawn
+    in. Every frame is warped back into it, so the pane's position and SIZE stop being
+    inputs to any geometric decision -- which is the property a crop can never have.
+
+    Refuses on: an unreadable atlas, no recognisable scene, an ambiguous one, or a named
+    scene that is not on screen. Each of those, answered with a guess, binds calibrated
+    geometry to the wrong ground and reports perfect health while doing it.
+    """
+    refs = load_atlas(atlas_dir)
+    if scene_id is not None:
+        refs = [r for r in refs if r.scene_id == scene_id]
+        if not refs:
+            raise SceneNotLocated(
+                f"the atlas in {atlas_dir!r} has no reference for scene {scene_id!r}; it "
+                f"holds {sorted({r.scene_id for r in load_atlas(atlas_dir)})}"
+            )
+    src.crop_frac = None                       # the locator needs the WHOLE window
+    frames = []
+    for _ in range(samples):
+        try:
+            frame = src.read()
+        except Exception:                      # noqa: BLE001 - a read failure is data here
+            frame = None
+        if frame is not None:
+            frames.append(frame.image)
+        time.sleep(interval)
+    if not frames:
+        raise SceneNotLocated(
+            f"no frames could be captured from {title_of(src)!r}, so no scene can be located"
+        )
+    found = locate(frames[-1], refs)
+    binding, _ = advance(None, found)
+    src.set_canonical(found.homography, calibration_size, found.scene_id, binding.epoch)
+    print(f"scene located: {found.describe()} epoch={binding.epoch} "
+          f"canonical={calibration_size[0]}x{calibration_size[1]}", flush=True)
+    return found, binding
+
+
 def title_of(src) -> str:
     return getattr(src, "window_title", None) or getattr(src, "name", "capture")
 
 
 def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
-                 channel: int | None = None, calibrated: bool = False):
+                 channel: int | None = None, calibrated: bool = False,
+                 scene_atlas: str | None = None, scene: str | None = None,
+                 canonical_size=None):
+    # --channel and --scene-atlas are two answers to the same question and cannot both be
+    # the answer. `--channel` finds a rectangle by MOTION; the atlas finds THE CAMERA by
+    # APPEARANCE. Silently letting one win would make the producer's aim depend on argument
+    # order, which is the kind of thing nobody discovers until the geometry is already wrong.
+    if channel is not None and scene_atlas:
+        raise ChannelNotFound(
+            "--channel and --scene-atlas both aim the producer and cannot be combined. The "
+            "atlas is strictly stronger: it proves WHICH camera it found, where --channel "
+            "only proves that a rectangle holds moving pixels. Use --channel only for a "
+            "camera with no atlas entry yet."
+        )
     if kind == "wgc":
         src = WgcWindowSource(
             window_hwnd=hwnd, window_title=title,
             crop_frac=WgcWindowSource.SHOPSIGN_MAIN_PANE if crop else None,
         )
+        if scene_atlas:
+            if not canonical_size:
+                raise SceneNotLocated(
+                    "--scene-atlas needs the canonical frame size the calibration was drawn "
+                    "in, so frames can be warped back into it. Without it the warp target "
+                    "would be a guess, which defeats the point of locating the scene."
+                )
+            aim_at_scene(src, scene_atlas, scene, canonical_size)
+            return src
         if channel is None:
             return CaptureMux([src, V380WindowSource(window_title=title)])
         aim_at_channel(src, channel, calibrated)
@@ -208,6 +304,11 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
         raise ChannelNotFound(
             f"--channel needs the 'wgc' capture lane; {kind!r} crops by fixed fractions and "
             "cannot be aimed at a channel rectangle."
+        )
+    if scene_atlas:
+        raise SceneNotLocated(
+            f"--scene-atlas needs the 'wgc' capture lane; {kind!r} crops by fixed fractions "
+            "and cannot deliver a canonically warped frame."
         )
     return CaptureMux([V380WindowSource(window_title=title)])
 
@@ -293,6 +394,10 @@ def main() -> int:
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
+    ap.add_argument("--scene-atlas", default=None,
+                    help="directory of reference views named <scene_id>__<variant>.png; locates the KNOWN camera anywhere in the window and warps frames into canonical coordinates")
+    ap.add_argument("--scene", default=None,
+                    help="which scene_id in the atlas this producer IS; omit to accept whichever known scene is on screen (refused if two are ambiguous)")
     ap.add_argument("--channel", type=int, default=None,
                     help="aim at ONE channel of a multi-lens device (0-based, left-to-right, "
                          "top row first). Resolved once at startup; refuses rather than guesses.")
@@ -317,7 +422,9 @@ def main() -> int:
     args = ap.parse_args()
 
     source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
-                          channel=args.channel, calibrated=bool(args.calibration))
+                          channel=args.channel, calibrated=bool(args.calibration),
+                          scene_atlas=args.scene_atlas, scene=args.scene,
+                          canonical_size=canonical_size_from(args.calibration))
     try:
         first = source.read()
     except Exception as exc:

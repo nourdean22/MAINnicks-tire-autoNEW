@@ -542,7 +542,7 @@ def _args(**over):
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
-        stall_exit_seconds=180.0,
+        stall_exit_seconds=180.0, scene_atlas=None, scene=None,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
