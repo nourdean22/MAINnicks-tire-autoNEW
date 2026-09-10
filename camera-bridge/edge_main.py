@@ -768,6 +768,24 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         # THE JOIN: one tracker, owned by visitd, driven by vision.
         tracker=pipeline.tracker,
     )
+    # HAND SCENELOCK THE CALIBRATED POSE when the atlas proved one. Without this the lock
+    # auto-adopts whatever frame settles first, which detects drift from WHERE THE PROCESS
+    # STARTED -- genuinely useful, and blind to the case that matters most: a camera already
+    # off-aim at start-up. There the wrong view becomes "home", every later frame agrees with
+    # it, and visits are minted forever against polygons belonging to a view the camera no
+    # longer has. Silently wrong, with no symptom to notice.
+    #
+    # A frame that appearance-matched a calibrated reference upgrades the gate from "has it
+    # moved since boot" to "is it where the polygons were drawn".
+    calibrated = getattr(source, "calibrated_reference", None)
+    if calibrated is not None:
+        try:
+            vision.scene.set_reference(calibrated)
+            log.info("scene lock anchored to the CALIBRATED pose from the atlas, "
+                     "not to whichever frame settled first")
+        except Exception:
+            log.exception("could not anchor the scene lock; it will auto-adopt instead")
+
     seed_track_ids(vision, pipeline.tracker, camera)
     # What is LOAD-BEARING is that this runs before the loop starts, because the pin has to
     # be in place before ANY emission reaches `after_step`. Ordering it ahead of

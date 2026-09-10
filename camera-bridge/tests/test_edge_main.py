@@ -1263,5 +1263,97 @@ class HardCaseWiringTest(unittest.TestCase):
         self.assertNotIn("hardCases", body)
 
 
+class SceneLockAnchorTest(unittest.TestCase):
+    """`SceneLock` has always asked for a known-good pose and never been given one.
+
+    Left to auto-adopt, it anchors on whichever frame settles first, which detects drift from
+    WHERE THE PROCESS STARTED. That is genuinely useful and it is blind to the case that
+    matters most: a camera already off-aim at start-up. There the wrong view becomes "home",
+    every later frame agrees with it, and visits are minted forever against lot, portal and
+    bay polygons belonging to a view the camera no longer has -- silently wrong, no symptom.
+
+    The atlas can now supply a frame that appearance-matched a calibrated reference, which
+    upgrades the gate from "has it moved since boot" to "is it where the polygons were drawn".
+    """
+
+    def _build(self, source):
+        two = dict(_RAW())
+        return edge_main.build_edge(_cfg(two), _args(calibration=None, camera="lot"))
+
+    def test_a_source_carrying_a_CALIBRATED_REFERENCE_anchors_the_scene_lock(self):
+        anchor = np.full((90, 160, 3), 90, np.uint8)
+        anchor[20:60, 30:120] = 200
+
+        class _Src:
+            calibrated_reference = anchor
+
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            _, vision, *_ = self._build(_Src())
+        finally:
+            rl.build_source = original
+        # The DISCRIMINATING assertion is that a reference exists BEFORE any frame has been
+        # processed. Asserting `reference_set` after an update proves nothing, because
+        # auto-adoption sets it too -- a mutation removing the anchoring entirely passed that
+        # version of this test.
+        self.assertIsNotNone(getattr(vision.scene, "_ref", None),
+                             "the calibrated pose was never handed to the scene lock")
+        self.assertTrue(vision.scene.update(anchor).reference_set)
+
+    def test_WITHOUT_one_the_lock_still_auto_adopts_exactly_as_before(self):
+        """The positive control. A change that anchored unconditionally -- or that broke the
+        fallback -- would leave every producer without an atlas unable to establish a pose at
+        all, which is worse than the gap being closed."""
+        class _Src:
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            _, vision, *_ = self._build(_Src())
+        finally:
+            rl.build_source = original
+        self.assertIsNone(getattr(vision.scene, "_ref", None),
+                          "nothing supplied a reference, so none should be set yet")
+        frame = np.full((90, 160, 3), 70, np.uint8)
+        vision.scene.update(frame)
+        vision.scene.update(frame)
+        self.assertIsNotNone(vision.scene._ref, "auto-adoption must still work")
+
+    def test_an_UNUSABLE_reference_does_not_stop_the_producer_starting(self):
+        """Anchoring is an upgrade to the pose gate, not a precondition for watching the lot.
+        A reference the lock cannot digest must degrade to auto-adoption, loudly."""
+        class _Src:
+            calibrated_reference = "not an image at all"
+
+            def read(self):
+                return None
+
+        # `build_edge` imports `build_source` INSIDE the function, so the name lives on
+        # `vision.run_live` and not on `edge_main`. Patching the wrong module would silently
+        # leave the real capture path in place and the test would be measuring nothing.
+        import vision.run_live as rl
+        original = rl.build_source
+        rl.build_source = lambda *a, **k: _Src()
+        try:
+            built = self._build(_Src())
+        finally:
+            rl.build_source = original
+        self.assertIsNotNone(built, "a bad reference must not prevent start-up")
+
+
 if __name__ == "__main__":
     unittest.main()

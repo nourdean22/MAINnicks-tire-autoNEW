@@ -41,8 +41,8 @@ from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
                                detect_live_region, resolve_channel,
                                split_into_channels)
-from vision.scenelocator import (SceneNotLocated, advance, load_atlas,  # noqa: E402
-                                 locate)
+from vision.scenelocator import (SceneNotLocated, advance,  # noqa: E402
+                                 canonicalise, load_atlas, locate)
 from vision.pipeline import VisionPipeline  # noqa: E402
 
 
@@ -272,9 +272,18 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     found = locate(frames[-1], refs, panes=panes)
     binding, _ = advance(None, found)
     src.set_canonical(found.homography, calibration_size, found.scene_id, binding.epoch)
+    # The canonical view of a PROVEN scene is the known-good pose `SceneLock` has always
+    # asked for and never been given. Until now it auto-adopted whatever settled first,
+    # which detects drift from WHERE THE PROCESS STARTED -- useful, but blind to the case
+    # where the camera was already off-aim at start-up, because the wrong view then becomes
+    # "home" and every later frame agrees with it.
+    #
+    # Handing it a frame that appearance-matched a calibrated reference upgrades the gate
+    # from "has it moved since boot" to "is it where the polygons were drawn".
+    reference = canonicalise(frames[-1], found, calibration_size)
     print(f"scene located: {found.describe()} epoch={binding.epoch} "
           f"canonical={calibration_size[0]}x{calibration_size[1]}", flush=True)
-    return found, binding
+    return found, binding, reference
 
 
 def title_of(src) -> str:
@@ -308,7 +317,11 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                     "in, so frames can be warped back into it. Without it the warp target "
                     "would be a guess, which defeats the point of locating the scene."
                 )
-            aim_at_scene(src, scene_atlas, scene, canonical_size)
+            _, _, reference = aim_at_scene(src, scene_atlas, scene, canonical_size)
+            # Stash it on the source: `build_source` has no pipeline to hand it to,
+            # and the caller that builds the pipeline does. Anything else would mean
+            # locating the scene twice.
+            src.calibrated_reference = reference
             return src
         if channel is None:
             return CaptureMux([src, V380WindowSource(window_title=title)])
