@@ -175,6 +175,40 @@ def _disk_free_bytes(ledger: Any) -> Optional[int]:
 #: arriving in the same spot a minute apart are not called one.
 #: The modes the shop's heartbeat schema accepts. Mirrored from `HEARTBEAT_MODES` in
 #: cameraVisitsRoutes.ts; `test_heartbeat_contract.py` fails if the two ever disagree.
+def _track_vitals(track: Any, now: float) -> Dict[str, Any]:
+    """A dead or newborn track's own account of itself, for the hard-case context.
+
+    The geometry of a re-acquisition says WHERE and WHEN; these say what the tracker knew
+    about the vehicle it lost. Recorded because the question the corpus needs to answer --
+    "was this a car lost while stationary, or one lost while moving?" -- cannot be answered
+    from a distance and a gap, and answering it wrong points any fix at the wrong threshold.
+
+    Every field is read defensively: this runs on the hard-case path, which must never cost
+    a frame, and a Track that grows or loses an attribute must not take the corpus with it.
+    """
+    def _get(name, default=None):
+        try:
+            value = getattr(track, name, default)
+            return round(value, 2) if isinstance(value, float) else value
+        except Exception:  # noqa: BLE001
+            return default
+
+    out: Dict[str, Any] = {
+        "hits": _get("hits"), "misses": _get("misses"), "score": _get("score"),
+        "evidence": _get("evidence"), "degraded": _get("degraded"),
+    }
+    try:
+        born = getattr(track, "born_ts", None)
+        out["ageSeconds"] = round(now - born, 2) if born is not None else None
+    except Exception:  # noqa: BLE001
+        out["ageSeconds"] = None
+    try:
+        out["stationarySeconds"] = round(track.stationary_for(now), 2)
+    except Exception:  # noqa: BLE001
+        out["stationarySeconds"] = None
+    return out
+
+
 VALID_MODES = frozenset({"PRODUCTION", "SHADOW", "COMMISSIONING"})
 
 REACQUIRE_SECONDS = 8.0
@@ -356,7 +390,7 @@ class EdgeLoop:
         #: frames are deliberately excluded -- see `_note_inference`.
         #: Recently-dead tracks, for spotting a re-acquisition. Bounded: this is a
         #: few-seconds window, not a history.
-        self._recent_deaths: Deque[Tuple[int, float, float, float]] = deque(maxlen=64)
+        self._recent_deaths: Deque[Tuple[int, float, float, float, dict]] = deque(maxlen=64)
         self.last_inference_at: Optional[float] = None
         self._inference_ms: Deque[float] = deque(maxlen=200)
         #: How often to re-check that the located scene is still where it was. 0 disables.
@@ -721,14 +755,15 @@ class EdgeLoop:
             now = frame.ts
             for t in died:
                 gx, gy = t.ground_point
-                self._recent_deaths.append((int(t.track_id), float(gx), float(gy), now))
+                self._recent_deaths.append(
+                    (int(t.track_id), float(gx), float(gy), now, _track_vitals(t, now)))
             if not born:
                 return
             live = {int(k): v for k, v in getattr(self.vision, "tracks", None).tracks.items()}                 if getattr(self.vision, "tracks", None) is not None else {}
             for t in born:
                 bx, by = t.ground_point
                 bid = int(t.track_id)
-                for did, dx, dy, dts in reversed(self._recent_deaths):
+                for did, dx, dy, dts, vitals in reversed(self._recent_deaths):
                     gap = now - dts
                     if gap > REACQUIRE_SECONDS:
                         break               # the deque is in time order; older are worse
@@ -737,6 +772,15 @@ class EdgeLoop:
                         self.hard_cases.trigger("TRACK_REACQUIRED", now, {
                             "diedTrack": did, "bornTrack": bid,
                             "gapSeconds": round(gap, 2), "distancePx": round(dist, 1),
+                            # The dying track's own vitals, because the geometry alone cannot
+                            # say WHY it died. `max_misses` is 12 at 4 fps, so a moving track
+                            # must go 3 SECONDS undetected to be pruned -- these are sustained
+                            # detection failures, never one-frame blips. And `parked_after` is
+                            # 25s, so a vehicle that has just stopped is protected only after
+                            # 25 seconds of stillness while 3 seconds of dropout can kill it:
+                            # `stationarySeconds` on the dead track is what distinguishes a
+                            # car lost in that window from one lost while genuinely moving.
+                            "died": vitals, "born": _track_vitals(t, now),
                             "appearance": None,
                         })
                         break
@@ -749,6 +793,8 @@ class EdgeLoop:
                         if ((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5 <= SPLIT_PX:
                             self.hard_cases.trigger("TRACK_SPLIT", now, {
                                 "bornTrack": bid, "overlapsTrack": other_id,
+                                "born": _track_vitals(t, now),
+                                "overlaps": _track_vitals(other, now),
                                 "distancePx": round(((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5, 1),
                                 "appearance": None,
                             })

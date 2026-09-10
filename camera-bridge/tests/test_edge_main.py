@@ -1115,10 +1115,12 @@ class ReacquisitionTest(unittest.TestCase):
         def flush_all(self, now):
             return []
 
-    def _t(self, tid, x, y):
+    def _t(self, tid, x, y, *, still=0.0, hits=5, misses=12, born=990.0, score=0.71):
         return SimpleNamespace(track_id=tid, box=(x - 20, y - 40, x + 20, y),
                                ground_point=(float(x), float(y)),
-                               stationary_for=lambda _n: 0.0)
+                               hits=hits, misses=misses, born_ts=born, score=score,
+                               evidence="arrival", degraded=False,
+                               stationary_for=lambda _n, s=still: s)
 
     def _drive(self, steps, live_by_step=None):
         """`steps` is a list of (ts, born, died). Returns the spy."""
@@ -1194,6 +1196,107 @@ class ReacquisitionTest(unittest.TestCase):
         self.assertIn("TRACK_SPLIT", reasons)
         ctx = dict(spy.fired[reasons.index("TRACK_SPLIT")][1])
         self.assertEqual((ctx["bornTrack"], ctx["overlapsTrack"]), (9, 7))
+
+    def test_the_DEAD_track_s_vitals_are_recorded(self):
+        """Geometry says WHERE and WHEN; it cannot say WHY the track died, and the fix
+        depends on which. `max_misses` is 12 at 4 fps, so a moving track must go THREE
+        SECONDS undetected to be pruned -- every one of these is a sustained detection
+        failure, not a one-frame blip. And `parked_after` is 25s, so a vehicle that has just
+        stopped is protected only after 25 seconds of stillness while 3 seconds of dropout
+        can kill it. `stationarySeconds` on the dead track is what separates a car lost
+        inside that window from one lost while genuinely moving -- and pointing a threshold
+        change at the wrong one of those is how a tracker gets worse.
+        """
+        spy = self._drive([
+            (1000.0, [], [self._t(1, 300, 300, still=6.0, hits=41, misses=12, born=900.0)]),
+            (1002.0, [self._t(2, 305, 302, still=0.0, hits=1, misses=0, born=1002.0)], []),
+        ])
+        ctx = dict(next(c for r, c in spy.fired if r == "TRACK_REACQUIRED"))
+        self.assertEqual(ctx["died"]["misses"], 12, "the dead track's misses were not recorded")
+        self.assertEqual(ctx["died"]["hits"], 41)
+        self.assertEqual(ctx["died"]["stationarySeconds"], 6.0)
+        self.assertEqual(ctx["died"]["ageSeconds"], 100.0)
+        self.assertEqual(ctx["born"]["hits"], 1, "the newborn's vitals were not recorded")
+
+    def test_a_SPLIT_records_both_tracks_vitals(self):
+        live = self._t(7, 400, 250, hits=30)
+        spy = self._drive([(1000.0, [self._t(9, 405, 252, hits=1)], [])],
+                          live_by_step=[{7: live}])
+        ctx = dict(next(c for r, c in spy.fired if r == "TRACK_SPLIT"))
+        self.assertEqual(ctx["born"]["hits"], 1)
+        self.assertEqual(ctx["overlaps"]["hits"], 30)
+
+    def test_a_track_MISSING_attributes_records_nulls_and_never_raises(self):
+        """This runs on the hard-case path, which must never cost a frame. A Track that
+        grows or loses an attribute is a refactor, not an outage, and it must not take the
+        corpus down with it -- nor silently record a plausible zero for something it could
+        not read."""
+        bare = SimpleNamespace(track_id=1, box=(0, 0, 1, 1), ground_point=(300.0, 300.0))
+        spy = self._drive([
+            (1000.0, [], [bare]),
+            (1001.0, [self._t(2, 301, 300)], []),
+        ])
+        ctx = dict(next(c for r, c in spy.fired if r == "TRACK_REACQUIRED"))
+        self.assertIsNone(ctx["died"]["hits"])
+        self.assertIsNone(ctx["died"]["ageSeconds"])
+        self.assertIsNone(ctx["died"]["stationarySeconds"],
+                          "an unreadable value was recorded as a number")
+
+    def test_an_attribute_that_RAISES_ON_ACCESS_records_null_not_zero(self):
+        """A MISSING attribute and one that THROWS take different paths: `getattr` with a
+        default handles the first without ever entering the except branch, so a test that
+        only covers a bare object leaves the second measuring nothing -- a mutation making
+        the handler return 0 survived exactly that gap.
+
+        Zero is the wrong answer twice over: `hits: 0` reads as a track the detector never
+        confirmed, and `misses: 0` as one that was never dropped. Both are claims about the
+        vehicle, invented from a failure to read a field.
+        """
+        class _Angry:
+            track_id = 1
+            box = (0, 0, 1, 1)
+            ground_point = (300.0, 300.0)
+            born_ts = 990.0
+            evidence = "arrival"
+            degraded = False
+
+            @property
+            def hits(self):
+                raise RuntimeError("hits exploded")
+
+            @property
+            def misses(self):
+                raise RuntimeError("misses exploded")
+
+            score = 0.6
+
+            def stationary_for(self, _now):
+                return 2.0
+
+        spy = self._drive([
+            (1000.0, [], [_Angry()]),
+            (1001.0, [self._t(2, 301, 300)], []),
+        ])
+        ctx = dict(next(c for r, c in spy.fired if r == "TRACK_REACQUIRED"))
+        self.assertIsNone(ctx["died"]["hits"], "a field that raised was recorded as a number")
+        self.assertIsNone(ctx["died"]["misses"])
+        self.assertEqual(ctx["died"]["stationarySeconds"], 2.0,
+                         "the readable fields were lost along with the unreadable ones")
+
+    def test_a_track_whose_ACCESSOR_RAISES_is_still_survivable(self):
+        def _boom(_n):
+            raise RuntimeError("stationary_for exploded")
+
+        angry = SimpleNamespace(track_id=1, box=(0, 0, 1, 1), ground_point=(300.0, 300.0),
+                                hits=3, misses=12, born_ts=990.0, score=0.5,
+                                evidence="candidate", degraded=False, stationary_for=_boom)
+        spy = self._drive([
+            (1000.0, [], [angry]),
+            (1001.0, [self._t(2, 301, 300)], []),
+        ])
+        ctx = dict(next(c for r, c in spy.fired if r == "TRACK_REACQUIRED"))
+        self.assertEqual(ctx["died"]["hits"], 3, "the readable fields were lost too")
+        self.assertIsNone(ctx["died"]["stationarySeconds"])
 
     def test_an_ORDINARY_arrival_fires_nothing(self):
         """THE control. A pair of triggers that fired on every birth would bury the real
