@@ -38,6 +38,7 @@ import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import { detectExecuteFinalized } from "@/lib/ai/response-contract";
+import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -514,6 +515,29 @@ export async function buildBrainContext(
             // being the odd exception was the defect.
             { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "", critical: true },
           ]),
+      // 2026-09-10 · RECALL STATE, told to the MODEL and not only the panel.
+      //
+      // Every recall-bearing block above is dropped when its content is
+      // "" (see the .filter below), and `recallBlock` is built with
+      // `withTimeout(..., 3000, "")`. So a failed or timed-out retrieval
+      // produces a prompt byte-identical to a clean search that matched
+      // nothing -- while the Memory Inspector, reading the same report,
+      // correctly tells the operator "Memory read failed -- state
+      // unknown, not empty."
+      //
+      // The result was NICK confidently asserting he had nothing on a
+      // subject he never managed to look up. CRITICAL for the same
+      // reason Hybrid Recall is: the reranker's 0.12 cutoff would drop a
+      // low-similarity notice exactly on the turns it exists for.
+      {
+        name: "Recall State",
+        content: buildRecallFailureNotice({
+          provenance: (hybridRecallReport as any)?.provenance,
+          reason: (hybridRecallReport as any)?.provenanceReason,
+          hitCount: hybridRecallReport?.hits?.length ?? 0,
+        }),
+        critical: true,
+      },
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
