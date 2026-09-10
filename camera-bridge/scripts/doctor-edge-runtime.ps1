@@ -170,6 +170,25 @@ $win = Get-Process | Where-Object { $_.MainWindowTitle -like "*$WindowTitle*" } 
 if ($win) { Check "capture window" "PASS" "'$($win.MainWindowTitle)' (pid $($win.Id)) -- minimised is fine, the producer restores it" }
 else { Check "capture window" "FAIL" "no window matching '$WindowTitle' -- open the camera app and its live view" }
 
+# THE WINDOW EXISTING IS NOT THE FEED WORKING. This check used to stop at the line above,
+# and it passed for hours while that window showed a menu pane with nothing usable on it --
+# a false green in the tool whose whole job is catching false greens. "The app is open" and
+# "the producer can see a camera" are different claims. `probe_capture.py` samples real
+# frames and asks the producer's OWN FrameHealth, so the preflight and the runtime can
+# never disagree about what counts as a live feed.
+if ($win -and $py) {
+    $probe = & $py.Source (Join-Path $PSScriptRoot "probe_capture.py") $WindowTitle 24 2>&1
+    $probeRc = $LASTEXITCODE
+    $line = ($probe | Select-Object -Last 1)
+    if ($probeRc -eq 0) {
+        Check "live feed" "PASS" "$line"
+    } elseif ($probeRc -eq 1) {
+        Check "live feed" "FAIL" "$line -- the window is up but its frames are NOT usable. Open the camera's LIVE VIEW in the app; a menu or device-list pane reads as static and no arrival can ever be confirmed."
+    } else {
+        Check "live feed" "WARN" "could not sample the window ($line)"
+    }
+}
+
 # --- Disk and ledger --------------------------------------------------------
 $drive = (Get-Item $root).PSDrive
 $freeGb = [math]::Round($drive.Free / 1GB, 1)
