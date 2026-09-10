@@ -1,12 +1,14 @@
 /**
  * Careers — Nick's Tire & Auto talent magnet page.
  * Targets skilled technicians who are tired of dealership chaos and flat-rate grind.
- * Built for search: JobPosting schema, plain-language job descriptions, local SEO.
+ * Built for search: leaf job pages carry the JobPosting schema (this list page
+ * deliberately carries none), plain-language job descriptions, local SEO.
  */
 import { useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
+import { openJobOpenings, jobOpeningPath } from "@shared/jobOpenings";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { trpc } from "@/lib/trpc";
@@ -51,94 +53,20 @@ interface Position {
 }
 
 // ─── POSITIONS ────────────────────────────────────────────
-const POSITIONS: Position[] = [
-  {
-    title: "Automotive Technician",
-    type: "Full-Time",
-    level: "Mid to Senior",
-    description:
-      "You diagnose correctly the first time, explain your findings clearly, and take pride in work you'd put on your own car. We have the equipment, the workflow, and the customer base. You bring the skill and the standards.",
-    responsibilities: [
-      "Perform accurate diagnosis using OBD-II scanners and live data analysis",
-      "Complete brake, suspension, engine, and drivetrain repairs to manufacturer spec",
-      "Document findings clearly so the service advisor can explain them to the customer",
-      "Flag safety-critical issues and communicate urgency without pressure tactics",
-      "Maintain a clean bay and organized toolset",
-      "Mentor entry-level techs when appropriate",
-    ],
-    requirements: [
-      "2+ years of hands-on automotive repair experience",
-      "Competence in brakes, suspension, basic engine and drivetrain work",
-      "Valid Ohio driver's license",
-      "Your own tools (specialty tools provided by the shop)",
-      "Ability to communicate findings to non-technical service staff",
-    ],
-    nice: [
-      "ASE certification (one or more areas)",
-      "Experience with domestic and import vehicles",
-      "Diagnostic experience with intermittent faults",
-    ],
-    schemaId: "automotive-technician",
-    datePosted: "2026-09-09",
-  },
-  {
-    title: "Service Advisor",
-    type: "Full-Time",
-    level: "Entry to Mid",
-    description:
-      "You're the bridge between the technician and the customer. Your job is to translate what the mechanic found into language the customer can act on — without pressure, without omission, and without condescension. If you've been in a shop that operated differently, this is your chance to do it right.",
-    responsibilities: [
-      "Greet customers and listen to what they're experiencing with their vehicle",
-      "Communicate technician findings clearly and honestly, including photos when available",
-      "Present estimates with a priority breakdown — what's urgent, what can wait",
-      "Answer questions without upselling or minimizing concerns",
-      "Schedule follow-up appointments and manage repair workflow",
-      "Handle phone inquiries and walk-ins with equal care",
-    ],
-    requirements: [
-      "Genuine communication skills — you explain things clearly to people who aren't mechanics",
-      "Basic automotive knowledge sufficient to understand and relay repair findings",
-      "Comfort with a fast-paced, customer-facing environment",
-      "Ability to stay organized during busy periods",
-      "Valid Ohio driver's license",
-    ],
-    nice: [
-      "Previous service advisor or customer-facing automotive experience",
-      "Experience with shop management software",
-      "Bilingual (Spanish, Arabic, or other languages common in our community)",
-    ],
-    schemaId: "service-advisor",
-    datePosted: "2026-09-09",
-  },
-  {
-    title: "Tire / Hybrid Technician",
-    type: "Full-Time",
-    level: "Entry to Mid",
-    description:
-      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, the pace is real, and the money is consistent.",
-    responsibilities: [
-      "Mount, balance, and install tires on cars, trucks, SUVs, and fleet vans",
-      "Perform TPMS sensor service and resets",
-      "Repair flats using proper plug-and-patch method (no rope plugs)",
-      "Inspect tires for wear patterns that indicate alignment or suspension issues",
-      "Rotate tires and torque to spec",
-      "Maintain a clean, organized workspace",
-    ],
-    requirements: [
-      "Physical ability to lift tires and work on your feet throughout the shift",
-      "Mechanical aptitude — you follow specs, not shortcuts",
-      "Valid Ohio driver's license",
-      "Attention to detail (TPMS, torque spec, valve stem condition)",
-    ],
-    nice: [
-      "Previous tire shop or automotive experience",
-      "Comfort operating tire mounting and balancing equipment",
-      "Ability to work efficiently during high-volume periods",
-    ],
-    schemaId: "tire-technician",
-    datePosted: "2026-09-09",
-  },
-];
+// Derived from the canonical lifecycle source so the list page and the leaf
+// pages can never disagree about what is open. Closing a role in
+// shared/jobOpenings.ts removes it from BOTH.
+const POSITIONS: Position[] = openJobOpenings().map((j) => ({
+  title: j.title,
+  type: j.type,
+  level: j.level,
+  description: j.description,
+  responsibilities: j.responsibilities,
+  requirements: j.requirements,
+  nice: j.nice,
+  schemaId: j.slug,
+  datePosted: j.datePosted,
+}));
 
 // ─── WHY WORK HERE ────────────────────────────────────────
 function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
@@ -180,63 +108,11 @@ const CHARACTER_TRAITS = [
   "You leave your bay cleaner than you found it",
 ];
 
-// ─── JSON-LD JOB POSTING SCHEMAS ─────────────────────────
-function JobPostingSchemas() {
-  const schemas = POSITIONS.map((pos) => ({
-    "@context": "https://schema.org",
-    "@type": "JobPosting",
-    title: pos.title,
-    description: [pos.description, ...pos.responsibilities].join(" "),
-    identifier: {
-      "@type": "PropertyValue",
-      name: BUSINESS.name,
-      value: pos.schemaId,
-    },
-    // Fixed, not regenerated per render — see the Position.datePosted doc
-    // comment. Google's job-posting policy explicitly bans resetting this
-    // property when nothing about the job changed.
-    datePosted: pos.datePosted,
-    employmentType: "FULL_TIME",
-    hiringOrganization: {
-      "@type": "Organization",
-      name: BUSINESS.name,
-      sameAs: SITE_URL,
-      logo: `${SITE_URL}/favicon.ico`,
-    },
-    jobLocation: {
-      "@type": "Place",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: BUSINESS.address.street,
-        addressLocality: BUSINESS.address.city,
-        addressRegion: BUSINESS.address.state,
-        postalCode: BUSINESS.address.zip,
-        addressCountry: "US",
-      },
-    },
-    baseSalary: {
-      "@type": "MonetaryAmount",
-      currency: "USD",
-      value: {
-        "@type": "QuantitativeValue",
-        unitText: "HOUR",
-      },
-    },
-    qualifications: "Compensation depends on experience, skill level, and what you bring to the table. Competitive hourly pay — we take care of people who take care of our customers.",
-  }));
-
-  return (
-    <>
-      {schemas.map((schema, i) => (
-        <script
-          key={i}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-        />
-      ))}
-    </>
-  );
-}
+// JobPosting markup deliberately does NOT live on this page. Google requires
+// it on the LEAF page for a SINGLE job and forbids it on a list page.
+// Verified live 2026-09-10: this URL carried three JobPosting objects at once.
+// The leaf pages are client/src/pages/JobPage.tsx; the invariant is pinned by
+// server/jobPostingLifecycle.test.ts.
 
 // ─── POSITION CARD ────────────────────────────────────────
 function PositionCard({ pos }: { pos: Position }) {
@@ -314,21 +190,25 @@ function PositionCard({ pos }: { pos: Position }) {
 
       {/* Apply CTA */}
       <div className="px-6 pb-6">
-        <a
-          href="#apply"
+        {/* Points at the LEAF page, not #apply. Two reasons: the leaf is the
+            canonical URL for this job and carries its JobPosting, and these
+            are the only internal links by which Google discovers the leaves —
+            an orphaned leaf is an unindexed leaf. */}
+        <Link
+          href={jobOpeningPath(pos.schemaId)}
           onClick={() => trackEvent("careers_apply_cta_click", { position: pos.title, surface: "position_card" })}
           className="flex items-center justify-center gap-2 stagger-in w-full bg-primary text-primary-foreground btn-premium py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
         >
-          Apply for {pos.title}
+          View role &amp; apply
           <ArrowRight className="w-4 h-4" />
-        </a>
+        </Link>
       </div>
     </div>
   );
 }
 
 // ─── APPLICATION FORM ─────────────────────────────────────
-function ApplicationForm() {
+export function ApplicationForm() {
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -572,7 +452,6 @@ export default function Careers() {
       />
       {/* v1.7 SEO · BreadcrumbList */}
       <Breadcrumbs items={[{ label: "Careers" }]} />
-      <JobPostingSchemas />
       <LocalBusinessSchema />
 
       {/* ─── HERO ───────────────────────────────────────── */}

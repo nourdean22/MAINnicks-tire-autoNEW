@@ -136,7 +136,14 @@ const RESOLVERS: Record<string, MetricResolver> = {
     const r = await d.execute(sql`
       SELECT SUM(impressions) AS total
       FROM search_performance
-      WHERE page LIKE '/tires/%'
+      -- The page column stores the GSC "page" dimension VERBATIM, and that
+      -- dimension is an ABSOLUTE URL ("https://nickstire.org/tires/..."), so
+      -- the old '/tires/%' prefix matched zero rows and this KPI returned 0
+      -- forever — indistinguishable from "the tire-size guides are not
+      -- working", which is exactly what it was registered to measure.
+      -- Two other places in this repo already strip the origin for this same
+      -- reason: seoFixDrafts.pageToSlug and MarketSection's render.
+      WHERE page LIKE '%/tires/%'
         AND date >= DATE_SUB(NOW(), INTERVAL 14 DAY)
     `);
     const rows = (Array.isArray(r) && Array.isArray(r[0]) ? r[0] : r) as Array<{ total: number | null }>;

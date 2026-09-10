@@ -103,6 +103,7 @@ import { BUSINESS, SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
+import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
 
 const serverLog = createLogger("server");
 
@@ -269,7 +270,13 @@ async function startServer() {
   // to ensure tRPC batch requests (comma-separated boundaries) don't bypass
   // the limiters, and to match full endpoint names exactly.
 
-  const withBatchRegex = (endpoint: string) => new RegExp(`^/api/trpc/(.*,)?${endpoint.replace(/\./g, "\\.")}(,.*)?$`);
+  // withBatchRegex and blockBatchedLimits now live in ./batchGuard, imported at
+  // the top of this file. They were local consts here, which meant
+  // server/rateLimitBypass.test.ts could not import them and hand-rolled its own
+  // copies — a test that re-implements what it tests passes forever while the
+  // real one drifts. The full rationale, including why this guard reads
+  // req.originalUrl rather than req.path (under a RegExp mount req.path is "/",
+  // so the comma check never once fired), is in that file's doc comment.
 
   app.use(withBatchRegex("booking.uploadPhoto"), uploadLimiter);
   app.use(withBatchRegex("booking.create"), formLimiter);
@@ -287,18 +294,16 @@ async function startServer() {
   // honest application spends 2 of the 10 — still far above real usage.
   // referrals.submit ($25/$25 customer program) was public and unlimited from
   // before either of the two below — same class, same fix.
-  app.use(withBatchRegex("referrals.submit"), formLimiter);
-  app.use(withBatchRegex("candidates.submit"), formLimiter);
-  app.use(withBatchRegex("technicianReferrals.submit"), formLimiter);
+  // blockBatchedLimits was applied only to the AI endpoints below, never to
+  // these. Batch amplification therefore needed no bug at all: ONE POST to
+  // /api/trpc/candidates.submit,candidates.submit,...xN spends a single unit
+  // of the 10/hour budget and performs N inserts, bounded only by the 2 MB
+  // body cap. On a $300-default referral bonus with no captcha and no
+  // honeypot, that is the cheapest write path on the site.
+  app.use(withBatchRegex("referrals.submit"), blockBatchedLimits, formLimiter);
+  app.use(withBatchRegex("candidates.submit"), blockBatchedLimits, formLimiter);
+  app.use(withBatchRegex("technicianReferrals.submit"), blockBatchedLimits, formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);
-  // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
-  // but express-rate-limit only counts it as 1 request.
-  const blockBatchedLimits = (req: any, res: any, next: any) => {
-    if (req.path.includes(",")) {
-      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
-    }
-    next();
-  };
 
   // Matches chat.message and chat.history
   app.use(withBatchRegex("chat.message"), blockBatchedLimits, aiLimiter);

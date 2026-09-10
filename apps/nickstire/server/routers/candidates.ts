@@ -14,6 +14,7 @@ import {
   createCandidate,
   getCandidates,
   updateCandidateStatus,
+  getCandidateSlaBreaches,
 } from "../db";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logAdminAction } from "../services/auditTrail";
@@ -100,6 +101,16 @@ export const candidatesRouter = router({
     }),
 
   /** Empty-vs-error: `migrationPending` distinguishes "0122 not applied yet" from "no applicants yet". */
+  /**
+   * Applicants aging against the 48-hour response /careers promises twice.
+   * Nothing enforced that promise before: no cron touches this table, no
+   * timer, no escalation, no aging sort — the only surface was a collapsible
+   * panel someone had to remember to open.
+   */
+  slaBreaches: adminProcedure.query(async () => {
+    return getCandidateSlaBreaches();
+  }),
+
   list: adminProcedure.query(async () => {
     return getCandidates();
   }),
@@ -112,13 +123,16 @@ export const candidatesRouter = router({
         notes: z.string().max(2000).nullish(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       await updateCandidateStatus(input.id, {
         status: input.status,
         contactedAt: input.status === "contacted" ? new Date() : undefined,
         notes: input.notes ?? undefined,
       });
       logAdminAction({
+        // Without this auditTrail stamps "admin" for everyone, so the row
+        // cannot say who moved a $300 payout. Same shape as admin/followUps.ts.
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         action: "candidate.status_changed",
         entityType: "candidate",
         entityId: input.id,

@@ -26,6 +26,7 @@
  */
 
 import { refuseMangledPaths } from "./lib/sitePathArg.mjs";
+import { JOB_OPENINGS } from "../shared/jobOpenings.ts";
 import "dotenv/config";
 import crypto from "node:crypto";
 
@@ -77,7 +78,34 @@ const args = process.argv.slice(2);
 // recalled. Flags are excluded: only real path arguments are checked.
 refuseMangledPaths(args.filter((a) => !a.startsWith("--")), { scriptName: "indexing-api-submit.mjs" });
 const isDelete = args.includes("--delete");
-const path = args.find((a) => !a.startsWith("--")) || "/careers";
+// ELIGIBILITY. Google restricts this API to JobPosting and BroadcastEvent
+// pages, and wants ONE notification per individual job URL. /careers is the
+// LIST page: verified live 2026-09-10 it carried three JobPosting objects at
+// once, which is the arrangement Google's own requirements forbid. Since the
+// leaf pages exist (shared/jobOpenings.ts -> /careers/<slug>), notifying
+// /careers would be submitting an ineligible URL.
+//
+// No default. A bare run used to silently submit /careers; now it refuses and
+// prints the eligible URLs, because "it ran and printed something" is exactly
+// how the wrong URL got notified in the first place.
+const ELIGIBLE = JOB_OPENINGS.filter((j) => j.status === "open").map((j) => `/careers/${j.slug}`);
+const path = args.find((a) => !a.startsWith("--"));
+if (!path) {
+  console.error("REFUSED: no URL given, and there is no safe default.");
+  console.error("Google accepts JobPosting/BroadcastEvent URLs only. Eligible now:");
+  for (const e of ELIGIBLE) console.error(`  ${e}`);
+  process.exit(1);
+}
+{
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (!ELIGIBLE.includes(normalized)) {
+    console.error(`REFUSED: ${normalized} is not an eligible JobPosting URL.`);
+    console.error("Eligible now:");
+    for (const e of ELIGIBLE) console.error(`  ${e}`);
+    console.error("A list page or a closed role must never be notified.");
+    process.exit(1);
+  }
+}
 const url = `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 const type = isDelete ? "URL_DELETED" : "URL_UPDATED";
 

@@ -86,6 +86,24 @@ jobs:
         run: cat apps/nickstire/tmp/regen-server.log || true
 
       - name: Commit refreshed prerender
+        env:
+          # 2026-09-10 · THIS USED TO BE THE LITERAL `main`, ON EVERY LINE BELOW.
+          # `workflow_dispatch` accepts a --ref and actions/checkout honours it, so
+          # a dispatch on a feature branch RENDERED THAT BRANCH'S ROUTES AND WROTE
+          # THEM TO MAIN — the ref chose the code and had no say over the
+          # destination. Witnessed the same day, dispatching on
+          # nickstire/fail-open-source-slices: the run reported success, pushed
+          # 09f50e6a7..ca0636927 to main, and put three /careers/<slug> JobPosting
+          # leaf pages there while main's shared/routes.ts declared no such routes
+          # and its SPA had no JobPage component. prerender-middleware.ts resolves
+          # by FILE EXISTENCE alone (no routes-manifest check), so Googlebot would
+          # have been served a 200 job posting at a URL where a human got the SPA's
+          # not-found — a crawler/user divergence on exactly the Google Jobs pages
+          # this repo had just finished fixing.
+          #
+          # github.ref_name is `main` for the Monday cron and the dispatched branch
+          # otherwise, so artifacts now land on the branch whose code produced them.
+          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -109,19 +127,20 @@ jobs:
             # only this commit's parent, which the clone has. Three attempts cover
             # a merge that lands between the fetch and the push.
             SNAPSHOT="$(git rev-parse HEAD)"
+            echo "target branch: $TARGET_BRANCH (the ref this run's code came from)"
             for attempt in 1 2 3; do
-              git fetch origin main
-              git checkout --detach origin/main
+              git fetch origin "$TARGET_BRANCH"
+              git checkout --detach "origin/$TARGET_BRANCH"
               if ! git cherry-pick "$SNAPSHOT"; then
                 git cherry-pick --abort || true
                 echo "::error::another refresh changed prerendered/ since this run started; not pushing over it"
                 exit 1
               fi
-              if git push origin HEAD:main; then
-                echo "pushed on attempt $attempt"
+              if git push origin "HEAD:$TARGET_BRANCH"; then
+                echo "pushed on attempt $attempt to $TARGET_BRANCH"
                 exit 0
               fi
-              echo "push rejected on attempt $attempt — main moved again; retrying"
+              echo "push rejected on attempt $attempt — $TARGET_BRANCH moved again; retrying"
               sleep 20
             done
             echo "::error::push failed after 3 attempts"

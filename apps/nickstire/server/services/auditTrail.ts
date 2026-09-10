@@ -85,6 +85,10 @@ export type AuditAction =
   | "technician_referral.marked_hired"
   | "technician_referral.marked_paid"
   | "technician_referral.disqualified"
+  // Distinct from .disqualified on purpose: the claim was VALID and the
+  // referred tech left inside 90 days. Auditing both as one action would erase
+  // the only difference that matters when a referrer contests a lost $300.
+  | "technician_referral.forfeited"
   // 2026-09-09 · candidate applications (server/routers/candidates.ts)
   | "candidate.status_changed";
 
@@ -154,21 +158,32 @@ export async function logAdminAction(data: {
 }
 
 // ─── Query audit trail for an entity ────────────────
-export async function getAuditTrail(
-  entityType: string,
-  entityId: number | string,
-  limit = 20,
-): Promise<Array<{
+export type AuditTrailEntry = {
   id: string;
   actor: string;
   action: string;
   changes: unknown;
   createdAt: Date;
-}>> {
+};
+
+/**
+ * EMPTY-VS-ERROR (fixed 2026-09-10). This returned a bare array, and returned
+ * `[]` from THREE different places: a dead database handle, a thrown query, and
+ * a genuine no-history-yet. On a $300 technician-referral payout those are not
+ * the same fact - "nobody touched this record" is the most exonerating answer
+ * an audit trail can give, which makes it the one that must never be
+ * fabricated from a failed read. `available: false` marks the read as failed,
+ * matching the convention getTechnicianReferrals and getCandidates already use.
+ */
+export async function getAuditTrail(
+  entityType: string,
+  entityId: number | string,
+  limit = 20,
+): Promise<{ available: boolean; rows: AuditTrailEntry[] }> {
   try {
     const { auditLog } = await import("../../drizzle/schema");
     const d = await db();
-    if (!d) return [];
+    if (!d) return { available: false, rows: [] };
 
     const rows = await d
       .select({
@@ -188,13 +203,13 @@ export async function getAuditTrail(
       .orderBy(desc(auditLog.createdAt))
       .limit(limit);
 
-    return rows;
+    return { available: true, rows };
   } catch (err) {
     log.error("Audit trail read failed", {
       error: err instanceof Error ? err.message : String(err),
       entityType,
       entityId,
     });
-    return [];
+    return { available: false, rows: [] };
   }
 }

@@ -60,11 +60,35 @@ const EXTERNAL_EXACT = new Set([
   "wkyc-3",
   "inside-evs",
   "car-driver",
+  // 2026-09-10 · defence in depth. These are CATEGORY slugs, handled
+  // properly by EXTERNAL_CATEGORIES below -- but if one ever arrives in
+  // the `source` column instead, failing closed costs a missed recall
+  // and failing open costs a durable injection.
+  "gmail_thread",
+  "inbound",
 ]);
 
 const EXTERNAL_PREFIXES = ["web:", "rss:", "scrape:", "firecrawl", "news:", "telegram:", "email:"];
 
 const OPERATOR_EXACT = new Set(["manual", "user", "operator", "nour"]);
+
+/**
+ * 2026-09-10 · CATEGORIES that carry third-party text.
+ *
+ * Found by a test, not by review: `classifyTrustTier("gmail_thread",
+ * "nick")` returned SYSTEM_DERIVED, because for inbound mail the
+ * provenance is recorded in the CATEGORY, not in `source`. The
+ * classifier could not see the one field that says "a stranger wrote
+ * this" -- so every captured email ranked as first-party derived data
+ * and rendered into the prompt as something Nick knows.
+ *
+ * `gmail_thread` is captured INBOUND mail (categories.ts:492) and is
+ * attacker-controllable: anyone who can email Nour can write to it.
+ * `gmail_outgoing` is deliberately ABSENT -- that is the operator's own
+ * sent mail, which is exactly the OPERATOR tier, and demoting it would
+ * fence Nour's own words back at him.
+ */
+const EXTERNAL_CATEGORIES = new Set(["gmail_thread", "inbound", "inbound_sms", "web_article"]);
 
 const AGENT_PREFIXES = ["nick", "agent:", "llm:", "distillation", "output_critic", "judge-eval"];
 
@@ -90,10 +114,21 @@ export function looksLikeExternalHost(source: string): boolean {
  */
 export function classifyTrustTier(
   source: string | null | undefined,
-  createdBy?: string | null
+  createdBy?: string | null,
+  /**
+   * 2026-09-10 · optional, because for some rows (inbound mail) the
+   * provenance lives here and nowhere else. Checked BEFORE the operator
+   * shortcut: a cron that stamps createdBy="user" while ingesting a
+   * stranger's email must not thereby launder it into OPERATOR.
+   */
+  category?: string | null,
 ): TrustTier {
   const s = (source ?? "").trim().toLowerCase();
   const by = (createdBy ?? "").trim().toLowerCase();
+  const cat = (category ?? "").trim().toLowerCase();
+
+  // Third-party text stays third-party no matter who filed it.
+  if (cat && EXTERNAL_CATEGORIES.has(cat)) return "EXTERNAL_CONTENT";
 
   // An explicit human author outranks whatever the source slug says.
   if (by === "user" || by === "operator" || by === "nour") return "OPERATOR";
@@ -116,9 +151,27 @@ export function classifyTrustTier(
 }
 
 /**
- * Tiers permitted to inform a state-changing tool call or be stated as
- * fact. EXTERNAL_CONTENT is deliberately absent: it may be surfaced as a
- * labelled quote, never as something the agent knows.
+ * 2026-09-10 · PROVENANCE IS NOT AUTHORITY.
+ *
+ * This list used to be documented as the tiers permitted to "inform a
+ * state-changing tool call or be stated as fact", with AGENT_INFERRED
+ * among them. Those are two different questions and AGENT_INFERRED
+ * answers them differently:
+ *
+ *   "Nour probably wants this customer emailed today"   (an inference)
+ * is not
+ *   "Nour told me to email this customer today"          (an authority)
+ *
+ * A model inference can be useful, probable and worth surfacing while
+ * still being incapable of authorizing a side effect or of hardening
+ * into a durable fact. Collapsing the two is how an assistant becomes
+ * confidently wrong about its owner's own intentions.
+ *
+ * So the single predicate is split in two, below. This one answers only
+ * "may this be rendered as knowledge rather than fenced as hostile
+ * text?" -- a question about ATTACKER CONTROL. An inference is not
+ * attacker-controlled, so it renders (labelled); external content is,
+ * so it does not.
  */
 export const AUTHORITATIVE_TIERS: readonly TrustTier[] = [
   "OPERATOR",
@@ -128,6 +181,58 @@ export const AUTHORITATIVE_TIERS: readonly TrustTier[] = [
 
 export function isAuthoritative(tier: TrustTier): boolean {
   return AUTHORITATIVE_TIERS.includes(tier);
+}
+
+/** Clearer name for what the predicate above actually decides. */
+export const canRenderAsKnowledge = isAuthoritative;
+
+/**
+ * Tiers whose content may serve as the BASIS for a side effect -- a
+ * durable memory write, an external action, a stated commitment.
+ *
+ * AGENT_INFERRED is deliberately absent. An inference may propose,
+ * influence reasoning, trigger retrieval and generate a hypothesis; it
+ * may not, on its own, become the reason a thing was done. Promotion
+ * from inference to fact requires either the operator saying so or
+ * first-party data confirming it.
+ *
+ * EXTERNAL_CONTENT is absent for the stronger reason: it is
+ * attacker-controllable, and the whole point of the fence is that
+ * convincing the model must never be the same thing as acquiring
+ * permission.
+ */
+export const ACTION_AUTHORIZING_TIERS: readonly TrustTier[] = [
+  "OPERATOR",
+  "SYSTEM_DERIVED",
+];
+
+export function canAuthorizeSideEffect(tier: TrustTier): boolean {
+  return ACTION_AUTHORIZING_TIERS.includes(tier);
+}
+
+/**
+ * Should this turn be stamped `inferredBasisOnly`?
+ *
+ * True when recall returned rows but NOT ONE of them is action-
+ * authorizing -- i.e. everything NICK is working from is its own
+ * inference or third-party text. Downstream, tool-policy sends any
+ * memory write on such a turn to human review.
+ *
+ * Extracted as a pure function so the DECISION is unit-testable without
+ * standing up the whole brain-context pipeline. The stamping call site
+ * fails open by design; a rule that only exists inside a try/catch in a
+ * 700-line orchestrator is a rule nobody can prove.
+ *
+ * NOTE the empty case: no hits means no memory basis at all, which is a
+ * different thing from an inferred one. Stamping it would escalate
+ * every cold-start turn, and an approval prompt the operator sees on
+ * every turn is one they learn to click through without reading.
+ */
+export function shouldStampInferredBasis(
+  hits: ReadonlyArray<{ trustTier?: string | null }>,
+): boolean {
+  if (hits.length === 0) return false;
+  return !hits.some((h) => !!h.trustTier && canAuthorizeSideEffect(h.trustTier as TrustTier));
 }
 
 /**

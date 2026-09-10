@@ -241,6 +241,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/chat/pre-stream-regen.ts",
   },
   {
+    key: "NICK_EVIDENCE_ENFORCEMENT",
+    description:
+      "WIRED (buffered path only). Runs enforceGate() on the complete reply BEFORE it is flushed: deterministic repair first (strip unearned confidence tags, drop list items naming resources no tool receipt supports, truncate to the shape ceiling), then exactly ONE re-gate, then a constant fallback. Never loops, never calls a model to repair a model. OFF = the evidence gate still runs, but only as shadow telemetry after the reply has shipped.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "The evidence gate computes a verdict and persists it (evidence_gate_shadow); nothing acts on it.",
+    ownerDoc: "lib/ai/chat/gate-enforcement.ts",
+  },
+  {
     key: "NICK_DEPTH_UNCAP",
     description: "Removes the master-persona hard word-count ceilings (40-60 default / 150 on analysis) and the no-structure line so length + structure follow the question intent (deferring to the Response style section), instead of a fixed counter that — appended last — out-weighted it even in deep mode. OFF = today's capped master persona.",
     status: "experimental",

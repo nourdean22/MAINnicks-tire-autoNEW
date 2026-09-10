@@ -309,3 +309,230 @@ export function runReplyGateWithContract(
     },
   };
 }
+
+// ── EVIDENCE GATE — 2026-09-10 ───────────────────────────────────────
+/**
+ * The gate above scores SHAPE. This one scores EVIDENCE, and it is the
+ * one with teeth.
+ *
+ * Witnessed failure (adversarial audit, 2026-09-10): a reply shipped at
+ * `severity 0` carrying `fact check: 1/5 unverified` and `words=525`
+ * against a 300-word ceiling. Both numbers were computed correctly and
+ * neither could reach the severity score, because:
+ *
+ *   1. `runReplyGate` has no fact-check parameter at all. `unverifiedCount`
+ *      is computed in persist-assistant-turn.ts and written straight to
+ *      the panel payload -- nothing reads it back.
+ *   2. Length reaches the base gate only through `contract.length`, i.e.
+ *      only when the operator explicitly asked for concise.
+ *   3. The critic's own length tiers are `> ceiling * 1.4` -> score 60
+ *      (warn) and `> ceiling * 1.8` -> score 30 (off). Only <= 30 counts
+ *      as a critical axis. 525 words against a 300 ceiling is 175% --
+ *      it missed the hard flag by 15 words, scored `100*.35 + 100*.25 +
+ *      100*.20 + 60*.20` = 92, left `shouldRegen` false, and line 145's
+ *      `if (critic.shouldRegen)` therefore contributed nothing.
+ *
+ * So the observed "sev 0" was not a mis-tuned threshold. It was three
+ * signals with no wire to the scorer. This function is that wire.
+ *
+ * SEVERITY FLOOR, not a bump: an unverified factual claim is never 0.
+ */
+
+/** What downstream should DO, not merely what it should record. */
+export type GateVerdict = "pass" | "repair" | "block";
+
+/** Minimal shape of the named-source report (see chat/named-source-claims.ts). */
+export interface NamedSourceEvidence {
+  unreceipted: ReadonlyArray<{ name: string }>;
+  unearnedConfidenceTags: ReadonlyArray<string>;
+  namedWithoutAnyTool: boolean;
+  /** Receipts could not be read. Flag, never block -- a blind instrument is not a pass. */
+  blind: boolean;
+}
+
+export interface GateEvidence {
+  /** countUnverified(factCheck(reply, brainContext)) */
+  unverifiedFactCount: number;
+  /** Total fact claims examined. 0 means the checker never ran. */
+  totalFactCount: number;
+  /** Word count of the reply as the critic measured it. */
+  wordCount: number;
+  /** The shape ceiling the critic compared against (SHAPE_LENGTH[shape].max). */
+  lengthCeiling: number;
+  namedSources?: NamedSourceEvidence;
+}
+
+export interface EvidenceGateDecision extends ContractGateDecision {
+  verdict: GateVerdict;
+  /** Only the reasons that justify a repair or a block, in precedence order. */
+  blockingReasons: string[];
+  evidenceSignals: {
+    unverifiedFacts: boolean;
+    unhedgedUnverifiedFacts: boolean;
+    lengthOverrun: boolean;
+    lengthRatio: number;
+    fabricatedNamedSource: boolean;
+    namedWithoutAnyTool: boolean;
+    unearnedConfidenceTag: boolean;
+    /** True when receipts were unreadable -- suppresses blocks by design. */
+    receiptsBlind: boolean;
+  };
+}
+
+/**
+ * Severity floors. Chosen so every one of them clears the `>= 50` regen
+ * line -- the whole defect was signals that scored below it.
+ */
+export const EVIDENCE_SEVERITY = {
+  /** Unverified claim, hedged in-text. Honest uncertainty, still not clean. */
+  unverifiedHedged: 55,
+  /** Unverified claim asserted flat. */
+  unverifiedUnhedged: 60,
+  /** Over 1.5x the shape ceiling. */
+  lengthOverrun: 55,
+  /** A confidence tag the model had no standing to write. */
+  unearnedTag: 65,
+  /** Named a resource with no tool call anywhere in the turn. */
+  namedWithoutAnyTool: 70,
+  /** Named a specific resource that no receipt supports. The fabrication case. */
+  fabricatedNamedSource: 75,
+} as const;
+
+/** Above this, the reply must not ship as written. */
+export const BLOCK_THRESHOLD = 70;
+/** Above this, the reply needs a repair pass (shorten / hedge / strip). */
+export const REPAIR_THRESHOLD = 50;
+
+/** Length ratio past which a reply is over-long enough to act on. */
+export const LENGTH_OVERRUN_RATIO = 1.5;
+
+/**
+ * Evidence-aware gate. Wraps the contract gate; never lowers its
+ * severity. Pure -- same inputs, same verdict.
+ */
+export function runEvidenceGate(
+  reply: string,
+  userText: string,
+  critic: CriticScore | null,
+  turnSignal: TurnSignal,
+  contract: ResponseContract | null,
+  evidence: GateEvidence,
+): EvidenceGateDecision {
+  const base = contract
+    ? runReplyGateWithContract(reply, userText, critic, turnSignal, contract)
+    : {
+        ...runReplyGate(reply, userText, critic, turnSignal),
+        contractSignals: {
+          conciseButBloated: false,
+          promptNotCopyable: false,
+          rankCountMismatch: false,
+          repoGroundedButGeneric: false,
+          askedDespiteNoAsk: false,
+          vagueNonCompletion: false,
+        },
+      };
+
+  const text = reply.trim();
+  const reasons = [...base.reasons];
+  const blockingReasons: string[] = [];
+  let severity = base.severity;
+
+  const raise = (floor: number, reason: string, blocking = true) => {
+    severity = Math.max(severity, floor);
+    reasons.push(reason);
+    if (blocking) blockingReasons.push(reason);
+  };
+
+  // 1. Unverified factual claims. The audit's rule: never severity 0.
+  //    A hedge in the reply lowers the floor but does not clear it --
+  //    "I think X" about an invented X is still an invented X.
+  const unverifiedFacts = evidence.unverifiedFactCount > 0;
+  const hedged = HEDGE_RE.test(text);
+  HEDGE_RE.lastIndex = 0; // global regex -- reset or the next call lies
+  const unhedgedUnverifiedFacts = unverifiedFacts && !hedged;
+  if (unverifiedFacts) {
+    raise(
+      unhedgedUnverifiedFacts
+        ? EVIDENCE_SEVERITY.unverifiedUnhedged
+        : EVIDENCE_SEVERITY.unverifiedHedged,
+      `fact-check ${evidence.unverifiedFactCount}/${evidence.totalFactCount} unverified` +
+        (unhedgedUnverifiedFacts ? " (asserted without hedge)" : " (hedged)"),
+    );
+  }
+
+  // 2. Length overrun the critic's warn tier cannot express.
+  const lengthRatio =
+    evidence.lengthCeiling > 0 ? evidence.wordCount / evidence.lengthCeiling : 0;
+  const lengthOverrun = lengthRatio > LENGTH_OVERRUN_RATIO;
+  if (lengthOverrun) {
+    raise(
+      EVIDENCE_SEVERITY.lengthOverrun,
+      `length ${evidence.wordCount} words = ${Math.round(lengthRatio * 100)}% of the ${evidence.lengthCeiling} ceiling`,
+    );
+  }
+
+  // 3. Named sources with no receipt. Blocks are suppressed when the
+  //    receipt channel is blind -- an unreadable instrument is not
+  //    evidence of innocence, but it is not evidence of guilt either.
+  const ns = evidence.namedSources;
+  const receiptsBlind = ns?.blind ?? false;
+  let fabricatedNamedSource = false;
+  let namedWithoutAnyTool = false;
+  let unearnedConfidenceTag = false;
+
+  if (ns && !receiptsBlind) {
+    fabricatedNamedSource = ns.unreceipted.length > 0;
+    namedWithoutAnyTool = ns.namedWithoutAnyTool;
+    unearnedConfidenceTag = ns.unearnedConfidenceTags.length > 0;
+
+    if (fabricatedNamedSource) {
+      raise(
+        EVIDENCE_SEVERITY.fabricatedNamedSource,
+        `named ${ns.unreceipted.length} resource(s) with no tool receipt: ${ns.unreceipted
+          .map((c) => c.name)
+          .slice(0, 3)
+          .join(", ")}`,
+      );
+    }
+    if (namedWithoutAnyTool) {
+      raise(
+        EVIDENCE_SEVERITY.namedWithoutAnyTool,
+        "named specific resources but no tool fired this turn",
+      );
+    }
+    if (unearnedConfidenceTag) {
+      raise(
+        EVIDENCE_SEVERITY.unearnedTag,
+        `model wrote ${ns.unearnedConfidenceTags.length} confidence tag(s) with no receipt`,
+      );
+    }
+  } else if (receiptsBlind) {
+    reasons.push("tool receipts unreadable this turn -- evidence checks suppressed");
+  }
+
+  const verdict: GateVerdict =
+    blockingReasons.length > 0 && severity >= BLOCK_THRESHOLD
+      ? "block"
+      : severity >= REPAIR_THRESHOLD
+        ? "repair"
+        : "pass";
+
+  return {
+    ...base,
+    severity,
+    reasons,
+    shouldRegen: severity >= REPAIR_THRESHOLD,
+    verdict,
+    blockingReasons,
+    evidenceSignals: {
+      unverifiedFacts,
+      unhedgedUnverifiedFacts,
+      lengthOverrun,
+      lengthRatio,
+      fabricatedNamedSource,
+      namedWithoutAnyTool,
+      unearnedConfidenceTag,
+      receiptsBlind,
+    },
+  };
+}

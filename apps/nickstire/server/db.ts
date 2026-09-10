@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -455,8 +455,71 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
     }
     let candidateId = referral.candidateId ?? null;
     if (candidateId != null) {
-      const [candidate] = await db.select({ id: candidates.id, source: candidates.source }).from(candidates).where(eq(candidates.id, candidateId)).limit(1);
-      if (!candidate || candidate.source !== "careers") candidateId = null;
+      const [candidate] = await db
+        .select({
+          id: candidates.id,
+          source: candidates.source,
+          phone: candidates.phone,
+          name: candidates.name,
+        })
+        .from(candidates)
+        .where(eq(candidates.id, candidateId))
+        .limit(1);
+      if (!candidate || candidate.source !== "careers") {
+        candidateId = null;
+      } else {
+        // SELF-REFERRAL GUARD. This is the $300 program; the $25 CUSTOMER
+        // program at referrals.submit has had one since it shipped
+        // (server/routers/services.ts). The twelve-times-more-valuable
+        // program had the weaker control: nothing compared the referrer to
+        // the applicant, so applying ten times naming yourself created ten
+        // pending $300 claims — $3,000 — and the admin panel had no way to
+        // show they were one person.
+        //
+        // Phone is the identity key, matching the $25 program: names are
+        // trivially varied ("Bob" / "Robert" / "bob r"), a phone is not.
+        // Same last-10-digits normalization, so "(216) 555-01 23",
+        // "216-555-0123" and "+12165550123" all collapse together.
+        const last10 = (p: string | null | undefined) => (p ?? "").replace(/\D/g, "").slice(-10);
+        const refPhone = last10(referral.referrerPhone);
+        const candPhone = last10(candidate.phone);
+        if (refPhone && refPhone === candPhone) {
+          // No PII in this line. The $25 guard logs phone10 + full name on a
+          // path any unauthenticated caller can trigger, and lint-pii cannot
+          // see it (its template-literal rules only cover console.* and
+          // new Error). Not repeating that here.
+          log.warn(`[technicianReferrals] BLOCKED self-referral · candidate #${candidateId}`);
+          return { success: false, selfReferral: true as const };
+        }
+        // Name equality is a weaker signal than phone, so it only fires when
+        // the referrer gave NO phone at all — otherwise a genuine referral
+        // between two people who share a common name would be refused.
+        if (!refPhone) {
+          const norm = (s: string | null | undefined) =>
+            (s ?? "").toLowerCase().replace(/[^a-z]/g, "");
+          if (norm(referral.referrerName) && norm(referral.referrerName) === norm(candidate.name)) {
+            log.warn(`[technicianReferrals] BLOCKED self-referral by name · candidate #${candidateId}`);
+            return { success: false, selfReferral: true as const };
+          }
+        }
+
+        // DEDUPE. There is no unique index on this table (0121 uses plain
+        // KEYs), and the applicant can refresh-and-resubmit: two candidate
+        // rows, two referral rows, two $300 claims for one hire. Scope the
+        // check to this candidate so an employee who genuinely refers several
+        // different people is unaffected.
+        const existing = await db
+          .select({ id: technicianReferrals.id })
+          .from(technicianReferrals)
+          .where(eq(technicianReferrals.candidateId, candidateId))
+          .limit(1);
+        if (existing.length > 0) {
+          log.warn(
+            `[technicianReferrals] duplicate suppressed · candidate #${candidateId} already has referral #${existing[0].id}`,
+          );
+          return { success: true, id: existing[0].id, duplicate: true as const };
+        }
+      }
     }
     const result = await db.insert(technicianReferrals).values({ ...referral, leadId, candidateId });
     return { success: true, id: Number(result[0].insertId) } as const;
@@ -472,6 +535,169 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
   }
 }
 
+/**
+ * Candidates who SAID they were referred but have no structured referral row.
+ *
+ * THE INVARIANT THIS ENFORCES. technicianReferrals.submit is deliberately
+ * soft-fail: it returns { success: false } rather than throwing, so a failed
+ * referral write never breaks the applicant's own submission. That is the right
+ * call for the applicant and the wrong place to stop for the shop — a lost
+ * $300 obligation is currently invisible to the applicant, the referrer AND the
+ * operator, surviving only as free text inside candidates.message.
+ *
+ * Careers.tsx folds "Referred by: <name> (<phone>)" into that message field
+ * precisely as a hedge. This turns the hedge into a recoverable signal instead
+ * of a note nobody reads: the correct rule is not "we attempted a referral
+ * write" but "a candidate who names a referrer either HAS a structured referral
+ * or produces a visible anomaly".
+ *
+ * Returns `available: false` on a dead handle rather than an empty list — an
+ * empty orphan list is the one result an operator would most like to see, so
+ * it is exactly the result that must never be fabricated.
+ */
+/**
+ * A technician referral joined to the candidate it claims.
+ *
+ * `unlinked` is the load-bearing field: createTechnicianReferral NULLS
+ * candidateId when the referenced row fails verification, and an orphan row
+ * rendered identically to a linked one is a payout nobody can substantiate.
+ */
+export type TechnicianReferralRow = TechnicianReferral & {
+  candidateName: string | null;
+  candidatePhone: string | null;
+  unlinked: boolean;
+};
+
+export async function getReferralOrphans() {
+  const db = await getDb();
+  if (!db) return { available: false as const, rows: [] as Array<{ id: number; name: string; createdAt: Date | null; referredBy: string }> };
+  try {
+    const rows = await db
+      .select({
+        id: candidates.id,
+        name: candidates.name,
+        createdAt: candidates.createdAt,
+        message: candidates.message,
+      })
+      .from(candidates)
+      .where(
+        and(
+          sql`${candidates.message} LIKE '%Referred by:%'`,
+          sql`NOT EXISTS (SELECT 1 FROM technician_referrals tr WHERE tr.candidateId = ${candidates.id})`,
+        ),
+      )
+      .orderBy(desc(candidates.createdAt))
+      .limit(200);
+
+    return {
+      available: true as const,
+      rows: rows.map((r: { id: number; name: string; createdAt: Date | null; message: string | null }) => ({
+        id: r.id,
+        name: r.name,
+        createdAt: r.createdAt,
+        // Surface just the referrer fragment, not the applicant's whole
+        // free-text answer — the operator needs the name to reconcile, not
+        // the candidate's personal statement.
+        referredBy: (r.message ?? "").match(/Referred by:\s*(.+)/)?.[1]?.trim() ?? "(unparsed)",
+      })),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      return { available: true as const, rows: [] as Array<{ id: number; name: string; createdAt: Date | null; referredBy: string }> };
+    }
+    throw err;
+  }
+}
+
+import { slaBand, SLA_THRESHOLD_HOURS, type SlaBand } from "./candidateSla";
+
+/**
+ * Applicants aging against the 48-hour response the careers page promises.
+ *
+ * THE GAP THIS CLOSES. /careers states "We respond within 48 hours" twice
+ * (Careers.tsx:259 and :588). Nothing enforced it: no cron references the
+ * candidates table, no timer, no escalation, no aging sort. The only surface
+ * was a collapsible admin panel someone had to remember to open. A public
+ * promise with no mechanism behind it is how a shop loses a technician to
+ * whoever called back.
+ *
+ * `contactedAt` is the clock stop, not `status`: an admin can move a candidate
+ * through statuses without ever having contacted them, and the promise is
+ * about contact.
+ *
+ * The 24h/40h bands are PROVISIONAL operating thresholds chosen to leave room
+ * to act before the 48h promise is broken — they are not external truths, and
+ * the right way to set them is from observed first-response times once there
+ * are enough to measure.
+ */
+export async function getCandidateSlaBreaches() {
+  const db = await getDb();
+  type Row = { id: number; name: string; createdAt: Date | null; hoursWaiting: number | null; band: SlaBand };
+  // available:false, never an empty list. "No one is waiting" is the single
+  // most reassuring answer this can give, which makes it the one that must
+  // never be fabricated from a dead handle.
+  if (!db) return { available: false as const, rows: [] as Row[] };
+  try {
+    const rows = await db
+      .select({
+        id: candidates.id,
+        name: candidates.name,
+        createdAt: candidates.createdAt,
+        // The AGE is computed in SQL, not just the filter. Driver-parsed TiDB
+        // DATETIMEs come back shifted +4h on Eastern, so `Date.now() -
+        // row.createdAt.getTime()` overstates every wait by four hours — which
+        // on 24/40/48 thresholds moves rows into a band they have not reached
+        // and would have made this instrument cry breach at 44 real hours.
+        hoursWaiting: sql<number | null>`TIMESTAMPDIFF(HOUR, ${candidates.createdAt}, NOW())`,
+      })
+      .from(candidates)
+      .where(
+        and(
+          isNull(candidates.contactedAt),
+          // `contactedAt IS NULL` is the real predicate; this list only drops
+          // the TERMINAL states. Filtering `status = "new"` instead — as the
+          // first cut of this did — contradicted the rule stated above: an
+          // admin who moves an applicant straight to "interviewing" without
+          // ever calling them would have silently emptied the alarm while the
+          // person kept waiting. `updateStatus` stamps contactedAt whenever it
+          // writes "contacted", so the surviving set is {new, interviewing}.
+          inArray(candidates.status, ["new", "interviewing"]),
+          // The 24 comes from SLA_THRESHOLD_HOURS.warning rather than a literal:
+          // it was hard-coded here AND declared there, so raising the surfacing
+          // threshold in one place would have left this query still returning
+          // rows the banding no longer considers late. sql.raw because the value
+          // is our own `as const` integer and drizzle would otherwise emit
+          // `INTERVAL ? HOUR` as a bind parameter — this keeps the emitted SQL
+          // byte-identical to what it was.
+          sql`${candidates.createdAt} <= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(SLA_THRESHOLD_HOURS.warning))} HOUR)`,
+        ),
+      )
+      .orderBy(candidates.createdAt)
+      .limit(100);
+
+    return {
+      available: true as const,
+      rows: rows.map((r: { id: number; name: string; createdAt: Date | null; hoursWaiting: number | null }) => {
+        // NOT Number(r.hoursWaiting): TIMESTAMPDIFF returns NULL for a NULL
+        // createdAt and `Number(null)` is 0, which would file the row under
+        // "warning" — the calmest band — precisely when its age is unknown.
+        // An unknown age is escalated, not reassured away.
+        const hours = r.hoursWaiting == null ? null : Number(r.hoursWaiting);
+        return {
+          id: r.id,
+          name: r.name,
+          createdAt: r.createdAt,
+          hoursWaiting: hours,
+          band: slaBand(hours),
+        };
+      }),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) return { available: true as const, rows: [] as Row[] };
+    throw err;
+  }
+}
+
 export async function getTechnicianReferrals() {
   const db = await getDb();
   // available:false, NOT an empty list. `!db` means the connection itself is
@@ -480,13 +706,45 @@ export async function getTechnicianReferrals() {
   // renders as "none recorded yet". Same convention adminSignals.ts already
   // uses: `available === false` marks a slice that failed rather than a slice
   // that is genuinely empty.
-  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
+  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as TechnicianReferralRow[] };
   try {
-    const rows: TechnicianReferral[] = await db.select().from(technicianReferrals).orderBy(desc(technicianReferrals.createdAt)).limit(500);
+    // LEFT JOIN the candidate. The panel rendered the referrer and never who
+    // was referred, so an operator could not answer the one question this
+    // program exists to answer — "the shop could not reliably tell who
+    // referred whom" is the reason drizzle/0121 was written at all, and the
+    // record held the link while the UI kept it hidden.
+    //
+    // A LEFT join, not an inner one: createTechnicianReferral NULLS
+    // candidateId when the referenced row fails verification (missing, or not
+    // source:"careers"), and those orphans must stay visible and be visibly
+    // DIFFERENT from linked ones rather than silently dropping out of the
+    // list — they are the rows most likely to owe someone money incorrectly.
+    const joined = await db
+      .select({
+        referral: technicianReferrals,
+        candidateName: candidates.name,
+        candidatePhone: candidates.phone,
+      })
+      .from(technicianReferrals)
+      .leftJoin(candidates, eq(technicianReferrals.candidateId, candidates.id))
+      .orderBy(desc(technicianReferrals.createdAt))
+      .limit(500);
+
+    const rows: TechnicianReferralRow[] = joined.map(
+      (j: { referral: TechnicianReferral; candidateName: string | null; candidatePhone: string | null }) => ({
+        ...j.referral,
+        candidateName: j.candidateName,
+        candidatePhone: j.candidatePhone,
+        // TRUE when the referral claims an association the candidates table
+        // cannot confirm — either it was nulled at write time, or the row has
+        // since gone. Either way the payout is unverifiable.
+        unlinked: j.referral.candidateId == null || j.candidateName == null,
+      }),
+    );
     return { available: true as const, migrationPending: false as const, rows };
   } catch (err) {
     if (isMissingTableError(err)) {
-      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferral[] };
+      return { available: true as const, migrationPending: true as const, rows: [] as TechnicianReferralRow[] };
     }
     throw err;
   }
@@ -501,6 +759,31 @@ export async function getTechnicianReferralById(id: number): Promise<TechnicianR
   return row;
 }
 
+/**
+ * Update a referral's payout state — CONDITIONALLY.
+ *
+ * TWO DEFECTS THIS REPLACES, both of which cost money rather than accuracy.
+ *
+ * 1. It reported success for a write that matched nothing. `affectedRows` was
+ *    discarded and `{ success: true }` returned unconditionally, so calling
+ *    with a nonexistent id toasted "Updated." in the admin panel while the
+ *    database was untouched. An operator marking a bonus paid had no way to
+ *    learn it had not been.
+ *
+ * 2. No transition guard. The only status precondition lived in the UI
+ *    (TechnicianReferralsPanel renders the buttons by status), so a stale tab
+ *    — or any `leads.manage` holder, a tier that includes front_desk — could
+ *    move a PAID referral back to `eligible` with a fresh 90-day clock while
+ *    `paidAt` stayed set. That is a second $300 on one referral, and the audit
+ *    row could not show it because these actions do not pass an actor.
+ *
+ * `expectStatus` makes the guard atomic: the status is part of the WHERE, so
+ * two concurrent clicks cannot both observe `pending` and both proceed. A
+ * caller that omits it is explicitly saying any state may transition.
+ *
+ * Returns `matched` so a caller can tell "not found or wrong state" from
+ * "done", instead of both looking like success.
+ */
 export async function updateTechnicianReferralStatus(
   id: number,
   updates: {
@@ -510,11 +793,24 @@ export async function updateTechnicianReferralStatus(
     paidAt?: Date;
     disqualifiedReason?: string;
   },
+  opts: { expectStatus?: Array<"pending" | "eligible" | "paid" | "disqualified" | "forfeited"> } = {},
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(technicianReferrals).set(updates).where(eq(technicianReferrals.id, id));
-  return { success: true };
+
+  const where = opts.expectStatus?.length
+    ? and(
+        eq(technicianReferrals.id, id),
+        inArray(technicianReferrals.status, opts.expectStatus),
+      )
+    : eq(technicianReferrals.id, id);
+
+  const res = await db.update(technicianReferrals).set(updates).where(where);
+  // mysql2 returns ResultSetHeader; drizzle wraps it in a tuple.
+  const matched = Number(
+    (res as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0,
+  );
+  return { success: matched > 0, matched };
 }
 
 // ─── CANDIDATE QUERIES ─────────────────────────────────

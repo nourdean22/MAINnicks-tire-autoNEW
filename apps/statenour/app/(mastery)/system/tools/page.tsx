@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export default function SystemToolsPage() {
-  const { data: tools, isLoading, refetch } = trpc.system.getTools.useQuery(undefined, {
+  const { data: tools, isLoading, refetch, dataUpdatedAt } = trpc.system.getTools.useQuery(undefined, {
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -77,7 +77,13 @@ export default function SystemToolsPage() {
         actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
-              lastFetchedAt={new Date().toISOString()}
+              // 2026-09-10 · was `new Date().toISOString()` — the chip
+              // displayed RENDER time, so it read "just now" no matter how
+              // old the underlying fetch was, and stayed "fresh" while a
+              // query was failing. `dataUpdatedAt` is when the data actually
+              // arrived; 0 means it never has, and the chip renders that as
+              // "no data" rather than inventing a timestamp.
+              lastFetchedAt={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
               source="tools-registry"
               onReload={load}
             />

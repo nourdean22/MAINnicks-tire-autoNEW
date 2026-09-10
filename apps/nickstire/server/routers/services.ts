@@ -180,11 +180,18 @@ export const referralsRouter = router({
       const refPhone10 = normalizePhone(input.referrerPhone);
       const refeePhone10 = normalizePhone(input.refereePhone);
       if (refPhone10 && refPhone10 === refeePhone10) {
-        log.warn(`[referrals:self-loop] BLOCKED · phone10=${refPhone10} name=${input.referrerName}`);
+        // No PII. This path is reachable by any unauthenticated caller — submit
+        // /refer with matching phones and you choose what lands in the Railway
+        // log retention window. logger.ts performs no redaction of any kind,
+        // and lint-pii could not see this line at all (its template-literal
+        // rules are scoped to console.* and new Error(), never log.*), so the
+        // linter reported 4 violations across 892 files and none of them were
+        // these. The rule is widened in the same commit.
+        log.warn("[referrals:self-loop] BLOCKED · referrer and referee share a phone");
         return { success: false, error: "Referrer and referee must be different people." };
       }
       if (input.referrerEmail && input.refereeEmail && input.referrerEmail.toLowerCase() === input.refereeEmail.toLowerCase()) {
-        log.warn(`[referrals:self-loop] BLOCKED · same email · ${input.referrerEmail}`);
+        log.warn("[referrals:self-loop] BLOCKED · referrer and referee share an email");
         return { success: false, error: "Referrer and referee must be different people." };
       }
       // Sanitize at the write, not before the guard above: normalizePhone

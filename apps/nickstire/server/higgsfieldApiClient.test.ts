@@ -12,9 +12,42 @@
  * change to the request shape or the auth header is caught the same way a real
  * server's rejection would be caught — not by grepping for a string.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+/**
+ * THIS FILE LEAKED ITS FETCH MOCK INTO EVERY LATER FILE (fixed 2026-09-10).
+ *
+ * It assigns `global.fetch = vi.fn(...)` directly at ~25 sites and cleans up
+ * with `vi.restoreAllMocks()`, which restores `vi.spyOn` spies and does NOT
+ * undo a direct property assignment. vitest runs serial here
+ * (`poolOptions.forks.singleFork`), so ONE process is shared across all files
+ * and the last mock assigned survived this file entirely.
+ *
+ * The victim was server/rateLimitBypass.test.ts, whose real `fetch(url, {
+ * method: "POST" })` carries no body: it reached the surviving mock at the
+ * bottom of this file, which does `JSON.parse(init.body)`, and died with
+ * `SyntaxError: "undefined" is not valid JSON` — an error naming this file's
+ * line number inside a failure attributed to that one. Four tests red in CI,
+ * green in isolation.
+ *
+ * AGENTS.md §3 states the rule this broke: a direct `global.fetch =` must be
+ * restored in afterEach. Restoring the captured original is the smallest fix
+ * that actually holds; converting 25 sites to vi.stubGlobal would be a larger
+ * diff for the same guarantee.
+ */
+const REAL_FETCH = global.fetch;
+afterEach(() => {
+  global.fetch = REAL_FETCH;
+});
+afterAll(() => {
+  // The canary. Without it, a future `global.fetch =` placed outside the
+  // afterEach's reach (a beforeAll, a module-level assignment) would silently
+  // restore the leak and be diagnosed, again, as a bug in whichever unrelated
+  // file happened to run next.
+  expect(global.fetch, "this file is leaking a fetch mock into later test files again").toBe(REAL_FETCH);
+});
 
 // DoP is image-to-video and `image_url` is REQUIRED - the live API returns 422
 // without it (measured 2026-08-18). Every request in this file therefore carries a

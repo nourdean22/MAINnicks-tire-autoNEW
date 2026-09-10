@@ -74,7 +74,11 @@ export default function MemoryInboxPage() {
       actions={
         <div className="flex items-center gap-2">
           <FreshnessChip
-            lastFetchedAt={new Date().toISOString()}
+            // 2026-09-10 · render time is not evidence freshness. See
+            // system/tools/page.tsx for the same fix.
+            lastFetchedAt={
+              quarantinedQuery.dataUpdatedAt ? new Date(quarantinedQuery.dataUpdatedAt) : null
+            }
             source="db · MemoryInboxItem"
             onReload={() => quarantinedQuery.refetch()}
           />

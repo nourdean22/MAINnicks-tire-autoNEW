@@ -170,10 +170,10 @@ export async function persistDripEnrollment(params: {
     const inserted = resultObj.affectedRows ?? resultObj.rowsAffected ?? 0;
 
     if (inserted === 1) {
-      log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
+      log.info(`Drip enrolled: campaign ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
       return true;
     }
-    log.info(`Drip enrollment skipped (already enrolled): ${params.customerName} → ${params.campaignId}`);
+    log.info(`Drip enrollment skipped (already enrolled): campaign ${params.campaignId}`);
     return false;
   } catch (err: unknown) {
     log.warn(`Drip enrollment persist failed: ${(err as Error).message}`);
@@ -326,7 +326,7 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
         sent++;
         await new Promise(r => setTimeout(r, 1500)); // Rate limit
       } catch (err: unknown) {
-        log.warn(`Drip step failed for ${enrollment.customerName}: ${(err as Error).message}`);
+        log.warn(`Drip step failed for enrollment #${enrollment.id}: ${(err as Error).message}`);
       }
     }
 

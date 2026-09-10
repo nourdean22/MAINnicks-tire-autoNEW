@@ -278,6 +278,10 @@ async function chatPostInner(req: Request) {
   // same object reference.
   const __partialRef = { text: "" };
   let recalledHits: any[] = [];
+  // 2026-09-10 · why recalledHits is the length it is. Without this the
+  // panel cannot tell a real no-match from a failed read.
+  let recallProvenance: "OK" | "ZERO" | "ERROR" | "UNMEASURED" | undefined;
+  let recallProvenanceReason: string | undefined;
   let detectedContradictions: any[] = [];
   // Validate the per-request provider override against the runtime list
   // (rejects retired `venice` + anything unsupported). A valid value is
@@ -745,6 +749,8 @@ async function chatPostInner(req: Request) {
   const deeperContextTypes = brainCtx.deeperContextTypes;
   
   if (brainCtx.recalledHits) recalledHits = brainCtx.recalledHits;
+  recallProvenance = brainCtx.recallProvenance;
+  recallProvenanceReason = brainCtx.recallProvenanceReason;
   if (brainCtx.detectedContradictions) detectedContradictions = brainCtx.detectedContradictions;
 
   // chat-route extract (2026-05-31) · the system-prompt finalization
@@ -772,6 +778,41 @@ async function chatPostInner(req: Request) {
     log,
   });
   systemPrompt = __finalized.systemPrompt;
+
+  // ── RECOMMENDATION NOVELTY — 2026-09-10 ─────────────────────────────
+  // Audit finding: "Huberman, Naval, Goggins, Daily Stoic showed up three
+  // separate times in one session", each time as a fresh find.
+  //
+  // Runs BEFORE generation, deliberately. A post-hoc novelty check can
+  // only delete a repeat, which loses the answer; telling the model what
+  // it has already said produces "you've already got Huberman -- here's
+  // what's new", which is what the operator actually wanted.
+  //
+  // Scoped to turns that ask for resources, so ordinary chat pays no DB
+  // scan. Fails open: a novelty lookup must never break a turn.
+  try {
+    const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
+    if (assessTurnRisk(userContent, { toolsExpected: false }).signals.expectsNamedResources) {
+      const [{ loadPriorRecommendations }, { buildPriorRecommendationsBlock }] = await Promise.all([
+        import("@/lib/services/chat/prior-recommendations"),
+        import("@/lib/ai/chat/recommendation-novelty"),
+      ]);
+      const priorResult = await loadPriorRecommendations();
+      const priorsBlock = buildPriorRecommendationsBlock(priorResult.priors);
+      if (priorsBlock) systemPrompt += `
+
+${priorsBlock}`;
+      log.info("recommendation_priors", {
+        provenance: priorResult.provenance,
+        count: priorResult.priors.length,
+        injected: priorsBlock.length > 0,
+      });
+    }
+  } catch (err) {
+    log.info("recommendation_priors_failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
   const greeneSummary = __finalized.greeneSummary;
   const strategicLawCount = __finalized.strategicLawCount;
 
@@ -1190,6 +1231,8 @@ async function chatPostInner(req: Request) {
     contextBlocksFired,
     classification,
     recalledMemories: recalledHits,
+    recallProvenance,
+    recallProvenanceReason,
     contradictions: detectedContradictions,
     onFinishPromise,
   });

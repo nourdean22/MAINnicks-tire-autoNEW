@@ -10,7 +10,19 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Briefcase, Phone, Mail } from "lucide-react";
+import { Loader2, ChevronRight, Briefcase, Phone, Mail, AlertTriangle } from "lucide-react";
+
+/**
+ * The 48-hour promise, escalating. /careers says "We respond within 48 hours"
+ * twice, so `breached` is a broken public commitment, not a late chore.
+ */
+const BAND_STYLE: Record<string, string> = {
+  warning: "text-amber-400 bg-amber-500/10 border-amber-500/40",
+  urgent: "text-orange-400 bg-orange-500/10 border-orange-500/40",
+  breached: "text-rose-400 bg-rose-500/10 border-rose-500/40",
+};
+
+const BAND_RANK: Record<string, number> = { warning: 0, urgent: 1, breached: 2 };
 
 const STATUS_STYLE: Record<string, string> = {
   new: "text-amber-400 bg-amber-500/10",
@@ -28,15 +40,32 @@ export function CandidatesPanel() {
   const utils = trpc.useUtils();
   const { data, isLoading, isError, error } = trpc.candidates.list.useQuery(undefined, { enabled: open });
 
+  // Deliberately NOT gated on `open`. The whole defect this closes is that the
+  // 48-hour promise had no surface except a collapsed panel someone had to
+  // remember to expand — putting its alarm behind the same collapse would
+  // rebuild the gap in a new place. This query runs on mount and its badge
+  // renders in the header, visible while the panel is shut.
+  const sla = trpc.candidates.slaBreaches.useQuery();
+
   const updateStatus = trpc.candidates.updateStatus.useMutation({
     onSuccess: () => {
       toast.success("Updated.");
       utils.candidates.list.invalidate();
+      // Moving someone to "contacted" stamps contactedAt, which stops their
+      // clock. Without this the badge keeps counting a candidate who was just
+      // called, and the operator learns to ignore it.
+      utils.candidates.slaBreaches.invalidate();
     },
     onError: () => toast.error("Couldn't update this candidate."),
   });
 
   const rows = data?.rows ?? [];
+  type SlaRow = NonNullable<typeof sla.data>["rows"][number];
+  const slaRows: SlaRow[] = sla.data?.available ? sla.data.rows : [];
+  const worstBand = slaRows.reduce<SlaRow["band"]>(
+    (worst, r) => (BAND_RANK[r.band] > BAND_RANK[worst] ? r.band : worst),
+    "warning",
+  );
 
   return (
     <div className="rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] overflow-hidden">
@@ -52,12 +81,52 @@ export function CandidatesPanel() {
           <span className="text-[11px] font-normal text-foreground/40">
             /careers job applications
           </span>
+          {slaRows.length > 0 && (
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider text-[10px] ${BAND_STYLE[worstBand]}`}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              {slaRows.length} awaiting reply
+            </span>
+          )}
+          {sla.data?.available === false && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-rose-500/40 bg-rose-500/10 text-rose-400 font-bold uppercase tracking-wider text-[10px]">
+              {/* Not silence. A dead read must not look like "nobody waiting". */}
+              <AlertTriangle className="w-3 h-3" /> SLA unknown
+            </span>
+          )}
         </span>
         <ChevronRight className={`w-4 h-4 text-foreground/40 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
 
       {open && (
         <div className="border-t border-border/20 px-4 py-3">
+          {slaRows.length > 0 && (
+            <div className={`mb-3 rounded-lg border p-3 ${BAND_STYLE[worstBand]}`}>
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                {slaRows.length === 1 ? "1 applicant is" : `${slaRows.length} applicants are`} still
+                waiting on a first reply
+              </p>
+              <ul className="mt-2 space-y-1">
+                {slaRows.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
+                    <span className="font-semibold">{r.name}</span>
+                    <span className="opacity-80">
+                      {/* null hours = createdAt was NULL. Say so rather than
+                          printing a number the row does not support. */}
+                      {r.hoursWaiting == null ? "age unknown" : `${r.hoursWaiting}h`}
+                    </span>
+                    <span className="uppercase tracking-wider text-[10px] font-bold opacity-70">{r.band}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] opacity-70">
+                /careers promises a reply within 48 hours. Setting a candidate to
+                &ldquo;contacted&rdquo; below stops their clock.
+              </p>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center gap-2 text-[12px] text-foreground/40">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading&hellip;

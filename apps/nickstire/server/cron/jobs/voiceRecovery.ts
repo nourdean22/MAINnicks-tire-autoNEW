@@ -174,7 +174,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
         .set({ voiceRecoveryCallId: call.callId, voiceRecoveryOutcome: "dialing" })
         .where(eq(algEstimates.id, est.id));
       placed++;
-      log.info(`[voice-recovery] placed VAPI call ${call.callId} for est ${est.id} (${firstName} · $${dollars})`);
+      log.info(`[voice-recovery] placed VAPI call ${call.callId} for est ${est.id} (${dollars})`);
     } else {
       await d
         .update(algEstimates)

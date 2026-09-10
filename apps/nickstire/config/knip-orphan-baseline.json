@@ -1632,11 +1632,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/auditTrail.ts",
-      "symbol": "getAuditTrail",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/socialDeliveryIssues.ts",
       "symbol": "deriveDeliveryIssues",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -5190,6 +5185,16 @@
       "file": "apps/nickstire/server/routes/cameraVisitsRoutes.ts",
       "symbol": "activeRunField",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Wired and firing -- the heartbeat response spreads it at cameraVisitsRoutes.ts:600 -- so it is exported, not orphaned, for the seam test alone. The contract it carries has THREE states where the type system only shows two: a run is open (send it), we LOOKED and found none (send explicit null -- this is what ENDS a run), or we COULD NOT LOOK (omit the key entirely). `visitd.shop_mirror.apply_active_run` holds the producer's current mode on an absent key and ends commissioning only on an explicit null, so collapsing the last two tagged the rest of a live test drive PRODUCTION on one transient DB error -- permanently, since the ingest treats dataClass as immutable after insert. Exported so `cameraVisitsRoutes.test.ts` can pin all three states and assert the two null-ish ones are NOT interchangeable; both failure directions are mutation-checked."
+    },
+    {
+      "file": "apps/nickstire/server/testUtils/sourceBlock.ts",
+      "symbol": null,
+      "reason": "INTENTIONAL TEST-ONLY UTILITY. sliceBlock() extracts a named block out of a source file for the source-reading assertions several suites make, and it exists specifically so a MISSING anchor THROWS instead of widening: String.slice(start, -1) treats a failed indexOf as offset-from-EOF, which silently turns a broken assertion into a maximally-broad passing one. Production code must never import it - reading your own source at runtime is the defect it guards against, not a capability worth shipping. Consumed by six test files: server/candidateSla.test .ts, server/failOpenSliceGate.test.ts, server/marginCoverageGuard.test.ts, server/referralSelfLoopGuard.test.ts, server/referralStateMachine.test.ts and its own sibling server/testUtils/sourceBlock.test.ts. knip does not count a test file as a consumer, so this finding is a scope artifact rather than an unwired producer."
+    },
+    {
+      "file": "apps/nickstire/server/middleware/rateLimiters.ts",
+      "symbol": "clientIp",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and a security one. clientIp resolves the rate-limit bucket key from cf-connecting-ip / x-real-ip / req.ip, each header honoured only behind an explicit TRUST_* flag that defaults OFF, then normalises IPv6 to its /64 so a client cannot hop addresses inside its own allocation. It is used in-file by every limiter's keyGenerator; the export exists so server/rateLimitBypass.test.ts can exercise the REAL function. It previously re-implemented it under a comment reading 'verbatim in shape' - and the copy omitted the IPv6 normalisation entirely, so the suite asserted behaviour the shipped function does not have while never running the one that gates the spoofing. Deleting this export would restore that. Proven live: removing the TRUST_EDGE_IP_HEADERS guard from the real function now fails two tests."
     }
   ]
 }

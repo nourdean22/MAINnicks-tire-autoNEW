@@ -861,11 +861,40 @@ export const systemTools = {
       }
       const { notebookLMProvider } = await import("@/lib/intelligence/search/notebooklm-mcp");
       const result = await notebookLMProvider.call(action, params, notebookAlias);
-      // We slice string outputs to avoid blowing up the context window if the tool returns a massive JSON
-      return { 
-        action, 
-        result: typeof result.results === 'string' ? result.results.slice(0, 4000) : result.results,
-        error: result.error
+      // 2026-09-10 · FENCE THE MCP RESULT.
+      //
+      // This returned raw third-party text from an external MCP server
+      // while every sibling external tool in this file
+      // (searchDocuments, searchWebVerified, arsenalResearch...) fences
+      // its output. Two consequences, and the second is the serious one:
+      //
+      //  1. unfenced external text reached the model context directly;
+      //  2. fenceContent is what calls updateTurnContext({
+      //     untrustedInput: true }) (tool-result-fencing.ts:91). Without
+      //     it the TURN was never marked untrusted -- so the U4 sink
+      //     policy (tool-policy.ts:183: external side effect during an
+      //     untrusted turn -> require_owner) never engaged for content
+      //     from this server. An injected "send this to X" arriving via
+      //     NotebookLM would have faced one fewer deterministic gate
+      //     than the identical string arriving via web search.
+      //
+      // Slicing still happens, and BEFORE fencing, so the fence markers
+      // can never be truncated away mid-tag.
+      const { fenceContent } = await import("@/lib/ai/tool-result-fencing");
+      const sliced =
+        typeof result.results === "string" ? result.results.slice(0, 4000) : result.results;
+      return {
+        action,
+        result:
+          typeof sliced === "string"
+            ? fenceContent("notebookLM", "external_doc", sliced)
+            : sliced === undefined || sliced === null
+              ? sliced
+              // Non-string payloads are serialized so they are fenced
+              // too -- an object's string fields are just as capable of
+              // carrying an instruction as a bare string.
+              : fenceContent("notebookLM", "external_doc", JSON.stringify(sliced).slice(0, 4000)),
+        error: result.error,
       };
     },
   }),
