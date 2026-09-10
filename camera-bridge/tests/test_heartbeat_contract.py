@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
 
@@ -61,7 +62,11 @@ def producer_heartbeat_keys():
     way `_args()` drifted from the parser, and this gate would then be comparing the route
     against a copy of itself.
     """
-    ledger = SimpleNamespace(path=os.path.join(REPO, "data", "edge-sign.sqlite"),
+    # A TEMP directory that certainly exists. Pointing this at `data/` made the fixture
+    # depend on a gitignored directory: `_disk_free_bytes` correctly returns None for a path
+    # that is not there, so the disk-free test passed on the box holding the corpus and
+    # failed in CI -- and it was the TEST that was wrong, not the function.
+    ledger = SimpleNamespace(path=os.path.join(tempfile.mkdtemp(), "edge-sign.sqlite"),
                              shop_outbox_depth=lambda: 0, dead_letter_depth=lambda: 0,
                              shop_outbox_oldest_age=lambda now: None)
     vision = SimpleNamespace(tracker=SimpleNamespace(open_visits=lambda: []))
@@ -177,6 +182,12 @@ class ModeIsAlwaysValidTest(unittest.TestCase):
             args.hard_cases, args.hard_case_episodes, args.replay = cases, episodes, replay
             args.calibration = None
             args.camera = "lot"          # the camera the test config declares
+            # A TEMP ledger. `build_edge` opens a real SQLite file, and the default path is
+            # under gitignored `data/` -- which exists on the box that recorded the corpus
+            # and does not exist in CI, so this passed locally and failed there with 96
+            # `unable to open database file`. A test whose fixture is a gitignored directory
+            # is broken by construction; it just happens to be broken somewhere else.
+            args.ledger = os.path.join(tempfile.mkdtemp(), "edge.sqlite")
             with self.subTest(mode=mode_arg, run=run, cases=bool(cases),
                               episodes=episodes, replay=replay):
                 # NO skipTest here. Swallowing the exception made every one of the 96

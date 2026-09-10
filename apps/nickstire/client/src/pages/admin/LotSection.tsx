@@ -168,7 +168,7 @@ type CameraHealth = {
   commissioningRunId: string | null;
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
-  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; poseDelta: number | null; calibrationVersion: string | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   openVisits: number;
 };
@@ -285,6 +285,28 @@ function CameraCard({ c }: { c: CameraHealth }) {
             )}
             {c.vision?.detector && <span>{c.vision.detector}</span>}
             {c.vision?.calibrationVersion && <span>cal {c.vision.calibrationVersion}</span>}
+            {/*
+              These two were stored, typed and never rendered: the producer sent nothing, so
+              the card had nothing to show, and once the producer started sending them the
+              card still showed nothing. A field that survives that round trip unnoticed is
+              one nobody was ever going to miss, which is why it needs to be on the screen.
+
+              An inference AGE, not a timestamp -- "how long since the detector last ran" is
+              the only question anyone asks of it. It goes stale by design on a quiet lot,
+              because the motion gate is a decision NOT to infer, so a stale reading here is
+              not a fault on its own; what it separates is a producer that has stopped
+              inferring from one watching an empty lot, once the lot has had any traffic.
+            */}
+            {typeof c.vision?.inferenceP95Ms === "number" && (
+              <span>p95 {Math.round(c.vision.inferenceP95Ms)}ms</span>
+            )}
+            {typeof c.vision?.inferenceAgeSeconds === "number" && (
+              <span>
+                inferred {c.vision.inferenceAgeSeconds < 90
+                  ? `${Math.max(0, Math.round(c.vision.inferenceAgeSeconds))}s ago`
+                  : `${Math.round(c.vision.inferenceAgeSeconds / 60)}m ago`}
+              </span>
+            )}
             {c.cloud && c.cloud.outboxDepth !== null && <span>outbox {c.cloud.outboxDepth}</span>}
             {c.source && c.source.restores !== null && c.source.restores > 0 && (
               <span className="text-amber-400">window restored {c.source.restores}×</span>

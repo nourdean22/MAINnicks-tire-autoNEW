@@ -790,11 +790,16 @@ class EdgeLoop:
         None, never 0.0. A zero renders on the admin card as an impossibly fast detector;
         the absence has to stay an absence, because "we have not measured this" and "this
         took no time" are different claims and only one of them is ever true.
+
+        NEAREST RANK, from `vision.stats.p95`, which is the convention
+        `benchmark_openvino.py` already used. This computed `int(len * 0.95)` and picked a
+        different sample on any run of twenty -- so the latency the shop displayed and the
+        latency the benchmark printed could disagree about the same measurements, with
+        nothing anywhere saying which one "p95" meant (Codex P2 on #2275).
         """
-        if not self._inference_ms:
-            return None
-        ordered = sorted(self._inference_ms)
-        return ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
+        from vision.stats import p95
+
+        return p95(self._inference_ms)
 
     def _note_trajectory(self, frame, out) -> None:
         """Record where every live track is standing, for later commissioning.

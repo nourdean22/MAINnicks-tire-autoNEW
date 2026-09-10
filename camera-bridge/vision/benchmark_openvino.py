@@ -17,6 +17,8 @@ import argparse
 import json
 import os
 import statistics
+
+from .stats import p95
 import sys
 import time
 
@@ -75,7 +77,7 @@ def bench_device(model: str, device: str, images: list[np.ndarray], iters: int) 
         "iters": iters,
         "meanMs": round(statistics.fmean(latencies), 2),
         "medianMs": round(statistics.median(latencies), 2),
-        "p95Ms": round(latencies[int(0.95 * (len(latencies) - 1))], 2),
+        "p95Ms": round(p95(latencies), 2),
         "minMs": round(latencies[0], 2),
         "maxMs": round(latencies[-1], 2),
         "throughputFps": round(iters / wall, 1) if wall > 0 else 0.0,

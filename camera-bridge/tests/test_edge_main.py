@@ -1366,19 +1366,48 @@ class InferenceFreshnessTest(unittest.TestCase):
         self.assertNotEqual(loop.inference_p95_ms, 0.0)
 
     def test_p95_tracks_the_SLOW_TAIL_not_the_average(self):
-        """Nineteen fast frames and one 500ms stall. The MEAN of that is 34.5 and the p95
-        is 500, so the assertion has to sit above the mean to discriminate -- the first
-        version of this test asserted `> 19.0`, which a mean passes comfortably, and a
-        mutation replacing p95 with a mean survived it.
+        """Nineteen fast frames and one 500ms stall. The MEAN of that sample is 34.5, so an
+        assertion has to sit above the mean to discriminate -- the first version of this test
+        asserted `> 19.0`, which a mean passes comfortably, and a mutation replacing p95 with
+        a mean survived it.
 
-        The distinction is the point of the field. An operator reading a p95 is asking how
-        bad the SLOW frames are; a mean hides exactly the stall they are looking for."""
+        The value is NEAREST-RANK, from `vision.stats.p95`: index `int(0.95 * (n - 1))` of
+        the sorted sample, which on twenty samples is the 19th value, 19.0. It is not the
+        maximum -- an earlier `int(n * 0.95)` here picked index 19 and returned the 500ms
+        outlier, disagreeing with `benchmark_openvino.py` about what p95 meant for the same
+        measurements (Codex P2 on #2275).
+        """
+        from vision.stats import p95 as shared_p95
+
         latencies = [float(x) for x in range(1, 20)] + [500.0]
         loop = self._loop_with([self._council({"primary": 1}, latency=x) for x in latencies])
         mean = sum(latencies) / len(latencies)
-        self.assertEqual(loop.inference_p95_ms, 500.0)
-        self.assertGreater(loop.inference_p95_ms, mean * 2,
-                           "the p95 is indistinguishable from the mean of this sample")
+        self.assertEqual(loop.inference_p95_ms, shared_p95(latencies))
+        self.assertEqual(loop.inference_p95_ms, 19.0)
+        self.assertNotEqual(loop.inference_p95_ms, max(latencies),
+                            "p95 returned the maximum, which is a max and not a p95")
+        self.assertGreater(loop.inference_p95_ms, mean * 0.5)
+
+    def test_the_SHARED_p95_holds_its_contract(self):
+        """A previous version of this grepped `benchmark_openvino.py` for the string "p95(",
+        which is a presence assertion -- the shape this repo bans, written by me two hours
+        after deleting one for the same reason. What actually prevents the two definitions
+        from diverging is that there is only one function; the import is the guarantee, not
+        a test that reads source.
+
+        So this asserts the contract that one function owes.
+        """
+        from vision.stats import p95
+
+        self.assertIsNone(p95([]), "empty must be None, never 0.0")
+        self.assertEqual(p95([7.0]), 7.0)
+        # NEAREST RANK: always a value that was measured, never an interpolation.
+        for n in (3, 20, 100, 137):
+            sample = [float(i) for i in range(n)]
+            self.assertIn(p95(sample), sample)
+            self.assertEqual(p95(sample), float(int(0.95 * (n - 1))))
+        self.assertEqual(p95([5.0, 1.0, 3.0]), p95([1.0, 3.0, 5.0]),
+                         "the input order changed the answer, so it is not sorting")
 
     def test_a_council_with_NO_by_detector_does_not_raise(self):
         loop = self._loop_with([SimpleNamespace(escalated=False, detections=[])])
