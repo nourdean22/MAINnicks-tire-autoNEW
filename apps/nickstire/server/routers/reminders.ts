@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure, publicProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   getReminderSettings, upsertReminderSetting, seedDefaultReminderSettings,
   getServiceReminders, getDueReminders, markReminderSent, snoozeReminder,
@@ -45,6 +46,18 @@ export const remindersRouter = router({
 
   /** Get reminder stats (admin) */
   stats: adminProcedure.query(async () => {
+    // getReminderStats returns { total: 0, scheduled: 0, sent: 0, ... } when the
+    // DB handle is gone. Every counter reads as a real measurement, so a dead
+    // read renders as "nothing scheduled, nothing due, nothing missed" - the
+    // most reassuring possible answer, produced by not looking. Same guard, same
+    // reason, as routers/callback.ts (ROS-083).
+    const { getDb } = await import("../db");
+    if (!(await getDb())) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Database unavailable — reminder counts are unknown, not zero.",
+      });
+    }
     return getReminderStats();
   }),
 

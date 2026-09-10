@@ -89,3 +89,36 @@ describe("the layer this class hides in", () => {
     }
   });
 });
+
+describe("unread SMS badge · DB-down is not an empty inbox", () => {
+  // getUnreadConversationCount returns 0 on a dead handle, and 0 is
+  // indistinguishable from "everyone has been answered". This one is a BADGE,
+  // which makes it worse than a list: a fabricated zero does not render a
+  // misleading row, it renders NOTHING AT ALL, and absence is exactly what an
+  // operator reads as "nothing waiting" while real customer texts sit unread.
+  it("throws rather than reporting zero unread", async () => {
+    const { smsConversationsRouter } = await import("./routers/smsConversations");
+    await expect(callQuery(smsConversationsRouter, "unreadCount")).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("says unknown, not zero", async () => {
+    const { smsConversationsRouter } = await import("./routers/smsConversations");
+    await expect(callQuery(smsConversationsRouter, "unreadCount")).rejects.toThrow(/unknown, not zero/i);
+  });
+});
+
+describe("reminder stats · DB-down is not 'nothing scheduled'", () => {
+  // getReminderStats hands back { total: 0, scheduled: 0, sent: 0, ... }. Every
+  // counter reads as a real measurement, so a dead read renders as "nothing
+  // scheduled, nothing due, nothing missed" - the most reassuring answer the
+  // panel can give, produced by not looking.
+  it("throws rather than resolving an all-zero stat block", async () => {
+    const { remindersRouter } = await import("./routers/reminders");
+    await expect(callQuery(remindersRouter, "stats")).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("says unknown, not zero", async () => {
+    const { remindersRouter } = await import("./routers/reminders");
+    await expect(callQuery(remindersRouter, "stats")).rejects.toThrow(/unknown, not zero/i);
+  });
+});
