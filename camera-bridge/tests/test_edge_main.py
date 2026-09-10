@@ -102,8 +102,8 @@ class OneAuthorityTest(unittest.TestCase):
             self.assertIs(vision.tracker, pipeline.tracker,
                           "the vision pipeline must NOT own a second VisitTracker")
             self.assertIsNone(cal, "no calibration file -> census mode")
-            self.assertEqual(mode, "shadow", "uncalibrated defaults to shadow, never production")
-            self.assertEqual(base_mode, "shadow", "and the baseline it returns to is the same")
+            self.assertEqual(mode, "SHADOW", "uncalibrated defaults to shadow, never production")
+            self.assertEqual(base_mode, "SHADOW", "and the baseline it returns to is the same")
             self.assertEqual(data_class, "PRODUCTION")
         finally:
             pipeline.ledger.close()
@@ -112,14 +112,14 @@ class OneAuthorityTest(unittest.TestCase):
         args = _args(calibration=None, commissioning_run="C-20260910-001")
         pipeline, vision, source, cal, det, mode, data_class, base_mode = edge_main.build_edge(_cfg(), args)
         try:
-            self.assertEqual(mode, "commissioning")
+            self.assertEqual(mode, "COMMISSIONING")
             self.assertEqual(data_class, "COMMISSIONING")
             self.assertEqual(pipeline.shop.data_class, "COMMISSIONING")
             self.assertEqual(pipeline.shop.commissioning_run_id, "C-20260910-001")
             # The BASELINE is derived from the calibration, never from the launch flag: a
             # producer started with --commissioning-run must still be able to LEAVE
             # commissioning when the run ends.
-            self.assertEqual(base_mode, "shadow")
+            self.assertEqual(base_mode, "SHADOW")
         finally:
             pipeline.ledger.close()
 
@@ -1082,6 +1082,120 @@ class ArgsFixtureDriftTest(unittest.TestCase):
         real = vars(edge_main.parse_args([]))
         invented = sorted(set(vars(_args())) - set(real))
         self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
+
+
+class TrajectoryWiringTest(unittest.TestCase):
+    """A store with no points and a store nobody is feeding look identical on disk.
+
+    This class exists because the first wiring of `_note_trajectory` read the track graph
+    off `self.pipeline` -- the VISITD pipeline, which carries metrics and the shop lane --
+    instead of `self.vision`, which is where the graph actually lives. It raised on every
+    frame, was swallowed (correctly: commissioning data must never take the lot down), and
+    the producer ran perfectly for 128 frames while recording nothing. The only evidence was
+    a counter that named no cause.
+    """
+
+    class _Store:
+        def __init__(self, boom=False):
+            self.rows = []
+            self.boom = boom
+
+        def observe(self, now, tracks, *, scene, generation):
+            if self.boom:
+                raise RuntimeError("store exploded")
+            self.rows.append((now, [t.track_id for t in tracks], scene, generation))
+            return len(tracks)
+
+    def _vision_with_tracks(self, *track_ids):
+        graph = SimpleNamespace(tracks={
+            i: SimpleNamespace(track_id=i, box=(10.0, 10.0, 60.0, 80.0),
+                               ground_point=(35.0, 80.0),
+                               stationary_for=lambda _n: 0.0)
+            for i in track_ids})
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = graph
+
+            def __init__(self, out):
+                self._out = out
+
+            def step(self, frame):
+                return self._out
+
+        return _Vision
+
+    def _drive(self, out, store, track_ids=(1, 2)):
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, self._vision_with_tracks(*track_ids)(out), _Src(),
+                     trajectories=store)
+        loop.step()
+        return loop
+
+    def test_every_live_track_is_RECORDED_on_a_normal_frame(self):
+        store = self._Store()
+        self._drive({"emissions": []}, store)
+        self.assertEqual(len(store.rows), 1, "the hook never reached the store")
+        _now, ids, _scene, _gen = store.rows[0]
+        self.assertEqual(sorted(ids), [1, 2])
+
+    def test_a_SUPPRESSED_frame_records_nothing(self):
+        """A frame the pipeline refused for pose or motion reasons is exactly one whose
+        geometry is untrusted. A point taken from it poisons the map it feeds, and once it
+        is a row in a table nothing can tell it from a good one."""
+        store = self._Store()
+        self._drive({"emissions": [], "suppressed": "camera motion / untrusted pose"}, store)
+        self.assertEqual(store.rows, [])
+
+    def test_it_reads_the_track_graph_off_the_VISION_layer(self):
+        """The regression this class is named for. A vision layer with tracks and a visitd
+        pipeline WITHOUT them must still record -- which is only true if the hook looks in
+        the right place. `make_pipeline()` has no `.tracks`, so reading from it raises."""
+        pipeline = make_pipeline()
+        self.assertFalse(hasattr(pipeline, "tracks"),
+                         "the visitd pipeline grew a `tracks` attribute, and this test can "
+                         "no longer tell the two objects apart -- rewrite it")
+        store = self._Store()
+        self._drive({"emissions": []}, store)
+        self.assertEqual(len(store.rows), 1)
+
+    def test_a_STORE_THAT_EXPLODES_does_not_take_the_producer_down(self):
+        store = self._Store(boom=True)
+        loop = self._drive({"emissions": []}, store)     # must not raise
+        self.assertIsNotNone(loop)
+
+    def test_a_failing_store_is_COUNTED_and_NAMED_exactly_once(self):
+        """Counted, so it is visible. Named, so it is actionable. Once, so a per-frame
+        failure at 4 fps does not bury the log it is supposed to be found in."""
+        store = self._Store(boom=True)
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, self._vision_with_tracks(1)({"emissions": []}), _Src(),
+                     trajectories=store)
+        with self.assertLogs("edge", level="WARNING") as caught:
+            for _ in range(5):
+                loop.step()
+        hits = [m for m in caught.output if "trajectory recording is failing" in m]
+        self.assertEqual(len(hits), 1, f"expected exactly one warning, got {len(hits)}")
+        self.assertIn("store exploded", hits[0])
+        self.assertGreaterEqual(pipeline.metrics.get("edge_trajectory_errors_total"), 5)
+
+    def test_NO_store_configured_changes_nothing(self):
+        loop = self._drive({"emissions": []}, None)
+        self.assertIsNone(loop.trajectories)
 
 
 class HardCaseWiringTest(unittest.TestCase):
