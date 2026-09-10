@@ -316,7 +316,7 @@ def resolve_channel(frames: Sequence[np.ndarray], index: int) -> tuple:
     return (x, y, w, h), kind, shift
 
 
-def assert_channel_usable(index: int, kind: str, calibrated: bool,
+def assert_channel_usable(index, kind: str, calibrated: bool,
                           declared_fixed: bool = False) -> None:
     """Refuse CALIBRATED arrival logic on a lens not DECLARED fixed, or observed panning.
 
@@ -341,7 +341,7 @@ def assert_channel_usable(index: int, kind: str, calibrated: bool,
     # wrong ground with a green light.
     if kind == "panning":
         raise ChannelNotFound(
-            f"channel {index} was OBSERVED PANNING, so it cannot carry calibrated arrival "
+            f"channel {index!r} was OBSERVED PANNING, so it cannot carry calibrated arrival "
             "geometry: every polygon drawn on it describes ground the lens leaves behind. "
             "If this channel is declared fixed, the declaration is stale or the index is "
             "wrong -- refusing rather than scoring arrivals against ground the camera left."
@@ -354,7 +354,8 @@ def assert_channel_usable(index: int, kind: str, calibrated: bool,
     # veto it.
     if not declared_fixed:
         raise ChannelNotFound(
-            f"channel {index} was given a calibration file but is not DECLARED a fixed lens. "
+            f"channel {index!r} was given a calibration file but is not DECLARED a fixed "
+            "lens. "
             "No pan was seen in the startup sample, and that is not evidence: a PTZ idle for "
             "four seconds is indistinguishable from a camera bolted to a wall. Declare the "
             "lens fixed in the calibration (\"lensType\": \"fixed\") if it genuinely is, "
@@ -363,7 +364,8 @@ def assert_channel_usable(index: int, kind: str, calibrated: bool,
 
     if kind != "no-pan-observed":
         raise ChannelNotFound(
-            f"channel {index} is declared fixed but its motion could not be classified from "
+            f"channel {index!r} is declared fixed but its motion could not be classified "
+            "from "
             "the sampled frames, so the declaration could not be checked against the pixels. "
             "Refusing rather than trusting a label nothing corroborated."
         )

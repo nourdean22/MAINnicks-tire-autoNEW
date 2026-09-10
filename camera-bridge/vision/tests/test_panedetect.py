@@ -268,3 +268,16 @@ def test_CENSUS_MODE_needs_no_declaration_at_all():
     perfectly good census camera."""
     assert_channel_usable(2, "panning", calibrated=False, declared_fixed=False)
     assert_channel_usable(0, "no-pan-observed", calibrated=False, declared_fixed=False)
+
+
+def test_the_eligibility_rule_accepts_a_SCENE_ID_not_just_a_channel_index():
+    """The atlas path identifies a lens by name, not by position, and it must be subject to
+    the SAME rule as `--channel`. Locating a scene by appearance proves WHICH camera it is
+    and says nothing about whether that camera can re-aim itself -- so without this the
+    atlas path would take a calibration file onto any lens at all, including a PTZ."""
+    assert_channel_usable("shop-left", "no-pan-observed", calibrated=True, declared_fixed=True)
+    with pytest.raises(ChannelNotFound, match="shop-ptz"):
+        assert_channel_usable("shop-ptz", "panning", calibrated=True, declared_fixed=True)
+    with pytest.raises(ChannelNotFound, match="not DECLARED a fixed"):
+        assert_channel_usable("shop-right", "no-pan-observed", calibrated=True,
+                              declared_fixed=False)

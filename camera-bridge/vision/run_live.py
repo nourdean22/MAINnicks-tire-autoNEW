@@ -39,8 +39,8 @@ from vision.detector import (  # noqa: E402
 from vision.evidence import EvidenceStore  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
-                               detect_live_region, resolve_channel,
-                               split_into_channels)
+                               classify_motion, detect_live_region,
+                               resolve_channel, split_into_channels)
 from vision.scenelocator import (SceneNotLocated, advance,  # noqa: E402
                                  canonicalise, load_atlas, locate)
 from vision.pipeline import VisionPipeline  # noqa: E402
@@ -234,6 +234,7 @@ def canonical_size_from(calibration_path):
 
 
 def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
+                 calibrated: bool = False, declared_fixed: bool = False,
                  samples: int = 12, interval: float = 0.25):
     """Find a KNOWN scene in the window and deliver it in canonical coordinates.
 
@@ -300,6 +301,20 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     #
     # Handing it a frame that appearance-matched a calibrated reference upgrades the gate
     # from "has it moved since boot" to "is it where the polygons were drawn".
+    # THE SAME ELIGIBILITY RULE AS `--channel`, and it was missing here. Locating a scene by
+    # appearance proves WHICH camera it is; it says nothing about whether that camera can
+    # re-aim itself. Without this the atlas path took a calibration file onto any lens at
+    # all -- including a PTZ -- which is exactly the check `--channel` refuses to skip.
+    x0 = int(min(p[0] for p in found.quad))
+    y0 = int(min(p[1] for p in found.quad))
+    x1 = int(max(p[0] for p in found.quad))
+    y1 = int(max(p[1] for p in found.quad))
+    pane_frames = [f[max(0, y0):y1, max(0, x0):x1] for f in frames]
+    kind, shift = classify_motion([f for f in pane_frames if f.size])
+    assert_channel_usable(found.scene_id, kind, calibrated, declared_fixed=declared_fixed)
+    print(f"lens motion: {kind} (max {shift:.2f}px) declared_fixed={declared_fixed}",
+          flush=True)
+
     reference = canonicalise(frames[-1], found, calibration_size)
     print(f"scene located: {found.describe()} epoch={binding.epoch} "
           f"canonical={calibration_size[0]}x{calibration_size[1]}", flush=True)
@@ -383,7 +398,9 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                     "in, so frames can be warped back into it. Without it the warp target "
                     "would be a guess, which defeats the point of locating the scene."
                 )
-            _, _, reference = aim_at_scene(src, scene_atlas, scene, canonical_size)
+            _, _, reference = aim_at_scene(src, scene_atlas, scene, canonical_size,
+                                           calibrated=calibrated,
+                                           declared_fixed=declared_fixed)
             # Stash it on the source: `build_source` has no pipeline to hand it to, and the
             # caller that builds the pipeline does. Anything else would locate twice.
             src.calibrated_reference = reference
