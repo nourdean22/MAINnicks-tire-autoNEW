@@ -543,6 +543,7 @@ def _args(**over):
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
+        adjudicator_model=None, adjudicator_device=None,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)

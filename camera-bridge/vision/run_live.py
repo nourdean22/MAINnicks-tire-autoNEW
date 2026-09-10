@@ -313,7 +313,19 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
     return CaptureMux([V380WindowSource(window_title=title)])
 
 
-def build_council(model: str | None, device: str, motion_gate: bool) -> DetectorCouncil:
+def same_model(a: str | None, b: str | None) -> bool:
+    """Do these two paths name the SAME model file? Used to refuse a self-adjudicating council."""
+    if not a or not b:
+        return False
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def build_council(model: str | None, device: str, motion_gate: bool,
+                  adjudicator_model: str | None = None,
+                  adjudicator_device: str | None = None) -> DetectorCouncil:
     primary = None
     if model:
         try:
@@ -328,7 +340,38 @@ def build_council(model: str | None, device: str, motion_gate: bool) -> Detector
             gate = Mog2MotionDetector()
         except DetectorUnavailable as exc:
             print(f"motion gate unavailable: {exc}")
-    return DetectorCouncil(primary=primary, motion_gate=gate)
+
+    # THE ADJUDICATOR SLOT, which `DetectorCouncil` has always had and production has never
+    # filled. The council escalates to it on an ambiguous box or an entry-critical frame --
+    # the two places where a mistake actually costs something -- so the intelligence is spent
+    # where it changes an outcome instead of on every quiet frame.
+    #
+    # A COUNCIL MAY NOT ADJUDICATE ITSELF, and this refusal is the load-bearing part. `_fuse`
+    # promotes an ambiguous detection by +0.25 when the adjudicator agrees with it. A model
+    # always agrees with itself, so pointing both slots at one file would hand every uncertain
+    # box a free confidence boost backed by no independent evidence at all -- silently turning
+    # "uncertain" into "confident" while the logs show a healthy escalation.
+    adjudicator = None
+    if adjudicator_model:
+        if same_model(adjudicator_model, model):
+            raise DetectorUnavailable(
+                "the adjudicator is the same model file as the primary. A model agrees with "
+                "itself, so every ambiguous box would be promoted on its own say-so. Point "
+                "--adjudicator-model at a DIFFERENT, stronger model, or leave it unset."
+            )
+        try:
+            # A LOWER threshold than the primary, deliberately. The adjudicator is the careful
+            # second look at a frame the primary already found ambiguous; running it at the
+            # primary's own cut-off would make it silent on exactly those boxes.
+            adjudicator = OpenVinoVehicleDetector(
+                adjudicator_model, device=adjudicator_device or device, conf=0.25)
+            print(f"adjudicator: {adjudicator.name} on {adjudicator_device or device}")
+        except DetectorUnavailable as exc:
+            # NOT fatal, and not silent. The council without an adjudicator is the system as
+            # it has always run; pretending the escalation exists would be the defect.
+            print(f"WARNING: adjudicator unavailable ({exc}); escalation is DISABLED and "
+                  "ambiguous frames will be judged by the primary alone")
+    return DetectorCouncil(primary=primary, motion_gate=gate, adjudicator=adjudicator)
 
 
 PRODUCER_INSTANCE_ID = uuid.uuid4().hex[:16]
@@ -404,6 +447,12 @@ def main() -> int:
     ap.add_argument("--calibration", default=None)
     ap.add_argument("--evidence", default=None, help="directory for EvidencePackets")
     ap.add_argument("--save-frame", default=None, help="write one frame here and exit")
+    ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
+                    help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
+                         "frames. Must differ from --model; a model agrees with itself.")
+    ap.add_argument("--adjudicator-device", default=os.environ.get("VISION_OV_ADJUDICATOR_DEVICE"),
+                    help="device for the adjudicator (default: same as --device). Put it on CPU "
+                         "when the primary holds the GPU, so escalation does not contend.")
     ap.add_argument("--motion-gate", action="store_true",
                     help="use MOG2 as a compute trigger (it can never confirm)")
     ap.add_argument("--post-to", default=os.environ.get("CAMERA_VISITS_URL"),
@@ -464,7 +513,9 @@ def main() -> int:
         portal = EntryPortal(Zone("front_lot", []), portal_zone=Zone("portal", []))
         bays = []
 
-    council = build_council(args.model, args.device, args.motion_gate)
+    council = build_council(args.model, args.device, args.motion_gate,
+                            adjudicator_model=args.adjudicator_model,
+                            adjudicator_device=args.adjudicator_device)
     store = EvidenceStore(args.evidence, enabled=bool(args.evidence))
     pipe = VisionPipeline(council=council, lot_map=lot_map, entry_portal=portal,
                           camera="sign", bay_names=bays, evidence=store)

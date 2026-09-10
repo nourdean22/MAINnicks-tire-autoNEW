@@ -639,7 +639,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         lot_map = LotMap().add(arrival_zone, [(0.0, 0.0), (1e6, 0.0), (1e6, 1e6), (0.0, 1e6)])
         portal = EntryPortal(Zone(arrival_zone, []), portal_zone=Zone("portal", []))
 
-    council = build_council(args.model, args.device, args.motion_gate)
+    council = build_council(args.model, args.device, args.motion_gate,
+                            adjudicator_model=args.adjudicator_model,
+                            adjudicator_device=args.adjudicator_device)
     vision = VisionPipeline(
         council=council,
         lot_map=lot_map,
@@ -723,6 +725,12 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "motion-only and cannot confirm an arrival")
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
                     help="OpenVINO device (env VISION_OV_DEVICE)")
+    ap.add_argument("--adjudicator-model", default=os.environ.get("VISION_OV_ADJUDICATOR"),
+                    help="a SECOND, stronger model consulted only on ambiguous or entry-critical "
+                         "frames. Must differ from --model; a model agrees with itself.")
+    ap.add_argument("--adjudicator-device", default=os.environ.get("VISION_OV_ADJUDICATOR_DEVICE"),
+                    help="device for the adjudicator (default: same as --device). Put it on CPU "
+                         "when the primary holds the GPU, so escalation does not contend.")
     ap.add_argument("--motion-gate", action="store_true", default=True, help="skip the detector on still frames")
     ap.add_argument("--evidence", default=None, help="directory for evidence packets")
     ap.add_argument("--fps", type=float, default=4.0, help="analysis rate")
