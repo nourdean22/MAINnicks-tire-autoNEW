@@ -1894,6 +1894,38 @@ function buildTiers(): void {
     intervalMs: 24 * 60 * 60 * 1000,
     jobs: [
       {
+        /**
+         * Plate-read retention (ADR-0017 s7). The 30-day policy shipped in statenour
+         * against `device_events`; plate text ALSO lands here in `vehicle_visits.plateText`
+         * and nothing removed it, so the policy covered one of the two tables that hold it.
+         *
+         * Reads nothing on a shop with no plate recogniser wired -- which is today. It is
+         * here BEFORE that wiring lands, so turning the recogniser on is not a disclosure.
+         */
+        name: "plate-retention-scrub",
+        handler: async () => {
+          const { scrubExpiredPlates, PLATE_RETENTION_DAYS } = await import("../services/plateRetention");
+          const r = await scrubExpiredPlates();
+          if (r.capped) {
+            const { alertSystem } = await import("../services/telegram");
+            await Promise.resolve(
+              alertSystem(
+                "Plate retention scrub hit its batch cap with work still pending",
+                `Scrubbed ${r.scrubbed} rows over ${r.batches} batches and stopped. Plate text older ` +
+                  `than ${PLATE_RETENTION_DAYS} days is still in vehicle_visits. Investigate before ` +
+                  `the next run: a cap means a backfill, a clock jump, or a policy change.`,
+              ),
+            ).catch(() => { /* alerting must not fail the scrub it reports on */ });
+          }
+          return {
+            recordsProcessed: r.scrubbed,
+            details: r.capped
+              ? `CAPPED after ${r.scrubbed} rows -- retention is BEHIND`
+              : `${r.scrubbed} plate(s) scrubbed, retention current to ${r.cutoff.toISOString().slice(0, 10)}`,
+          };
+        },
+      },
+      {
         name: "db-backup",
         handler: async () => {
           const { runDailyBackup } = await import("../services/dbBackup");
