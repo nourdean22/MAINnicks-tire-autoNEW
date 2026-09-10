@@ -181,6 +181,11 @@ apps/nickstire/.remediation/
 # the cloud device ids for this specific site -- deployment state, not source. It was
 # NOT ignored, so the first operator to follow the README would have staged it.
 camera-bridge/config.yaml
+# ...and the same for a per-camera operator config. A second producer needs its own
+# file rather than a second entry in the first: `metrics.port` is a property of the
+# CONFIG, not of a camera, so two producers sharing one config both bind the same
+# port and the second loses its metrics endpoint silently.
+camera-bridge/config-*.yaml
 camera-bridge/data/
 # camera-bridge edge runtime, all machine-local by construction:
 #   secrets/     DPAPI blobs, decryptable only by the user+machine that wrote them

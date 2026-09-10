@@ -244,5 +244,72 @@ class ResolverCanaryTest(unittest.TestCase):
         self.assertEqual({"--alpha", "--beta"} & flags, {"--alpha", "--beta"})
 
 
+PER_TASK_PATHS = ("$wrapper", "$logFile")
+
+
+def _installer_text() -> str:
+    with open(INSTALLER, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def per_task_paths(text: str) -> dict:
+    """Which per-producer output paths are DERIVED from `-TaskName`, and which are constants.
+
+    Returns {name: True if the assignment mentions the task name, else False}.
+    """
+    out = {}
+    for name in PER_TASK_PATHS:
+        pattern = re.compile(r"^\s*" + re.escape(name) + r"\s*=\s*(.+)$", re.M)
+        match = pattern.search(text)
+        assert match, f"{name} is not assigned anywhere; this gate is reading nothing"
+        rhs = match.group(1)
+        # Derived either directly from $TaskName or through a variable computed from it.
+        out[name] = ("$TaskName" in rhs or "$taskSlug" in rhs or "$suffix" in rhs)
+    return out
+
+
+class InstallerPathsArePerTaskTest(unittest.TestCase):
+    """A SECOND producer must not overwrite the first one's wrapper.
+
+    `-TaskName` has always been a parameter, so registering a second producer for a second
+    lens succeeded -- and then clobbered the first one's `edge-task.cmd`, because the wrapper
+    path was a constant. Both scheduled tasks pointed at one file, so whichever install ran
+    last won: the task installed for the LEFT lens would have started the RIGHT camera at its
+    next restart, that lens would have gone unwatched, and both tasks would still have read
+    `Running` with nothing red anywhere.
+
+    Found by installing a real second producer on 2026-09-10, not by a test. Two producers
+    now run side by side on one machine (`sign`/shop-left on port 9091, `right`/shop-right on
+    9092), which is what made the collision reachable at all.
+    """
+
+    def test_the_wrapper_and_log_are_derived_from_the_task_name(self):
+        derived = per_task_paths(_installer_text())
+        constant = sorted(name for name, ok in derived.items() if not ok)
+        self.assertEqual(
+            constant, [],
+            f"{constant} are the same for every -TaskName, so installing a second producer "
+            f"silently overwrites the first one's. Derive them from $TaskName.")
+
+    def test_the_gate_would_NOTICE_a_constant_path(self):
+        """The canary. Without it a rewritten matcher would report every path as per-task."""
+        text = '$wrapper = Join-Path $root "edge-task.cmd"\n$logFile = Join-Path $logDir "edge.log"\n'
+        self.assertEqual(per_task_paths(text), {"$wrapper": False, "$logFile": False})
+
+    def test_the_gate_ACCEPTS_a_properly_derived_path(self):
+        """The other direction: a matcher that called everything constant would fail the
+        real installer forever and get deleted rather than fixed."""
+        text = ('$suffix = if ($TaskName -eq \'x\') { \'\' } else { "-$TaskName" }\n'
+                '$wrapper = Join-Path $root "edge-task$suffix.cmd"\n'
+                '$logFile = Join-Path $logDir "edge$suffix.log"\n')
+        self.assertEqual(per_task_paths(text), {"$wrapper": True, "$logFile": True})
+
+    def test_an_UNASSIGNED_path_raises_rather_than_passing(self):
+        """A rename that removed `$wrapper` would otherwise leave this gate green while
+        checking nothing at all."""
+        with self.assertRaises(AssertionError):
+            per_task_paths('$logFile = Join-Path $logDir "edge$suffix.log"\n')
+
+
 if __name__ == "__main__":
     unittest.main()
