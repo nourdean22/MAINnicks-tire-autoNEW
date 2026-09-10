@@ -134,9 +134,42 @@ export const COLUMNS = [
   "dataClass", "commissioningRunId",
 ] as const;
 
+/**
+ * Columns a producer LEARNS over the life of a visit and can never un-learn.
+ *
+ * The mirror accumulates per-visit state IN MEMORY, and that memory does not survive a
+ * producer restart. After one, the tracker is restored from the edge's own ledger but the
+ * mirror's accumulator is empty, so the next emission renders a full row with NULL
+ * arrival and bay times -- and at a higher seq, so the guard ACCEPTS it and the complete
+ * row is overwritten with nulls. A routine restart would silently erase a visit's timing
+ * (Codex P1 on #2255).
+ *
+ * `COALESCE(VALUES(c), c)` makes that impossible: a delivery that does not know a
+ * timestamp leaves the known one alone. These values are only ever LEARNED -- a car does
+ * not un-arrive -- so there is no legitimate write that needs to clear them.
+ */
+const LEARNED_ONCE = new Set<string>([
+  "arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt",
+  "bay", "entryEvidence", "evidenceRef",
+]);
+
+/**
+ * Columns fixed at INSERT and never updated: a visit belongs to the run it STARTED in.
+ *
+ * Without this, a producer restarted across a commissioning boundary would reclassify an
+ * in-flight visit — a real customer becoming COMMISSIONING and vanishing from the shop's
+ * KPIs, or a test drive becoming PRODUCTION and being counted as one.
+ */
+const IMMUTABLE_AFTER_INSERT = new Set<string>(["dataClass", "commissioningRunId"]);
+
 /** Every column updates only when the incoming seq is at least the stored one. */
-export const GUARDED_SET = COLUMNS.filter((c) => c !== "visitId")
-  .map((c) => `\`${c}\` = IF(VALUES(\`seq\`) >= \`seq\`, VALUES(\`${c}\`), \`${c}\`)`)
+export const GUARDED_SET = COLUMNS.filter(
+  (c) => c !== "visitId" && !IMMUTABLE_AFTER_INSERT.has(c),
+)
+  .map((c) => {
+    const incoming = LEARNED_ONCE.has(c) ? `COALESCE(VALUES(\`${c}\`), \`${c}\`)` : `VALUES(\`${c}\`)`;
+    return `\`${c}\` = IF(VALUES(\`seq\`) >= \`seq\`, ${incoming}, \`${c}\`)`;
+  })
   .join(", ");
 
 export function registerCameraVisitsRoute(app: Express): void {
@@ -306,16 +339,95 @@ export const HEARTBEAT_COLUMNS = [
 export const HEARTBEAT_ACCEPT =
   "(VALUES(`producerInstanceId`) <> `producerInstanceId` OR VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
 
-/** Every column updates only under HEARTBEAT_ACCEPT; the two server clocks are set here too. */
-export const HEARTBEAT_GUARDED_SET = [
-  ...HEARTBEAT_COLUMNS.filter((c) => c !== "camera").map(
-    (c) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`,
-  ),
-  `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
-  `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
-].join(", ");
+/**
+ * Columns that any guard READS. Every one of them has to be assigned after everything
+ * that reads it -- see the ordering derivation below.
+ */
+const HEARTBEAT_READ_BY_GUARDS = ["state", "heartbeatSeq", "producerInstanceId"] as const;
+
+/**
+ * Every column updates only under HEARTBEAT_ACCEPT, with the two server clocks.
+ *
+ * ⚠ THE ORDER OF THESE ASSIGNMENTS IS SEMANTIC, NOT COSMETIC, AND IT IS DERIVED BELOW.
+ *
+ * MySQL and TiDB evaluate `ON DUPLICATE KEY UPDATE` assignments LEFT TO RIGHT, and a bare
+ * column reference reads the value as updated SO FAR IN THE SAME STATEMENT, while
+ * `VALUES(col)` always reads the incoming row. So any guard that reads a column the
+ * statement also assigns means something different depending on where it sits.
+ *
+ * Two live defects came from getting this wrong, both measured rather than reasoned:
+ *
+ *  1. `producerInstanceId` was assigned FIRST, so every later guard compared the new
+ *     instance id to ITSELF (always false) and collapsed to `VALUES(heartbeatSeq) >=
+ *     heartbeatSeq`. A RESTARTED producer arrives with a new id and a sequence back at 1,
+ *     so it updated its id and failed that on everything else: the row kept the DEAD
+ *     producer's state, fps, calibration and frame times while advertising the live
+ *     producer's id, and the shop's camera card stayed frozen until the new sequence
+ *     climbed past the old one (~120 heartbeats after an hour of uptime). `affectedRows`
+ *     was non-zero throughout, so the route reported `accepted: true` the whole time.
+ *     Verified against production 2026-09-09: instance A seq 9 stored HEALTHY; instance B
+ *     seq 1 without calibration returned `accepted:true, state:CALIBRATION_INVALID`; the
+ *     next read still showed HEALTHY.
+ *  2. `stateSince` guards on `VALUES(state) <> state`, and `state` was assigned BEFORE it,
+ *     so it compared the new state to itself. It never moved once. "How long has this
+ *     camera been offline" was frozen at the row's creation time from the first release.
+ *
+ * THE DERIVATION. Assign in this order, so every guard reads pre-statement values:
+ *   1. plain columns        nothing reads them, so they can go anywhere -- first is fine
+ *   2. `stateSince`         reads `state`, so it must precede the `state` assignment
+ *   3. `receivedAt`         reads nothing
+ *   4. `state`              read by (2), so it comes after it
+ *   5. `heartbeatSeq`       reads `producerInstanceId` and itself, both still original
+ *   6. `producerInstanceId` reads itself (still original) and `heartbeatSeq` (now new).
+ *                           Safe because the id half alone decides every restart, and on
+ *                           a replay `heartbeatSeq` was NOT updated in step 5, so the
+ *                           sequence half is still evaluated against the stored value.
+ *
+ * Checked case by case against `applyOnDuplicateKeyUpdate` in the test, which simulates
+ * the left-to-right rule and runs THIS string: restart applies, replay is a no-op, a
+ * newer heartbeat applies, and `stateSince` moves only on a real state change.
+ */
+export const HEARTBEAT_GUARDED_SET = (() => {
+  const guard = (c: string) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`;
+  const readByGuards = new Set<string>(HEARTBEAT_READ_BY_GUARDS);
+  const plain = HEARTBEAT_COLUMNS.filter((c) => c !== "camera" && !readByGuards.has(c));
+  return [
+    ...plain.map(guard),
+    // Before `state`, or it compares the new state to itself and never fires.
+    `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
+    `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
+    guard("state"),
+    // The discriminators last, and in THIS order: see the derivation above.
+    guard("heartbeatSeq"),
+    guard("producerInstanceId"),
+  ].join(", ");
+})();
 
 const epoch = (d: Date | null | undefined): number | null => (d ? Math.floor(d.getTime() / 1000) : null);
+
+export type ActiveRun = { runId: string; label: string | null };
+
+/**
+ * THREE states, not two, and the producer depends on telling them apart.
+ *
+ * `visitd.shop_mirror.apply_active_run` holds its current mode when the key is ABSENT and
+ * ends commissioning only on an EXPLICIT null. So:
+ *
+ *   a run is open      -> send it
+ *   looked, none open  -> send null   (this is what ENDS a run)
+ *   could NOT look     -> omit it     (a transient DB error must not end a live run)
+ *
+ * The third case is the one that was wrong: the route always sent the key, so one failed
+ * query mid-run told the producer the run was over and the rest of the test drive was
+ * tagged PRODUCTION -- permanently, since the ingest treats dataClass as immutable after
+ * insert. The second case is the one it is easy to break while fixing the third: omitting
+ * the key on a successful empty read would mean a run could be started and never ended.
+ */
+export function activeRunField(
+  activeRun: ActiveRun | null | undefined,
+): Record<string, unknown> {
+  return activeRun === undefined ? {} : { activeCommissioningRun: activeRun };
+}
 
 export function registerCameraHeartbeatRoute(app: Express): void {
   app.post("/api/camera/heartbeat", async (req: Request, res: Response) => {
@@ -422,9 +534,61 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         }
       }
 
+      // THE COMMISSIONING HANDSHAKE, and it rides the heartbeat on purpose.
+      //
+      // `startCommissioning` only writes a row; nothing told the PRODUCER. So pressing
+      // "Start a run" left the edge in PRODUCTION: the controlled drive would enter the
+      // shop's real KPIs, its visits would carry no `commissioningRunId`, and the report
+      // would find no machine events to compare against -- the whole exercise would run
+      // and prove nothing (Codex P1 on #2255).
+      //
+      // The producer already talks to this route every 30 s, so the open run for this
+      // camera comes back in the reply and the producer adopts it. No new endpoint, no
+      // polling loop, and no way for the two to disagree about which run is live: the
+      // database is the single answer and the heartbeat is the only question.
+      //
+      // The producer then REPORTS the run id in its next heartbeat, which lands in
+      // `camera_runtime.commissioningRunId` -- so the admin can show that the edge has
+      // actually acknowledged the run rather than assuming it did.
+      // `undefined` means COULD NOT LOOK; `null` means LOOKED AND THERE IS NONE. The
+      // producer relies on that distinction and the first version of this did not make
+      // it: `apply_active_run` keeps its current mode when the key is ABSENT and ends
+      // commissioning only on an EXPLICIT null, but this route always sent the key. So a
+      // single transient DB error mid-run sent `null`, the producer left commissioning,
+      // and the REST OF THE TEST DRIVE was tagged PRODUCTION -- permanently, because the
+      // ingest treats dataClass as immutable after insert. That is the exact failure
+      // dataClass exists to prevent. Found in this branch's own adversarial re-read.
+      let activeRun: { runId: string; label: string | null } | null | undefined;
+      try {
+        const openRun = (await d.execute(sql`
+          SELECT runId, label FROM commissioning_runs
+          WHERE camera = ${b.camera} AND endedAt IS NULL
+          ORDER BY startedAt DESC LIMIT 1
+        `)) as unknown;
+        const list = (Array.isArray(openRun) ? openRun[0] : openRun) as Array<Record<string, unknown>> | undefined;
+        // EXPLICITLY null when the query succeeded and found nothing. Leaving it undefined
+        // here would omit the key on a successful empty read, and the producer holds its
+        // mode when the key is absent -- so a run could be started but never ENDED. The
+        // sentinel only means "could not look"; "looked, found none" must still say null.
+        activeRun = Array.isArray(list) && list.length
+          ? { runId: String(list[0].runId), label: (list[0].label as string | null) ?? null }
+          : null;
+      } catch {
+        // A missing commissioning table (migration 0123 unapplied) must NOT break the
+        // heartbeat: producer health is the more important of the two, and a producer
+        // that cannot report itself because a newer feature is half-deployed would be a
+        // strictly worse outcome than one that simply never enters commissioning mode.
+        //
+        // Left UNDEFINED, not null, so the key is omitted and a producer already in a run
+        // holds its mode instead of being told the run ended. Before the table exists the
+        // producer has no run to hold, so this reads the same as before for that case.
+        activeRun = undefined;
+      }
+
       console.info(
         `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} state=${verdict.state}` +
-        (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : ""),
+        (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : "") +
+        (activeRun ? ` activeRun=${activeRun.runId}` : ""),
       );
       return res.status(200).json({
         accepted,
@@ -432,6 +596,8 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         facets: verdict.facets,
         reason: verdict.reason,
         transition,
+        // Omitted entirely when the run could not be read; see `activeRunField`.
+        ...activeRunField(activeRun),
       });
     } catch (err) {
       return res.status(500).json({ error: err instanceof Error ? err.message : "heartbeat write failed" });

@@ -340,6 +340,72 @@ def test_framehealth_catches_a_short_cached_loop_that_freeze_detection_misses():
     assert st2.ok is True
 
 
+def test_a_live_but_motionless_lot_is_never_called_looping():
+    """The regression that broke a REAL camera on 2026-09-09.
+
+    `_repeats` compared THUMBNAILS against `freeze_epsilon`, a threshold calibrated on FULL
+    FRAMES (live static footage measures >= 0.26 there). A thumbnail is a 22x22 average
+    downscale, so a scene that barely moves lands a tiny but NONZERO delta -- under 0.02
+    while nowhere near identical -- and every such frame was counted as a replayed buffer.
+
+    MEASURED on the real V380 feed, 24 frames of a motionless lot, 276 thumbnail pairs:
+    4 pairs fell below freeze_epsilon (loop_min_repeats is 3, so the camera was declared
+    LOOPING) while ZERO pairs were byte-identical. Eight consecutive probes of that same
+    unchanging feed flipped between "live" and "looping" purely on where the noise landed.
+
+    The consequence is the one this module exists to prevent: unhealthy -> census re-arm ->
+    every later arrival classified PREEXISTING -> arrivals never fire. A quiet lot is most
+    of the night, so this was a nightly coin flip on the whole product.
+
+    THE FIXTURE IS BUILT ON THE MEASURED MECHANISM, not on generic noise. Uniform
+    per-pixel noise does not survive the downscale at all (any amplitude jumps straight to
+    a 0.53 thumb delta), and a first attempt at this test using it was VACUOUS -- it passed
+    against the old implementation too. Nudging one small block by a few levels puts the
+    pair in the real band: delta 0.004, under the 0.02 threshold, and not byte-identical.
+    """
+    base = np.full((128, 128, 3), 90, dtype=np.uint8)
+    base[20:60, 30:70] = 200                       # structure, like a parked car
+    fh = FrameHealth(freeze_run=8, min_distinct=4)
+    for i in range(24):
+        img = base.copy()
+        # THE SHAPE OF THE REAL FEED, arrived at by measuring it rather than by guessing.
+        # Consecutive frames differ CLEARLY (so `frozen` cannot fire and the LOOPING path
+        # is the one under test), while frames further apart land very close together --
+        # which is how the live feed produced 4 thumbnail pairs under 0.02 with none
+        # byte-identical.
+        #
+        # Two earlier fixtures were WRONG and mutation testing caught both. Alternating
+        # two images is a genuine A/B loop, so the guard rightly fired. A uniform block
+        # drift moves the full frame and the thumbnail by nearly the same amount, so it
+        # tripped `frozen` instead of exercising `looping` at all.
+        img[70:100, 70:100] = np.clip(base[70:100, 70:100].astype(int) + (i % 3) * 40, 0, 255)
+        # A marker that keeps every frame unique. 6x6 is deliberate: the thumbnail is a
+        # 22x22 average of a 128px frame, so anything smaller than ~6px is sub-cell and
+        # averages away to nothing, which made an earlier 2x2 marker invisible and left 84
+        # byte-identical pairs.
+        img[64:70, 64:70] = np.clip(base[64:70, 64:70].astype(int) + i, 0, 255)
+        fh.update(float(i), img)
+
+    st = fh.state(24.0)
+    assert st.looping is False, (
+        "a live camera on a still lot must never read as a replayed buffer -- "
+        f"distinct={st.distinct}, the low value that used to trip it"
+    )
+    assert st.ok is True, "and it must therefore stay HEALTHY"
+
+
+def test_a_REPLAYED_buffer_is_still_caught_after_that_loosening():
+    """The canary for the fix above. Byte-identical repeats are the true loop signature."""
+    a = np.full((128, 128, 3), 100, dtype=np.uint8); a[:, 10:50] = 240
+    b = np.full((128, 128, 3), 100, dtype=np.uint8); b[:, 60:100] = 240
+    fh = FrameHealth(freeze_run=8, min_distinct=4)
+    for i in range(24):
+        fh.update(float(i), (a if i % 2 == 0 else b).copy())
+    st = fh.state(24.0)
+    assert st.looping is True, "the same two buffers handed back forever IS a loop"
+    assert st.ok is False
+
+
 def test_pipeline_suppresses_a_frozen_capture_segment():
     n = 40
     boxes = [[car_box(20.0 + 8 * i)] for i in range(n)]

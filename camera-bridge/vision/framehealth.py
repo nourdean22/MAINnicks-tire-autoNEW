@@ -165,9 +165,24 @@ class FrameHealth:
             thumb = _thumb(image)
             # An EXACT repeat of any frame already in the window is the loop signature --
             # counted per frame, so the verdict can require a RUN of them.
-            self._repeats.append(any(
-                float(np.abs(thumb - t).mean()) <= self.freeze_epsilon for t in self._thumbs
-            ))
+            # BYTE-IDENTICAL, not "within freeze_epsilon". `freeze_epsilon` is calibrated
+            # on FULL FRAMES (live static footage measures >= 0.26 there), but a thumbnail
+            # is a downscale, and downscaling AVERAGES SENSOR NOISE AWAY -- so live frames
+            # routinely land under 0.02 once shrunk and were counted as replays.
+            #
+            # MEASURED on the real V380 feed, 24 frames of a motionless lot, 276 thumb
+            # pairs: 4 pairs fell below freeze_epsilon (enough to trip loop_min_repeats=3
+            # and declare a healthy camera LOOPING), while ZERO pairs were byte-identical.
+            # Six consecutive probes of that same feed flipped between "live" and
+            # "looping" purely on where sensor noise happened to land -- a coin flip on a
+            # quiet lot, which is most of the night. The consequence is the one this file
+            # keeps warning about: unhealthy -> census re-arm -> every later arrival
+            # classified PREEXISTING -> arrivals never fire. The guard was causing the
+            # failure it exists to prevent.
+            #
+            # A replayed buffer is the SAME BYTES handed back, so exact equality is its
+            # true signature and needs no threshold at all.
+            self._repeats.append(any(np.array_equal(thumb, t) for t in self._thumbs))
             self._thumbs.append(thumb)
             self._prev_image = image
         else:
