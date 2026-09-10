@@ -38,6 +38,16 @@ export interface TaskSignals {
   state: LiveState;
   /** Number of tasks completed today (from TaskEvent). */
   doneToday: number;
+  /**
+   * 2026-09-10 · Labels of the reads that returned a FABRICATED fallback
+   * rather than a measurement. Empty on a healthy gather.
+   *
+   * Without this, `safeQuery(getDoneTodayCount, 0)` handed back a zero
+   * that capacity-block.ts rendered into NICK's prompt as
+   * "done today **0**" -- indistinguishable from a real zero, and a
+   * sentence with real weight to say to someone who worked all morning.
+   */
+  degradedReads: string[];
   /** Number of tasks marked READY but not DOING/DONE. */
   openCount: number;
   /** Number of tasks past dueDate, status not DONE/ARCHIVED. */
@@ -165,6 +175,11 @@ function aggregate(tasks: TaskAggregate[]) {
 export async function gatherTaskSignals(): Promise<TaskSignals> {
   const now = new Date();
 
+  const degradedReads: string[] = [];
+  const onFallback = (label: string) => () => {
+    degradedReads.push(label);
+  };
+
   const [tasks, doneToday, state, capacityMin] = await Promise.all([
     safeQuery(
       () =>
@@ -178,14 +193,16 @@ export async function gatherTaskSignals(): Promise<TaskSignals> {
           },
         }),
       [] as TaskAggregate[],
-      { label: "task-signals.tasks" },
+      { label: "task-signals.tasks", onFallback: onFallback("task-signals.tasks") },
     ),
-    safeQuery(() => getDoneTodayCount(), 0, { label: "task-signals.done-today" }),
+    safeQuery(() => getDoneTodayCount(), 0, { label: "task-signals.done-today", onFallback: onFallback("task-signals.done-today") }),
     safeQuery(() => readLiveState(), "normal" as LiveState, {
       label: "task-signals.live-state",
+      onFallback: onFallback("task-signals.live-state"),
     }),
     safeQuery(() => estimateCapacityRemainingMin(), 240, {
       label: "task-signals.capacity",
+      onFallback: onFallback("task-signals.capacity"),
     }),
   ]);
 
@@ -196,6 +213,7 @@ export async function gatherTaskSignals(): Promise<TaskSignals> {
     dayOfWeek: weekdayET(now),
     state,
     doneToday,
+    degradedReads,
     openCount: agg.openCount,
     lateCount: agg.lateCount,
     staleCount: agg.staleCount,
