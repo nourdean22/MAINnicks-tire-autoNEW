@@ -51,6 +51,25 @@ TRIGGERS = (
     "MODEL_OOD",
     "OPERATOR_CORRECTION",       # the highest-value label there is: a human said we were wrong
     "CAMERA_VS_RO_MISMATCH",     # the lot says a visit, the shop's records say none
+    # UNWIRED ON PURPOSE, and this is the measurement that says so rather than a TODO.
+    # Over 62 real visits in the edge ledger the dwell distribution is
+    #   min 26s - p25 131s - median 345s - p75 990s - p90 1,885s - max 6,741s
+    # i.e. spread over more than two orders of magnitude and heavily right-skewed, because a
+    # car at a TIRE SHOP legitimately sits for two hours while work is done. Any fixed
+    # "unusual" cutoff fires on normal service visits, and a trigger that fires on the healthy
+    # case is how a corpus teaches everyone to ignore it.
+    #
+    # Worse, that sample cannot be used to calibrate one: it was produced by producers
+    # carrying the ghost-track and visit-splitting defects fixed on 2026-09-10, so the long
+    # tail contains exactly the artefacts the trigger would be looking for. The 6,741s visit
+    # is either a real afternoon of service or a track that never departed, and nothing in
+    # the ledger distinguishes them -- which is the use case, and the reason it cannot be
+    # its own baseline.
+    #
+    # What would unblock it: a dwell distribution collected AFTER those fixes, split by
+    # terminal state (LEFT vs PASS_THROUGH), and cross-checked against the shop's repair
+    # orders -- which is `CAMERA_VS_RO_MISMATCH`, the trigger that actually has the
+    # independent signal this one lacks.
     "UNUSUAL_DWELL",
     "FIRST_EXAMPLE_OF_REGIME",   # first snow, first night after a lens clean, ...
 )
