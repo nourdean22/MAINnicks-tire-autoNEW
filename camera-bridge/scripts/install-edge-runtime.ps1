@@ -84,8 +84,19 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $logDir = Join-Path $root "logs"
-$logFile = Join-Path $logDir "edge.log"
-$wrapper = Join-Path $root "edge-task.cmd"
+# PER TASK, not per checkout. `-TaskName` was already a parameter -- so a second producer
+# for a second lens registered happily and then OVERWROTE the first one's wrapper, because
+# the wrapper path was a constant. Both tasks pointed at one file, so the surviving content
+# won: the "left" task would have started the RIGHT camera at its next restart, and the lens
+# it was installed for would have gone unwatched with two tasks Running and nothing red.
+# Caught by installing a real second producer, not by a test.
+#
+# The DEFAULT name is unchanged, so an existing single-producer box keeps the exact paths it
+# already has and nothing needs migrating.
+$taskSlug = ($TaskName -replace '[^A-Za-z0-9._-]', '_')
+$suffix = if ($taskSlug -eq 'NickEdgeProducer') { '' } else { "-$taskSlug" }
+$logFile = Join-Path $logDir "edge$suffix.log"
+$wrapper = Join-Path $root "edge-task$suffix.cmd"
 $secretDir = Join-Path $root "secrets"
 $secretFile = Join-Path $secretDir "camera-ingest.xml"
 if (-not $ConfigPath) { $ConfigPath = Join-Path $root "config.yaml" }
