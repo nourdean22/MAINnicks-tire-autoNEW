@@ -609,6 +609,88 @@ export async function getReferralOrphans() {
   }
 }
 
+import { slaBand, type SlaBand } from "./candidateSla";
+
+/**
+ * Applicants aging against the 48-hour response the careers page promises.
+ *
+ * THE GAP THIS CLOSES. /careers states "We respond within 48 hours" twice
+ * (Careers.tsx:259 and :588). Nothing enforced it: no cron references the
+ * candidates table, no timer, no escalation, no aging sort. The only surface
+ * was a collapsible admin panel someone had to remember to open. A public
+ * promise with no mechanism behind it is how a shop loses a technician to
+ * whoever called back.
+ *
+ * `contactedAt` is the clock stop, not `status`: an admin can move a candidate
+ * through statuses without ever having contacted them, and the promise is
+ * about contact.
+ *
+ * The 24h/40h bands are PROVISIONAL operating thresholds chosen to leave room
+ * to act before the 48h promise is broken — they are not external truths, and
+ * the right way to set them is from observed first-response times once there
+ * are enough to measure.
+ */
+export async function getCandidateSlaBreaches() {
+  const db = await getDb();
+  type Row = { id: number; name: string; createdAt: Date | null; hoursWaiting: number | null; band: SlaBand };
+  // available:false, never an empty list. "No one is waiting" is the single
+  // most reassuring answer this can give, which makes it the one that must
+  // never be fabricated from a dead handle.
+  if (!db) return { available: false as const, rows: [] as Row[] };
+  try {
+    const rows = await db
+      .select({
+        id: candidates.id,
+        name: candidates.name,
+        createdAt: candidates.createdAt,
+        // The AGE is computed in SQL, not just the filter. Driver-parsed TiDB
+        // DATETIMEs come back shifted +4h on Eastern, so `Date.now() -
+        // row.createdAt.getTime()` overstates every wait by four hours — which
+        // on 24/40/48 thresholds moves rows into a band they have not reached
+        // and would have made this instrument cry breach at 44 real hours.
+        hoursWaiting: sql<number | null>`TIMESTAMPDIFF(HOUR, ${candidates.createdAt}, NOW())`,
+      })
+      .from(candidates)
+      .where(
+        and(
+          isNull(candidates.contactedAt),
+          // `contactedAt IS NULL` is the real predicate; this list only drops
+          // the TERMINAL states. Filtering `status = "new"` instead — as the
+          // first cut of this did — contradicted the rule stated above: an
+          // admin who moves an applicant straight to "interviewing" without
+          // ever calling them would have silently emptied the alarm while the
+          // person kept waiting. `updateStatus` stamps contactedAt whenever it
+          // writes "contacted", so the surviving set is {new, interviewing}.
+          inArray(candidates.status, ["new", "interviewing"]),
+          sql`${candidates.createdAt} <= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+        ),
+      )
+      .orderBy(candidates.createdAt)
+      .limit(100);
+
+    return {
+      available: true as const,
+      rows: rows.map((r: { id: number; name: string; createdAt: Date | null; hoursWaiting: number | null }) => {
+        // NOT Number(r.hoursWaiting): TIMESTAMPDIFF returns NULL for a NULL
+        // createdAt and `Number(null)` is 0, which would file the row under
+        // "warning" — the calmest band — precisely when its age is unknown.
+        // An unknown age is escalated, not reassured away.
+        const hours = r.hoursWaiting == null ? null : Number(r.hoursWaiting);
+        return {
+          id: r.id,
+          name: r.name,
+          createdAt: r.createdAt,
+          hoursWaiting: hours,
+          band: slaBand(hours),
+        };
+      }),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) return { available: true as const, rows: [] as Row[] };
+    throw err;
+  }
+}
+
 export async function getTechnicianReferrals() {
   const db = await getDb();
   // available:false, NOT an empty list. `!db` means the connection itself is

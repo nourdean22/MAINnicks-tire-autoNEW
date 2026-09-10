@@ -96,7 +96,7 @@ export const technicianReferralsRouter = router({
    */
   markHired: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const hiredAt = new Date();
       const eligibleAt = new Date(hiredAt.getTime() + NINETY_DAYS_MS);
       // ONLY from pending. Without this precondition the only guard was the
@@ -117,6 +117,9 @@ export const technicianReferralsRouter = router({
         });
       }
       logAdminAction({
+        // Without this auditTrail stamps "admin" for everyone, so the row
+        // cannot say who moved a $300 payout. Same shape as admin/followUps.ts.
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         action: "technician_referral.marked_hired",
         entityType: "technician_referral",
         entityId: input.id,
@@ -135,7 +138,7 @@ export const technicianReferralsRouter = router({
    */
   markPaid: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const referral = await getTechnicianReferralById(input.id);
       if (referral.status !== "eligible") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Referral must be marked hired and eligible before it can be paid." });
@@ -161,6 +164,9 @@ export const technicianReferralsRouter = router({
         });
       }
       logAdminAction({
+        // Without this auditTrail stamps "admin" for everyone, so the row
+        // cannot say who moved a $300 payout. Same shape as admin/followUps.ts.
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         action: "technician_referral.marked_paid",
         entityType: "technician_referral",
         entityId: input.id,
@@ -171,7 +177,7 @@ export const technicianReferralsRouter = router({
 
   disqualify: adminProcedure
     .input(z.object({ id: z.number(), reason: z.string().min(1).max(500) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // A PAID referral cannot be disqualified: the money is already out, so
       // flipping the record would misstate what happened rather than undo it.
       // Reversing a payout is an accounting action, not a status edit.
@@ -187,6 +193,9 @@ export const technicianReferralsRouter = router({
         });
       }
       logAdminAction({
+        // Without this auditTrail stamps "admin" for everyone, so the row
+        // cannot say who moved a $300 payout. Same shape as admin/followUps.ts.
+        actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
         action: "technician_referral.disqualified",
         entityType: "technician_referral",
         entityId: input.id,
