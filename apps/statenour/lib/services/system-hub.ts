@@ -180,7 +180,19 @@ export async function buildSystemHub() {
       totalRows: staleReport?.totalStaleRows ?? 0,
       categories:
         staleReport?.categories.filter((c) => c.count > 0).length ?? 0,
-      measured: staleReport !== null,
+      /**
+       * 2026-09-10 · `measured` was already the right idea and already
+       * paired with the `?? 0` above -- it just only knew about TOTAL
+       * failure (`staleReport === null`). The scanner runs eight
+       * independent reads, any of which could return a fabricated empty
+       * on its own, and a partial outage still produced a confident
+       * `measured: true` beside a total that was really only a floor.
+       *
+       * So: measured means every scan actually ran.
+       */
+      measured: staleReport !== null && staleReport.degradedReads.length === 0,
+      /** Which scans were not measured. Empty on a healthy scan. */
+      unmeasuredScans: staleReport?.degradedReads ?? [],
     },
     brain: {
       totalMemories: brainStats?.totalMemories ?? 0,

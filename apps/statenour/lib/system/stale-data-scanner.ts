@@ -58,6 +58,20 @@ export interface StaleReport {
   generatedAt: string;
   totalStaleRows: number;
   categories: StaleCategory[];
+  /**
+   * 2026-09-10 · Labels of the scans that returned a fabricated empty
+   * instead of a measurement (quota circuit open, or a quota error).
+   *
+   * When this is non-empty, `totalStaleRows` is a FLOOR, not a count, and
+   * an absent category means "not scanned", never "clean". Consumers that
+   * render a reassuring summary must say so; `health-digest.ts` already
+   * files unmeasured reads separately from clean ones and is the model to
+   * follow.
+   *
+   * Empty on a healthy scan -- a genuinely tidy system must still be able
+   * to report zero without a warning attached.
+   */
+  degradedReads: string[];
 }
 
 function daysSince(d: Date | null | undefined): number {
@@ -113,6 +127,22 @@ export async function scanStaleData(): Promise<StaleReport> {
   const since24h = new Date(now - 24 * 3600_000);
   const since180d = new Date(now - 180 * 86400_000);
 
+  /**
+   * 2026-09-10 · A SCANNER THAT CANNOT READ MUST NOT REPORT "CLEAN".
+   *
+   * All eight reads below fall back to empty, and the aggregate returned
+   * `totalStaleRows: 0` -- indistinguishable from a genuinely tidy
+   * system. That result feeds blind-spot-detector.ts, which is what NICK
+   * answers "what am I missing" from. So a quota outage produced a
+   * confident "nothing is stale or neglected".
+   *
+   * Uses the in-band signal added to safeQuery the same day.
+   */
+  const degradedReads: string[] = [];
+  const onStaleFallback = (label: string) => () => {
+    degradedReads.push(label);
+  };
+
   const [
     driftAlerts,
     pendingActions,
@@ -150,7 +180,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         };
       },
       { count: 0, rows: [] as Array<{ id: string; ruleName: string; createdAt: Date }> },
-      { label: "stale.driftAlerts" },
+      { label: "stale.driftAlerts", onFallback: onStaleFallback("stale.driftAlerts") },
     ),
 
     // 2. Autonomous actions stuck "pending" for > 7 days. Nour either
@@ -171,7 +201,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         return { count, rows };
       },
       { count: 0, rows: [] as Array<{ id: string; ruleName: string; createdAt: Date }> },
-      { label: "stale.pendingActions" },
+      { label: "stale.pendingActions", onFallback: onStaleFallback("stale.pendingActions") },
     ),
 
     // 3. Skill candidates that never graduated. The graduation cron
@@ -202,7 +232,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         return { count, rows };
       },
       { count: 0, rows: [] as Array<{ id: string; key: string; createdAt: Date }> },
-      { label: "stale.skillCandidates" },
+      { label: "stale.skillCandidates", onFallback: onStaleFallback("stale.skillCandidates") },
     ),
 
     // 4. Contradictions left open (status=unresolved) > 60 days.
@@ -237,7 +267,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         };
       },
       { count: 0, rows: [] as Array<{ id: string; key: string; createdAt: Date }> },
-      { label: "stale.contradictions" },
+      { label: "stale.contradictions", onFallback: onStaleFallback("stale.contradictions") },
     ),
 
     // 5. Tasks stuck in READY/DOING with no updates in 30+ days.
@@ -261,7 +291,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         return { count, rows };
       },
       { count: 0, rows: [] as Array<{ id: string; title: string; updatedAt: Date }> },
-      { label: "stale.abandonedTasks" },
+      { label: "stale.abandonedTasks", onFallback: onStaleFallback("stale.abandonedTasks") },
     ),
 
     // 6. Orphan 1-message conversations from the X-Conversation-Id bug
@@ -304,7 +334,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         };
       },
       { count: 0, rows: [] as Array<{ id: string; title: string; createdAt: Date }> },
-      { label: "stale.orphanConvos" },
+      { label: "stale.orphanConvos", onFallback: onStaleFallback("stale.orphanConvos") },
     ),
 
     // 7. Decisions past their review date with no actualOutcome recorded.
@@ -329,7 +359,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         return { count, rows };
       },
       { count: 0, rows: [] as Array<{ id: number; title: string; reviewDate: string | null; createdAt: Date }> },
-      { label: "stale.overdueDecisions" },
+      { label: "stale.overdueDecisions", onFallback: onStaleFallback("stale.overdueDecisions") },
     ),
 
     // 8. DeviceEvent rows older than 180 days. Useful as a general
@@ -351,7 +381,7 @@ export async function scanStaleData(): Promise<StaleReport> {
         return { count, rows };
       },
       { count: 0, rows: [] as Array<{ id: string; event: string; createdAt: Date }> },
-      { label: "stale.deviceEvents" },
+      { label: "stale.deviceEvents", onFallback: onStaleFallback("stale.deviceEvents") },
     ),
   ]);
 
@@ -468,5 +498,8 @@ export async function scanStaleData(): Promise<StaleReport> {
     generatedAt: new Date().toISOString(),
     totalStaleRows,
     categories,
+    // Non-empty means `totalStaleRows` is a floor, not a count: these
+    // reads returned a fabricated empty instead of a measurement.
+    degradedReads,
   };
 }
