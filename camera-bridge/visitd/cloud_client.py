@@ -36,7 +36,24 @@ def requests_transport(method: str, url: str, payload: Dict[str, object], header
     import requests
 
     resp = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
-    return resp.status_code, resp.text[:300]
+    # THE FULL BODY, never a slice. This return value is not only diagnostic text: the shop
+    # heartbeat's reply IS the commissioning handshake, and `ShopMirror.apply_active_run`
+    # parses it as JSON to learn which run the operator started.
+    #
+    # It used to return `resp.text[:300]`, a cap meant for logging that sat at a DATA
+    # boundary. Measured against production 2026-09-09: the heartbeat reply is 423 chars,
+    # so 123 were cut, the truncated JSON failed to parse, and `apply_active_run` swallowed
+    # the JSONDecodeError by design (it must survive a malformed reply from an older shop).
+    # The tail that was lost is exactly the payload the whole feature depends on:
+    #   ..."activeCommissioningRun":{"runId":"C-20260909-001","label":nul
+    # So pressing "Start a run" could NEVER reach the producer. Observed end to end: 8/8
+    # heartbeats delivered, zero adoption, the arming banner waiting forever. Every unit
+    # test passed throughout, because tests inject a fake transport that returns the whole
+    # body -- the truncation existed only on the real network path.
+    #
+    # Every log site already caps its own output (`text[:120]`), so nothing here needs a
+    # slice; truncation belongs where text is PRINTED, not where it is RETURNED.
+    return resp.status_code, resp.text
 
 
 def events_url(base_url: str, cloud_device_id: str) -> str:
