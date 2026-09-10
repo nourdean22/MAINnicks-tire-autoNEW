@@ -1530,6 +1530,51 @@ class TrajectoryWiringTest(unittest.TestCase):
         _now, ids, _scene, _gen = store.rows[0]
         self.assertEqual(sorted(ids), [1, 2])
 
+    def test_points_are_filed_under_the_FRAME_S_OWN_sceneId(self):
+        """The bug that shipped: the hook read `source.binding.scene_id`, which does not
+        exist, so every point was filed under "default" -- 7,228 of them from 69 tracks over
+        four hours of real traffic, all in one bucket.
+
+        Pooling is not a cosmetic loss. A two-lens device is two different pixel spaces, and
+        a commissioner fitting one polygon across both produces a confident, meaningless
+        answer from data that looks abundant. `WgcWindowSource.set_canonical` stamps the id
+        into every frame's meta, which is the only place it is authoritative.
+        """
+        store = self._Store()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={"sceneId": "shop-right",
+                                                     "window_verified": True})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, self._vision_with_tracks(1)({"emissions": []}), _Src(),
+                     trajectories=store)
+        loop.step()
+        self.assertEqual(len(store.rows), 1)
+        self.assertEqual(store.rows[0][2], "shop-right",
+                         "the point was not filed under the frame's own scene")
+
+    def test_a_frame_with_NO_sceneId_is_marked_unattributed_not_defaulted(self):
+        """"default" reads like a scene. "unattributed" reads like the absence it is, and
+        the commissioner's refusal can then name it as something that needs fixing rather
+        than as a scene the operator forgot to record."""
+        store = self._Store()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        loop = _loop(pipeline, self._vision_with_tracks(1)({"emissions": []}), _Src(),
+                     trajectories=store)
+        loop.step()
+        self.assertEqual(store.rows[0][2], "unattributed")
+
     def test_a_SUPPRESSED_frame_records_nothing(self):
         """A frame the pipeline refused for pose or motion reasons is exactly one whose
         geometry is untrusted. A point taken from it poisons the map it feeds, and once it

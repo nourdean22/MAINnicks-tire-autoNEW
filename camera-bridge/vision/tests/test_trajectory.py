@@ -106,6 +106,71 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(s.stats.dropped, 1)
 
 
+class SceneAttributionTest(unittest.TestCase):
+    """A scene nobody recorded is not a quiet scene.
+
+    Both render as zero points, and "not enough traffic yet" tells an operator to wait for
+    data that is arriving under another name -- or under no name, because of a typo. It
+    happened on the first real run: the producer filed 7,228 points from 69 tracks under
+    "default" because the hook read a `source.binding` that does not exist, and the
+    commissioner answered "0/40 tracks" as though the shop were empty.
+    """
+
+    def test_an_UNRECORDED_scene_says_so_and_names_what_exists(self):
+        s = _fill_rect(_store(min_interval=0.0), (150, 150, 650, 370), scene="shop-left")
+        p = TrajectoryCommissioner(s, canonical=CANON).propose("shop-right")
+        self.assertFalse(p["ready"])
+        self.assertIn("no points are recorded", p["why"])
+        self.assertIn("shop-left", p["why"], "the refusal did not name what IS recorded")
+        self.assertNotIn("not enough traffic", p["why"])
+
+    def test_an_EMPTY_store_says_nothing_is_being_recorded_at_all(self):
+        """A different problem with a different fix: not 'wait longer' but 'the producer was
+        never started with --trajectories'."""
+        p = TrajectoryCommissioner(_store(), canonical=CANON).propose("shop-left")
+        self.assertFalse(p["ready"])
+        self.assertIn("NO points for any scene", p["why"])
+
+    def test_scenes_lists_what_is_actually_stored(self):
+        s = _store(min_interval=0.0)
+        _fill_rect(s, (10, 10, 60, 60), tracks=3, per_track=2, scene="a")
+        _fill_rect(s, (10, 10, 60, 60), tracks=9, per_track=2, scene="b")
+        self.assertEqual(s.scenes()[0], "b", "scenes are not ordered by how much there is")
+        self.assertEqual(set(s.scenes()), {"a", "b"})
+
+
+class DiagnoseTest(unittest.TestCase):
+    """A refusal that only says "too narrow" leaves the operator with no next move."""
+
+    def test_it_reports_WHERE_the_traffic_actually_was(self):
+        rect = (150, 150, 650, 370)
+        s = _fill_rect(_store(min_interval=0.0), rect)
+        d = T.diagnose(s, CANON, "s")
+        self.assertGreater(d["tracks"], 0)
+        b = d["bbox"]
+        # Within a cell of the truth on every edge.
+        for got, want in ((b["x0"], rect[0]), (b["y0"], rect[1]),
+                          (b["x1"], rect[2]), (b["y1"], rect[3])):
+            self.assertLess(abs(got - want), 2 * T.CELL_PX, f"{got} vs {want}")
+
+    def test_it_names_which_insets_would_SURVIVE(self):
+        """The actionable half. On the first real run only an 8px inset kept anything, and
+        without this the operator would only have been told 45px did not."""
+        s = _fill_rect(_store(min_interval=0.0), (150, 150, 650, 370))
+        d = T.diagnose(s, CANON, "s")
+        usable = [r["px"] for r in d["insets"] if r["usable"]]
+        self.assertTrue(usable, "no inset was reported usable for a 500x220 region")
+        self.assertEqual(usable, sorted(usable))
+        # Monotonic: a bigger inset can never keep MORE than a smaller one.
+        keeps = [r["keepsFraction"] for r in d["insets"]]
+        self.assertEqual(keeps, sorted(keeps, reverse=True))
+
+    def test_it_does_not_RAISE_on_a_store_with_no_region(self):
+        d = T.diagnose(_store(), CANON, "nothing")
+        self.assertIn("why", d)
+        self.assertEqual(d["regionCells"], 0)
+
+
 class CommissionerControlTest(unittest.TestCase):
     """THE positive control. Without it every refusal test below passes on a tool that has
     only ever learned to say no."""
