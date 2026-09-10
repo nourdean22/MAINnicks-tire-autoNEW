@@ -43,6 +43,7 @@ const CAREERS_SRC = readFileSync(
   new URL("../client/src/pages/Careers.tsx", import.meta.url),
   "utf8",
 );
+const JOBS_SRC = readFileSync(new URL("../shared/jobOpenings.ts", import.meta.url), "utf8");
 
 describe("isMissingTableError — the empty-vs-error switch", () => {
   it("is true for MySQL's real ER_NO_SUCH_TABLE shape (code)", () => {
@@ -233,14 +234,27 @@ describe("the customer $25/$25 referral program is untouched by this feature", (
 });
 
 describe("Careers.tsx: the Google Jobs datePosted fix stays fixed, and referral submission never blocks the applicant", () => {
-  it("JobPostingSchemas no longer regenerates datePosted from the current render time", () => {
-    expect(CAREERS_SRC).not.toMatch(/datePosted: new Date\(\)\.toISOString\(\)/);
-    expect(CAREERS_SRC).toMatch(/datePosted: pos\.datePosted,/);
+  // The schema moved OUT of Careers.tsx on 2026-09-10. Google forbids
+  // JobPosting markup on a page listing several jobs — verified live that
+  // /careers carried three at once — so it now lives on the leaf pages and is
+  // built from shared/jobOpenings.ts. These assertions follow the SUBJECT to
+  // its new home: a source assertion pinned to a path silently stops testing
+  // anything the moment the code moves, which is the same class of defect as
+  // the `available: true` regex that froze a bug earlier in this file.
+  it("the JobPosting builder no longer regenerates datePosted from the current render time", () => {
+    expect(JOBS_SRC).not.toMatch(/datePosted: new Date\(\)\.toISOString\(\)/);
+    expect(JOBS_SRC).toMatch(/datePosted: job\.datePosted,/);
   });
 
-  it("every position declares a fixed datePosted string", () => {
-    const positionBlocks = CAREERS_SRC.match(/schemaId: "[a-z-]+",\s*\n\s*datePosted: "\d{4}-\d{2}-\d{2}",/g);
-    expect(positionBlocks?.length, "expected one datePosted per POSITIONS entry").toBe(3);
+  it("every opening declares a fixed datePosted string", () => {
+    const positionBlocks = JOBS_SRC.match(/datePosted: "\d{4}-\d{2}-\d{2}",/g);
+    expect(positionBlocks?.length, "expected one datePosted per opening").toBe(3);
+  });
+
+  it("the list page carries no JobPosting markup at all", () => {
+    expect(CAREERS_SRC, "/careers must not emit JobPosting").not.toMatch(
+      /"@type":\s*"JobPosting"/,
+    );
   });
 
   it("the referral mutation fires from candidates.submit's onSuccess, so it can never block the applicant's own submission from completing", () => {
