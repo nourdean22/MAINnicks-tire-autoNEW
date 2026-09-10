@@ -265,16 +265,126 @@ const DURABLE_KNN_LIMIT = 10;
  * boost; an empty durable lane returns the main ordering untouched.
  * Exported for the canary test.
  */
-export function rrfMergeHitOrders(main: RecallHit[], durable: RecallHit[]): RecallHit[] {
-  if (durable.length === 0) return main;
-  const fused = reciprocalRankFusion(
-    [
-      main.map((h) => ({ id: h.memoryId, item: h })),
-      durable.map((h) => ({ id: h.memoryId, item: h })),
-    ],
-    { k: 60 },
-  );
+export function rrfMergeHitOrders(
+  main: RecallHit[],
+  durable: RecallHit[],
+  /**
+   * 2026-09-10 · the LEXICAL ordering (tsvector/BM25-ish). Optional so
+   * every existing caller and the canary test keep their exact
+   * two-lane behaviour.
+   */
+  lexical: RecallHit[] = [],
+): RecallHit[] {
+  if (durable.length === 0 && lexical.length === 0) return main;
+  const lanes = [
+    main.map((h) => ({ id: h.memoryId, item: h })),
+    durable.map((h) => ({ id: h.memoryId, item: h })),
+  ];
+  if (lexical.length > 0) lanes.push(lexical.map((h) => ({ id: h.memoryId, item: h })));
+  const fused = reciprocalRankFusion(lanes, { k: 60 });
   return fused.map((f) => f.item);
+}
+
+/** One row from any retrieval lane. Module-level since 2026-09-10 so the
+ *  lexical lane can share the shape (and therefore the shared scorer). */
+type KnnRow = {
+  memory_id: string;
+  category: string;
+  key: string;
+  content: string;
+  confidence: number;
+  seen_count: number;
+  last_seen: Date;
+  created_at: Date;
+  distance: number;
+};
+
+/** Shared lane scorer. Module-level since 2026-09-10 so the lexical
+ *  fallback can score rows without duplicating the formula. */
+function scoreRow(r: KnnRow, now: number): RecallHit {
+    const ageDays = Math.floor(
+      (now - new Date(r.last_seen).getTime()) / 86_400_000,
+    );
+    const factAgeDays = Math.floor(
+      (now - new Date(r.created_at).getTime()) / 86_400_000,
+    );
+    // similarity = 1 - distance (cosine). Then:
+    //   recency boost: <14d → +0.2, <60d → +0.1, else 0
+    //   confidence boost: confidence × 0.3
+    const sim = Math.max(0, 1 - r.distance);
+    const recency =
+      ageDays < 14 ? 0.2 : ageDays < 60 ? 0.1 : 0;
+    const conf = r.confidence * 0.3;
+    const finalScore = sim + recency + conf;
+    return {
+      memoryId: r.memory_id,
+      category: r.category,
+      key: r.key,
+      content: r.content.replace(/\s+/g, " ").trim(),
+      confidence: r.confidence,
+      seenCount: r.seen_count,
+      ageDays,
+      factAgeDays,
+      knnDistance: r.distance,
+      finalScore: Math.round(finalScore * 1000) / 1000,
+    };
+  }
+
+/**
+ * 2026-09-10 · THE LEXICAL LANE.
+ *
+ * This module's own header has claimed "Hybrid search (FTS + KNN)" since
+ * it was written. It was not true: both SQL statements below were
+ * `ORDER BY embedding <=> $1::vector`, pure dense cosine. The FTS half
+ * existed only in lib/brain/contextual-recall.ts:487-495, feeding a
+ * DIFFERENT prompt block that the Memory Inspector does not count.
+ *
+ * Two things this fixes that dense retrieval structurally cannot:
+ *
+ *  1. PARAPHRASE + EXACT TERMS. "the taper plan" may sit far from the
+ *     original brain-dump wording in embedding space while sharing the
+ *     literal token. Lexical retrieval does not care how the sentence
+ *     was phrased around it.
+ *  2. EMBEDDING OUTAGES. This lane needs no query vector. When
+ *     embedUserMessage() fail-softs to [] (12s timeout), dense recall
+ *     returned NOTHING and the panel rendered "(0)". Now the turn
+ *     degrades to lexical instead of going blind -- which is the
+ *     difference between a slow provider and an amnesiac assistant.
+ *
+ * Deliberately NOT category-filtered: the main dense lane post-filters
+ * its top-30 against CONTEXT_CATEGORIES, and this file's own comment
+ * measures that filter at hit@5 = 0/28 on the labelled corpus.
+ * Reproducing it here would import the same defect.
+ */
+function lexicalLane(query: string, limit: number): Promise<KnnRow[]> {
+  return prisma
+    .$queryRawUnsafe<KnnRow[]>(
+      `SELECT bm.id::text AS memory_id, bm.category::text AS category,
+              bm.key::text AS key,
+              substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
+              bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
+              bm.last_seen, bm.created_at,
+              -- Presented as a DISTANCE so the shared scorer needs no
+              -- special case: higher ts_rank -> smaller distance.
+              (1.0 - LEAST(ts_rank(to_tsvector('english', bm.content),
+                                   websearch_to_tsquery('english', $1)), 1.0))::float AS distance
+       FROM brain_memories bm
+       WHERE bm.deleted_at IS NULL
+         AND bm.confidence >= 0.3
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND to_tsvector('english', bm.content) @@ websearch_to_tsquery('english', $1)
+       ORDER BY ts_rank(to_tsvector('english', bm.content),
+                        websearch_to_tsquery('english', $1)) DESC
+       LIMIT ${limit}`,
+      query,
+    )
+    .catch((err) => {
+      log.warn("lexical_lane_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      return [] as KnnRow[];
+    });
 }
 
 function padToTargetDim(arr: number[]): number[] {
@@ -315,15 +425,31 @@ export async function recallMemoriesForQuery(
     queryEmb = await getEmbedding(query).catch(() => [] as number[]);
   }
   if (!queryEmb || queryEmb.length === 0) {
+    // 2026-09-10 · DEGRADE, do not go blind.
+    //
+    // embedUserMessage() fail-softs to [] on a 12s timeout, and this
+    // lane is the only one the "REMEMBERED -- WHAT NICK BELIEVES (N)"
+    // counter reads. Before this branch existed, one slow embedding call
+    // rendered as "Nick believes nothing about you" -- the exact reading
+    // the 2026-09-10 audit made. The lexical lane needs no query vector,
+    // so a dense-side outage costs ranking quality, not memory itself.
     log.warn("recall_no_embedding", { queryLen: query.length });
+    const lexicalOnly = await lexicalLane(query, limit);
+    const now = Date.now();
+    const hits = lexicalOnly.map((r) => scoreRow(r, now)).slice(0, limit);
     return {
       query,
       durationMs: Date.now() - t0,
-      scanned: 0,
-      hits: [],
+      scanned: lexicalOnly.length,
+      hits,
       avgKnnDistance: -1,
+      // Still ERROR: the dense lanes genuinely did not run, and callers
+      // must not read this as a clean result. But the hits are real.
       provenance: "ERROR",
-      provenanceReason: "query embedding unavailable -- recall could not run",
+      provenanceReason:
+        hits.length > 0
+          ? `query embedding unavailable -- degraded to lexical retrieval (${hits.length} hit${hits.length === 1 ? "" : "s"}); ranking is weaker than usual`
+          : "query embedding unavailable and lexical retrieval matched nothing -- recall state unknown",
     };
   }
 
@@ -362,17 +488,6 @@ export async function recallMemoriesForQuery(
   //      selective category filter after an ANN index is the starvation
   //      shape this file's own baseline documented; materializing the tiny
   //      partition first makes the plan deterministic and the recall exact.
-  type KnnRow = {
-    memory_id: string;
-    category: string;
-    key: string;
-    content: string;
-    confidence: number;
-    seen_count: number;
-    last_seen: Date;
-    created_at: Date;
-    distance: number;
-  };
   const durablePromise: Promise<KnnRow[]> = prisma
     .$queryRawUnsafe<KnnRow[]>(
       `WITH durable AS MATERIALIZED (
@@ -442,40 +557,20 @@ export async function recallMemoriesForQuery(
     return [] as KnnRow[];
   });
 
-  const [rows, durableRows] = await Promise.all([mainPromise, durablePromise]);
+  // 2026-09-10 · the lexical lane runs alongside the two dense lanes.
+  // KNN_TOP is reused as its ceiling so one lane cannot swamp the fusion.
+  const lexicalPromise = lexicalLane(query, KNN_TOP);
+  const [rows, durableRows, lexicalRows] = await Promise.all([
+    mainPromise,
+    durablePromise,
+    lexicalPromise,
+  ]);
 
   // 3. Score both lanes with the SAME formula, then RRF-merge the orderings.
   //    Main lane keeps its boosted-score ordering; the durable lane is
   //    ordered by raw distance (the measured configuration).
   const now = Date.now();
-  const toHit = (r: KnnRow): RecallHit => {
-    const ageDays = Math.floor(
-      (now - new Date(r.last_seen).getTime()) / 86_400_000,
-    );
-    const factAgeDays = Math.floor(
-      (now - new Date(r.created_at).getTime()) / 86_400_000,
-    );
-    // similarity = 1 - distance (cosine). Then:
-    //   recency boost: <14d → +0.2, <60d → +0.1, else 0
-    //   confidence boost: confidence × 0.3
-    const sim = Math.max(0, 1 - r.distance);
-    const recency =
-      ageDays < 14 ? 0.2 : ageDays < 60 ? 0.1 : 0;
-    const conf = r.confidence * 0.3;
-    const finalScore = sim + recency + conf;
-    return {
-      memoryId: r.memory_id,
-      category: r.category,
-      key: r.key,
-      content: r.content.replace(/\s+/g, " ").trim(),
-      confidence: r.confidence,
-      seenCount: r.seen_count,
-      ageDays,
-      factAgeDays,
-      knnDistance: r.distance,
-      finalScore: Math.round(finalScore * 1000) / 1000,
-    };
-  };
+  const toHit = (r: KnnRow): RecallHit => scoreRow(r, now);
   const mainScored: RecallHit[] = rows
     .filter((r) => CONTEXT_CATEGORIES.has(r.category))
     .map(toHit)
@@ -483,7 +578,16 @@ export async function recallMemoriesForQuery(
   const durableScored: RecallHit[] = durableRows
     .map(toHit)
     .sort((a, b) => a.knnDistance - b.knnDistance);
-  const scored: RecallHit[] = rrfMergeHitOrders(mainScored, durableScored).slice(0, limit);
+  // Lexical rows are ordered by ts_rank, which the scorer sees as
+  // ascending distance -- same convention as the durable lane.
+  const lexicalScored: RecallHit[] = lexicalRows
+    .map(toHit)
+    .sort((a, b) => a.knnDistance - b.knnDistance);
+  const scored: RecallHit[] = rrfMergeHitOrders(
+    mainScored,
+    durableScored,
+    lexicalScored,
+  ).slice(0, limit);
   const mainIds = new Set(rows.map((r) => r.memory_id));
   const scannedCount =
     rows.length + durableRows.filter((d) => !mainIds.has(d.memory_id)).length;

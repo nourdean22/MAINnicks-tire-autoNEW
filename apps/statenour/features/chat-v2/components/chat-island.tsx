@@ -174,12 +174,24 @@ export function ChatIsland() {
     return () => document.removeEventListener("keydown", onKey);
   }, [closeDrawer, historyDrawerOpen]);
 
+  const [recallProvenance, setRecallProvenance] = useState<
+    "OK" | "ZERO" | "ERROR" | "UNMEASURED" | undefined
+  >(undefined);
+  const [recallProvenanceReason, setRecallProvenanceReason] = useState<string | undefined>(
+    undefined,
+  );
+
   useEffect(() => {
     const onCockpitEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
         setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
         setMemoryFetchedAt(new Date());
+        // 2026-09-10 · carry WHY the hit list is the length it is, so an
+        // empty list can render as "read failed" rather than as "Nick
+        // believes nothing about you".
+        setRecallProvenance(detail.payload?.provenance);
+        setRecallProvenanceReason(detail.payload?.provenanceReason);
       }
     };
     window.addEventListener("cockpit-event", onCockpitEvent);
@@ -340,7 +352,7 @@ export function ChatIsland() {
           dashboard. Renders null unless the operator opts in. */}
       <ChatMediaFocusPanel />
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
       {historyDrawerOpen && (
         <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>

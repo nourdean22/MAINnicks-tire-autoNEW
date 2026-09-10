@@ -432,6 +432,86 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       const { walkToolTelemetry } = await import("./tool-telemetry-walk");
       const capturedToolCalls = walkToolTelemetry({ ev, convId });
 
+
+      // ── EVIDENCE GATE (SHADOW) — 2026-09-10 ─────────────────────────
+      // Runs here, after the tool walk, because it is the first point in
+      // the turn where the RECEIPT LEDGER exists: which tools fired and
+      // what they returned (resultDigest, added 2026-09-10 -- the walk
+      // was already reading call.result to spot soft errors and then
+      // discarding it).
+      //
+      // SHADOW, deliberately. This path is post-flush by construction
+      // (streamText's onFinish cannot run until the last token is on the
+      // wire, build-stream-config.ts:340), so it CANNOT block here and
+      // pretending otherwise would be theatre. What it does is produce
+      // the two measurements that decide whether blocking is safe to
+      // turn on at all:
+      //   E4 - the false-positive rate of the named-source check on real
+      //        traffic, before it is ever allowed to remove text;
+      //   E2 - how often a turn names resources with no receipt at all.
+      // Enforcement (lib/ai/chat/gate-enforcement.ts) is unit-tested and
+      // ready; it goes live on the BUFFERED path once these numbers say
+      // the FP rate is tolerable. Shipping the blocker first, unmeasured,
+      // is how you get a gate that either mangles good replies or gets
+      // switched off for good.
+      let evidenceGate: unknown = null;
+      if (hasContent) {
+        try {
+          const [{ checkNamedSources }, { runEvidenceGate }] = await Promise.all([
+            import("@/lib/ai/chat/named-source-claims"),
+            import("@/lib/ai/reply-gate"),
+          ]);
+          const digests = capturedToolCalls
+            .map((c) => (c as { resultDigest?: string }).resultDigest ?? "")
+            .filter(Boolean);
+          // EMPTY vs ERROR: "no tool fired" is a finding; "tools fired
+          // but we could not read any result" is a blind instrument and
+          // must abstain, not convict.
+          const receiptsAvailable =
+            capturedToolCalls.length === 0 || digests.length > 0;
+          const named = checkNamedSources(cleanedText, {
+            toolCalls: capturedToolCalls.map((c) => ({ name: c.name })),
+            evidenceText: digests.join(" | "),
+            receiptsAvailable,
+            userText: userContent,
+            contextText: systemPrompt,
+          });
+          const decision = runEvidenceGate(
+            cleanedText,
+            userContent,
+            critic,
+            turnSignal,
+            responseContract ?? null,
+            {
+              unverifiedFactCount: unverifiedCount,
+              totalFactCount: factClaims.length,
+              wordCount: cleanedText.trim().split(/\s+/).filter(Boolean).length,
+              lengthCeiling: 300,
+              namedSources: named,
+            },
+          );
+          evidenceGate = {
+            verdict: decision.verdict,
+            severity: decision.severity,
+            blockingReasons: decision.blockingReasons,
+            signals: decision.evidenceSignals,
+            namedClaims: named.claims.length,
+            unreceipted: named.unreceipted.map((c) => c.name),
+            shadowOnly: true,
+          };
+          log.info("evidence_gate_shadow", {
+            verdict: decision.verdict,
+            severity: decision.severity,
+            unreceipted: named.unreceipted.length,
+            namedClaims: named.claims.length,
+            blind: named.blind,
+          });
+        } catch (err) {
+          log.warn("evidence_gate_failed", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
       // 2026-09-03 · resolve any toolChoice force parked at decision time
       // (build-stream-config.ts) against what ACTUALLY fired. No-ops when
       // no force was requested, so it is safe on every turn. Fire-and-
@@ -468,6 +548,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         startedAt,
         firstTokenRef,
         capturedToolCalls,
+        evidenceGate,
         truthFlags,
         critic: critic as Parameters<typeof persistAssistantMessage>[0]["critic"],
         citations,

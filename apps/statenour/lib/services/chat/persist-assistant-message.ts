@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
 import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
@@ -73,6 +74,15 @@ export async function persistAssistantMessage(a: {
   critic: ReturnType<typeof critiqueOutput> | ContentCriticScore | null;
   citations: Array<{ raw: string; category: string; detail?: string | null; start: number; end: number }>;
   gate: ReturnType<typeof runReplyGate> | ReturnType<typeof runReplyGateWithContract> | null;
+  /**
+   * 2026-09-10 · the evidence gate's verdict, in SHADOW mode.
+   *
+   * Typed `unknown` on purpose: it is an opaque telemetry blob written
+   * to tokenUsage for the evidence panel and for experiments E2/E4, not
+   * a contract any caller branches on. Narrowing it here would invite a
+   * consumer to depend on a shape that is still being calibrated.
+   */
+  evidenceGate?: unknown;
   factClaims: Array<{ raw: string; kind: string; value: string; start: number; end: number; verified: boolean }>;
   unverifiedCount: number;
   turnSignal: TurnSignal;
@@ -91,7 +101,7 @@ export async function persistAssistantMessage(a: {
   const {
     hasContent, hasToolCalls, reasoningText, finishReason, usage, convId,
     traceId, provider, modelId, startedAt, firstTokenRef, capturedToolCalls,
-    truthFlags, critic, citations, gate, factClaims, unverifiedCount,
+    truthFlags, critic, citations, gate, evidenceGate, factClaims, unverifiedCount,
     turnSignal, contextBlocksFired, deeperContextCount, deeperContextTypes,
     recallReceipts, personality, userContent, posture, log,
   } = a;
@@ -374,6 +384,17 @@ export async function persistAssistantMessage(a: {
                       ? { contractSignals: gate.contractSignals as Record<string, boolean> }
                       : {}),
                   }
+                : undefined,
+              // 2026-09-10 · shadow verdict from the evidence gate. Kept
+              // BESIDE `gate` rather than merged into it, so the old
+              // shape-only severity stays readable during calibration --
+              // a panel that silently starts showing a different number
+              // is how you lose the ability to compare before and after.
+              // Round-tripped through JSON so the blob satisfies Prisma's
+              // InputJsonValue regardless of what the gate returns --
+              // `unknown` is deliberately opaque at the seam above.
+              evidenceGate: evidenceGate
+                ? (JSON.parse(JSON.stringify(evidenceGate)) as Prisma.InputJsonValue)
                 : undefined,
               factCheck: factClaims.length > 0
                 ? {

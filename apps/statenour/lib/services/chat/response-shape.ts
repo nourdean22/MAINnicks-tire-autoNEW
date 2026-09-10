@@ -56,6 +56,10 @@ export interface BuildChatResponseInput {
     targets: string[];
   };
   recalledMemories?: Array<{ id: string; content: string; similarity: number; category: string }>;
+  /** 2026-09-10 · why recalledMemories is the length it is. An empty
+   *  array is meaningless without this -- see RecallProvenance. */
+  recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+  recallProvenanceReason?: string;
   contradictions?: Array<{ id: string; claim: string; reality: string; severity: string }>;
   onFinishPromise?: Promise<void>;
 }
@@ -77,6 +81,8 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
     lane,
     escalation,
     recalledMemories = [],
+    recallProvenance,
+    recallProvenanceReason,
     contradictions = [],
     onFinishPromise = Promise.resolve(),
   } = input;
@@ -171,6 +177,8 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
       targets: ["general"],
     },
     recalledMemories,
+    recallProvenance,
+    recallProvenanceReason,
     contradictions,
     onFinishPromise,
   });
