@@ -117,6 +117,69 @@ export function buildCronInventoryMarkdown(input: InventoryInput): string {
   return lines.join("\n");
 }
 
+/** The shape of the numbers the doc claims, for the parity test to hold to the code. */
+export interface InventoryCounts {
+  /** One row per tier, in the order the doc lists them. */
+  tiers: Array<{ tier: string; interval: string; scheduled: number; staged: number }>;
+  /** The bold Total line, or null when it is missing entirely. */
+  total: { tiered: number; scheduled: number; staged: number; httpOnly: number } | null;
+}
+
+function generatedBlock(markdown: string): string {
+  const start = markdown.indexOf(CRON_INVENTORY_BEGIN);
+  const end = markdown.indexOf(CRON_INVENTORY_END);
+  return start >= 0 && end > start ? markdown.slice(start, end) : "";
+}
+
+/**
+ * The COUNTS the doc claims: per-tier scheduled/staged, and the totals line.
+ *
+ * `parseInventoryJobNames` compares the set of names, and for a long time that was the whole
+ * gate — so the tier table and the totals line could say anything and stay green. They did:
+ * two `pulse` jobs stopped being staged at some point and the doc went on reading
+ * `20 / 2` and `113 scheduled automatically, 4 staged` for weeks, because no job was added
+ * or removed and the name set never moved.
+ *
+ * Returns `total: null` rather than zeros when the line is absent. A doc with no totals line
+ * and a doc claiming zero jobs are scheduled are different failures, and a parser that
+ * flattened them would let the first one compare equal to a generated doc that also had none.
+ */
+export function parseInventoryCounts(markdown: string): InventoryCounts {
+  const block = generatedBlock(markdown);
+  const tiers: InventoryCounts["tiers"] = [];
+  for (const line of block.split(/\r?\n/)) {
+    const row = /^\|\s*([a-z0-9_-]+)\s*\|\s*every\s+([0-9]+[mhd])\s*\|\s*(\d+)\s*\/\s*(\d+)\s*\|\s*$/i.exec(line);
+    if (row) {
+      tiers.push({ tier: row[1], interval: row[2], scheduled: Number(row[3]), staged: Number(row[4]) });
+    }
+  }
+  const t = /\*\*Total:\s*(\d+)\s+tiered jobs\s*\((\d+)\s+scheduled automatically,\s*(\d+)\s+staged off the scheduler\)\s*\+\s*(\d+)\s+HTTP-only registry jobs\.\*\*/.exec(block);
+  return {
+    tiers,
+    total: t
+      ? { tiered: Number(t[1]), scheduled: Number(t[2]), staged: Number(t[3]), httpOnly: Number(t[4]) }
+      : null,
+  };
+}
+
+/**
+ * Per-job `Scheduled` flag, from the job tables in the generated block.
+ *
+ * Strictly stronger than the counts: two jobs flipping in opposite directions leave every
+ * count identical, and only this notices. A job silently becoming STAGED is a job that has
+ * stopped running while the doc, the totals and the name set all still agree.
+ */
+export function parseInventoryScheduled(markdown: string): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const line of generatedBlock(markdown).split(/\r?\n/)) {
+    const m = /^\|\s*`([a-z0-9._-]+)`\s*\|([^|]*)\|([^|]*)\|([^|]*)\|/i.exec(line);
+    if (!m) continue;                       // HTTP-only rows have fewer cells; skipped here
+    const cell = m[4].trim();
+    if (cell === "yes" || cell.includes("STAGED")) out.set(m[1], cell === "yes");
+  }
+  return out;
+}
+
 /** Names listed in the generated block of a doc — for the parity test. */
 export function parseInventoryJobNames(markdown: string): Set<string> {
   const start = markdown.indexOf(CRON_INVENTORY_BEGIN);
