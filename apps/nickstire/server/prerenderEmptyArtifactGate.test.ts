@@ -32,7 +32,7 @@
  * that both fire; each gets an input the other cannot catch.
  */
 import { afterAll, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { readFileSync } from "node:fs";
@@ -133,6 +133,42 @@ describe("the two signals fire independently", () => {
   it("the in-flight state is in the marker list — the string that actually shipped", () => {
     expect(SOFT_404_MARKERS).toContain("LOADING ARTICLE");
     expect(SOFT_404_MARKERS).toContain("ARTICLE NOT FOUND");
+  });
+
+  it("the marker list is DERIVED from the client, not remembered", () => {
+    // The list was one state too narrow TWICE. First it had only the settled
+    // strings and missed "LOADING ARTICLE...", which shipped three soft 404s.
+    // Hours after that was fixed, an audit found /tires/info serving HTTP 200
+    // with "SERVICE NOT FOUND" — at sitemap priority 0.8 — because the list had
+    // "PAGE NOT FOUND" and not that one.
+    //
+    // Twice is a coincidence. Three times would be the method being wrong, so
+    // the method changed: re-derive the population from the source here, and
+    // fail if the hand-written constant has fallen behind it. A new not-found
+    // page is now a red test rather than a silent hole.
+    const found = new Set<string>();
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".tsx")) {
+          for (const m of readFileSync(full, "utf8").matchAll(/>([A-Z][A-Z ]*NOT FOUND)</g)) {
+            found.add(m[1].trim());
+          }
+        }
+      }
+    };
+    walk(resolve(APP, "client/src"));
+
+    expect(found.size, "the scanner found no not-found copy at all — it is broken").toBeGreaterThan(2);
+    const missing = [...found].filter((s) => !SOFT_404_MARKERS.includes(s));
+    expect(
+      missing,
+      `client/src renders not-found copy that SOFT_404_MARKERS does not cover:\n` +
+        missing.map((m) => `  ${m}`).join("\n") +
+        `\n\nAdd it to scripts/lib/prerenderText.mjs — otherwise a page rendering it ` +
+        `ships at HTTP 200 and every gate reads green, which has now happened twice.`,
+    ).toEqual([]);
   });
 
   it("BlogPost.tsx still renders the copy the markers are written against", () => {
