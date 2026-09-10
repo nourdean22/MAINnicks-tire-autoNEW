@@ -43,7 +43,7 @@ RULES:
 - If they mention a competitor: don't badmouth, just contrast with our warranty/reviews/speed
 `;
 
-export const buildHighPoweredMode = ({ rating, countDisplay }: ReviewCopy): string => `
+const buildHighPoweredMode = ({ rating, countDisplay }: ReviewCopy): string => `
 HIGH-POWERED MODE (elevated intensity):
 Treat every customer interaction as a conversion opportunity AND a relationship investment.
 1. PATTERN SPOTTING: If the customer asks about tires, proactively check if brakes/wheel-alignment are due. If diagnostics, check for pending recalls.
@@ -55,7 +55,7 @@ Treat every customer interaction as a conversion opportunity AND a relationship 
 
 export type BusinessIntensity = "MINIMAL" | "STANDARD" | "HIGH";
 
-export const buildIntensityLevels = (reviews: ReviewCopy): Record<BusinessIntensity, string> => ({
+const buildIntensityLevels = (reviews: ReviewCopy): Record<BusinessIntensity, string> => ({
   MINIMAL: "",
   STANDARD: ANTICIPATE_AND_ELEVATE,
   HIGH: ANTICIPATE_AND_ELEVATE + buildHighPoweredMode(reviews),
