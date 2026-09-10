@@ -22,17 +22,66 @@
  * is exactly the condition that produces getDb() === null — no mocking of the
  * thing under test.
  */
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+
+/**
+ * This file can only prove anything if `getDb()` really returns null while it
+ * runs. Two things could quietly make it not, and they are NOT equally live —
+ * the distinction is recorded because the first version of this comment
+ * overstated it, and an overstated rationale is how a cargo-culted guard
+ * outlives the reason for it.
+ *
+ *   1. A CACHED ./db whose `_db` is already a live handle. MEASURED 2026-09-10,
+ *      WITHIN a single file: after `delete process.env.DATABASE_URL`, a ./db
+ *      that had been imported earlier with the var set still ran a real
+ *      `select ... from candidates` rather than taking the `!db` branch. On a
+ *      machine whose DATABASE_URL names production, that is a production query
+ *      wearing an outage test's clothes.
+ *
+ *      ACROSS files this does not currently happen: vitest.config.ts sets
+ *      `pool: "forks"` + `singleFork` but leaves `isolate` at its default of
+ *      true, so each test FILE still gets its own module graph. That is a
+ *      config detail, not a property of the code — flipping `isolate: false`
+ *      for speed would make the cross-file case real the same day, with no
+ *      failing test to announce it.
+ *
+ *   2. A partial `./db` mock reaching this file. Also per-file under the
+ *      current isolation, so `vi.unmock` here is defence in depth rather than
+ *      a live fix — the precedent is server/routers/voiceAgent.test.ts.
+ *
+ * `process.env`, unlike the module graph, is genuinely shared across every
+ * file, so the `beforeEach` delete below is what actually carries the outage
+ * condition today.
+ *
+ * The positive control is the load-bearing part: it asserts `getDb()` is null
+ * BEFORE any expectation depends on it, so every mechanism above — plus any
+ * future one — surfaces as a named failure instead of three assertions passing
+ * against a database that was never gone.
+ *
+ * Raised in review on PR #2264; the first version of this file had none of it.
+ */
+vi.unmock("./db");
 
 const ORIGINAL = process.env.DATABASE_URL;
 
 describe("admin reads distinguish 'cannot read' from 'nothing to read'", () => {
   beforeEach(() => {
     delete process.env.DATABASE_URL;
+    // AFTER the delete: the fresh evaluation is what re-reads the env.
+    vi.resetModules();
   });
   afterEach(() => {
     if (ORIGINAL === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = ORIGINAL;
+    vi.resetModules();
+  });
+
+  it("the outage path is genuinely reached — the positive control", async () => {
+    // Without this, every assertion below could be satisfied by a cached or
+    // mocked module that never executed db.ts's `!db` early return. Proves the
+    // handle really is null in this file's process state.
+    const { getDb } = await import("./db");
+    expect(await getDb(), "getDb() returned a handle — the outage was never exercised").toBeNull();
   });
 
   it("getCandidates reports available:false when the DB is gone, not an empty list", async () => {
