@@ -59,6 +59,11 @@ class PipelineStats:
     suppressed_unverified: int = 0
     detector_skipped_no_motion: int = 0
     preexisting: int = 0
+    #: Tracks the census called `preexisting` that the entry portal later saw perform a full
+    #: outside -> inside crossing. RECORDED, never promoted. A non-zero here is a car this
+    #: system watched drive in while counting it as already-there -- an under-count, and
+    #: until this existed the census had no way to be wrong.
+    preexisting_crossed: int = 0
     candidates: int = 0
     arrivals: int = 0
     rejected_no_entry_evidence: int = 0
@@ -97,6 +102,10 @@ class VisionPipeline:
         self.council = council
         self.lot_map = lot_map
         self.portal = entry_portal
+        #: Track ids already recorded as a census/portal disagreement. The path keeps
+        #: satisfying the portal on every later frame, so without this the counter would
+        #: measure FRAMES rather than cars.
+        self._preexisting_crossed: set[int] = set()
         self.camera = camera
         self.arrival_zone = arrival_zone
         self.health = frame_health or FrameHealth()
@@ -291,6 +300,51 @@ class VisionPipeline:
         for t in list(self.tracks.tracks.values()):
             t.zones = self.lot_map.zones_at(t.ground_point)
             if t.evidence != "candidate":
+                # THE CENSUS'S DECISION, MEASURED INSTEAD OF ASSUMED.
+                #
+                # A track born inside the startup/reconnect blind window is classed
+                # `preexisting` and is never tested against the portal, so it can never
+                # become an arrival. That is deliberate and it is what stops a boot census
+                # from inventing a lot full of arrivals.
+                #
+                # But it also makes the census UNFALSIFIABLE. A car that genuinely drove in
+                # DURING the blind window is classed preexisting, and its arrival is lost --
+                # silently, permanently, with no counter anywhere. That is an UNDER-count,
+                # the exact mirror of the over-count everything else here guards against, and
+                # the blind windows are real: 8.5s of continuous pose suppression measured on
+                # recorded pixels, plus every capture reconnect.
+                #
+                # So the portal is asked anyway, for the RECORD ONLY. A preexisting track
+                # that goes on to perform a full outside -> inside crossing is a car this
+                # system watched drive in while counting it as already-there.
+                #
+                # IT MUST NOT PROMOTE. Turning this into an arrival would hand exactly the
+                # boot census the portal-crossing authority it was denied, which is the
+                # false-arrival class this package exists to prevent -- and it would do it on
+                # the tracks least likely to be real crossings. `t.evidence` is untouched
+                # below; only the counter, the evidence packet and the corpus see it.
+                if (t.evidence == "preexisting" and t.confirmable
+                        and t.track_id not in self._preexisting_crossed):
+                    verdict = self.portal.evaluate(t.path)
+                    if verdict["crossed"]:
+                        # ONCE PER TRACK. The path keeps satisfying the portal on every
+                        # later frame, so without this the counter would measure frames
+                        # rather than cars and the corpus would fill with one vehicle.
+                        self._preexisting_crossed.add(t.track_id)
+                        self.stats.preexisting_crossed += 1
+                        out.setdefault("preexistingCrossed", []).append(t)
+                        self.evidence.write(EvidencePacket(
+                            event="PREEXISTING_DISAGREEMENT", ts=now, camera=self.camera,
+                            track_id=t.track_id,
+                            rule="census called it preexisting; the entry portal saw it cross",
+                            reasons=[verdict["reason"],
+                                     f"outside_hits={verdict['outside_hits']}",
+                                     f"inside_run={verdict['inside_run']}",
+                                     "RECORDED ONLY: this track is not promoted to arrival"],
+                            box=t.box, zones=t.zones,
+                            detector_scores={"score": t.score, "source": t.source,
+                                             "confirmable": t.confirmable},
+                        ))
                 continue
             if not t.confirmable:
                 self.stats.rejected_no_entry_evidence += 1

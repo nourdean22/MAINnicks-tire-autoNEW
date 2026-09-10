@@ -582,6 +582,7 @@ class EdgeLoop:
             self._note_deaths(frame, out)
             self._note_inference(frame, out)
             self._note_reacquisition(frame, out)
+            self._note_preexisting_disagreement(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -893,6 +894,41 @@ class EdgeLoop:
         return str((frame.meta or {}).get("sceneId")
                    or getattr(getattr(self.source, "binding", None), "scene_id", None)
                    or "unattributed")
+
+    def _note_preexisting_disagreement(self, frame, out) -> None:
+        """Record a car the census called already-there and the portal watched drive in.
+
+        THE UNDER-COUNT NOBODY WAS WATCHING FOR. Every other guard in this package exists to
+        stop the shop's arrival count going UP for a car that never arrived. This is the same
+        error with the sign flipped: a vehicle that genuinely drove in during a startup or
+        reconnect blind window is classed `preexisting`, is never tested against the portal,
+        and its arrival is lost silently and permanently.
+
+        Both readings are defensible for any single clip -- a car parked at boot really does
+        look like a car that just arrived, from pixels alone -- which is exactly why the
+        answer is a labelled clip for a human rather than a threshold. The pipeline records
+        the disagreement; it does NOT promote the track, because handing the boot census
+        portal authority would recreate the false-arrival class this whole package exists to
+        prevent.
+        """
+        if self.hard_cases is None:
+            return
+        crossed = out.get("preexistingCrossed") or []
+        if not crossed:
+            return
+        try:
+            for t in crossed:
+                self.hard_cases.trigger("PREEXISTING_DISAGREEMENT", frame.ts, {
+                    "trackId": int(t.track_id),
+                    "entryReason": str(getattr(t, "entry_reason", "")),
+                    "evidence": str(getattr(t, "evidence", "")),
+                    "vitals": _track_vitals(t, frame.ts),
+                    # Said in the payload, not just in a docstring: whoever reads this clip
+                    # in six months must not have to work out whether it changed the count.
+                    "promoted": False,
+                })
+        except Exception:  # noqa: BLE001 - corpus bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_preexisting_note_errors_total")
 
     def _note_deaths(self, frame, out) -> None:
         """Record EVERY track the tracker just retired, and why it was allowed to die.
