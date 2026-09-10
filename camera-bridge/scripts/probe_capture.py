@@ -29,7 +29,8 @@ def main() -> int:
     samples = int(sys.argv[2]) if len(sys.argv) > 2 else 32
     try:
         from vision.framehealth import FrameHealth
-        from vision.panedetect import describe, detect_live_region
+        from vision.panedetect import (classify_motion, describe,
+                                       detect_live_region, split_into_channels)
         from vision.run_live import build_source
     except Exception as exc:  # noqa: BLE001 - the doctor must report, never traceback
         print(f"error=import status=unavailable detail={type(exc).__name__}")
@@ -104,7 +105,21 @@ def main() -> int:
     try:
         if raw_frames:
             h, w = raw_frames[0].shape[:2]
-            layout = describe(detect_live_region(raw_frames), w, h)
+            region = detect_live_region(raw_frames)
+            layout = describe(region, w, h)
+            if region is not None:
+                # A 3-in-1 device draws several channels in one window and that is a
+                # PERFECTLY VALID layout, not a misconfiguration. Report each channel and
+                # whether it is FIXED or a PTZ, because only a fixed channel may ever carry
+                # calibrated arrival logic: a PTZ points at different ground after every
+                # pan, silently invalidating any polygon drawn on it.
+                chans = split_into_channels(region, raw_frames[-1])
+                for i, (x, y, cw, ch) in enumerate(chans):
+                    crops = [f[y:y + ch, x:x + cw] for f in raw_frames]
+                    kind, shift = classify_motion(crops)
+                    print(f"channel={i} x={x} y={y} w={cw} h={ch} "
+                          f"aspect={cw / max(1, ch):.2f} motion={kind} shift_px={shift:.2f}")
+                layout += f" channels={len(chans)}"
     except Exception:  # noqa: BLE001 - a layout probe must never fail the health probe
         layout = "pane=error"
     print(layout)

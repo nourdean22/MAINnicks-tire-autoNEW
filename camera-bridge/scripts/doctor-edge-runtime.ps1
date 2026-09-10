@@ -188,12 +188,39 @@ if ($win -and $py) {
     $line = ($probe | Where-Object { $_ -match "^status=" } | Select-Object -Last 1)
     # LAYOUT, reported separately. The producer's crop is a fraction measured once at one
     # window size, so a resize or a switch to 4-up silently points it at the wrong pixels.
-    # `panedetect` finds the live video by its own signal and says whether the window holds
-    # ONE camera or several, which is the thing the operator can act on.
-    $pane = ($probe | Where-Object { $_ -match "^pane=" } | Select-Object -Last 1)
-    if ($pane -match "^pane=single") { Check "camera layout" "PASS" "$pane" }
-    elseif ($pane -match "^pane=none") { Check "camera layout" "FAIL" "$pane -- the window shows no live video at all" }
-    elseif ($pane) { Check "camera layout" "WARN" "$pane -- the capture region is not ONE 16:9 camera. Select a SINGLE camera's live view, or the producer analyses several panes as one scene." }
+    #
+    # A MULTI-CHANNEL WINDOW IS A VALID LAYOUT, and this check used to say otherwise. It
+    # told the operator to "select a SINGLE camera's live view" -- advice that is simply
+    # wrong for SHOPSIGN, which is ONE device with three lenses: two fixed, covering the
+    # left and right approaches to the shop, and a PTZ in the middle. There is no single
+    # view to select. The useful report is therefore per channel: where each one sits, and
+    # whether it is FIXED (so it may carry calibrated arrival geometry) or a PTZ (so it
+    # never may, because a pan re-aims the lens and leaves every polygon describing ground
+    # the camera no longer sees).
+    $pane  = ($probe | Where-Object { $_ -match "^pane=" } | Select-Object -Last 1)
+    $chans = @($probe | Where-Object { $_ -match "^channel=" })
+    $fixed = @($chans | Where-Object { $_ -match "motion=fixed" })
+    $ptz   = @($chans | Where-Object { $_ -match "motion=ptz" })
+    if ($pane -match "^pane=none") {
+        Check "camera layout" "FAIL" "$pane -- the window shows no live video at all"
+    } elseif ($pane -match "^pane=error" -or -not $pane) {
+        Check "camera layout" "WARN" "the layout probe did not report ($pane)"
+    } elseif ($chans.Count -gt 1) {
+        $detail = "$($chans.Count) channels, $($fixed.Count) fixed / $($ptz.Count) ptz :: " + ($chans -join " :: ")
+        if ($fixed.Count -ge 1) {
+            Check "camera layout" "PASS" "$detail -- a multi-lens device. Run ONE producer per FIXED channel with --channel N; without it all $($chans.Count) scenes are analysed as one frame."
+        } else {
+            Check "camera layout" "WARN" "$detail -- no channel could be proven FIXED in this sample, so none may carry calibrated arrival logic yet. Re-run while the lot is quiet, or run census-only."
+        }
+    } elseif ($pane -match "^pane=single") {
+        if ($ptz.Count -ge 1) {
+            Check "camera layout" "WARN" "$pane -- this lens PANS. Census counting is fine; a lot polygon drawn on it is invalidated by the next pan."
+        } else {
+            Check "camera layout" "PASS" "$pane"
+        }
+    } else {
+        Check "camera layout" "WARN" "$pane -- the live region is neither one 16:9 camera nor a tiling of 16:9 channels, so the capture is clipped or the window is partly off-screen."
+    }
     if (-not $line) {
         Check "live feed" "WARN" "the probe produced no status line (rc=$probeRc): $(($probe | Select-Object -Last 1))"
     } elseif ($probeRc -eq 0) {

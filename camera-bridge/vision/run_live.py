@@ -38,6 +38,8 @@ from vision.detector import (  # noqa: E402
 )
 from vision.evidence import EvidenceStore  # noqa: E402
 from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
+from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
+                               resolve_channel)
 from vision.pipeline import VisionPipeline  # noqa: E402
 
 
@@ -143,13 +145,70 @@ class VisitSink:
         return ok
 
 
-def build_source(kind: str, hwnd: int | None, title: str, crop: bool):
+def aim_at_channel(src, index: int, calibrated: bool,
+                   samples: int = 16, interval: float = 0.25) -> tuple:
+    """Point `src` at ONE channel of a multi-lens device. Returns `((x,y,w,h), kind, shift)`.
+
+    WHY A DEVICE NEEDS THIS. SHOPSIGN is a 3-in-1: two FIXED lenses covering the left and
+    right approaches to the shop, and a PTZ. The app draws all three in one window, so a
+    producer cropped to "the live video" analyses three unrelated scenes as one -- a car on
+    the left approach, the right approach and whatever the PTZ happens to face are summed
+    into a single frame, and no count taken from it means anything. Aiming at one channel is
+    what turns a 3-in-1 from one confused camera into three usable ones.
+
+    The resolution happens ONCE, at startup, against the window as it actually is, and every
+    failure raises. A resolver that fell back to a guess would point the detector at the
+    wrong lens and attribute every later arrival to the wrong side of the shop, silently.
+    """
+    src.crop_frac = None                       # the resolver needs the WHOLE window
+    frames = []
+    for _ in range(samples):
+        try:
+            frame = src.read()
+        except Exception:                      # noqa: BLE001 - a read failure is data here
+            frame = None
+        if frame is not None:
+            frames.append(frame.image)
+        time.sleep(interval)
+    if len(frames) < 4:
+        raise ChannelNotFound(
+            f"only {len(frames)} of {samples} frames could be captured from {title_of(src)!r}, "
+            "which is too few to locate a channel. The window is up but not rendering video."
+        )
+    box, kind, shift = resolve_channel(frames, index)
+    assert_channel_usable(index, kind, calibrated)
+    x, y, w, h = box
+    height, width = frames[0].shape[:2]
+    src.crop_frac = (x / width, y / height, (x + w) / width, (y + h) / height)
+    print(f"channel {index}: x={x} y={y} {w}x{h} motion={kind} shift={shift:.2f}px "
+          f"of a {width}x{height} window", flush=True)
+    return box, kind, shift
+
+
+def title_of(src) -> str:
+    return getattr(src, "window_title", None) or getattr(src, "name", "capture")
+
+
+def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
+                 channel: int | None = None, calibrated: bool = False):
     if kind == "wgc":
         src = WgcWindowSource(
             window_hwnd=hwnd, window_title=title,
             crop_frac=WgcWindowSource.SHOPSIGN_MAIN_PANE if crop else None,
         )
-        return CaptureMux([src, V380WindowSource(window_title=title)])
+        if channel is None:
+            return CaptureMux([src, V380WindowSource(window_title=title)])
+        aim_at_channel(src, channel, calibrated)
+        # NO mux fallback under --channel, deliberately. `V380WindowSource` crops by its own
+        # fixed fractions and cannot honour a channel rectangle, so a silent failover would
+        # hand the detector a different region than the operator asked for -- the exact
+        # substitution this flag exists to prevent. One lane, or a loud failure.
+        return src
+    if channel is not None:
+        raise ChannelNotFound(
+            f"--channel needs the 'wgc' capture lane; {kind!r} crops by fixed fractions and "
+            "cannot be aimed at a channel rectangle."
+        )
     return CaptureMux([V380WindowSource(window_title=title)])
 
 
@@ -234,6 +293,9 @@ def main() -> int:
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
+    ap.add_argument("--channel", type=int, default=None,
+                    help="aim at ONE channel of a multi-lens device (0-based, left-to-right, "
+                         "top row first). Resolved once at startup; refuses rather than guesses.")
     ap.add_argument("--calibration", default=None)
     ap.add_argument("--evidence", default=None, help="directory for EvidencePackets")
     ap.add_argument("--save-frame", default=None, help="write one frame here and exit")
@@ -254,7 +316,8 @@ def main() -> int:
                     help="how often to POST a producer heartbeat when --post-to is set")
     args = ap.parse_args()
 
-    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
+    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
+                          channel=args.channel, calibrated=bool(args.calibration))
     try:
         first = source.read()
     except Exception as exc:

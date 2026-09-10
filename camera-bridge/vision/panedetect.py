@@ -130,6 +130,207 @@ def detect_live_region(frames: Sequence[np.ndarray]) -> Optional[LiveRegion]:
                       fill=float(box.mean()), live_fraction=live_fraction, gutters=gutters)
 
 
+def _tilings(region_w: int, region_h: int, tolerance: float = 0.06) -> List[List[int]]:
+    """Every sequence of row widths (channels-per-row) whose heights sum to the region.
+
+    A row of `n` channels side by side has height `w / (n * 16/9)`, so a layout is just an
+    ordered list of `n` values. Enumerating them is cheap and avoids the greedy mistake of
+    always taking the full-width row first -- which produced exactly the right SHAPES for
+    the live window in exactly the wrong ORDER.
+    """
+    results: List[List[int]] = []
+
+    def walk(prefix: List[int], used: float) -> None:
+        if len(prefix) > 4:
+            return
+        if abs(used - region_h) / region_h <= tolerance and prefix:
+            results.append(list(prefix))
+            return
+        if used > region_h * (1 + tolerance):
+            return
+        for n in (1, 2, 3, 4):
+            h = region_w / (n * NATIVE_ASPECT)
+            if h < 8:
+                continue
+            walk(prefix + [n], used + h)
+
+    walk([], 0.0)
+    return results
+
+
+def split_into_channels(region: "LiveRegion", frame=None,
+                        tolerance: float = 0.18) -> List[tuple]:
+    """Split a merged live region into the 16:9 CHANNELS it is made of.
+
+    WHY THIS IS NEEDED. The SHOPSIGN device is a 3-in-1: two fixed lenses covering the left
+    and right approaches, and a PTZ. The app draws all three with NO static gutter between
+    them, so `detect_live_region` correctly returns one tall box (aspect 1.19) and no pixel
+    signal can separate them. What CAN separate them is that every channel is 16:9.
+
+    Measured on the live window, the three sub-views are 339x187, 338x187 and 677x381 --
+    aspects 1.81, 1.81, 1.78.
+
+    `frame` is one captured image. When given, candidate layouts are SCORED by how much
+    horizontal edge energy sits on their internal row boundaries, because a real boundary
+    between two camera views is a sharp discontinuity. Without it the first arrangement is
+    returned, which is a guess and is documented as one.
+
+    An empty list means the region is not explicable as a tiling of 16:9 channels. That is
+    the honest answer, not a reason to invent a split.
+    """
+    if abs(region.aspect - NATIVE_ASPECT) / NATIVE_ASPECT <= tolerance:
+        return [(region.x, region.y, region.w, region.h)]
+
+    candidates = _tilings(region.w, region.h)
+    if not candidates:
+        return []
+
+    def boxes_for(rows: List[int]) -> List[tuple]:
+        out: List[tuple] = []
+        y = region.y
+        for n in rows:
+            h = int(round(region.w / (n * NATIVE_ASPECT)))
+            cell = region.w // n
+            for i in range(n):
+                out.append((region.x + i * cell, y, cell, h))
+            y += h
+        return out
+
+    if frame is None or len(candidates) == 1:
+        return boxes_for(candidates[0])
+
+    import cv2
+
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    # Horizontal edge energy per row: a boundary between two different camera views is a
+    # strong, full-width discontinuity.
+    edge = np.abs(np.diff(grey, axis=0)).mean(axis=1)
+
+    # MEAN per boundary, never the sum. Summing rewards layouts simply for HAVING more
+    # boundaries, so a 3x3 grid beat the true two-row layout on the live window purely by
+    # having more edges to add up -- it returned eleven channels for a three-channel
+    # device. The question is "does each proposed boundary land on a real discontinuity",
+    # which is an average, and ties go to the SIMPLER layout.
+    best, best_score, best_len = None, -1.0, 10 ** 6
+    for rows in candidates:
+        y = region.y
+        scores = []
+        for n in rows[:-1]:                      # internal boundaries only
+            y += int(round(region.w / (n * NATIVE_ASPECT)))
+            lo, hi = max(0, y - 2), min(len(edge), y + 3)
+            if lo < hi:
+                scores.append(float(edge[lo:hi].max()))
+        score = float(np.mean(scores)) if scores else 0.0
+        count = sum(rows)
+        if score > best_score * 1.05 or (score > best_score * 0.95 and count < best_len):
+            best, best_score, best_len = rows, max(score, best_score), count
+    return boxes_for(best or candidates[0])
+
+
+#: Whole-frame displacement, in pixels, above which a view is moving rather than still.
+#: MEASURED: a stationary V380 channel shows 0.01-0.02 px of phase-correlation drift, so
+#: this sits ~100x above the noise floor of a camera that is not moving.
+PAN_THRESHOLD_PX = 2.0
+
+
+def classify_motion(frames: Sequence[np.ndarray]) -> tuple[str, float]:
+    """FIXED or PTZ, from whole-frame displacement. Returns `(verdict, max_shift_px)`.
+
+    WHY THIS MATTERS MORE THAN IT LOOKS. A PTZ invalidates its own calibration every time
+    it pans: a lot polygon drawn on it points at different ground the moment it moves, and
+    NOTHING fails loudly -- arrivals are simply computed against the wrong geometry. So a
+    PTZ channel must never carry calibrated arrival logic, and the only safe way to know
+    which channel is a PTZ is to watch whether its whole frame moves.
+
+    Phase correlation is the right instrument because it separates the two cases that look
+    similar in a difference image: a car crossing a FIXED frame moves some pixels, while a
+    PAN moves ALL of them together. The first has near-zero global displacement; the second
+    does not.
+
+    `unknown` is returned when there are too few frames to judge -- never a guess, because
+    guessing FIXED on a PTZ is the failure this exists to prevent.
+    """
+    usable = [f for f in frames if f is not None]
+    if len(usable) < 4:
+        return "unknown", 0.0
+
+    import cv2
+
+    grey = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY).astype(np.float32) for f in usable]
+    worst = 0.0
+    for i in range(1, len(grey)):
+        (dx, dy), _ = cv2.phaseCorrelate(grey[i - 1], grey[i])
+        worst = max(worst, float((dx * dx + dy * dy) ** 0.5))
+    return ("ptz" if worst > PAN_THRESHOLD_PX else "fixed"), worst
+
+
+class ChannelNotFound(RuntimeError):
+    """Raised when a requested channel cannot be resolved. NEVER falls back to a guess."""
+
+
+def resolve_channel(frames: Sequence[np.ndarray], index: int) -> tuple:
+    """Locate channel `index` of a multi-lens device. Returns `((x, y, w, h), kind, shift)`.
+
+    WHY THIS FAILS CLOSED. The whole point of resolving a channel is that the producer then
+    analyses THAT rectangle and nothing else. A resolver that guessed on a bad frame would
+    point the detector at the wrong lens and every arrival after it would be attributed to
+    the wrong side of the shop -- silently, because a wrong rectangle still yields healthy
+    frames, healthy heartbeats and confident detections. So every failure here raises.
+
+    `kind` is `fixed` or `ptz` from `classify_motion`, and the caller is expected to REFUSE
+    to attach calibrated arrival logic to a `ptz`: a pan re-aims the lens and every polygon
+    drawn on it then describes ground the camera is no longer looking at.
+    """
+    region = detect_live_region(frames)
+    if region is None:
+        raise ChannelNotFound(
+            "no live video in the capture window -- nothing moved across the sampled frames. "
+            "Open the camera's live view in the app; a menu or device-list pane is static."
+        )
+    channels = split_into_channels(region, frames[-1])
+    if not channels:
+        raise ChannelNotFound(
+            f"the live region {region.w}x{region.h} (aspect {region.aspect:.2f}) is not "
+            "explicable as a tiling of 16:9 channels, so no channel can be located in it."
+        )
+    if not 0 <= index < len(channels):
+        raise ChannelNotFound(
+            f"channel {index} was requested but this window holds {len(channels)} "
+            f"(0..{len(channels) - 1}). Channels are numbered left-to-right, top row first."
+        )
+    x, y, w, h = channels[index]
+    kind, shift = classify_motion([f[y:y + h, x:x + w] for f in frames])
+    return (x, y, w, h), kind, shift
+
+
+def assert_channel_usable(index: int, kind: str, calibrated: bool) -> None:
+    """Refuse to attach CALIBRATED arrival logic to a channel that is not proven FIXED.
+
+    A calibration file is a set of polygons in pixel coordinates: the lot, the entry portal,
+    the bays. Those coordinates mean something only while the lens keeps pointing where it
+    pointed when they were drawn. A PTZ does not: one pan and the polygon labelled "front
+    lot" sits over the sidewalk, and nothing anywhere reports an error -- frames stay
+    healthy, the detector keeps finding cars, and every arrival is now attributed to
+    geometry that no longer exists.
+
+    `unknown` is refused for the same reason as `ptz`. It means the sample was too short to
+    tell, and "we could not prove this lens is fixed" is not a licence to assume it is.
+    Census mode (no calibration) is unaffected -- counting cars in a frame needs no geometry.
+    """
+    if not calibrated:
+        return
+    if kind == "fixed":
+        return
+    detail = ("it PANS, so any polygon drawn on it describes ground the lens leaves behind"
+              if kind == "ptz" else
+              "its motion could not be classified from the sampled frames")
+    raise ChannelNotFound(
+        f"channel {index} was given a calibration file but {detail}. Point --calibration at "
+        "a FIXED channel, or drop it and run this channel in census mode, which needs no "
+        "geometry. Refusing rather than silently scoring arrivals against the wrong ground."
+    )
+
+
 def describe(region: Optional[LiveRegion], width: int, height: int) -> str:
     """One `key=value` line for the preflight to print. Never raises."""
     if region is None:

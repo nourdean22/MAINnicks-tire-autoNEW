@@ -572,7 +572,13 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         )
     cam = cfg.cameras[camera]
 
-    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop)
+    # AIM BEFORE CALIBRATING. `--channel` is resolved against the live window and refuses
+    # to attach a calibration file to a lens it cannot prove is FIXED, so this must know
+    # whether one was supplied -- which is why it reads args.calibration rather than the
+    # parsed polygons below.
+    source = build_source(args.source, args.hwnd, args.window_title, not args.no_crop,
+                          channel=args.channel,
+                          calibrated=bool(args.calibration and os.path.exists(args.calibration)))
 
     calibration_version = None
     lot_poly = portal_poly = None
@@ -671,6 +677,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
+    ap.add_argument("--channel", type=int, default=None,
+                    help="aim at ONE channel of a multi-lens device (0-based, left-to-right, top "
+                         "row first). SHOPSIGN is a 3-in-1: two fixed lenses plus a PTZ.")
     ap.add_argument("--calibration", default=None, help="lot/portal/bay polygons; without it, census mode")
     # Honour the same env vars `vision.run_live` does. Without a model `build_council`
     # returns a council with no primary detector, whose `can_confirm_arrival` is always

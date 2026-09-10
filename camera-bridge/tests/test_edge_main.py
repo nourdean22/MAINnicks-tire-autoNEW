@@ -541,7 +541,8 @@ def _args(**over):
         window_title="V380", no_crop=True, calibration=None, model=None, device="AUTO",
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
-        dry_run=True, log_level="WARNING",
+        dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
+        stall_exit_seconds=180.0,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1022,6 +1023,34 @@ class LedgerIsolationTest(unittest.TestCase):
                 os.unlink(path)
             except OSError:
                 pass
+
+
+class ArgsFixtureDriftTest(unittest.TestCase):
+    """`_args()` is a hand-written copy of the real parser's defaults, and a copy drifts.
+
+    It had ALREADY drifted by two keys (`persist_seconds`, `stall_exit_seconds`) before
+    this test existed -- harmlessly, because nothing in `build_edge` read them. The next
+    flag added was read, and five unrelated tests went red with an `AttributeError` from
+    inside `build_edge` that named none of this. A fixture that omits a real flag does not
+    fail where the omission is; it fails somewhere confusing and much later.
+    """
+
+    def test_the_fixture_carries_EVERY_flag_the_real_parser_defines(self):
+        real = vars(edge_main.parse_args([]))
+        missing = sorted(set(real) - set(vars(_args())))
+        self.assertEqual(
+            missing, [],
+            f"edge_main.parse_args defines {missing} and _args() does not. Add them with the "
+            "parser's own defaults, or a test calling build_edge() will fail on an "
+            "AttributeError that names nothing useful."
+        )
+
+    def test_the_fixture_invents_no_flag_the_parser_does_not_have(self):
+        """The other direction matters too: a fixture-only key lets a test exercise a flag
+        that does not exist on the command line, which proves nothing about the product."""
+        real = vars(edge_main.parse_args([]))
+        invented = sorted(set(vars(_args())) - set(real))
+        self.assertEqual(invented, [], f"_args() invents {invented}, which no CLI flag sets")
 
 
 if __name__ == "__main__":
