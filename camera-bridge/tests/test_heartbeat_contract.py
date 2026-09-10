@@ -287,8 +287,15 @@ class HeartbeatValueTest(unittest.TestCase):
     def test_disk_free_is_NONE_when_it_cannot_be_read_never_zero(self):
         """A zero says "the disk is full", the most alarming value this field can take.
         Reporting it because a stat call failed pages someone to a disk that is fine."""
-        self.assertIsNone(edge_main._disk_free_bytes(SimpleNamespace(path="\\\\?\\nope\\x")))
+        # A directory that cannot exist on ANY platform. The first version used a
+        # Windows-style bad path, which is a perfectly valid RELATIVE path on Linux:
+        # dirname returned an empty string, abspath made that the cwd, and CI got a real
+        # number for a disk the test believed was unreachable. Passed here, failed there.
+        missing = os.path.join(tempfile.mkdtemp(), "no-such-dir", "edge.sqlite")
+        self.assertFalse(os.path.isdir(os.path.dirname(missing)))
+        self.assertIsNone(edge_main._disk_free_bytes(SimpleNamespace(path=missing)))
         self.assertIsNone(edge_main._disk_free_bytes(None))
+        self.assertIsNone(edge_main._disk_free_bytes(SimpleNamespace(path=":memory:")))
 
     def test_the_git_sha_is_a_sha_or_NOTHING_never_a_placeholder(self):
         """A producer confidently reporting a SHA it invented is worse than one reporting
