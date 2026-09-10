@@ -40,6 +40,37 @@ describe("fabricated admin reads are ratcheted", () => {
     expect(hits.length).toBeGreaterThan(10);
   });
 
+  it("the subject is the WHOLE server tree, not one file", () => {
+    // Until 2026-09-10 the scanner read exactly server/db.ts, so the ratchet it
+    // fed was itself an instrument narrower than its subject — ROS-103's shape
+    // inside the gate built to catch ROS-103. It recorded 30 pairs while 46
+    // more sat in files it never opened, one of which
+    // (getDynamicArticleBySlug) was actively serving Soft 404s to Google.
+    //
+    // A count alone cannot catch a re-narrowing: drop back to db.ts and the
+    // totals simply shrink, which every other assertion here reads as PROGRESS.
+    // So assert the SUBJECT — that helpers and pairs are still being found
+    // outside db.ts — not just the verdict.
+    const files = new Set([...fabricatingReads(APP).values()].map((v) => v.file));
+    expect(files.has("server/db.ts"), "db.ts must still be in scope").toBe(true);
+
+    const others = [...files].filter((f) => f !== "server/db.ts");
+    expect(
+      others.length,
+      `the scanner found fabricating helpers in ONLY db.ts — the subject list has been narrowed back. ` +
+        `Measured 2026-09-10: 39 other files contribute.`,
+    ).toBeGreaterThan(5);
+
+    // And those files must actually reach the PAIR list, not merely be read:
+    // a scan that opens every file but whose pair-matching still only resolves
+    // db.ts helpers would pass the assertion above while measuring nothing new.
+    const fromOtherFiles = hits.filter((h) => h.helperFile && h.helperFile !== "server/db.ts");
+    expect(
+      fromOtherFiles.length,
+      "no (procedure, helper) pair resolves to a helper outside db.ts — widening the file list did not widen the measurement",
+    ).toBeGreaterThan(10);
+  });
+
   it("no NEW procedure hands an operator a fabricated value", () => {
     const fresh = keys.filter((k) => !known.has(k));
     expect(
