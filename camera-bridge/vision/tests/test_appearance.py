@@ -172,3 +172,35 @@ def test_the_redundancy_threshold_is_high_enough_to_keep_genuinely_different_vie
     similar_but_distinct = _vec((0, 0.94), (1, 0.34))
     assert cosine(similar_but_distinct, _vec((0, 1.0))) < REDUNDANT_ABOVE
     assert bank.add(similar_but_distinct, 0.5, 2.0), "a genuinely different view must be kept"
+
+
+def test_a_NEAR_TWIN_of_a_high_quality_view_does_not_displace_an_unrelated_one(tmp_path=None):
+    """The diversity bug. Scoring redundancy among RESIDENTS ONLY meant that a candidate which
+    is a near twin of high-quality view A could evict unrelated view B -- leaving A and its
+    twin in the bank and dropping a whole viewpoint. The bank got tighter, which is the
+    opposite of what it is for."""
+    bank = AppearanceBank(capacity=3)
+    bank.add(_vec((0, 1.0)), quality=0.95, at=1.0)       # A, excellent crop
+    bank.add(_vec((1, 1.0)), quality=0.40, at=2.0)       # B, unrelated
+    bank.add(_vec((2, 1.0)), quality=0.40, at=3.0)       # C, unrelated
+    twin_of_a = _vec((0, 0.96), (3, 0.28))               # close to A, below the dedup cut
+    assert cosine(twin_of_a, _vec((0, 1.0))) < REDUNDANT_ABOVE
+    bank.add(twin_of_a, quality=0.50, at=4.0)
+    kept = [v.embedding for v in bank.views]
+    assert any(cosine(k, _vec((1, 1.0))) > 0.99 for k in kept), "unrelated view B was evicted"
+    assert any(cosine(k, _vec((2, 1.0))) > 0.99 for k in kept), "unrelated view C was evicted"
+    assert len(bank.views) == 3
+
+
+def test_a_BETTER_near_twin_still_replaces_the_view_it_duplicates():
+    """The other half: when the candidate IS the tighter half of the tightest pair, the bank
+    should keep the better crop of the two rather than refuse outright."""
+    bank = AppearanceBank(capacity=3)
+    bank.add(_vec((0, 1.0)), quality=0.20, at=1.0)       # A, poor crop
+    bank.add(_vec((1, 1.0)), quality=0.90, at=2.0)
+    bank.add(_vec((2, 1.0)), quality=0.90, at=3.0)
+    better_twin = _vec((0, 0.96), (3, 0.28))
+    assert bank.add(better_twin, quality=0.85, at=4.0), "a better crop of A should be kept"
+    assert len(bank.views) == 3
+    qualities = sorted(v.quality for v in bank.views)
+    assert qualities[0] >= 0.85, f"the poor crop should be gone, got {qualities}"

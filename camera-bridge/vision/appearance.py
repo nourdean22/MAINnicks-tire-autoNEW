@@ -196,22 +196,43 @@ class AppearanceBank:
             self.views.append(candidate)
             return True
 
-        # FULL: evict the most redundant resident, not the oldest. Age says nothing about
-        # what a bank covers; a stored view whose nearest neighbour is very close is the one
-        # whose removal costs the least coverage.
-        def redundancy(index: int) -> Tuple[float, float]:
-            others = [v for j, v in enumerate(self.views) if j != index]
-            near = max((cosine(self.views[index].embedding, o.embedding) for o in others),
-                       default=-1.0)
-            return (near, -self.views[index].quality)
+        # FULL: break the TIGHTEST PAIR in the bank, which may include the candidate.
+        #
+        # An earlier version scored redundancy among RESIDENTS ONLY and evicted the worst of
+        # those. That loses diversity in a case that is not exotic: if the candidate is a near
+        # twin of a high-quality resident A, while B and C are mutually distinct, the
+        # resident-only score picks B or C -- so the bank ends up holding A AND its near twin
+        # and drops an unrelated viewpoint. The bank got tighter, which is the opposite of
+        # what it is for.
+        #
+        # The question is "which two views are most alike", full stop. The candidate is one of
+        # the views. Whichever pair is closest, the lower-quality half of that pair goes.
+        def nearest_to(index: int) -> float:
+            return max((cosine(self.views[index].embedding, o.embedding)
+                        for j, o in enumerate(self.views) if j != index), default=-1.0)
 
-        worst = max(range(len(self.views)), key=redundancy)
-        if redundancy(worst)[0] <= nearest and self.views[worst].quality >= candidate.quality:
-            # The incoming view is no more distinctive than what it would displace and is not
-            # a better crop either. Keeping the resident is the conservative choice.
-            self.rejected_redundant += 1
-            return False
-        self.views[worst] = candidate
+        resident_pairs = [(nearest_to(i), i) for i in range(len(self.views))]
+        tightest_resident, worst_resident = max(resident_pairs, key=lambda p: p[0])
+
+        if nearest >= tightest_resident:
+            # The candidate is the tighter half of the tightest pair: it duplicates `twin`.
+            # Keep whichever of the two is the better crop.
+            twin_index = max(range(len(self.views)),
+                             key=lambda i: cosine(candidate.embedding, self.views[i].embedding))
+            if candidate.quality <= self.views[twin_index].quality:
+                self.rejected_redundant += 1
+                return False
+            self.views[twin_index] = candidate
+            return True
+
+        # A resident pair is tighter than anything involving the candidate, so the candidate
+        # genuinely widens the bank: drop the lower-quality half of that pair.
+        pair_partner = max((i for i in range(len(self.views)) if i != worst_resident),
+                           key=lambda i: cosine(self.views[worst_resident].embedding,
+                                                self.views[i].embedding))
+        drop = (worst_resident if self.views[worst_resident].quality
+                <= self.views[pair_partner].quality else pair_partner)
+        self.views[drop] = candidate
         return True
 
     def similarity(self, embedding: Optional[np.ndarray]) -> Optional[float]:

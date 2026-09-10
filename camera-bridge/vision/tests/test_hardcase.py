@@ -191,3 +191,39 @@ def test_the_UNWIRED_vocabulary_is_declared_rather_than_pretended(tmp_path):
     rec = _rec(tmp_path)
     _frames(rec)
     assert rec.trigger(sorted(unwired)[0], 1002.0), "the vocabulary must stay usable"
+
+
+def test_eviction_RUNS_after_a_partial_write_because_that_is_when_the_disk_is_full(tmp_path):
+    """The likeliest cause of a part-written clip is a full disk -- exactly the condition the
+    byte budget exists to recover from. Returning without evicting left the partial directory
+    in place and the budget unenforced, so the recorder could never free the space that would
+    let the next clip land."""
+    rec = _rec(tmp_path, before_seconds=1.0, after_seconds=0.0, cooldown_seconds=0.0,
+               max_bytes=4000)
+    for i, reason in enumerate(["TRACK_SPLIT", "REID_AMBIGUOUS", "MODEL_OOD"]):
+        base = 1000.0 + i * 100
+        _frames(rec, start=base, count=12)
+        rec.trigger(reason, base + 2.0)
+        rec.flush_ready(base + 99.0)
+    evicted_before = rec.stats.evicted_clips
+
+    # Now force a WRITE failure and confirm eviction still ran.
+    _frames(rec, start=9000.0, count=12)
+    rec.trigger("POSE_OFF_HOME", 9002.0)
+    rec.max_bytes = 1          # everything is over budget now
+    rec.flush_ready(9099.0)
+    assert rec.stats.evicted_clips > evicted_before, (
+        "eviction must run on the failure path, which is when the disk is full")
+
+
+def test_a_write_error_is_NOT_replaced_by_a_vaguer_eviction_error(tmp_path):
+    """Eviction runs on the failure path now, so its own scan can fail for the same
+    underlying cause. The write failure names the clip and the reason; the eviction message
+    does not, and letting it win would hide what actually went wrong."""
+    rec = _rec(tmp_path / "blocked", before_seconds=1.0, after_seconds=0.0)
+    _frames(rec)
+    rec.trigger("MODEL_OOD", 1002.0)
+    (tmp_path / "blocked").write_text("a file where a directory needs to be", encoding="utf-8")
+    rec.flush_ready(1099.0)
+    assert rec.stats.dropped_write_error == 1
+    assert "MODEL_OOD" in (rec.stats.last_error or ""), rec.stats.last_error

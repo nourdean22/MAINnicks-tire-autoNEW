@@ -69,6 +69,9 @@ TRIGGERS_WIRED = frozenset({
     "SOURCE_FAILOVER",
     "LAYOUT_CHANGE",
 })
+# `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
+# what the comment above forbids. It now fires from the generation-break branch in
+# `EdgeLoop.step` -- the place that already knows the capture lane changed.
 
 
 @dataclass
@@ -241,6 +244,12 @@ class HardCaseRecorder:
         except Exception as exc:  # noqa: BLE001 - the lot matters more than the training set
             self.stats.dropped_write_error += 1
             self.stats.last_error = f"{pending.reason}: {type(exc).__name__}: {exc}"
+            # EVICT ON THE WAY OUT, and this path is the one that matters most. The single
+            # likeliest cause of a part-written clip is a FULL DISK -- exactly the condition
+            # the byte budget exists to recover from. Returning here without evicting left
+            # the partial directory in place and the budget unenforced, so the recorder could
+            # never free the space that would let the next clip land.
+            self._evict_if_over_budget()
             return None
 
         self.stats.clips_written += 1
@@ -261,7 +270,13 @@ class HardCaseRecorder:
                 (os.path.join(self.directory, d) for d in os.listdir(self.directory)
                  if os.path.isdir(os.path.join(self.directory, d))))
         except OSError as exc:
-            self.stats.last_error = f"eviction scan failed: {type(exc).__name__}: {exc}"
+            # DO NOT CLOBBER A WRITE ERROR. Eviction now runs on the failure path, and the
+            # write failure is the more informative of the two -- it names the clip and the
+            # reason. An eviction scan that fails for the same underlying cause (a full disk,
+            # a blocked path) would otherwise replace it with a vaguer message about
+            # eviction, hiding what actually went wrong.
+            if self.stats.last_error is None:
+                self.stats.last_error = f"eviction scan failed: {type(exc).__name__}: {exc}"
             return
         sizes = {c: _dir_size(c) for c in clips}
         total = sum(sizes.values())
@@ -273,7 +288,8 @@ class HardCaseRecorder:
                     os.remove(os.path.join(clip, entry))
                 os.rmdir(clip)
             except OSError as exc:
-                self.stats.last_error = f"eviction failed on {clip}: {type(exc).__name__}"
+                if self.stats.last_error is None:
+                    self.stats.last_error = f"eviction failed on {clip}: {type(exc).__name__}"
                 return
             total -= sizes[clip]
             self.stats.evicted_clips += 1

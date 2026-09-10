@@ -97,7 +97,6 @@ def edge_heartbeat_body(
     model_sha256: Optional[str],
     last_healthy_frame_at: Optional[float],
     commissioning_run_id: Optional[str] = None,
-    hard_cases: Any = None,
 ) -> Dict[str, object]:
     """The producer's account of itself, merging BOTH halves of what it knows.
 
@@ -122,30 +121,7 @@ def edge_heartbeat_body(
         source_type = None
 
     oldest = ledger.shop_outbox_oldest_age(now)
-    # THE RECORDER'S OWN HEALTH, carried where a human already looks. Without this a
-    # recorder whose every write fails is indistinguishable from a shop that simply had no
-    # hard cases: the directory is empty in both stories, and only one of them is fine. The
-    # key is present ONLY when a recorder exists, so an older producer stays honest about
-    # having none rather than reporting a healthy zero it cannot vouch for.
-    hard_case_facet: Dict[str, object] = {}
-    if hard_cases is not None:
-        try:
-            st = hard_cases.stats
-            hard_case_facet = {"hardCases": {
-                "clips": st.clips_written,
-                "frames": st.frames_written,
-                "bytes": st.bytes_written,
-                "droppedCooldown": st.dropped_cooldown,
-                "droppedError": st.dropped_write_error,
-                "evicted": st.evicted_clips,
-                "healthy": bool(st.healthy),
-                "lastError": st.last_error,
-            }}
-        except Exception:  # noqa: BLE001 - telemetry about the recorder cannot break the heartbeat
-            hard_case_facet = {"hardCases": {"healthy": False, "lastError": "stats unreadable"}}
-
     return {
-        **hard_case_facet,
         "camera": camera,
         "producerInstanceId": PRODUCER_INSTANCE_ID,
         "producerVersion": f"edge {__version__}",
@@ -205,6 +181,7 @@ class EdgeLoop:
         persist_seconds: float = 2.0,
         hard_cases: Any = None,
         shadow: Any = None,
+        challenger: Any = None,
         relocate_seconds: float = 120.0,
         clock=time.time,
     ) -> None:
@@ -225,6 +202,10 @@ class EdgeLoop:
         #: Optional `ShadowLedger`. None means no challenger is being observed, which is
         #: the system as it has always run.
         self.shadow = shadow
+        #: Observed, never consulted. Kept out of `DetectorCouncil` on purpose --
+        #: a model inside the council votes through `_fuse`, and a voting model's
+        #: disagreements are not a counterfactual.
+        self.challenger = challenger
         self._last_layout_epoch = None
         self.camera = camera
         self.mode = mode
@@ -319,6 +300,16 @@ class EdgeLoop:
                     "(no path may span a source change)", self.generation, gen,
                 )
                 self.generation = gen
+                # The corpus wants this one: a lane failover or a window restore is where
+                # tracks get degraded, and the clip around it is what shows whether the
+                # break was handled correctly. Declared in `TRIGGERS_WIRED`, so it needs a
+                # caller -- this is it.
+                if self.hard_cases is not None:
+                    try:
+                        self.hard_cases.trigger("SOURCE_FAILOVER", frame.ts,
+                                                {"from": prev_generation, "to": gen})
+                    except Exception:  # noqa: BLE001
+                        log.exception("hard-case trigger failed on a generation break")
                 try:
                     self.vision.tracks.mark_degraded()
                     self.vision.census.note_reconnect(frame.ts)
@@ -351,7 +342,7 @@ class EdgeLoop:
             # only on DISAGREEMENT -- so agreements never reached the denominator and the
             # rate a promotion gate reads would have been 1.0 forever. Both were caught by
             # the wiring test, not by review.
-            self._note_shadow(out.get("council"), frame.ts)
+            self._note_shadow(out.get("council"), frame.ts, frame.image)
 
             hs = out.get("health") or self.vision.health.state(frame.ts)
             self.last_health = hs
@@ -486,7 +477,6 @@ class EdgeLoop:
             detector_name=self.detector_name,
             model_sha256=self.model_sha256,
             last_healthy_frame_at=self.last_healthy_frame_at,
-            hard_cases=self.hard_cases,
             # ONLY what the mirror is currently tagging rows with. Falling back to the
             # launch flag would keep re-reporting a run the producer had already left, so
             # the admin would never see commissioning end -- and this field exists
@@ -569,7 +559,7 @@ class EdgeLoop:
         except Exception:  # noqa: BLE001 - the corpus must never take the lot down
             log.exception("hard-case bookkeeping failed")
 
-    def _note_shadow(self, council: Any, ts: float) -> None:
+    def _note_shadow(self, council: Any, ts: float, image: Any = None) -> None:
         """Record what the adjudicator ALONE would have counted, beside the primary.
 
         A real counterfactual with a real source: both numbers already exist on an escalated
@@ -588,14 +578,20 @@ class EdgeLoop:
             # drag the disagreement rate toward zero for reasons having nothing to do with
             # the challenger.
             return
+        if self.challenger is None or image is None:
+            return
         try:
             by = dict(getattr(council, "by_detector", {}) or {})
-            names = [n for n in by if n != "mog2"]
-            if len(names) < 2:
+            primary = next((n for n in by if n != "mog2"), None)
+            if primary is None:
                 return
-            primary, adjudicator = names[0], names[-1]
-            self.shadow.note("VEHICLE_COUNT", by[primary], by[adjudicator], at=ts,
-                             context={"primary": primary, "adjudicator": adjudicator,
+            # THE CHALLENGER RUNS HERE, out of band, on the same frame the council just
+            # judged. Its boxes go into the ledger and nowhere else -- they never reach
+            # `_fuse`, the tracker or a visit.
+            challenger_boxes = self.challenger.detect(image)
+            self.shadow.note("VEHICLE_COUNT", by[primary], len(challenger_boxes), at=ts,
+                             context={"champion": primary,
+                                      "challenger": getattr(self.challenger, "name", "?"),
                                       "camera": self.camera, "mode": self.mode})
         except Exception:  # noqa: BLE001 - a research artefact never outranks the lot
             log.exception("shadow ledger note failed")
@@ -795,8 +791,9 @@ def build_edge(cfg: Config, args: argparse.Namespace):
     from vision.evidence import EvidenceStore
     from vision.geometry import EntryPortal, LotMap, Zone
     from vision.pipeline import VisionPipeline
+    from vision.detector import DetectorUnavailable
     from vision.run_live import (build_council, build_source,  # noqa: F401
-                                 declared_fixed_lens)
+                                 declared_fixed_lens, same_model)
     from vision.scenelocator import SceneNotLocated
 
     ledger_path = camera_ledger_path(args.ledger or cfg.ledger_path, args.camera)
@@ -826,7 +823,8 @@ def build_edge(cfg: Config, args: argparse.Namespace):
                           calibrated=bool(args.calibration and os.path.exists(args.calibration)),
                           declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
-                          canonical_size=canonical_size_from(args.calibration))
+                          canonical_size=(canonical_size_from(args.calibration)
+                                          if args.scene_atlas else None))
 
     calibration_version = None
     lot_poly = portal_poly = None
@@ -969,6 +967,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--relocate-seconds", type=float, default=120.0,
                     help="how often to re-check that the located scene is still where it was. "
                          "A startup fix is only true at startup. 0 disables.")
+    ap.add_argument("--challenger-model", default=os.environ.get("VISION_OV_CHALLENGER"),
+                    help="a model observed but NEVER consulted for a decision. Unlike "
+                         "--adjudicator-model, which votes inside the council, this one is "
+                         "run out of band and only recorded.")
     ap.add_argument("--shadow-ledger", default=os.environ.get("EDGE_SHADOW_LEDGER"),
                     help="JSONL of what the adjudicator ALONE would have decided, beside the "
                          "primary. Counterfactual only -- a challenger never gets a vote.")
@@ -1046,19 +1048,43 @@ def run_edge(args: argparse.Namespace) -> int:
         log.info("hard-case corpus at %s (budget %.1f GB)", args.hard_cases,
                  args.hard_case_max_gb)
 
-    shadow = None
-    if args.shadow_ledger and args.adjudicator_model:
+    # A CHALLENGER IS NOT AN ADJUDICATOR, and conflating them made the previous version of
+    # this a counterfactual in name only. `--adjudicator-model` is passed into the
+    # AUTHORITATIVE council, where `_fuse` promotes ambiguous boxes it agrees with and adds
+    # boxes it alone found -- so it changes tracking and visit emission. Recording its
+    # disagreements as "what a challenger would have decided" described a model that was
+    # already deciding.
+    #
+    # `--challenger-model` is loaded here, kept OUT of the council, and run out of band by
+    # the loop. That is the only arrangement in which the ledger's central claim -- that the
+    # challenger never gets a vote -- is true by construction rather than by assertion.
+    shadow = challenger = None
+    if args.shadow_ledger and args.challenger_model:
+        from vision.detector import OpenVinoVehicleDetector
         from vision.shadow import ShadowLedger
 
-        shadow = ShadowLedger(path=args.shadow_ledger,
-                              champion_model=os.path.basename(args.model or "none"),
-                              challenger_model=os.path.basename(args.adjudicator_model))
-        log.info("shadow ledger at %s", args.shadow_ledger)
+        if same_model(args.challenger_model, args.model):
+            raise ConfigError(
+                "--challenger-model is the same file as --model, so the ledger would record "
+                "the champion disagreeing with itself. Point it at a different model."
+            )
+        try:
+            challenger = OpenVinoVehicleDetector(args.challenger_model,
+                                                 device=args.adjudicator_device or args.device,
+                                                 conf=0.25)
+            shadow = ShadowLedger(path=args.shadow_ledger,
+                                  champion_model=os.path.basename(args.model or "none"),
+                                  challenger_model=os.path.basename(args.challenger_model))
+            log.info("shadow ledger at %s observing %s (NOT in the council)",
+                     args.shadow_ledger, challenger.name)
+        except DetectorUnavailable as exc:
+            log.warning("challenger unavailable (%s); no ledger is being kept", exc)
+            challenger = shadow = None
     elif args.shadow_ledger:
-        # REFUSING IS THE POINT. A shadow ledger with no challenger records nothing and
-        # would sit there as an empty file, which reads later as "the challenger agreed
-        # every time" rather than "no challenger ever ran".
-        log.warning("--shadow-ledger needs --adjudicator-model; there is no challenger to "
+        # REFUSING IS THE POINT. A ledger with no challenger records nothing and would sit
+        # there as an empty file, which reads later as "the challenger agreed every time"
+        # rather than "no challenger ever ran".
+        log.warning("--shadow-ledger needs --challenger-model; there is no challenger to "
                     "observe, so no ledger is being kept")
 
     loop = EdgeLoop(
@@ -1068,7 +1094,7 @@ def run_edge(args: argparse.Namespace) -> int:
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
-        hard_cases=recorder, shadow=shadow,
+        hard_cases=recorder, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
     )
 

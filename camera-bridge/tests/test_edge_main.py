@@ -572,6 +572,7 @@ def _args(**over):
         hard_cases=None, hard_case_max_gb=2.0,
         shadow_ledger=None,
         relocate_seconds=120.0,
+        challenger_model=None,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1262,23 +1263,16 @@ class HardCaseWiringTest(unittest.TestCase):
         self.assertIsNotNone(loop, "the step must have completed despite the recorder raising")
         self.assertEqual(spy.fired, [], "the spy raised, so nothing can have been recorded")
 
-    def test_the_HEARTBEAT_carries_the_recorders_own_health(self):
-        """Without this a recorder whose every write fails is indistinguishable from a shop
-        that had no hard cases -- the directory is empty in both stories."""
-        spy = self._Spy()
-        pipeline = make_pipeline()
-        body = edge_main.edge_heartbeat_body(
-            camera="lot", seq=1, now=1000.0, mode="SHADOW", source=FakeSource(),
-            vision=FakeVision(pipeline.tracker), ledger=pipeline.ledger,
-            health_state=None, scene_state=None, calibration_version=None,
-            detector_name=None, model_sha256=None, last_healthy_frame_at=None,
-            hard_cases=spy)
-        self.assertIn("hardCases", body)
-        self.assertEqual(body["hardCases"]["clips"], 3)
-        self.assertTrue(body["hardCases"]["healthy"])
+    def test_the_corpus_health_has_a_REAL_consumer_and_the_heartbeat_is_not_it(self):
+        """The heartbeat once carried a `hardCases` facet. It had NO RECEIVER -- the ingest
+        schema in `cameraVisitsRoutes.ts` has no such field, so Zod stripped it and the value
+        reached nothing. Shipping a writer with no reader is the orphan defect this repo keeps
+        removing, and finding it in my own 'make a broken recorder visible' change is exactly
+        why the rule exists.
 
-    def test_the_heartbeat_OMITS_the_facet_when_there_is_no_recorder(self):
-        """Absent is honest; a healthy zero would be a claim the producer cannot vouch for."""
+        Corpus health has two consumers that are real and were verified live: the producer's
+        own shutdown log line, and the doctor's `hard-case corpus` check. This asserts the
+        facet is GONE rather than silently discarded."""
         pipeline = make_pipeline()
         body = edge_main.edge_heartbeat_body(
             camera="lot", seq=1, now=1000.0, mode="SHADOW", source=FakeSource(),
@@ -1286,6 +1280,8 @@ class HardCaseWiringTest(unittest.TestCase):
             health_state=None, scene_state=None, calibration_version=None,
             detector_name=None, model_sha256=None, last_healthy_frame_at=None)
         self.assertNotIn("hardCases", body)
+        # And every key that IS sent must be one the receiver accepts.
+        self.assertIn("sourceGeneration", body)
 
 
 class SceneLockAnchorTest(unittest.TestCase):
@@ -1392,7 +1388,16 @@ class ShadowWiringTest(unittest.TestCase):
             self.noted.append((subject, champion, challenger, dict(context or {})))
             return True
 
-    def _drive(self, council, spy=None):
+    class _Chal:
+        name = "challenger-v2"
+
+        def __init__(self, n):
+            self._n = n
+
+        def detect(self, image):
+            return [object()] * self._n
+
+    def _drive(self, council, spy=None, challenger_count=3):
         spy = spy or self._Spy()
         pipeline = make_pipeline()
         frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
@@ -1408,18 +1413,49 @@ class ShadowWiringTest(unittest.TestCase):
             def step(self, f):
                 return {"emissions": [], "council": council}
 
-        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy)
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy,
+                     challenger=self._Chal(challenger_count))
         loop.step()
         return spy
 
-    def test_an_ESCALATED_frame_records_BOTH_detector_counts(self):
+    def test_an_ESCALATED_frame_records_CHAMPION_vs_CHALLENGER(self):
+        """The challenger is run HERE, out of band, on the frame the council just judged --
+        it is not read out of `by_detector`. That distinction is the whole point: a model
+        listed in `by_detector` is inside the council, and `_fuse` lets it promote ambiguous
+        boxes and add its own, so its disagreements are not a counterfactual at all."""
         council = SimpleNamespace(escalated=True, detections=[],
                                   by_detector={"primary": 1, "adj": 3})
-        spy = self._drive(council)
+        spy = self._drive(council, challenger_count=5)
         self.assertEqual(len(spy.noted), 1)
         subject, champion, challenger, ctx = spy.noted[0]
-        self.assertEqual((subject, champion, challenger), ("VEHICLE_COUNT", 1, 3))
-        self.assertEqual((ctx["primary"], ctx["adjudicator"]), ("primary", "adj"))
+        self.assertEqual((subject, champion), ("VEHICLE_COUNT", 1))
+        self.assertEqual(challenger, 5, "the challenger's OWN count, not the adjudicator's")
+        self.assertEqual(ctx["champion"], "primary")
+        self.assertEqual(ctx["challenger"], "challenger-v2")
+
+    def test_NO_challenger_configured_records_nothing(self):
+        """A ledger with no challenger must stay empty rather than quietly recording the
+        adjudicator, which votes."""
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy)      # no challenger
+        loop.step()
+        self.assertEqual(spy.noted, [])
 
     def test_a_frame_that_never_ESCALATED_records_nothing(self):
         """Escalation is what produces a second opinion. Without one there is no
@@ -1434,14 +1470,17 @@ class ShadowWiringTest(unittest.TestCase):
         self.assertEqual(self._drive(council).noted, [],
                          "an unescalated frame has no second opinion to record")
 
-    def test_the_MOTION_GATE_is_not_mistaken_for_a_challenger(self):
-        """`by_detector` carries the motion gate too. Comparing a vehicle detector against
-        background subtraction is not a counterfactual about models -- it is a category
-        error that would show permanent disagreement and make the rate meaningless."""
+    def test_the_MOTION_GATE_is_never_taken_as_the_CHAMPION(self):
+        """`by_detector` carries the motion gate too. Recording background subtraction as the
+        champion count would compare a vehicle detector against blob detection -- permanent
+        disagreement, and a rate that means nothing."""
         council = SimpleNamespace(escalated=True, detections=[],
                                   by_detector={"mog2": 9, "primary": 2})
-        self.assertEqual(self._drive(council).noted, [],
-                         "with the gate excluded there is only one real detector left")
+        spy = self._drive(council, challenger_count=4)
+        self.assertEqual(len(spy.noted), 1)
+        _, champion, challenger, ctx = spy.noted[0]
+        self.assertEqual((champion, challenger), (2, 4), "mog2's 9 must not be the champion")
+        self.assertEqual(ctx["champion"], "primary")
 
     def test_a_SHADOW_THAT_EXPLODES_does_not_take_the_producer_down(self):
         class _Boom:

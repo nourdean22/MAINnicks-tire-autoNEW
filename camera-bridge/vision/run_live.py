@@ -252,6 +252,19 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     geometry to the wrong ground and reports perfect health while doing it.
     """
     refs = load_atlas(atlas_dir)
+    # A CALIBRATION BELONGS TO ONE CAMERA. With `--scene` omitted, every reference stays
+    # eligible and `locate` returns whichever matched strongest -- so a single calibration
+    # file's lot and portal polygons could land on a sibling lens or the PTZ, silently, while
+    # the log cheerfully names the scene it chose. Census mode may roam; calibrated geometry
+    # may not.
+    if calibrated and scene_id is None and len({r.scene_id for r in refs}) > 1:
+        raise SceneNotLocated(
+            f"the atlas in {atlas_dir!r} holds "
+            f"{sorted({r.scene_id for r in refs})} and a calibration file was supplied, but "
+            "no --scene was named. A calibration describes ONE camera's ground; letting the "
+            "strongest match claim it would put those polygons on whichever lens happened to "
+            "win. Name the scene, or drop --calibration to run census-only."
+        )
     if scene_id is not None:
         refs = [r for r in refs if r.scene_id == scene_id]
         if not refs:
@@ -291,6 +304,20 @@ def aim_at_scene(src, atlas_dir: str, scene_id: Optional[str], calibration_size,
     except Exception:  # noqa: BLE001 - no second opinion is not a reason to refuse to start
         panes = None
     found = locate(frames[-1], refs, panes=panes)
+    # THE REFERENCE'S OWN SIZE IS THE COORDINATE SYSTEM. `locate` returns a homography that
+    # maps FROM the matched reference's width and height; handing `warpPerspective` a
+    # different output size does not rescale that, it crops or pads it. So a calibration
+    # whose `canonical` disagrees with the reference silently shifts every polygon.
+    chosen = next((r for r in refs if r.scene_id == found.scene_id
+                   and r.variant == found.variant), None)
+    if chosen is not None and (chosen.width, chosen.height) != tuple(calibration_size):
+        raise SceneNotLocated(
+            f"reference {found.scene_id}/{found.variant} is {chosen.width}x{chosen.height} "
+            f"but the calibration's canonical frame is "
+            f"{calibration_size[0]}x{calibration_size[1]}. The homography maps from the "
+            "REFERENCE's coordinates, so a different output size crops or pads the result "
+            "rather than rescaling it -- every polygon would sit off its ground."
+        )
     binding, _ = advance(None, found)
     src.set_canonical(found.homography, calibration_size, found.scene_id, binding.epoch)
     # The canonical view of a PROVEN scene is the known-good pose `SceneLock` has always
@@ -572,6 +599,9 @@ def main() -> int:
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
+    ap.add_argument("--relocate-seconds", type=float, default=120.0,
+                    help="how often to re-check that the located scene is still where it "
+                         "was. A startup fix is only true at startup. 0 disables.")
     ap.add_argument("--scene-atlas", default=None,
                     help="directory of reference views named <scene_id>__<variant>.png; "
                          "locates the KNOWN camera anywhere in the window and warps every "
@@ -710,7 +740,22 @@ def main() -> int:
     t_end = time.time() + args.seconds
     vehicles_seen: list[int] = []
     print(f"running {args.seconds:.0f}s at ~{args.fps:g} fps ...\n", flush=True)
+    # THE LAB LOOP REVALIDATES TOO. `aim_at_scene` installs the hook and `EdgeLoop` calls
+    # it, but this standalone loop did not -- so a lab run with `--scene-atlas` kept its
+    # startup warp indefinitely through a resize, a pane reorder or a switch to fullscreen.
+    # That matters more than "it is only the lab": this loop can post visits with `--post-to`.
+    next_relocate = time.time() + args.relocate_seconds if args.relocate_seconds > 0 else 0.0
     while time.time() < t_end:
+        now = time.time()
+        if args.relocate_seconds > 0 and now >= next_relocate:
+            next_relocate = now + args.relocate_seconds
+            revalidate = getattr(source, "revalidate", None)
+            if revalidate is not None:
+                try:
+                    if revalidate():
+                        print("scene re-located; the layout epoch advanced", flush=True)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"scene revalidation failed ({exc}); the binding stands", flush=True)
         frame = source.read()
         if frame is None:
             time.sleep(interval)
