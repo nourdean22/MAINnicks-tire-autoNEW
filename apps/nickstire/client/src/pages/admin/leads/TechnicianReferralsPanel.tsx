@@ -87,6 +87,15 @@ export function TechnicianReferralsPanel() {
               <strong>Couldn't load referrals.</strong> {error?.message || "Unknown error."} This is
               not the same as zero referrals — retry rather than treating this as empty.
             </div>
+          ) : data?.available === false ? (
+            // getTechnicianReferrals returns available:false when the DB
+            // connection is gone. Without this branch the panel fell through to
+            // "No technician referrals recorded yet" — a confident zero on a
+            // program that owes $300 per referral.
+            <div className="border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] text-rose-400">
+              <strong>Database unavailable.</strong> Referrals could not be read, so this
+              is not "none recorded" — it is "we don't know".
+            </div>
           ) : data?.migrationPending ? (
             <div className="border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] text-amber-400">
               <strong>Referral tracking isn't live yet.</strong> The database migration

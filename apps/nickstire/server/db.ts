@@ -474,7 +474,13 @@ export async function createTechnicianReferral(referral: InsertTechnicianReferra
 
 export async function getTechnicianReferrals() {
   const db = await getDb();
-  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
+  // available:false, NOT an empty list. `!db` means the connection itself is
+  // gone (no DATABASE_URL, or pool creation threw) — the read did not succeed,
+  // so reporting `available: true, rows: []` fabricates a zero the admin panel
+  // renders as "none recorded yet". Same convention adminSignals.ts already
+  // uses: `available === false` marks a slice that failed rather than a slice
+  // that is genuinely empty.
+  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as TechnicianReferral[] };
   try {
     const rows: TechnicianReferral[] = await db.select().from(technicianReferrals).orderBy(desc(technicianReferrals.createdAt)).limit(500);
     return { available: true as const, migrationPending: false as const, rows };
@@ -538,7 +544,13 @@ export async function createCandidate(candidate: InsertCandidate) {
 
 export async function getCandidates() {
   const db = await getDb();
-  if (!db) return { available: true as const, migrationPending: false as const, rows: [] as Candidate[] };
+  // available:false, NOT an empty list. `!db` means the connection itself is
+  // gone (no DATABASE_URL, or pool creation threw) — the read did not succeed,
+  // so reporting `available: true, rows: []` fabricates a zero the admin panel
+  // renders as "none recorded yet". Same convention adminSignals.ts already
+  // uses: `available === false` marks a slice that failed rather than a slice
+  // that is genuinely empty.
+  if (!db) return { available: false as const, migrationPending: false as const, rows: [] as Candidate[] };
   try {
     const rows: Candidate[] = await db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(500);
     return { available: true as const, migrationPending: false as const, rows };

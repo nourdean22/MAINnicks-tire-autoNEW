@@ -80,10 +80,20 @@ describe("db.ts: both the write and read paths catch the missing-table case expl
     const body = fn.slice(0, fn.indexOf("\nexport async function updateTechnicianReferralStatus"));
     expect(body).toMatch(/isMissingTableError\(err\)/);
     expect(body).toMatch(/migrationPending: true as const, rows: \[\]/);
-    // The no-DB-connection branch is a SEPARATE case from "table missing" —
-    // both must report migrationPending: false there, since "no DB at all"
-    // is its own distinct unknown, not evidence the migration wasn't applied.
-    expect(body).toMatch(/if \(!db\) return \{ available: true as const, migrationPending: false as const/);
+    // The no-DB-connection branch is a SEPARATE case from "table missing":
+    // migrationPending stays FALSE there, because "no DB at all" is its own
+    // distinct unknown, not evidence the migration wasn't applied.
+    //
+    // `available` must be FALSE. This assertion previously read `available:
+    // true as const` and so pinned the defect it was meant to guard: a null
+    // handle means the read did not succeed, and reporting available:true
+    // alongside an empty `rows` fabricates a zero the admin panel renders as
+    // "No technician referrals recorded yet." — on a program that pays $300 a
+    // referral. The comment above was always about migrationPending; the
+    // `available: true` in the regex was incidental, and froze the bug.
+    // Fixed with the helper in PR #2264; see
+    // server/adminReadsDontFabricateZero.test.ts for the behavioural proof.
+    expect(body).toMatch(/if \(!db\) return \{ available: false as const, migrationPending: false as const/);
   });
 
   it("a real (non-missing-table) error is RE-THROWN, not swallowed, in both functions", () => {
