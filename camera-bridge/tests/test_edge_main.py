@@ -616,7 +616,10 @@ class GenerationBreakTest(unittest.TestCase):
         v = FakeVision(pipeline.tracker, steps=[{"emissions": []}] * 20)
         v.degraded = []
         v.reconnects = []
-        v.tracks = SimpleNamespace(mark_degraded=lambda: v.degraded.append(True))
+        # `now=None` on purpose, matching the generation-break caller: a capture failover
+        # swaps which pixels arrive, it is not an interval in which nothing was observed.
+        # The stub records what it was passed so that stays true rather than assumed.
+        v.tracks = SimpleNamespace(mark_degraded=lambda now=None: v.degraded.append(now))
         v.census = SimpleNamespace(note_reconnect=lambda ts: v.reconnects.append(ts))
         return v
 
@@ -635,6 +638,13 @@ class GenerationBreakTest(unittest.TestCase):
         src.index = 1                                  # failover
         src._frames.append(FakeFrame(1001.0)); loop.step()
         self.assertEqual(len(vision.degraded), 1, "tracks degraded on the new generation")
+        self.assertEqual(
+            vision.degraded, [None],
+            "a generation break must NOT open a blind interval. It swaps which pixels "
+            "arrive; it is not a stretch in which nothing was observed, and the cars in the "
+            "new generation are overwhelmingly the same cars parked where they were. "
+            "Charging them would strip parked protection on every window restore and "
+            "re-create the birth churn `parked_after` exists to stop.")
         self.assertEqual(vision.reconnects, [1001.0], "census re-armed at the new frame's time")
         self.assertEqual(loop.generation_breaks, 1)
 

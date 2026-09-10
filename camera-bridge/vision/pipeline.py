@@ -195,7 +195,7 @@ class VisionPipeline:
         if frame.meta.get("window_verified") is not True:
             self.stats.suppressed_unverified += 1
             self._was_unhealthy = True          # recovery re-arms the preexisting census
-            self.tracks.mark_degraded()
+            self.tracks.mark_degraded(now)
             out["suppressed"] = "capture window occluded: frame is not the camera"
             return out
 
@@ -205,7 +205,7 @@ class VisionPipeline:
         if not hs.ok:
             self.stats.suppressed_unhealthy += 1
             self._was_unhealthy = True
-            self.tracks.mark_degraded()
+            self.tracks.mark_degraded(now)
             out["suppressed"] = f"capture unhealthy (frozen={hs.frozen}, fps={hs.fps:.2f})"
             out["health"] = hs
             return out
@@ -221,7 +221,7 @@ class VisionPipeline:
         out["scene"] = scene
         if not scene.may_create_visits:
             self.stats.suppressed_camera_motion += 1
-            self.tracks.mark_degraded()
+            self.tracks.mark_degraded(now)
             self._in_blind_interval = True
             out["suppressed"] = f"camera motion / untrusted pose (change={scene.change_frac:.2f})"
             return out
