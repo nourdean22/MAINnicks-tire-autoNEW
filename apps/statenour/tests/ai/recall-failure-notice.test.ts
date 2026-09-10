@@ -199,27 +199,48 @@ describe("brain-context actually emits the notice into the prompt", () => {
     expect(src).toContain("buildRecallFailureNotice(");
   });
 
-  it("is fed from the retrieval report, not from a hand-rolled guess", () => {
+  it("is fed from the SAME provenance the panel reads", () => {
     const idx = src.indexOf("buildRecallFailureNotice(");
     expect(idx, "call site missing").toBeGreaterThan(-1);
     const call = src.slice(idx, idx + 400);
-    // The provenance the panel reads is the provenance the model reads.
     // Two independent derivations of "did the read succeed" is how the
-    // operator view and the prompt drift apart in the first place.
-    expect(call).toContain("hybridRecallReport");
-    expect(call).toContain("provenance");
-    expect(call).toContain("provenanceReason");
+    // operator view and the prompt drift apart in the first place, so
+    // this reads the same `recallProvenance` that is returned to the
+    // route and rendered in the Memory Inspector.
+    expect(call).toContain("recallProvenance");
+    expect(call).toContain("recallProvenanceReason");
   });
 
-  it("the block is CRITICAL, so the reranker cannot drop it", () => {
-    const idx = src.indexOf('name: "Recall State"');
-    expect(idx, "Recall State block missing from rawBlocks").toBeGreaterThan(-1);
-    // rerankContextBlocks drops blocks under a 0.12 similarity cutoff.
-    // A failure notice has little lexical overlap with the user's message
-    // by construction, so without `critical` it would be dropped on
-    // precisely the turns it exists for -- the same defect that hid the
-    // Hybrid Recall block from the model while the panel counted it.
-    const block = src.slice(idx, idx + 500);
-    expect(block).toContain("critical: true");
+  it("is emitted AFTER the try/catch, so a thrown assembly still declares", () => {
+    /**
+     * Review finding (P1), 2026-09-10. The first version built the
+     * notice inside rawBlocks -- i.e. only on the path where block
+     * assembly SUCCEEDED, which is the one path that is not a failed
+     * read. The catch that sets provenance ERROR runs after rawBlocks,
+     * so the notice could never appear on a crash.
+     */
+    const catchIdx = src.indexOf("brain_blocks_failed");
+    const noticeIdx = src.indexOf("buildRecallFailureNotice(");
+    expect(catchIdx).toBeGreaterThan(-1);
+    expect(noticeIdx).toBeGreaterThan(catchIdx);
+    // Appended straight to the addendum: stronger than `critical`,
+    // because the reranker never sees it and so cannot drop it.
+    const call = src.slice(noticeIdx, noticeIdx + 600);
+    expect(call).toContain("addendum +=");
+  });
+
+  it("a recall module that never ran is treated as a failed read", () => {
+    /**
+     * Review finding (P2). If the recall module fails to import,
+     * `hybridRecallReport` is null and provenance stays at its
+     * "UNMEASURED" initial value -- so a substantive turn silently got
+     * no recall and no explanation. UNMEASURED is only honest for the
+     * short-message case.
+     */
+    const idx = src.indexOf('recallProvenance === "UNMEASURED"');
+    expect(idx, "the unmeasured-but-should-have-run promotion is missing").toBeGreaterThan(-1);
+    const guard = src.slice(idx, idx + 400);
+    expect(guard).toContain("userContent.length > 10");
+    expect(guard).toContain('"ERROR"');
   });
 });

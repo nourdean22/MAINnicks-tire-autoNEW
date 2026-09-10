@@ -89,9 +89,18 @@ function stripComments(src: string): string {
     .replace(/\/\/[^\n]*/g, "");
 }
 
-/** A line that merely LINKS to the shop admin is correct, not a leak. */
+/**
+ * A line that merely LINKS OUT to the shop is correct, not a leak.
+ *
+ * 2026-09-10 (review, P2) · the first version also exempted any line
+ * containing `href=`, regardless of target. That is far too broad: a
+ * shop-voiced customer-outreach string sitting inside an anchor to
+ * anywhere -- an internal route, a mailto, a third party -- would have
+ * been waved through. The exemption is for pointing AT the shop admin,
+ * so it now requires a nickstire target on the line.
+ */
 function isLinkOut(line: string): boolean {
-  return /href\s*[:=]/.test(line) || /https?:\/\/(www\.)?nickstire\.org/.test(line);
+  return /https?:\/\/(www\.)?nickstire\.org/.test(line);
 }
 
 /**

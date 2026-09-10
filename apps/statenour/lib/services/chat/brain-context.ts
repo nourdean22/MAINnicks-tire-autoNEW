@@ -528,29 +528,11 @@ export async function buildBrainContext(
             // being the odd exception was the defect.
             { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "", critical: true },
           ]),
-      // 2026-09-10 · RECALL STATE, told to the MODEL and not only the panel.
-      //
-      // Every recall-bearing block above is dropped when its content is
-      // "" (see the .filter below), and `recallBlock` is built with
-      // `withTimeout(..., 3000, "")`. So a failed or timed-out retrieval
-      // produces a prompt byte-identical to a clean search that matched
-      // nothing -- while the Memory Inspector, reading the same report,
-      // correctly tells the operator "Memory read failed -- state
-      // unknown, not empty."
-      //
-      // The result was NICK confidently asserting he had nothing on a
-      // subject he never managed to look up. CRITICAL for the same
-      // reason Hybrid Recall is: the reranker's 0.12 cutoff would drop a
-      // low-similarity notice exactly on the turns it exists for.
-      {
-        name: "Recall State",
-        content: buildRecallFailureNotice({
-          provenance: (hybridRecallReport as any)?.provenance,
-          reason: (hybridRecallReport as any)?.provenanceReason,
-          hitCount: hybridRecallReport?.hits?.length ?? 0,
-        }),
-        critical: true,
-      },
+      // NOTE · the Recall State notice used to be assembled here. It is
+      // now emitted from the FINAL provenance after this try/catch --
+      // see the block below `brain_blocks_failed`. Assembling it here
+      // covered only the path where assembly succeeded, which is the one
+      // path that is NOT a failed read.
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
@@ -713,6 +695,44 @@ export async function buildBrainContext(
     recallProvenance = "ERROR";
     recallProvenanceReason = "brain block assembly threw -- recall state unknown";
     log.warn("brain_blocks_failed", { err: err instanceof Error ? err.message : String(err) });
+  }
+
+  /**
+   * 2026-09-10 (review, P1+P2) · THE NOTICE IS EMITTED HERE, not in
+   * rawBlocks, and the reviewer was right about why.
+   *
+   * The first version computed it during rawBlocks assembly, inside the
+   * try. That covered only the path where assembly SUCCEEDED. The two it
+   * missed are the two that matter most:
+   *
+   *   · assembly THREW -- the catch above sets ERROR, but rawBlocks was
+   *     already built (or never built), so the notice could never appear
+   *     on the one path that is unambiguously a failed read;
+   *   · the recall module failed to import -- `hybridRecallReport` is
+   *     null, provenance stays at its "UNMEASURED" initial value, and a
+   *     substantive turn silently got no recall and no explanation.
+   *
+   * Emitting from the FINAL provenance, after the try/catch, means one
+   * emission point that every path flows through. Appending straight to
+   * the addendum is also stronger than the `critical: true` rawBlock it
+   * replaces: the reranker never sees it, so it cannot be dropped.
+   */
+  if (recallProvenance === "UNMEASURED" && userContent.length > 10) {
+    // Recall SHOULD have run on a turn this substantive. That it did not
+    // is a failed read, not a turn where memory was irrelevant -- the
+    // UNMEASURED default is only honest for the short-message case.
+    recallProvenance = "ERROR";
+    recallProvenanceReason =
+      recallProvenanceReason ?? "recall never ran this turn (module unavailable) -- nothing was searched";
+  }
+  const recallStateNotice = buildRecallFailureNotice({
+    provenance: recallProvenance,
+    reason: recallProvenanceReason,
+    hitCount: recalledHits.length,
+  });
+  if (recallStateNotice) {
+    addendum += (addendum ? "\n\n" : "") + recallStateNotice;
+    contextBlocksFired.recallState = true;
   }
 
   // ── Deeper Context telemetry ──
