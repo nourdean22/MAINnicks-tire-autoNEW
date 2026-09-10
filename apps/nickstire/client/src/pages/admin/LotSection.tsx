@@ -219,6 +219,19 @@ function CameraCard({ c }: { c: CameraHealth }) {
     ["calibration", c.facets.calibration],
     ["cloud", c.facets.cloud],
   ];
+  /**
+   * Everything except `producer` is the producer's own last SELF-REPORT, and it is only a
+   * statement about NOW while the producer is still alive. `deriveCameraState` computes
+   * frame age on the producer's clock at the instant it sent that heartbeat, so a box that
+   * died six hours ago keeps reporting "frames fresh · pose ok · cloud ok" -- true when it
+   * was said, and read as present tense on the card.
+   *
+   * Observed in production 2026-09-10: the `sign` card showed exactly that beside
+   * "producer offline for 6h", which invites "everything is fine except the heartbeat"
+   * when the truth is that NOTHING is currently known. The facets are not wrong; rendering
+   * them undated was. Marked as last-known and dimmed whenever the producer is not alive.
+   */
+  const producerAlive = c.facets.producer === "alive";
   return (
     <div className={`rounded-lg border p-3 ${c.registered ? "border-foreground/10" : "border-amber-500/30"}`}>
       <div className="flex items-start justify-between gap-3">
@@ -242,9 +255,21 @@ function CameraCard({ c }: { c: CameraHealth }) {
       {c.state !== "NEVER_INGESTED" && (
         <>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            {!producerAlive && (
+              <span className="rounded border border-foreground/20 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/50">
+                last known
+              </span>
+            )}
             {facets.map(([k, v]) => (
-              <span key={k} className="text-foreground/45">
-                {k} <span className={facetTone(v)}>{v.replace(/_/g, " ")}</span>
+              <span key={k} className={producerAlive ? "text-foreground/45" : "text-foreground/30"}>
+                {k}{" "}
+                {/* Only `producer` is measured HERE, from heartbeat age; the rest are the
+                    producer's own self-report and stop being present-tense the moment it
+                    stops reporting. Colour is dropped on those so a dead box cannot show a
+                    row of reassuring greens. */}
+                <span className={producerAlive || k === "producer" ? facetTone(v) : "text-foreground/40"}>
+                  {v.replace(/_/g, " ")}
+                </span>
               </span>
             ))}
           </div>
@@ -268,7 +293,11 @@ function CameraCard({ c }: { c: CameraHealth }) {
             {c.producer && (
               <span className="text-foreground/40">
                 seq {c.producer.heartbeatSeq}
-                {c.producer.version ? ` · v${c.producer.version}` : ""}
+                {/* NO hardcoded "v". Neither producer sends a bare semver: run_live sends
+                    "vision.run_live" and edge_main sends "edge 2.1.2", so the prefix
+                    rendered "vvision.run_live" and "vedge 2.1.2" in production. The field
+                    is a self-describing name; print what was sent. */}
+                {c.producer.version ? ` · ${c.producer.version}` : ""}
               </span>
             )}
           </div>
