@@ -18,6 +18,7 @@ import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import net from "net";
+import { backfillMissingArtifacts } from "./lib/prerenderText.mjs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
@@ -166,7 +167,7 @@ const countHtml = (dir) => {
   return n;
 };
 const before = fs.existsSync(PRERENDER_DIR_BACKUP) ? countHtml(PRERENDER_DIR_BACKUP) : 0;
-const fresh = countHtml(PRERENDER_DIR_TMP);
+let fresh = countHtml(PRERENDER_DIR_TMP);
 
 // Check for the "NOUR OS" regression — anything sneaking through
 const brokenCount = (() => {
@@ -190,6 +191,46 @@ if (brokenCount > 0) {
   console.error(`  Inspect dist/prerendered/ to diagnose before manually swapping.`);
   process.exit(1);
 }
+
+// ─── Backfill: a route that failed to render keeps yesterday's page ──────
+//
+// This swap is wholesale — renameSync replaces the tracked tree with the fresh
+// one — so before today an artifact whose route failed simply VANISHED. That is
+// not hypothetical: prerender.mjs:413 records "10 blog routes failed and lost
+// their files in the 2026-08-19 regen".
+//
+// Losing the file is the WORSE of the two bad outcomes. Either way the URL
+// serves a contentless page to crawlers, but a missing artifact is invisible to
+// every gate we have: check-prerender.mjs only fails on a missing SITEMAP
+// route, and the DB-dynamic blog posts that Google flagged as Soft 404s are
+// absent from BLOG_SLUGS, so they sit in its `extra` bucket and are printed as
+// informational. A vanished artifact for one of those is a silent soft 404.
+//
+// So carry the previous copy forward. prerender.mjs now REFUSES to write an
+// empty render, which means the fresh tree omits exactly the routes that failed
+// — and those are precisely the ones that should keep their last good content
+// rather than regress to an SPA shell.
+//
+// THE TRADE, stated plainly: an artifact for a route that was deliberately
+// DELETED also survives here, and would linger. That surfaces in
+// `pnpm prerender:check` as an extra, and every backfilled path is logged
+// below by name — a stale page you can see beats a live page that disappeared
+// without a word.
+const backfilled = fs.existsSync(PRERENDER_DIR_BACKUP)
+  ? backfillMissingArtifacts(PRERENDER_DIR_BACKUP, PRERENDER_DIR_TMP)
+  : [];
+if (backfilled.length > 0) {
+  console.warn(
+    `\n[regen] ⚠️  ${backfilled.length} route(s) did not render this run — keeping the previous artifact:`,
+  );
+  for (const key of backfilled) console.warn(`  · ${key}`);
+  console.warn(`  These are stale, not fresh. Re-run if the count is unexpected.`);
+}
+
+// Recount AFTER the backfill, or the "After:" line below under-reports by
+// exactly the routes that failed — the number a reader would use to decide
+// whether the run was healthy.
+fresh = countHtml(PRERENDER_DIR_TMP);
 
 fs.renameSync(PRERENDER_DIR_TMP, PRERENDER_DIR_FINAL);
 // Fresh prerendered/ is in place — drop the pre-regen backup.
