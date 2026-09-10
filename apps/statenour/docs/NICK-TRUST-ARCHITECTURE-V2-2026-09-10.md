@@ -215,6 +215,66 @@ Note what is *not* on that list: the model, the prompt, the retrieval algorithm.
 
 ---
 
+## 6.5 The Mission Kernel — what "done" is allowed to mean
+
+The gap the trust work does not close: **`success = the model thinks the task is done`**. A tool returning HTTP 200 is not an outcome, and a workflow retry is not a new intention.
+
+### The durable delegation contract
+
+```
+Mission            objective, successCriteria[], riskClass, budget, deadline,
+                   authorityGrantId, currentCheckpoint, nextAction, version
+
+ActionAttempt      operationKey        <- globally stable, see below
+                   tool, effectClass, argumentsHash
+                   inputEvidenceIds[]  <- WHY this was attempted
+                   authorityGrantId    <- WHAT allowed it
+                   pre/postconditions[]
+                   state: PLANNED | WAITING_APPROVAL | EXECUTING
+                        | SUCCEEDED_UNVERIFIED | VERIFIED | FAILED
+                        | COMPENSATED | UNKNOWN
+                   externalReference?, receiptId?, attemptNo, retryPolicy
+
+MissionEvent       append-only: sequence, kind, actor, causationId,
+                   correlationId, recordedAt
+```
+
+`SUCCEEDED_UNVERIFIED` is the state that matters and the one most systems omit. The tool returned success; the world has not yet been checked. Only reconciliation against the source of truth moves it to `VERIFIED`, and **only `VERIFIED` earns the word "done"** in a reply. `UNKNOWN` is a real terminal state, not a failure — the honest answer when the external system cannot be reached to confirm either way.
+
+### Idempotency: the workflow platform is not enough
+
+Inngest's event- and function-level idempotency windows are documented at **24 hours**. That is a deduplication window, not a business-effect guarantee. A mission that resumes four days later and re-sends the same customer message is not protected by "the platform dedupes" — **NEEDS LOCAL VERIFICATION** against the current Inngest docs before this is relied on either way, but the architectural conclusion holds regardless of the exact number: a finite platform window cannot bound an unbounded mission.
+
+So the operation key is NICK's, persisted in Postgres, and checked before any side effect:
+
+```
+operation_key = hash(authority_grant, semantic_operation, destination,
+                     payload_identity, intended_effect)
+
+SELECT * FROM action_attempt
+WHERE operation_key = $1
+  AND state IN ('EXECUTING','SUCCEEDED_UNVERIFIED','VERIFIED');
+```
+
+Note what is in the key: the **authority grant**. The same message sent under a new, explicit authorization is a different operation; the same message replayed by a retry is not.
+
+### Bounded delegation beats approval spam
+
+Approval-on-every-click feels safe and trains the operator to click without reading — which is why the memory-write escalation above is deliberately narrow. The scalable form is a grant:
+
+```
+AuthorizationGrant  principal, capability, resources, destinations,
+                    constraints, maxSpend, validFrom, validUntil,
+                    maxAttempts, stopConditions, revocable,
+                    createdFromExplicitUserAction  <- never inferred
+```
+
+That last field is the whole point, and it connects directly to §2.5: a grant may never be created from an inference. **More autonomy and more safety at the same time** — the alternative pair (unlimited autonomy, or a prompt per click) is worse on both axes.
+
+**Status: DESIGNED, not built.** Nothing in this section is in the codebase. It is the next vertical slice, and it should be proven on exactly one consequential mission before it is generalised.
+
+---
+
 ## 7. Self-healing as a control system
 
 Split by **blast radius**, not by cleverness.
@@ -247,6 +307,22 @@ Explicitly **not** self-healing: the reply gate. A gate that relaxes its own thr
 4. **Never assert source text.** It false-fails on a reformat and passes on a rename.
 
 **Alarm on silence.** A gate that never fires and a gate that is switched off produce identical dashboards. `verdict == "block"` for 24h is an alert.
+
+---
+
+## 8.5 Status vocabulary — say which one you mean
+
+This repo has already been burned by "shipped" meaning five different things. Every claim below and in future waves uses one of:
+
+| Term | Means |
+|---|---|
+| **IMPLEMENTED** | the code exists |
+| **TESTED** | it has a test that would fail without it, plus a control |
+| **MERGED** | it is on `main` |
+| **DEPLOYED** | the running build contains that SHA |
+| **RUNTIME-VERIFIED** | it has been observed doing its job on real traffic |
+
+Everything in this document is at most **TESTED**. Nothing is MERGED (PR #2267 is open), nothing is DEPLOYED, and nothing is RUNTIME-VERIFIED. The shadow-gate numbers (E2/E4) are the first thing that will produce runtime evidence, and until they do, every claim about false-positive rates in here is a design intention rather than a measurement.
 
 ---
 
