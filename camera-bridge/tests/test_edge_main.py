@@ -1565,16 +1565,18 @@ class HardCaseWiringTest(unittest.TestCase):
     class _Spy:
         def __init__(self, fail=False):
             self.observed, self.fired, self.flushed = [], [], 0
+            self.observed_meta = []
             self._fail = fail
             self.stats = SimpleNamespace(
                 clips_written=3, frames_written=90, bytes_written=1234,
                 dropped_cooldown=1, dropped_write_error=0, evicted_clips=0,
                 healthy=True, last_error=None)
 
-        def observe(self, ts, image):
+        def observe(self, ts, image, meta=None):
             if self._fail:
                 raise RuntimeError("observe exploded")
             self.observed.append(ts)
+            self.observed_meta.append(dict(meta or {}))
 
         def trigger(self, reason, at, context=None):
             if self._fail:

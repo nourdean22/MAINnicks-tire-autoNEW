@@ -834,7 +834,7 @@ class EdgeLoop:
         if self.hard_cases is None:
             return
         try:
-            self.hard_cases.observe(frame.ts, frame.image)
+            self.hard_cases.observe(frame.ts, frame.image, frame.meta)
         except Exception:  # noqa: BLE001
             log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
 
@@ -896,7 +896,14 @@ class EdgeLoop:
             for path in self.hard_cases.flush_ready(ts):
                 log.info("hard case saved %s", path)
         except Exception:  # noqa: BLE001 - the corpus must never take the lot down
-            log.exception("hard-case bookkeeping failed")
+            # ONCE. This runs on every frame, so an exception that persists -- a recorder
+            # whose `observe` signature no longer matches, say -- writes four stack traces a
+            # second, and a log nobody can read is a log nobody reads. Counted every time so
+            # the frequency is still visible; described the first time so it is actionable.
+            self.pipeline.metrics.inc("edge_hard_case_errors_total")
+            if not getattr(self, "_hard_case_logged", False):
+                self._hard_case_logged = True
+                log.exception("hard-case bookkeeping failed and will stay off")
 
     def _note_shadow(self, council: Any, ts: float, image: Any = None) -> None:
         """Record what the adjudicator ALONE would have counted, beside the primary.
