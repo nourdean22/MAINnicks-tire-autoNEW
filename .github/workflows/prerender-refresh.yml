@@ -89,11 +89,23 @@ jobs:
       # exactly the case where the log is worth having and the only case where
       # `if: failure()` withholds it.
       #
-      # Tail, not the whole file: it is a full prod-server boot log and the last
-      # 200 lines carry the DB errors that matter.
+      # HEAD **AND** TAIL. The first version of this step printed `tail -n 200`
+      # on the reasoning that "the last 200 lines carry the DB errors that
+      # matter" — and the very next run disproved it. Queries were failing from
+      # 21:50:56, seconds after boot, and the connection/permission error that
+      # explains them sits at the TOP of a prod-server boot log. The tail showed
+      # 53 lines of consequences and none of the cause.
+      #
+      # So: the boot banner (where a credential or connectivity failure lands)
+      # and the last 200 lines (where the per-route failures land), with the
+      # middle dropped because it is request noise.
       - name: Server log (always — a green run can still have failed routes)
         if: always()
-        run: tail -n 200 apps/nickstire/tmp/regen-server.log || true
+        run: |
+          echo "───── first 80 lines (boot: env validation, DB connect) ─────"
+          head -n 80 apps/nickstire/tmp/regen-server.log || true
+          echo "───── last 200 lines (per-route failures) ─────"
+          tail -n 200 apps/nickstire/tmp/regen-server.log || true
 
       # ── Gate the artifacts BEFORE they reach main ──────────────────────
       #
