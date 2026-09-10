@@ -5193,13 +5193,8 @@
     },
     {
       "file": "apps/nickstire/server/testUtils/sourceBlock.ts",
-      "symbol": "(whole file)",
-      "reason": "TEST-ONLY HELPER, consumed by server/marginCoverageGuard.test.ts and server/testUtils/sourceBlock.test.ts. knip excludes *.test.ts from the project graph, so a module imported ONLY by tests reads as an orphan even though it has two real consumers. Verified by grep: sliceBlock() is imported at marginCoverageGuard.test.ts:21. Not vacuous — reverting its use fails that suite with \"the slice leaked into the next engine\"."
-    },
-    {
-      "file": "apps/nickstire/server/testUtils/sourceBlock.ts",
-      "symbol": "*",
-      "reason": "INTENTIONAL TEST-ONLY UTILITY. sliceBlock() extracts a named block out of a source file for the source-reading assertions several suites make, and it exists specifically so a MISSING anchor THROWS instead of widening: String.slice(start, -1) treats a failed indexOf as offset-from-EOF, which silently turns a broken assertion into a maximally-broad passing one. Production code must never import it - reading your own source at runtime is the defect it guards against, not a capability worth shipping. Consumed by server/referralStateMachine.test.ts, server/candidateSla.test.ts and its own server/testUtils/sourceBlock.test.ts; knip does not count a test file as a consumer, so the finding is a scope artifact rather than an unwired producer."
+      "symbol": null,
+      "reason": "INTENTIONAL TEST-ONLY UTILITY. sliceBlock() extracts a named block out of a source file for the source-reading assertions several suites make, and it exists specifically so a MISSING anchor THROWS instead of widening: String.slice(start, -1) treats a failed indexOf as offset-from-EOF, which silently turns a broken assertion into a maximally-broad passing one. Production code must never import it - reading your own source at runtime is the defect it guards against, not a capability worth shipping. Consumed by six test files: server/candidateSla.test .ts, server/failOpenSliceGate.test.ts, server/marginCoverageGuard.test.ts, server/referralSelfLoopGuard.test.ts, server/referralStateMachine.test.ts and its own sibling server/testUtils/sourceBlock.test.ts. knip does not count a test file as a consumer, so this finding is a scope artifact rather than an unwired producer."
     }
   ]
 }
