@@ -44,10 +44,18 @@
  * clean, or every cold-start turn learns to hedge.
  */
 
-/** Mirrors `RecallProvenance` in lib/brain/memory-recall.ts. */
-export type NoticeProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+/**
+ * Mirrors `RecallProvenance` in lib/brain/memory-recall.ts.
+ *
+ * NOT exported, because nothing outside this module names either type.
+ * (Checked, rather than assumed: the statenour knip gate passed on the
+ * revision where both WERE exported, so this is not a gate fix -- just
+ * the same rule the rest of this wave applies to functions. An export
+ * with no importer is dark wiring at the type level.)
+ */
+type NoticeProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
 
-export interface RecallNoticeInput {
+interface RecallNoticeInput {
   provenance?: NoticeProvenance;
   /** The producer's own explanation, e.g. "every retrieval lane failed". */
   reason?: string;
