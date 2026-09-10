@@ -68,6 +68,13 @@ TRIGGERS_WIRED = frozenset({
     "POSE_OFF_HOME",
     "SOURCE_FAILOVER",
     "LAYOUT_CHANGE",
+    # Both fire from `EdgeLoop._note_reacquisition`, on geometry and time alone. They are
+    # the expensive pair: when the tracker loses a car and re-acquires it as a new id, the
+    # visit layer can open a SECOND visit for a vehicle that never left -- so the shop's
+    # arrival count, the one number anyone reads, goes up by one and both visits look
+    # perfectly well-formed.
+    "TRACK_REACQUIRED",
+    "TRACK_SPLIT",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in

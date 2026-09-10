@@ -34,7 +34,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Deque, Dict, Optional, Tuple
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
@@ -168,6 +168,16 @@ def _disk_free_bytes(ledger: Any) -> Optional[int]:
         return int(shutil.disk_usage(os.path.dirname(os.path.abspath(path))).free)
     except Exception:  # noqa: BLE001
         return None
+
+
+#: How long after a track dies a new one nearby still counts as the SAME car coming back.
+#: Long enough to cover a car passing behind another; short enough that two customers
+#: arriving in the same spot a minute apart are not called one.
+REACQUIRE_SECONDS = 8.0
+#: ...and how close, on the ground plane, in source pixels. Roughly a car length.
+REACQUIRE_PX = 90.0
+#: A birth this close to a track that is still ALIVE is one vehicle becoming two.
+SPLIT_PX = 45.0
 
 
 def edge_heartbeat_body(
@@ -340,6 +350,9 @@ class EdgeLoop:
         self.trajectories = trajectories
         #: When the DETECTOR last ran, and how long its recent runs took. Motion-gated
         #: frames are deliberately excluded -- see `_note_inference`.
+        #: Recently-dead tracks, for spotting a re-acquisition. Bounded: this is a
+        #: few-seconds window, not a history.
+        self._recent_deaths: Deque[Tuple[int, float, float, float]] = deque(maxlen=64)
         self.last_inference_at: Optional[float] = None
         self._inference_ms: Deque[float] = deque(maxlen=200)
         #: How often to re-check that the located scene is still where it was. 0 disables.
@@ -495,6 +508,7 @@ class EdgeLoop:
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
             self._note_inference(frame, out)
+            self._note_reacquisition(frame, out)
             # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
             # bookkeeping coupled two independent subsystems: with no recorder configured
             # the ledger silently recorded nothing, and nested one level deeper it fired
@@ -652,6 +666,72 @@ class EdgeLoop:
         # `base_mode` is what lets the camera card's badge clear when a run ends.
         self.mode = "COMMISSIONING" if self.pipeline.shop.commissioning_run_id else self.base_mode
         return ok
+
+    def _note_reacquisition(self, frame, out) -> None:
+        """Flag the moment a track died and another was born in the same place.
+
+        WHY THIS IS THE EXPENSIVE ONE. When the tracker loses a car and re-acquires it as a
+        new id, the visit layer can open a SECOND visit for the same vehicle -- so the shop's
+        arrival count, the one number anyone actually reads, goes up by one for a car that
+        never left. It is silent by construction: both visits look perfectly well-formed.
+
+        Geometry and time only, deliberately. `TRACK_REACQUIRED` fires on a birth close in
+        space and time to a death; `TRACK_SPLIT` on a birth that lands on top of a track that
+        is still ALIVE, which is one vehicle becoming two. Appearance would sharpen both, and
+        `AppearanceBank` is written and tested for exactly this -- but no re-id model is
+        fetchable at the path this repo pins (`vehicle-reid-0001` is not at the OMZ 2023.0
+        URL; that host answers a missing path with a directory listing at HTTP 200). Wiring
+        the embedder today would add a branch that never executes on the only box that
+        matters. The context carries `appearance: null` so the field EXISTS and is honestly
+        empty, and the day a model lands it is one call, not a redesign.
+
+        This RECORDS. It does not merge, split or renumber anything -- an appearance model
+        that decides identity will happily merge two customers' cars of the same colour, and
+        the tracker's own doc says so. What it produces is a labelled clip of a moment the
+        system probably got wrong, which is what the corpus is for.
+        """
+        if self.hard_cases is None:
+            return
+        try:
+            born = list(out.get("born") or [])
+            died = list(out.get("died") or [])
+            now = frame.ts
+            for t in died:
+                gx, gy = t.ground_point
+                self._recent_deaths.append((int(t.track_id), float(gx), float(gy), now))
+            if not born:
+                return
+            live = {int(k): v for k, v in getattr(self.vision, "tracks", None).tracks.items()}                 if getattr(self.vision, "tracks", None) is not None else {}
+            for t in born:
+                bx, by = t.ground_point
+                bid = int(t.track_id)
+                for did, dx, dy, dts in reversed(self._recent_deaths):
+                    gap = now - dts
+                    if gap > REACQUIRE_SECONDS:
+                        break               # the deque is in time order; older are worse
+                    dist = ((bx - dx) ** 2 + (by - dy) ** 2) ** 0.5
+                    if dist <= REACQUIRE_PX:
+                        self.hard_cases.trigger("TRACK_REACQUIRED", now, {
+                            "diedTrack": did, "bornTrack": bid,
+                            "gapSeconds": round(gap, 2), "distancePx": round(dist, 1),
+                            "appearance": None,
+                        })
+                        break
+                else:
+                    # No death explains it. Did it appear ON TOP of a car already tracked?
+                    for other_id, other in live.items():
+                        if other_id == bid:
+                            continue
+                        ox, oy = other.ground_point
+                        if ((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5 <= SPLIT_PX:
+                            self.hard_cases.trigger("TRACK_SPLIT", now, {
+                                "bornTrack": bid, "overlapsTrack": other_id,
+                                "distancePx": round(((bx - ox) ** 2 + (by - oy) ** 2) ** 0.5, 1),
+                                "appearance": None,
+                            })
+                            break
+        except Exception:  # noqa: BLE001 - corpus bookkeeping never costs a frame
+            self.pipeline.metrics.inc("edge_reacquire_note_errors_total")
 
     def _note_inference(self, frame, out) -> None:
         """Record that the DETECTOR ran, and how long it took.
