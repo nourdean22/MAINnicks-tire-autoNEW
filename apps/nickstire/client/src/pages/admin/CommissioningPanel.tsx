@@ -471,7 +471,14 @@ export default function CommissioningPanel({ camera = "sign" }: { camera?: strin
               {report.data?.ok === true && !report.data.run.settled && (
                 <span
                   className="rounded border border-foreground/20 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-foreground/50"
-                  title={`The edge emits a departure only after its grace period and drains on a timer, so the last events of a run can arrive after you press End. This verdict is not recorded until ${report.data.run.settleSeconds}s have passed.`}
+                  // Elapsed time is the FLOOR, not the whole condition. Saying "recorded
+                  // after Ns" was true of an earlier version and is now a promise the
+                  // server does not keep: settlement also needs the camera to report,
+                  // AFTER that boundary, that its queue is empty and it is still seeing
+                  // frames. A WAN outage or a dead capture postpones the verdict rather
+                  // than freezing a wrong one, so the wait is legitimately open-ended and
+                  // the reason line below says which condition is outstanding.
+                  title={`The edge emits a departure only after its grace period and drains on a timer, so the last events of a run can arrive after you press End. This verdict is not recorded until at least ${report.data.run.settleSeconds}s have passed AND the camera has since confirmed its queue is empty.`}
                 >
                   provisional
                 </span>

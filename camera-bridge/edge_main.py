@@ -807,6 +807,16 @@ def main(argv=None) -> int:
         load_dotenv()
     except ImportError:
         pass
+    # RE-RESOLVE after the env file is loaded. This constant is read at IMPORT time, so
+    # before load_dotenv existed every env var here was ignored uniformly -- which was at
+    # least predictable. Adding load_dotenv made `VISION_OV_MODEL` and `VISION_OV_DEVICE`
+    # work (they are read inside `parse_args`, which runs later) while leaving this one
+    # silently ignored, and a setting that works for two of three neighbours is worse than
+    # one that works for none. Found in this branch's own hostile re-read, not by review.
+    global PRODUCER_INSTANCE_ID
+    from_env = os.environ.get("EDGE_INSTANCE_ID")
+    if from_env:
+        PRODUCER_INSTANCE_ID = from_env
     try:
         return run_edge(parse_args(argv))
     except ConfigError as exc:
