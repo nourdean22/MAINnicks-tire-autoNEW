@@ -59,12 +59,55 @@ type MasterReportResult =
   | { ok: false; error: string };
 
 export const marketAdminRouter = router({
-  /** Clicks / impressions / CTR / position for the window. */
+  /**
+   * Clicks / impressions / CTR / position for the window.
+   *
+   * PREFERS Google's official NO-DIMENSION aggregate. The stored
+   * search_performance rows are written only from a query-dimensioned request,
+   * and Google omits anonymized-query rows from any query-grouped response —
+   * so summing them is a strict SUBSET of the property total, and the CTR error
+   * is not even sign-stable (it flips with whether the hidden tail converts
+   * better or worse than the visible head). A worked case: property truth
+   * 100 clicks / 4,000 impressions / 2.50% CTR renders as 62 / 2,300 / 2.70%.
+   * Clicks -38%, impressions -43%, CTR wrong in the OPPOSITE direction.
+   *
+   * The dimensioned sum stays as a fallback because a summary is better than a
+   * blank card — but it is LABELLED, never silently substituted. `source`
+   * tells the UI which it got, so "partial" can never read as "the total".
+   */
   summary: adminProcedure.input(RANGE).query(async ({ input }) => {
     await requireStore();
-    const { getGscSummary } = await import("../../pipelines/gsc-data");
+    const { getGscSummary, getGscReport } = await import("../../pipelines/gsc-data");
     const w = marketWindow();
-    return getGscSummary({ startDate: input?.startDate ?? w.startDate, endDate: w.endDate });
+    const startDate = input?.startDate ?? w.startDate;
+
+    try {
+      const official = await getGscReport({ startDate, endDate: w.endDate });
+      if (official) {
+        return {
+          from: startDate,
+          to: w.endDate,
+          totalClicks: official.summary.clicks,
+          totalImpressions: official.summary.impressions,
+          // UNIT CONVERSION, load-bearing. Google returns ctr as a RATIO
+          // (0.025); getGscSummary and the card both speak PERCENT (2.5).
+          // Passing the ratio straight through renders 0.0% on a healthy site.
+          avgCtr: Number((official.summary.ctr * 100).toFixed(2)),
+          avgPosition: Number(official.summary.position.toFixed(2)),
+          source: "gsc_official_no_dimension" as const,
+        };
+      }
+    } catch {
+      // Fall through to the stored rows. Deliberately swallowed: the fallback
+      // is itself the error path, and it reports its own provenance.
+    }
+
+    const stored = await getGscSummary({ startDate, endDate: w.endDate });
+    return {
+      ...stored,
+      // Anonymized queries are missing from this number by construction.
+      source: "stored_query_rows_partial" as const,
+    };
   }),
 
   topQueries: adminProcedure.input(RANGE).query(async ({ input }) => {
