@@ -18,6 +18,7 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { visibleText, SOFT_404_MARKERS, MIN_VISIBLE_CHARS } from "./lib/prerenderText.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -285,10 +286,11 @@ async function main() {
   // ~14s, and there are ~10 of those out of 346.
   const ROUTE_BUDGET_MS = 50000;
 
-  // Visible copy of a client-side not-found branch. Must stay in sync with the
-  // same list in scripts/check-prerender-semantic.mjs, which fails the build
-  // when one of these reaches the committed tree.
-  const SOFT_404_MARKERS = ["ARTICLE NOT FOUND", "PAGE NOT FOUND"];
+  // Visible copy of a client-side branch that has no article on it. Imported
+  // from scripts/lib/prerenderText.mjs, which check-prerender-semantic.mjs also
+  // imports — this used to be two hand-maintained copies kept in sync by a
+  // comment saying "must stay in sync", and they were BOTH missing the
+  // in-flight "LOADING ARTICLE" state. Three artifacts shipped in it.
   for (let i = 0; i < routes.length; i += BATCH_SIZE) {
     const batch = routes.slice(i, i + BATCH_SIZE);
     // If Chrome died on the previous batch, relaunch before continuing so
@@ -576,14 +578,50 @@ async function main() {
             outPath = path.join(dir, "index.html");
           }
 
+          // ── Refuse to commit an empty render ──────────────────────────
+          // What stood here checked `html.length > 5000` and a <title>, AFTER
+          // the write, and used the answer to pick between "✓" and "⚠". Three
+          // things were wrong with it and all three shipped soft 404s:
+          //
+          //   1. It measured RAW BYTES. The three blog artifacts Google flagged
+          //      are 32 KB each — they sail past 5000 — and carry 102 visible
+          //      characters. Bytes measure the SPA shell, not the page.
+          //   2. It ran after writeFileSync and after success++, so its verdict
+          //      could not prevent anything.
+          //   3. Its only consequence was a glyph. The run printed "⚠" for
+          //      pages it was in the middle of committing, and the summary line
+          //      counted them among the successes.
+          //
+          // Now: measure visible text, before the write, and treat an empty
+          // render as a FAILURE — which is what it is. Throwing lands in the
+          // per-route catch below, so the route is counted `failed` and the
+          // existing tolerance governs it honestly.
+          //
+          // NOT writing is the point — but only because regen-prerender.mjs now
+          // backfills it. That swap is wholesale (renameSync over the tracked
+          // tree), so on its own a route omitted here would have its artifact
+          // VANISH, which is the worse failure: same contentless page for
+          // crawlers, and invisible to every gate, since check-prerender.mjs
+          // only fails on a missing SITEMAP route and these DB-dynamic posts
+          // are `extra`. The backfill carries the previous copy forward, so a
+          // route that renders empty keeps yesterday's real content. Do not
+          // remove one of these two halves without the other.
+          const visible = visibleText(html);
+          const emptyReason =
+            SOFT_404_MARKERS.find((m) => visible.includes(m)) ??
+            (visible.length < MIN_VISIBLE_CHARS ? `${visible.length} visible chars` : null) ??
+            (/<title>[^<]+<\/title>/.test(html) ? null : "no <title>");
+          if (emptyReason) {
+            throw new Error(
+              `rendered empty (${emptyReason}) — not overwriting the existing artifact`,
+            );
+          }
+
           fs.writeFileSync(outPath, html, "utf-8");
           success++;
-
-          // Quick content check
-          const hasContent = html.length > 5000;
-          const hasTitle = /<title>[^<]+<\/title>/.test(html);
-          const status = hasContent && hasTitle ? "✓" : "⚠";
-          console.log(`  ${status} ${routePath} (${Math.round(html.length / 1024)}KB)`);
+          console.log(
+            `  ✓ ${routePath} (${Math.round(html.length / 1024)}KB, ${visible.length} visible chars)`,
+          );
         };
 
         try {

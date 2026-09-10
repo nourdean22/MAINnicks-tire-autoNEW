@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { emptyArtifacts, classifyEmptyArtifacts, MIN_VISIBLE_CHARS } from "./lib/prerenderText.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PRERENDERED = path.join(ROOT, "prerendered");
@@ -187,31 +188,32 @@ const PAYLOAD_RULES = [
   },
 ];
 
-// Tree-wide, not per-route: a prerendered page that renders the client's
-// "not found" branch is a SOFT 404 — HTTP 200, full Article JSON-LD, and
-// "ARTICLE NOT FOUND" as the only visible copy. Google is being handed these
-// in the sitemap. Ten of them shipped in 6d99b9e3c and nothing noticed for four
-// days; the same thing happened once before in 9a6c5ef04 (2026-07-09) and was
-// only cleaned up by the next weekly refresh happening to run.
-const SOFT_404_MARKERS = ["ARTICLE NOT FOUND", "PAGE NOT FOUND"];
+// Tree-wide, not per-route: a prerendered page that renders no article is a
+// SOFT 404 — HTTP 200, full Article JSON-LD, and an empty-state string as the
+// only visible copy. Google is being handed these in the sitemap. Ten shipped
+// in 6d99b9e3c and nothing noticed for four days; the same thing happened in
+// 9a6c5ef04 (2026-07-09) and was only cleaned up by the next weekly refresh
+// happening to run.
+//
+// TWO THINGS CHANGED HERE ON 2026-09-10, both because Google reported 17 Soft
+// 404s with validation FAILED while this gate printed nothing:
+//
+//   1. The marker list lived here as a literal AND again in prerender.mjs, kept
+//      in sync by a comment. Both copies held only the SETTLED strings
+//      ("ARTICLE NOT FOUND"), and what actually shipped was the IN-FLIGHT one,
+//      "LOADING ARTICLE...". One list now, in scripts/lib/prerenderText.mjs.
+//
+//   2. Markers are a list of copy someone remembered to enumerate. A page that
+//      renders empty for a reason nobody wrote down still scores green against
+//      them, so the length floor sits beside the markers as the wide net.
+//      Measured on the current tree the two agree exactly, which is why the
+//      floor needs its own positive control in the test — agreeing with a
+//      working instrument is not evidence that a second one fires.
+const thinBaseline = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "config", "thin-prerender-baseline.json"), "utf8"),
+);
 
-function collectPrerenderedFiles(dir, found = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) collectPrerenderedFiles(full, found);
-    else if (entry.name === "index.html") found.push(full);
-  }
-  return found;
-}
-
-function findSoft404s() {
-  return collectPrerenderedFiles(PRERENDERED)
-    .filter((file) => {
-      const html = fs.readFileSync(file, "utf8");
-      return SOFT_404_MARKERS.some((marker) => html.includes(marker));
-    })
-    .map((file) => "/" + path.relative(PRERENDERED, file).replace(/\\/g, "/").replace(/\/?index\.html$/, ""));
-}
+const routeOf = (rel) => "/" + rel.replace(/\/?index\.html$/, "");
 
 function inspectPayload(rule) {
   const file = routeFile(rule.route);
@@ -234,14 +236,48 @@ for (const rule of PAYLOAD_RULES) {
   (rule.fatal ? payloadFatal : payloadReported).push(...issues);
 }
 
-// Same non-fatal reasoning as the tire-price rule, and the same flip condition:
-// 10 pages fail today, the fix is a prerender refresh rather than a code change.
-const soft404s = findSoft404s();
-if (soft404s.length > 0) {
+// A RATCHET, not a report. The previous version of this rule was non-fatal
+// "because the fix is a prerender refresh rather than a code change" — and that
+// reasoning is how ten soft 404s sat in the index for four days and how three
+// more reached Google this week. A warning that recurs is a warning nobody
+// reads.
+//
+// So: a NEW empty artifact is fatal immediately, while the three already on
+// main stay named in config/thin-prerender-baseline.json until a refresh clears
+// them. Enabling a gate before the tree it gates is clean would red every
+// sibling session's PR at once, which this repo has done to itself before.
+//
+// A baseline entry that is no longer empty is ALSO fatal. Stale paperwork
+// teaches the next reader the list is decorative, and the refresh that fixes
+// one of these is exactly when nobody thinks to prune it.
+const { fresh, stale, stillEmpty } = classifyEmptyArtifacts(
+  emptyArtifacts(PRERENDERED),
+  thinBaseline.known,
+);
+const describe = (a) =>
+  `${routeOf(a.rel)} (${a.chars} visible chars${a.markers.length ? `, shows "${a.markers[0]}"` : ""})`;
+
+if (fresh.length > 0) {
+  payloadFatal.push(
+    `${fresh.length} prerendered page(s) render NO ARTICLE at HTTP 200 — soft 404s, ` +
+      `and they are served to crawlers: ${fresh.map(describe).join(", ")}. ` +
+      `A page under ${MIN_VISIBLE_CHARS} visible characters is a shell, not a page. ` +
+      `Re-run the prerender refresh; do not add these to config/thin-prerender-baseline.json ` +
+      `to get green.`,
+  );
+}
+
+if (stale.length > 0) {
+  payloadFatal.push(
+    `config/thin-prerender-baseline.json names ${stale.length} artifact(s) that now ` +
+      `render fine — delete the row(s): ${stale.join(", ")}`,
+  );
+}
+
+if (stillEmpty.length > 0) {
   payloadReported.push(
-    `${soft404s.length} prerendered page(s) render a NOT FOUND branch at HTTP 200 — ` +
-      `soft 404s, and they are in the sitemap: ${soft404s.slice(0, 6).join(", ")}` +
-      (soft404s.length > 6 ? `, +${soft404s.length - 6} more` : ""),
+    `${stillEmpty.length} known-empty page(s) still awaiting a prerender refresh: ` +
+      stillEmpty.map(describe).join(", "),
   );
 }
 
