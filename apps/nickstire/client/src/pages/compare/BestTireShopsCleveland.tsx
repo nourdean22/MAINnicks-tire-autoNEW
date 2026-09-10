@@ -1,5 +1,6 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
-import { COMPETITORS, NICKS_TIRE } from "@/data/competitors";
+import { COMPETITORS, buildNicksTire } from "@/data/competitors";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
  * /best-tire-shops-cleveland
@@ -7,10 +8,12 @@ import { COMPETITORS, NICKS_TIRE } from "@/data/competitors";
  * Lists Nick's first + 6 honest alternatives from the COMPETITORS set.
  */
 export default function BestTireShopsCleveland() {
+  const { ratingDisplay: reviewRating } = useReviewStats();
+
   return (
     <ComparisonPage
       format="roundup"
-      primary={NICKS_TIRE}
+      primary={buildNicksTire(reviewRating)}
       slug="best-tire-shops-cleveland"
       seoTitle="Best Tire Shops Cleveland · 7 Honest Picks Ranked | Nick's"
       seoDescription="The honest ranking of Cleveland tire shops. Nick's, Conrad's, Mavis, Discount Tire, Firestone, Monro, Big O — sorted by walk-in policy, Sunday hours, used tire access."

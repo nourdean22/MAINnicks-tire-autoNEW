@@ -22,6 +22,7 @@ import { storagePut } from "../storage";
 import { sendSms } from "../sms";
 import { createLogger } from "../lib/logger";
 import { pickGatewayDevice, isGatewayOnline } from "../lib/gateway-device";
+import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { z } from "zod";
 
 const log = createLogger("routers:services");
@@ -153,13 +154,19 @@ export const garageRouter = router({
 
 export const referralsRouter = router({
   submit: publicProcedure
+    // 2026-09-10 · every bound here matches the `referrals` column width in
+    // drizzle/schema.ts (name 255, phone 30, email 320). They were previously
+    // unbounded: a 300-character name passed validation and TiDB, running
+    // STRICT_TRANS_TABLES, REJECTED the insert — so the referral was lost
+    // silently on a program that pays out $25/$25. Bounding at the column
+    // width turns that into an honest validation error at the edge.
     .input(z.object({
-      referrerName: z.string().min(1),
-      referrerPhone: z.string().min(7),
-      referrerEmail: z.string().email().optional(),
-      refereeName: z.string().min(1),
-      refereePhone: z.string().min(7),
-      refereeEmail: z.string().email().optional(),
+      referrerName: z.string().min(1).max(255),
+      referrerPhone: z.string().min(7).max(30),
+      referrerEmail: z.string().email().max(320).optional(),
+      refereeName: z.string().min(1).max(255),
+      refereePhone: z.string().min(7).max(30),
+      refereeEmail: z.string().email().max(320).optional(),
     }))
     .mutation(async ({ input }) => {
       // wave-fix-2026-05-25 (audit #135) · self-referral exploit prevention.
@@ -180,7 +187,19 @@ export const referralsRouter = router({
         log.warn(`[referrals:self-loop] BLOCKED · same email · ${input.referrerEmail}`);
         return { success: false, error: "Referrer and referee must be different people." };
       }
-      return createReferral(input);
+      // Sanitize at the write, not before the guard above: normalizePhone
+      // already strips to digits, so the self-referral check is unaffected
+      // either way, and leaving it on the raw values keeps that logic exactly
+      // as it was audited. Raw input reached the DB before this — every other
+      // public write form in this app (lead, callback, candidates) sanitizes.
+      return createReferral({
+        referrerName: sanitizeText(input.referrerName),
+        referrerPhone: sanitizePhone(input.referrerPhone),
+        referrerEmail: input.referrerEmail ? sanitizeEmail(input.referrerEmail) : undefined,
+        refereeName: sanitizeText(input.refereeName),
+        refereePhone: sanitizePhone(input.refereePhone),
+        refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
+      });
     }),
   all: adminProcedure.query(async () => {
     return getReferrals();

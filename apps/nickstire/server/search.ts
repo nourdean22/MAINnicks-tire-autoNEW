@@ -8,6 +8,7 @@
 import { SERVICES } from "../shared/services";
 import { BLOG_ARTICLES } from "../shared/blog";
 import { invokeLLM } from "./_core/llm";
+import { getReviewCopy } from "./lib/reviewCopy";
 
 import { createLogger } from "./lib/logger";
 
@@ -22,37 +23,47 @@ export interface SearchResult {
 }
 
 // ─── STATIC PAGES ──────────────────────────────────────
-const STATIC_PAGES = [
-  {
-    title: "Schedule a Drop-Off",
-    description: "Drop your car off at Nick's any day we're open — first-come, first-served. Tell us what's going on, we'll text back within 15 minutes.",
-    url: "/#booking",
-    keywords: ["drop off", "drop-off", "schedule", "online drop-off", "book", "appointment"],
-  },
-  {
-    title: "Contact Us",
-    description: "17625 Euclid Ave, Cleveland, OH 44112 — (216) 862-0005 — Mon-Sat 8AM-6PM, Sun 9AM-4PM",
-    url: "/#contact",
-    keywords: ["contact", "phone", "address", "location", "directions", "hours", "map", "call"],
-  },
-  {
-    title: "Customer Reviews",
-    description: "4.9 stars from real Cleveland drivers. Read what our customers say about us.",
-    url: "/#reviews",
-    keywords: ["reviews", "testimonials", "ratings", "stars", "feedback", "google reviews"],
-  },
-  {
-    title: "Blog & Maintenance Tips",
-    description: "Helpful articles about car maintenance, repairs, and seasonal tips from our technicians.",
-    url: "/blog",
-    keywords: ["blog", "tips", "articles", "advice", "maintenance", "how to"],
-  },
-];
+// A FUNCTION, not a module constant: the reviews entry quotes the live
+// rating, and a module-level array is built once at import time — before
+// any request has fetched live data — so it could only ever carry whatever
+// was hardcoded at deploy time. That's how "4.9 stars" outlived the real
+// number: nothing here ever re-read it.
+function buildStaticPages(reviewRating: number) {
+  return [
+    {
+      title: "Schedule a Drop-Off",
+      description: "Drop your car off at Nick's any day we're open — first-come, first-served. Tell us what's going on, we'll text back within 15 minutes.",
+      url: "/#booking",
+      keywords: ["drop off", "drop-off", "schedule", "online drop-off", "book", "appointment"],
+    },
+    {
+      title: "Contact Us",
+      description: "17625 Euclid Ave, Cleveland, OH 44112 — (216) 862-0005 — Mon-Sat 8AM-6PM, Sun 9AM-4PM",
+      url: "/#contact",
+      keywords: ["contact", "phone", "address", "location", "directions", "hours", "map", "call"],
+    },
+    {
+      title: "Customer Reviews",
+      description: `${reviewRating} stars from real Cleveland drivers. Read what our customers say about us.`,
+      url: "/#reviews",
+      keywords: ["reviews", "testimonials", "ratings", "stars", "feedback", "google reviews"],
+    },
+    {
+      title: "Blog & Maintenance Tips",
+      description: "Helpful articles about car maintenance, repairs, and seasonal tips from our technicians.",
+      url: "/blog",
+      keywords: ["blog", "tips", "articles", "advice", "maintenance", "how to"],
+    },
+  ];
+}
 
 // ─── KEYWORD SEARCH (INSTANT) ──────────────────────────
-export function keywordSearch(query: string): SearchResult[] {
+export async function keywordSearch(query: string): Promise<SearchResult[]> {
   const q = query.toLowerCase().trim();
   if (q.length < 2) return [];
+
+  const { rating: reviewRating } = await getReviewCopy();
+  const STATIC_PAGES = buildStaticPages(reviewRating);
 
   const results: SearchResult[] = [];
   const words = q.split(/\s+/);
@@ -183,7 +194,7 @@ export async function aiSearch(query: string): Promise<{
   }
 
   // First get keyword results as a baseline
-  const keywordResults = keywordSearch(query);
+  const keywordResults = await keywordSearch(query);
 
   // Build context about all available content
   const serviceList = SERVICES.map(s => `- ${s.title} (/${s.slug}): ${s.shortDesc}`).join("\n");

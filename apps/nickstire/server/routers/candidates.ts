@@ -53,8 +53,9 @@ export const candidatesRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Name and phone required" });
       }
       const email = input.email ? sanitizeEmail(input.email) : null;
+      let result: Awaited<ReturnType<typeof createCandidate>>;
       try {
-        return await createCandidate({
+        result = await createCandidate({
           name,
           phone,
           email: email || null,
@@ -76,6 +77,26 @@ export const candidatesRouter = router({
           message: "We couldn't save your application. Please call us instead.",
         });
       }
+
+      // createCandidate RETURNS (does not throw) `{ success: false,
+      // migrationPending: true }` when the candidates table is missing, so this
+      // check sits OUTSIDE the try — inside, the catch would swallow its own
+      // TRPCError and log twice. Returning that shape as-is resolved the
+      // mutation, so Careers.tsx's onSuccess fired and the applicant was shown
+      // "Application Received" while nothing had been written — and data.id was
+      // undefined, so the technician-referral row lost its candidateId link too.
+      // That is the exact silent loss the doc comment above says this endpoint
+      // must not have. Production has 0122 applied, so this is a latent trap
+      // (a fresh DB, a restore, a new environment) rather than a live one, but
+      // the applicant must see the honest "call us instead" either way.
+      if (!result.success) {
+        log.error("[candidates.submit] candidates table unavailable — application NOT saved");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "We couldn't save your application. Please call us instead.",
+        });
+      }
+      return result;
     }),
 
   /** Empty-vs-error: `migrationPending` distinguishes "0122 not applied yet" from "no applicants yet". */

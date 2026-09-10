@@ -1,13 +1,22 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
-import { COMPETITORS } from "@/data/competitors";
+import { COMPETITORS, COMPETITOR_REVIEWS, formatMultiple } from "@/data/competitors";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
  * /conrads-tire-alternative-cleveland
  * Format 1: Alternative — singular competitor → switch intent.
  * Highest-volume target in the comparison set; Conrad's is THE
  * Cleveland chain most local drivers grew up with.
+ *
+ * The review-depth multiple is COMPUTED from Nick's live count and Conrad's
+ * researched chain-wide total, never typed — a frozen "12×" becomes a false
+ * public claim about a named competitor the moment Nick's count moves.
  */
 export default function ConradsAlternative() {
+  const { count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
+  const conrads = COMPETITOR_REVIEWS.conrads;
+  const reviewDepth = formatMultiple(reviewCount / conrads.count);
+
   return (
     <ComparisonPage
       format="alternative"
@@ -40,7 +49,7 @@ export default function ConradsAlternative() {
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "How does Conrad's review depth actually compare to Nick's?",
-          answer: "Conrad's runs 38 stores across Northeast Ohio. Total Trustpilot reviews across the ENTIRE chain: 137. Nick's Tire & Auto, one location on Euclid Ave: 1,700+ Google reviews and counting. A single Nick's shop has 12× more reviews than Conrad's has across its whole 38-store network. That's not a fluke; it's what 7 years of one-shop, one-crew, one-standard service generates. Independent on Euclid beats chain across Ohio by an order of magnitude on the trust metric drivers actually look at.",
+          answer: `Conrad's runs 38 stores across Northeast Ohio. Total Trustpilot reviews across the ENTIRE chain: ${conrads.count}. Nick's Tire & Auto, one location on Euclid Ave: ${reviewCountDisplay} Google reviews and counting. A single Nick's shop has ${reviewDepth}× more reviews than Conrad's has across its whole 38-store network. That's not a fluke; it's what 7 years of one-shop, one-crew, one-standard service generates. Independent on Euclid beats chain across Ohio by an order of magnitude on the trust metric drivers actually look at.`,
         },
       ]}
     />

@@ -10,6 +10,7 @@ import type { ShopSetting } from "../../../drizzle/schema";
 import { log, db, type CameraEntry } from "./utils";
 import type { PublishOutcome } from "../../services/socialPublish";
 import { BUSINESS } from "@shared/business";
+import { getReviewCopy } from "../../lib/reviewCopy";
 // ─── Social Post ──────────────────────────────────────
 
 export async function handleSocialPost(input: {
@@ -285,6 +286,11 @@ export async function handleReviewContent(input: {
   contentType: "social_post" | "email" | "estimate" | "reply" | "brief" | "general";
   context?: string;
 }) {
+  // The QC layer is told to check the copy's facts against these, so a stale
+  // rating here would have it "correct" accurate review numbers back to a dead
+  // one. getReviewCopy: admin override > live Google > static floor, hour-cached.
+  const { rating: reviewRating, countDisplay: reviewCountDisplay } = await getReviewCopy();
+
   const response = await invokeLLM({
     messages: [
       {
@@ -296,7 +302,7 @@ REVIEW this ${input.contentType} for:
    - Phone: ${BUSINESS.phone.display}
    - Address: 17625 Euclid Ave, Cleveland, OH 44112
    - Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
-   - Rating: 4.9 stars, 1,700+ reviews
+   - Rating: ${reviewRating} stars, ${reviewCountDisplay} reviews
    - Walk-ins welcome, first come first serve, drop-offs encouraged
 2. ESTIMATE-VS-INVOICE VARIANCE (for estimates, invoices, briefs, and general reviews):
    - Ensure any price variance calculations are mathematically correct and clearly explained (e.g., separating labor hours deviation, parts markup, and service scope expansion).

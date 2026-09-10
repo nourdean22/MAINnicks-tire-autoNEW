@@ -14,6 +14,7 @@ import { customers, invoices, tireOrders, serviceHistory } from "../../drizzle/s
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
 import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
+import { getReviewCopy, type ReviewCopy } from "../lib/reviewCopy";
 
 import { db } from "../lib/db-helper";
 
@@ -110,7 +111,15 @@ export async function getVerifiedTirePurchaseCustomerIds(d: any, customerIds: nu
 // is concrete, low-pressure, kill-list-clean, and carries no planted negatives.
 // personalizeWinbackBody() still substitutes those tokens IF an operator's custom
 // message includes them, and wraps every send in the TCPA "Reply STOP" footer.
-const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; template: string }[]> = {
+//
+// 2026-09-09 · a FUNCTION, not a const. The dormant step-3 message quotes the
+// shop's rating and review count, and a module-level template literal is
+// evaluated at import time, so it could only ever carry a hardcoded "1,700+"
+// that kept going out over SMS after the real number moved. Text only — sending,
+// gating and scheduling are untouched.
+const buildWinbackTemplates = (
+  { rating, countDisplay }: ReviewCopy,
+): Record<string, { step: number; delayDays: number; template: string }[]> => ({
   // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
     {
@@ -143,7 +152,7 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
     },
     {
       step: 3, delayDays: 14,
-      template: `Last message from ${STORE_NAME} for now. If you've found another shop, all good. If not — we're here, 4.9 stars from 1,700+ Cleveland drivers. Walk in any day. ${STORE_PHONE}`,
+      template: `Last message from ${STORE_NAME} for now. If you've found another shop, all good. If not — we're here, ${rating} stars from ${countDisplay} Cleveland drivers. Walk in any day. ${STORE_PHONE}`,
     },
   ],
 
@@ -219,7 +228,7 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
       template: `Thanks for coming by ${STORE_NAME}. Walk-ins are always welcome 7 days a week — whenever the car needs anything, just pull up. ${STORE_PHONE}`,
     },
   ],
-};
+});
 
 /**
  * Build a SQL WHERE filter for each customer segment.
@@ -414,7 +423,8 @@ export const winbackRouter = router({
             body: personalizeWinbackBody(m.body, recentCustomer, hasTire),
           }));
         } else {
-          const defaults = WINBACK_TEMPLATES[input.targetSegment] || WINBACK_TEMPLATES.lapsed;
+          const templates = buildWinbackTemplates(await getReviewCopy());
+          const defaults = templates[input.targetSegment] || templates.lapsed;
           previewMessages = defaults.map((tmpl) => ({
             step: tmpl.step,
             body: personalizeWinbackBody(tmpl.template, recentCustomer, hasTire),
@@ -558,7 +568,8 @@ export const winbackRouter = router({
           });
         }
       } else {
-        const defaults = WINBACK_TEMPLATES[input.targetSegment] || WINBACK_TEMPLATES.lapsed;
+        const templates = buildWinbackTemplates(await getReviewCopy());
+        const defaults = templates[input.targetSegment] || templates.lapsed;
         for (const tmpl of defaults) {
           await d.insert(winbackMessages).values({
             campaignId,

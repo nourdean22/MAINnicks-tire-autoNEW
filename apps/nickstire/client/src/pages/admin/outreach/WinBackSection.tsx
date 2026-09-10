@@ -11,6 +11,7 @@ import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateT
 // customers · previously ungated). iOS-PWA-safe primitive.
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -55,6 +56,9 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   const [name, setName] = useState("");
   const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent" | "tire_customer">("lapsed");
   const [creating, setCreating] = useState(false);
+  // Mirrors the live numbers the real step-3 SMS renders, so the operator
+  // previewing a sequence sees exactly what the customer will receive.
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
 
   const { data: segmentCounts } = trpc.winback.segmentCounts.useQuery();
   // 2026-05-23 · was bare. Caught by try/catch at the call site
@@ -167,7 +171,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               <>
                 <StepPreview step={1} delay="Immediately" desc="6+ months: Free safety inspection for returning customers" />
                 <StepPreview step={2} delay="Day 7" desc="Cost warning: $200 brake job → $800 rotor replacement" />
-                <StepPreview step={3} delay="Day 14" desc="Final: No hard feelings, still here, 4.9★ 1700+ reviews" />
+                <StepPreview step={3} delay="Day 14" desc={`Final: No hard feelings, still here, ${reviewRating}★ ${reviewCountDisplay} reviews`} />
               </>
             )}
             {segment === "tire_customer" && (

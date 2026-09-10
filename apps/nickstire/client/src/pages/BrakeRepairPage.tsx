@@ -7,12 +7,16 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { useReviewStats } from "@/hooks/useReviewStats";
 import { BUSINESS } from "@shared/business";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
 import { Link } from "wouter";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   canonicalPath: "/brakes",
   // 2026-05-06 wave-16 · pro photo pack: under-car brake repair action
   // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
@@ -92,7 +96,7 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",
-  aeoAnswer: "For brake repair in Cleveland, Nick's Tire & Auto at 17625 Euclid Ave (44112, east side) does a free brake check with a written quote before any work - and you don't pay until you say yes. Pad replacement starts at $149 per axle, open 7 days a week, 4.9 stars from 1,700+ drivers. Call (216) 862-0005 or walk in.",
+  aeoAnswer: `For brake repair in Cleveland, Nick's Tire & Auto at 17625 Euclid Ave (44112, east side) does a free brake check with a written quote before any work - and you don't pay until you say yes. Pad replacement starts at $149 per axle, open 7 days a week, ${reviewRating} stars from ${reviewCountDisplay} drivers. Call (216) 862-0005 or walk in.`,
   // Curiosity arc (2026-05-30) — hero hook = self-relevant gap (no $; the
   // $149/$279 tiers below are the payoff); stakes hook reframes "can it wait?"
   // and pulls into the fear stats (which substantiate the cascade cost).
@@ -181,14 +185,15 @@ const CONFIG: ServicePageConfig = {
       },
     ],
   },
-};
+});
 
 export default function BrakeRepairPage() {
   // wave-fix-2026-05-28 · FAQPage JSON-LD is emitted ONCE by
-  // FocusedServicePage from CONFIG.faqs (see FocusedServicePage.tsx
+  // FocusedServicePage from the config's faqs (see FocusedServicePage.tsx
   // ~L587). The earlier manual <FAQPageSchema> here double-emitted the
   // FAQPage block on /brakes — exactly the "Duplicate field FAQPage"
   // GSC error the template's own comment warns against. Removed; the
   // template's built-in is the single source of truth.
-  return <FocusedServicePage config={CONFIG} />;
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }

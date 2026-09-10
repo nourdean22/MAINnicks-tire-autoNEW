@@ -1,11 +1,22 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
-import { COMPETITORS } from "@/data/competitors";
+import { COMPETITORS, COMPETITOR_REVIEWS, formatMultiple, formatRating } from "@/data/competitors";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
  * /firestone-alternative-cleveland
  * Format 1: Alternative — Firestone Complete Auto Care.
+ *
+ * The star gap and the review-depth multiple are COMPUTED from Nick's live
+ * count and Firestone's researched snapshot, never typed. Hand-written, they
+ * were true the week they were written and decayed into a false public claim
+ * about a named competitor as Nick's count grew.
  */
 export default function FirestoneAlternative() {
+  const { rating: reviewRating, ratingDisplay: reviewRatingDisplay, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
+  const fs = COMPETITOR_REVIEWS.firestone;
+  const starGap = formatMultiple(reviewRating - (fs.rating ?? 0));
+  const reviewDepth = formatMultiple(reviewCount / fs.count);
+
   return (
     <ComparisonPage
       format="alternative"
@@ -13,7 +24,7 @@ export default function FirestoneAlternative() {
       slug="firestone-alternative-cleveland"
       seoTitle="Firestone Alternative Cleveland · No Chain Pricing | Nick's"
       seoDescription="Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address."
-      intro="Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, chain-level labor rates, dealership-style upsell pressure, and a 4.0-star Google rating on 250 reviews at the Downtown Cleveland location vs Nick's 4.9 stars on 1,700+ reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $25 installed if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop."
+      intro={`Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, chain-level labor rates, dealership-style upsell pressure, and a ${formatRating(fs.rating ?? 0)}-star Google rating on ${fs.count} reviews at the Downtown Cleveland location vs Nick's ${reviewRatingDisplay} stars on ${reviewCountDisplay} reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $25 installed if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop.`}
       extraFaqs={[
         {
           question: "Is Firestone's lifetime alignment program worth it?",
@@ -34,7 +45,7 @@ export default function FirestoneAlternative() {
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "How does Firestone Cleveland's rating actually compare to Nick's?",
-          answer: "Firestone's biggest Cleveland location — Downtown at 3917 Prospect Ave — sits at 4.0 stars on 250 Google reviews. Nick's Tire & Auto on Euclid Ave: 4.9 stars on 1,700+ Google reviews. That's a 0.9-star gap AND 6.7× the review depth at a single Nick's location vs Firestone's largest Cleveland presence. Firestone is fine. Nick's is consistently better-rated by way more drivers who've actually used both.",
+          answer: `Firestone's biggest Cleveland location — Downtown at 3917 Prospect Ave — sits at ${formatRating(fs.rating ?? 0)} stars on ${fs.count} Google reviews. Nick's Tire & Auto on Euclid Ave: ${reviewRatingDisplay} stars on ${reviewCountDisplay} Google reviews. That's a ${starGap}-star gap AND ${reviewDepth}× the review depth at a single Nick's location vs Firestone's largest Cleveland presence. Firestone is fine. Nick's is consistently better-rated by way more drivers who've actually used both.`,
         },
         {
           // wave-181.10 · corrected the Sunday claim (Firestone IS open Sun)

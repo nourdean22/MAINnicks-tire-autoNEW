@@ -15,8 +15,12 @@
  */
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import NonstopNickJoin from "@/components/NonstopNickJoin";
+import { useReviewStats } from "@/hooks/useReviewStats";
 
-const CONFIG: ServicePageConfig = {
+// A FUNCTION, not a module constant: the rating and review count are live
+// (useReviewStats), and a module-scope object is built once at import time —
+// before any hook can run — so it could only ever carry the static floor.
+const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServicePageConfig => ({
   // One-tap Join card rendered near the fold (under the AEO answer). Stripe-backed
   // when STRIPE_NONSTOP_NICK_PRICE_ID is set; degrades to call/walk-in until then.
   signupSlot: <NonstopNickJoin source="membership_page" />,
@@ -26,7 +30,7 @@ const CONFIG: ServicePageConfig = {
     "Pull up, we got it. $7.99/mo covers the little tire stuff on one registered vehicle — flat repairs, valve stems, rotation, air-ups. No appointment. (216) 862-0005",
   eyebrow: "NONSTOP NICK · $7.99/MO",
   h1: "PULL UP.\nWE GOT IT.",
-  sub: "Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and we handle it. No appointment. If it's in the plan, it's covered — and if something's outside the plan, we tell you before any work moves forward. $7.99 a month and the little tire stuff stops being your problem. 4.9★ from 1,700+ Cleveland drivers.",
+  sub: `Flat on the way to work? Slow leak that's been bugging you for weeks? With Nonstop Nick, you pull into Nick's on Euclid Ave, hand us the keys, and we handle it. No appointment. If it's in the plan, it's covered — and if something's outside the plan, we tell you before any work moves forward. $7.99 a month and the little tire stuff stops being your problem. ${reviewRating}★ from ${reviewCountDisplay} Cleveland drivers.`,
   // Non-dollar startingPrice → shows as a draw chip (not a price-at-the-door).
   startingPrice: "Members: pull up anytime",
 
@@ -106,8 +110,9 @@ const CONFIG: ServicePageConfig = {
   serviceType: "Nonstop Nick Tire Membership",
   ctaHeadline: "JOIN NONSTOP NICK — $7.99/MO",
   ctaSub: "Pull up anytime, we got you. Sign up online in about a minute, or ask at the counter — 17625 Euclid Ave, Cleveland OH. Call or text (216) 862-0005.",
-};
+});
 
 export default function NonstopNickPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  const { ratingDisplay: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  return <FocusedServicePage config={buildConfig(reviewRating, reviewCountDisplay)} />;
 }
