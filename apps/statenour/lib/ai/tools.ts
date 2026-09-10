@@ -202,6 +202,32 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
           res.data.length === 0;
         const isNullOrUndefined = res === null || res === undefined;
 
+        /**
+         * 2026-09-10 · AN ERROR IS NOT AN EMPTY RESULT.
+         *
+         * `isEmptyDataObject` matches `{ error: "db down", data: [] }` --
+         * so a tool that correctly reported its own failure had that
+         * failure DELETED and replaced with `success: true` plus the
+         * words "Query completed successfully". The wrapper handles a
+         * THROWN execute and a TIMEOUT honestly (both branches above);
+         * the one path it mishandled was the tool that caught its own
+         * error and said so in the return value -- which is the
+         * convention this codebase actually uses (tools/brain.ts
+         * getBlindSpots returns `{ error, blindSpots: [] }`).
+         *
+         * The effect was an amplifier: any swallowed failure anywhere in
+         * a query tool's call tree arrived at the model as an affirmative
+         * claim that the search ran and the corpus was empty. Nothing
+         * downstream could recover the truth, because the error string
+         * was gone by then.
+         *
+         * Checked BEFORE the empty-handling branch, so an error-bearing
+         * result passes through untouched.
+         */
+        const carriesError =
+          res && typeof res === "object" && "error" in res && (res as any).error;
+        if (carriesError) return res;
+
         if (isQueryName && (isNullOrUndefined || isEmptyArray || isEmptyDataObject)) {
           return {
             success: true,

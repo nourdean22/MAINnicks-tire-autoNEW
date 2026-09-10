@@ -38,6 +38,9 @@ import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
 import type { ChatMode } from "@/lib/ai/chat-mode";
 import { detectExecuteFinalized } from "@/lib/ai/response-contract";
+import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
+import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
+import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -122,9 +125,12 @@ export async function buildBrainContext(
   // brain blocks below. Surfaces the live DOING/READY queue so Nick
   // always knows what Nour is carrying without being told. See
   // lib/brain/task-context.ts for the shape.
+  // The module failing to load is the same failure as the query failing:
+  // no queue reached the prompt, and silence here reads as "nothing in
+  // progress". Declared, not swallowed.
   const taskContextPromise = import("@/lib/brain/task-context")
     .then((m) => m.buildTaskContextBlock())
-    .catch(() => "");
+    .catch(() => TASK_QUEUE_UNAVAILABLE);
 
   // Apr 19 · Brain-learning context blocks — ALL PARALLEL.
   //
@@ -360,8 +366,20 @@ export async function buildBrainContext(
                     : "query under 10 chars -- hybrid recall lane not attempted",
             } as never),
           ),
+      // 2026-09-10 · the TIMEOUT is the fourth way grounding can vanish.
+      // buildTruthGroundingBlock now distinguishes "nothing to ground"
+      // from "the lookup threw", but a 3s timeout bypasses that entirely
+      // and used to fall back to null -- no block, no explanation, and
+      // L4's protection silently gone on exactly the slow-database turns
+      // where a task count is most likely to be stale in the model's
+      // head. Fall back to the same declaration the module makes for
+      // itself rather than to silence.
       truthGroundingMod
-        ? withTimeout(truthGroundingMod.buildTruthGroundingBlock(messages as never), 3000, null)
+        ? withTimeout(
+            truthGroundingMod.buildTruthGroundingBlock(messages as never),
+            3000,
+            TRUTH_GROUNDING_UNAVAILABLE,
+          )
         : Promise.resolve(null),
       contradictionInjectorMod
         ? withTimeout(contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }), 3000, null)
@@ -514,6 +532,11 @@ export async function buildBrainContext(
             // being the odd exception was the defect.
             { name: "Hybrid Recall", content: hybridRecallBlock ? `# ${hybridRecallBlock}` : "", critical: true },
           ]),
+      // NOTE · the Recall State notice used to be assembled here. It is
+      // now emitted from the FINAL provenance after this try/catch --
+      // see the block below `brain_blocks_failed`. Assembling it here
+      // covered only the path where assembly succeeded, which is the one
+      // path that is NOT a failed read.
       { name: "Anticipated Memories", content: anticipatoryBlock || "" },
       { name: "Truth Grounding", content: groundingBlock || "", critical: true },
       { name: "Contradiction Alert", content: contradictionAlertBlock || "", critical: true },
@@ -676,6 +699,44 @@ export async function buildBrainContext(
     recallProvenance = "ERROR";
     recallProvenanceReason = "brain block assembly threw -- recall state unknown";
     log.warn("brain_blocks_failed", { err: err instanceof Error ? err.message : String(err) });
+  }
+
+  /**
+   * 2026-09-10 (review, P1+P2) · THE NOTICE IS EMITTED HERE, not in
+   * rawBlocks, and the reviewer was right about why.
+   *
+   * The first version computed it during rawBlocks assembly, inside the
+   * try. That covered only the path where assembly SUCCEEDED. The two it
+   * missed are the two that matter most:
+   *
+   *   · assembly THREW -- the catch above sets ERROR, but rawBlocks was
+   *     already built (or never built), so the notice could never appear
+   *     on the one path that is unambiguously a failed read;
+   *   · the recall module failed to import -- `hybridRecallReport` is
+   *     null, provenance stays at its "UNMEASURED" initial value, and a
+   *     substantive turn silently got no recall and no explanation.
+   *
+   * Emitting from the FINAL provenance, after the try/catch, means one
+   * emission point that every path flows through. Appending straight to
+   * the addendum is also stronger than the `critical: true` rawBlock it
+   * replaces: the reranker never sees it, so it cannot be dropped.
+   */
+  if (recallProvenance === "UNMEASURED" && userContent.length > 10) {
+    // Recall SHOULD have run on a turn this substantive. That it did not
+    // is a failed read, not a turn where memory was irrelevant -- the
+    // UNMEASURED default is only honest for the short-message case.
+    recallProvenance = "ERROR";
+    recallProvenanceReason =
+      recallProvenanceReason ?? "recall never ran this turn (module unavailable) -- nothing was searched";
+  }
+  const recallStateNotice = buildRecallFailureNotice({
+    provenance: recallProvenance,
+    reason: recallProvenanceReason,
+    hitCount: recalledHits.length,
+  });
+  if (recallStateNotice) {
+    addendum += (addendum ? "\n\n" : "") + recallStateNotice;
+    contextBlocksFired.recallState = true;
   }
 
   // ── Deeper Context telemetry ──
