@@ -217,3 +217,55 @@ describe("the lexical lane honours the CONTEXT_CATEGORIES anti-list", () => {
     expect(cats).not.toContain("gmail_thread");
   });
 });
+
+/** Drop `-- ...` line comments so assertions read SQL, not prose. */
+function stripSqlComments(sql: string): string {
+  return sql.replace(/--[^\n]*/g, "");
+}
+
+describe("the lexical lane ranks on weight + cover density, filters on the index", () => {
+  /**
+   * The index (brain_memories_content_fts_idx, 2026-06-02) is built on
+   * the UNWEIGHTED `to_tsvector('english', content)`. Putting weights in
+   * the WHERE clause would stop matching it and turn every recall into a
+   * seq scan -- a silent, permanent performance regression that no test
+   * would otherwise notice. So the invariant is: filter unweighted, rank
+   * weighted.
+   */
+  it("keeps the WHERE predicate in the indexed form", async () => {
+    let lexicalSql = "";
+    queryRawUnsafe.mockImplementation((sql: unknown) => {
+      if (typeof sql === "string" && sql.includes("websearch_to_tsquery")) lexicalSql = sql;
+      return Promise.resolve([]);
+    });
+    await recallMemoriesForQuery("the taper plan", { embedding: EMBEDDING, limit: 5 });
+
+    // Strip `-- ...` comments first: the rationale comment above the
+    // WHERE clause mentions setweight, and slicing raw SQL would match
+    // the prose instead of the predicate.
+    const sql = stripSqlComments(lexicalSql);
+    const where = sql.slice(sql.indexOf("WHERE"), sql.indexOf("ORDER BY"));
+    expect(where).toMatch(/to_tsvector\('english', bm\.content\) @@ websearch_to_tsquery/);
+    // The regression this guards: weights creeping into the filter.
+    expect(where).not.toMatch(/setweight/);
+  });
+
+  it("ranks with cover density over weighted key + content", async () => {
+    let lexicalSql = "";
+    queryRawUnsafe.mockImplementation((sql: unknown) => {
+      if (typeof sql === "string" && sql.includes("websearch_to_tsquery")) lexicalSql = sql;
+      return Promise.resolve([]);
+    });
+    await recallMemoriesForQuery("the taper plan", { embedding: EMBEDDING, limit: 5 });
+
+    const order = stripSqlComments(lexicalSql).slice(stripSqlComments(lexicalSql).indexOf("ORDER BY"));
+    // Cover density: multi-word queries should reward proximity.
+    expect(order).toMatch(/ts_rank_cd/);
+    // A hit on the memory's KEY outranks one in the body.
+    expect(order).toMatch(/setweight\(to_tsvector\('english', coalesce\(bm\.key/);
+    expect(order).toMatch(/'A'/);
+    expect(order).toMatch(/'B'/);
+    // CONTROL: plain ts_rank must be gone, or the upgrade did not land.
+    expect(order).not.toMatch(/ts_rank\(/);
+  });
+});

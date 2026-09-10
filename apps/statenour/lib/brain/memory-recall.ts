@@ -401,18 +401,47 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
               bm.last_seen, bm.created_at,
               bm.source::text AS source, bm.created_by::text AS created_by,
               -- Presented as a DISTANCE so the shared scorer needs no
-              -- special case: higher ts_rank -> smaller distance.
-              (1.0 - LEAST(ts_rank(to_tsvector('english', bm.content),
-                                   websearch_to_tsquery('english', $1)), 1.0))::float AS distance
+              -- special case: higher rank -> smaller distance.
+              --
+              -- 2026-09-10 · WEIGHTED + COVER-DENSITY ranking.
+              --
+              -- Two upgrades over the plain ts_rank this started as, both
+              -- pure SQL, no new dependency and no new index:
+              --
+              --  1. setweight: a hit on the memory's KEY is a stronger
+              --     signal than a hit anywhere in its body. Weight A vs
+              --     B says so. (This tree had 12 ts_rank calls and zero
+              --     setweight before today.)
+              --  2. ts_rank_cd: cover density rewards query terms that
+              --     appear NEAR each other. "the taper plan" matching as
+              --     a phrase should outrank a row that happens to
+              --     contain "taper" in one paragraph and "plan" in
+              --     another -- which is exactly the multi-word
+              --     paraphrase case this lane exists to catch.
+              --
+              -- The WHERE clause below deliberately keeps the UNWEIGHTED
+              -- expression, because that is the one the existing GIN
+              -- index (brain_memories_content_fts_idx) is built on. A
+              -- weighted expression there would not match the index and
+              -- would turn every recall into a seq scan. So: filter on
+              -- the indexed form, rank on the weighted form -- Postgres
+              -- computes the rank only for rows that already matched.
+              (1.0 - LEAST(ts_rank_cd(
+                       setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
+                       setweight(to_tsvector('english', bm.content), 'B'),
+                       websearch_to_tsquery('english', $1)), 1.0))::float AS distance
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
          AND bm.category = ANY($2)
+         -- INDEXED form. Do not add weights here.
          AND to_tsvector('english', bm.content) @@ websearch_to_tsquery('english', $1)
-       ORDER BY ts_rank(to_tsvector('english', bm.content),
-                        websearch_to_tsquery('english', $1)) DESC
+       ORDER BY ts_rank_cd(
+                  setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
+                  setweight(to_tsvector('english', bm.content), 'B'),
+                  websearch_to_tsquery('english', $1)) DESC
        LIMIT ${limit}`,
       query,
       [...CONTEXT_CATEGORIES],
