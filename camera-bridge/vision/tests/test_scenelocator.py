@@ -9,7 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from vision.scenelocator import (MAX_EDGE_TILT_DEG, MIN_INLIERS, MIN_SIDE_PX, SceneBinding,
+from vision.scenelocator import (EPOCH_MOVE_PX, MAX_EDGE_TILT_DEG, MIN_INLIERS,
+                                 MIN_SIDE_PX, SceneBinding,
                                  SceneNotLocated, _linear_is_sane, _quad_is_sane, advance,
                                  build_reference,
                                  canonicalise, lands_on_a_pane, load_atlas, locate,
@@ -170,13 +171,59 @@ def test_the_epoch_is_HELD_across_estimation_jitter():
 
 def test_the_epoch_ADVANCES_when_the_pane_actually_moves():
     """A track at x=650 before a layout change and a detection at x=650 after it are not
-    the same place. Stitching them manufactures a portal crossing no car ever made."""
+    the same place. Stitching them manufactures a portal crossing no car ever made.
+
+    TWO consecutive observations are required. A live run reached epoch 4 in ten minutes on
+    a window nobody touched, because a single locate can miss by more than any tolerance --
+    measured 23.3px peak-to-peak on an unchanged fullscreen window."""
     ref = build_reference(SHOPSIGN, "shopsign", "day-clear")
     a = locate(_window(SHOPSIGN, at=(426, 255), pane=(677, 381)), [ref])
     binding, _ = advance(None, a)
     b = locate(_window(SHOPSIGN, at=(100, 100), pane=(677, 381)), [ref])
-    moved, changed = advance(binding, b)
-    assert changed and moved.epoch == 2
+    held, changed = advance(binding, b)
+    assert not changed and held.epoch == 1, "one observation must not shred the tracks"
+    moved, changed = advance(held, b)
+    assert changed and moved.epoch == 2, "two agreeing observations are a layout change"
+
+
+def test_a_SINGLE_JITTERED_locate_never_advances_the_epoch():
+    """The defect this fixes, stated directly. The epoch is part of `source_generation`, so
+    every false advance degrades the tracks and re-arms the census -- and a producer that
+    never keeps a track cannot detect an arrival at all."""
+    ref = build_reference(SHOPSIGN, "shopsign", "day-clear")
+    home = locate(_window(SHOPSIGN, at=(426, 255), pane=(677, 381)), [ref])
+    binding, _ = advance(None, home)
+    outlier = locate(_window(SHOPSIGN, at=(100, 100), pane=(677, 381)), [ref])
+    binding, changed = advance(binding, outlier)
+    assert not changed
+    # ... and an observation that AGREES clears the pending move, so outliers cannot
+    # accumulate toward a confirmation across minutes of otherwise stable observations.
+    binding, changed = advance(binding, home)
+    assert not changed and binding.pending_moves == 0
+    binding, changed = advance(binding, outlier)
+    assert not changed, "the pending count was reset, so this is the first move again"
+
+
+def test_the_measured_JITTER_stays_inside_the_tolerance():
+    """Eight successive locates of an UNCHANGED fullscreen window moved corners by up to
+    13.1px individually and 23.3px peak-to-peak. The tolerance must sit above that, and a
+    real layout change moves corners by hundreds of pixels, so the two are not close."""
+    assert EPOCH_MOVE_PX > 23.3, "the measured jitter must fit inside the tolerance"
+    assert EPOCH_MOVE_PX < 200, "a real layout change must still be detected"
+
+
+def test_a_DIFFERENT_SCENE_advances_immediately_without_confirmation():
+    """Identity is not a jitter question. If the located scene is a different camera, no
+    amount of waiting makes that more true, and holding the old binding would keep warping
+    one camera's pixels through another's geometry."""
+    same_quad = ((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0))
+    binding = SceneBinding(scene_id="left", epoch=3, quad=same_quad, homography_id="h:x")
+
+    class _Other:
+        scene_id, quad, homography_id = "right", same_quad, "h:y"
+
+    moved, changed = advance(binding, _Other())
+    assert changed and moved.epoch == 4 and moved.scene_id == "right"
 
 
 def test_a_binding_to_a_DIFFERENT_scene_always_advances_the_epoch():
