@@ -1,5 +1,5 @@
 import ComparisonPage from "@/components/competitor/ComparisonPage";
-import { COMPETITORS, COMPETITOR_REVIEWS } from "@/data/competitors";
+import { COMPETITORS, COMPETITOR_REVIEWS, formatRating } from "@/data/competitors";
 import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
@@ -12,7 +12,7 @@ import { useReviewStats } from "@/hooks/useReviewStats";
  * live.
  */
 export default function MavisAlternative() {
-  const { rating: reviewRating, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { ratingDisplay: reviewRatingDisplay, countDisplay: reviewCountDisplay } = useReviewStats();
   const mavis = COMPETITOR_REVIEWS.mavis;
 
   return (
@@ -47,7 +47,7 @@ export default function MavisAlternative() {
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "Why does Mavis Pearl Rd show different star ratings on different sites?",
-          answer: `Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but ${mavis.rating} stars on third-party aggregators (${mavis.count} reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: ${reviewRating} stars consistently across Google, Yelp, and BBB on ${reviewCountDisplay} reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.`,
+          answer: `Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but ${formatRating(mavis.rating ?? 0)} stars on third-party aggregators (${mavis.count} reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: ${reviewRatingDisplay} stars consistently across Google, Yelp, and BBB on ${reviewCountDisplay} reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.`,
         },
       ]}
     />

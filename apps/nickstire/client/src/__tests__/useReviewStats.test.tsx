@@ -68,6 +68,17 @@ describe("useReviewStats", () => {
     expect(result.current.countDisplay).toBe("1,723+");
   });
 
+  it("pads a round rating to one decimal for copy — 4 would read as '4 stars'", () => {
+    mockQuery.mockReturnValue({ data: { totalReviews: 1723, rating: 5 } });
+    const { result } = renderHook(() => useReviewStats());
+
+    // The raw number stays available for math…
+    expect(result.current.rating).toBe(5);
+    // …but copy gets the padded form. Interpolating `rating` directly is what
+    // rendered "sits at 4 stars" on /firestone-alternative-cleveland.
+    expect(result.current.ratingDisplay).toBe("5.0");
+  });
+
   it("keeps the static rating when the payload omits one", () => {
     mockQuery.mockReturnValue({ data: { totalReviews: FLOOR + 10 } });
     const { result } = renderHook(() => useReviewStats());

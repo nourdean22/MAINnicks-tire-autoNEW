@@ -457,6 +457,19 @@ export function formatMultiple(value: number): string {
   return String(Number(value.toFixed(1)));
 }
 
+/**
+ * Format a star rating for copy: 4.0 → "4.0", 3.9 → "3.9".
+ *
+ * Ratings keep the trailing decimal where multiples drop it. Interpolating the
+ * raw number renders 4.0 as "4", and on a page whose whole argument is a
+ * precision comparison — "4 stars on 250 reviews" against "4.9 stars" — the
+ * unpadded form reads sloppy and undersells the gap. Caught in the browser on
+ * /firestone-alternative-cleveland.
+ */
+export function formatRating(value: number): string {
+  return value.toFixed(1);
+}
+
 // ─── Nick's Tire & Auto profile ─────────────────────────────────────
 
 /**

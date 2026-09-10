@@ -65,4 +65,12 @@ describe("getReviewCopy", () => {
 
     expect(copy.rating).toBe(BUSINESS.reviews.rating);
   });
+
+  it("pads a round rating to one decimal for generated copy", async () => {
+    mockGetGoogleReviews.mockResolvedValue({ totalReviews: 1723, rating: 5 });
+    const copy = await getReviewCopy();
+
+    expect(copy.rating).toBe(5);
+    expect(copy.ratingDisplay).toBe("5.0");
+  });
 });

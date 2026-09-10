@@ -23,7 +23,7 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { Calendar, Car, Wrench } from "lucide-react";
-import { COMPETITOR_REVIEWS, formatMultiple } from "@/data/competitors";
+import { COMPETITOR_REVIEWS, formatMultiple, formatRating } from "@/data/competitors";
 import { useReviewStats } from "@/hooks/useReviewStats";
 
 /**
@@ -33,11 +33,11 @@ import { useReviewStats } from "@/hooks/useReviewStats";
  * hook's value, so the numbers would silently freeze.
  */
 function buildConfig(
-  reviewRating: number,
+  reviewRatingDisplay: string,
   reviewCountDisplay: string,
   starGap: string,
   reviewDepth: string,
-  firestoneRating: number,
+  firestoneRatingDisplay: string,
   firestoneCount: number,
 ): ServicePageConfig {
   return {
@@ -95,7 +95,7 @@ function buildConfig(
       },
       {
         q: "Firestone is open Sundays too — why pick Nick's?",
-        a: `Honest answer: Firestone Cleveland Downtown (3917 Prospect Ave) IS open Sundays 9-5. The differentiator isn't hours — it's rating depth. Firestone Downtown sits at ${firestoneRating} stars on ${firestoneCount} Google reviews. Nick's: ${reviewRating} stars on ${reviewCountDisplay} reviews. That's a ${starGap}-star gap AND ${reviewDepth}× the review depth at one location vs Firestone's biggest Cleveland presence. Plus Firestone is appointment-led + chain pricing; Nick's is walk-in + transparent estimates + the free Uber drop-off.`,
+        a: `Honest answer: Firestone Cleveland Downtown (3917 Prospect Ave) IS open Sundays 9-5. The differentiator isn't hours — it's rating depth. Firestone Downtown sits at ${firestoneRatingDisplay} stars on ${firestoneCount} Google reviews. Nick's: ${reviewRatingDisplay} stars on ${reviewCountDisplay} reviews. That's a ${starGap}-star gap AND ${reviewDepth}× the review depth at one location vs Firestone's biggest Cleveland presence. Plus Firestone is appointment-led + chain pricing; Nick's is walk-in + transparent estimates + the free Uber drop-off.`,
       },
       {
         q: "Can I walk in on Sunday or do I need an appointment?",
@@ -137,8 +137,8 @@ function buildConfig(
         { label: "Conrad's Tire — all 10 metro locations", price: "CLOSED" },
         { label: "Mavis Discount Tire (Pearl Rd / Mayfield)", price: "Closed Sun" },
         { label: "NTB Independence (only Sun-open NTB)", price: "9-5 appt" },
-        { label: `Firestone Downtown · ${firestoneRating}★ · ${firestoneCount} reviews`, price: "9-5 Sun" },
-        { label: `Nick's Tire & Auto — ${reviewRating}★ · ${reviewCountDisplay} reviews`, price: "9-4 walk-in", ours: true },
+        { label: `Firestone Downtown · ${firestoneRatingDisplay}★ · ${firestoneCount} reviews`, price: "9-5 Sun" },
+        { label: `Nick's Tire & Auto — ${reviewRatingDisplay}★ · ${reviewCountDisplay} reviews`, price: "9-4 walk-in", ours: true },
       ],
       source: `Source: live competitor scrape May 2026 (econrads.com · mavis.com · firestonecompleteautocare.com · Google Maps ratings). Conrad's chain-wide Sunday closure verified verbatim. Firestone IS open Sunday — Nick's differentiator is rating depth (${starGap}★ gap + ${reviewDepth}× more reviews than Firestone Downtown).`,
     },
@@ -215,14 +215,14 @@ function buildConfig(
 }
 
 export default function TireShopOpenSundayPage() {
-  const { rating: reviewRating, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
+  const { rating: reviewRating, ratingDisplay: reviewRatingDisplay, count: reviewCount, countDisplay: reviewCountDisplay } = useReviewStats();
   const fs = COMPETITOR_REVIEWS.firestone;
   const starGap = formatMultiple(reviewRating - (fs.rating ?? 0));
   const reviewDepth = formatMultiple(reviewCount / fs.count);
 
   return (
     <FocusedServicePage
-      config={buildConfig(reviewRating, reviewCountDisplay, starGap, reviewDepth, fs.rating ?? 0, fs.count)}
+      config={buildConfig(reviewRatingDisplay, reviewCountDisplay, starGap, reviewDepth, formatRating(fs.rating ?? 0), fs.count)}
     />
   );
 }

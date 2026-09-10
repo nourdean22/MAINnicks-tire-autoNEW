@@ -24,8 +24,14 @@ import { BUSINESS, resolveReviewDisplay } from "@shared/business";
 import { getGoogleReviews } from "../google-reviews";
 
 export interface ReviewCopy {
-  /** Average star rating, e.g. 4.9 */
+  /** Average star rating as a number, e.g. 4.9 — use for math, not copy. */
   rating: number;
+  /**
+   * Rating formatted for copy, e.g. "4.9" — always one decimal. JS stringifies
+   * 4.0 as "4", so generated copy interpolating the raw number would emit
+   * "4 stars" the moment the live rating lands on a round value.
+   */
+  ratingDisplay: string;
   /** Resolved review count as a number, e.g. 1723 */
   count: number;
   /** Review count formatted for copy, e.g. "1,723+" */
@@ -37,8 +43,11 @@ export async function getReviewCopy(): Promise<ReviewCopy> {
   const { numeric, countDisplay } = resolveReviewDisplay({
     googleCount: data?.totalReviews ?? null,
   });
+  const rating = data?.rating ?? BUSINESS.reviews.rating;
+
   return {
-    rating: data?.rating ?? BUSINESS.reviews.rating,
+    rating,
+    ratingDisplay: rating.toFixed(1),
     count: numeric,
     countDisplay,
   };
