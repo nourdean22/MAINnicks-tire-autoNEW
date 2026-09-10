@@ -1571,6 +1571,104 @@ class InferenceFreshnessTest(unittest.TestCase):
         self.assertIsNone(body["inferenceP95Ms"])
 
 
+class PoseOffHomeCauseTest(unittest.TestCase):
+    """`may_create_visits` is `(not moving) and pose_ok`, so it goes false for TWO unrelated
+    reasons: the camera is panning right now, or the view no longer matches its reference.
+
+    The clip used to record only `changeFrac` -- the input to the SECOND one. Measured over
+    32 clips from a real shift, 14 carried `changeFrac <= 0.005`, essentially no change at
+    all. Read back, those say "the pose gate suppressed frames while the pose was perfect",
+    which is not what happened and sends an investigation at the wrong half.
+    """
+
+    class _Spy:
+        def __init__(self):
+            self.fired = []
+            self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+        def observe(self, ts, image, meta=None):
+            pass
+
+        def trigger(self, reason, at, context=None):
+            self.fired.append((reason, dict(context or {})))
+            return True
+
+        def flush_ready(self, now):
+            return []
+
+        def flush_all(self, now):
+            return []
+
+    def _fire(self, **scene_kw):
+        scene = SimpleNamespace(may_create_visits=False, moving=False, pose_ok=True,
+                                change_frac=0.0, pose_delta=None, inlier_ratio=None,
+                                reference_set=True)
+        for k, v in scene_kw.items():
+            setattr(scene, k, v)
+        spy = self._Spy()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def step(self, f):
+                return {"emissions": [], "scene": scene}
+
+        loop = _loop(pipeline, _Vision(), _Src(), hard_cases=spy)
+        loop.step()
+        hits = [c for r, c in spy.fired if r == "POSE_OFF_HOME"]
+        return hits[0] if hits else None
+
+    def test_a_PANNING_camera_is_recorded_as_moving_not_as_a_pose_problem(self):
+        ctx = self._fire(moving=True, pose_ok=True, change_frac=0.001)
+        self.assertEqual(ctx["cause"], "moving")
+        self.assertIs(ctx["moving"], True)
+        self.assertIs(ctx["poseOk"], True)
+        # The old context would have shown ONLY this, and it reads as a healthy pose.
+        self.assertEqual(ctx["changeFrac"], 0.001)
+
+    def test_a_DRIFTED_view_is_recorded_as_a_pose_problem(self):
+        ctx = self._fire(moving=False, pose_ok=False, change_frac=0.42)
+        self.assertEqual(ctx["cause"], "pose")
+
+    def test_BOTH_at_once_is_its_own_cause_and_not_collapsed(self):
+        """A panning camera whose view has ALSO drifted is the worst of the three, and
+        folding it into either single cause hides exactly that case."""
+        ctx = self._fire(moving=True, pose_ok=False, change_frac=0.55)
+        self.assertEqual(ctx["cause"], "both")
+
+    def test_a_gate_false_for_NEITHER_reason_says_so_rather_than_guessing(self):
+        """If `may_create_visits` ever goes false while both inputs look fine, the clip must
+        say "neither" rather than name a cause it cannot support -- that is the signal that
+        the property has grown a third input this context does not know about."""
+        ctx = self._fire(moving=False, pose_ok=True)
+        self.assertEqual(ctx["cause"], "neither")
+
+    def test_an_UNMEASURED_pose_delta_stays_None_and_never_becomes_zero(self):
+        """Zero reads as a PERFECT match to the reference -- the opposite of "there is no
+        reference to compare against"."""
+        ctx = self._fire(moving=True, pose_delta=None, inlier_ratio=None)
+        self.assertIsNone(ctx["poseDelta"])
+        self.assertIsNone(ctx["inlierRatio"])
+
+    def test_a_measured_pose_delta_is_reported(self):
+        ctx = self._fire(moving=False, pose_ok=False, pose_delta=3.14159, inlier_ratio=0.6666)
+        self.assertEqual(ctx["poseDelta"], 3.142)
+        self.assertEqual(ctx["inlierRatio"], 0.667)
+
+    def test_a_HEALTHY_gate_fires_nothing(self):
+        """The control. A trigger that fired whenever a scene existed would bury every real
+        pose event under one clip per frame."""
+        self.assertIsNone(self._fire(may_create_visits=True, moving=False, pose_ok=True))
+
+
 class TrajectoryWiringTest(unittest.TestCase):
     """A store with no points and a store nobody is feeding look identical on disk.
 
