@@ -123,6 +123,144 @@ class HeartbeatContractTest(unittest.TestCase):
             self.assertIn(expected, self.columns)
 
 
+class ModeIsAlwaysValidTest(unittest.TestCase):
+    """`mode` must land inside the shop's enum whatever else is on the command line.
+
+    THE DEFECT THIS CATCHES, which shipped and ran against the live shop: the hard-case
+    block in `main()` used a local called `mode` for the EPISODE mode, clobbering the
+    producer's own `mode` computed 400 lines earlier in the same function scope. `EdgeLoop`
+    was then constructed with mode="both", its first heartbeat went out as "BOTH", and the
+    shop rejected it 400.
+
+    Every property of that bug conspired to hide it. It appeared ONLY with `--hard-cases`.
+    It appeared ONLY on the first heartbeat, because `EdgeLoop` repairs `self.mode` from
+    `base_mode` at the end of each send -- so heartbeats 2 onward were clean. And the
+    failure was a return value nobody counted, so a run "with 0 rejections" was a run whose
+    log I had grepped for the wrong string. I recorded it as unreproducible once before
+    catching it here.
+
+    So this asserts the OUTPUT, across a matrix of flags, against the enum read from the
+    route -- not against a copy of it.
+    """
+
+    def _modes_the_shop_accepts(self):
+        with open(ROUTE, encoding="utf-8") as fh:
+            src = fh.read()
+        m = re.search(r"HEARTBEAT_MODES\s*=\s*\[(.*?)\]", src, re.S)
+        self.assertIsNotNone(m, "HEARTBEAT_MODES is gone; this gate is comparing nothing")
+        modes = re.findall(r'"([A-Z_]+)"', m.group(1))
+        self.assertGreaterEqual(len(modes), 2, f"only parsed {modes}")
+        return modes
+
+    def test_mode_is_in_the_shops_enum_for_EVERY_flag_combination(self):
+        import argparse
+        import itertools
+        import sys as _sys
+
+        sys.path.insert(0, os.path.join(REPO, "tests"))
+        from test_edge_main import _cfg                                  # noqa: E402
+
+        if not os.path.exists(ROUTE):
+            self.skipTest("nickstire is not checked out beside camera-bridge")
+        accepted = self._modes_the_shop_accepts()
+
+        combos = itertools.product(
+            (None, "production", "shadow", "commissioning"),   # --mode
+            (None, "run-7"),                                    # --commissioning-run
+            (None, "data/hard-cases"),                          # --hard-cases
+            ("off", "both", "replace"),                         # --hard-case-episodes
+            (False, True),                                      # --replay
+        )
+        for mode_arg, run, cases, episodes, replay in combos:
+            args = edge_main.parse_args([])
+            args.mode, args.commissioning_run = mode_arg, run
+            args.hard_cases, args.hard_case_episodes, args.replay = cases, episodes, replay
+            args.calibration = None
+            args.camera = "lot"          # the camera the test config declares
+            with self.subTest(mode=mode_arg, run=run, cases=bool(cases),
+                              episodes=episodes, replay=replay):
+                # NO skipTest here. Swallowing the exception made every one of the 96
+                # combinations skip, and the file reported "1 passed" -- a matrix that
+                # measured nothing while looking like coverage. If build_edge cannot run,
+                # this test has to say so loudly rather than quietly stand down.
+                out = edge_main.build_edge(_cfg(), args)
+                mode, base_mode = out[5], out[7]
+                self.assertIn(mode, accepted,
+                              f"build_edge produced mode={mode!r}, which the shop rejects")
+                self.assertIn(base_mode, accepted,
+                              f"base_mode={base_mode!r} is not a mode the shop accepts, and "
+                              f"EdgeLoop falls back to it after every heartbeat")
+
+
+class EdgeLoopRefusesABadModeTest(unittest.TestCase):
+    """The gate that actually catches the bug that shipped.
+
+    `ModeIsAlwaysValidTest` above checks `build_edge`'s OUTPUT, and the real defect was a
+    local in `main()` clobbering that output on its way into `EdgeLoop` -- so reintroducing
+    the exact shadowing left that test green. Asserting the output of one function cannot
+    protect a value that is reassigned after it returns.
+
+    So the constructor refuses. A bad mode is a bug in edge_main.py; it should stop the
+    process at startup where the traceback names the line, rather than crossing the network
+    to be diagnosed from a Zod error in a truncated log -- which is how it was found.
+    """
+
+    def _construct(self, mode, base_mode=None):
+        sys.path.insert(0, os.path.join(REPO, "tests"))
+        from test_edge_main import _loop, make_pipeline                  # noqa: E402
+
+        class _Src:
+            def read(self):
+                return None
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+            tracks = SimpleNamespace(tracks={})
+
+            def step(self, frame):
+                return {"emissions": []}
+
+        kw = {"mode": mode}
+        if base_mode is not None:
+            kw["base_mode"] = base_mode
+        return _loop(make_pipeline(), _Vision(), _Src(), **kw)
+
+    def test_the_EPISODE_mode_leaking_into_mode_is_refused(self):
+        """The exact value that shipped. `--hard-case-episodes both` reached `mode`, became
+        "BOTH", and the shop rejected every first heartbeat."""
+        for leaked in ("both", "replace", "off"):
+            with self.subTest(leaked=leaked):
+                with self.assertRaises(ValueError) as caught:
+                    self._construct(leaked)
+                self.assertIn("not one of", str(caught.exception))
+
+    def test_a_VALID_mode_is_accepted_in_either_case(self):
+        """The control. A constructor that refused everything would pass the test above and
+        stop the producer from starting at all."""
+        for good in ("PRODUCTION", "production", "SHADOW", "commissioning"):
+            with self.subTest(mode=good):
+                loop = self._construct(good)
+                self.assertEqual(loop.mode, good.upper())
+
+    def test_an_invalid_BASE_mode_is_refused_too(self):
+        """`base_mode` is what `self.mode` falls back to after every heartbeat, so a bad one
+        poisons every send from the SECOND onward -- quieter still, because the first
+        heartbeat would look perfectly fine."""
+        with self.assertRaises(ValueError):
+            self._construct("PRODUCTION", base_mode="both")
+
+    def test_VALID_MODES_matches_the_shops_enum(self):
+        """A copy that drifts is worse than no copy: the producer would refuse a mode the
+        shop accepts, or accept one it rejects."""
+        if not os.path.exists(ROUTE):
+            self.skipTest("nickstire is not checked out beside camera-bridge")
+        with open(ROUTE, encoding="utf-8") as fh:
+            src = fh.read()
+        m = re.search(r"HEARTBEAT_MODES\s*=\s*\[(.*?)\]", src, re.S)
+        self.assertEqual(set(re.findall(r'"([A-Z_]+)"', m.group(1))),
+                         set(edge_main.VALID_MODES))
+
+
 class HeartbeatValueTest(unittest.TestCase):
     """The fields newly filled, and the shape of their absences."""
 

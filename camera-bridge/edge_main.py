@@ -173,6 +173,10 @@ def _disk_free_bytes(ledger: Any) -> Optional[int]:
 #: How long after a track dies a new one nearby still counts as the SAME car coming back.
 #: Long enough to cover a car passing behind another; short enough that two customers
 #: arriving in the same spot a minute apart are not called one.
+#: The modes the shop's heartbeat schema accepts. Mirrored from `HEARTBEAT_MODES` in
+#: cameraVisitsRoutes.ts; `test_heartbeat_contract.py` fails if the two ever disagree.
+VALID_MODES = frozenset({"PRODUCTION", "SHADOW", "COMMISSIONING"})
+
 REACQUIRE_SECONDS = 8.0
 #: ...and how close, on the ground plane, in source pixels. Roughly a car length.
 REACQUIRE_PX = 90.0
@@ -372,6 +376,20 @@ class EdgeLoop:
         self.challenger = challenger
         self._last_layout_epoch = None
         self.camera = camera
+        # REJECT an unknown mode at construction. Uppercasing whatever arrives turns a
+        # programming error into a value the shop rejects 400 -- and it did: a local named
+        # `mode` in main()'s hard-case block clobbered the producer's own mode, EdgeLoop
+        # cheerfully made it "BOTH", and the first heartbeat after every restart was thrown
+        # away by the shop's enum while heartbeats 2 onward looked fine.
+        #
+        # Failing HERE is the whole point. A bad mode is a bug in this file, so it should
+        # stop this file at startup where the traceback names the line, not travel across
+        # the network to be diagnosed from a Zod error in a truncated log.
+        if mode is not None and str(mode).upper() not in VALID_MODES:
+            raise ValueError(
+                f"mode={mode!r} is not one of {sorted(VALID_MODES)}. The shop's heartbeat "
+                f"schema is an enum and would reject it 400; something has assigned a "
+                f"non-mode value to this variable.")
         # UPPERCASE at assignment, exactly as `base_mode` does two lines below.
         # `--mode` takes lowercase choices ("production"), the shop's heartbeat schema is a
         # Zod enum of UPPERCASE ones, and `self.mode` was only uppercased later, inside the
@@ -385,6 +403,11 @@ class EdgeLoop:
         #: leave it, so the camera badge stayed lit after the run ended while rows were
         #: correctly tagged PRODUCTION again (Codex P2 on #2255).
         self.base_mode = (base_mode or ("SHADOW" if mode == "COMMISSIONING" else mode)).upper()
+        if self.base_mode not in VALID_MODES:
+            # `base_mode` is what `self.mode` FALLS BACK TO after every heartbeat, so an
+            # invalid one poisons every send from the second onward -- the mirror image of
+            # the bug above, and even quieter because the first heartbeat would look fine.
+            raise ValueError(f"base_mode={self.base_mode!r} is not one of {sorted(VALID_MODES)}")
         self.calibration_version = calibration_version
         self.detector_name = detector_name
         self.model_sha256 = model_sha256
@@ -1401,11 +1424,19 @@ def run_edge(args: argparse.Namespace) -> int:
         # operator believe a box is recording episodes it has no library to write.
         from vision.episode import AVAILABLE as _EPISODES_AVAILABLE
 
-        mode = args.hard_case_episodes
-        if mode != "off" and not _EPISODES_AVAILABLE:
-            mode = "off (requested %s; mcap is not importable -- pip install mcap)" % mode
+        # `episode_mode`, NOT `mode`. This block used to call it `mode` and CLOBBERED the
+        # producer's own mode -- the same function-scope name, computed 400 lines earlier --
+        # so `EdgeLoop` was constructed with mode="both" and its FIRST heartbeat went out as
+        # "BOTH" and was rejected 400 by the shop's enum. Line 502 then repaired it from
+        # `base_mode` on the next tick, so heartbeats 2 onward were fine and the failure
+        # looked unreproducible: it only appears with `--hard-cases`, only on the first
+        # heartbeat after a restart, and only in a metric nobody was counting.
+        episode_mode = args.hard_case_episodes
+        if episode_mode != "off" and not _EPISODES_AVAILABLE:
+            episode_mode = ("off (requested %s; mcap is not importable -- pip install mcap)"
+                            % episode_mode)
         log.info("hard-case corpus at %s (budget %.1f GB, episodes: %s)", args.hard_cases,
-                 args.hard_case_max_gb, mode)
+                 args.hard_case_max_gb, episode_mode)
 
     trajectories = None
     if args.trajectories:
