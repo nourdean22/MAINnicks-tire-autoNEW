@@ -3,11 +3,11 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { logAdminAction } from "../services/auditTrail";
 
 export const featureFlagsRouter = router({
-  list: adminProcedure.query(async () => {
+  list: dbAdminProcedure.query(async () => {
     const { getAllFlags } = await import("../services/featureFlags");
     return getAllFlags();
   }),

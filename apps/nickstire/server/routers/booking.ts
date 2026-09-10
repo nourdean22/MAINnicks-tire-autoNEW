@@ -1,7 +1,7 @@
 /**
  * Booking router — handles appointment creation, admin management, and status tracking.
  */
-import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { publicProcedure, adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import {
@@ -539,7 +539,7 @@ export const bookingRouter = router({
     return getBookings();
   }),
 
-  updateStatus: adminProcedure
+  updateStatus: dbAdminProcedure
     .input(z.object({ id: z.number(), status: z.enum(["new", "confirmed", "completed", "cancelled"]) }))
     .mutation(async ({ input }) => {
       const result = await updateBookingStatus(input.id, input.status);

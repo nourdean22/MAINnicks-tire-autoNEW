@@ -22,7 +22,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { scanFabricatedAdminReads, pairKey, fabricatingReads } from "../scripts/lib/fabricatedAdminReadScan.mjs";
+import { scanFabricatedAdminReads, pairKey, fabricatingReads, scannedProcedureCount } from "../scripts/lib/fabricatedAdminReadScan.mjs";
 
 const APP = process.cwd();
 const baseline = JSON.parse(readFileSync(resolve(APP, "config/fabricated-admin-read-baseline.json"), "utf8"));
@@ -36,8 +36,28 @@ describe("fabricated admin reads are ratcheted", () => {
     // A scanner that silently returns nothing would make every assertion below
     // pass while measuring an empty set. That is the failure mode this whole
     // class is about, so it is asserted first.
-    expect(fabricatingReads(APP).size).toBeGreaterThan(10);
-    expect(hits.length).toBeGreaterThan(10);
+    //
+    // THE PAIR COUNT IS NOW ZERO, AND THAT IS EXACTLY WHEN THIS ARM MATTERS
+    // MOST. It used to read `hits.length > 10`, which was a fine control while
+    // the population was large — but the moment the last pair was guarded, a
+    // control phrased that way must either be deleted or inverted, and deleting
+    // it leaves a gate that cannot tell "nothing is wrong" from "nothing is
+    // being measured". Those are the same green.
+    //
+    // So the control moved to the layer that is still non-empty: the HELPERS.
+    // 107 exported reads across server/ still fabricate on a dead handle —
+    // that population does not go to zero, because the accepted fix is a guard
+    // at the ROUTER and the helper's [] stays load-bearing for other callers.
+    // If this number collapses, the scanner is broken, not the codebase clean.
+    expect(
+      fabricatingReads(APP).size,
+      "the scanner found almost no fabricating helpers — it is broken, not the code clean",
+    ).toBeGreaterThan(50);
+
+    // And the pair scan must still be RUNNING, not merely returning []. A
+    // scanner whose router walk silently found no procedures would also report
+    // zero pairs, which is the same green as a genuinely clean tree.
+    expect(scannedProcedureCount(APP), "the router walk found no procedures at all").toBeGreaterThan(100);
   });
 
   it("the subject is the WHOLE server tree, not one file", () => {
@@ -61,14 +81,23 @@ describe("fabricated admin reads are ratcheted", () => {
         `Measured 2026-09-10: 39 other files contribute.`,
     ).toBeGreaterThan(5);
 
-    // And those files must actually reach the PAIR list, not merely be read:
-    // a scan that opens every file but whose pair-matching still only resolves
-    // db.ts helpers would pass the assertion above while measuring nothing new.
-    const fromOtherFiles = hits.filter((h) => h.helperFile && h.helperFile !== "server/db.ts");
-    expect(
-      fromOtherFiles.length,
-      "no (procedure, helper) pair resolves to a helper outside db.ts — widening the file list did not widen the measurement",
-    ).toBeGreaterThan(10);
+    // This arm USED to assert that >10 PAIRS resolved to helpers outside
+    // db.ts. That was the right check while the population was large, and it
+    // became unassertable the moment the last pair was guarded — zero pairs
+    // means zero pairs from anywhere. Rather than delete the coverage, pin it
+    // by NAME: these three helpers live outside db.ts and are exactly the ones
+    // the one-file scanner could never see. getDynamicArticleBySlug is the one
+    // that was serving Soft 404s to Google while invisible to this gate.
+    const helpers = fabricatingReads(APP);
+    for (const [name, file] of [
+      ["getDynamicArticleBySlug", "server/content-generator.ts"],
+      ["getPublishedArticles", "server/content-generator.ts"],
+      ["getActiveTechnicians", "server/db.ts"],
+    ] as const) {
+      const found = helpers.get(name);
+      expect(found, `${name} is no longer detected — the subject list has narrowed`).toBeDefined();
+      expect(found!.file, `${name} should be attributed to ${file}`).toBe(file);
+    }
   });
 
   it("no NEW procedure hands an operator a fabricated value", () => {

@@ -57,7 +57,7 @@ describe("both queue reads distinguish unreadable from empty", () => {
   });
 
   it("the list procedure forwards the flag verbatim, so it is on the wire", () => {
-    expect(router).toMatch(/list:\s*adminProcedure[\s\S]{0,400}listOpportunities\(/);
+    expect(router).toMatch(/list:\s*(?:db)?[Aa]dminProcedure[\s\S]{0,400}listOpportunities\(/);
   });
 });
 

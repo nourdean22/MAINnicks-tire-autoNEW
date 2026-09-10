@@ -3,7 +3,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { algProbeLog } from "../../drizzle/schema";
 import { ADMIN_ROLES, permissionsForAdminRole } from "../../shared/adminPermissions";
-import { adminIdentityProcedure, adminPermissionProcedure, adminProcedure, router } from "../_core/trpc";
+import { adminIdentityProcedure, adminPermissionProcedure, adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import { AUTH_ATTEMPTING_OUTCOMES } from "../lib/adminActivity";
 import { db } from "../lib/db-helper";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "../lib/totp";
@@ -122,7 +122,7 @@ export const adminSecurityRouter = router({
       return { success: true, reference };
     }),
 
-  recordAction: adminProcedure
+  recordAction: dbAdminProcedure
     .input(z.object({
       action: z.string().min(1).max(100),
       entityType: z.string().max(80).optional(),

@@ -2,7 +2,7 @@
  * Dispatch Router — Bay assignment, tech management, QC, customer messaging.
  */
 import { z } from "zod";
-import { router, adminProcedure, publicProcedure } from "../_core/trpc";
+import { router, adminProcedure, publicProcedure, dbAdminProcedure } from "../_core/trpc";
 
 import { createLogger } from "../lib/logger";
 
@@ -299,7 +299,7 @@ export const dispatchRouter = router({
   // ─── Expected Arrivals ────────────────────────────
   // "Customers who said they're coming today" — captured from voice/SMS as a
   // durable record (not a booking; FCFS). Feeds the Today screen.
-  expectedArrivals: adminProcedure
+  expectedArrivals: dbAdminProcedure
     .input(z.object({ date: z.string().max(10).optional(), includeAll: z.boolean().optional() }).optional())
     .query(async ({ input }) => {
       const { listExpectedArrivals } = await import("../services/expectedArrivals");

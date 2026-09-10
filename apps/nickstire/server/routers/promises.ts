@@ -4,7 +4,7 @@
  * sweep, not here. No endpoint contacts a customer.
  */
 import { z } from "zod";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import {
   PROMISE_TYPES,
   createPromise,
@@ -15,11 +15,11 @@ import {
 } from "../services/promiseLedger";
 
 export const promisesRouter = router({
-  listOpen: adminProcedure
+  listOpen: dbAdminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
     .query(async ({ input }) => listOpenPromises(input?.limit ?? 100)),
 
-  create: adminProcedure
+  create: dbAdminProcedure
     .input(
       z.object({
         promiseType: z.enum(PROMISE_TYPES),
@@ -46,13 +46,13 @@ export const promisesRouter = router({
     ),
 
   /** Kept requires evidence — "what did you actually do". */
-  keep: adminProcedure
+  keep: dbAdminProcedure
     .input(z.object({ id: z.string().uuid(), evidence: z.string().min(3).max(280) }))
     .mutation(async ({ input, ctx }) =>
       keepPromise({ id: input.id, evidence: input.evidence, by: ctx.user?.email ?? "admin" }),
     ),
 
-  cancel: adminProcedure
+  cancel: dbAdminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => cancelPromise({ id: input.id, by: ctx.user?.email ?? "admin" })),
 

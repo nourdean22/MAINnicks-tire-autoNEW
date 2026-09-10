@@ -17,7 +17,7 @@
  */
 
 import { z } from "zod";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { getDb } from "../db";
@@ -1147,7 +1147,7 @@ export const vapiRouter = router({
    * roster. Used post-hoc as well (e.g. "why did this call end
    * without confirmation?").
    */
-  callStateHistory: adminProcedure
+  callStateHistory: dbAdminProcedure
     .input(z.object({ callId: z.string().min(1).max(128) }))
     .query(async ({ input }) => {
       const { getCallStateHistory } = await import("../services/voice-call-state");

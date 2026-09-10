@@ -2,7 +2,7 @@
  * Services router — coupons, pricing, inspections, garage, referrals, Q&A,
  * loyalty, customer notifications, and SMS.
  */
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router, dbAdminProcedure, dbProtectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDbTyped } from "../db";
 import {
@@ -35,7 +35,7 @@ export const couponsRouter = router({
     }
     return getActiveCoupons();
   }),
-  all: adminProcedure.query(async () => {
+  all: dbAdminProcedure.query(async () => {
     return getAllCoupons();
   }),
   create: adminProcedure
@@ -117,7 +117,7 @@ export const couponsRouter = router({
 });
 
 export const garageRouter = router({
-  vehicles: protectedProcedure.query(async ({ ctx }) => {
+  vehicles: dbProtectedProcedure.query(async ({ ctx }) => {
     return getCustomerVehicles(ctx.user.id);
   }),
   addVehicle: protectedProcedure
@@ -151,7 +151,7 @@ export const garageRouter = router({
     .mutation(async ({ ctx, input }) => {
       return deleteCustomerVehicle(input.id, ctx.user.id);
     }),
-  serviceHistory: protectedProcedure.query(async ({ ctx }) => {
+  serviceHistory: dbProtectedProcedure.query(async ({ ctx }) => {
     return getServiceHistoryForUser(ctx.user.id);
   }),
 });
@@ -212,7 +212,7 @@ export const referralsRouter = router({
         refereeEmail: input.refereeEmail ? sanitizeEmail(input.refereeEmail) : undefined,
       });
     }),
-  all: adminProcedure.query(async () => {
+  all: dbAdminProcedure.query(async () => {
     return getReferrals();
   }),
   updateStatus: adminProcedure
@@ -243,7 +243,7 @@ export const qaRouter = router({
     .mutation(async ({ input }) => {
       return createQuestion(input);
     }),
-  all: adminProcedure.query(async () => {
+  all: dbAdminProcedure.query(async () => {
     return getAllQuestions();
   }),
   answer: adminProcedure
@@ -258,7 +258,7 @@ export const qaRouter = router({
 });
 
 export const customerNotificationsRouter = router({
-  pending: adminProcedure.query(async () => {
+  pending: dbAdminProcedure.query(async () => {
     return getPendingNotifications();
   }),
   send: adminProcedure
@@ -356,10 +356,10 @@ export const inspectionRouter = router({
         note: input.note ?? null,
       }),
     ),
-  list: adminProcedure.query(async () => {
+  list: dbAdminProcedure.query(async () => {
     return getInspections();
   }),
-  get: adminProcedure
+  get: dbAdminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return getInspection(input.id);
@@ -446,10 +446,10 @@ export const loyaltyRouter = router({
     }
     return getLoyaltyRewards();
   }),
-  summary: protectedProcedure.query(async ({ ctx }) => {
+  summary: dbProtectedProcedure.query(async ({ ctx }) => {
     return getUserLoyaltySummary(ctx.user.id);
   }),
-  transactions: protectedProcedure
+  transactions: dbProtectedProcedure
     .input(z.object({ limit: z.number().default(20) }).optional())
     .query(async ({ ctx, input }) => {
       return getLoyaltyTransactions(ctx.user.id, input?.limit ?? 20);

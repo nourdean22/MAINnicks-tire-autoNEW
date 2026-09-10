@@ -10,6 +10,7 @@
  * touched, and a draft campaign row is inserted.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { sliceBlock } from "./testUtils/sourceBlock";
 import { readFileSync } from "node:fs";
 
 const sendSms = vi.fn();
@@ -113,7 +114,22 @@ describe("bridge sms-campaign · prepares, never sends", () => {
     // Source contract (same style as campaignEmergencyStop.test.ts): the
     // pending-row check must come BEFORE the segment rebuild inside `send`.
     const src = readFileSync(new URL("./routers/campaigns.ts", import.meta.url), "utf8");
-    const sendBody = src.slice(src.indexOf("  send: adminProcedure"), src.indexOf("  recentSends: adminProcedure"));
+    // sliceBlock, not indexOf: a missing marker makes indexOf return -1, and
+    // src.slice(-1, -1) is an EMPTY string that passes any `not.toMatch` and
+    // fails any `toMatch` with a message about the wrong thing. Exactly that
+    // happened when these procedures moved to dbAdminProcedure — the failure
+    // read "expected -1 to be greater than -1" rather than "marker not found".
+    // sliceBlock throws with the marker in the message instead.
+    // `send` is dbAdminProcedure (it reads the audience, so it is guarded);
+    // `recentSends` is still plain adminProcedure. Both spellings are passed as
+    // candidate end markers so this does not break again the next time one of
+    // them changes — sliceBlock takes the EARLIEST match.
+    const sendBody = sliceBlock(
+      src,
+      "  send: dbAdminProcedure",
+      ["  recentSends: dbAdminProcedure", "  recentSends: adminProcedure"],
+      { label: "routers/campaigns.ts" },
+    );
     const preloadedAt = sendBody.indexOf('eq(smsCampaignSends.status, "pending")');
     const segmentAt = sendBody.indexOf("getSegmentCustomers(campaign.segment");
     expect(preloadedAt).toBeGreaterThan(-1);

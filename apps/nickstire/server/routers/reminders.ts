@@ -3,7 +3,7 @@
  * Handles automated maintenance reminder scheduling and management.
  */
 import { z } from "zod";
-import { router, adminProcedure, publicProcedure } from "../_core/trpc";
+import { router, adminProcedure, publicProcedure, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   getReminderSettings, upsertReminderSetting, seedDefaultReminderSettings,
@@ -18,7 +18,7 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("routers:reminders");
 export const remindersRouter = router({
   /** Get all reminder interval settings (admin) */
-  getSettings: adminProcedure.query(async () => {
+  getSettings: dbAdminProcedure.query(async () => {
     await seedDefaultReminderSettings();
     return getReminderSettings();
   }),
@@ -38,7 +38,7 @@ export const remindersRouter = router({
     }),
 
   /** Get all reminders with filtering (admin) */
-  list: adminProcedure
+  list: dbAdminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
     .query(async ({ input }) => {
       return getServiceReminders(input?.limit ?? 100);
@@ -73,7 +73,7 @@ export const remindersRouter = router({
     }),
 
   /** Process due reminders — send SMS for all that are past their nextDueDate (admin) */
-  processQueue: adminProcedure.mutation(async () => {
+  processQueue: dbAdminProcedure.mutation(async () => {
     return processReminderQueue();
   }),
 });

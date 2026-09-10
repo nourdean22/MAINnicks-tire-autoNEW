@@ -1,7 +1,7 @@
 /**
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../../_core/trpc";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../../db";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
@@ -12,12 +12,12 @@ import { db } from "../../lib/db-helper";
 
 
 export const analyticsRouter = router({
-  snapshots: adminProcedure
+  snapshots: dbAdminProcedure
     .input(z.object({ days: z.number().default(30) }).optional())
     .query(async ({ input }) => {
       return getAnalyticsSnapshots(input?.days ?? 30);
     }),
-  serviceBreakdown: adminProcedure.query(async () => {
+  serviceBreakdown: dbAdminProcedure.query(async () => {
     return getBookingServiceBreakdown();
   }),
   funnel: adminProcedure.query(async () => {

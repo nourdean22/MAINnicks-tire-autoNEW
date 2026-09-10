@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import {
   getOrCreateConversation, addSmsMessage, getConversations,
   getConversationMessages, markConversationRead, getUnreadConversationCount,
@@ -52,7 +52,7 @@ export const smsConversationsRouter = router({
     }),
 
   /** Get messages for a specific conversation (admin) */
-  messages: adminProcedure
+  messages: dbAdminProcedure
     .input(z.object({
       conversationId: z.number().int(),
       limit: z.number().int().min(1).max(500).default(100),
@@ -95,7 +95,7 @@ export const smsConversationsRouter = router({
   }),
 
   /** Send an outbound SMS to a customer (admin) */
-  send: adminProcedure
+  send: dbAdminProcedure
     .input(z.object({
       phone: z.string().min(10).max(15),
       message: z.string().min(1).max(1600),
@@ -190,7 +190,7 @@ export const smsConversationsRouter = router({
     }),
 
   /** Suggest a draft reply for a customer (admin) */
-  suggestDraft: adminProcedure
+  suggestDraft: dbAdminProcedure
     .input(z.object({
       phone: z.string().min(10).max(30),
       conversationId: z.number().int().optional(),
@@ -384,7 +384,7 @@ export const smsConversationsRouter = router({
 
   /** ROS-058: an operator explicitly closes a waiting conversation as needing
    *  no reply — the ONLY way an obligation ends without a human answer. */
-  markNoReplyNeeded: adminProcedure
+  markNoReplyNeeded: dbAdminProcedure
     .input(z.object({ conversationId: z.number().int() }))
     .mutation(async ({ input, ctx }) => {
       const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");

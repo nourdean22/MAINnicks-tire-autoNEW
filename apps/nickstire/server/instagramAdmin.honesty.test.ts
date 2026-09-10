@@ -1,6 +1,17 @@
 import { mapInventoryStatusForQueue } from "./routers/instagramAdmin";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+// The dbAdminProcedure middleware (server/_core/trpc.ts) refuses the call when
+// getDbTyped() returns null. That lives in ./db, which is a DIFFERENT module from
+// the db-helper this suite already mocks — without this the guard fires before
+// any handler and every gate asserted below becomes unreachable. A live-looking
+// handle is all it needs; the helpers are still mocked elsewhere.
+vi.mock('./db', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, getDbTyped: async () => ({}) };
+});
+
+
 /**
  * Score-honesty regression tests. These pin the fixes for the fabrication
  * cluster: stageDraft's flat scoreOverall 80, getAllDrafts' `|| 80` read-side

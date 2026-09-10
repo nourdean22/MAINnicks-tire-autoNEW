@@ -93,7 +93,9 @@ describe("the state machine wiring (source pins)", () => {
 
   it("markNoReplyNeeded exists and is audited", () => {
     const s = read("server/routers/smsConversations.ts");
-    expect(s).toMatch(/markNoReplyNeeded: adminProcedure/);
+    // dbAdminProcedure is adminProcedure plus a dead-handle guard — same tier.
+    // The pin is on admin-gating, not on the builder's name.
+    expect(s).toMatch(/markNoReplyNeeded: (?:db)?[Aa]dminProcedure/);
     expect(s).toMatch(/no_reply_required/);
   });
 

@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
 import {
   OPPORTUNITY_STATES,
   listOpportunities,
@@ -44,7 +44,7 @@ export const opportunityQueueRouter = router({
     .query(async ({ input }) => topDecisions(input?.n ?? 5)),
 
   /** Full queue listing, optionally filtered by states. */
-  list: adminProcedure
+  list: dbAdminProcedure
     .input(
       z
         .object({
@@ -190,7 +190,7 @@ export const opportunityQueueRouter = router({
    * Call-first source types (callback / complaint / promise) return no
    * draft with the reason stated.
    */
-  draftOutreach: adminProcedure
+  draftOutreach: dbAdminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ input }) => {
       const { draftOpportunityOutreach } = await import("../services/opportunityDraft");

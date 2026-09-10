@@ -185,14 +185,30 @@ export function scanFabricatedAdminReads(appRoot) {
     }
     const code = stripComments(src);
 
-    const decl = /^ {2}(\w+):\s*(admin|public|protected)Procedure/gm;
+    // The `db` prefix matters and MUST stay in this pattern. dbAdminProcedure
+    // is adminProcedure that has already refused on a dead handle, so it is
+    // GUARDED — but if the declaration regex simply failed to match it, the
+    // procedure would drop out of the scan entirely and its pair would vanish
+    // from the ratchet. Invisible and fixed look identical in a count, and only
+    // one of them is true. So: still recognised as a procedure, then skipped
+    // for the right reason, below.
+    const decl = /^ {2}(\w+):\s*(db)?(Admin|admin|Public|public|Protected|protected)Procedure/gm;
     const marks = [];
     let d;
-    while ((d = decl.exec(code)) !== null) marks.push({ name: d[1], tier: d[2], at: d.index });
+    while ((d = decl.exec(code)) !== null) {
+      marks.push({
+        name: d[1],
+        tier: d[3].toLowerCase(),
+        guardedByBuilder: d[2] === "db",
+        at: d.index,
+      });
+    }
 
     for (let i = 0; i < marks.length; i++) {
       const end = i + 1 < marks.length ? marks[i + 1].at : code.length;
       const body = code.slice(marks[i].at, end);
+      // Declared with a db-prefixed builder: the middleware already threw.
+      if (marks[i].guardedByBuilder) continue;
       // A dead-handle guard anywhere in the procedure counts — ROS-083's shape.
       if (ROUTER_GUARD.test(body)) continue;
       for (const [name, info] of fabricating) {
@@ -215,6 +231,31 @@ export function scanFabricatedAdminReads(appRoot) {
     (a.file + "::" + a.procedure + "::" + a.helper).localeCompare(b.file + "::" + b.procedure + "::" + b.helper),
   );
   return hits;
+}
+
+/**
+ * How many procedures the router walk actually SAW, guarded or not.
+ *
+ * The positive control for a ratchet whose population has reached zero. Once
+ * every pair is guarded, "0 pairs" is the correct answer AND the answer a
+ * completely broken scanner returns — a decl regex that matched nothing, a
+ * git ls-files that returned nothing, a rename that silently dropped every
+ * router. This number is what separates them: it stays in the hundreds whether
+ * or not anything is still unguarded.
+ */
+export function scannedProcedureCount(appRoot) {
+  let n = 0;
+  for (const rel of trackedSources(appRoot, "server/routers")) {
+    let src;
+    try {
+      src = readFileSync(join(appRoot, rel), "utf8");
+    } catch {
+      continue;
+    }
+    const decl = /^ {2}(\w+):\s*(db)?(Admin|admin|Public|public|Protected|protected)Procedure/gm;
+    while (decl.exec(stripComments(src)) !== null) n++;
+  }
+  return n;
 }
 
 /** Stable identity for baseline comparison. */

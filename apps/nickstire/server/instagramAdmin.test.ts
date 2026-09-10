@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
+// The dbAdminProcedure middleware (server/_core/trpc.ts) refuses the call when
+// getDbTyped() returns null. That lives in ./db, which is a DIFFERENT module from
+// the db-helper this suite already mocks — without this the guard fires before
+// any handler and every gate asserted below becomes unreachable. A live-looking
+// handle is all it needs; the helpers are still mocked elsewhere.
+vi.mock('./db', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, getDbTyped: async () => ({}) };
+});
+
+
 // The claim-safety / scheduling gates under test throw BEFORE any query runs
 // (inputs carry no inventoryId), but the routers null-check db() first — so
 // these tests were order/connection-dependent: green only when a real TiDB

@@ -20,7 +20,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { adminProcedure, router } from "../../_core/trpc";
+import { adminProcedure, router, dbAdminProcedure } from "../../_core/trpc";
 import { db } from "../../lib/db-helper";
 import { marketWindow } from "../../lib/marketWindow";
 
@@ -116,7 +116,7 @@ export const marketAdminRouter = router({
     return getTopQueries({ startDate: input?.startDate ?? marketWindow().startDate, limit: input?.limit ?? 10 });
   }),
 
-  topPages: adminProcedure.input(RANGE).query(async ({ input }) => {
+  topPages: dbAdminProcedure.input(RANGE).query(async ({ input }) => {
     await requireStore();
     const { getPagePerformance } = await import("../../pipelines/gsc-data");
     return getPagePerformance({ startDate: input?.startDate ?? marketWindow().startDate, limit: input?.limit ?? 10 });
