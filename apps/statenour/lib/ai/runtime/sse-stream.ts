@@ -11,6 +11,10 @@ interface CreateCockpitSseStreamInput {
     targets: string[];
   };
   recalledMemories: Array<{ id: string; content: string; similarity: number; category: string }>;
+  /** 2026-09-10 · three-state provenance for `recalledMemories`. An empty
+   *  array means nothing on its own -- see memory-recall.RecallProvenance. */
+  recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+  recallProvenanceReason?: string;
   contradictions: Array<{ id: string; claim: string; reality: string; severity: string }>;
   onFinishPromise: Promise<void>;
 }
@@ -21,6 +25,8 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
     traceId,
     classification,
     recalledMemories,
+    recallProvenance,
+    recallProvenanceReason,
     contradictions,
     onFinishPromise,
   } = input;
@@ -61,6 +67,8 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
       sendEvent("memory.recalled", {
         hits: recalledMemories,
         contradictions: contradictions,
+        provenance: recallProvenance,
+        provenanceReason: recallProvenanceReason,
       });
 
       // 3. Define the publish function for our event protocol

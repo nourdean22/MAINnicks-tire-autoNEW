@@ -174,12 +174,24 @@ export function ChatIsland() {
     return () => document.removeEventListener("keydown", onKey);
   }, [closeDrawer, historyDrawerOpen]);
 
+  const [recallProvenance, setRecallProvenance] = useState<
+    "OK" | "ZERO" | "ERROR" | "UNMEASURED" | undefined
+  >(undefined);
+  const [recallProvenanceReason, setRecallProvenanceReason] = useState<string | undefined>(
+    undefined,
+  );
+
   useEffect(() => {
     const onCockpitEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ type: string; payload: any }>).detail;
       if (detail?.type === "memory.recalled") {
         setMemoryData(detail.payload?.hits || [], detail.payload?.contradictions || []);
         setMemoryFetchedAt(new Date());
+        // 2026-09-10 · carry WHY the hit list is the length it is, so an
+        // empty list can render as "read failed" rather than as "Nick
+        // believes nothing about you".
+        setRecallProvenance(detail.payload?.provenance);
+        setRecallProvenanceReason(detail.payload?.provenanceReason);
       }
     };
     window.addEventListener("cockpit-event", onCockpitEvent);
@@ -218,6 +230,13 @@ export function ChatIsland() {
         if (!response.ok) return;
         const report = (await response.json()) as {
           hits?: Array<{ id?: string; memoryId?: string; content?: string; category?: string; similarity?: number; knnDistance?: number }>;
+          // 2026-09-10 · the route already returns these (it spreads the
+          // whole RecallReport); the client simply was not reading them,
+          // so opening the panel OVERWROTE the provenance the SSE event
+          // had just delivered and an errored recall reverted to looking
+          // like a plain empty result.
+          provenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+          provenanceReason?: string;
         };
         const hits = (report.hits ?? []).map((hit, index) => ({
           id: hit.id ?? hit.memoryId ?? `hit-${index}`,
@@ -231,8 +250,17 @@ export function ChatIsland() {
         }));
         setMemoryData(hits, contradictions);
         setMemoryFetchedAt(new Date());
-      } catch {
-        // Abort and network failures preserve the last known memory view.
+        setRecallProvenance(report.provenance);
+        setRecallProvenanceReason(report.provenanceReason);
+      } catch (err) {
+        // An ABORT is ordinary (the panel closed, or the query changed):
+        // keep the last known view untouched. A real failure is not
+        // ordinary -- say the read failed rather than leaving a stale
+        // list looking freshly confirmed.
+        if ((err as { name?: string })?.name !== "AbortError") {
+          setRecallProvenance("ERROR");
+          setRecallProvenanceReason("could not refresh memory for this turn -- showing the last known view");
+        }
       }
     })();
     return () => controller.abort();
@@ -340,7 +368,7 @@ export function ChatIsland() {
           dashboard. Renders null unless the operator opts in. */}
       <ChatMediaFocusPanel />
 
-      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} />
+      <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
       {historyDrawerOpen && (
         <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>

@@ -211,6 +211,46 @@ You are in Master mode - Nour's operator + strategist.
   const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
   systemPrompt += `\n\n${personalityBlock}`;
 
+  // ── REGISTER — 2026-09-10 ────────────────────────────────────────────
+  // Appended AFTER the persona block, deliberately, because it exists to
+  // COUNTERMAND it. Four of the five persona blocks above hard-code an
+  // imperative single-move close ("Always end with ONE next move", and
+  // see :193 / personas/index.ts:118) — which IS the 2026-09-10 audit's
+  // "one voice-shape regardless of stakes" finding, sitting in a string.
+  // That close is right for a drift/coaching turn and wrong for a
+  // pharmacology question, an iOS-backgrounding bug, or a request to
+  // audit this system.
+  //
+  // Derived server-side from the turn rather than read from `posture`:
+  // posture is structurally unreachable (setPosture has zero callers
+  // since the composer chips were removed, and use-chat-stream.ts:59
+  // ships only non-"auto" values), so the "spar"/"execute"/"counsel"
+  // branches below can never fire from the UI. Register had to come
+  // from something that actually exists.
+  //
+  // `toolsExpected` only influences the BUFFER decision, never the
+  // register or the adversarial flag, so it is safe to omit here.
+  try {
+    const { assessTurnRisk, buildRegisterBlock } = await import("@/lib/ai/chat/turn-risk");
+    const risk = assessTurnRisk(userContent, { toolsExpected: false, intent: turnSignal.intent });
+    const registerBlock = buildRegisterBlock(risk);
+    if (registerBlock) systemPrompt += `\n\n${registerBlock}`;
+    // Experiment E3 · measure the buffered share BEFORE building the
+    // buffer. Classification only — this changes no behaviour, and the
+    // number is what decides whether risk-classified buffering is
+    // affordable at all (kill criterion: >25% of turns would buffer).
+    log.info("turn_risk_classified", {
+      risk: risk.risk,
+      register: risk.register,
+      wouldBuffer: risk.buffer,
+      adversarial: risk.adversarialRequired,
+    });
+  } catch (err) {
+    // Never let register selection break a turn — a missing override
+    // degrades to today's single shape, which is the current behaviour.
+    log.info("register_block_failed", { err: err instanceof Error ? err.message : String(err) });
+  }
+
   // ── Behavior directive (ANTICIPATE→ANSWER→ELEVATE · Sparring at HIGH) ──
   // AG-10 wiring · the directive was authored + unit-tested in
   // lib/ai/knowledge/behavior-directive.ts but never injected into any live

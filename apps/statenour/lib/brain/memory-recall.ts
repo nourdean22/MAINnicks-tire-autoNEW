@@ -25,6 +25,12 @@ import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
 import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
 import { reciprocalRankFusion } from "@/lib/brain/rrf";
+// 2026-09-10 · lib/brain/memory-trust.ts was written and unit-tested and
+// had ZERO production importers -- the schema even carries a trust_tier
+// column with an index and no reader or writer. This is that module's
+// first consumer. OWASP AISVS C08 8.2.3 is the control it implements:
+// tool and agent output must not be treated as trusted memory.
+import { classifyTrustTier, isAuthoritative, fenceUntrustedMemory, type TrustTier } from "@/lib/brain/memory-trust";
 
 const log = rootLogger.withSurface("brain/memory-recall");
 
@@ -195,6 +201,16 @@ export interface RecallHit {
   factAgeDays: number;
   knnDistance: number;
   finalScore: number;
+  /**
+   * 2026-09-10 · derived, not stored. `classifyTrustTier` is a pure
+   * function of (source, created_by), both of which are already
+   * populated on every row -- so the tier is exact at read time and
+   * needs no backfill of the 158 write sites. The `trust_tier` column
+   * remains a denormalized cache for SQL-side filtering, and is
+   * deliberately NOT read here: a stale cache would be worse than the
+   * function.
+   */
+  trustTier: TrustTier;
 }
 
 export interface RecallReport {
@@ -207,7 +223,38 @@ export interface RecallReport {
   // was unmeasured — `hitCount` was logged, the actual distance signal
   // was computed (per-hit) and discarded. -1 when no hits.
   avgKnnDistance: number;
+  /**
+   * 2026-09-10 · EMPTY vs ERROR vs UNMEASURED.
+   *
+   * `hits: []` used to mean four different things -- genuine no-match,
+   * a failed query embedding, an invalid embedding, and an empty query
+   * -- and every one of them rendered in the Memory Inspector as the
+   * same "(0) No semantic memory hits retrieved". The 2026-09-10 audit
+   * caught exactly that: a turn synthesising weeks of context showed
+   * (0), which read as "Nick believes nothing about you" when it
+   * almost certainly meant "the embedding call fell over".
+   *
+   * This lane has NO min-score and its durable sub-lane returns up to
+   * 10 rows unconditionally, so a true zero against a populated corpus
+   * is nearly impossible. A `(0)` here is therefore far more likely to
+   * be a failure than a miss -- which is precisely why the two must
+   * never render the same.
+   *
+   * Vocabulary matches the existing panel contract in
+   * components/brain/contradiction-resolution-panel.tsx.
+   */
+  provenance: RecallProvenance;
+  /** Human-readable cause when provenance is ERROR or UNMEASURED. */
+  provenanceReason?: string;
 }
+
+/**
+ * OK        - the search ran and returned rows.
+ * ZERO      - the search ran and genuinely matched nothing.
+ * ERROR     - the read failed. State unknown, NOT empty.
+ * UNMEASURED- the read never ran (guard/precondition not met).
+ */
+export type RecallProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
 
 /**
  * 2026-08-27 · durable-lane fusion (levers run, eval-datasets/levers*-2026-08-27).
@@ -227,6 +274,8 @@ export interface RecallReport {
  * either way) — this lane, not more HNSW effort, is what closes the gap.
  */
 const DURABLE_KNN_LIMIT = 10;
+/** main + durable + lexical. Used to tell "all lanes failed" from "some did". */
+const LANE_COUNT = 3;
 
 /**
  * RRF-merge the two lane orderings (k=60, equal weights — exactly the
@@ -234,166 +283,46 @@ const DURABLE_KNN_LIMIT = 10;
  * boost; an empty durable lane returns the main ordering untouched.
  * Exported for the canary test.
  */
-export function rrfMergeHitOrders(main: RecallHit[], durable: RecallHit[]): RecallHit[] {
-  if (durable.length === 0) return main;
-  const fused = reciprocalRankFusion(
-    [
-      main.map((h) => ({ id: h.memoryId, item: h })),
-      durable.map((h) => ({ id: h.memoryId, item: h })),
-    ],
-    { k: 60 },
-  );
+export function rrfMergeHitOrders(
+  main: RecallHit[],
+  durable: RecallHit[],
+  /**
+   * 2026-09-10 · the LEXICAL ordering (tsvector/BM25-ish). Optional so
+   * every existing caller and the canary test keep their exact
+   * two-lane behaviour.
+   */
+  lexical: RecallHit[] = [],
+): RecallHit[] {
+  if (durable.length === 0 && lexical.length === 0) return main;
+  const lanes = [
+    main.map((h) => ({ id: h.memoryId, item: h })),
+    durable.map((h) => ({ id: h.memoryId, item: h })),
+  ];
+  if (lexical.length > 0) lanes.push(lexical.map((h) => ({ id: h.memoryId, item: h })));
+  const fused = reciprocalRankFusion(lanes, { k: 60 });
   return fused.map((f) => f.item);
 }
 
-function padToTargetDim(arr: number[]): number[] {
-  if (arr.length === TARGET_DIM) return arr;
-  if (arr.length > TARGET_DIM) return arr.slice(0, TARGET_DIM);
-  return [...arr, ...new Array(TARGET_DIM - arr.length).fill(0)];
-}
+/** One row from any retrieval lane. Module-level since 2026-09-10 so the
+ *  lexical lane can share the shape (and therefore the shared scorer). */
+type KnnRow = {
+  memory_id: string;
+  category: string;
+  key: string;
+  content: string;
+  confidence: number;
+  seen_count: number;
+  last_seen: Date;
+  created_at: Date;
+  distance: number;
+  /** 2026-09-10 · provenance columns, for trust-tier classification. */
+  source: string | null;
+  created_by: string | null;
+};
 
-/**
- * Recall the top-N most relevant memories for a user query.
- *
- * @param query — the user's message or any text to search against
- * @param opts.limit — how many memories to return (default 8)
- * @param opts.embedding — pre-computed embedding (skips AI call)
- */
-export async function recallMemoriesForQuery(
-  query: string,
-  opts: { limit?: number; embedding?: number[] } = {},
-): Promise<RecallReport> {
-  const t0 = Date.now();
-  const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
-
-  if (!query?.trim()) {
-    return { query, durationMs: 0, scanned: 0, hits: [], avgKnnDistance: -1 };
-  }
-
-  // 1. Get embedding for the query
-  let queryEmb = opts.embedding;
-  if (!queryEmb || queryEmb.length === 0) {
-    queryEmb = await getEmbedding(query).catch(() => [] as number[]);
-  }
-  if (!queryEmb || queryEmb.length === 0) {
-    log.warn("recall_no_embedding", { queryLen: query.length });
-    return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
-  }
-
-  const padded = padToTargetDim(queryEmb);
-  // v10.0.104 audit fix · validate every element is a finite number
-  // before serializing to a vector literal. Prevents "[NaN, Infinity]"
-  // or any other malformed token from landing in the SQL string. The
-  // embedding source is internal AI but a poisoned response is the
-  // failure mode we hardenagainst here.
-  for (let i = 0; i < padded.length; i++) {
-    if (!Number.isFinite(padded[i])) {
-      log.warn("recall_invalid_embedding", { idx: i, val: padded[i] });
-      return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
-    }
-  }
-  const vecLit = `[${padded.join(",")}]`;
-  // 2026-07-11 review · run the SAME defense-in-depth shape validator the
-  // rest of the codebase uses (lib/db/pgvector.ts) so there's one guard
-  // convention, not two hand-rolled ones. Note vecLit is a BOUND $1
-  // parameter below (not string-interpolated), so this is belt+suspenders.
-  assertSafeVectorLiteral(vecLit);
-
-  // 2. Two KNN lanes in parallel (2026-08-27 durable-lane fusion — see the
-  //    header note on rrfMergeHitOrders for the measured numbers):
-  //    · main — full-corpus HNSW KNN, withEfSearch(HIGH_RECALL=80) as before
-  //    · durable — EXACT scan over the durable personal partition (~122
-  //      rows) via a MATERIALIZED CTE. Deliberately not HNSW: a 0.4%-
-  //      selective category filter after an ANN index is the starvation
-  //      shape this file's own baseline documented; materializing the tiny
-  //      partition first makes the plan deterministic and the recall exact.
-  type KnnRow = {
-    memory_id: string;
-    category: string;
-    key: string;
-    content: string;
-    confidence: number;
-    seen_count: number;
-    last_seen: Date;
-    created_at: Date;
-    distance: number;
-  };
-  const durablePromise: Promise<KnnRow[]> = prisma
-    .$queryRawUnsafe<KnnRow[]>(
-      `WITH durable AS MATERIALIZED (
-         SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
-                bm.seen_count, bm.last_seen, bm.created_at, ve.embedding_vec_1536
-         FROM vector_embeddings ve
-         JOIN brain_memories bm
-           ON bm.id = ve."sourceId"
-          AND bm.deleted_at IS NULL
-         WHERE ve."sourceType" = 'brain_memory'
-           AND ve.embedding_vec_1536 IS NOT NULL
-           AND bm.confidence >= 0.3
-           AND bm.superseded_by_id IS NULL
-           AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
-           AND bm.category = ANY($2)
-       )
-       SELECT id::text AS memory_id, category::text AS category, key::text AS key,
-              substring(content, 1, ${MAX_CONTENT_LEN})::text AS content,
-              confidence::float AS confidence, seen_count::int AS seen_count,
-              last_seen, created_at,
-              (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
-       FROM durable
-       ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
-       LIMIT ${DURABLE_KNN_LIMIT}`,
-      vecLit,
-      [...DURABLE_PERSONAL_CATEGORIES],
-    )
-    .catch((err) => {
-      log.warn("durable_knn_failed", {
-        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-      });
-      return [] as KnnRow[];
-    });
-
-  const mainPromise = withEfSearch(prisma, EF_SEARCH.HIGH_RECALL, (tx) =>
-    tx.$queryRawUnsafe<KnnRow[]>(
-      `SELECT
-         bm.id::text AS memory_id,
-         bm.category::text AS category,
-         bm.key::text AS key,
-         substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
-         bm.confidence::float AS confidence,
-         bm.seen_count::int AS seen_count,
-         bm.last_seen,
-         bm.created_at,
-         (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
-       FROM vector_embeddings ve
-       JOIN brain_memories bm
-         ON bm.id = ve."sourceId"
-        AND bm.deleted_at IS NULL
-       WHERE ve."sourceType" = 'brain_memory'
-         AND ve.embedding_vec_1536 IS NOT NULL
-         AND bm.confidence >= 0.3
-         -- BDN-310 supersession honored (2026-08-19): a superseded or
-         -- expired-validity belief must not be recalled as current.
-         -- The columns were applied to prod 2026-08-14 with no reader.
-         AND bm.superseded_by_id IS NULL
-         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
-       ORDER BY ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
-       LIMIT ${KNN_TOP}`,
-      vecLit,
-    ),
-  ).catch((err) => {
-    log.warn("knn_failed", {
-      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    });
-    return [] as KnnRow[];
-  });
-
-  const [rows, durableRows] = await Promise.all([mainPromise, durablePromise]);
-
-  // 3. Score both lanes with the SAME formula, then RRF-merge the orderings.
-  //    Main lane keeps its boosted-score ordering; the durable lane is
-  //    ordered by raw distance (the measured configuration).
-  const now = Date.now();
-  const toHit = (r: KnnRow): RecallHit => {
+/** Shared lane scorer. Module-level since 2026-09-10 so the lexical
+ *  fallback can score rows without duplicating the formula. */
+function scoreRow(r: KnnRow, now: number): RecallHit {
     const ageDays = Math.floor(
       (now - new Date(r.last_seen).getTime()) / 86_400_000,
     );
@@ -419,8 +348,327 @@ export async function recallMemoriesForQuery(
       factAgeDays,
       knnDistance: r.distance,
       finalScore: Math.round(finalScore * 1000) / 1000,
+      trustTier: classifyTrustTier(r.source, r.created_by, r.category),
     };
-  };
+  }
+
+/**
+ * 2026-09-10 · THE LEXICAL LANE.
+ *
+ * This module's own header has claimed "Hybrid search (FTS + KNN)" since
+ * it was written. It was not true: both SQL statements below were
+ * `ORDER BY embedding <=> $1::vector`, pure dense cosine. The FTS half
+ * existed only in lib/brain/contextual-recall.ts:487-495, feeding a
+ * DIFFERENT prompt block that the Memory Inspector does not count.
+ *
+ * Two things this fixes that dense retrieval structurally cannot:
+ *
+ *  1. PARAPHRASE + EXACT TERMS. "the taper plan" may sit far from the
+ *     original brain-dump wording in embedding space while sharing the
+ *     literal token. Lexical retrieval does not care how the sentence
+ *     was phrased around it.
+ *  2. EMBEDDING OUTAGES. This lane needs no query vector. When
+ *     embedUserMessage() fail-softs to [] (12s timeout), dense recall
+ *     returned NOTHING and the panel rendered "(0)". Now the turn
+ *     degrades to lexical instead of going blind -- which is the
+ *     difference between a slow provider and an amnesiac assistant.
+ *
+ * CATEGORY FILTERING -- corrected 2026-09-10 after review.
+ *
+ * The first version of this lane skipped category filtering entirely,
+ * justified by the durable-lane finding that post-filtering a top-30 KNN
+ * measured hit@5 = 0/28. That conflated two different filters. The 0/28
+ * result was about DURABLE_PERSONAL_CATEGORIES losing personal facts
+ * inside a fixed candidate window -- it said nothing about
+ * CONTEXT_CATEGORIES, whose job is an ANTI-LIST: telemetry, markers and
+ * alerts, which do not help a conversation.
+ *
+ * Skipping it was worse here than in the dense lanes, not better:
+ * lexical matching needs only literal token overlap, so "what happened
+ * at 3am" reaches an alert row reading "High CPU at 3am" that every
+ * other lane in this file is built to exclude.
+ *
+ * Filtered in SQL rather than after the fact, so LIMIT applies to
+ * eligible rows and the lane keeps its full candidate budget.
+ */
+function lexicalLane(query: string, limit: number, onFail?: () => void): Promise<KnnRow[]> {
+  return prisma
+    .$queryRawUnsafe<KnnRow[]>(
+      `SELECT bm.id::text AS memory_id, bm.category::text AS category,
+              bm.key::text AS key,
+              substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
+              bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
+              bm.last_seen, bm.created_at,
+              bm.source::text AS source, bm.created_by::text AS created_by,
+              -- Presented as a DISTANCE so the shared scorer needs no
+              -- special case: higher rank -> smaller distance.
+              --
+              -- 2026-09-10 · WEIGHTED + COVER-DENSITY ranking.
+              --
+              -- Two upgrades over the plain ts_rank this started as, both
+              -- pure SQL, no new dependency and no new index:
+              --
+              --  1. setweight: a hit on the memory's KEY is a stronger
+              --     signal than a hit anywhere in its body. Weight A vs
+              --     B says so. (This tree had 12 ts_rank calls and zero
+              --     setweight before today.)
+              --  2. ts_rank_cd: cover density rewards query terms that
+              --     appear NEAR each other. "the taper plan" matching as
+              --     a phrase should outrank a row that happens to
+              --     contain "taper" in one paragraph and "plan" in
+              --     another -- which is exactly the multi-word
+              --     paraphrase case this lane exists to catch.
+              --
+              -- The WHERE clause below deliberately keeps the UNWEIGHTED
+              -- expression, because that is the one the existing GIN
+              -- index (brain_memories_content_fts_idx) is built on. A
+              -- weighted expression there would not match the index and
+              -- would turn every recall into a seq scan. So: filter on
+              -- the indexed form, rank on the weighted form -- Postgres
+              -- computes the rank only for rows that already matched.
+              (1.0 - LEAST(ts_rank_cd(
+                       setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
+                       setweight(to_tsvector('english', bm.content), 'B'),
+                       websearch_to_tsquery('english', $1)), 1.0))::float AS distance
+       FROM brain_memories bm
+       WHERE bm.deleted_at IS NULL
+         AND bm.confidence >= 0.3
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND bm.category = ANY($2)
+         -- INDEXED form. Do not add weights here.
+         AND to_tsvector('english', bm.content) @@ websearch_to_tsquery('english', $1)
+       ORDER BY ts_rank_cd(
+                  setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
+                  setweight(to_tsvector('english', bm.content), 'B'),
+                  websearch_to_tsquery('english', $1)) DESC
+       LIMIT ${limit}`,
+      query,
+      [...CONTEXT_CATEGORIES],
+    )
+    .catch((err) => {
+      log.warn("lexical_lane_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      onFail?.();
+      return [] as KnnRow[];
+    });
+}
+
+function padToTargetDim(arr: number[]): number[] {
+  if (arr.length === TARGET_DIM) return arr;
+  if (arr.length > TARGET_DIM) return arr.slice(0, TARGET_DIM);
+  return [...arr, ...new Array(TARGET_DIM - arr.length).fill(0)];
+}
+
+/**
+ * Recall the top-N most relevant memories for a user query.
+ *
+ * @param query — the user's message or any text to search against
+ * @param opts.limit — how many memories to return (default 8)
+ * @param opts.embedding — pre-computed embedding (skips AI call)
+ */
+export async function recallMemoriesForQuery(
+  query: string,
+  opts: { limit?: number; embedding?: number[] } = {},
+): Promise<RecallReport> {
+  const t0 = Date.now();
+  const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
+
+  // 2026-09-10 (review #2267 P2) · PER-LANE FAILURE LEDGER.
+  //
+  // Each lane below catches its own error and returns []. That is right
+  // for resilience -- one dead lane must not take the turn down -- but
+  // it recreates, one level lower, the exact defect this file's
+  // provenance work exists to remove: if every lane throws, `scored` is
+  // empty and the result would report a measured ZERO. During a Postgres
+  // or pgvector outage the panel would then say "searched memory,
+  // nothing matched" when in truth nothing was searched at all.
+  //
+  // The catches record WHICH lane failed; the provenance mapper at the
+  // bottom reads this ledger instead of inferring from `scored.length`.
+  const laneFailures: string[] = [];
+
+  if (!query?.trim()) {
+    return {
+      query,
+      durationMs: 0,
+      scanned: 0,
+      hits: [],
+      avgKnnDistance: -1,
+      provenance: "UNMEASURED",
+      provenanceReason: "empty query -- recall never ran",
+    };
+  }
+
+  // 1. Get embedding for the query
+  let queryEmb = opts.embedding;
+  if (!queryEmb || queryEmb.length === 0) {
+    queryEmb = await getEmbedding(query).catch(() => [] as number[]);
+  }
+  if (!queryEmb || queryEmb.length === 0) {
+    // 2026-09-10 · DEGRADE, do not go blind.
+    //
+    // embedUserMessage() fail-softs to [] on a 12s timeout, and this
+    // lane is the only one the "REMEMBERED -- WHAT NICK BELIEVES (N)"
+    // counter reads. Before this branch existed, one slow embedding call
+    // rendered as "Nick believes nothing about you" -- the exact reading
+    // the 2026-09-10 audit made. The lexical lane needs no query vector,
+    // so a dense-side outage costs ranking quality, not memory itself.
+    log.warn("recall_no_embedding", { queryLen: query.length });
+    // Self-review 2026-09-10 · this call originally omitted the failure
+    // sink, so a lexical lane that ALSO threw produced hits: [] and a
+    // reason reading "lexical retrieval matched nothing" -- asserting a
+    // measured zero for a lane that had errored. That is the exact
+    // empty-vs-error inversion this file exists to remove, reintroduced
+    // on the one path built to survive an outage.
+    let lexicalFailed = false;
+    const lexicalOnly = await lexicalLane(query, limit, () => {
+      lexicalFailed = true;
+    });
+    const now = Date.now();
+    const hits = lexicalOnly.map((r) => scoreRow(r, now)).slice(0, limit);
+    return {
+      query,
+      durationMs: Date.now() - t0,
+      scanned: lexicalOnly.length,
+      hits,
+      avgKnnDistance: -1,
+      // Still ERROR: the dense lanes genuinely did not run, and callers
+      // must not read this as a clean result. But the hits are real.
+      provenance: "ERROR",
+      provenanceReason: lexicalFailed
+        ? "query embedding unavailable AND the lexical lane failed -- nothing was searched; recall state unknown"
+        : hits.length > 0
+          ? `query embedding unavailable -- degraded to lexical retrieval (${hits.length} hit${hits.length === 1 ? "" : "s"}); ranking is weaker than usual`
+          : "query embedding unavailable; the lexical lane ran and matched nothing -- dense recall state unknown",
+    };
+  }
+
+  const padded = padToTargetDim(queryEmb);
+  // v10.0.104 audit fix · validate every element is a finite number
+  // before serializing to a vector literal. Prevents "[NaN, Infinity]"
+  // or any other malformed token from landing in the SQL string. The
+  // embedding source is internal AI but a poisoned response is the
+  // failure mode we hardenagainst here.
+  for (let i = 0; i < padded.length; i++) {
+    if (!Number.isFinite(padded[i])) {
+      log.warn("recall_invalid_embedding", { idx: i, val: padded[i] });
+      return {
+        query,
+        durationMs: Date.now() - t0,
+        scanned: 0,
+        hits: [],
+        avgKnnDistance: -1,
+        provenance: "ERROR",
+        provenanceReason: "query embedding contained a non-finite value",
+      };
+    }
+  }
+  const vecLit = `[${padded.join(",")}]`;
+  // 2026-07-11 review · run the SAME defense-in-depth shape validator the
+  // rest of the codebase uses (lib/db/pgvector.ts) so there's one guard
+  // convention, not two hand-rolled ones. Note vecLit is a BOUND $1
+  // parameter below (not string-interpolated), so this is belt+suspenders.
+  assertSafeVectorLiteral(vecLit);
+
+  // 2. Two KNN lanes in parallel (2026-08-27 durable-lane fusion — see the
+  //    header note on rrfMergeHitOrders for the measured numbers):
+  //    · main — full-corpus HNSW KNN, withEfSearch(HIGH_RECALL=80) as before
+  //    · durable — EXACT scan over the durable personal partition (~122
+  //      rows) via a MATERIALIZED CTE. Deliberately not HNSW: a 0.4%-
+  //      selective category filter after an ANN index is the starvation
+  //      shape this file's own baseline documented; materializing the tiny
+  //      partition first makes the plan deterministic and the recall exact.
+  const durablePromise: Promise<KnnRow[]> = prisma
+    .$queryRawUnsafe<KnnRow[]>(
+      `WITH durable AS MATERIALIZED (
+         SELECT bm.id, bm.category, bm.key, bm.content, bm.confidence,
+                bm.seen_count, bm.last_seen, bm.created_at,
+                bm.source, bm.created_by, ve.embedding_vec_1536
+         FROM vector_embeddings ve
+         JOIN brain_memories bm
+           ON bm.id = ve."sourceId"
+          AND bm.deleted_at IS NULL
+         WHERE ve."sourceType" = 'brain_memory'
+           AND ve.embedding_vec_1536 IS NOT NULL
+           AND bm.confidence >= 0.3
+           AND bm.superseded_by_id IS NULL
+           AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+           AND bm.category = ANY($2)
+       )
+       SELECT id::text AS memory_id, category::text AS category, key::text AS key,
+              substring(content, 1, ${MAX_CONTENT_LEN})::text AS content,
+              confidence::float AS confidence, seen_count::int AS seen_count,
+              last_seen, created_at,
+              source::text AS source, created_by::text AS created_by,
+              (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
+       FROM durable
+       ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
+       LIMIT ${DURABLE_KNN_LIMIT}`,
+      vecLit,
+      [...DURABLE_PERSONAL_CATEGORIES],
+    )
+    .catch((err) => {
+      log.warn("durable_knn_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      laneFailures.push("durable");
+      return [] as KnnRow[];
+    });
+
+  const mainPromise = withEfSearch(prisma, EF_SEARCH.HIGH_RECALL, (tx) =>
+    tx.$queryRawUnsafe<KnnRow[]>(
+      `SELECT
+         bm.id::text AS memory_id,
+         bm.category::text AS category,
+         bm.key::text AS key,
+         substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
+         bm.confidence::float AS confidence,
+         bm.seen_count::int AS seen_count,
+         bm.last_seen,
+         bm.created_at,
+         bm.source::text AS source,
+         bm.created_by::text AS created_by,
+         (ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
+       FROM vector_embeddings ve
+       JOIN brain_memories bm
+         ON bm.id = ve."sourceId"
+        AND bm.deleted_at IS NULL
+       WHERE ve."sourceType" = 'brain_memory'
+         AND ve.embedding_vec_1536 IS NOT NULL
+         AND bm.confidence >= 0.3
+         -- BDN-310 supersession honored (2026-08-19): a superseded or
+         -- expired-validity belief must not be recalled as current.
+         -- The columns were applied to prod 2026-08-14 with no reader.
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+       ORDER BY ve.embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
+       LIMIT ${KNN_TOP}`,
+      vecLit,
+    ),
+  ).catch((err) => {
+    log.warn("knn_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    laneFailures.push("main");
+    return [] as KnnRow[];
+  });
+
+  // the lexical lane runs alongside the two dense lanes.
+  // KNN_TOP is reused as its ceiling so one lane cannot swamp the fusion.
+  const lexicalPromise = lexicalLane(query, KNN_TOP, () => laneFailures.push("lexical"));
+  const [rows, durableRows, lexicalRows] = await Promise.all([
+    mainPromise,
+    durablePromise,
+    lexicalPromise,
+  ]);
+
+  // 3. Score both lanes with the SAME formula, then RRF-merge the orderings.
+  //    Main lane keeps its boosted-score ordering; the durable lane is
+  //    ordered by raw distance (the measured configuration).
+  const now = Date.now();
+  const toHit = (r: KnnRow): RecallHit => scoreRow(r, now);
   const mainScored: RecallHit[] = rows
     .filter((r) => CONTEXT_CATEGORIES.has(r.category))
     .map(toHit)
@@ -428,7 +676,16 @@ export async function recallMemoriesForQuery(
   const durableScored: RecallHit[] = durableRows
     .map(toHit)
     .sort((a, b) => a.knnDistance - b.knnDistance);
-  const scored: RecallHit[] = rrfMergeHitOrders(mainScored, durableScored).slice(0, limit);
+  // Lexical rows are ordered by ts_rank, which the scorer sees as
+  // ascending distance -- same convention as the durable lane.
+  const lexicalScored: RecallHit[] = lexicalRows
+    .map(toHit)
+    .sort((a, b) => a.knnDistance - b.knnDistance);
+  const scored: RecallHit[] = rrfMergeHitOrders(
+    mainScored,
+    durableScored,
+    lexicalScored,
+  ).slice(0, limit);
   const mainIds = new Set(rows.map((r) => r.memory_id));
   const scannedCount =
     rows.length + durableRows.filter((d) => !mainIds.has(d.memory_id)).length;
@@ -489,6 +746,29 @@ export async function recallMemoriesForQuery(
     scanned: scannedCount,
     hits: scored,
     avgKnnDistance,
+    // Read the LEDGER, not `scored.length`. An empty result means
+    // "nothing matched" only when the searches actually ran.
+    provenance:
+      scored.length > 0
+        ? "OK"
+        // Self-review 2026-09-10 · this keyed only on "every lane
+        // failed", so a PARTIAL outage with no hits reported ZERO -- a
+        // measured empty -- while its own reason string called it a
+        // partial outage. Both cannot be true. A zero is trustworthy
+        // only when every lane actually ran; if any lane died, an empty
+        // result is an unknown. Same inversion this file exists to
+        // remove, one level down.
+        : laneFailures.length > 0
+          ? "ERROR"
+          : "ZERO",
+    provenanceReason:
+      laneFailures.length === 0
+        ? undefined
+        : laneFailures.length === LANE_COUNT
+          ? `every retrieval lane failed (${laneFailures.join(", ")}) -- recall state unknown, not empty`
+          : scored.length > 0
+            ? `${laneFailures.join(", ")} lane(s) failed; results are from the surviving lane(s) and ranking is weaker than usual`
+            : `${laneFailures.join(", ")} lane(s) failed and the surviving lane(s) matched nothing -- a partial outage, not a measured empty`,
   };
 }
 
@@ -521,6 +801,69 @@ export function renderFactStatus(hit: RecallHit): string {
  * the whole memory index documents. Kill-switch:
  * RECALL_FACT_AGE_DISABLED=1 restores the legacy last_seen rendering.
  */
+/**
+ * 2026-09-10 · what the Memory Inspector should SAY about a recall.
+ *
+ * The audit's finding was a rendering failure, not only a retrieval one:
+ * "REMEMBERED -- WHAT NICK BELIEVES (0)" is what the operator saw when
+ * the embedding call had fallen over, and it reads as "Nick has no
+ * memory of you" rather than "the memory read failed". Those are
+ * opposite claims and they were rendering identically.
+ *
+ * Pure, so the panel and any server-side summary cannot drift.
+ * `unlock` names what would move the number -- an empty state that does
+ * not say how to leave it is a dead end.
+ */
+export interface RecallStateView {
+  provenance: RecallProvenance;
+  /** One line, operator-facing. Never says "0" unless a search truly ran. */
+  headline: string;
+  /** What would change this reading. Null when nothing is wrong. */
+  unlock: string | null;
+  /** True when the count is a fact about memory; false when it is a fact about the instrument. */
+  countIsMeaningful: boolean;
+}
+
+export function describeRecallState(
+  hitCount: number,
+  provenance: RecallProvenance,
+  reason?: string,
+): RecallStateView {
+  switch (provenance) {
+    case "OK":
+      return {
+        provenance,
+        headline: `${hitCount} memor${hitCount === 1 ? "y" : "ies"} retrieved`,
+        unlock: null,
+        countIsMeaningful: true,
+      };
+    case "ZERO":
+      // A real zero, and it needs its denominator: this lane has no
+      // min-score and its durable sub-lane returns rows unconditionally,
+      // so a genuine zero means the corpus had nothing in range at all.
+      return {
+        provenance,
+        headline: "Searched memory -- nothing matched this turn",
+        unlock: "Recall ran against every eligible memory and found no match above the category filter.",
+        countIsMeaningful: true,
+      };
+    case "ERROR":
+      return {
+        provenance,
+        headline: "Memory read failed -- state unknown, not empty",
+        unlock: reason ?? "The recall lane errored or timed out. Nick may well remember this; the lookup did not complete.",
+        countIsMeaningful: false,
+      };
+    case "UNMEASURED":
+      return {
+        provenance,
+        headline: "Memory not queried this turn",
+        unlock: reason ?? "Recall was not attempted for this turn.",
+        countIsMeaningful: false,
+      };
+  }
+}
+
 export function formatRecallForPrompt(hits: RecallHit[]): string {
   if (hits.length === 0) return "";
   // S-1 completion (2026-09-02 self-review) · this block renders BrainMemory
@@ -535,12 +878,41 @@ export function formatRecallForPrompt(hits: RecallHit[]): string {
   } catch {
     disabled = false; // flag infra failure → new (truthful) rendering
   }
+  // 2026-09-10 · TRUST TIER at the retrieval boundary.
+  //
+  // OWASP AISVS C08 8.2.3: "agent outputs and tool outputs are not
+  // automatically written to trusted agent memory without explicit
+  // source validation." NICK's memory ingests scraped pages, mail
+  // threads and model inferences alongside things Nour actually said,
+  // and until now they all rendered into the prompt as one
+  // undifferentiated list of things "Nick believes".
+  //
+  // That is the memory-poisoning surface OWASP ASI06 names, and the
+  // published attacks (SpAIware; the Gemini conditional-instruction
+  // bypass) work precisely because retrieved external text is read back
+  // as the agent's own knowledge. Fencing it does not stop a poisoned
+  // row being stored -- it stops the stored row being obeyed.
+  //
+  // EXTERNAL_CONTENT is wrapped and labelled; everything else renders as
+  // before. AGENT_INFERRED is labelled but not fenced: a model's own
+  // guess is not attacker-controlled, it just is not a fact.
   const lines = hits.map((h, i) => {
-    if (disabled) {
-      const ageStr = h.ageDays === 0 ? "today" : `${h.ageDays}d ago`;
-      return `[${i + 1}] [${h.category}] ${h.content} (${ageStr}, conf=${h.confidence.toFixed(2)})`;
+    // A hit built by something that predates trust tiering has no tier.
+    // Do NOT default that to untrusted: a missing field would then fence
+    // EVERY memory, which is fail-closed in the letter and product-
+    // destroying in practice (caught by renderer-fencing.test.ts, whose
+    // own fixture pairs a gmail_thread injection row with an ordinary
+    // preferences row). Re-derive from the category instead, which is
+    // the field that actually carries provenance for ingested content.
+    const tier: TrustTier = h.trustTier ?? classifyTrustTier("unclassified", null, h.category);
+    const body = disabled
+      ? `${h.content} (${h.ageDays === 0 ? "today" : `${h.ageDays}d ago`}, conf=${h.confidence.toFixed(2)})`
+      : `${h.content} (${renderFactStatus(h)})`;
+    if (!isAuthoritative(tier)) {
+      return `[${i + 1}] [${h.category}] ${fenceUntrustedMemory(body, tier)}`;
     }
-    return `[${i + 1}] [${h.category}] ${h.content} (${renderFactStatus(h)})`;
+    const tierMark = tier === "AGENT_INFERRED" ? " [inferred, unverified]" : "";
+    return `[${i + 1}] [${h.category}]${tierMark} ${body}`;
   });
   return `Recently relevant memories (top-${hits.length} via hybrid search):\n${fenceContent("hybridRecall", "memory_recall", lines.join("\n"), { maxChars: 20_000 })}`;
 }

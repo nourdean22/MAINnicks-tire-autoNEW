@@ -14,6 +14,39 @@ export interface CapturedToolCall {
   ok: boolean;
   durationMs: number;
   args?: Record<string, unknown>;
+  /**
+   * 2026-09-10 · normalized, truncated text of what the tool RETURNED.
+   *
+   * `call.result` was already being read here (to detect soft errors)
+   * and then discarded -- so the one artifact that can prove a name in
+   * the reply came from a real lookup was available at this seam and
+   * thrown away. Without it, the named-source receipt check
+   * (lib/ai/chat/named-source-claims.ts) is structurally blind: it can
+   * see THAT a tool fired but never WHAT it resolved, so it could only
+   * ever abstain.
+   *
+   * Truncated hard because this rides into the AgentTrace metadata blob
+   * and a full search payload would bloat every persisted turn.
+   */
+  resultDigest?: string;
+}
+
+/** Flatten an arbitrary tool result into matchable text. */
+function digestResult(result: unknown, max = 4000): string {
+  if (result == null) return "";
+  let text: string;
+  if (typeof result === "string") text = result;
+  else {
+    try {
+      text = JSON.stringify(result);
+    } catch {
+      // Circular or non-serializable payload. Empty digest is correct:
+      // it means "could not read", and the consumer treats an absent
+      // digest as blind rather than as proof of nothing.
+      return "";
+    }
+  }
+  return text.replace(/\s+/g, " ").slice(0, max);
 }
 
 export function walkToolTelemetry(args: {
@@ -26,7 +59,7 @@ export function walkToolTelemetry(args: {
   // explainability envelope (built later at recordTrace time)
   // can populate envelope.toolsCalled[] — closes the gap noted
   // in v10.0.151's "intentional next-slice gap" comment.
-  const capturedToolCalls: Array<{ name: string; ok: boolean; durationMs: number; args?: Record<string, unknown> }> = [];
+  const capturedToolCalls: CapturedToolCall[] = [];
   if (Array.isArray(ev.steps)) {
     interface ToolCallShape {
       toolName?: string;
@@ -135,6 +168,7 @@ export function walkToolTelemetry(args: {
           ok: !errored,
           durationMs,
           args: toolArgs,
+          resultDigest: digestResult(result),
         });
       }
     }

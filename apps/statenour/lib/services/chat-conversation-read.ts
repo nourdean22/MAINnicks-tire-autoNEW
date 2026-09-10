@@ -27,8 +27,42 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { stripVerifierBanner } from "@/lib/ai/chat/fabrication-rewriter";
 
 /** A conversation-list row · matches the legacy `/api/ai/chat` shape. */
+
+/**
+ * Strip the verifier banner out of a persisted `parts` tree.
+ *
+ * Conservative by construction: only `{ type: "text" }` nodes are
+ * touched, only their `text` field changes, and any non-array or
+ * unexpected shape is returned untouched. A read projection that
+ * reshapes messages on a bad guess is worse than one that leaves a
+ * banner visible.
+ */
+export function stripVerifierBannerFromParts(parts: unknown): unknown {
+  if (!Array.isArray(parts)) return parts;
+  let changed = false;
+  const next = parts.map((part) => {
+    if (
+      part &&
+      typeof part === "object" &&
+      (part as { type?: unknown }).type === "text" &&
+      typeof (part as { text?: unknown }).text === "string"
+    ) {
+      const original = (part as { text: string }).text;
+      const stripped = stripVerifierBanner(original);
+      if (stripped !== original) {
+        changed = true;
+        return { ...(part as Record<string, unknown>), text: stripped };
+      }
+    }
+    return part;
+  });
+  // Preserve referential identity when nothing was rewritten.
+  return changed ? next : parts;
+}
+
 export interface ConversationListRow {
   id: string;
   title: string | null;
@@ -232,10 +266,26 @@ export async function readConversation(args: {
     messages: conversation.messages.map((m) => ({
       id: m.id,
       role: m.role,
-      content: m.content,
+      // 2026-09-10 · strip the verifier banner before the bubble renders
+      // it. `stripVerifierBanner` has existed since 2026-07-11 with this
+      // exact job -- its docstring says "the warning chip already
+      // conveys the diagnostic visually" -- and had ZERO production
+      // callers, so every rewritten turn shipped a raw system trace in
+      // Nick's own voice. The banner stays in the persisted row for L3
+      // and audits; the ActionClaimWarning chip carries the disclosure.
+      content: stripVerifierBanner(m.content),
       model: m.model,
       attachments: m.attachments,
-      parts: m.parts,
+      // 2026-09-10 (review #2267 P2) · strip the banner from PARTS too.
+      //
+      // Stripping only `content` fixed almost nothing: the verifier
+      // rewrite patches both fields (post-persist-verification.ts), and
+      // hooks/use-conversations.ts:171-179 explicitly PREFERS the
+      // persisted parts tree over `content`. So a normally-rewritten
+      // message still hydrated and rendered the raw system trace, and
+      // the content-only fix reached exactly the legacy rows that have
+      // no parts -- i.e. the ones that needed it least.
+      parts: stripVerifierBannerFromParts(m.parts),
       clientMessageId: m.clientMessageId,
       parentMessageId: m.parentMessageId,
       branchId: m.branchId,

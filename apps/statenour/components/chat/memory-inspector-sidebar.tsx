@@ -30,6 +30,21 @@ export interface MemoryInspectorSidebarProps {
    *  verdicts — gate · critic · factCheck · truth · receipt. Undefined
    *  when no blob has been persisted yet (live turn, or old history). */
   reply?: QualityPayload;
+  /**
+   * 2026-09-10 · why `hits` is the length it is.
+   *
+   * "(0) No semantic memory hits retrieved" used to render for FOUR
+   * different states: a real no-match, a fail-soft query embedding, a 3s
+   * timeout, and a thrown error. Only the first is a fact about Nick's
+   * memory; the other three are a broken instrument, and showing them as
+   * "Nick believes nothing about you" is the single most trust-
+   * destroying thing this panel can do.
+   *
+   * Undefined on older turns persisted before this shipped -- rendered
+   * as "not recorded", never silently as a measured zero.
+   */
+  recallProvenance?: "OK" | "ZERO" | "ERROR" | "UNMEASURED";
+  recallProvenanceReason?: string;
 }
 
 export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
@@ -39,6 +54,8 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
   contradictions,
   fetchedAt,
   reply,
+  recallProvenance,
+  recallProvenanceReason,
 }) => {
   if (!open) return null;
   // Absolute time, not "Ns ago": render stays pure (no Date.now() during
@@ -180,8 +197,67 @@ export const MemoryInspectorSidebar: React.FC<MemoryInspectorSidebarProps> = ({
               Remembered — what Nick believes ({hits.length})
             </span>
           </div>
+          {/*
+            2026-09-10 (review) · a DEGRADED read that still returned
+            hits must not render as a clean one.
+
+            The provenance branches below only fire when `hits` is
+            empty, so the exact case the outage path was built to
+            produce -- dense retrieval down, lexical fallback returning
+            real rows, `provenance: "ERROR"` -- rendered as an ordinary
+            list with per-hit "% Match" scores and no hint that ranking
+            was degraded. The producer's own comment says "callers must
+            not read this as a clean result"; this is the consumer
+            finally honouring it.
+          */}
+          {hits.length > 0 && recallProvenance && recallProvenance !== "OK" ? (
+            <div className="flex items-start space-x-1.5 mb-3">
+              <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-300/90">
+                Degraded retrieval &mdash; these hits are real, but ranking is weaker than usual.
+                {recallProvenanceReason ? (
+                  <span className="block text-[10px] text-zinc-500 mt-0.5">
+                    {recallProvenanceReason}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
           {hits.length === 0 ? (
-            <p className="text-[11px] text-zinc-500 italic">No semantic memory hits retrieved.</p>
+            // THREE STATES, never two. A failed read must not wear the
+            // same clothes as an empty one.
+            recallProvenance === "ERROR" ? (
+              <div className="flex items-start space-x-1.5">
+                <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-amber-300/90">
+                  Memory read failed &mdash; state unknown, not empty.
+                  {recallProvenanceReason ? (
+                    <span className="block text-[10px] text-zinc-500 mt-0.5">
+                      {recallProvenanceReason}
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+            ) : recallProvenance === "UNMEASURED" ? (
+              <p className="text-[11px] text-zinc-500 italic">
+                Memory was not queried this turn.
+                {recallProvenanceReason ? (
+                  <span className="block text-[10px] text-zinc-600 mt-0.5">
+                    {recallProvenanceReason}
+                  </span>
+                ) : null}
+              </p>
+            ) : recallProvenance === "ZERO" ? (
+              <p className="text-[11px] text-zinc-500 italic">
+                Searched memory &mdash; nothing matched this turn.
+              </p>
+            ) : (
+              // Pre-2026-09-10 turns carry no provenance. Say that,
+              // rather than asserting a measured zero we cannot support.
+              <p className="text-[11px] text-zinc-500 italic">
+                No hits recorded for this turn (retrieval state not captured).
+              </p>
+            )
           ) : (
             <div className="space-y-3">
               {hits.map((hit) => (

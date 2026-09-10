@@ -205,6 +205,21 @@ export interface CriticScore {
   };
 }
 
+/**
+ * 2026-09-10 · exported accessor so consumers stop hardcoding 300.
+ *
+ * The evidence gate's length signal compares a reply against "the
+ * ceiling", and the ceiling is NOT constant -- sms is 40, summary 120,
+ * prose 300, code 400. A consumer that assumes prose flags a 70-word
+ * SMS as fine (it is 175% over its real ceiling) and flags a healthy
+ * 500-word code answer as a violation. Both directions corrupt the
+ * measurement the gate exists to produce.
+ */
+export function shapeCeiling(shape: OutputShape | string | undefined): number {
+  return (SHAPE_LENGTH as Record<string, { min: number; max: number }>)[shape ?? "prose"]?.max
+    ?? SHAPE_LENGTH.prose.max;
+}
+
 const SHAPE_LENGTH: Record<OutputShape, { min: number; max: number }> = {
   prose: { min: 15, max: 300 },
   email: { min: 40, max: 200 },

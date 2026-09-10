@@ -25,6 +25,13 @@ export interface ToolActionRequest {
   costEstimate?: number;
   destructive?: boolean;
   containsExternalContent?: boolean;
+  /**
+   * 2026-09-10 · the basis for this action is a MODEL INFERENCE rather
+   * than something the operator stated or first-party data established.
+   * Set from the recall set's trust tiers (see memory-trust.ts), never
+   * declared by the model -- same discipline as containsExternalContent.
+   */
+  basedOnInferredMemory?: boolean;
   hasPriorApproval?: boolean;
 }
 
@@ -144,6 +151,25 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
       decision: "require_memory_review",
       riskClass,
       reason: "Memory writes from external untrusted content require human memory review.",
+      requiredApproval: "memory_review_required"
+    };
+  }
+
+  // 6b. Memory write whose only basis is a MODEL INFERENCE -> review.
+  //
+  // 2026-09-10 · provenance is not authority. Rule 6 above stops a
+  // stranger's email hardening into a durable fact; this stops NICK's
+  // own guess doing the same. "Nour prefers option B" (inferred) must
+  // not silently become "Nour chose B" (a fact he will later be held
+  // to), because nothing downstream can tell the two apart once the row
+  // is written. An inference may propose the write; it may not be the
+  // authority for it.
+  if (isMemoryWrite && request.basedOnInferredMemory) {
+    return {
+      decision: "require_memory_review",
+      riskClass,
+      reason:
+        "This memory write is based on a model inference, not on something the operator stated. Inferences may propose a fact, not establish one.",
       requiredApproval: "memory_review_required"
     };
   }

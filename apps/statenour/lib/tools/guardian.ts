@@ -410,6 +410,11 @@ export function withGuardian<T, A extends unknown[]>(
         containsExternalContent:
           Boolean((payload as any)?.containsExternalContent) || currentTurn()?.untrustedInput === true,
         memoryWriteRequested: (payload as any)?.memoryWriteRequested,
+        // 2026-09-10 · same discipline as the line above: the TURN's
+        // provenance counts, not the model's own declaration. A memory
+        // write whose only basis is NICK's own inference goes to review.
+        basedOnInferredMemory:
+          Boolean((payload as any)?.basedOnInferredMemory) || currentTurn()?.inferredBasisOnly === true,
       });
 
       if (decision.decision === "deny") {

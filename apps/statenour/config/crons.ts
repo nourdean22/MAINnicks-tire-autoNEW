@@ -398,6 +398,15 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    name: "revenue-decision",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening · turns nickstire business signals into 1-3 concrete operator moves, persisted as revenue_move BrainMemory rows and pushed to the operator's Telegram with /approve_N. ONE model call + ONE message per day, idempotent per ET date. Read-only across the statenour<->nickstire boundary: approval flips a status field on a statenour row, never writes to nickstire.",
+  },
+  {
     name: "consolidate",
     schedule: null,
     mode: "folded",

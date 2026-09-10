@@ -82,7 +82,15 @@ function neutralizeFabricatedHistory(text: string): string {
   // model turns see only this note + the original user message they
   // were responding to — they CAN'T compound the lie because the
   // prior text isn't in the window anymore.
-  return "[VERIFIER NOTE: my previous response was flagged as fabricated (claimed actions without firing tools). Disregard it. Do not reference it. Treat the operator's last request as still open.]";
+  // 2026-09-10 · this used to be written in the FIRST PERSON ("my
+  // previous response was flagged as fabricated. Disregard it.") and
+  // handed to the model as its own prior assistant turn. The model did
+  // the obvious thing and reproduced that register in the next reply --
+  // which is how a raw system trace ended up printed mid-conversation
+  // in Nick's voice, explaining itself to itself. Same neutralization,
+  // stated as third-person metadata about a REMOVED turn, so there is
+  // no first-person sentence available to parrot.
+  return "[removed by system: the assistant's previous turn was withheld (unverified action claims). Its content is unavailable and must not be referenced. The operator's last request is still open.]";
 }
 
 /**

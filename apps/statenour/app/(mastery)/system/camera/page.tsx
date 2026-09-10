@@ -183,7 +183,11 @@ export default function CameraArrivalsPage() {
         actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
-              lastFetchedAt={new Date().toISOString()}
+              // 2026-09-10 · render time is not evidence freshness. See
+              // system/tools/page.tsx for the same fix.
+              lastFetchedAt={
+                arrivalsQuery.dataUpdatedAt ? new Date(arrivalsQuery.dataUpdatedAt) : null
+              }
               source="tRPC cameraArrivals"
               onReload={() => arrivalsQuery.refetch()}
             />
