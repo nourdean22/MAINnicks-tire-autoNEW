@@ -81,6 +81,21 @@ def gray_small(image: np.ndarray, max_dim: int = 160) -> np.ndarray:
     return img[::stride, ::stride].astype(np.float32)
 
 
+def _hanning(shape) -> Optional[np.ndarray]:
+    """A 2-D Hanning window matching `shape`, or None when OpenCV is unavailable.
+
+    Phase correlation on an unwindowed image correlates the RECTANGULAR BORDER as strongly
+    as the content, which pins the answer at zero shift and would make the gate report
+    "home" for any image at all.
+    """
+    try:
+        import cv2
+
+        return cv2.createHanningWindow((int(shape[1]), int(shape[0])), cv2.CV_32F)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 @dataclass
 class SceneState:
     moving: bool
@@ -91,7 +106,13 @@ class SceneState:
     inlier_ratio: Optional[float] = None
     #: Mean absolute difference from the trusted reference pose, or None when no
     #: reference has been set (in which case the pose is simply unknown, not matched).
+    #: REPORTED ONLY -- it no longer decides `pose_ok`. Kept because it is already a
+    #: heartbeat column (`poseDelta`) and changing what a wire field MEANS is worse than
+    #: leaving a superseded number beside a better one.
     pose_delta: Optional[float] = None
+    #: How far the current view has MOVED from the reference, in source pixels, by phase
+    #: correlation. This is what decides `pose_ok`. None when there is no reference.
+    pose_shift_px: Optional[float] = None
     reference_set: bool = False
 
     @property
@@ -109,6 +130,7 @@ class SceneLock:
         moving_cell_frac: float = 0.70,
         auto_reference: bool = True,
         pose_max_changed_frac: float = 0.30,
+        pose_max_shift_px: float = 6.0,
     ) -> None:
         self.moving_frac = moving_frac
         self.pixel_delta = pixel_delta
@@ -135,6 +157,19 @@ class SceneLock:
         #: essentially everything. So the verdict is "does MOST of the frame still line
         #: up", which a busy lot passes and a pan cannot.
         self.pose_max_changed_frac = pose_max_changed_frac
+        #: How far the view may move from the reference before the pose is refused, in
+        #: SOURCE pixels. MEASURED, not chosen: across 107 real hard-case episodes spanning
+        #: three hours -- over which the weather went from hard sun to overcast, every
+        #: parked car turned over and the bay doors opened -- the registration reading never
+        #: exceeded 1.68px. Synthetic pans of the same footage are recovered accurately from
+        #: 3px up (3->3.64, 8->7.98, 20->19.95, 80->79.92). 6.0 is ~3.6x the worst observed
+        #: noise and still refuses anything from 8px, which is a third of the 23px-deep band
+        #: the lot's drivable region actually occupies.
+        self.pose_max_shift_px = pose_max_shift_px
+        #: Hanning window and reference width, built once with the reference. Rebuilding the
+        #: window per frame costs more than the correlation it feeds.
+        self._win = None
+        self._ref_scale = 1.0
         #: Adopt the first settled view as the pose reference. See update()'s comment --
         #: without this the pose gate is inert, because nothing else calls
         #: set_reference() and `may_create_visits` is `(not moving) and pose_ok`.
@@ -150,7 +185,59 @@ class SceneLock:
         Call this with a known-good calibrated view when one exists. Otherwise the first
         settled frame is adopted automatically -- see `auto_reference`.
         """
-        self._ref = gray_small(image)
+        self._install_reference(gray_small(image), float(image.shape[1]))
+
+    def _install_reference(self, g: np.ndarray, source_width: float) -> None:
+        """Adopt `g` as the home pose. THE ONLY place `_ref` is assigned.
+
+        It exists because there are TWO ways to become the reference -- an explicit
+        `set_reference()` and the auto-adopt of the first settled frame -- and the second one
+        used to assign `self._ref` directly. That left the Hanning window unbuilt, so
+        `_shift_px` returned None and `pose_ok` fell back to True FOREVER on any producer
+        that had no calibrated reference to pin. That is exactly the inert pose gate this
+        module was fixed for on 2026-09-09, arriving again by a different door, and the
+        existing guard test caught it.
+        """
+        self._ref = g
+        # The window is built ONCE, here. `cv2.createHanningWindow` costs more than the
+        # correlation it feeds, so building it per frame would make the gate the most
+        # expensive thing in the loop instead of one of the cheapest (0.39 ms measured).
+        self._win = _hanning(g.shape)
+        # Registration runs on the DOWNSAMPLED image; the reading is reported in SOURCE
+        # pixels, which is the unit thresholds, logs and operators all think in.
+        self._ref_scale = (source_width / float(g.shape[1])) if g.shape[1] else 1.0
+
+    def _shift_px(self, g: np.ndarray) -> Optional[float]:
+        """How far `g` has moved from the reference, in source pixels.
+
+        WHY REGISTRATION AND NOT A PIXEL DIFFERENCE. The old gate asked "what fraction of
+        pixels differ from the reference by more than 25 grey levels?" and refused the pose
+        past 30%. On an outdoor lot that measure is dominated by everything EXCEPT the thing
+        it is trying to detect: over one real afternoon the sun went behind cloud, shadows
+        swept the building facade, every parked car turned over and the bay doors opened,
+        and the reading climbed from 0.00 to 0.45 and stayed there -- while the camera had
+        not moved at all (registration: 0.63px). `may_create_visits` is
+        `(not moving) and pose_ok`, so the guard against minting visits from a moved camera
+        instead stopped ANY visit being minted, for hours, with the view perfectly fine.
+
+        Phase correlation separates the two exactly. Measured on that same footage:
+        the unchanged view reads 0.63px while real pans of 3-80px are recovered to within
+        0.4px; a DIFFERENT lens reads 90px (shop-ptz) and 245px (shop-right), and pure noise
+        reads 173px -- so this refuses a foreign scene on its own and needs no second gate
+        bolted on to cover it.
+
+        None when there is nothing to compare against, never 0.0: "no reference" and "has
+        not moved" are different claims and only one of them is evidence.
+        """
+        if self._ref is None or self._win is None or self._ref.shape != g.shape:
+            return None
+        try:
+            import cv2
+
+            (dx, dy), _response = cv2.phaseCorrelate(self._ref * self._win, g * self._win)
+        except Exception:  # noqa: BLE001 - the pose gate must never take the lot down
+            return None
+        return float((dx * dx + dy * dy) ** 0.5) * self._ref_scale
 
     def update(self, image: Optional[np.ndarray]) -> SceneState:
         if image is None:
@@ -194,7 +281,7 @@ class SceneLock:
         # good frame to set_reference() when one exists; that always wins, because this
         # only fires when `_ref` is still None.
         if self._ref is None and self.auto_reference:
-            self._ref = g
+            self._install_reference(g, float(image.shape[1]))
             return SceneState(moving=False, change_frac=change_frac, cell_frac=cell_frac,
                               pose_ok=True, pose_delta=0.0, reference_set=True)
 
@@ -209,12 +296,46 @@ class SceneLock:
                                   pose_ok=False, reference_set=True)
             diff = np.abs(g - self._ref)
             delta = float(diff.mean())
-            # The VERDICT is the changed FRACTION, not the average magnitude: a lot full
-            # of moving cars leaves most of the frame in place, a pan does not.
+            # THE VERDICT IS THE REGISTRATION, not the pixel difference.
+            #
+            # It used to be `changed <= pose_max_changed_frac` -- the fraction of pixels
+            # differing from the reference by more than `pixel_delta`. That reasoning was
+            # "a lot full of moving cars leaves most of the frame in place, a pan does
+            # not", and the first half of it is false on this lot over any real span of
+            # time. Measured across one afternoon: the reading went 0.00 -> 0.45 and stayed
+            # above the 0.30 refusal for hours, because the weather turned, shadows swept
+            # the building, every parked car was replaced and the bay doors opened. The
+            # camera had not moved -- registration read 0.63px. Since `may_create_visits`
+            # is `(not moving) and pose_ok`, the guard against a MOVED camera minting bad
+            # visits instead stopped every visit being minted at all, silently, while the
+            # view was perfect.
+            #
+            # `changed` is still computed and `pose_delta` still reported: they are useful
+            # context and `poseDelta` is already a heartbeat column. They just no longer
+            # DECIDE. See `_shift_px` for the measurements behind the replacement.
             changed = float((diff > self.pixel_delta).mean())
+            # REGISTRATION VETOES THE REFUSAL. It does not replace the measure.
+            #
+            # The pixel-difference test stands exactly as it was whenever it is SATISFIED,
+            # so every case this gate already got right is untouched. What is new is the
+            # second opinion when it wants to REFUSE: if the view has not actually moved,
+            # a high changed-fraction is the lot doing its job, not the camera leaving home.
+            #
+            # Only asking on refusal is also why this is free. `phaseCorrelate` is 0.39 ms
+            # on the downsampled frame, and it runs on the minority of frames that would
+            # otherwise be suppressed rather than on all of them.
+            shift = None
+            if changed > self.pose_max_changed_frac:
+                shift = self._shift_px(g)
+            # `shift is None` -- no OpenCV, a shape mismatch, a scene with no static
+            # structure to register against -- leaves the ORIGINAL verdict standing. The
+            # veto can only ever forgive, never accuse, so a producer that cannot register
+            # behaves exactly as it did before this change.
+            pose_ok = (changed <= self.pose_max_changed_frac
+                       or (shift is not None and shift <= self.pose_max_shift_px))
             return SceneState(moving=False, change_frac=change_frac, cell_frac=cell_frac,
-                              pose_ok=changed <= self.pose_max_changed_frac,
-                              pose_delta=delta, reference_set=True)
+                              pose_ok=pose_ok, pose_delta=delta, pose_shift_px=shift,
+                              reference_set=True)
 
         # No reference: the pose is UNKNOWN rather than verified. Kept permissive so an
         # uncalibrated run still tracks, but callers can see `reference_set=False`.
