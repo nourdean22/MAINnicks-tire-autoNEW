@@ -197,6 +197,7 @@ class EdgeLoop:
         stall_exit_seconds: float = 180.0,
         persist_seconds: float = 2.0,
         hard_cases: Any = None,
+        shadow: Any = None,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -205,6 +206,9 @@ class EdgeLoop:
         #: Optional `HardCaseRecorder`. None means the producer runs exactly as it always
         #: has -- the corpus is an upgrade, never a dependency of watching the lot.
         self.hard_cases = hard_cases
+        #: Optional `ShadowLedger`. None means no challenger is being observed, which is
+        #: the system as it has always run.
+        self.shadow = shadow
         self._last_layout_epoch = None
         self.camera = camera
         self.mode = mode
@@ -325,6 +329,13 @@ class EdgeLoop:
                 out = {"emissions": [], "suppressed": "vision error"}
 
             self._note_hard_cases(frame, out)
+            # SEPARATE CALL, and separate on purpose. Nesting this inside the hard-case
+            # bookkeeping coupled two independent subsystems: with no recorder configured
+            # the ledger silently recorded nothing, and nested one level deeper it fired
+            # only on DISAGREEMENT -- so agreements never reached the denominator and the
+            # rate a promotion gate reads would have been 1.0 forever. Both were caught by
+            # the wiring test, not by review.
+            self._note_shadow(out.get("council"), frame.ts)
 
             hs = out.get("health") or self.vision.health.state(frame.ts)
             self.last_health = hs
@@ -516,6 +527,37 @@ class EdgeLoop:
         except Exception:  # noqa: BLE001 - the corpus must never take the lot down
             log.exception("hard-case bookkeeping failed")
 
+    def _note_shadow(self, council: Any, ts: float) -> None:
+        """Record what the adjudicator ALONE would have counted, beside the primary.
+
+        A real counterfactual with a real source: both numbers already exist on an escalated
+        frame, and the question a promotion gate asks later -- "how often does the stronger
+        model see a different number of vehicles than the cheap one, and on which frames?" --
+        cannot be answered from an aggregate score.
+
+        The adjudicator never gets a vote here. `_fuse` already decided what the council
+        returns; this only writes down what the alternative would have been.
+        """
+        if self.shadow is None or council is None:
+            return
+        if not getattr(council, "escalated", False):
+            # No escalation means no second opinion was computed. Writing the primary
+            # against itself would fill the ledger with rows that agree by construction and
+            # drag the disagreement rate toward zero for reasons having nothing to do with
+            # the challenger.
+            return
+        try:
+            by = dict(getattr(council, "by_detector", {}) or {})
+            names = [n for n in by if n != "mog2"]
+            if len(names) < 2:
+                return
+            primary, adjudicator = names[0], names[-1]
+            self.shadow.note("VEHICLE_COUNT", by[primary], by[adjudicator], at=ts,
+                             context={"primary": primary, "adjudicator": adjudicator,
+                                      "camera": self.camera, "mode": self.mode})
+        except Exception:  # noqa: BLE001 - a research artefact never outranks the lot
+            log.exception("shadow ledger note failed")
+
     def shutdown(self) -> None:
         """Flush on the way out: commit whatever is held, then drain what we can.
 
@@ -554,6 +596,12 @@ class EdgeLoop:
                 log.info("hard-case corpus %s healthy=%s", stats.describe(), stats.healthy)
             except Exception:
                 log.exception("hard-case stats unreadable")
+        if self.shadow is not None:
+            try:
+                st = self.shadow.stats
+                log.info("shadow ledger %s healthy=%s", st.describe(), st.healthy)
+            except Exception:
+                log.exception("shadow stats unreadable")
 
 
 # ---------------------------------------------------------------------------- wiring
@@ -871,6 +919,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                          "motion-only and cannot confirm an arrival")
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "AUTO"),
                     help="OpenVINO device (env VISION_OV_DEVICE)")
+    ap.add_argument("--shadow-ledger", default=os.environ.get("EDGE_SHADOW_LEDGER"),
+                    help="JSONL of what the adjudicator ALONE would have decided, beside the "
+                         "primary. Counterfactual only -- a challenger never gets a vote.")
     ap.add_argument("--hard-cases", default=os.environ.get("EDGE_HARD_CASES"),
                     help="directory for clips of moments the system found HARD -- detector "
                          "disagreement, a weak portal decision, an off-home pose, a layout "
@@ -945,6 +996,21 @@ def run_edge(args: argparse.Namespace) -> int:
         log.info("hard-case corpus at %s (budget %.1f GB)", args.hard_cases,
                  args.hard_case_max_gb)
 
+    shadow = None
+    if args.shadow_ledger and args.adjudicator_model:
+        from vision.shadow import ShadowLedger
+
+        shadow = ShadowLedger(path=args.shadow_ledger,
+                              champion_model=os.path.basename(args.model or "none"),
+                              challenger_model=os.path.basename(args.adjudicator_model))
+        log.info("shadow ledger at %s", args.shadow_ledger)
+    elif args.shadow_ledger:
+        # REFUSING IS THE POINT. A shadow ledger with no challenger records nothing and
+        # would sit there as an empty file, which reads later as "the challenger agreed
+        # every time" rather than "no challenger ever ran".
+        log.warning("--shadow-ledger needs --adjudicator-model; there is no challenger to "
+                    "observe, so no ledger is being kept")
+
     loop = EdgeLoop(
         pipeline, vision, source,
         camera=args.camera, mode=mode.upper(), base_mode=base_mode.upper(),
@@ -952,7 +1018,7 @@ def run_edge(args: argparse.Namespace) -> int:
         commissioning_run_id=args.commissioning_run,
         heartbeat_seconds=args.heartbeat_seconds, drain_seconds=args.drain_seconds,
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
-        hard_cases=recorder,
+        hard_cases=recorder, shadow=shadow,
     )
 
     stop = threading.Event()

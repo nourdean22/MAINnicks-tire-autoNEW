@@ -547,6 +547,7 @@ def _args(**over):
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0,
+        shadow_ledger=None,
     )
     defaults.update(over)
     return SimpleNamespace(**defaults)
@@ -1353,6 +1354,118 @@ class SceneLockAnchorTest(unittest.TestCase):
         finally:
             rl.build_source = original
         self.assertIsNotNone(built, "a bad reference must not prevent start-up")
+
+
+class ShadowWiringTest(unittest.TestCase):
+    """A challenger that records nothing is worth nothing, and one that can vote is worse."""
+
+    class _Spy:
+        def __init__(self):
+            self.noted = []
+            self.stats = SimpleNamespace(describe=lambda: "spy", healthy=True)
+
+        def note(self, subject, champion, challenger, *, at, context=None):
+            self.noted.append((subject, champion, challenger, dict(context or {})))
+            return True
+
+    def _drive(self, council, spy=None):
+        spy = spy or self._Spy()
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=spy)
+        loop.step()
+        return spy
+
+    def test_an_ESCALATED_frame_records_BOTH_detector_counts(self):
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        spy = self._drive(council)
+        self.assertEqual(len(spy.noted), 1)
+        subject, champion, challenger, ctx = spy.noted[0]
+        self.assertEqual((subject, champion, challenger), ("VEHICLE_COUNT", 1, 3))
+        self.assertEqual((ctx["primary"], ctx["adjudicator"]), ("primary", "adj"))
+
+    def test_a_frame_that_never_ESCALATED_records_nothing(self):
+        """Escalation is what produces a second opinion. Without one there is no
+        counterfactual to write, and writing the primary against itself would fill the
+        ledger with rows that agree by construction.
+
+        TWO detectors are listed on purpose. With only one, the detector-count guard returns
+        first and shadows this one entirely -- a mutation deleting the escalation check
+        survived against a single-detector fixture."""
+        council = SimpleNamespace(escalated=False, detections=[],
+                                  by_detector={"primary": 2, "adj": 5})
+        self.assertEqual(self._drive(council).noted, [],
+                         "an unescalated frame has no second opinion to record")
+
+    def test_the_MOTION_GATE_is_not_mistaken_for_a_challenger(self):
+        """`by_detector` carries the motion gate too. Comparing a vehicle detector against
+        background subtraction is not a counterfactual about models -- it is a category
+        error that would show permanent disagreement and make the rate meaningless."""
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"mog2": 9, "primary": 2})
+        self.assertEqual(self._drive(council).noted, [],
+                         "with the gate excluded there is only one real detector left")
+
+    def test_a_SHADOW_THAT_EXPLODES_does_not_take_the_producer_down(self):
+        class _Boom:
+            stats = SimpleNamespace(describe=lambda: "boom", healthy=False)
+
+            def note(self, *a, **k):
+                raise RuntimeError("ledger exploded")
+
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src(), shadow=_Boom())
+        loop.step()          # must not raise
+        self.assertIsNotNone(loop)
+
+    def test_NO_shadow_configured_changes_nothing(self):
+        council = SimpleNamespace(escalated=True, detections=[],
+                                  by_detector={"primary": 1, "adj": 3})
+        pipeline = make_pipeline()
+        frame = SimpleNamespace(ts=1000.0, image=np.zeros((8, 8, 3), np.uint8), seq=0,
+                                source="fake", meta={})
+
+        class _Src:
+            def read(self):
+                return frame
+
+        class _Vision:
+            health = SimpleNamespace(state=lambda ts: None)
+
+            def step(self, f):
+                return {"emissions": [], "council": council}
+
+        loop = _loop(pipeline, _Vision(), _Src())
+        loop.step()
+        self.assertIsNone(loop.shadow)
 
 
 if __name__ == "__main__":
