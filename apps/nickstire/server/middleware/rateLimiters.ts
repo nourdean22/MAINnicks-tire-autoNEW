@@ -12,9 +12,30 @@ const clientIp = (req: Request): string => {
   // read this file. The header is honoured only when the operator states that
   // Cloudflare is the edge (TRUST_CLOUDFLARE_HEADERS=true); otherwise it is
   // ignored, whatever it says.
+  // 2026-09-10 · `x-real-ip` had the IDENTICAL spoofing hole, one line below
+  // the fix for cf-connecting-ip, and ungated. Measured through the real
+  // exported formLimiter: 14 requests rotating x-real-ip produced 0 x 429,
+  // while a fixed value produced 4 x 429 over the same burst. Every form
+  // limiter on the site — job applications, the $300 referral, booking,
+  // payment — was one curl header away from unlimited.
+  //
+  // WHY REMOVING IT IS SAFE, and why the safe direction is not obvious:
+  // dropping a header the edge legitimately sets would collapse every visitor
+  // onto the proxy's own address and lock the whole site out of its own forms.
+  // That does not happen here because _core/index.ts already sets
+  // `trust proxy` to "loopback, linklocal, uniquelocal", so Express resolves
+  // req.ip from x-forwarded-for through Railway's private-range hop by itself.
+  // req.ip is therefore already the client address AND is not client-settable
+  // beyond the trusted hops — which makes the x-real-ip read redundant as well
+  // as spoofable.
+  //
+  // The header is still honoured when an operator explicitly states an edge
+  // proxy sets it, matching how TRUST_CLOUDFLARE_HEADERS works. Both flags
+  // default OFF: an unset flag must never mean "trust the client".
   const cloudflareInFront = process.env.TRUST_CLOUDFLARE_HEADERS === "true";
+  const edgeSetsRealIp = process.env.TRUST_EDGE_IP_HEADERS === "true";
   let raw = (cloudflareInFront ? (req.headers["cf-connecting-ip"] as string) : "") ||
-            (req.headers["x-real-ip"] as string) ||
+            (edgeSetsRealIp ? (req.headers["x-real-ip"] as string) : "") ||
             req.ip ||
             "unknown";
             

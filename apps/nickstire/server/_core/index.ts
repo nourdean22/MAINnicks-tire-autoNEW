@@ -271,6 +271,28 @@ async function startServer() {
 
   const withBatchRegex = (endpoint: string) => new RegExp(`^/api/trpc/(.*,)?${endpoint.replace(/\./g, "\\.")}(,.*)?$`);
 
+  // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
+  // but express-rate-limit only counts it as 1 request.
+  //
+  // req.originalUrl, NOT req.path. These guards are mounted with
+  // `app.use(REGEX, ...)`, and inside a mounted handler Express rewrites
+  // req.path to the path RELATIVE to the mount — which for a RegExp mount is
+  // always "/". So `req.path.includes(",")` was false on every request ever
+  // made, and this guard has never once fired. Measured with real express and
+  // this file's own withBatchRegex: POST /api/trpc/chat.message,chat.message
+  // reported req.path === "/" and returned 200.
+  //
+  // The same trap is documented in agent memory for `app.use("*")` catch-alls,
+  // which is what makes it worth naming here rather than just fixing.
+  const blockBatchedLimits = (req: any, res: any, next: any) => {
+    // Strip the query string: a comma in ?foo=a,b is not a tRPC batch.
+    const path = String(req.originalUrl ?? "").split("?")[0];
+    if (path.includes(",")) {
+      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
+    }
+    next();
+  };
+
   app.use(withBatchRegex("booking.uploadPhoto"), uploadLimiter);
   app.use(withBatchRegex("booking.create"), formLimiter);
   app.use(withBatchRegex("lead.submit"), formLimiter);
@@ -287,18 +309,16 @@ async function startServer() {
   // honest application spends 2 of the 10 — still far above real usage.
   // referrals.submit ($25/$25 customer program) was public and unlimited from
   // before either of the two below — same class, same fix.
-  app.use(withBatchRegex("referrals.submit"), formLimiter);
-  app.use(withBatchRegex("candidates.submit"), formLimiter);
-  app.use(withBatchRegex("technicianReferrals.submit"), formLimiter);
+  // blockBatchedLimits was applied only to the AI endpoints below, never to
+  // these. Batch amplification therefore needed no bug at all: ONE POST to
+  // /api/trpc/candidates.submit,candidates.submit,...xN spends a single unit
+  // of the 10/hour budget and performs N inserts, bounded only by the 2 MB
+  // body cap. On a $300-default referral bonus with no captcha and no
+  // honeypot, that is the cheapest write path on the site.
+  app.use(withBatchRegex("referrals.submit"), blockBatchedLimits, formLimiter);
+  app.use(withBatchRegex("candidates.submit"), blockBatchedLimits, formLimiter);
+  app.use(withBatchRegex("technicianReferrals.submit"), blockBatchedLimits, formLimiter);
   app.use(withBatchRegex("financing.trackApplication"), formLimiter);
-  // Blocks batch-bypassing where an attacker sends /api/trpc/chat.message,chat.message 100 times
-  // but express-rate-limit only counts it as 1 request.
-  const blockBatchedLimits = (req: any, res: any, next: any) => {
-    if (req.path.includes(",")) {
-      return res.status(429).json({ error: "Batched requests are not allowed for rate-limited endpoints." });
-    }
-    next();
-  };
 
   // Matches chat.message and chat.history
   app.use(withBatchRegex("chat.message"), blockBatchedLimits, aiLimiter);
