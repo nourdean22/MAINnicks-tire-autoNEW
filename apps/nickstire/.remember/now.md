@@ -1,7 +1,44 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-10** (CLOSED - #2266, #2268 and #2272 all merged and deployed. Nothing of mine is
-open. See the 2026-09-10 section below; the 2026-09-09 section follows it.)
+**Updated: 2026-09-10** (CLOSED - TEN PRs merged and deployed, nothing of mine open. Docs updated in
+the same pass: docs/CURRENT-TRUTH.md verified-against line + two new sections, docs/ISSUE-REGISTRY.md
+ROS-001/002 moved Verified -> Deployed and ROS-101..103 added.)
+
+## 2026-09-10 (final) - what shipped, in one place
+
+`5946e7dfa` #2266 fail-open slices, careers job pages, GSC aggregation, 48h SLA alarm, forfeit writer
+`a40390ce4` #2268 unpublish three cloaking JobPosting artifacts from main
+`7d4e8e3c3` #2272 referral history renders the recorded REASON, not just actor+timestamp
+`bce954277` #2274 native-dialog CI gate was blind to 39 client files + subject-coverage test
+`8db199805` #2276 refusal reasons captured via chips, not a canned string
+`9125ec7fa` #2277 those chips were half the documented 48px touch minimum
+`c72b38ddc` #2278 client-file detector read 400 chars and missed 9 files
+`37bcf49bd` #2279 unread badge / reminder stats: DB-down is not zero
+`e79222e9d` #2281 fabricated-read RATCHET (pair-based, refuses to grow)
+`54e7d5958` #2282 bookings + PUBLIC customer lookup: DB-down is not "no such booking"
+
+**THE ONE DEFECT SHAPE**, in seven disguises, six of them in this session's own work: an instrument
+measuring something other than its subject. A workflow whose --ref chose the code but not the
+destination. Two tests re-implementing what they tested (one the clientIp SECURITY control, whose
+copy omitted the IPv6 /64 normalisation). A knip entry keyed on the label the gate PRINTS rather
+than the null it STORES, leaving the exemption inert. A gitleaks regex aimed at the source line when
+regexTarget="match" applies it to captured text. A dialog gate blind to a 100%-client directory. A
+client detector reading 400 characters. Three CI monitors piping to a jq that is not installed.
+RULE: if a gate contains a RESTATEMENT of what it guards, ask what happens when the original
+changes. If the answer is "nothing", it is a proxy - import the real symbol, then MUTATE IT.
+
+**STILL OPEN, for the operator:**
+- `disqualify` has no eligibleAt guard. DELIBERATE: fraud found on day 95 must stay actionable.
+- 30 fabricated-read pairs, RATCHETED not forgotten. `node scripts/update-fabricated-read-baseline.mjs`
+  after each fix; it refuses to raise the count.
+- `apps/nickstire/.env.example` carries an UNSTAGED 29-line deletion of the REEL_FILM_GRAIN block,
+  NOT mine, dirty since before this session. That flag is LIVE (reelAssembly.ts:573,
+  FILM_GRAIN_STRENGTH = 8), so it is a doc regression for working code.
+
+**ENVIRONMENT:** standalone `jq` was absent - installed 1.8.2, copied to C:/Users/nourd/bin/jq.exe
+(winget upgrades will NOT propagate to that copy). tsconfig.json excludes `**/*.test.ts` but NOT
+`.test.tsx`, so a broken .test.ts exits `pnpm run check` GREEN - now in apps/nickstire/AGENTS.md.
+`git show <ref>:<dotfile-path>` MANGLES under MSYS; use PowerShell for those reads.
 
 ## 2026-09-10 · fail-open source slices, careers job pages, and a live cloaking incident I caused
 

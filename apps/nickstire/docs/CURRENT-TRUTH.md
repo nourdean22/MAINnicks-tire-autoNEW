@@ -1,11 +1,64 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` `54e7d5958` on 2026-09-10 (recruiting + honest-reads arc: #2266 #2268 #2272 #2274 #2276 #2277 #2278 #2279 #2281 #2282 merged and deployed; NO migration applied — every change is code or CI). Prior line: `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Careers job pages, and the cloaking incident that produced them (2026-09-10)
+
+**`/careers/<slug>` leaf pages are LIVE and correct.** Three of them - automotive-technician,
+service-advisor, tire-technician - serve a full `JobPosting` to crawlers and the real page to
+people. Verified in a browser, not inferred: both a Googlebot and a Chrome user-agent return **200**
+on the same URL, and `validThrough` is in the future.
+
+**How they got there matters more than that they exist.** `prerender-refresh.yml` named the literal
+`main` in every git command of its commit step, so a `workflow_dispatch --ref <branch>` chose the
+CODE and had no say over the DESTINATION. It rendered a feature branch's routes and pushed the
+artifacts to `main`, which had neither the routes nor `JobPage.tsx`.
+`server/prerender-middleware.ts:147,150` resolves prerendered HTML by **file existence alone**, with
+no routes-manifest check - so the pages were served. For a period on 2026-09-10 the same URL
+returned **200 with a JobPosting to Googlebot and 404 to a browser**: cloaking by Google's own
+definition, on a job posting.
+
+Three standing facts from it:
+
+1. **A green "Prerender refresh" reads identically whether it wrote where you asked or to `main`.**
+   Read the push refspec in the log, not the job conclusion.
+2. **`[skip ci]` skips the workflows, NOT the Railway deploy.** A wrong artifact still goes live.
+3. **Routes and their prerendered artifacts must land in the SAME merge.** Shipping routes without
+   artifacts turns `prerender:check` red on `main` and serves crawlers an empty shell - the exact
+   inverse of the cloaking above, and this branch nearly did it.
+
+## A read that could not run must not render as a confident zero (2026-09-10)
+
+Measured across `server/`: **188** dead-handle returns fabricate a value; **7** report
+`available: false`. Most are not defects - a cron returning `[]` on a dead handle simply does
+nothing that tick. The rule that separates them is whether the read **renders or scores**.
+
+Fixed and deployed, all guarded at the ROUTER (the ROS-083 shape, because the `[]` is frequently
+load-bearing at the helper - `adminBundle.ts` consumes `getCallbackRequests` inside a
+`Promise.allSettled`):
+
+| Surface | Fabricated | Now |
+|---|---|---|
+| SMS unread badge | `0` - rendered **nothing at all** | throws; "unknown, not zero" |
+| Reminder stats | all-zero counters | throws; "unknown, not zero" |
+| Admin bookings list | `[]` - read as a **quiet day** | throws; "unknown, not empty" |
+| **Public** statusByRef / statusByPhone | `null` - told a customer their booking **did not exist** | throws; "does not mean your booking is missing" |
+
+The public pair is the sharpest: "not found" and "could not look up" are opposite messages to
+someone holding an appointment, and one of them is false. The wording is asserted by test, not just
+written.
+
+**30 pairs remain, and they are RATCHETED, not forgotten.**
+`config/fabricated-admin-read-baseline.json` records them by (procedure, helper);
+`server/fabricatedAdminReadGate.test.ts` fails on any NEW pair; and
+`scripts/update-fabricated-read-baseline.mjs` **refuses to raise** the count, exiting 1. The unit is
+deliberately the PAIR and not the helper: this repo fixes at the router, so a helper-based count
+could never move. It went 35 -> 33 -> 30 as fixes landed, which is the evidence the unit is right.
 
 ## Lot / vehicle visits — schema APPLIED to production (2026-09-09)
 
