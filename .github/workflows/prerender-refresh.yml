@@ -85,6 +85,28 @@ jobs:
         if: failure()
         run: cat apps/nickstire/tmp/regen-server.log || true
 
+      # ── Gate the artifacts BEFORE they reach main ──────────────────────
+      #
+      # This job pushes straight to a branch — there is no PR, so none of the
+      # checks that guard a PR have ever run against what it commits. That is
+      # how three blog artifacts reached Google as Soft 404s: they were written
+      # by this workflow, and the gate that would have caught them only ever
+      # ran on pull requests.
+      #
+      # Order matters. The baseline update runs FIRST and exits non-zero if the
+      # refresh produced a NEW empty page, so the job dies before the commit
+      # step rather than recording the problem and pushing it. When the refresh
+      # FIXES a known-empty page it prunes that row here, in the same commit
+      # that fixes it — otherwise the semantic gate's stale-row rule (fatal, by
+      # design) would turn every open PR in the repo red the moment a refresh
+      # succeeded. A gate that fires on success is a gate people switch off.
+      - name: Gate refreshed artifacts
+        working-directory: apps/nickstire
+        run: |
+          node scripts/update-thin-prerender-baseline.mjs
+          pnpm run prerender:check
+          pnpm run prerender:semantic-check
+
       - name: Commit refreshed prerender
         env:
           # 2026-09-10 · THIS USED TO BE THE LITERAL `main`, ON EVERY LINE BELOW.
@@ -112,10 +134,15 @@ jobs:
           # regenerated file was untracked, the diff was quiet, and this
           # step concluded "unchanged" while production served the SPA
           # shell to crawlers. `git status --porcelain` sees untracked too.
-          if [ -z "$(git status --porcelain -- apps/nickstire/prerendered)" ]; then
+          # The baseline is part of the snapshot now: the gate step above prunes
+          # a row when the refresh fixes that page, and the pruned ledger has to
+          # travel in the SAME commit as the fixed artifact. Left behind, it is a
+          # stale row — which check-prerender-semantic.mjs fails on deliberately,
+          # so the next PR anyone opens goes red for a refresh that worked.
+          if [ -z "$(git status --porcelain -- apps/nickstire/prerendered apps/nickstire/config/thin-prerender-baseline.json)" ]; then
             echo "prerendered/ unchanged — nothing to commit."
           else
-            git add apps/nickstire/prerendered
+            git add apps/nickstire/prerendered apps/nickstire/config/thin-prerender-baseline.json
             git commit -m "chore: weekly prerender refresh [skip ci]"
             # 2026-09-08 · three of that day's five refreshes died right here with
             # "! [rejected] main -> main (fetch first)": a sibling PR merged during
