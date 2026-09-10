@@ -1,0 +1,276 @@
+{
+  "arrival_candidate_estimated": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 10.4,
+      "estimated": true,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "provider": "frigate_lpr",
+        "status": "UNREADABLE"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "ARRIVAL_CANDIDATE",
+      "stationary": true,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {
+        "front_lot": 47.2
+      },
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "d4d6bbf33eaceb8d7564bf4bd1cbc962fc8f3daf",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "confirmed_arrival_with_plate": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 47.2,
+      "estimated": false,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "confidence": 0.93,
+        "normalizedText": "ABC1234",
+        "provider": "frigate_lpr",
+        "reads": 3,
+        "status": "CONFIRMED",
+        "text": "ABC 1234"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "CONFIRMED_ARRIVAL",
+      "stationary": true,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {
+        "front_lot": 47.2
+      },
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "c8f789f3a12517427d967b5b3e5e511c984d5be6",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "continues_an_earlier_visit": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 47.2,
+      "estimated": false,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "continuesVisitId": "5c1d",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "confidence": 0.93,
+        "normalizedText": "ABC1234",
+        "provider": "frigate_lpr",
+        "reads": 3,
+        "status": "CONFIRMED",
+        "text": "ABC 1234"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "ENTERED_ZONE",
+      "stationary": true,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {
+        "front_lot": 47.2
+      },
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "1bd87ab7a5ae8d87d7c6dcbd02114ddb4844741f",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "entered_zone_no_plate": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 0.0,
+      "estimated": false,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "provider": "frigate_lpr",
+        "status": "NONE"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "ENTERED_ZONE",
+      "stationary": false,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {},
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "1bd87ab7a5ae8d87d7c6dcbd02114ddb4844741f",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "left_with_everything_optional_absent": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.0,
+      "dwellSeconds": 472.3,
+      "estimated": false,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": 1757347803.3,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "provider": "frigate_lpr",
+        "status": "NONE"
+      },
+      "priority": "low",
+      "sightingId": "1757347331.12-abc123",
+      "state": "LEFT",
+      "stationary": false,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zoneDwell": {}
+    },
+    "event": "vehicle_detected",
+    "eventId": "32502add24aca7c0b5c36691ffa61bc1667fd481",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "merged_into_another_visit": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 47.2,
+      "estimated": false,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "mergedIntoVisitId": "7a2b",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "confidence": 0.93,
+        "normalizedText": "ABC1234",
+        "provider": "frigate_lpr",
+        "reads": 3,
+        "status": "CONFIRMED",
+        "text": "ABC 1234"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "CONFIRMED_ARRIVAL",
+      "stationary": true,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {
+        "front_lot": 47.2
+      },
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "3382181fab7f2555af36ddd17f76b42d7072e02d",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  },
+  "pass_through": {
+    "data": {
+      "cameraId": "v380-shopsign",
+      "cameraName": "Shop Sign",
+      "confidence": 0.87,
+      "dwellSeconds": 3.1,
+      "estimated": true,
+      "label": "car",
+      "metadata": {
+        "bridgeVersion": "2.1.2",
+        "direction": "entering",
+        "frigateEndTime": null,
+        "frigateStartTime": 1757347331.0,
+        "frigateVersion": "0.17.2",
+        "snapshotRef": "events/1757347331.12-abc123/snapshot.jpg"
+      },
+      "plate": {
+        "provider": "frigate_lpr",
+        "status": "NONE"
+      },
+      "priority": "high",
+      "sightingId": "1757347331.12-abc123",
+      "state": "PASS_THROUGH",
+      "stationary": true,
+      "trackId": "1757347331.12-abc123",
+      "visitId": "9f3e",
+      "zone": "front_lot",
+      "zoneDwell": {
+        "front_lot": 47.2
+      },
+      "zoneName": "Front Lot"
+    },
+    "event": "vehicle_detected",
+    "eventId": "b251875dcd6769bf3e6ff1363e50c7a41127a774",
+    "schemaVersion": 2,
+    "source": "frigate",
+    "timestamp": "2025-09-08T16:02:58.200Z"
+  }
+}
