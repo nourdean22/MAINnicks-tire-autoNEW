@@ -40,6 +40,7 @@ import type { ChatMode } from "@/lib/ai/chat-mode";
 import { detectExecuteFinalized } from "@/lib/ai/response-contract";
 import { buildRecallFailureNotice } from "@/lib/ai/chat/recall-failure-notice";
 import { TRUTH_GROUNDING_UNAVAILABLE } from "@/lib/ai/chat/truth-grounding";
+import { TASK_QUEUE_UNAVAILABLE } from "@/lib/brain/task-context";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -124,9 +125,12 @@ export async function buildBrainContext(
   // brain blocks below. Surfaces the live DOING/READY queue so Nick
   // always knows what Nour is carrying without being told. See
   // lib/brain/task-context.ts for the shape.
+  // The module failing to load is the same failure as the query failing:
+  // no queue reached the prompt, and silence here reads as "nothing in
+  // progress". Declared, not swallowed.
   const taskContextPromise = import("@/lib/brain/task-context")
     .then((m) => m.buildTaskContextBlock())
-    .catch(() => "");
+    .catch(() => TASK_QUEUE_UNAVAILABLE);
 
   // Apr 19 · Brain-learning context blocks — ALL PARALLEL.
   //
