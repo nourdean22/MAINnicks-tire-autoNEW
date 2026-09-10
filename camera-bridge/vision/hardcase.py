@@ -75,6 +75,13 @@ TRIGGERS_WIRED = frozenset({
     # perfectly well-formed.
     "TRACK_REACQUIRED",
     "TRACK_SPLIT",
+    # Fires from `EdgeLoop._note_preexisting_disagreement`. The census classes a track born
+    # inside the startup/reconnect blind window as `preexisting` and the portal is never
+    # asked about it, so until now the census could not be observed to be WRONG. The portal
+    # is now asked for the record only -- a preexisting track that performs a full
+    # outside -> inside crossing is a car the system watched drive in while counting it as
+    # already-there, and the clip is what shows which of the two was right.
+    "PREEXISTING_DISAGREEMENT",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in

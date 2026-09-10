@@ -1393,6 +1393,60 @@ class WiredTriggersHaveCallersTest(unittest.TestCase):
             f"it from TRIGGERS_WIRED -- a declared trigger with no producer promises a class "
             f"of hard case the corpus will never contain.")
 
+    def test_every_trigger_with_a_CALL_SITE_is_declared_wired(self):
+        """THE OTHER DIRECTION, which was missing and which fails SILENTLY.
+
+        `HardCaseRecorder.trigger` counts an unrecognised name as `dropped_unknown_trigger`
+        and writes nothing. So a producer that fires a trigger absent from `TRIGGERS_WIRED`
+        records no clip at all -- the corpus never gains that class, the recorder reports
+        itself healthy because no WRITE failed, and the directory reads like a shop that
+        never had one.
+
+        Measured: deleting `PREEXISTING_DISAGREEMENT` from `TRIGGERS_WIRED` while leaving its
+        caller in `edge_main` left all 132 tests green. This is the mirror of the defect the
+        test above was written for, and it is the worse half -- a declared trigger with no
+        caller is at least a promise somebody can check, while an undeclared caller is a
+        producer quietly dropping evidence it believes it is collecting.
+        """
+        import re
+        from vision.hardcase import TRIGGERS, TRIGGERS_WIRED
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sources = []
+        for sub in ("edge_main.py", os.path.join("vision", "run_live.py"),
+                    os.path.join("vision", "pipeline.py")):
+            path = os.path.join(root, sub)
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as fh:
+                    sources.append(fh.read())
+        blob = "\n".join(sources)
+        called = set(re.findall(r'trigger\(\s*"([A-Z_]+)"', blob))
+        self.assertTrue(called, "no call sites were found; this gate is checking nothing")
+
+        undeclared = sorted(called - set(TRIGGERS_WIRED))
+        self.assertEqual(
+            undeclared, [],
+            f"{undeclared} are fired by the producer and are NOT in TRIGGERS_WIRED, so the "
+            f"recorder counts them as dropped_unknown_trigger and writes nothing. Declare "
+            f"each one -- the producer believes it is collecting this evidence.")
+
+        unknown = sorted(called - set(TRIGGERS))
+        self.assertEqual(
+            unknown, [],
+            f"{unknown} are fired by the producer and are not even in the TRIGGERS "
+            f"vocabulary, which is a typo the recorder will swallow forever.")
+
+    def test_the_reverse_gate_would_NOTICE_an_undeclared_caller(self):
+        """The canary for the canary. A regex that matched nothing would report every caller
+        as declared, which is the failure mode this pair exists to prevent."""
+        import re
+        from vision.hardcase import TRIGGERS_WIRED
+
+        blob = 'self.hard_cases.trigger("NOT_A_REAL_TRIGGER", now, {})'
+        called = set(re.findall(r'trigger\(\s*"([A-Z_]+)"', blob))
+        self.assertEqual(called, {"NOT_A_REAL_TRIGGER"}, "the regex reads nothing")
+        self.assertEqual(sorted(called - set(TRIGGERS_WIRED)), ["NOT_A_REAL_TRIGGER"])
+
     def test_the_gate_would_NOTICE_a_falsely_declared_trigger(self):
         """The canary. Without it a broken regex would report every trigger as wired."""
         import re
