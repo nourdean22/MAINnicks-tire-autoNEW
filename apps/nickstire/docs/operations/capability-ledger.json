@@ -41,7 +41,7 @@
       "evidence": {
         "codeCommit": "merged through #856; free-lane loop closed end-to-end by #1507 (Gemini quota fallback) + #1509 (self-repair instead of needs_paid_repair dead-end) + #1510 (vision critic off the Ollama lane)",
         "tests": [
-          "client/faceless-reel-studio.test.ts (37): IN_FRAME_TEXT_PATTERN hard-block, gloves/hands/arms faceless detection, lens-aware clean-scene directive, hard-gate scoring override; server/visualWorld.test.ts: positive framePrompt with no pink-elephant DO-NOT negation quoted into beats",
+          "client/src/__tests__/faceless-reel-studio.test.ts (37): IN_FRAME_TEXT_PATTERN hard-block, gloves/hands/arms faceless detection, lens-aware clean-scene directive, hard-gate scoring override; server/visualWorld.test.ts: positive framePrompt with no pink-elephant DO-NOT negation quoted into beats",
           "server/reelAssembly render-integrity tests",
           "server/reelAudioIntegrity.test.ts (8): dead-air gate refuses the exact published silent-reel case; REAL-RENDER trajectory — the previously-fatal shape (2s VO + 4s shorter-than-reel bed, 9s timeline) renders with zero dead-air gaps and stereo audio through the actual ffmpeg graph",
           "server/approvedReelPackRotation.test.ts: rotation length and completion derive from the actual approved array; exact pack snapshot loader canary",
@@ -64,6 +64,11 @@
         {
           "severity": "P2",
           "description": "DELIBERATE, NOT A FAULT - the capability works (30 lifetime publications) and is gated, not broken. STAGED OFF THE SCHEDULER 2026-08-29 (MANUAL_TRIGGER_STAGED). Not for flakiness: Higgsfield runs two separate ledgers and only the CONSUMER/Ultra one is funded - 1,934.62 credits, paid subscription - while Higgsfield Cloud API (Authorization: Key ID:SECRET) holds ZERO credits with no payment method and 0 API calls lifetime despite 2 existing keys. The funded lane is the CLI session, which requires a human browser device-login no cron can perform, so generation is now a human-triggered batch fired via POST /api/admin/run-staged-cron. Publishing remains behind the exact-asset + exact-caption human approval choke point. Migration 0113 was hand-applied to production TiDB on 2026-08-31 after deploy 699e54900; read-back confirmed all seven reel_jobs identity/state fields plus the episode-version, idempotency, and queue indexes. Enqueue remains fail-closed whenever that schema contract cannot be read. The unmaterialized 2026-08-31 rotation slugs were removed; future slugs require tracked reviewed pack inputs before entering the queue."
+        },
+        {
+          "severity": "P3",
+          "description": "LIVE/VISUAL RE-VERIFICATION LAPSED, claim lowered rather than re-dated (2026-09-11). Was visually_verified on renderedAssets (instagram.com/reel/Da4RUOCAoKi) plus liveRuns last confirmed 2026-08-29; the horizon expired 2026-09-10. Re-proving visually_verified requires a human to LOOK at a freshly rendered reel, and the live half requires an operator-gated Instagram publish -- neither is an agent action, so the honest move was to lower the claim to the rung that re-proves itself in CI. The code-level evidence was re-run, not assumed: 194 tests green across the 12 files this entry cites. Raise it back to visually_verified only alongside a fresh rendered asset.",
+          "source": "capability re-verification sweep 2026-09-11"
         }
       ],
       "deferredScope": [
@@ -71,10 +76,9 @@
         "SFX",
         "animated CTA"
       ],
-      "lastVerifiedAt": "2026-08-29",
-      "verificationExpiresAt": "2026-09-10",
+      "lastVerifiedAt": "2026-09-11",
       "codeState": "merged",
-      "operationalState": "visually_verified",
+      "operationalState": "integration_verified",
       "exposure": "operator_only",
       "exposureNote": "operator_only since 2026-08-29, corrected 2026-09-10. It read `production` until now, which the ledger's own blocker contradicts: the pipeline was STAGED OFF THE SCHEDULER on 2026-08-29 (MANUAL_TRIGGER_STAGED) and generation is a human-triggered batch fired via POST /api/admin/run-staged-cron, with publishing behind the exact-asset + exact-caption human gate. `production` exposure means, in this ledger's words, a state in which 'something other than the operator's own hands can act on it' -- and nothing else can. The commit that staged it off never moved this field, so the expiry on 2026-09-10 surfaced a claim that had been false for twelve days. This is a CORRECTION, not a date pushed out to quiet a gate: the capability itself still works (30 lifetime publications) and its operationalState is untouched at visually_verified."
     },
@@ -134,6 +138,11 @@
           "severity": "P2",
           "description": "Campaign Package UI walkthrough never performed (browser session dead)",
           "source": "#813 review"
+        },
+        {
+          "severity": "P3",
+          "description": "LIVE RE-VERIFICATION LAPSED, claim lowered rather than re-dated (2026-09-11). Was live_verified on liveRuns (carousel 75/75 PASS with winner self-scores; reel drafts 55/75 + 60/75 correctly gated), last confirmed 2026-07-17; the horizon expired 2026-08-07 and ran 35 days overdue. Re-proving it needs an operator-run live director pass against real genomes. The code-level evidence was re-run, not assumed: server/reelDirector.test.ts and server/carouselDirector.test.ts are green as of 2026-09-11.",
+          "source": "capability re-verification sweep 2026-09-11"
         }
       ],
       "deferredScope": [
@@ -141,10 +150,9 @@
         "Story Director",
         "Ad Director"
       ],
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-07",
+      "lastVerifiedAt": "2026-09-11",
       "codeState": "merged",
-      "operationalState": "live_verified",
+      "operationalState": "integration_verified",
       "exposure": "operator_only"
     },
     {
@@ -197,16 +205,20 @@
           "severity": "P2",
           "description": "entailment not evaluated (field says so); server-side snapshots subject to the same bot-blocks the URL audit found",
           "source": "design"
+        },
+        {
+          "severity": "P3",
+          "description": "LIVE RE-VERIFICATION LAPSED, claim lowered rather than re-dated (2026-09-11). Was live_verified on databaseAssertions from a prod probe dated 2026-07-17 (review:1 REJECTED, free text REJECTED, registry labels RESOLVED, evidence tables confirmed empty); the horizon expired 2026-08-07 and ran 35 days overdue. Re-proving it means running a probe against the production database, which is operator-approved only -- see the prod-db-guard skill; a worktree inherits the prod DATABASE_URL, so a casual re-probe is a production action. The code-level evidence was re-run, not assumed: server/evidenceResolver.test.ts and server/evidenceRecords.test.ts are green as of 2026-09-11.",
+          "source": "capability re-verification sweep 2026-09-11"
         }
       ],
       "deferredScope": [
         "excerpt-level entailment evaluation (the entailment field exists and refuses to lie until then)",
         "evidence-record persistence beyond brief payloads"
       ],
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-07",
+      "lastVerifiedAt": "2026-09-11",
       "codeState": "merged",
-      "operationalState": "live_verified",
+      "operationalState": "integration_verified",
       "exposure": "operator_only"
     },
     {
@@ -635,7 +647,7 @@
       "name": "Google Drive Creative Vault (verified idempotent archive, drive.file scope)",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "live_verified",
+      "operationalState": "integration_verified",
       "exposure": "internal",
       "evidence": {
         "codeCommit": "nickstire/creative-quality-lh (this PR): server/services/creativeVault.ts + OAuth routes in adminRoutes.ts; reuses existing GOOGLE_OAUTH_CLIENT_ID/SECRET (verified present on prod by key name)",
@@ -647,14 +659,19 @@
         ],
         "deploymentId": "railway a4c08d1c (2026-07-17 10:40 EDT, RENDERED_QA_ENABLED redeploy; #829 code + 0088 schema live)"
       },
-      "blockers": [],
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "LIVE RE-VERIFICATION LAPSED, claim lowered rather than re-dated (2026-09-11). Was live_verified on a real Google Drive OAuth consent completed in a browser on 2026-07-17 (drive.file scope, account nourdean22, rootId 17SCNTPnvjEgwz3ii9o2YNbWdT0SfaOJC) plus an idempotent re-upload; the horizon expired 2026-08-07 and ran 35 days overdue. This is exactly the evidence class the ledger warns rots with no commit at all -- an OAuth grant can be revoked or expire silently, so the age of the claim is itself the risk. Re-proving it requires a fresh browser consent and a real Drive write, both operator-only. The code-level evidence was re-run, not assumed: server/creativeVault.test.ts (7 tests) is green as of 2026-09-11.",
+          "source": "capability re-verification sweep 2026-09-11"
+        }
+      ],
       "deferredScope": [
         "full folder taxonomy (00 Brand System etc.)",
         "scheduled reconciliation cron",
         "campaign summary doc rendering"
       ],
-      "lastVerifiedAt": "2026-07-17",
-      "verificationExpiresAt": "2026-08-07"
+      "lastVerifiedAt": "2026-09-11"
     },
     {
       "owner": "system",
