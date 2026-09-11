@@ -2,7 +2,6 @@
   "$comment": "Prerendered artifacts that render no article. Google reported these as Soft 404s on 2026-09-10 (validation FAILED); all three are DB-dynamic blog posts captured while BlogPost.tsx still showed 'LOADING ARTICLE...', so they carry 102 visible characters inside a 32 KB SPA shell. The DB rows are healthy - sectionsJson is 2,878-4,017 chars for exactly these slugs. A NEW entry is a hard failure; this list may only shrink. Clear it by dispatching .github/workflows/prerender-refresh.yml, which now retries the in-flight state and refuses to overwrite a good artifact with an empty one - then delete the fixed rows, which the gate requires (a stale entry fails too).",
   "known": [
     "blog/best-all-season-tires-ohio-highway/index.html",
-    "blog/brake-fluid-flush-when-needed/index.html",
     "blog/tire-pressure-warning-light-what-to-do/index.html"
   ]
 }
