@@ -116,7 +116,11 @@ export function neighborhoodIndexIssues(
 
 describe("prerender indexability consistency", () => {
   it("every neighborhood agrees across source, routes, sitemap, and snapshot robots", () => {
-    const issues = NEIGHBORHOODS.flatMap(neighborhoodIndexIssues);
+    // NOT `.flatMap(neighborhoodIndexIssues)` — flatMap calls its callback with
+    // (element, index, array), and the function now takes a second `overrides`
+    // param, so the array INDEX would silently arrive as `overrides` (the
+    // classic `.map(parseInt)` footgun). Wrap it so only `n` is ever passed.
+    const issues = NEIGHBORHOODS.flatMap((n) => neighborhoodIndexIssues(n));
     expect(issues, `\n${issues.join("\n")}\n`).toEqual([]);
   });
 
