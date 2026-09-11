@@ -1,8 +1,54 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-10** (CLOSED - TEN PRs merged and deployed, nothing of mine open. Docs updated in
-the same pass: docs/CURRENT-TRUTH.md verified-against line + two new sections, docs/ISSUE-REGISTRY.md
-ROS-001/002 moved Verified -> Deployed and ROS-101..103 added.)
+**Updated: 2026-09-11** (CLOSED — GSC Page Indexing report fully triaged, all 8 buckets. Four PRs
+merged and deployed: #2321 `d707602f9` (guides sitemap gap) · #2322 `e1383501f` (62 orphaned
+neighborhoods registered) · #2323 `106f97862` (109 remaining thin neighborhoods enriched + all 121
+indexed + dead blog URL redirected) · #2324 `5688da6c5` (docs, ROS-111 closed). Sitemap resubmitted
+in GSC via real Chrome (confirmed "Sitemap submitted successfully"). Nothing of mine open.)
+
+## 2026-09-11 · GSC Page Indexing triage, full arc — 150 indexed / 129 not, 8 buckets
+
+**Root cause of the two biggest un-triaged buckets** (Crawled-not-indexed 46, Duplicate-canonical
+4): 62 of 121 `shared/neighborhoods.ts` entries had NO `shared/routes.ts` registration — `App.tsx`
+rendered them client-side via `NEIGHBORHOODS.map()` but a fresh server request 404'd, and
+`AreasServed.tsx` linked all of them unfiltered (62/116 dead links, 53%). Operator decision (given
+twice, explicitly: "register those 62... maximize traffic" then "knock those out too"): register
+all 62 rather than trim the links, THEN go further and index every neighborhood, not just the
+12 already-enriched "on-corridor" ones.
+
+**Scope correction I owe a note to future-me:** after registering the 62 I first reported "~49
+thin neighborhoods remain" — wrong, I'd only counted the ones I personally registered that
+session minus the 12 already-enriched, forgetting 47 more that were already thin before I
+started. Real number was **109**. Caught and corrected before shipping, not after.
+
+**What shipped:** all 121 neighborhoods now registered + prerendered + sitemapped +
+`indexed:true`, content genuinely expanded (~150-250 chars → ~625-820 chars per page, not just
+flag-flipped), verified brand-voice-clean via the REAL `findVoiceViolations()` — **the automated
+`lint:brand-voice` gate does not scan `shared/neighborhoods.ts` at all** (not in
+`brandVoiceScope.ts`'s `IN_SCOPE` list; prints "0 file(s) scanned · ok" even when this exact file
+is staged and full of violations). That scope gap is still open — flag it if anyone asks why the
+gate went green on customer-facing content. `/blog/check-engine-light-guide` (dead article record,
+still serving a 200 SPA shell because `/blog/:slug` matches `DYNAMIC_ROUTE_PREFIXES` regardless of
+a real article backing it) now 301s to `/diagnostics`.
+
+**A real bug I shipped-then-caught in the same session:** refactoring the consistency test's
+canary to inject synthetic overrides (`neighborhoodIndexIssues(n, overrides)`) broke the existing
+`NEIGHBORHOODS.flatMap(neighborhoodIndexIssues)` call — flatMap passes `(element, index, array)`,
+so the array index silently arrived as `overrides`, the classic `.map(parseInt)` footgun. Only
+surfaced once the regenerated snapshots made that code path execute for real (`"snapshot" in 1`
+threw). Fixed with a wrapping arrow before merge; all 7 tests green after.
+
+**All 8 GSC buckets, final state:** Excluded-by-noindex 47 = not a defect (0 in sitemap). Crawled-
+not-indexed 46 + Duplicate-canonical 4 = fixed as above. Soft 404 17 = validating, expected to
+clear (9 real content, 8 verified 301s). Blocked-by-robots.txt 4 = benign. Page-with-redirect 3,
+Alternate-canonical 2 = benign by definition. Discovered-not-indexed 6 = Google's own crawl queue,
+no action available.
+
+**Mechanics for next time:** prerender regen via `gh workflow run prerender-refresh.yml --ref
+<branch>`, poll with a real Bash `run_in_background` sleep-loop (NOT ScheduleWakeup — repeatedly
+under-counted real elapsed time this session, confirmed against GitHub's own `Date:` header). The
+regen commit carries `[skip ci]` in its own message natively — the retrigger commit after it must
+NOT contain that literal string anywhere, even inside a sentence describing the problem.
 
 ## 2026-09-10 (final) - what shipped, in one place
 
