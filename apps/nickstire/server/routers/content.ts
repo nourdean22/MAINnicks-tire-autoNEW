@@ -125,7 +125,44 @@ export const contentRouter = router({
           message: "Article store unavailable — this is a read failure, not a missing article.",
         });
       }
-      return getDynamicArticleBySlug(input.slug);
+      const row = await getDynamicArticleBySlug(input.slug);
+
+      // A MISS IS WORTH A LINE, because one specific miss is currently
+      // unexplained and invisible from outside.
+      //
+      // Two prerendered blog URLs have rendered "ARTICLE NOT FOUND" on four
+      // consecutive refreshes while the SAME slugs return a full article from
+      // production, the page renders correctly in a real browser, and no
+      // `[tRPC ERROR] ... articleBySlug` ever appears in the server log — so the
+      // query runs and returns NO ROW for a row that demonstrably exists. Eight
+      // explanations were excluded by measurement (credential, network, TLS,
+      // PRERENDER_MODE, a different database, payload size, a dead handle, and
+      // render ordering); what remains cannot be settled from outside the
+      // process, because a miss and a healthy empty result look identical.
+      //
+      // So the miss reports what the CONNECTION THAT SERVED IT can see. If the
+      // count comes back 14, the row was there and the equality failed — look at
+      // the slug bytes. If it comes back lower, or 0, that connection is reading
+      // a different or partial view, and the pool is the subject. Either answer
+      // ends the guessing; the two are indistinguishable without this line.
+      //
+      // Cheap by construction: it only runs when a lookup missed, which is rare
+      // and is exactly when someone wants to know why.
+      if (!row) {
+        try {
+          const visible = (await getPublishedArticles()).length;
+          log.warn("articleBySlug found no published row", {
+            slug: input.slug,
+            publishedVisibleToThisConnection: visible,
+          });
+        } catch (err) {
+          log.warn("articleBySlug miss — and the follow-up count also failed", {
+            slug: input.slug,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      return row;
     }),
   // Same shape: [] on a dead handle reads as "nothing to announce". A shop
   // notice that fails to load and a shop with no notices are different facts,
