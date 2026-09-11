@@ -60,7 +60,15 @@ const sitemapPaths = new Set(SITEMAP_ROUTES.map((r) => r.path));
  * synthetic input. Returns the list of consistency violations for one
  * neighborhood (empty = consistent).
  */
-export function neighborhoodIndexIssues(n: Neighborhood): string[] {
+export function neighborhoodIndexIssues(
+  n: Neighborhood,
+  // Test-only injection point (see the "canary" describe block below): lets a
+  // synthetic mutant assert a specific snapshot/sitemap state without needing
+  // a real committed file or a real gap in SITEMAP_ROUTES to exist. Production
+  // callers (the two describe blocks right below) never pass this — they read
+  // the real committed snapshot and the real sitemap membership, unchanged.
+  overrides?: { snapshot?: string | null; inSitemap?: boolean },
+): string[] {
   const errors: string[] = [];
   const path = `/${n.slug}`;
   const route = getRouteByPath(path);
@@ -76,7 +84,8 @@ export function neighborhoodIndexIssues(n: Neighborhood): string[] {
   if (route && route.group !== "neighborhood") return [];
 
   const want = intendedRobots(n.indexed);
-  const snap = snapshotRobots(n.slug);
+  const snap = overrides && "snapshot" in overrides ? (overrides.snapshot as string | null) : snapshotRobots(n.slug);
+  const inSitemap = overrides?.inSitemap ?? sitemapPaths.has(path);
 
   if (n.indexed) {
     // An indexed page must be registered, prerendered, in the sitemap, and its
@@ -87,7 +96,7 @@ export function neighborhoodIndexIssues(n: Neighborhood): string[] {
       if (!route.prerender) {
         errors.push(`${n.slug}: indexed:true but routes.ts prerender:false — crawlers get the SPA shell, not the content.`);
       }
-      if (!sitemapPaths.has(path)) {
+      if (!inSitemap) {
         errors.push(`${n.slug}: indexed:true but excluded from SITEMAP_ROUTES (neighborhood group is filtered out) — indexable pages must be in the sitemap.`);
       }
     }
@@ -176,37 +185,34 @@ describe("no sitemap route advertises a page that refuses to be indexed", () => 
 });
 
 describe("canary — the checker actually catches the drift it exists for", () => {
-  // A real, IN-SCOPE (group:"neighborhood") neighborhood that HAS a committed
-  // noindex snapshot AND is honestly indexed:false in the source. Pretending
-  // it is indexed:true is exactly the PR #2094 defect; the checker must flag
-  // it. Scoping to group:"neighborhood" ensures the mutant isn't skipped by
-  // the shadowed-route guard. The `!n.indexed` clause matters: without it,
-  // `.find()` can return one of the real indexed:true on-corridor pages
-  // whose committed snapshot hasn't been regenerated yet post-flip (2026-09-11)
-  // — mutating THAT one to indexed:true isn't a mutation at all (it already
-  // is), so sitemapPaths correctly contains it and the canary stops proving
-  // anything. The subject must be a neighborhood the mutation actually changes.
-  const withNoindexSnapshot = NEIGHBORHOODS.find(
-    (n) =>
-      !n.indexed &&
-      getRouteByPath(`/${n.slug}`)?.group === "neighborhood" &&
-      snapshotRobots(n.slug) === "noindex, follow",
-  );
+  // 2026-09-11: the ROS-111 enrich-and-index wave flipped the last 109 thin
+  // neighborhoods to indexed:true, so ALL 121 are now indexed:true in source —
+  // there is no longer any real indexed:false neighborhood, let alone one with
+  // a stale committed noindex snapshot, for `.find()` to land on. That real-data
+  // precondition is gone for good (the whole point of this wave was to remove
+  // it), so the canary no longer hunts for it. Instead it takes any real,
+  // in-scope (group:"neighborhood") entry as a template and INJECTS the two
+  // facts it needs — snapshot content, sitemap membership — via
+  // neighborhoodIndexIssues' overrides param. This still proves the checker
+  // function itself catches the PR #2094 defect shape (indexed:true + stale
+  // noindex snapshot + sitemap exclusion), independent of what the committed
+  // snapshots or SITEMAP_ROUTES currently happen to contain.
+  const subject = NEIGHBORHOODS.find((n) => getRouteByPath(`/${n.slug}`)?.group === "neighborhood");
 
-  it("a neighborhood with a noindex snapshot exists to mutate (baseline)", () => {
-    expect(withNoindexSnapshot, "expected at least one prerendered noindex neighborhood").toBeDefined();
+  it("a real in-scope neighborhood exists to build the mutant from (baseline)", () => {
+    expect(subject, "expected at least one group:neighborhood entry").toBeDefined();
   });
 
   it("flags a stale snapshot when indexed:true meets a noindex snapshot", () => {
-    const mutant: Neighborhood = { ...(withNoindexSnapshot as Neighborhood), indexed: true };
-    const issues = neighborhoodIndexIssues(mutant);
+    const mutant: Neighborhood = { ...(subject as Neighborhood), indexed: true };
+    const issues = neighborhoodIndexIssues(mutant, { snapshot: "noindex, follow", inSitemap: false });
     expect(issues.some((e) => /STALE snapshot silently defeats indexing/.test(e))).toBe(true);
     // and it must also catch the sitemap-exclusion conflict for the same mutant
     expect(issues.some((e) => /excluded from SITEMAP_ROUTES/.test(e))).toBe(true);
   });
 
   it("passes the same neighborhood when it is honestly noindex (no false positive)", () => {
-    const honest: Neighborhood = { ...(withNoindexSnapshot as Neighborhood), indexed: false };
-    expect(neighborhoodIndexIssues(honest)).toEqual([]);
+    const honest: Neighborhood = { ...(subject as Neighborhood), indexed: false };
+    expect(neighborhoodIndexIssues(honest, { snapshot: "noindex, follow" })).toEqual([]);
   });
 });
