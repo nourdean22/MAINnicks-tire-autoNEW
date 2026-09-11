@@ -99,6 +99,55 @@ const ANON_MAX_PER_WINDOW = 100;
 /** ~3x the console's measured polling draw, so normal use never reaches it. */
 const AUTHED_MAX_PER_WINDOW = 1500;
 
+/**
+ * THE PRERENDERER IS THIS SERVER'S OWN CHILD PROCESS, NOT A VISITOR — and it
+ * was the THIRD victim of the budget above. The docblock records the second
+ * (the admin console, locked out and misread as an auth failure for weeks).
+ *
+ * WHAT IT COST. scripts/prerender.mjs boots this server on localhost and walks
+ * 339 routes through Puppeteer. The home page alone issues EIGHT tRPC queries
+ * on load (weather.current, content.activeNotifications, reviews.google,
+ * specials.getActive, conversion.liveSessions, shopStatus.getStatus,
+ * activity.recent, conversion.shopCapacity — all at 01:38:40 in run
+ * 34551328205), and batching is deliberately blocked upstream so each is
+ * charged separately. The anonymous budget is spent well before the walk ends.
+ *
+ * Static routes do not notice: their content ships in the bundle, so a 429 on
+ * weather.current costs a widget. DB-backed blog posts have NOTHING without
+ * their query, so they render BlogPost's not-found branch, and the prerenderer
+ * captures "ARTICLE NOT FOUND" at HTTP 200 for URLs the sitemap advertises.
+ * Google files them as Soft 404s.
+ *
+ * WHY IT HID FOR SO LONG: a 429 is returned by THIS middleware, before tRPC
+ * runs. The procedure logger, the articleBySlug miss diagnostic (#2315) and the
+ * error log are all structurally incapable of seeing it — the request they
+ * instrument never arrives. Every one of them read green while the page was
+ * empty, and "no error logged" was taken to mean "no error" when it meant "no
+ * request". The signature that finally showed it: across two runs the first
+ * articleBySlug to reach the server landed ~20s after a 15-minute boundary
+ * measured from server start — the fixed window rolling over, not a fix.
+ *
+ * WHY THIS IS SAFE. PRERENDER_MODE is set in exactly one place — the child
+ * process scripts/prerender.mjs spawns (prerender.mjs:177) — and never in any
+ * deployed environment. It is read ONCE here at module load, so no request can
+ * flip it. Loopback is required as well, checked against the raw SOCKET address
+ * rather than req.ip, because a forwarded-for header can be forged and a socket
+ * address cannot. Both conditions must hold, so leaking the env var into a
+ * public deployment still would not exempt a single external caller.
+ */
+const PRERENDER_MODE = process.env.PRERENDER_MODE === "true";
+const LOOPBACK_ADDRS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/**
+ * Exported so its canary can import THE REAL PREDICATE rather than restate it.
+ * A rate-limit exemption asserted against a copy is an exemption nobody tested.
+ */
+export function isPrerenderLoopbackRequest(req: Request): boolean {
+  if (!PRERENDER_MODE) return false;
+  const socketAddr = req.socket?.remoteAddress;
+  return typeof socketAddr === "string" && LOOPBACK_ADDRS.has(socketAddr);
+}
+
 function looksAuthenticated(req: Request): boolean {
   const cookie = req.headers.cookie;
   return typeof cookie === "string" && cookie.includes("app_session_id=");
@@ -107,6 +156,9 @@ function looksAuthenticated(req: Request): boolean {
 export const apiLimiter = rateLimit({
   windowMs: AUTHED_WINDOW_MS,
   max: (req: Request) => (looksAuthenticated(req) ? AUTHED_MAX_PER_WINDOW : ANON_MAX_PER_WINDOW),
+  // The prerenderer walks 339 routes through this server in one sitting; see
+  // isPrerenderLoopbackRequest for why exempting it is both necessary and safe.
+  skip: isPrerenderLoopbackRequest,
   // Separate buckets, so anonymous traffic from a shared NAT cannot spend the
   // operator's allowance and lock them out of their own admin.
   keyGenerator: (req: Request) => `${looksAuthenticated(req) ? "auth" : "anon"}:${clientIp(req)}`,

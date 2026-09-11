@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { visibleText, SOFT_404_MARKERS, MIN_VISIBLE_CHARS } from "./lib/prerenderText.mjs";
+import { summarizeApiFailures, isApiFailureResponse } from "./lib/prerenderApiFailures.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -316,6 +317,29 @@ async function main() {
           // Set a reasonable viewport
           await page.setViewport({ width: 1280, height: 800 });
 
+          // ── WATCH WHAT THE PAGE'S NETWORK LAYER ACTUALLY DOES ──────────
+          // This prerenderer captured HTML for years without ever observing a
+          // single request. When every tRPC call on a route returned 429
+          // (apiLimiter: 100 per 15 min, anonymous — and this walk is 339
+          // routes), the page rendered its not-found branch and the capture
+          // looked like missing CONTENT. That produced four wrong theories in
+          // a row, none refutable from the artifact, because the one fact that
+          // settles it was never recorded. A 429 is returned before tRPC runs,
+          // so no server-side instrument can see it either; the browser is the
+          // only observer in position, and nobody was asking it.
+          const apiFailures = [];
+          page.on("response", (res) => {
+            const status = res.status();
+            if (isApiFailureResponse(res.url(), status)) {
+              apiFailures.push({ status, url: res.url() });
+            }
+          });
+          page.on("requestfailed", (req) => {
+            if (String(req.url()).includes("/api/")) {
+              apiFailures.push({ url: req.url(), errorText: req.failure()?.errorText });
+            }
+          });
+
           // ── CRITICAL: identify as Googlebot so the server's prerender
           //    middleware serves the rich pre-rendered HTML (if one exists
           //    for this route) instead of the bare SPA shell. Without this
@@ -359,6 +383,13 @@ async function main() {
 
           // Get the full HTML
           let html = await page.content();
+
+          // Report BEFORE the soft-404 guard, so a not-found line is preceded
+          // by the reason the page had nothing to render.
+          const apiFailureSummary = summarizeApiFailures(apiFailures);
+          if (apiFailureSummary) {
+            console.log(`    [api-fail] ${routePath}: ${apiFailureSummary}`);
+          }
 
           // ── Soft-404 guard ────────────────────────────────────────────
           // A DB-backed article renders BlogPost's not-found branch whenever
