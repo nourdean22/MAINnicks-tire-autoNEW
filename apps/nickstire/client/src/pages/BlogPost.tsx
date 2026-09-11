@@ -17,6 +17,7 @@ import { useRef, useEffect, useMemo, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES, type BlogArticle } from "@shared/blog";
 import { trpc } from "@/lib/trpc";
+import { deriveBlogSlug } from "@/lib/blogSlug";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import {
   Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag,
@@ -418,10 +419,48 @@ function normalizeDynamic(row: {
   };
 }
 
-export default function BlogPost() {
+/**
+ * The slug, from the route match OR from the URL itself.
+ *
+ * WHY THE FALLBACK EXISTS. App.tsx already matched `/blog/:slug` to get here;
+ * this component then calls useRoute("/blog/:slug") a SECOND time to read the
+ * param. When that second match comes back empty, `slug` is "" — which makes
+ * getArticleBySlug("") miss AND disables the dynamic query (it is gated on
+ * `slug.length > 0`) — so the page renders its not-found branch having asked
+ * nobody anything.
+ *
+ * That is not hypothetical. Prerender run 34548151768 rendered
+ * "ARTICLE NOT FOUND" for four DB-backed blog routes while the server log shows
+ * NO articleBySlug error and NO articleBySlug miss — and since #2315 a miss
+ * logs itself, the only remaining explanation is that the query was never
+ * issued. Production serves the same slugs a full article and the pages render
+ * correctly in a real browser, so the data path is fine; what fails is the
+ * re-match, intermittently, under a lazily-loaded route.
+ *
+ * The URL is the authority here and it is always present. Deriving from it is
+ * deterministic where a re-match is not, so this is the right shape even if the
+ * race is later explained away — it removes a dependency rather than papering
+ * over one. `useRoute` stays the primary source so ordinary navigation is
+ * unchanged.
+ *
+ * The DECISION lives in @/lib/blogSlug, not here, so that the test can import
+ * the real function instead of a copy of it. The first version of this fix kept
+ * the logic inline and the test mirrored it; a mutation deleting the fallback
+ * left all eight tests green, because nothing in the suite ever executed this
+ * file. What remains here is the part that genuinely needs React: the hook call
+ * and the window read.
+ */
+function useBlogSlug(): string {
   const [, params] = useRoute("/blog/:slug");
+  return deriveBlogSlug(
+    params?.slug,
+    typeof window === "undefined" ? undefined : window.location.pathname,
+  );
+}
+
+export default function BlogPost() {
   const [, _setLocation] = useLocation();
-  const slug = params?.slug || "";
+  const slug = useBlogSlug();
 
   // Static first — zero-network, SSR-friendly.
   const staticArticle = getArticleBySlug(slug);
