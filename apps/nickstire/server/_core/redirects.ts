@@ -137,6 +137,16 @@ const REDIRECTS: RedirectRule[] = [
   // above already 301 correctly in prod.
   { from: "/blog/pothole-season-suspension-damage", to: "/auto-repair-near-me", reason: "deleted blog post; soft-404. No suspension page — routes to the general-repair hub, matching /suspension-repair-cleveland" },
 
+  // 2026-09-11 · GSC duplicate-canonical audit. Not in BLOG_ARTICLES (118
+  // static posts) or among the DB-published dynamic articles at the time of
+  // the 2026-09-11 prerender-refresh walk — the underlying article record no
+  // longer exists. /blog/:slug matches DYNAMIC_ROUTE_PREFIXES regardless of
+  // whether a real article backs the slug, so it kept serving a 200 SPA
+  // shell; Google filed it as "Duplicate, Google chose different canonical
+  // than user" (canonical reassigned to /elyria-ohio, itself dead until this
+  // session's ROS-111 fix). Same shape as the three entries above.
+  { from: "/blog/check-engine-light-guide", to: "/diagnostics", reason: "article record no longer exists; soft-404/duplicate-canonical. /diagnostics is the canonical check-engine-light service page, matching /blog/check-engine-light-cleveland's redirect" },
+
   // 2026-09-10 · GSC soft-404 audit. /tires/info was registered in App.tsx
   // against GenericServicePage, whose matcher is useRoute("/:slug") — a SINGLE
   // path segment. "/tires/info" has two, so it never matched, `service` was
