@@ -5195,6 +5195,11 @@
       "file": "apps/nickstire/server/middleware/rateLimiters.ts",
       "symbol": "clientIp",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and a security one. clientIp resolves the rate-limit bucket key from cf-connecting-ip / x-real-ip / req.ip, each header honoured only behind an explicit TRUST_* flag that defaults OFF, then normalises IPv6 to its /64 so a client cannot hop addresses inside its own allocation. It is used in-file by every limiter's keyGenerator; the export exists so server/rateLimitBypass.test.ts can exercise the REAL function. It previously re-implemented it under a comment reading 'verbatim in shape' - and the copy omitted the IPv6 normalisation entirely, so the suite asserted behaviour the shipped function does not have while never running the one that gates the spoofing. Deleting this export would restore that. Proven live: removing the TRUST_EDGE_IP_HEADERS guard from the real function now fails two tests."
+    },
+    {
+      "file": "apps/nickstire/server/middleware/rateLimiters.ts",
+      "symbol": "isPrerenderLoopbackRequest",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and a security one, exactly like its sibling clientIp two entries over. isPrerenderLoopbackRequest IS wired: apiLimiter passes it as its `skip` option in this same file, so the production path calls it on every /api/trpc request. knip counts neither same-file use nor a test file as a consumer, so this is a scope artifact rather than an unwired producer. It is exported ONLY so server/prerenderRateLimitBypass.test.ts can import THE REAL PREDICATE instead of restating it -- and restating it is the specific failure this repo keeps hitting: the previous version of rateLimitBypass.test.ts hand-copied clientIp under a comment claiming it was verbatim, omitted the IPv6 /64 normalisation, and so asserted behaviour the shipped function does not have while never exercising the one that gates header spoofing. Ten arms depend on this export, six of which assert the exemption does NOT open (flag off, non-loopback callers, a forged x-forwarded-for claiming loopback, near-miss flag values, a socketless request, formLimiter untouched), plus two that drive the real apiLimiter middleware 150 times with a positive control. Un-exporting it to satisfy this gate would delete the only honest way to test a rate-limit exemption."
     }
   ]
 }
