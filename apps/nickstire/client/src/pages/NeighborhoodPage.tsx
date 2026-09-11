@@ -11,7 +11,7 @@ import { NEIGHBORHOODS, type Neighborhood } from "@shared/neighborhoods";
 import { isDisplayableReview } from "@shared/reviewDisplay";
 import { BUSINESS } from "@shared/business";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, Menu, X } from "lucide-react";
+import { Phone, MapPin, Star, ChevronRight, ChevronDown, ArrowLeft, Navigation, CheckCircle, Menu, X } from "lucide-react";
 import { motion } from "framer-motion";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import InternalLinks from "@/components/InternalLinks";
@@ -115,6 +115,28 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
   );
 }
 
+// Single source for the neighborhood FAQ — used by both the FAQPage JSON-LD
+// below and the visible <details> block in the main render. Two copies of the
+// same three Q&As previously existed as one risk waiting to happen: whichever
+// one someone edited next would silently diverge from the schema, recreating
+// the "structured data doesn't match visible content" violation this fixes.
+function buildNeighborhoodFaqItems(neighborhood: Neighborhood): Array<{ q: string; a: string }> {
+  return [
+    {
+      q: `How long does it take to get to ${neighborhood.name} from Nick's Tire & Auto?`,
+      a: `It takes approximately ${neighborhood.driveTime} from our main location to ${neighborhood.name}. ${neighborhood.directionsFrom}`,
+    },
+    {
+      q: `What services do you offer for ${neighborhood.name} residents?`,
+      a: "We offer a full range of auto repair services including brakes, tires, oil changes, check-engine light, alignment, and general repairs for all makes and models.",
+    },
+    {
+      q: `Do you serve the ${neighborhood.name} area?`,
+      a: `Yes, we proudly serve ${neighborhood.name} and surrounding areas with professional auto repair and maintenance services.`,
+    },
+  ];
+}
+
 // ─── NEIGHBORHOOD SCHEMA ──────────────────────────────────
 function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
   // References the ONE canonical LocalBusiness (@id) instead of minting a second
@@ -145,36 +167,19 @@ function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
     },
   };
 
-  // FAQPage schema with location-specific FAQs
+  // FAQPage schema with location-specific FAQs — built from the same source
+  // the visible <details> block below renders, so they cannot drift apart.
   const faqSchema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: `How long does it take to get to ${neighborhood.name} from Nick's Tire & Auto?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `It takes approximately ${neighborhood.driveTime} from our main location to ${neighborhood.name}. ${neighborhood.directionsFrom}`,
-        },
+    mainEntity: buildNeighborhoodFaqItems(neighborhood).map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.a,
       },
-      {
-        "@type": "Question",
-        name: `What services do you offer for ${neighborhood.name} residents?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "We offer a full range of auto repair services including brakes, tires, oil changes, check-engine light, alignment, and general repairs for all makes and models.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: `Do you serve the ${neighborhood.name} area?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Yes, we proudly serve ${neighborhood.name} and surrounding areas with professional auto repair and maintenance services.`,
-        },
-      },
-    ],
+    })),
   };
 
   return (
@@ -225,21 +230,22 @@ export default function NeighborhoodPage() {
     <PageLayout showChat={true}>
       {/* Selective indexing gated by the per-neighborhood `indexed` flag
           (shared/neighborhoods.ts). Twelve on-corridor pages were enriched to
-          120-180 words, but indexing is HELD (all flags false) until three
-          things ship together, or the pages keep advertising to bots what
-          crawlers can't see:
-            1. Prerender snapshots must regenerate \u2014 10 of these slugs are
-               prerender:true, and prerender-middleware serves bots the STALE
-               2026-09-01 snapshots (noindex + old ~35-word content). Regen is
-               broken on Windows; must run on CI/Linux.
+          120-180 words; indexing was HELD until three things shipped together,
+          or the pages would keep advertising to bots what crawlers can't see:
+            1. Prerender snapshots must regenerate \u2014 done via the operator-
+               triggered prerender-refresh.yml workflow_dispatch (regen is
+               broken on Windows; must run on CI/Linux).
             2. A VISIBLE FAQ must render to match NeighborhoodSchema's FAQPage
-               JSON-LD (Google content-mismatch policy \u2014 see /tires for the
-               <details> pattern).
-            3. GSC shows these pages earn ~0 clicks; the local lever is the
-               Google Business Profile / Local Pack, not thin area pages. Only
-               re-index if the data justifies the content investment.
-          Until then: noindex,follow. The enriched content still serves users
-          who land here; it just isn't advertised for indexing. */}
+               JSON-LD \u2014 done, both now read buildNeighborhoodFaqItems() so
+               they cannot diverge (see the <details> block below, same
+               pattern as /tires).
+            3. GSC showed these pages earning ~0 clicks; operator decision
+               2026-09-11 (GSC crawled-not-indexed audit, ROS-111 follow-up):
+               maximize local-SEO footprint now rather than wait on demand
+               data the pages could never earn while noindexed. The 12
+               enriched pages are indexed:true; the 61 thin/template pages
+               registered in the same pass stay noindex,follow \u2014 see
+               shared/neighborhoods.ts's own header for which is which. */}
       <SEOHead
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
         description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${reviewRating}\u2605 rated. ${BUSINESS.phone.display}`}
@@ -437,6 +443,33 @@ export default function NeighborhoodPage() {
               ));
             })()}
           </div>
+        </div>
+      </section>
+
+      {/* Visible FAQ — MUST render the same Q&A as NeighborhoodSchema's FAQPage
+          JSON-LD above (both read buildNeighborhoodFaqItems, so they cannot
+          diverge). Was schema-only before, which is a Google "structured data
+          does not match visible content" policy violation. Native <details>
+          keeps every answer in the DOM for crawlers even while collapsed —
+          same pattern as TireFinderV2.tsx. */}
+      <section aria-labelledby="neighborhood-faq-heading" className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+        <div className="container max-w-3xl">
+          <FadeIn>
+            <h2 id="neighborhood-faq-heading" className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
+              {neighborhood.name} — Common Questions
+            </h2>
+            <div className="mt-8 space-y-2">
+              {buildNeighborhoodFaqItems(neighborhood).map((faq, i) => (
+                <details key={i} className="group border border-border/30 rounded-lg bg-card/40 [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none font-semibold text-foreground hover:bg-card/60 transition-colors">
+                    {faq.q}
+                    <ChevronDown className="w-4 h-4 text-foreground/40 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <p className="px-4 pb-4 text-foreground/75 leading-relaxed">{faq.a}</p>
+                </details>
+              ))}
+            </div>
+          </FadeIn>
         </div>
       </section>
 

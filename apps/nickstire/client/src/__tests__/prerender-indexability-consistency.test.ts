@@ -177,11 +177,18 @@ describe("no sitemap route advertises a page that refuses to be indexed", () => 
 
 describe("canary — the checker actually catches the drift it exists for", () => {
   // A real, IN-SCOPE (group:"neighborhood") neighborhood that HAS a committed
-  // noindex snapshot. Pretending it is indexed:true is exactly the PR #2094
-  // defect; the checker must flag it. Scoping to group:"neighborhood" ensures
-  // the mutant isn't skipped by the shadowed-route guard.
+  // noindex snapshot AND is honestly indexed:false in the source. Pretending
+  // it is indexed:true is exactly the PR #2094 defect; the checker must flag
+  // it. Scoping to group:"neighborhood" ensures the mutant isn't skipped by
+  // the shadowed-route guard. The `!n.indexed` clause matters: without it,
+  // `.find()` can return one of the real indexed:true on-corridor pages
+  // whose committed snapshot hasn't been regenerated yet post-flip (2026-09-11)
+  // — mutating THAT one to indexed:true isn't a mutation at all (it already
+  // is), so sitemapPaths correctly contains it and the canary stops proving
+  // anything. The subject must be a neighborhood the mutation actually changes.
   const withNoindexSnapshot = NEIGHBORHOODS.find(
     (n) =>
+      !n.indexed &&
       getRouteByPath(`/${n.slug}`)?.group === "neighborhood" &&
       snapshotRobots(n.slug) === "noindex, follow",
   );
