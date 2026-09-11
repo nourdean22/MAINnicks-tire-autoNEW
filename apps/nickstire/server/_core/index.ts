@@ -559,6 +559,7 @@ async function startServer() {
   app.get("/sitemap.xml", async (_req, res) => {
     const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
     const { JOB_OPENINGS } = await import("@shared/jobOpenings");
+    const { GUIDES } = await import("@shared/guides");
     const { getPublishedArticles } = await import("../content-generator");
     const { isRedirectedPath } = await import("./redirects");
     const baseUrl = SITE_URL;
@@ -599,6 +600,20 @@ async function startServer() {
       ),
       ...allBlogSlugs.filter(s => !isRedirectedPath(`/blog/${s}`)).map(s =>
         `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>${sitemapLastmod(dynamicLastmod.get(s))}\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
+      ),
+      // GSC audit 2026-09-11: shared/guides.ts (42 long-form guide leaf pages,
+      // group="guide" is not a route-registry group) was never imported here or
+      // into SITEMAP_ROUTES, so every /guides/:slug page was crawlable and
+      // index,follow (GuidePage.tsx passes no `robots` override — SEOHead's
+      // default) yet absent from every sitemap. GSC's Page Indexing report
+      // flagged 4 of them "Crawled - currently not indexed" and 2 more
+      // "Duplicate, Google chose different canonical than user" (canonical
+      // reassigned to an unrelated neighborhood page) — the missing sitemap
+      // entry is a plausible contributor to both: it withholds the priority/
+      // freshness signal that would otherwise argue for these pages as their
+      // own canonical.
+      ...GUIDES.filter(g => !isRedirectedPath(`/guides/${g.slug}`)).map(g =>
+        `  <url>\n    <loc>${baseUrl}/guides/${g.slug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
       ),
     ];
 
