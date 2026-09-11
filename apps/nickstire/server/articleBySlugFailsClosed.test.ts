@@ -37,9 +37,27 @@ vi.mock("./db", async (importOriginal) => {
 
 // The helper must stay reachable and honest: it is NOT what we are changing.
 const getDynamicArticleBySlug = vi.fn();
+const getPublishedArticles = vi.fn();
 vi.mock("./content-generator", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, getDynamicArticleBySlug: (s: string) => getDynamicArticleBySlug(s) };
+  return {
+    ...actual,
+    getDynamicArticleBySlug: (s: string) => getDynamicArticleBySlug(s),
+    getPublishedArticles: () => getPublishedArticles(),
+  };
+});
+
+// Capture the miss diagnostic. It is an instrument, so it gets asserted.
+const warn = vi.fn();
+vi.mock("./lib/logger", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    createLogger: (name: string) =>
+      name === "routers:content"
+        ? { warn: (...a: unknown[]) => warn(...a), info: () => {}, error: () => {}, debug: () => {} }
+        : (actual.createLogger as (n: string) => unknown)(name),
+  };
 });
 
 async function callArticleBySlug(slug: string) {
@@ -52,6 +70,8 @@ describe("articleBySlug fails CLOSED on a dead database handle", () => {
   beforeEach(() => {
     getDbTyped.mockReset();
     getDynamicArticleBySlug.mockReset();
+    getPublishedArticles.mockReset();
+    warn.mockReset();
   });
   afterEach(() => vi.resetModules());
 
@@ -83,5 +103,49 @@ describe("articleBySlug fails CLOSED on a dead database handle", () => {
     getDbTyped.mockResolvedValue({} as never);
     getDynamicArticleBySlug.mockResolvedValue({ slug: "x", status: "published" });
     await expect(callArticleBySlug("x")).resolves.toMatchObject({ slug: "x" });
+  });
+
+  it("a MISS reports how many published rows that connection can see", async () => {
+    // The diagnostic exists because a miss and a healthy empty result are
+    // indistinguishable from outside the process, and two prerendered URLs have
+    // been missing for four consecutive refreshes while production serves the
+    // same slugs a full article. The count is the discriminator: 14 means the
+    // row was there and the match failed; a lower number means that connection
+    // is reading a partial view.
+    //
+    // Asserted rather than assumed — an unproven instrument is the thing this
+    // whole class of bug is made of.
+    getDbTyped.mockResolvedValue({} as never);
+    getDynamicArticleBySlug.mockResolvedValue(null);
+    getPublishedArticles.mockResolvedValue([{ slug: "a" }, { slug: "b" }, { slug: "c" }]);
+
+    await expect(callArticleBySlug("ghost-slug")).resolves.toBeNull();
+
+    expect(warn).toHaveBeenCalledWith(
+      "articleBySlug found no published row",
+      expect.objectContaining({ slug: "ghost-slug", publishedVisibleToThisConnection: 3 }),
+    );
+  });
+
+  it("stays quiet on a HIT — the miss log is not noise on the happy path", async () => {
+    getDbTyped.mockResolvedValue({} as never);
+    getDynamicArticleBySlug.mockResolvedValue({ slug: "real", status: "published" });
+    await callArticleBySlug("real");
+    expect(warn).not.toHaveBeenCalled();
+    expect(getPublishedArticles, "the follow-up count must not run on a hit").not.toHaveBeenCalled();
+  });
+
+  it("a miss whose follow-up count ALSO fails still reports the miss", async () => {
+    // Without this arm the diagnostic could throw inside its own catch path and
+    // swallow the very event it exists to record.
+    getDbTyped.mockResolvedValue({} as never);
+    getDynamicArticleBySlug.mockResolvedValue(null);
+    getPublishedArticles.mockRejectedValue(new Error("connection lost"));
+
+    await expect(callArticleBySlug("ghost-slug")).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      "articleBySlug miss — and the follow-up count also failed",
+      expect.objectContaining({ slug: "ghost-slug" }),
+    );
   });
 });
