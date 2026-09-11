@@ -266,7 +266,35 @@ $action = New-ScheduledTaskAction -Execute $wrapper -WorkingDirectory $root
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
     -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 $user = "$env:USERDOMAIN\$env:USERNAME"
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+# TWO TRIGGERS, and the second is the one that matters.
+#
+# At-logon alone leaves a gap that was not theoretical: on 2026-09-10 both producers exited
+# with 0xC000013A (STATUS_CONTROL_C_EXIT) when the console session they were started from
+# closed, and `RestartCount` did NOT recover them -- Task Scheduler does not treat that exit
+# as the kind of failure a restart policy is for. They stayed `Ready`, `NumberOfMissedRuns=0`,
+# and the lot went unwatched for TEN HOURS with nothing red anywhere, because a stopped task
+# is not an error state.
+#
+# A repeating trigger closes it without another process to supervise. `MultipleInstances
+# IgnoreNew` is what makes it safe to fire every few minutes: if the producer is already
+# running the new start is DROPPED, so this can only ever resurrect a dead one, never mint a
+# second producer on the same camera.
+$trigger = @(
+    New-ScheduledTaskTrigger -AtLogOn -User $user
+    # -RepetitionDuration IS REQUIRED, and its absence fails silently. Without it the
+    # registered trigger comes back with Interval=PT5M and an EMPTY Duration plus
+    # StopAtDurationEnd=True -- a repetition of zero length, so it fires once at most and
+    # never repeats. Measured: the task sat `Ready` through the whole window it was supposed
+    # to self-heal in, and `Get-ScheduledTask` reports the interval either way, so the
+    # trigger LOOKS correct in every listing.
+    # [TimeSpan]::MaxValue is not usable either -- it serialises to P99999999DT23H59M59S and
+    # Set-ScheduledTask rejects it as out of range. 3650 days is the longest span that
+    # registers cleanly.
+    $heal = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
+        -RepetitionInterval (New-TimeSpan -Minutes 5) `
+        -RepetitionDuration (New-TimeSpan -Days 3650)
+    $heal
+)
 # Interactive / Limited, NOT ServiceAccount: WGC needs this user's desktop session.
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
@@ -278,6 +306,7 @@ try {
 
 Write-Host "Registered '$TaskName'." -ForegroundColor Green
 Write-Step "runs at logon as $user (WGC needs an interactive desktop; SYSTEM would stall in Session 0)"
+Write-Step "self-heals: a repeating 5-min trigger restarts it if it is not running; IgnoreNew makes that a no-op when it is"
 Write-Step "OS restarts a dead process every 1 min; the process exits 3 itself after ${StallExitSeconds}s with no frame"
 Write-Step ("detector: " + $(if ($Model) { "$Model on $Device" } else { "MOTION-ONLY -- no arrival can be confirmed" }))
 Write-Step "log: $logFile"
