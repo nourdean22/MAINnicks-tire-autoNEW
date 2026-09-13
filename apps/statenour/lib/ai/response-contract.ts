@@ -21,6 +21,7 @@
 
 import type { TurnSignal } from "./turn-intelligence";
 import type { QueryShape } from "./query-shape";
+import { responseBudgetFor } from "./chat/turn-control-plane";
 
 export type AnswerMode =
   | "direct_answer"
@@ -343,11 +344,16 @@ export function buildResponseContract(
 }
 
 /**
- * Render the contract as a compact system-prompt directive. Kept tiny —
- * Nick already has a large prompt; this is a per-turn nudge, not a lecture.
+ * Render the contract as a compact system-prompt directive.
+ *
+ * 2026-09-13: the operator's default <=80-word visible-answer rule is now an
+ * infrastructure contract instead of a persona-only suggestion. The limit is
+ * deliberately a VISIBLE-WORD budget, not maxOutputTokens: thinking-model
+ * reasoning can consume thousands of completion tokens before visible prose.
  */
 export function buildContractDirective(c: ResponseContract): string {
   const bits: string[] = [];
+  const budget = responseBudgetFor(c);
   const lengthHint: Record<ResponseLength, string> = {
     ultra_concise: "Answer in one line.",
     concise: "Be concise — no preamble.",
@@ -355,6 +361,9 @@ export function buildContractDirective(c: ResponseContract): string {
     detailed: "Be thorough — cover every part.",
   };
   if (lengthHint[c.length]) bits.push(lengthHint[c.length]);
+  bits.push(
+    `Visible-answer budget: target about ${budget.targetWords} words; do not exceed ${budget.hardMaxWords} words (${budget.reason}).`,
+  );
   if (c.answerMode === "copy_paste_prompt") bits.push("Output a ready-to-paste prompt in a fenced code block — nothing else.");
   if (c.answerMode === "operator_command") bits.push("Give concrete, executable instructions.");
   if (c.answerMode === "session_update") bits.push("This is a REPORTED status from the user — do not restate it as verified fact.");
@@ -364,6 +373,5 @@ export function buildContractDirective(c: ResponseContract): string {
   if (!c.shouldAskClarifying) bits.push("Do NOT ask clarifying questions — make a reasonable assumption and proceed.");
   if (c.mustGiveNextMove) bits.push("End with one concrete next move.");
   if (c.forbiddenMoves.length) bits.push(`Avoid: ${c.forbiddenMoves.join("; ")}.`);
-  if (bits.length === 0) return "";
   return `## This turn\n${bits.join(" ")}`;
 }
