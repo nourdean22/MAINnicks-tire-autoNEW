@@ -218,7 +218,7 @@ describe("tool telemetry operation-state truth", () => {
         tool: "createTask",
         state: "FAILED_KNOWN",
         sdkOk: false,
-        retryDecision: "RETRY_ALLOWED",
+        retryDecision: "MAY_RETRY",
       }),
     ]);
   });
