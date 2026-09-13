@@ -10,6 +10,7 @@
 import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
 import { classifyToolEffect, type ToolEffectClass } from "@/lib/ai/receipts/action-receipt";
 import { operationStateFrom, type OperationState } from "@/lib/ai/chat/turn-control-plane";
+import { retryPolicyFor } from "@/lib/ai/chat/operation-retry-policy";
 
 export interface CapturedToolCall {
   name: string;
@@ -61,6 +62,58 @@ function digestResult(result: unknown, max = 4000): string {
     }
   }
   return text.replace(/\s+/g, " ").slice(0, max);
+}
+
+/**
+ * Shadow-only: persist ONE operation-integrity receipt for the turn.
+ *
+ * `tool_telemetry` is deliberately aggregate-by-tool and therefore the wrong
+ * place for per-turn operation state. `system_metrics` already accepts JSON
+ * tags and is used by the chat tool-surfacing census, so this records the
+ * control-plane view without schema work and without changing user-facing Done
+ * enforcement yet.
+ */
+function recordOperationIntegrityShadow(
+  calls: ReadonlyArray<CapturedToolCall>,
+  convId: string | undefined,
+): void {
+  if (calls.length === 0) return;
+
+  const consequential = calls.filter((c) => c.effectClass !== "read");
+  if (consequential.length === 0) return;
+
+  const operations = consequential.map((c) => {
+    const retry = retryPolicyFor(c.operationState, c.effectClass);
+    return {
+      tool: c.name,
+      effectClass: c.effectClass,
+      state: c.operationState,
+      sdkOk: c.ok,
+      resultObserved: c.resultObserved,
+      retryDecision: retry.decision,
+      mayClaimDoneStrict: retry.mayClaimDone,
+      requiresReconciliation: retry.requiresReconciliation,
+    };
+  });
+  const legacySdkSuccesses = operations.filter((o) => o.sdkOk).length;
+  const strictVerified = operations.filter((o) => o.mayClaimDoneStrict).length;
+  const legacyStrictGap = operations.filter((o) => o.sdkOk && !o.mayClaimDoneStrict).length;
+
+  void import("@/lib/services/metrics")
+    .then(({ recordMetric }) =>
+      recordMetric("operation.integrity_shadow", consequential.length, {
+        unit: "count",
+        tags: {
+          conversationId: convId ?? null,
+          legacySdkSuccesses,
+          strictVerified,
+          legacyStrictGap,
+          operations,
+        },
+        source: "chat",
+      }),
+    )
+    .catch(() => {});
 }
 
 export function walkToolTelemetry(args: {
@@ -191,5 +244,10 @@ export function walkToolTelemetry(args: {
       }
     }
   }
+
+  // Shadow measurement only. This intentionally does NOT mutate `ok` or the
+  // existing ActionReceipt/Done guard yet; promotion requires real traffic.
+  recordOperationIntegrityShadow(capturedToolCalls, convId);
+
   return capturedToolCalls;
 }
