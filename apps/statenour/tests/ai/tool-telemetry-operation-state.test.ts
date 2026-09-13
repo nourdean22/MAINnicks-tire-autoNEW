@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const recordToolInvocation = vi.fn().mockResolvedValue(undefined);
+const { recordToolInvocation } = vi.hoisted(() => ({
+  recordToolInvocation: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/ai/tool-telemetry", () => ({
   recordToolInvocation,
   isConfigurationError: vi.fn(() => false),
