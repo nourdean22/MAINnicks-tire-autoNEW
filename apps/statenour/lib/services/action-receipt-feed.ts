@@ -2,7 +2,7 @@
  * Action receipt feed (F4) — a read-side answer to "what did Nick/system
  * actually DO?". Reuses the canonical audit store (EntityAudit, via the existing
  * getGlobalActivity/getActorActivity readers) + AutonomousAction (so FAILED
- * actions are visible), and maps both onto the EXISTING ActionReceipt contract
+ * ones are visible), and maps both onto the EXISTING ActionReceipt contract
  * (lib/ai/receipts/action-receipt.ts) — integrate, don't duplicate.
  *
  * Pure mappers (auditEntryToReceipt / autonomousActionToReceipt) are unit-tested;
@@ -52,6 +52,10 @@ export function auditEntryToReceipt(e: AuditEntry): ActionReceipt {
     category: "entity-audit",
     sideEffecting: true, // every audited row is a write
     status,
+    // This mapper runs from an already-persisted authoritative audit row,
+    // not from the original tool response. The read-side audit record is the
+    // independent evidence that the mutation reached canonical state.
+    verificationState: "VERIFIED",
     entityType: e.entityType,
     entityId: e.entityId,
     label,
@@ -72,6 +76,15 @@ function autoStatus(action: { approval: string; executedAt: Date | null; result:
   if (action.approval === "rejected" || action.result === "forbidden_by_policy") return "skipped";
   if (action.approval === "pending" || action.result === "pending_approval") return "needs_approval";
   return "partial"; // queued/unknown — never assert done
+}
+
+function verificationStateForAutonomousStatus(status: ReceiptStatus): ActionReceipt["verificationState"] {
+  if (status === "failed") return "FAILED_KNOWN";
+  if (status === "skipped" || status === "needs_approval") return "NOT_ATTEMPTED";
+  if (status === "partial") return "UNKNOWN_COMPLETION";
+  // A recorded executor success is still the executor/provider's own receipt.
+  // Without an independent postcondition/read-back it is not strict VERIFIED.
+  return "PROVIDER_ACCEPTED";
 }
 
 export interface AutonomousActionRow {
@@ -106,6 +119,7 @@ export function autonomousActionToReceipt(a: AutonomousActionRow): ActionReceipt
     category: "autonomous-action",
     sideEffecting: true,
     status,
+    verificationState: verificationStateForAutonomousStatus(status),
     entityType: a.targetType ?? "rule",
     entityId: a.targetId ?? a.ruleName,
     label,
@@ -163,6 +177,13 @@ export interface AgentReceiptRow {
 }
 
 const STATUSES: ReadonlySet<string> = new Set(["success", "failed", "skipped", "needs_approval", "partial"]);
+const VERIFICATION_STATES: ReadonlySet<string> = new Set([
+  "NOT_ATTEMPTED",
+  "FAILED_KNOWN",
+  "UNKNOWN_COMPLETION",
+  "PROVIDER_ACCEPTED",
+  "VERIFIED",
+]);
 
 /**
  * Map a persisted action_receipt AuditEvent row back to an ActionReceipt.
@@ -174,12 +195,21 @@ export function auditEventToReceipt(row: AgentReceiptRow): ActionReceipt | null 
   if (typeof p.toolName !== "string") return null;
   const status = (typeof p.status === "string" && STATUSES.has(p.status) ? p.status : "partial") as ReceiptStatus;
   const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const verificationState =
+    typeof p.verificationState === "string" && VERIFICATION_STATES.has(p.verificationState)
+      ? (p.verificationState as ActionReceipt["verificationState"])
+      : undefined;
   return {
     receiptId: str(p.receiptId) ?? `agent_${row.id}`,
     toolName: p.toolName,
     category: str(p.category) ?? "action-block",
     sideEffecting: p.sideEffecting !== false,
+    // Preserve the fail-closed classification bit across persistence. Dropping
+    // verifiable:false made an unknown failed tool become less strict after
+    // serialization/read-back than it was at creation time.
+    verifiable: typeof p.verifiable === "boolean" ? p.verifiable : undefined,
     status,
+    verificationState,
     entityType: str(p.entityType),
     entityId: str(p.entityId),
     label: str(p.label),
