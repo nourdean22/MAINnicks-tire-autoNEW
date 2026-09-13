@@ -35,6 +35,7 @@ describe("tool telemetry operation-state truth", () => {
 
     expect(call.effectClass).toBe("read");
     expect(call.resultObserved).toBe(true);
+    expect(call.observationShape).toBe("sdk6-result");
     expect(call.operationState).toBe("VERIFIED");
     expect(call.ok).toBe(true);
     // Reads do not create a side-effect integrity row: they cannot support a
@@ -61,6 +62,32 @@ describe("tool telemetry operation-state truth", () => {
     expect(call.operationState).not.toBe("VERIFIED");
   });
 
+  it("AI SDK 7 output/input shape reaches the same write truth state", () => {
+    const [call] = walkToolTelemetry({
+      ev: {
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: "createTask",
+                input: { title: "Call John" },
+                output: { id: "task-7", ok: true },
+              },
+            ],
+          },
+        ],
+      },
+      convId: "c1",
+    });
+
+    expect(call.args).toEqual({ title: "Call John" });
+    expect(call.resultObserved).toBe(true);
+    expect(call.observationShape).toBe("sdk7-output");
+    expect(call.effectClass).toBe("write");
+    expect(call.operationState).toBe("PROVIDER_ACCEPTED");
+    expect(call.resultDigest).toContain("task-7");
+  });
+
   it("an attempted write with no terminal result is UNKNOWN_COMPLETION", () => {
     const [call] = walkToolTelemetry({
       ev: {
@@ -74,7 +101,47 @@ describe("tool telemetry operation-state truth", () => {
     });
 
     expect(call.resultObserved).toBe(false);
+    expect(call.observationShape).toBe("call-only");
     expect(call.operationState).toBe("UNKNOWN_COMPLETION");
+  });
+
+  it("keeps an unmatched write call when another call in the step returned", () => {
+    const calls = walkToolTelemetry({
+      ev: {
+        steps: [
+          {
+            toolCalls: [
+              { toolName: "getTasks", toolCallId: "tc-read", input: {} },
+              {
+                toolName: "createTask",
+                toolCallId: "tc-write",
+                input: { title: "Call John" },
+              },
+            ],
+            toolResults: [
+              {
+                toolName: "getTasks",
+                toolCallId: "tc-read",
+                output: { tasks: [] },
+              },
+            ],
+          },
+        ],
+      },
+      convId: "c1",
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual(
+      expect.objectContaining({ name: "getTasks", operationState: "VERIFIED" }),
+    );
+    expect(calls[1]).toEqual(
+      expect.objectContaining({
+        name: "createTask",
+        observationShape: "call-only",
+        operationState: "UNKNOWN_COMPLETION",
+      }),
+    );
   });
 
   it("a soft-error return is FAILED_KNOWN rather than SDK success", () => {
