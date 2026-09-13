@@ -162,15 +162,16 @@ export async function prepareTools(args: {
     prunedTools = filtered as unknown as typeof nourTools;
   }
   // Force the always-on tools to be included even when pruning would
-  // have dropped them (quick mode, for example).
+  // have dropped them (quick mode, for example). Record the policy reason
+  // even when the pruner happened to include the tool already: provenance is
+  // about why the runtime guaranteed availability, not which branch assigned it.
   if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
     const forced = { ...prunedTools } as Record<string, unknown>;
     const all = nourTools as unknown as Record<string, unknown>;
     for (const name of aiConfig.alwaysOnTools) {
-      if (all[name] && !forced[name]) {
-        forced[name] = all[name];
-        forcedReasons[name] = "operator alwaysOnTools";
-      }
+      if (!all[name]) continue;
+      forcedReasons[name] = "operator alwaysOnTools";
+      if (!forced[name]) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -185,10 +186,9 @@ export async function prepareTools(args: {
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["searchTools", "invokeTool"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) {
-        forced[name] = all[name];
-        forcedReasons[name] = "read-safe capability recovery lane";
-      }
+      if (!all[name] || disabled.has(name)) continue;
+      forcedReasons[name] = "read-safe capability recovery lane";
+      if (!forced[name]) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -208,10 +208,9 @@ export async function prepareTools(args: {
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const raw of actionIntent.expectedTool.split("|")) {
       const name = raw.trim();
-      if (all[name] && !forced[name] && !disabled.has(name)) {
-        forced[name] = all[name];
-        forcedReasons[name] = `action intent: ${actionIntent.intent}`;
-      }
+      if (!all[name] || disabled.has(name)) continue;
+      forcedReasons[name] = `action intent: ${actionIntent.intent}`;
+      if (!forced[name]) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -222,10 +221,9 @@ export async function prepareTools(args: {
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) {
-        forced[name] = all[name];
-        forcedReasons[name] = "explicit/current web-search requirement";
-      }
+      if (!all[name] || disabled.has(name)) continue;
+      forcedReasons[name] = "explicit/current web-search requirement";
+      if (!forced[name]) forced[name] = all[name];
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
