@@ -56,6 +56,33 @@ describe("withToolIdempotency", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("strict mode blocks when a duplicate marker exists but its state cannot be read", async () => {
+    brainMemory.create.mockRejectedValueOnce({ code: "P2002" });
+    brainMemory.findUnique.mockRejectedValueOnce(new Error("read path down"));
+    const run = vi.fn().mockResolvedValue("RAN-DANGEROUSLY");
+    const r = await withToolIdempotency(
+      "k",
+      1000,
+      run,
+      () => "dup",
+      undefined,
+      { onClaimUnavailable: () => "BLOCKED" },
+    );
+    expect(r).toBe("BLOCKED");
+    expect(run).not.toHaveBeenCalled();
+    expect(brainMemory.update).not.toHaveBeenCalled();
+  });
+
+  it("legacy mode fails open when a duplicate marker exists but its state cannot be read, without reclaiming it", async () => {
+    brainMemory.create.mockRejectedValueOnce({ code: "P2002" });
+    brainMemory.findUnique.mockRejectedValueOnce(new Error("read path down"));
+    const run = vi.fn().mockResolvedValue("ran");
+    const r = await withToolIdempotency("k", 1000, run, () => "dup");
+    expect(r).toBe("ran");
+    expect(run).toHaveBeenCalledOnce();
+    expect(brainMemory.update).not.toHaveBeenCalled();
+  });
+
   it("legacy behavior still releases the marker + rethrows on a throw", async () => {
     const run = vi.fn().mockRejectedValue(new Error("boom"));
     await expect(withToolIdempotency("k", 1000, run, () => "dup")).rejects.toThrow("boom");
