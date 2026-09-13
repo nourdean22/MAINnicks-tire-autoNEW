@@ -8,12 +8,26 @@
  */
 
 import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
+import { classifyToolEffect, type ToolEffectClass } from "@/lib/ai/receipts/action-receipt";
+import { operationStateFrom, type OperationState } from "@/lib/ai/chat/turn-control-plane";
 
 export interface CapturedToolCall {
   name: string;
   ok: boolean;
   durationMs: number;
   args?: Record<string, unknown>;
+  /** Whether the SDK exposed any return value at all (including null). */
+  resultObserved: boolean;
+  /** read/write/unknown from the canonical tool-effect classifier. */
+  effectClass: ToolEffectClass;
+  /**
+   * Conservative completion state for the control plane.
+   *
+   * IMPORTANT: PROVIDER_ACCEPTED is intentionally weaker than VERIFIED.
+   * A successful write result proves the tool/provider accepted the operation;
+   * only an independent postcondition/read-back may promote it to VERIFIED.
+   */
+  operationState: OperationState;
   /**
    * 2026-09-10 · normalized, truncated text of what the tool RETURNED.
    *
@@ -105,21 +119,12 @@ export function walkToolTelemetry(args: {
         // telemetry recorded success=true while the model
         // received an error payload every turn.
         //
-        // Net effect: a revoked GITHUB_TOKEN, missing
-        // NICKS_ADMIN_URL, or expired Drive credentials would
-        // surface as 100% success on the dashboard while the
-        // model silently got `{ error: "..." }` on every call.
-        // The circuit breaker never tripped. Operators couldn't
-        // see the failure until they manually opened a tool's
-        // raw output.
-        //
         // Fix: ALSO inspect the tool's return value for an
-        // `error` field. If present, treat as fail. This makes
-        // soft-fails visible to telemetry, the circuit breaker,
-        // and the operator-facing envelope.
+        // `error` field. If present, treat as fail.
         // ─────────────────────────────────────────────────────────
         const sdkErrored = call?.error !== undefined && call?.error !== null;
         const result = call?.result;
+        const resultObserved = "result" in call;
         const softErrored =
           !sdkErrored &&
           !!result &&
@@ -147,6 +152,16 @@ export function walkToolTelemetry(args: {
             })()
           : undefined;
         const toolArgs = call?.args as Record<string, unknown> | undefined;
+        const effectClass = classifyToolEffect(toolName);
+        const operationState = operationStateFrom({
+          attempted: true,
+          knownFailure: errored,
+          completionUnknown: !errored && effectClass !== "read" && !resultObserved,
+          providerAccepted: !errored && effectClass === "write" && resultObserved,
+          // A read result is itself the postcondition. A write result is not:
+          // it needs an independent read-back before it may become VERIFIED.
+          verified: !errored && effectClass === "read" && resultObserved,
+        });
 
         recordToolInvocation({
           toolName,
@@ -168,6 +183,9 @@ export function walkToolTelemetry(args: {
           ok: !errored,
           durationMs,
           args: toolArgs,
+          resultObserved,
+          effectClass,
+          operationState,
           resultDigest: digestResult(result),
         });
       }
