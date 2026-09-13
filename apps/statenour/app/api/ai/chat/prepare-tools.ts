@@ -20,6 +20,7 @@
 import { pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
 import { markInvokeToolFired, markSearchToolsFired } from "@/lib/ai/tool-selection-telemetry";
 import { nourTools } from "@/lib/ai/tools";
+import { buildCapabilityPlan, type CapabilityPlan } from "@/lib/ai/chat/turn-control-plane";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
@@ -90,7 +91,7 @@ export async function prepareTools(args: {
   traceId?: string;
   conversationId?: string;
   log: Logger;
-}): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number }> {
+}): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number; capabilityPlan: CapabilityPlan }> {
   const {
     mode,
     messages,
@@ -106,6 +107,11 @@ export async function prepareTools(args: {
     conversationId,
     log,
   } = args;
+
+  // Why a tool was force-surfaced matters as much as THAT it surfaced.
+  // This is a per-turn receipt, not another selector. Entries that are later
+  // stripped by read mode are automatically removed by buildCapabilityPlan.
+  const forcedReasons: Record<string, string> = {};
 
   // ═══ PERF: Prune tools by mode ═══
   // Quick mode → zero tools. Standard → core + semantic top-15 + keyword.
@@ -161,7 +167,10 @@ export async function prepareTools(args: {
     const forced = { ...prunedTools } as Record<string, unknown>;
     const all = nourTools as unknown as Record<string, unknown>;
     for (const name of aiConfig.alwaysOnTools) {
-      if (all[name] && !forced[name]) forced[name] = all[name];
+      if (all[name] && !forced[name]) {
+        forced[name] = all[name];
+        forcedReasons[name] = "operator alwaysOnTools";
+      }
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -176,7 +185,10 @@ export async function prepareTools(args: {
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["searchTools", "invokeTool"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !forced[name] && !disabled.has(name)) {
+        forced[name] = all[name];
+        forcedReasons[name] = "read-safe capability recovery lane";
+      }
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -196,7 +208,10 @@ export async function prepareTools(args: {
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const raw of actionIntent.expectedTool.split("|")) {
       const name = raw.trim();
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !forced[name] && !disabled.has(name)) {
+        forced[name] = all[name];
+        forcedReasons[name] = `action intent: ${actionIntent.intent}`;
+      }
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -207,7 +222,10 @@ export async function prepareTools(args: {
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !forced[name] && !disabled.has(name)) {
+        forced[name] = all[name];
+        forcedReasons[name] = "explicit/current web-search requirement";
+      }
     }
     prunedTools = forced as unknown as typeof nourTools;
   }
@@ -235,11 +253,28 @@ export async function prepareTools(args: {
   // recovery capability actually handed to this model turn.
   prunedTools = instrumentRecoveryTools(prunedTools, traceId);
 
+  const capabilityPlan = buildCapabilityPlan({
+    registered: Object.keys(nourTools),
+    surfaced: Object.keys(prunedTools),
+    disabled: aiConfig?.disabledTools ?? [],
+    forced: forcedReasons,
+    recoveryTools: ["searchTools", "invokeTool"],
+  });
+
   const toolCountAll = Object.keys(nourTools).length;
   const toolCountPruned = Object.keys(prunedTools).length;
   log.info("mode_description", {
     description: describeMode(mode, toolCountAll, toolCountPruned),
     promptChars: finalSystemPromptLength,
+  });
+  log.info("capability_plan", {
+    traceId: traceId ?? null,
+    registered: capabilityPlan.registeredCount,
+    discoverable: capabilityPlan.discoverableCount,
+    surfaced: capabilityPlan.surfacedCount,
+    disabled: capabilityPlan.disabled,
+    forced: capabilityPlan.forced,
+    recovery: capabilityPlan.recoveryTools,
   });
 
   // 2026-08-25 · tool-surfacing telemetry. tool_telemetry counts tools the
@@ -250,6 +285,10 @@ export async function prepareTools(args: {
   // blocklist, always-on, recovery-lane, coherence forces and the read-mode
   // strip — one system_metrics row per turn (metric `tool.surfaced`, names
   // in tags.tools), so the census gains a surfaced-denominator without DDL.
+  //
+  // 2026-09-13 · the same row now carries traceId plus the capability plan.
+  // This makes a single turn answer "registered, disabled, surfaced, why?"
+  // instead of joining an untethered aggregate to the current source tree.
   // Fire-and-forget: recordMetric already swallows its own failures.
   {
     const surfacedNames = Object.keys(prunedTools).sort();
@@ -257,7 +296,12 @@ export async function prepareTools(args: {
       .then(({ recordMetric }) =>
         recordMetric("tool.surfaced", surfacedNames.length, {
           unit: "count",
-          tags: { tools: surfacedNames, mode },
+          tags: {
+            traceId: traceId ?? null,
+            tools: surfacedNames,
+            mode,
+            capabilityPlan,
+          },
           source: "chat",
         }),
       )
@@ -308,5 +352,5 @@ export async function prepareTools(args: {
     toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
   });
 
-  return { prunedTools, maxOutputTokens };
+  return { prunedTools, maxOutputTokens, capabilityPlan };
 }
