@@ -88,6 +88,12 @@ export interface ActionExecResult {
   action: string;
   success: boolean;
   error?: string;
+  /**
+   * Shadow-only strict truth: true only when an independent postcondition or
+   * read-back confirmed the intended world state. Existing executeActions()
+   * rows omit this, so successful mutations remain provider-accepted only.
+   */
+  verified?: boolean;
 }
 
 /**
@@ -191,13 +197,80 @@ export function detectPhantomActionClaims(
   return claims;
 }
 
+export interface ActionDoneShadowVerdict {
+  /** Generic completion language was detected in the assistant prose. */
+  completionClaimDetected: boolean;
+  /** Strict mutation completion was actually evaluable for this turn. */
+  strictRelevant: boolean;
+  /** Existing production behavior: failed claimed mutations block Done. */
+  legacyDoneEligible: boolean;
+  /**
+   * null = no mutation/phantom completion claim to evaluate.
+   * false = strict completion is not proven.
+   * true = every claimed emitted mutation carries independent verification.
+   */
+  strictDoneEligible: boolean | null;
+  /** Legacy would allow Done while strict truth would not. */
+  legacyStrictGap: boolean;
+  failedMutations: string[];
+  providerAcceptedMutations: string[];
+  verifiedMutations: string[];
+  phantomClaims: ActionClaim[];
+}
+
+/**
+ * Shadow-only action-block completion compiler.
+ *
+ * This does NOT rewrite prose and does NOT change current canClaimDone()
+ * behavior. It exists so the deferred action path can measure the migration
+ * from executor-success to independently-verified success before enforcement.
+ */
+export function compareActionDoneShadow(
+  results: ReadonlyArray<ActionExecResult>,
+  assistantText: string,
+): ActionDoneShadowVerdict {
+  const completionClaimDetected = detectActionClaims(assistantText).claims.length > 0;
+  const mutationResults = results.filter((r) => MUTATION_ACTIONS.has(r.action));
+  const failedMutations = mutationResults.filter((r) => !r.success).map((r) => r.action);
+  const verifiedMutations = mutationResults
+    .filter((r) => r.success && r.verified === true)
+    .map((r) => r.action);
+  const providerAcceptedMutations = mutationResults
+    .filter((r) => r.success && r.verified !== true)
+    .map((r) => r.action);
+  const phantomClaims = detectPhantomActionClaims(results, assistantText);
+  const legacyDoneEligible = detectFailedActionClaims(results, assistantText).length === 0;
+
+  let strictDoneEligible: boolean | null = null;
+  if (phantomClaims.length > 0) {
+    strictDoneEligible = false;
+  } else if (completionClaimDetected && mutationResults.length > 0) {
+    strictDoneEligible = failedMutations.length === 0 && providerAcceptedMutations.length === 0;
+  }
+
+  return {
+    completionClaimDetected,
+    strictRelevant: strictDoneEligible !== null,
+    legacyDoneEligible,
+    strictDoneEligible,
+    legacyStrictGap: legacyDoneEligible && strictDoneEligible === false,
+    failedMutations,
+    providerAcceptedMutations,
+    verifiedMutations,
+    phantomClaims,
+  };
+}
+
 /**
  * Determines if the action results allow claiming completion in prose.
  * Wired directly into the live chat-finalize loop to prevent fake completion claims.
+ *
+ * IMPORTANT: legacy behavior is intentionally retained while the strict shadow
+ * verdict is measured. Successful mutation execution alone still returns true.
  */
 export function canClaimDone(
   results: ReadonlyArray<ActionExecResult>,
   assistantText: string,
 ): boolean {
-  return detectFailedActionClaims(results, assistantText).length === 0;
+  return compareActionDoneShadow(results, assistantText).legacyDoneEligible;
 }
