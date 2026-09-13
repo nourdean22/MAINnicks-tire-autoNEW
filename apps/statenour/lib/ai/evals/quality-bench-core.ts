@@ -11,6 +11,7 @@
  * model OR the system prompt OR the sanitizer pipeline regressed.
  */
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
+import { specificityDensity } from "@/lib/ai/nour-voice-profile";
 import type { QualityCheck, QualityPrompt } from "@/tests/fixtures/quality-prompts.gold";
 
 export interface CheckResult {
@@ -42,22 +43,6 @@ export interface BenchSummary {
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function specDensity(text: string): number {
-  // Density score · proper nouns + numbers per 100 words. Loose proxy
-  // for "specificity" — a fluffy reply scores low, an operator-grade
-  // reply with proper names + numbers + dollar figures scores high.
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return 0;
-  let specCount = 0;
-  for (const w of words) {
-    // Capitalized non-sentence-start, or contains digit, or $ sign
-    if (/[A-Z]/.test(w[0] ?? "") && words.indexOf(w) > 0) specCount++;
-    else if (/\d/.test(w)) specCount++;
-    else if (w.includes("$")) specCount++;
-  }
-  return Math.round((specCount / words.length) * 100);
 }
 
 function checkMustMention(
@@ -120,12 +105,21 @@ function checkWordCount(
   return results;
 }
 
-function checkSpecDensity(output: string, min: number): CheckResult {
-  const sd = specDensity(output);
+/**
+ * Canonical specificity check.
+ *
+ * Before 2026-09-13 this benchmark had a second implementation that counted
+ * any capitalized token / digit and returned an integer percentage, while the
+ * live critic used nour-voice-profile's marker density. Both were called
+ * "specificity density" despite incompatible units. The benchmark now calls
+ * the same deterministic function as production.
+ */
+export function checkSpecificityMarkerDensity(output: string, min: number): CheckResult {
+  const density = specificityDensity(output);
   return {
-    check: "minSpecDensity",
-    pass: sd >= min,
-    detail: `spec-density ${sd} (floor: ${min})`,
+    check: "minSpecificityMarkerDensity",
+    pass: density >= min,
+    detail: `specificity-marker-density ${density.toFixed(2)}/100w (floor: ${min.toFixed(2)})`,
   };
 }
 
@@ -206,9 +200,12 @@ export async function runPrompt(prompt: QualityPrompt, dry: boolean): Promise<Pr
     result.checks.push(
       ...checkWordCount(output, prompt.checks.minWords, prompt.checks.maxWords),
     );
-    if (typeof prompt.checks.minSpecDensity === "number") {
+    if (typeof prompt.checks.minSpecificityMarkerDensity === "number") {
       result.checks.push(
-        checkSpecDensity(output, prompt.checks.minSpecDensity),
+        checkSpecificityMarkerDensity(
+          output,
+          prompt.checks.minSpecificityMarkerDensity,
+        ),
       );
     }
     // Critic-overall floor · uses output-critic.ts
