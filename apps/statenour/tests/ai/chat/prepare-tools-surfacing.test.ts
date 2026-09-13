@@ -89,8 +89,8 @@ describe("prepareTools surfacing telemetry", () => {
     markInvokeToolFired.mockClear();
   });
 
-  it("records the FINAL offered set — pruner output plus the recovery lane, sorted", async () => {
-    await prepareTools(args());
+  it("records the FINAL offered set plus registered/discoverable/surfaced truth", async () => {
+    const result = await prepareTools(args({ traceId: "trace-cap" }));
     await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
     const [metric, value, opts] = recordMetric.mock.calls[0];
     expect(metric).toBe("tool.surfaced");
@@ -100,14 +100,31 @@ describe("prepareTools surfacing telemetry", () => {
     expect(opts.tags.tools).toEqual(["invokeTool", "searchTools", "toolA", "toolB"]);
     expect(value).toBe(4);
     expect(opts.tags.mode).toBe("standard");
+    expect(opts.tags.traceId).toBe("trace-cap");
     expect(opts.source).toBe("chat");
+
+    expect(result.capabilityPlan.registered).toEqual([
+      "invokeTool",
+      "searchTools",
+      "toolA",
+      "toolB",
+      "toolC",
+    ]);
+    expect(result.capabilityPlan.discoverableCount).toBe(5);
+    expect(result.capabilityPlan.surfaced).toEqual([
+      "invokeTool",
+      "searchTools",
+      "toolA",
+      "toolB",
+    ]);
+    expect(opts.tags.capabilityPlan).toEqual(result.capabilityPlan);
   });
 
   it("reflects blocklist removals and action-intent forces in the recorded set", async () => {
-    await prepareTools(
+    const result = await prepareTools(
       args({
         aiConfig: { disabledTools: ["toolB"], alwaysOnTools: [] } as never,
-        actionIntent: { expectedTool: "toolC" } as never,
+        actionIntent: { intent: "create task", expectedTool: "toolC" } as never,
       }),
     );
     await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
@@ -115,16 +132,33 @@ describe("prepareTools surfacing telemetry", () => {
     // toolB deleted by the operator blocklist; toolC force-added by the
     // action-intent coherence guarantee.
     expect(opts.tags.tools).toEqual(["invokeTool", "searchTools", "toolA", "toolC"]);
+    expect(result.capabilityPlan.disabled).toEqual(["toolB"]);
+    expect(result.capabilityPlan.discoverable).not.toContain("toolB");
+    expect(result.capabilityPlan.forced.toolC).toBe("action intent: create task");
+  });
+
+  it("records policy provenance even when the pruner already surfaced the guaranteed tool", async () => {
+    const result = await prepareTools(
+      args({ aiConfig: { disabledTools: [], alwaysOnTools: ["toolA"] } as never }),
+    );
+    expect(result.capabilityPlan.surfaced).toContain("toolA");
+    // This is the mutation canary for a subtle provenance bug: force reasons
+    // describe WHY availability was guaranteed, not merely whether assignment
+    // happened in the force branch.
+    expect(result.capabilityPlan.forced.toolA).toBe("operator alwaysOnTools");
+    expect(result.capabilityPlan.forced.searchTools).toBe("read-safe capability recovery lane");
   });
 
   it("records the set AFTER the WP-14 read-mode strip — a stripped mutator must not appear offered", async () => {
-    await prepareTools(args({ actionPermission: "read" }));
+    const result = await prepareTools(args({ actionPermission: "read" }));
     await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
     const [, value, opts] = recordMetric.mock.calls[0];
     // toolA was stripped by read mode; recording it as offered would
     // falsely blame the model for never choosing a tool it never saw.
     expect(opts.tags.tools).toEqual(["invokeTool", "searchTools", "toolB"]);
     expect(value).toBe(3);
+    expect(result.capabilityPlan.surfaced).not.toContain("toolA");
+    expect(result.capabilityPlan.forced).not.toHaveProperty("toolA");
   });
 
   it("never lets a telemetry failure break tool preparation", async () => {
