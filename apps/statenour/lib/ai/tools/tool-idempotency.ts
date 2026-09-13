@@ -104,9 +104,20 @@ export async function withToolIdempotency<T>(
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
-      const existing = await prisma.brainMemory
-        .findUnique({ where, select: { expiresAt: true, content: true } })
-        .catch(() => null);
+      let existing: { expiresAt: Date | null; content: string | null } | null;
+      try {
+        existing = await prisma.brainMemory.findUnique({
+          where,
+          select: { expiresAt: true, content: true },
+        });
+      } catch (readError) {
+        await logIdemError("read-existing-marker", dedupKey, readError);
+        if (options.onClaimUnavailable) return options.onClaimUnavailable(readError);
+        // Legacy callers retain their historical fail-open semantics, but a
+        // failed read is never re-labelled as "expired" and never reclaimed.
+        return run();
+      }
+
       if (existing?.expiresAt && existing.expiresAt.getTime() > Date.now()) {
         return onDuplicate({
           state: markerState(existing.content),
