@@ -29,7 +29,7 @@ export interface EntityClaim {
   start: number;
   end: number;
   supported: boolean;
-  support: "USER_INPUT" | "TOOL_RESULT" | "NONE";
+  support: "USER_INPUT" | "TOOL_RESULT" | "CONTEXT" | "NONE";
 }
 
 export interface EntityClaimReport {
@@ -66,6 +66,8 @@ export function checkEntityClaimProvenance(
   evidence: {
     userText?: string;
     toolResultDigests?: readonly string[];
+    /** Trusted/grounded system context already supplied to the model. */
+    contextText?: string;
   },
 ): EntityClaimReport {
   const claims: EntityClaim[] = [];
@@ -79,7 +81,14 @@ export function checkEntityClaimProvenance(
 
     const fromUser = containsId(evidence.userText ?? "", id);
     const fromTool = (evidence.toolResultDigests ?? []).some((digest) => containsId(digest, id));
-    const support = fromUser ? "USER_INPUT" : fromTool ? "TOOL_RESULT" : "NONE";
+    const fromContext = containsId(evidence.contextText ?? "", id);
+    const support = fromUser
+      ? "USER_INPUT"
+      : fromTool
+        ? "TOOL_RESULT"
+        : fromContext
+          ? "CONTEXT"
+          : "NONE";
 
     claims.push({
       kind,
