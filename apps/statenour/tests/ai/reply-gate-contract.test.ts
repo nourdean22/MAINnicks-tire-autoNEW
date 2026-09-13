@@ -1,6 +1,6 @@
 /**
- * Contract-aware reply-gate tests — verifies request-COMPLIANCE checks
- * (concise/prompt/top-N/repo-grounded/don't-ask/vague). Pure, no model.
+ * Contract-aware reply-gate tests — verifies request-COMPLIANCE checks.
+ * Pure, no model.
  */
 import { describe, it, expect } from "vitest";
 import { runReplyGateWithContract, runReplyGate } from "@/lib/ai/reply-gate";
@@ -13,7 +13,7 @@ function gate(userText: string, reply: string) {
   return runReplyGateWithContract(reply, userText, null, turn, contract);
 }
 
-const LONG = Array.from({ length: 200 }, (_, i) => `word${i}`).join(" ");
+const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
 
 describe("base gate · evidenced uncertainty (2026-08-11 incentive fix)", () => {
   it("bare I-don't-know on a factual turn still flags for regen", () => {
@@ -51,15 +51,28 @@ describe("base gate · evidenced uncertainty (2026-08-11 incentive fix)", () => 
   });
 });
 
-describe("contract gate · concision", () => {
-  it("concise requested + bloated reply → flagged", () => {
-    const g = gate("keep it concise: is the deploy green?", LONG);
+describe("contract gate · response budget", () => {
+  it("ordinary 95-word prose breaches the same <=80 contract generation received", () => {
+    const g = gate("what's the capital of France and why is it important?", words(95));
     expect(g.contractSignals.conciseButBloated).toBe(true);
     expect(g.shouldRegen).toBe(true);
+    expect(g.reasons.join(" ")).toMatch(/80 hard max/);
   });
-  it("concise requested + short reply → clean on that axis", () => {
-    const g = gate("keep it concise: is the deploy green?", "Yes — green as of 15:05, deps stage passed.");
+
+  it("ordinary short reply stays inside the budget", () => {
+    const g = gate("is the deploy green?", "Yes — the deploy is green.");
     expect(g.contractSignals.conciseButBloated).toBe(false);
+  });
+
+  it("a deliberately detailed 200-word answer does not trip the ordinary-chat ceiling", () => {
+    const g = gate("give me a detailed thorough breakdown of the migration plan", words(200));
+    expect(g.contractSignals.conciseButBloated).toBe(false);
+  });
+
+  it("concise requested + 200-word reply → flagged", () => {
+    const g = gate("keep it concise: is the deploy green?", words(200));
+    expect(g.contractSignals.conciseButBloated).toBe(true);
+    expect(g.shouldRegen).toBe(true);
   });
 });
 
