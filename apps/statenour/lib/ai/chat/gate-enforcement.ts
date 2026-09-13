@@ -27,6 +27,7 @@
 
 import type { EvidenceGateDecision, GateEvidence, GateVerdict } from "@/lib/ai/reply-gate";
 import { runEvidenceGate } from "@/lib/ai/reply-gate";
+import { buildResponseContract } from "@/lib/ai/response-contract";
 import { responseBudgetFor } from "./turn-control-plane";
 import type { NamedSourceReport } from "./named-source-claims";
 import { stripUnearnedConfidenceTags } from "./named-source-claims";
@@ -81,13 +82,12 @@ export function removeUnreceiptedClaims(text: string, names: readonly string[]):
 
   const keptLines = text.split("\n").filter((line) => {
     if (LIST_ITEM_RE.test(line) && carriesName(line)) {
-      applied.push(`dropped list item naming an unverified resource`);
+      applied.push("dropped list item naming an unverified resource");
       return false;
     }
     return true;
   });
 
-  // Sentence pass over whatever prose is left.
   const rebuilt = keptLines
     .map((line) => {
       if (LIST_ITEM_RE.test(line) || !carriesName(line)) return line;
@@ -102,7 +102,6 @@ export function removeUnreceiptedClaims(text: string, names: readonly string[]):
       return kept.join(" ");
     })
     .join("\n")
-    // collapse the holes the removals left
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
@@ -160,7 +159,7 @@ export function repairDeterministically(
   let current = text;
   const applied: string[] = [];
   let gutted = false;
-  void gate; // gate still belongs to the API; ceiling enforcement is independent.
+  void gate;
 
   if (namedSources && namedSources.unearnedConfidenceTags.length > 0) {
     current = stripUnearnedConfidenceTags(current, namedSources);
@@ -186,26 +185,15 @@ export function repairDeterministically(
   return { text: current, applied, gutted };
 }
 
-/**
- * The deterministic fallback. A constant, by design -- see rule 3.
- * Phrased as the audit asked: say plainly that nothing was checked, and
- * offer to check.
- */
 export const UNVERIFIED_FALLBACK =
   "I don't have a verified source for that -- I didn't actually run a search this turn, so anything specific I named would have been from memory rather than a lookup. Want me to search it properly?";
 
 export interface GatedReplyOutcome {
-  /** What should be shown to the operator. */
   text: string;
-  /** Terminal verdict after enforcement. */
   verdict: GateVerdict;
-  /** The gate's decision before any repair. */
   initial: EvidenceGateDecision;
-  /** The gate's decision after repair, when a repair ran. */
   afterRepair: EvidenceGateDecision | null;
-  /** Ordered log of what enforcement did. For the evidence panel. */
   actions: string[];
-  /** True when the reply shipped as the deterministic fallback. */
   usedFallback: boolean;
 }
 
@@ -218,17 +206,11 @@ export interface GatedReplyInput {
   evidence: GateEvidence;
   namedSources: NamedSourceReport | null;
   /**
-   * Legacy output-shape ceiling. Retained for callers/telemetry and used when
-   * no ResponseContract is available. When a contract exists, its visible
-   * answer budget is authoritative.
+   * Legacy output-shape ceiling. Retained for telemetry/backward compatibility.
+   * A missing ResponseContract is reconstructed at this seam rather than
+   * silently falling back to the old 300-word prose truth.
    */
   ceilingWords: number;
-  /**
-   * Re-derive evidence for repaired text. Required because the
-   * repaired reply has a different word count and a different claim
-   * set -- re-gating against the ORIGINAL evidence would be scoring
-   * text that no longer exists.
-   */
   reassess: (repaired: string) => { evidence: GateEvidence; namedSources: NamedSourceReport | null };
 }
 
@@ -242,12 +224,23 @@ export interface GatedReplyInput {
 export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
   const { draft, userText, critic, turnSignal, contract, evidence } = input;
   const actions: string[] = [];
-  const effectiveCeiling = contract
-    ? responseBudgetFor(contract).hardMaxWords
-    : input.ceilingWords;
+
+  // Some buffered callers historically passed `contract: null`. Letting null
+  // resurrect the legacy 300-word prose ceiling would recreate two competing
+  // constitutions. The contract builder is pure/deterministic, so reconstruct
+  // it from the same turn inputs when the caller omitted it.
+  const effectiveContract = contract ?? buildResponseContract(userText, turnSignal);
+  const effectiveCeiling = responseBudgetFor(effectiveContract).hardMaxWords;
   const contractOverrun = effectiveCeiling > 0 && wordCount(draft) > effectiveCeiling;
 
-  const initial = runEvidenceGate(draft, userText, critic, turnSignal, contract, evidence);
+  const initial = runEvidenceGate(
+    draft,
+    userText,
+    critic,
+    turnSignal,
+    effectiveContract,
+    evidence,
+  );
 
   if (initial.verdict === "pass" && !contractOverrun) {
     return {
@@ -261,7 +254,9 @@ export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
   }
 
   if (initial.verdict !== "pass") {
-    actions.push(`gate ${initial.verdict} (severity ${initial.severity}): ${initial.blockingReasons.join("; ")}`);
+    actions.push(
+      `gate ${initial.verdict} (severity ${initial.severity}): ${initial.blockingReasons.join("; ")}`,
+    );
   }
   if (contractOverrun) {
     actions.push(`visible-answer contract overrun (${wordCount(draft)} > ${effectiveCeiling} words)`);
@@ -271,8 +266,6 @@ export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
   actions.push(...repair.applied);
 
   if (repair.gutted) {
-    // Repair removed the answer rather than the defect. Shipping the
-    // remains would be worse than admitting the lookup never happened.
     actions.push("repair would have gutted the reply -- shipped the deterministic fallback");
     return {
       text: UNVERIFIED_FALLBACK,
@@ -284,14 +277,13 @@ export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
     };
   }
 
-  // RE-GATE ONCE, against freshly derived evidence for the repaired text.
   const re = input.reassess(repair.text);
   const afterRepair = runEvidenceGate(
     repair.text,
     userText,
     critic,
     turnSignal,
-    contract,
+    effectiveContract,
     re.evidence,
   );
 
