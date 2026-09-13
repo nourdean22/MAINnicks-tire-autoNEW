@@ -1,27 +1,43 @@
 /**
- * Tool idempotency · 2026-07-22
+ * Tool idempotency · 2026-07-22; unknown-completion hardening 2026-09-13.
  *
- * Defense-in-depth against DUPLICATE destructive tool side effects. The chat
- * turn can re-execute for several reasons — the client auto-regen after a
- * network kill (use-chat-stream.ts), a manual retry, or the best-of-2
- * pre-stream regen (NICK_VERIFIED_REGEN) — and each re-run re-invokes the
- * model's tool calls fresh. Without a guard, a dropped SSE after a committed
- * `sendTelegram` / `stageCustomerAlert` / live `triggerInstagramAutopost`
- * fires it AGAIN (duplicate message, duplicate PENDING receipt, duplicate
- * PUBLIC post).
+ * Defense-in-depth against DUPLICATE destructive tool side effects.
  *
- * `withToolIdempotency` claims a short-lived marker keyed by the action's
- * CONTENT before the side effect runs. The claim is atomic via BrainMemory's
- * `@@unique([category, key])` constraint (same idiom as the objection-injection
- * log). A second identical action inside the window returns the caller's
- * `onDuplicate()` sentinel WITHOUT running the effect. Best-effort throughout:
- * any DB problem falls through to running the action (never blocks a real send
- * because of an infra hiccup), and a marker whose action THREW is released so a
- * genuine retry can proceed.
+ * Historical behavior is preserved by default: a reported/throwing failure
+ * releases the short-lived marker and infrastructure failure fails open. A
+ * caller that can distinguish "known failure" from "the request may have
+ * committed but the response was lost" can opt into the stricter semantics
+ * below. UNKNOWN completion keeps the marker and suppresses blind retries.
+ *
+ * This is intentionally a bridge, not the final durable Operation Ledger.
+ * BrainMemory remains the existing short-lived claim store until a dedicated
+ * operation schema can be introduced and migrated deliberately.
  */
 import { createHash } from "node:crypto";
 
 const CATEGORY = "tool_idempotency";
+
+export type ToolCompletionDisposition = "success" | "known_failure" | "unknown";
+
+export interface IdempotencyDuplicateContext {
+  /** UNKNOWN means the prior attempt may have committed; never imply "done". */
+  state: "claimed" | "unknown";
+  expiresAt: Date | null;
+}
+
+export interface ToolIdempotencyOptions<T> {
+  /** Stronger than the legacy boolean `succeeded` predicate. */
+  classifyResult?: (result: T) => ToolCompletionDisposition;
+  /** Legacy default is known_failure, preserving all existing callers. */
+  classifyError?: (error: unknown) => Exclude<ToolCompletionDisposition, "success">;
+  /** Hold UNKNOWN attempts longer than the ordinary duplicate window. */
+  unknownWindowMs?: number;
+  /**
+   * Optional fail-closed policy for actions that must not run when the
+   * idempotency claim store is unavailable. Existing callers stay fail-open.
+   */
+  onClaimUnavailable?: (error: unknown) => T | Promise<T>;
+}
 
 /** Stable 16-hex content fingerprint for the dedup key. */
 export function idempotencyKey(tool: string, content: string): string {
@@ -29,91 +45,129 @@ export function idempotencyKey(tool: string, content: string): string {
   return `${tool}:${hash}`;
 }
 
+function markerContent(state: "claimed" | "unknown", now = new Date()): string {
+  return `${state}:${now.toISOString()}`;
+}
+
+function markerState(content: string | null | undefined): IdempotencyDuplicateContext["state"] {
+  return content?.startsWith("unknown:") ? "unknown" : "claimed";
+}
+
 export async function withToolIdempotency<T>(
   key: string,
   windowMs: number,
   run: () => Promise<T>,
-  onDuplicate: () => T,
+  onDuplicate: (context?: IdempotencyDuplicateContext) => T,
   /**
-   * True iff `result` means the side effect COMMITTED. Required for tools that
-   * report failure by RETURN VALUE instead of throwing (sendTelegram -> false,
-   * queryNick -> { error }). If a run reports failure, its marker is released so
-   * a real retry can proceed — otherwise a failed send holds the marker and the
-   * retry falsely reports "already done". Omit only when run() always throws on
-   * failure.
+   * Backward-compatible success predicate. False maps to known_failure unless
+   * `options.classifyResult` is supplied.
    */
   succeeded?: (result: T) => boolean,
+  options: ToolIdempotencyOptions<T> = {},
 ): Promise<T> {
   let prisma: typeof import("@/lib/prisma").prisma;
   try {
     ({ prisma } = await import("@/lib/prisma"));
-  } catch {
-    return run(); // no DB client — cannot dedup; do NOT block the action
+  } catch (error) {
+    if (options.onClaimUnavailable) return options.onClaimUnavailable(error);
+    return run();
   }
 
   const dedupKey = key.slice(0, 190);
   const where = { category_key: { category: CATEGORY, key: dedupKey } } as const;
+  const now = () => new Date();
+
+  const markUnknown = async () => {
+    const holdMs = Math.max(windowMs, options.unknownWindowMs ?? windowMs);
+    await prisma.brainMemory
+      .update({
+        where,
+        data: {
+          content: markerContent("unknown", now()),
+          expiresAt: new Date(Date.now() + holdMs),
+        },
+      })
+      .catch((error) => logIdemError("mark-unknown", dedupKey, error));
+  };
 
   try {
+    const claimedAt = now();
     await prisma.brainMemory.create({
       data: {
         category: CATEGORY,
         key: dedupKey,
-        content: new Date().toISOString(),
+        content: markerContent("claimed", claimedAt),
         confidence: 1,
         source: CATEGORY,
-        expiresAt: new Date(Date.now() + windowMs),
+        expiresAt: new Date(claimedAt.getTime() + windowMs),
       },
     });
-  } catch (e) {
-    // Unique-constraint violation = a marker already exists for this content.
-    if ((e as { code?: string })?.code === "P2002") {
-      const existing = await prisma.brainMemory.findUnique({ where, select: { expiresAt: true } }).catch(() => null);
-      // Still inside the window → a live duplicate re-fire. Skip the side effect.
+  } catch (error) {
+    if ((error as { code?: string })?.code === "P2002") {
+      const existing = await prisma.brainMemory
+        .findUnique({ where, select: { expiresAt: true, content: true } })
+        .catch(() => null);
       if (existing?.expiresAt && existing.expiresAt.getTime() > Date.now()) {
-        return onDuplicate();
+        return onDuplicate({
+          state: markerState(existing.content),
+          expiresAt: existing.expiresAt,
+        });
       }
-      // Expired marker (not yet pruned by the decay cron) → reclaim + proceed.
-      // A failed reclaim means the dedup guard is silently OFF for this
-      // action — log it (lazy sink: this module must not import prisma
-      // transitively at load time).
-      await prisma.brainMemory
-        .update({ where, data: { content: new Date().toISOString(), expiresAt: new Date(Date.now() + windowMs) } })
-        .catch((e) => logIdemError("reclaim-expired-marker", dedupKey, e));
+
+      try {
+        const reclaimedAt = now();
+        await prisma.brainMemory.update({
+          where,
+          data: {
+            content: markerContent("claimed", reclaimedAt),
+            expiresAt: new Date(reclaimedAt.getTime() + windowMs),
+          },
+        });
+      } catch (reclaimError) {
+        await logIdemError("reclaim-expired-marker", dedupKey, reclaimError);
+        if (options.onClaimUnavailable) return options.onClaimUnavailable(reclaimError);
+        return run();
+      }
     } else {
-      // Any other DB error → don't block the real action.
+      if (options.onClaimUnavailable) return options.onClaimUnavailable(error);
       return run();
     }
   }
 
   try {
     const result = await run();
-    // The action ran but reported FAILURE by return value (didn't throw) — release
-    // the marker so a genuine retry proceeds instead of hitting a false "already done".
-    if (succeeded && !succeeded(result)) {
-      // A failed release leaves the marker stuck — a genuine retry inside the
-      // window would falsely report "already done". Loud, not fatal.
-      await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch((e) => logIdemError("release-on-reported-failure", dedupKey, e));
+    const disposition: ToolCompletionDisposition = options.classifyResult
+      ? options.classifyResult(result)
+      : succeeded
+        ? (succeeded(result) ? "success" : "known_failure")
+        : "success";
+
+    if (disposition === "known_failure") {
+      await prisma.brainMemory
+        .deleteMany({ where: { category: CATEGORY, key: dedupKey } })
+        .catch((error) => logIdemError("release-on-known-failure", dedupKey, error));
+    } else if (disposition === "unknown") {
+      await markUnknown();
     }
     return result;
-  } catch (err) {
-    // The action threw AFTER claiming — release the marker so a real retry works.
-    await prisma.brainMemory.deleteMany({ where: { category: CATEGORY, key: dedupKey } }).catch((e) => logIdemError("release-after-throw", dedupKey, e));
-    throw err;
+  } catch (error) {
+    const disposition = options.classifyError?.(error) ?? "known_failure";
+    if (disposition === "unknown") {
+      await markUnknown();
+    } else {
+      await prisma.brainMemory
+        .deleteMany({ where: { category: CATEGORY, key: dedupKey } })
+        .catch((releaseError) => logIdemError("release-after-known-throw", dedupKey, releaseError));
+    }
+    throw error;
   }
 }
 
-/**
- * Lazy log sink — this module intentionally has no top-level prisma import
- * (see the guarded dynamic import in withToolIdempotency), and
- * `@/lib/utils/error-log` imports prisma transitively. Logging must never
- * affect the action path.
- */
-async function logIdemError(stage: string, key: string, e: unknown): Promise<void> {
+async function logIdemError(stage: string, key: string, error: unknown): Promise<void> {
   try {
     const { logError } = await import("@/lib/utils/error-log");
-    logError("ai.tool-idempotency", e, { fn: "withToolIdempotency", stage, key }, "warn");
+    logError("ai.tool-idempotency", error, { fn: "withToolIdempotency", stage, key }, "warn");
   } catch {
-    // logging failure is not allowed to become an action failure
+    // Logging failure is not allowed to become an action failure.
   }
 }
