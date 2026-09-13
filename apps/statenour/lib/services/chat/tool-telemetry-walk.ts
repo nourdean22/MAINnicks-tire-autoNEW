@@ -10,7 +10,7 @@
 import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
 import { classifyToolEffect, type ToolEffectClass } from "@/lib/ai/receipts/action-receipt";
 import { operationStateFrom, type OperationState } from "@/lib/ai/chat/turn-control-plane";
-import { retryPolicyFor } from "@/lib/ai/chat/operation-retry-policy";
+import { summarizeOperations } from "@/lib/ai/chat/turn-execution-summary";
 
 export interface CapturedToolCall {
   name: string;
@@ -72,43 +72,30 @@ function digestResult(result: unknown, max = 4000): string {
  * tags and is used by the chat tool-surfacing census, so this records the
  * control-plane view without schema work and without changing user-facing Done
  * enforcement yet.
+ *
+ * The math comes from `summarizeOperations()`, the SAME compiler used by the
+ * normalized TurnExecution summary. Shadow telemetry and future persistence
+ * therefore cannot quietly disagree about what "provider accepted" means.
  */
 function recordOperationIntegrityShadow(
   calls: ReadonlyArray<CapturedToolCall>,
   convId: string | undefined,
 ): void {
   if (calls.length === 0) return;
-
-  const consequential = calls.filter((c) => c.effectClass !== "read");
-  if (consequential.length === 0) return;
-
-  const operations = consequential.map((c) => {
-    const retry = retryPolicyFor(c.operationState, c.effectClass);
-    return {
-      tool: c.name,
-      effectClass: c.effectClass,
-      state: c.operationState,
-      sdkOk: c.ok,
-      resultObserved: c.resultObserved,
-      retryDecision: retry.decision,
-      mayClaimDoneStrict: retry.mayClaimDone,
-      requiresReconciliation: retry.requiresReconciliation,
-    };
-  });
-  const legacySdkSuccesses = operations.filter((o) => o.sdkOk).length;
-  const strictVerified = operations.filter((o) => o.mayClaimDoneStrict).length;
-  const legacyStrictGap = operations.filter((o) => o.sdkOk && !o.mayClaimDoneStrict).length;
+  const summary = summarizeOperations(calls);
+  if (summary.consequentialCount === 0) return;
 
   void import("@/lib/services/metrics")
     .then(({ recordMetric }) =>
-      recordMetric("operation.integrity_shadow", consequential.length, {
+      recordMetric("operation.integrity_shadow", summary.consequentialCount, {
         unit: "count",
         tags: {
           conversationId: convId ?? null,
-          legacySdkSuccesses,
-          strictVerified,
-          legacyStrictGap,
-          operations,
+          legacySdkSuccesses: summary.legacySdkSuccesses,
+          strictVerified: summary.strictVerified,
+          legacyStrictGap: summary.legacyStrictGap,
+          strictDoneEligible: summary.strictDoneEligible,
+          operations: summary.operations,
         },
         source: "chat",
       }),
