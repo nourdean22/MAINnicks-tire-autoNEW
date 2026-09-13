@@ -19,6 +19,7 @@
 
 import { pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
 import { markInvokeToolFired, markSearchToolsFired } from "@/lib/ai/tool-selection-telemetry";
+import { buildCapabilityPlan, type CapabilityPlan } from "@/lib/ai/chat/turn-control-plane";
 import { nourTools } from "@/lib/ai/tools";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
@@ -90,7 +91,7 @@ export async function prepareTools(args: {
   traceId?: string;
   conversationId?: string;
   log: Logger;
-}): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number }> {
+}): Promise<{ prunedTools: typeof nourTools; maxOutputTokens: number; capabilityPlan: CapabilityPlan }> {
   const {
     mode,
     messages,
@@ -107,22 +108,6 @@ export async function prepareTools(args: {
     log,
   } = args;
 
-  // ═══ PERF: Prune tools by mode ═══
-  // Quick mode → zero tools. Standard → core + semantic top-15 + keyword.
-  // Deep → core + semantic top-40 + keyword. Both bounded by the
-  // NICK_TOOL_BUDGET ceiling (default 24, was a hardcoded 50 — see
-  // pruneTools in lib/ai/chat-mode.ts; the "all 159" this comment used
-  // to claim was stale even then).
-  // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
-  // messages without removing any capability from data-heavy queries.
-  // 2026-07-15 · conversation-aware pruning. The pruner keyed ONLY on
-  // the current message, so follow-up turns ("try again", "?", "u
-  // sure?") lost the tool families the CONVERSATION needed — telemetry
-  // showed the model calling arsenalWebSearch and getting "unavailable
-  // tool · Available tools: <core-only list>" on exactly such turns,
-  // then honestly telling the operator "web search still unavailable".
-  // Feed the last few user messages as a matching tail so families
-  // persist across the follow-ups that reference them.
   const conversationTail = messages
     .filter((m) => m.role === "user")
     .slice(-4, -1)
@@ -141,88 +126,75 @@ export async function prepareTools(args: {
     nourTools as unknown as Record<string, unknown>,
     userContent,
     userEmbedding,
-    { conversationTail, turnId: traceId, conversationId }
+    { conversationTail, turnId: traceId, conversationId },
   )) as typeof nourTools;
+  const initiallySelected = Object.keys(prunedTools);
+  const forced: Record<string, string[]> = {};
+  let stripped: string[] = [];
 
-  // Apply the AI config's tool blocklist (#13). Tools in
-  // ai_config.disabledTools are NEVER loaded regardless of mode —
-  // used for disabling broken or unused tools without editing
-  // nourTools.
   if (aiConfig?.disabledTools && aiConfig.disabledTools.length > 0) {
     const filtered = { ...prunedTools } as Record<string, unknown>;
-    for (const blocked of aiConfig.disabledTools) {
-      delete filtered[blocked];
-    }
+    for (const blocked of aiConfig.disabledTools) delete filtered[blocked];
     prunedTools = filtered as unknown as typeof nourTools;
   }
-  // Force the always-on tools to be included even when pruning would
-  // have dropped them (quick mode, for example).
+
   if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
-    const forced = { ...prunedTools } as Record<string, unknown>;
+    const selected = { ...prunedTools } as Record<string, unknown>;
     const all = nourTools as unknown as Record<string, unknown>;
     for (const name of aiConfig.alwaysOnTools) {
-      if (all[name] && !forced[name]) forced[name] = all[name];
+      if (all[name] && !selected[name]) {
+        selected[name] = all[name];
+        (forced.always_on ??= []).push(name);
+      }
     }
-    prunedTools = forced as unknown as typeof nourTools;
+    prunedTools = selected as unknown as typeof nourTools;
   }
-  // 2026-08-13 · BDN-201 · the recovery lane is ALWAYS loaded. The pruner
-  // is one-way: when it guesses wrong the model previously hit "tool
-  // unavailable" dead ends (see the 2026-07-15 conversation-tail note —
-  // that was a heuristic patch, this is the recovery path). searchTools
-  // finds pruned-out tools; invokeTool runs READ-SAFE ones only, so no
-  // approval/mutation gate is bypassed. Respects the operator blocklist.
+
   {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
+    const selected = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["searchTools", "invokeTool"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !selected[name] && !disabled.has(name)) {
+        selected[name] = all[name];
+        (forced.recovery ??= []).push(name);
+      }
     }
-    prunedTools = forced as unknown as typeof nourTools;
+    prunedTools = selected as unknown as typeof nourTools;
   }
-  // 2026-07-06 bug fix · force the ACTION-INTENT's expected tool into the
-  // pruned set. pruneTools attaches read-only CORE_TOOLS + keyword/semantic
-  // families, but a keyword-less action turn ("add it", "do it") with a cold
-  // embedding cache drops the write tool (e.g. createTask). The
-  // toolChoice:"required" force then makes the model act with ONLY read-only
-  // tools — so it fabricates "done" or admits the tool is unavailable.
-  // Guarantee the expected tool is present so the force is coherent.
-  // Respects the disabledTools blocklist above (never re-add a tool the
-  // operator deliberately disabled). expectedTool may be a "toolA|toolB"
-  // alternation (action-claim-detector), so split on "|".
+
   if (actionIntent?.expectedTool) {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
+    const selected = { ...prunedTools } as Record<string, unknown>;
     for (const raw of actionIntent.expectedTool.split("|")) {
       const name = raw.trim();
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !selected[name] && !disabled.has(name)) {
+        selected[name] = all[name];
+        (forced.action_intent ??= []).push(name);
+      }
     }
-    prunedTools = forced as unknown as typeof nourTools;
+    prunedTools = selected as unknown as typeof nourTools;
   }
-  // 2026-07-15 · same coherence guarantee for the web-search force: the
-  // step-0 toolChoice can only fire if the tool is in the set.
+
   if (webSearchIntent) {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
-    const forced = { ...prunedTools } as Record<string, unknown>;
+    const selected = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
-      if (all[name] && !forced[name] && !disabled.has(name)) forced[name] = all[name];
+      if (all[name] && !selected[name] && !disabled.has(name)) {
+        selected[name] = all[name];
+        (forced.web_search ??= []).push(name);
+      }
     }
-    prunedTools = forced as unknown as typeof nourTools;
+    prunedTools = selected as unknown as typeof nourTools;
   }
 
-  // WP-14/WP-1 · 2026-07-28 · read-mode HARD enforcement. Until now
-  // actionPermission:"read" was a prompt contract plus "don't force-add
-  // action tools" — mutating tools the pruner selected stayed callable.
-  // This strip runs LAST, after every force above, so nothing re-adds a
-  // mutating tool behind it. Fail-closed via the capability registry
-  // (no catalog entry ⇒ stripped). The stripped list is logged — a
-  // read-mode turn should say what it refused, not silently shrink.
   if (actionPermission === "read") {
     const { stripMutatingTools } = await import("@/lib/ai/capability-registry");
     const result = stripMutatingTools(prunedTools as Record<string, unknown>);
     prunedTools = result.tools as unknown as typeof nourTools;
+    stripped = result.stripped;
     if (result.stripped.length > 0) {
       log.info("read_mode_stripped_tools", {
         count: result.stripped.length,
@@ -231,72 +203,49 @@ export async function prepareTools(args: {
     }
   }
 
-  // The wrapper is installed after every strip/force, so it reports only a
-  // recovery capability actually handed to this model turn.
   prunedTools = instrumentRecoveryTools(prunedTools, traceId);
 
-  const toolCountAll = Object.keys(nourTools).length;
-  const toolCountPruned = Object.keys(prunedTools).length;
+  const capabilityPlan = buildCapabilityPlan({
+    traceId,
+    mode,
+    registered: Object.keys(nourTools),
+    initiallySelected,
+    surfaced: Object.keys(prunedTools),
+    disabled: aiConfig?.disabledTools ?? [],
+    alwaysOn: aiConfig?.alwaysOnTools ?? [],
+    forced,
+    stripped,
+    semanticReady: userEmbedding.length > 0,
+  });
+
+  const toolCountAll = capabilityPlan.counts.registered;
+  const toolCountPruned = capabilityPlan.counts.surfaced;
   log.info("mode_description", {
     description: describeMode(mode, toolCountAll, toolCountPruned),
     promptChars: finalSystemPromptLength,
   });
+  log.info("capability_plan", {
+    traceId: capabilityPlan.traceId,
+    counts: capabilityPlan.counts,
+    semanticReady: capabilityPlan.semanticReady,
+    recoveryLaneAvailable: capabilityPlan.recoveryLaneAvailable,
+    forced: capabilityPlan.forced,
+    stripped: capabilityPlan.stripped.slice(0, 30),
+  });
 
-  // 2026-08-25 · tool-surfacing telemetry. tool_telemetry counts tools the
-  // model CHOSE; nothing recorded which tools it was OFFERED, so the usage
-  // census could not tell "never surfaced by the pruner" from "surfaced and
-  // never chosen" — opposite meanings for a prune decision (the census
-  // discloses this exact confound). Record the FINAL set — after the
-  // blocklist, always-on, recovery-lane, coherence forces and the read-mode
-  // strip — one system_metrics row per turn (metric `tool.surfaced`, names
-  // in tags.tools), so the census gains a surfaced-denominator without DDL.
-  // Fire-and-forget: recordMetric already swallows its own failures.
   {
-    const surfacedNames = Object.keys(prunedTools).sort();
+    const surfacedNames = capabilityPlan.surfaced;
     void import("@/lib/services/metrics")
       .then(({ recordMetric }) =>
         recordMetric("tool.surfaced", surfacedNames.length, {
           unit: "count",
-          tags: { tools: surfacedNames, mode },
+          tags: { tools: surfacedNames, mode, traceId: traceId ?? null },
           source: "chat",
         }),
       )
       .catch(() => {});
   }
 
-  // maxOutputTokens derived from mode default + query shape. Standard
-  // mode uses 2000 default; query-shape drops it to 80-150 for yes/no +
-  // casual, 700 for explain, 1600 for plan — making it feel as fast as
-  // the old quick mode when the query calls for brevity.
-  // 2026-07-12 · raised standard default 1200 → 2000 (operator: replies read
-  // too short). Shape-specific budgets (query-shape.ts) still tighten yes/no +
-  // casual turns; this only lifts the ceiling for substantive "default" turns.
-  //
-  // 2026-08-15 · raised again, 2000 → 6000 / 4500 → 10000, because the 2000 was
-  // tuned for an era that ended. The chat lane now runs a THINKING model
-  // (OLLAMA_MODEL=minimax-m3), whose reasoning consumes completion tokens
-  // BEFORE the answer starts and is never exposed — the OpenAI-compat response
-  // carries no `reasoning_content`, so the trace is invisible and unbudgeted.
-  //
-  // Measured against the live model (scripts/probe-empty-responses.ts, 12 calls,
-  // max_tokens 4000): the eight calls that COMPLETED used 3013 / 3217 / 3270 /
-  // 3288 / 3289 / 3549 / 3585 / 3611 completion tokens. Every finished answer
-  // needed more than 3000. The other four hit finish_reason="length" at the
-  // 4000 cap — one returned a 500-char fragment and one returned NOTHING AT ALL
-  // (content=0 with completion_tokens=4000: a full budget of tokens generated,
-  // none of it reaching the user).
-  //
-  // So standard mode was truncating essentially every substantive answer, and
-  // 4000 was still short a third of the time. That is the operator's "messages
-  // get cut short", and it is a large part of "responses feel shallow" — the
-  // reply ends before the substance arrives. It also explains the
-  // `provider.garbage chars=0` warnings in prod: those are not upstream
-  // failures, they are budget exhaustion.
-  //
-  // 6000 covers the observed completion distribution (max 3611) with room for a
-  // longer trace on harder questions. Output tokens on the funded Ollama Cloud
-  // lane are flat-rate, so the ceiling costs nothing; query-shape still clamps
-  // casual and yes/no turns to 80-150, so short questions stay short and fast.
   const modeDefaultTokens = mode === "deep" ? 10000 : 6000;
   const maxOutputTokens = queryShape.tokenBudget > 0
     ? queryShape.tokenBudget
@@ -308,5 +257,5 @@ export async function prepareTools(args: {
     toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
   });
 
-  return { prunedTools, maxOutputTokens };
+  return { prunedTools, maxOutputTokens, capabilityPlan };
 }
