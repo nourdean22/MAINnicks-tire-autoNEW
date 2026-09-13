@@ -25,10 +25,40 @@ const stubs: Partial<CommandDeps> = {
   }),
   receiptFeed: async () => ({
     items: [
-      { receiptId: "r1", toolName: "task.created", category: "entity-audit", sideEffecting: true, status: "success", undoAvailable: false, userVisibleSummary: "Created task abc.", createdAt: "2026-06-09T10:00:00Z" },
-      { receiptId: "r2", toolName: "send_email", category: "autonomous-action", sideEffecting: true, status: "failed", undoAvailable: false, userVisibleSummary: "FAILED send_email on quote q-9.", createdAt: "2026-06-09T09:00:00Z" },
+      {
+        receiptId: "r1",
+        toolName: "task.create",
+        category: "action-block",
+        sideEffecting: true,
+        status: "success",
+        verificationState: "PROVIDER_ACCEPTED",
+        label: "Call vendor",
+        undoAvailable: false,
+        userVisibleSummary: "Done: Call vendor.",
+        createdAt: "2026-06-09T10:00:00Z",
+      },
+      {
+        receiptId: "r2",
+        toolName: "send_email",
+        category: "autonomous-action",
+        sideEffecting: true,
+        status: "failed",
+        verificationState: "FAILED_KNOWN",
+        undoAvailable: false,
+        userVisibleSummary: "FAILED send_email on quote q-9.",
+        createdAt: "2026-06-09T09:00:00Z",
+      },
     ],
     counts: { total: 2, success: 1, failed: 1, other: 0 },
+    verificationCounts: {
+      consequentialTotal: 2,
+      verified: 0,
+      providerAccepted: 1,
+      unknownCompletion: 0,
+      failedKnown: 1,
+      notAttempted: 0,
+      unmeasured: 0,
+    },
   }),
   today: async () => ({
     date: "2026-06-09", masteryTotal: 100, masteryByDomain: {}, topMastery: { domain: "business", score: 50, delta: 3 },
@@ -113,10 +143,16 @@ describe("runCommand (end-to-end with stubbed services)", () => {
     expect(o.result.text).toContain("Old task");
   });
 
-  it("runs /receipts with a visible failure", async () => {
+  it("runs /receipts with strict truth instead of treating provider acceptance as Done", async () => {
     const o = await runCommand("/receipts", stubs);
+    expect(o.result.text).toContain("Action truth (2 consequential)");
+    expect(o.result.text).toContain("1 accepted/unverified");
+    expect(o.result.text).toContain("1 failed-known");
+    expect(o.result.text).toContain("◐ Call vendor — accepted by executor/provider; not independently verified.");
     expect(o.result.text).toContain("✗");
     expect(o.result.text).toContain("FAILED");
+    expect(o.result.text).not.toContain("✓ Done: Call vendor.");
+    expect(o.result.text).not.toContain("1 ok");
   });
 
   it("runs /today with a warning line", async () => {
