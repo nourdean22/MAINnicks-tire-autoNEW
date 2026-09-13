@@ -8,7 +8,7 @@ import {
   type AutonomousActionRow,
   type AgentReceiptRow,
 } from "@/lib/services/action-receipt-feed";
-import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, canClaimDoneStrict, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import type { AuditEntry } from "@/lib/db/entity-audit";
 
 function audit(over: Partial<AuditEntry>): AuditEntry {
@@ -30,11 +30,12 @@ function auto(over: Partial<AutonomousActionRow>): AutonomousActionRow {
 }
 
 describe("auditEntryToReceipt", () => {
-  it("maps a create to a success receipt (not undoable)", () => {
+  it("maps a create to a success receipt (not undoable) with read-side verification", () => {
     const r = auditEntryToReceipt(audit({ action: "created" }));
     expect(r.status).toBe("success");
     expect(r.undoAvailable).toBe(false);
     expect(r.sideEffecting).toBe(true);
+    expect(r.verificationState).toBe("VERIFIED");
     expect(r.userVisibleSummary).toContain("Created");
   });
 
@@ -42,6 +43,7 @@ describe("auditEntryToReceipt", () => {
     const r = auditEntryToReceipt(audit({ action: "soft_deleted" }));
     expect(r.status).toBe("success");
     expect(r.undoAvailable).toBe(true);
+    expect(r.verificationState).toBe("VERIFIED");
     expect(r.userVisibleSummary).toContain("Archived");
   });
 
@@ -55,21 +57,29 @@ describe("autonomousActionToReceipt (failures are visible)", () => {
   it("maps a failed action to a failed receipt with a sanitized error", () => {
     const r = autonomousActionToReceipt(auto({ result: "failed", error: "SMTP 550 rejected\nstack..." }));
     expect(r.status).toBe("failed");
+    expect(r.verificationState).toBe("FAILED_KNOWN");
     expect(r.userVisibleSummary).toContain("FAILED");
     expect(r.errorSafeMessage).toBe("SMTP 550 rejected");
   });
 
-  it("maps a pending-approval action to needs_approval (never asserts done)", () => {
+  it("maps a pending-approval action to needs_approval / NOT_ATTEMPTED", () => {
     const r = autonomousActionToReceipt(auto({ approval: "pending", executedAt: null, result: null }));
     expect(r.status).toBe("needs_approval");
+    expect(r.verificationState).toBe("NOT_ATTEMPTED");
   });
 
-  it("maps a successful action to success", () => {
-    expect(autonomousActionToReceipt(auto({ result: "success" })).status).toBe("success");
+  it("maps executor success to PROVIDER_ACCEPTED, not strict VERIFIED", () => {
+    const r = autonomousActionToReceipt(auto({ result: "success" }));
+    expect(r.status).toBe("success");
+    expect(r.verificationState).toBe("PROVIDER_ACCEPTED");
+    expect(canClaimDone([r]).ok).toBe(true);
+    expect(canClaimDoneStrict([r]).ok).toBe(false);
   });
 
-  it("maps an un-executed/unknown action to partial (not success)", () => {
-    expect(autonomousActionToReceipt(auto({ approval: "approved", executedAt: null, result: null })).status).toBe("partial");
+  it("maps an un-executed/unknown action to partial / UNKNOWN_COMPLETION", () => {
+    const r = autonomousActionToReceipt(auto({ approval: "approved", executedAt: null, result: null }));
+    expect(r.status).toBe("partial");
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
   });
 });
 
@@ -141,10 +151,12 @@ describe("autonomousActionToReceipt — rejected / forbidden (review fix)", () =
   it("maps an operator-rejected action to skipped, not partial", () => {
     const r = autonomousActionToReceipt(auto({ approval: "rejected", result: "pending_approval", executedAt: null }));
     expect(r.status).toBe("skipped");
+    expect(r.verificationState).toBe("NOT_ATTEMPTED");
   });
   it("maps a policy-forbidden action to skipped", () => {
     const r = autonomousActionToReceipt(auto({ approval: "auto", result: "forbidden_by_policy", executedAt: new Date() }));
     expect(r.status).toBe("skipped");
+    expect(r.verificationState).toBe("NOT_ATTEMPTED");
   });
 });
 
@@ -157,17 +169,41 @@ describe("Wire 1 · chat action receipts (auditEventToReceipt + feed)", () => {
     ...over,
   });
 
-  it("reconstructs a success receipt from a stored payload", () => {
+  it("reconstructs a success receipt and preserves strict PROVIDER_ACCEPTED state", () => {
     const r = auditEventToReceipt(row({}));
     expect(r?.status).toBe("success");
     expect(r?.toolName).toBe("task.create");
     expect(r?.sideEffecting).toBe(true);
+    expect(r?.verificationState).toBe("PROVIDER_ACCEPTED");
+    expect(canClaimDone(r ? [r] : []).ok).toBe(true);
+    expect(canClaimDoneStrict(r ? [r] : []).ok).toBe(false);
   });
 
   it("keeps a FAILED action visible (no false done)", () => {
     const r = auditEventToReceipt(row({ payload: toReceipt({ toolName: "person.update", ok: false, error: "ask first" }) }));
     expect(r?.status).toBe("failed");
+    expect(r?.verificationState).toBe("FAILED_KNOWN");
     expect(canClaimDone(r ? [r] : []).ok).toBe(false); // failed side-effecting blocks a done-claim
+  });
+
+  it("preserves verifiable:false so unknown failed tools stay fail-closed after persistence", () => {
+    const original = toReceipt({ toolName: "neverHeardOfThis", ok: false, error: "boom" });
+    expect(original.verifiable).toBe(false);
+    const r = auditEventToReceipt(row({ payload: original }));
+    expect(r?.verifiable).toBe(false);
+    expect(r?.verificationState).toBe("FAILED_KNOWN");
+    expect(canClaimDone(r ? [r] : []).ok).toBe(false);
+    expect(canClaimDoneStrict(r ? [r] : []).ok).toBe(false);
+  });
+
+  it("preserves unknown successful receipts as UNKNOWN_COMPLETION for strict truth", () => {
+    const original = toReceipt({ toolName: "neverHeardOfThis", ok: true });
+    const r = auditEventToReceipt(row({ payload: original }));
+    expect(r?.status).toBe("success");
+    expect(r?.verifiable).toBe(false);
+    expect(r?.verificationState).toBe("UNKNOWN_COMPLETION");
+    expect(canClaimDone(r ? [r] : []).ok).toBe(true); // legacy behavior intentionally unchanged
+    expect(canClaimDoneStrict(r ? [r] : []).ok).toBe(false);
   });
 
   it("returns null for a junk payload (defensive)", () => {
