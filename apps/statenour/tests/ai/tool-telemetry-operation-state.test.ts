@@ -162,6 +162,90 @@ describe("tool telemetry operation-state truth", () => {
     expect(call.operationState).toBe("FAILED_KNOWN");
   });
 
+  it("a tool-error content part is FAILED_KNOWN and recorded as failure", async () => {
+    const [call] = walkToolTelemetry({
+      ev: {
+        steps: [
+          {
+            toolCalls: [
+              {
+                toolName: "createTask",
+                toolCallId: "tc-failed",
+                input: { title: "Call John" },
+              },
+            ],
+            content: [
+              {
+                type: "tool-error",
+                toolCallId: "tc-failed",
+                error: { message: "database unavailable" },
+              },
+            ],
+          },
+        ],
+      },
+      convId: "c-tool-error",
+    });
+
+    expect(call).toEqual(
+      expect.objectContaining({
+        name: "createTask",
+        ok: false,
+        args: { title: "Call John" },
+        resultObserved: false,
+        observationShape: "tool-error-part",
+        effectClass: "write",
+        operationState: "FAILED_KNOWN",
+      }),
+    );
+    expect(recordToolInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: "createTask",
+        success: false,
+        errorMessage: "database unavailable",
+        conversationId: "c-tool-error",
+      }),
+    );
+
+    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
+    const [, value, opts] = recordMetric.mock.calls[0];
+    expect(value).toBe(1);
+    expect(opts.tags.legacySdkSuccesses).toBe(0);
+    expect(opts.tags.strictVerified).toBe(0);
+    expect(opts.tags.legacyStrictGap).toBe(0);
+    expect(opts.tags.operations).toEqual([
+      expect.objectContaining({
+        tool: "createTask",
+        state: "FAILED_KNOWN",
+        sdkOk: false,
+        retryDecision: "RETRY_ALLOWED",
+      }),
+    ]);
+  });
+
+  it("isError:true on a tool result is FAILED_KNOWN", () => {
+    const [call] = walkToolTelemetry({
+      ev: {
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: "createTask",
+                output: "write rejected",
+                isError: true,
+              },
+            ],
+          },
+        ],
+      },
+      convId: "c1",
+    });
+
+    expect(call.ok).toBe(false);
+    expect(call.observationShape).toBe("sdk7-output");
+    expect(call.operationState).toBe("FAILED_KNOWN");
+  });
+
   it("an unknown tool never earns VERIFIED from a plausible result", () => {
     const [call] = walkToolTelemetry({
       ev: {
