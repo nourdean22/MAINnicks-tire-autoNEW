@@ -2,7 +2,7 @@
  * Action receipt feed (F4) — a read-side answer to "what did Nick/system
  * actually DO?". Reuses the canonical audit store (EntityAudit, via the existing
  * getGlobalActivity/getActorActivity readers) + AutonomousAction (so FAILED
- * actions are visible), and maps both onto the EXISTING ActionReceipt contract
+ * ones are visible), and maps both onto the EXISTING ActionReceipt contract
  * (lib/ai/receipts/action-receipt.ts) — integrate, don't duplicate.
  *
  * Pure mappers (auditEntryToReceipt / autonomousActionToReceipt) are unit-tested;
@@ -52,6 +52,10 @@ export function auditEntryToReceipt(e: AuditEntry): ActionReceipt {
     category: "entity-audit",
     sideEffecting: true, // every audited row is a write
     status,
+    // This mapper runs from an already-persisted authoritative audit row,
+    // not from the original tool response. The read-side audit record is the
+    // independent evidence that the mutation reached canonical state.
+    verificationState: "VERIFIED",
     entityType: e.entityType,
     entityId: e.entityId,
     label,
@@ -72,6 +76,15 @@ function autoStatus(action: { approval: string; executedAt: Date | null; result:
   if (action.approval === "rejected" || action.result === "forbidden_by_policy") return "skipped";
   if (action.approval === "pending" || action.result === "pending_approval") return "needs_approval";
   return "partial"; // queued/unknown — never assert done
+}
+
+function verificationStateForAutonomousStatus(status: ReceiptStatus): ActionReceipt["verificationState"] {
+  if (status === "failed") return "FAILED_KNOWN";
+  if (status === "skipped" || status === "needs_approval") return "NOT_ATTEMPTED";
+  if (status === "partial") return "UNKNOWN_COMPLETION";
+  // A recorded executor success is still the executor/provider's own receipt.
+  // Without an independent postcondition/read-back it is not strict VERIFIED.
+  return "PROVIDER_ACCEPTED";
 }
 
 export interface AutonomousActionRow {
@@ -106,6 +119,7 @@ export function autonomousActionToReceipt(a: AutonomousActionRow): ActionReceipt
     category: "autonomous-action",
     sideEffecting: true,
     status,
+    verificationState: verificationStateForAutonomousStatus(status),
     entityType: a.targetType ?? "rule",
     entityId: a.targetId ?? a.ruleName,
     label,
@@ -133,12 +147,27 @@ export function autonomousActionToReceipt(a: AutonomousActionRow): ActionReceipt
   };
 }
 
-export interface ReceiptFeedResult {
-  items: ActionReceipt[];
-  counts: { total: number; success: number; failed: number; other: number };
+export interface ReceiptVerificationCounts {
+  /** Only consequential/unclassifiable receipts participate in this denominator. */
+  consequentialTotal: number;
+  verified: number;
+  providerAccepted: number;
+  unknownCompletion: number;
+  failedKnown: number;
+  notAttempted: number;
+  /** Historical/legacy consequential receipts with no strict state attached. */
+  unmeasured: number;
 }
 
-/** Tally receipts by status. Pure. Always run on the list you actually return. */
+export interface ReceiptFeedResult {
+  items: ActionReceipt[];
+  /** Legacy execution-status counts, kept for compatibility. */
+  counts: { total: number; success: number; failed: number; other: number };
+  /** Strict completion-truth census over consequential receipts only. */
+  verificationCounts: ReceiptVerificationCounts;
+}
+
+/** Tally receipts by legacy execution status. Pure. Always run on the list actually returned. */
 export function countByStatus(items: ReadonlyArray<ActionReceipt>): ReceiptFeedResult["counts"] {
   let success = 0, failed = 0, other = 0;
   for (const r of items) {
@@ -149,10 +178,72 @@ export function countByStatus(items: ReadonlyArray<ActionReceipt>): ReceiptFeedR
   return { total: items.length, success, failed, other };
 }
 
-/** Merge + sort receipts newest-first; counts match the returned items. Pure. */
+/**
+ * Tally strict completion truth over consequential receipts only.
+ *
+ * Known pure reads are intentionally excluded so a successful read cannot
+ * inflate the number of independently verified mutations. Unknown/unclassifiable
+ * receipts (`verifiable === false`) remain consequential because their effect
+ * cannot honestly be assumed pure.
+ *
+ * Missing strict state is UNMEASURED — never inferred VERIFIED from legacy
+ * `status: "success"`.
+ */
+export function countByVerification(
+  items: ReadonlyArray<ActionReceipt>,
+): ReceiptVerificationCounts {
+  let consequentialTotal = 0;
+  let verified = 0;
+  let providerAccepted = 0;
+  let unknownCompletion = 0;
+  let failedKnown = 0;
+  let notAttempted = 0;
+  let unmeasured = 0;
+
+  for (const r of items) {
+    if (!r.sideEffecting && r.verifiable !== false) continue;
+    consequentialTotal++;
+    switch (r.verificationState) {
+      case "VERIFIED":
+        verified++;
+        break;
+      case "PROVIDER_ACCEPTED":
+        providerAccepted++;
+        break;
+      case "UNKNOWN_COMPLETION":
+        unknownCompletion++;
+        break;
+      case "FAILED_KNOWN":
+        failedKnown++;
+        break;
+      case "NOT_ATTEMPTED":
+        notAttempted++;
+        break;
+      default:
+        unmeasured++;
+        break;
+    }
+  }
+
+  return {
+    consequentialTotal,
+    verified,
+    providerAccepted,
+    unknownCompletion,
+    failedKnown,
+    notAttempted,
+    unmeasured,
+  };
+}
+
+/** Merge + sort receipts newest-first; both count sets match the returned items. Pure. */
 export function mergeReceipts(receipts: ActionReceipt[]): ReceiptFeedResult {
   const items = [...receipts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return { items, counts: countByStatus(items) };
+  return {
+    items,
+    counts: countByStatus(items),
+    verificationCounts: countByVerification(items),
+  };
 }
 
 /** An AuditEvent row of eventType "action_receipt" — payload is a serialized ActionReceipt. */
@@ -163,6 +254,13 @@ export interface AgentReceiptRow {
 }
 
 const STATUSES: ReadonlySet<string> = new Set(["success", "failed", "skipped", "needs_approval", "partial"]);
+const VERIFICATION_STATES: ReadonlySet<string> = new Set([
+  "NOT_ATTEMPTED",
+  "FAILED_KNOWN",
+  "UNKNOWN_COMPLETION",
+  "PROVIDER_ACCEPTED",
+  "VERIFIED",
+]);
 
 /**
  * Map a persisted action_receipt AuditEvent row back to an ActionReceipt.
@@ -174,12 +272,21 @@ export function auditEventToReceipt(row: AgentReceiptRow): ActionReceipt | null 
   if (typeof p.toolName !== "string") return null;
   const status = (typeof p.status === "string" && STATUSES.has(p.status) ? p.status : "partial") as ReceiptStatus;
   const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const verificationState =
+    typeof p.verificationState === "string" && VERIFICATION_STATES.has(p.verificationState)
+      ? (p.verificationState as ActionReceipt["verificationState"])
+      : undefined;
   return {
     receiptId: str(p.receiptId) ?? `agent_${row.id}`,
     toolName: p.toolName,
     category: str(p.category) ?? "action-block",
     sideEffecting: p.sideEffecting !== false,
+    // Preserve the fail-closed classification bit across persistence. Dropping
+    // verifiable:false made an unknown failed tool become less strict after
+    // serialization/read-back than it was at creation time.
+    verifiable: typeof p.verifiable === "boolean" ? p.verifiable : undefined,
     status,
+    verificationState,
     entityType: str(p.entityType),
     entityId: str(p.entityId),
     label: str(p.label),
@@ -251,8 +358,12 @@ export async function buildActionReceiptFeed(deps: ReceiptFeedDeps = {}): Promis
     ...agent,
   ];
   // Sort newest-first, dedupe by receiptId, slice to `limit` FIRST, then count —
-  // so the counts always describe exactly the items returned (we load up to
-  // 3×limit across the sources).
+  // so both count sets always describe exactly the items returned (we load up
+  // to 3×limit across the sources).
   const items = dedupeById(mergeReceipts(receipts).items).slice(0, limit);
-  return { items, counts: countByStatus(items) };
+  return {
+    items,
+    counts: countByStatus(items),
+    verificationCounts: countByVerification(items),
+  };
 }

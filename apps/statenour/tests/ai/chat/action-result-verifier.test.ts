@@ -20,11 +20,13 @@ import { describe, it, expect } from "vitest";
 import {
   detectFailedActionClaims,
   detectPhantomActionClaims,
+  compareActionDoneShadow,
   MUTATION_ACTIONS,
 } from "../../../lib/ai/chat/action-result-verifier";
 
 const FAIL = (action: string, error = "boom") => ({ action, success: false, error });
 const OK = (action: string) => ({ action, success: true });
+const VERIFIED = (action: string) => ({ action, success: true, verified: true });
 
 describe("detectFailedActionClaims", () => {
   it("warns when a mutation action fails AND the prose claims completion", () => {
@@ -39,8 +41,6 @@ describe("detectFailedActionClaims", () => {
   });
 
   it("stays silent on the people-gate ask-first guard (failure but no completion claim)", () => {
-    // handlePersonUpdate returns success:false with an 'ask first' error
-    // when no person matches. Nick's prose asks first — no completion verb.
     const claims = detectFailedActionClaims(
       [FAIL("person.update", "not found — ask before creating")],
       "I don't see anyone by that name in your people. Want me to add them?",
@@ -96,7 +96,6 @@ describe("detectFailedActionClaims", () => {
     for (const a of mutations) {
       expect(MUTATION_ACTIONS.has(a), `${a} should be a mutation`).toBe(true);
     }
-    // Pure reads are NOT mutations
     const reads = [
       "task.status", "shop.getRevenue", "system.health", "memory.search",
       "google.getSchedule", "google.getReviewStats", "google.getUnrespondedReviews",
@@ -108,11 +107,88 @@ describe("detectFailedActionClaims", () => {
   });
 });
 
+describe("strict action-block completion shadow", () => {
+  it("finds the legacy/strict gap when a mutation succeeded but was not independently verified", () => {
+    const v = compareActionDoneShadow(
+      [OK("task.create")],
+      "Done — added that task to your list.",
+    );
+    expect(v.completionClaimDetected).toBe(true);
+    expect(v.strictRelevant).toBe(true);
+    expect(v.legacyDoneEligible).toBe(true);
+    expect(v.strictDoneEligible).toBe(false);
+    expect(v.legacyStrictGap).toBe(true);
+    expect(v.providerAcceptedMutations).toEqual(["task.create"]);
+    expect(v.verifiedMutations).toEqual([]);
+  });
+
+  it("allows strict Done only when the successful mutation carries independent verification", () => {
+    const v = compareActionDoneShadow(
+      [VERIFIED("task.create")],
+      "Done — added that task to your list.",
+    );
+    expect(v.legacyDoneEligible).toBe(true);
+    expect(v.strictDoneEligible).toBe(true);
+    expect(v.legacyStrictGap).toBe(false);
+    expect(v.providerAcceptedMutations).toEqual([]);
+    expect(v.verifiedMutations).toEqual(["task.create"]);
+  });
+
+  it("keeps known failure as both legacy- and strict-ineligible, so it is not a migration gap", () => {
+    const v = compareActionDoneShadow(
+      [FAIL("task.create", "db down")],
+      "Done — added that task.",
+    );
+    expect(v.legacyDoneEligible).toBe(false);
+    expect(v.strictDoneEligible).toBe(false);
+    expect(v.legacyStrictGap).toBe(false);
+    expect(v.failedMutations).toEqual(["task.create"]);
+  });
+
+  it("does not evaluate strict mutation completion when prose makes no completion claim", () => {
+    const v = compareActionDoneShadow(
+      [OK("task.create")],
+      "I can add that task if you want.",
+    );
+    expect(v.completionClaimDetected).toBe(false);
+    expect(v.strictRelevant).toBe(false);
+    expect(v.strictDoneEligible).toBeNull();
+    expect(v.legacyStrictGap).toBe(false);
+  });
+
+  it("treats the measured phantom person claim as a strict failure even with zero emitted actions", () => {
+    const v = compareActionDoneShadow([], "Done — both profiles created.");
+    expect(v.legacyDoneEligible).toBe(true);
+    expect(v.strictRelevant).toBe(true);
+    expect(v.strictDoneEligible).toBe(false);
+    expect(v.legacyStrictGap).toBe(true);
+    expect(v.phantomClaims).toHaveLength(1);
+    expect(v.phantomClaims[0].expectedTool).toBe("person.create");
+  });
+
+  it("does not turn pure-read prose into a strict mutation verdict", () => {
+    const v = compareActionDoneShadow(
+      [OK("shop.getRevenue")],
+      "Pulled it — revenue is up.",
+    );
+    expect(v.strictRelevant).toBe(false);
+    expect(v.strictDoneEligible).toBeNull();
+    expect(v.legacyStrictGap).toBe(false);
+  });
+
+  it("fails strict completion when any claimed mutation is only provider-accepted", () => {
+    const v = compareActionDoneShadow(
+      [VERIFIED("task.create"), OK("telegram.send")],
+      "Done — added the task and sent the Telegram message.",
+    );
+    expect(v.strictDoneEligible).toBe(false);
+    expect(v.legacyStrictGap).toBe(true);
+    expect(v.verifiedMutations).toEqual(["task.create"]);
+    expect(v.providerAcceptedMutations).toEqual(["telegram.send"]);
+  });
+});
+
 describe("detectPhantomActionClaims — claimed but never emitted (the 08-25 person confabulation)", () => {
-  // Verbatim from prod, message 2026-08-25 15:17:56Z: zero tool calls, zero
-  // action blocks, person_profiles unchanged. Slipped detectFailedActionClaims
-  // (no failed row exists when no action was emitted) AND the SDK-side vocab
-  // (no person/profile entry). This suite is the canary for the closed hole.
   const VERBATIM_0825 = "Done — both profiles created.";
 
   it("BREAKS: flags the verbatim prod confabulation with empty results", () => {

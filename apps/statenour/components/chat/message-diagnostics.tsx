@@ -24,6 +24,7 @@
 
 import { CitationPills } from "@/components/chat/citation-pills";
 import { QualityBar, type QualityPayload } from "@/components/chat/quality-bar";
+import { qualityHasIssue } from "@/lib/ai/chat/quality-diagnostics";
 
 interface Citation {
   raw: string;
@@ -40,8 +41,6 @@ interface Props {
 }
 
 export function MessageDiagnostics({ citations, quality, onRegen }: Props) {
-  // Mirror each child's "render nothing" condition so we can decide
-  // whether to render the shared row at all.
   const hasCitations = Array.isArray(citations) && citations.length > 0;
   const hasQualityIssue = qualityHasIssue(quality);
 
@@ -65,18 +64,4 @@ export function MessageDiagnostics({ citations, quality, onRegen }: Props) {
       )}
     </div>
   );
-}
-
-/**
- * Replicates the QualityBar `isClean` short-circuit so we know
- * whether to allocate a row for it. Kept in lockstep with the
- * QualityBar internal logic — if that file's `isClean` predicate
- * changes, this needs to change too.
- */
-function qualityHasIssue(payload: QualityPayload | undefined): boolean {
-  if (!payload) return false;
-  const overall = payload.critic?.overall ?? 100;
-  const severity = payload.gate?.severity ?? 0;
-  const unverified = payload.factCheck?.unverified ?? 0;
-  return !(overall >= 80 && severity === 0 && unverified === 0);
 }

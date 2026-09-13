@@ -26,12 +26,13 @@
  * error — "zero production call sites" — as its highest-severity finding. Two
  * sources, two contradictory wrong answers, about one function, for six weeks.
  *
- * Re-measure rather than trust either: `git grep -nE "canClaimDone\s*\(" -- apps/statenour`.
+ * Re-measure rather than trust either: `git grep -nE "canClaimDone\\s*\\(" -- apps/statenour`.
  * See docs/runbooks/action-honesty-and-receipts.md.
  */
 
 import { getToolMeta } from "@/lib/ai/tools/catalog";
 import { MUTATION_ACTIONS } from "@/lib/ai/chat/action-result-verifier";
+import type { OperationState } from "@/lib/ai/chat/turn-control-plane";
 
 export type ReceiptStatus =
   | "success"
@@ -55,16 +56,27 @@ export interface ActionReceipt {
    *
    * Optional for backward compatibility: receipts built directly as
    * literals (e.g. the audited action-receipt feed) omit it and are
-   * treated as verifiable — they already declare `sideEffecting`
-   * explicitly, which is a stronger statement than inference.
+   * treated as verifiable by the LEGACY guard — they already declare
+   * `sideEffecting` explicitly, which is a stronger statement than inference.
    */
   verifiable?: boolean;
   status: ReceiptStatus;
+  /**
+   * 2026-09-13 · shadow-only strict completion state.
+   *
+   * `status: "success"` is the legacy receipt vocabulary. It says the local
+   * tool/action returned successfully. That is enough for a pure read, but for
+   * a write it is only PROVIDER_ACCEPTED until an independent postcondition
+   * confirms the intended world state. New receipts always carry this field;
+   * legacy persisted literal receipts may omit it and are handled fail-closed
+   * by canClaimDoneStrict().
+   */
+  verificationState?: OperationState;
   entityType?: string;
   entityId?: string;
   /** Short human label (e.g. the task title). */
   label?: string;
-  /** What to tell the operator. Never claims success unless status === success. */
+  /** What to tell the operator under the LEGACY receipt contract. */
   userVisibleSummary: string;
   /** Sanitized error text when failed (no stack/secrets). */
   errorSafeMessage?: string;
@@ -83,6 +95,11 @@ export interface RawActionResult {
   skipped?: boolean;
   needsApproval?: boolean;
   partial?: boolean;
+  /**
+   * Stronger than `ok`: an independent postcondition/read-back confirmed the
+   * intended state. Callers must not set this from the same provider response.
+   */
+  verified?: boolean;
   entityType?: string;
   entityId?: string;
   label?: string;
@@ -157,6 +174,34 @@ function deriveStatus(
   return sideEffecting || !verifiable ? "partial" : "success";
 }
 
+/**
+ * Strict shadow compiler for the same receipt.
+ *
+ * The precedence is deliberately conservative:
+ * - approval/skipped => no mutation attempt
+ * - explicit failure => FAILED_KNOWN
+ * - partial/unknown classification => UNKNOWN_COMPLETION
+ * - verified=true => VERIFIED (the caller asserts an independent read-back)
+ * - successful write => PROVIDER_ACCEPTED, never VERIFIED by the same receipt
+ * - successful known read => VERIFIED because the returned read is the evidence
+ */
+function deriveVerificationState(args: {
+  raw: RawActionResult;
+  effect: ToolEffectClass;
+  sideEffecting: boolean;
+  verifiable: boolean;
+  status: ReceiptStatus;
+}): OperationState {
+  const { raw, effect, sideEffecting, verifiable, status } = args;
+  if (status === "needs_approval" || status === "skipped") return "NOT_ATTEMPTED";
+  if (status === "failed") return "FAILED_KNOWN";
+  if (status === "partial") return "UNKNOWN_COMPLETION";
+  if (raw.verified === true) return "VERIFIED";
+  if (!verifiable) return "UNKNOWN_COMPLETION";
+  if (sideEffecting || effect === "write") return "PROVIDER_ACCEPTED";
+  return "VERIFIED";
+}
+
 const SUMMARY: Record<ReceiptStatus, (label: string) => string> = {
   success: (l) => `Done: ${l}.`,
   failed: (l) => `Did NOT complete: ${l}.`,
@@ -184,6 +229,13 @@ export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): Acti
   const verifiable = r.sideEffecting !== undefined || effect !== "unknown";
   const sideEffecting = r.sideEffecting ?? effect === "write";
   const status = deriveStatus(r, sideEffecting, verifiable);
+  const verificationState = deriveVerificationState({
+    raw: r,
+    effect,
+    sideEffecting,
+    verifiable,
+    status,
+  });
   const createdAt = opts.now ?? new Date().toISOString();
   const label = r.label || r.entityType || r.toolName;
   return {
@@ -193,6 +245,7 @@ export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): Acti
     sideEffecting,
     verifiable,
     status,
+    verificationState,
     entityType: r.entityType,
     entityId: r.entityId,
     label: r.label,
@@ -206,12 +259,12 @@ export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): Acti
 
 export interface ClaimDoneVerdict {
   ok: boolean;
-  /** Side-effecting receipts that are NOT a verified success. */
+  /** Side-effecting receipts that are NOT a verified success under this guard. */
   offenders: ActionReceipt[];
 }
 
 /**
- * The guard: can a summary honestly claim the work is done?
+ * The LEGACY guard: can a summary honestly claim the work is done?
  *
  * False if any receipt that COULD have mutated state is not status
  * "success". Two families qualify:
@@ -223,10 +276,55 @@ export interface ClaimDoneVerdict {
  * KNOWN pure reads still never block, so an ordinary failed read cannot
  * produce a false "not done" banner — that containment is what made
  * this safe to flip.
+ *
+ * IMPORTANT: this intentionally remains legacy behavior during shadow
+ * measurement. `status === "success"` on a write means the provider/tool
+ * returned successfully; it does NOT imply an independent postcondition.
  */
 export function canClaimDone(receipts: ReadonlyArray<ActionReceipt>): ClaimDoneVerdict {
   const offenders = receipts.filter(
     (r) => (r.sideEffecting || r.verifiable === false) && r.status !== "success",
   );
   return { ok: offenders.length === 0, offenders };
+}
+
+/**
+ * Strict shadow guard: a consequential receipt may support "Done" only when
+ * its completion state is VERIFIED.
+ *
+ * Legacy literal receipts may not have `verificationState`; consequential
+ * ones fail closed here. Pure reads never block because completion claims are
+ * about mutations, not whether every supporting read succeeded.
+ */
+export function canClaimDoneStrict(receipts: ReadonlyArray<ActionReceipt>): ClaimDoneVerdict {
+  const offenders = receipts.filter(
+    (r) =>
+      (r.sideEffecting || r.verifiable === false) &&
+      r.verificationState !== "VERIFIED",
+  );
+  return { ok: offenders.length === 0, offenders };
+}
+
+export interface ClaimDoneShadowComparison {
+  legacyOk: boolean;
+  strictOk: boolean;
+  /** True only when legacy would allow Done and strict verification would not. */
+  legacyStrictGap: boolean;
+  legacyOffenders: ActionReceipt[];
+  strictOffenders: ActionReceipt[];
+}
+
+/** Pure comparator used by shadow telemetry/canaries before enforcement flips. */
+export function compareClaimDoneShadow(
+  receipts: ReadonlyArray<ActionReceipt>,
+): ClaimDoneShadowComparison {
+  const legacy = canClaimDone(receipts);
+  const strict = canClaimDoneStrict(receipts);
+  return {
+    legacyOk: legacy.ok,
+    strictOk: strict.ok,
+    legacyStrictGap: legacy.ok && !strict.ok,
+    legacyOffenders: legacy.offenders,
+    strictOffenders: strict.offenders,
+  };
 }

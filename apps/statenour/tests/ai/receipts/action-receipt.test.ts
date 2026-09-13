@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   toReceipt,
   canClaimDone,
+  canClaimDoneStrict,
+  compareClaimDoneShadow,
   isSideEffecting,
   classifyToolEffect,
 } from "@/lib/ai/receipts/action-receipt";
@@ -32,10 +34,11 @@ describe("isSideEffecting", () => {
 });
 
 describe("toReceipt", () => {
-  it("builds a success receipt for a side-effecting write", () => {
+  it("builds a legacy success receipt for a side-effecting write but marks it only PROVIDER_ACCEPTED", () => {
     const r = toReceipt({ toolName: "createTask", ok: true, label: "Call vendor", entityType: "task", entityId: "t1" }, { now: NOW });
     expect(r.status).toBe("success");
     expect(r.sideEffecting).toBe(true);
+    expect(r.verificationState).toBe("PROVIDER_ACCEPTED");
     expect(r.userVisibleSummary).toContain("Done");
     expect(r.errorSafeMessage).toBeUndefined();
     expect(r.createdAt).toBe(NOW);
@@ -47,32 +50,47 @@ describe("toReceipt", () => {
       { now: NOW },
     );
     expect(r.status).toBe("failed");
+    expect(r.verificationState).toBe("FAILED_KNOWN");
     expect(r.userVisibleSummary).toContain("Did NOT complete");
     expect(r.errorSafeMessage).toContain("<path>");
     expect(r.errorSafeMessage).not.toContain("secret");
   });
 
-  it("maps needs_approval and skipped", () => {
-    expect(toReceipt({ toolName: "sendTelegram", needsApproval: true }, { now: NOW }).status).toBe("needs_approval");
-    expect(toReceipt({ toolName: "createTask", skipped: true }, { now: NOW }).status).toBe("skipped");
+  it("maps needs_approval and skipped to NOT_ATTEMPTED strict state", () => {
+    const approval = toReceipt({ toolName: "sendTelegram", needsApproval: true }, { now: NOW });
+    const skipped = toReceipt({ toolName: "createTask", skipped: true }, { now: NOW });
+    expect(approval.status).toBe("needs_approval");
+    expect(approval.verificationState).toBe("NOT_ATTEMPTED");
+    expect(skipped.status).toBe("skipped");
+    expect(skipped.verificationState).toBe("NOT_ATTEMPTED");
   });
 
-  it("a side-effecting tool with no confirmed ok is 'partial', not success", () => {
+  it("a side-effecting tool with no confirmed ok is 'partial' / UNKNOWN_COMPLETION", () => {
     const r = toReceipt({ toolName: "createTask" }, { now: NOW }); // no ok signal
     expect(r.status).toBe("partial");
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
   });
 
-  it("a read tool with no ok signal is success (it returned)", () => {
+  it("a read tool with no ok signal is legacy success and strict VERIFIED", () => {
     const r = toReceipt({ toolName: "getBodyData" }, { now: NOW });
     expect(r.status).toBe("success");
     expect(r.sideEffecting).toBe(false);
+    expect(r.verificationState).toBe("VERIFIED");
   });
 
-  it("normalizes an unknown tool without throwing", () => {
+  it("normalizes an unknown tool without throwing and fails strict state closed", () => {
     const r = toReceipt({ toolName: "madeUpTool", ok: true }, { now: NOW });
     expect(r.toolName).toBe("madeUpTool");
     expect(r.sideEffecting).toBe(false);
     expect(r.category).toBe("unknown");
+    expect(r.verifiable).toBe(false);
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
+  });
+
+  it("accepts an explicit independent verification signal", () => {
+    const r = toReceipt({ toolName: "createTask", ok: true, verified: true }, { now: NOW });
+    expect(r.status).toBe("success");
+    expect(r.verificationState).toBe("VERIFIED");
   });
 
   it("is deterministic — same inputs give the same receiptId", () => {
@@ -82,7 +100,7 @@ describe("toReceipt", () => {
 });
 
 describe("canClaimDone", () => {
-  it("is true when every side-effecting receipt succeeded", () => {
+  it("keeps legacy behavior: true when every side-effecting receipt returned success", () => {
     const receipts = [
       toReceipt({ toolName: "createTask", ok: true }, { now: NOW }),
       toReceipt({ toolName: "getBodyData", ok: true }, { now: NOW }),
@@ -111,6 +129,63 @@ describe("canClaimDone", () => {
   });
 });
 
+describe("strict done shadow", () => {
+  it("exposes the exact legacy/strict gap for a successful write with no read-back", () => {
+    const receipts = [toReceipt({ toolName: "createTask", ok: true }, { now: NOW })];
+    expect(canClaimDone(receipts).ok).toBe(true);
+    expect(canClaimDoneStrict(receipts).ok).toBe(false);
+
+    const comparison = compareClaimDoneShadow(receipts);
+    expect(comparison.legacyOk).toBe(true);
+    expect(comparison.strictOk).toBe(false);
+    expect(comparison.legacyStrictGap).toBe(true);
+    expect(comparison.strictOffenders.map((o) => o.toolName)).toEqual(["createTask"]);
+  });
+
+  it("allows strict Done only after independent verification", () => {
+    const receipts = [toReceipt({ toolName: "createTask", ok: true, verified: true }, { now: NOW })];
+    expect(canClaimDoneStrict(receipts).ok).toBe(true);
+    expect(compareClaimDoneShadow(receipts).legacyStrictGap).toBe(false);
+  });
+
+  it("does not make failed supporting reads block mutation completion", () => {
+    const receipts = [
+      toReceipt({ toolName: "createTask", ok: true, verified: true }, { now: NOW }),
+      toReceipt({ toolName: "getBodyData", ok: false, error: "timeout" }, { now: NOW }),
+    ];
+    expect(canClaimDoneStrict(receipts).ok).toBe(true);
+  });
+
+  it("fails closed for legacy side-effecting receipt literals missing strict state", () => {
+    const legacy = {
+      receiptId: "legacy-write",
+      toolName: "createTask",
+      category: "task_write",
+      sideEffecting: true,
+      status: "success" as const,
+      undoAvailable: false,
+      userVisibleSummary: "Done: createTask.",
+      createdAt: NOW,
+    };
+    expect(canClaimDone([legacy]).ok).toBe(true);
+    expect(canClaimDoneStrict([legacy]).ok).toBe(false);
+  });
+
+  it("keeps legacy pure-read literals non-blocking", () => {
+    const legacyRead = {
+      receiptId: "legacy-read",
+      toolName: "getBodyData",
+      category: "health_read",
+      sideEffecting: false,
+      status: "failed" as const,
+      undoAvailable: false,
+      userVisibleSummary: "x",
+      createdAt: NOW,
+    };
+    expect(canClaimDoneStrict([legacyRead]).ok).toBe(true);
+  });
+});
+
 // ── fail-closed classification (2026-07-29, operator-requested) ──────
 // The hole: isSideEffecting() answered `false` both for "known pure
 // read" and "never heard of it", so an unrecognized tool that FAILED
@@ -131,32 +206,39 @@ describe("classifyToolEffect + unverifiable receipts", () => {
     expect(r.verifiable).toBe(false);
     expect(r.sideEffecting).toBe(false);
     expect(r.status).toBe("failed");
+    expect(r.verificationState).toBe("FAILED_KNOWN");
   });
 
   it("unknown + no signal is `partial` (unverified), never optimistic success", () => {
-    expect(toReceipt({ toolName: "neverHeardOfThis" }).status).toBe("partial");
-    expect(toReceipt({ toolName: "neverHeardOfThis" }).userVisibleSummary).toContain("Unverified");
+    const r = toReceipt({ toolName: "neverHeardOfThis" });
+    expect(r.status).toBe("partial");
+    expect(r.verificationState).toBe("UNKNOWN_COMPLETION");
+    expect(r.userVisibleSummary).toContain("Unverified");
   });
 
   it("known reads keep verifiable:true and success-on-silence (no behavior change)", () => {
     const r = toReceipt({ toolName: "getCommitments" });
     expect(r.verifiable).toBe(true);
     expect(r.status).toBe("success");
+    expect(r.verificationState).toBe("VERIFIED");
   });
 
   it("an explicit sideEffecting flag makes a receipt verifiable by definition", () => {
     const r = toReceipt({ toolName: "someBridgeOp", sideEffecting: true, ok: true });
     expect(r.verifiable).toBe(true);
     expect(r.sideEffecting).toBe(true);
+    expect(r.verificationState).toBe("PROVIDER_ACCEPTED");
     expect(canClaimDone([r]).ok).toBe(true);
+    expect(canClaimDoneStrict([r]).ok).toBe(false);
   });
 
-  it("canClaimDone blocks unverifiable non-success, allows unverifiable success", () => {
+  it("canClaimDone blocks unverifiable non-success, allows unverifiable success under legacy behavior", () => {
     expect(canClaimDone([toReceipt({ toolName: "neverHeardOfThis", ok: false })]).ok).toBe(false);
     expect(canClaimDone([toReceipt({ toolName: "neverHeardOfThis", ok: true })]).ok).toBe(true);
+    expect(canClaimDoneStrict([toReceipt({ toolName: "neverHeardOfThis", ok: true })]).ok).toBe(false);
   });
 
-  it("legacy literal receipts without the field stay verifiable (feed rows unaffected)", () => {
+  it("legacy literal receipts without the field stay verifiable for the legacy feed guard", () => {
     const legacy = {
       receiptId: "r1",
       toolName: "task.created",
@@ -168,5 +250,6 @@ describe("classifyToolEffect + unverifiable receipts", () => {
       createdAt: "2026-07-29T00:00:00Z",
     };
     expect(canClaimDone([legacy]).ok).toBe(true);
+    expect(canClaimDoneStrict([legacy]).ok).toBe(true);
   });
 });

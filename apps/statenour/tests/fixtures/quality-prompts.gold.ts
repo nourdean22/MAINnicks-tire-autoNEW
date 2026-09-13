@@ -7,10 +7,10 @@
  * fires each prompt against the current model + sanitizer + critic,
  * then verifies the output passes deterministic checks.
  *
- * Why deterministic checks (not just critic scores) · the critic is
- * itself an LLM output and can drift. The deterministic checks
- * (regex + length + must-mention + forbidden) are stable. Together
- * they form the regression armor for output quality.
+ * Why deterministic checks (not just critic indices) · the critic is a
+ * deterministic heuristic and can drift when its detectors/thresholds change.
+ * The independent regex + length + must-mention + forbidden checks make those
+ * changes visible instead of treating the critic as an oracle.
  *
  * When to run:
  *   · After any model version change (lib/ai/provider.ts model IDs)
@@ -34,10 +34,13 @@ export interface QualityCheck {
   minWords?: number;
   /** Maximum word count · prevents runaway output. */
   maxWords?: number;
-  /** Critic-overall score floor (0-100) · run via lib/ai/output-critic.ts. */
+  /** Critic-overall heuristic index floor (0-100) · lib/ai/output-critic.ts. */
   minCriticOverall?: number;
-  /** Spec-density floor · words-with-numbers-or-proper-nouns / 100w. */
-  minSpecDensity?: number;
+  /**
+   * Canonical Nour-voice specificity marker density per 100 words.
+   * Same unit/function as lib/ai/nour-voice-profile.ts specificityDensity().
+   */
+  minSpecificityMarkerDensity?: number;
 }
 
 export interface QualityPrompt {
@@ -239,10 +242,13 @@ export const QUALITY_PROMPTS: QualityPrompt[] = [
       minWords: 30,
       maxWords: 300,
       minCriticOverall: 65, // summaries get a slightly lower floor
-      minSpecDensity: 30, // summaries should be specific (numbers + names)
+      // Unit migration from the retired lexical-percentage proxy (30) to the
+      // canonical marker density used by production. >=2/100w is the live
+      // critic's "grounded" band; this is not a weakened threshold.
+      minSpecificityMarkerDensity: 2.0,
     },
     notes:
-      "Specificity-density check · summaries with no numbers/names violate the operator-grade tone.",
+      "Canonical specificity-marker-density check · summaries with no measurable anchors violate the operator-grade tone.",
   },
 
   // ── Action claim · the fabrication-rewriter target zone ──────────

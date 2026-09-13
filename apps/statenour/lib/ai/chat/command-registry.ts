@@ -80,9 +80,47 @@ export function formatRescue(r: RescueResult): string {
 
 export function formatReceipts(f: ReceiptFeedResult): string {
   if (f.items.length === 0) return "No recent actions recorded.";
-  const icon = (s: string) => (s === "success" ? "✓" : s === "failed" ? "✗" : "•");
-  const top = f.items.slice(0, 8).map((r) => `${icon(r.status)} ${r.userVisibleSummary}`);
-  return [`Recent actions: ${f.counts.total} (${f.counts.success} ok, ${f.counts.failed} failed).`, ...top].join("\n");
+
+  const truth = f.verificationCounts;
+  const truthParts = [
+    `${truth.verified} verified`,
+    `${truth.providerAccepted} accepted/unverified`,
+    `${truth.unknownCompletion} completion-unknown`,
+    `${truth.failedKnown} failed-known`,
+    `${truth.notAttempted} not-attempted`,
+    `${truth.unmeasured} unmeasured`,
+  ];
+
+  const lineFor = (r: ReceiptFeedResult["items"][number]): string => {
+    const consequential = r.sideEffecting || r.verifiable === false;
+    if (!consequential) {
+      const icon = r.status === "success" ? "✓" : r.status === "failed" ? "✗" : "•";
+      return `${icon} ${r.userVisibleSummary}`;
+    }
+
+    const label = r.label ?? r.entityType ?? r.toolName;
+    switch (r.verificationState) {
+      case "VERIFIED":
+        return `✓ ${r.userVisibleSummary}`;
+      case "PROVIDER_ACCEPTED":
+        return `◐ ${label} — accepted by executor/provider; not independently verified.`;
+      case "UNKNOWN_COMPLETION":
+        return `? ${label} — completion unknown; reconcile before retrying or claiming Done.`;
+      case "FAILED_KNOWN":
+        return `✗ ${r.userVisibleSummary}`;
+      case "NOT_ATTEMPTED":
+        return `• ${r.userVisibleSummary}`;
+      default:
+        return `? ${label} — verification unmeasured (legacy receipt).`;
+    }
+  };
+
+  const top = f.items.slice(0, 8).map(lineFor);
+  return [
+    `Recent actions: ${f.counts.total} (${f.counts.success} legacy-success, ${f.counts.failed} failed).`,
+    `Action truth (${truth.consequentialTotal} consequential): ${truthParts.join(" · ")}.`,
+    ...top,
+  ].join("\n");
 }
 
 export function formatToday(t: TodayCompound, topWarning: string | null): string {

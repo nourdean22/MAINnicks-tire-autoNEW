@@ -23,11 +23,22 @@
  * able to go and find. Those are exactly the claims falsifiable by a
  * lookup, and therefore exactly the ones that must carry a receipt.
  *
+ * 2026-09-13 · the same evidence envelope also carries STRUCTURED ENTITY-ID
+ * provenance (task/event/message/etc.). That is a separate failure class from
+ * named resources: a plausible-looking internal id may be syntactically valid
+ * while entirely fabricated. IDs are supported only by operator input, this
+ * turn's tool-result evidence, or grounded context.
+ *
  * EMPTY vs ERROR: `receiptsAvailable: false` (tool results could not be
  * read at all) is NOT the same as "no tool fired". The first is a blind
  * instrument and must not block; the second is the fabrication case and
  * must. See ReceiptEvidence.
  */
+
+import {
+  checkEntityClaimProvenance,
+  type EntityClaim,
+} from "./entity-claim-provenance";
 
 /** A proper noun presented as a findable resource. */
 export interface NamedSourceClaim {
@@ -53,8 +64,8 @@ export interface ReceiptEvidence {
   /** Names of tools that actually fired this turn. */
   toolCalls: ReadonlyArray<{ name: string }>;
   /**
-   * Concatenated tool RESULT text for this turn. A name found here was
-   * resolved by a real lookup.
+   * Concatenated tool RESULT text for this turn. A name/id found here was
+   * resolved by a real lookup or returned by a real operation.
    */
   evidenceText: string;
   /**
@@ -62,9 +73,9 @@ export interface ReceiptEvidence {
    * telemetry off). Blocks are suppressed; the turn is flagged instead.
    */
   receiptsAvailable: boolean;
-  /** The operator's own message. A name THEY introduced is not a fabrication. */
+  /** The operator's own message. A name/id THEY introduced is not a fabrication. */
   userText?: string;
-  /** Brain/system context already in the prompt. A name from here is grounded. */
+  /** Brain/system context already in the prompt. A name/id from here is grounded. */
   contextText?: string;
 }
 
@@ -78,6 +89,10 @@ export interface NamedSourceReport {
   namedWithoutAnyTool: boolean;
   /** True when receipts could not be read -- flag, never block. */
   blind: boolean;
+  /** Additive 2026-09-13 fields; optional so older fixtures/consumers stay valid. */
+  entityClaims?: EntityClaim[];
+  unsupportedEntityClaims?: EntityClaim[];
+  entityClaimsBlind?: boolean;
 }
 
 /** Resource nouns that make a nearby proper noun a findable claim. */
@@ -169,9 +184,6 @@ const STOPWORDS_LOWER = new Set([...STOPWORD_NAMES].map((w) => w.toLowerCase()))
 function trimLeadingStopwords(raw: string): string {
   const words = raw.trim().split(/\s+/);
   let i = 0;
-  // Case-insensitive: the prefix group swallows lowercase connectors
-  // ("of", "the", "and") as well as capitalized leads, so matching only
-  // the capitalized forms left "the Daily Stoic" behind.
   while (i < words.length - 1 && STOPWORDS_LOWER.has(words[i].toLowerCase())) i++;
   return words.slice(i).join(" ");
 }
@@ -225,7 +237,7 @@ export function detectNamedSources(text: string): NamedSourceClaim[] {
 /** Is this name backed by something other than the model's own head? */
 function hasReceipt(claim: NamedSourceClaim, ev: ReceiptEvidence): boolean {
   const key = normalizeName(claim.name);
-  if (!key) return true; // nothing to check -- do not manufacture a violation
+  if (!key) return true;
   const haystacks = [ev.evidenceText, ev.userText ?? "", ev.contextText ?? ""];
   return haystacks.some((h) => h.length > 0 && normalizeName(h).includes(key));
 }
@@ -239,12 +251,15 @@ export function checkNamedSources(text: string, ev: ReceiptEvidence): NamedSourc
 
   const unreceipted = blind ? [] : claims.filter((c) => !hasReceipt(c, ev));
 
-  // A confidence tag is EARNED only if a tool fired this turn AND we can
-  // see the results. Anything else is the model typing a badge it has no
-  // standing to issue.
   const tags = [...text.matchAll(CONFIDENCE_TAG_RE)].map((m) => m[0]);
   const receiptsExist = ev.toolCalls.length > 0 && ev.receiptsAvailable;
   const unearnedConfidenceTags = receiptsExist ? [] : tags;
+
+  const entityReport = checkEntityClaimProvenance(text, {
+    userText: ev.userText,
+    toolResultDigests: ev.evidenceText ? [ev.evidenceText] : [],
+    contextText: ev.contextText,
+  });
 
   return {
     claims,
@@ -252,6 +267,11 @@ export function checkNamedSources(text: string, ev: ReceiptEvidence): NamedSourc
     unearnedConfidenceTags,
     namedWithoutAnyTool: !blind && ev.toolCalls.length === 0 && claims.length > 0,
     blind,
+    entityClaims: entityReport.claims,
+    // A blind receipt channel means a tool may really have emitted the id.
+    // Preserve the claims for diagnostics but never call them unsupported.
+    unsupportedEntityClaims: blind ? [] : entityReport.unsupported,
+    entityClaimsBlind: blind && entityReport.claims.length > 0,
   };
 }
 
