@@ -3,6 +3,7 @@ import {
   auditEntryToReceipt,
   autonomousActionToReceipt,
   auditEventToReceipt,
+  countByVerification,
   mergeReceipts,
   buildActionReceiptFeed,
   type AutonomousActionRow,
@@ -105,8 +106,54 @@ describe("autonomousActionToReceipt — BDN-204 pre-registration surface", () =>
   });
 });
 
+describe("verification census", () => {
+  it("counts only consequential receipts so successful reads cannot inflate verified actions", () => {
+    const counts = countByVerification([
+      toReceipt({ toolName: "getBodyData", ok: true }), // known read — excluded
+      toReceipt({ toolName: "createTask", ok: true, verified: true }),
+      toReceipt({ toolName: "createTask", ok: true }),
+      toReceipt({ toolName: "completeTask", ok: false, error: "db down" }),
+      toReceipt({ toolName: "task.create" }),
+      toReceipt({ toolName: "task.create", skipped: true }),
+    ]);
+    expect(counts).toEqual({
+      consequentialTotal: 5,
+      verified: 1,
+      providerAccepted: 1,
+      unknownCompletion: 1,
+      failedKnown: 1,
+      notAttempted: 1,
+      unmeasured: 0,
+    });
+  });
+
+  it("classifies historical consequential receipts with no strict state as UNMEASURED", () => {
+    const historical = {
+      receiptId: "legacy-write",
+      toolName: "createTask",
+      category: "task_write",
+      sideEffecting: true,
+      status: "success" as const,
+      undoAvailable: false,
+      userVisibleSummary: "Done: createTask.",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+    const counts = countByVerification([historical]);
+    expect(counts.consequentialTotal).toBe(1);
+    expect(counts.unmeasured).toBe(1);
+    expect(counts.verified).toBe(0);
+    expect(counts.providerAccepted).toBe(0);
+  });
+
+  it("keeps an unclassifiable receipt in the consequential denominator", () => {
+    const counts = countByVerification([toReceipt({ toolName: "neverHeardOfThis", ok: true })]);
+    expect(counts.consequentialTotal).toBe(1);
+    expect(counts.unknownCompletion).toBe(1);
+  });
+});
+
 describe("mergeReceipts", () => {
-  it("sorts newest-first and counts by status", () => {
+  it("sorts newest-first and counts by status + strict verification", () => {
     const merged = mergeReceipts([
       auditEntryToReceipt(audit({ id: "old", createdAt: new Date("2026-06-09T08:00:00Z") })),
       auditEntryToReceipt(audit({ id: "new", createdAt: new Date("2026-06-09T12:00:00Z") })),
@@ -116,6 +163,9 @@ describe("mergeReceipts", () => {
     expect(merged.counts.failed).toBe(1);
     expect(merged.counts.success).toBe(2);
     expect(merged.counts.total).toBe(3);
+    expect(merged.verificationCounts.consequentialTotal).toBe(3);
+    expect(merged.verificationCounts.verified).toBe(2);
+    expect(merged.verificationCounts.failedKnown).toBe(1);
   });
 });
 
@@ -128,13 +178,16 @@ describe("buildActionReceiptFeed (injected loaders — no DB)", () => {
     });
     expect(feed.counts.total).toBe(2);
     expect(feed.counts.failed).toBe(1);
+    expect(feed.verificationCounts.consequentialTotal).toBe(2);
+    expect(feed.verificationCounts.verified).toBe(1);
+    expect(feed.verificationCounts.failedKnown).toBe(1);
     expect(feed.items[0].receiptId).toBe("auto_boom"); // 12:00 newest
     expect(feed.items[0].status).toBe("failed");
   });
 
   it("counts describe EXACTLY the returned items, not the 2×limit union (review fix)", async () => {
     // 60 audits + 60 autos loaded under the default limit 50 → 120 receipts,
-    // but only 50 returned. counts.total must equal items.length, not 120.
+    // but only 50 returned. Both count sets must describe only those 50.
     const mk = (i: number, base: Date) => audit({ id: `a${i}`, createdAt: new Date(base.getTime() + i * 1000) });
     const feed = await buildActionReceiptFeed({
       loadAudit: async () => Array.from({ length: 60 }, (_, i) => mk(i, new Date("2026-06-09T00:00:00Z"))),
@@ -144,6 +197,8 @@ describe("buildActionReceiptFeed (injected loaders — no DB)", () => {
     expect(feed.items.length).toBe(50);
     expect(feed.counts.total).toBe(50); // not 120
     expect(feed.counts.success + feed.counts.failed + feed.counts.other).toBe(50);
+    expect(feed.verificationCounts.consequentialTotal).toBe(50);
+    expect(feed.verificationCounts.verified).toBe(50);
   });
 });
 
@@ -226,6 +281,9 @@ describe("Wire 1 · chat action receipts (auditEventToReceipt + feed)", () => {
     });
     expect(feed.counts.total).toBe(2); // r1 deduped
     expect(feed.counts.failed).toBe(1);
+    expect(feed.verificationCounts.consequentialTotal).toBe(2);
+    expect(feed.verificationCounts.providerAccepted).toBe(1);
+    expect(feed.verificationCounts.failedKnown).toBe(1);
     expect(feed.items[0].status).toBe("failed"); // 11:00 newest, the failed SMS
   });
 });
