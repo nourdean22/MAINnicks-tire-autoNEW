@@ -1,22 +1,12 @@
 /**
  * RESPONSE CONTRACT — 2026-06-09.
  *
- * Nick's recurring failure isn't *quality* (output-critic already scores
- * specificity/cliché/length) — it's *compliance*: Nour asks for a concise
- * copy-paste prompt and gets three paragraphs of preamble; asks for "top 5"
- * and gets four; says "don't ask questions" and gets a clarifying question;
- * pastes a status update and Nick treats it as a fresh task.
+ * Derives a deterministic per-turn contract from the operator's request. The
+ * contract is shared by generation and verification so response shape does not
+ * depend on a persona sentence saying one thing while a post-hoc scorer uses a
+ * different ceiling.
  *
- * This module derives, from the user's message, an explicit CONTRACT for
- * what the reply must (and must not) do. It is the missing layer between
- * "what shape is this turn" (turn-intelligence / query-shape) and "did the
- * reply honor the request" (reply-gate, extended). The contract feeds both
- * the system prompt (so Nick aims right) and the reply gate (so a miss is
- * caught post-stream).
- *
- * Pure · heuristic-only · zero IO · <1ms. Consumes the existing TurnSignal
- * and QueryShape rather than re-detecting intent/shape. Same input → same
- * contract.
+ * Pure · heuristic-only · zero IO · <1ms.
  */
 
 import type { TurnSignal } from "./turn-intelligence";
@@ -36,51 +26,36 @@ export type AnswerMode =
   | "session_update";
 
 export type ResponseLength = "ultra_concise" | "concise" | "normal" | "detailed";
-
 export type OutputFormat = "prose" | "bullets" | "prompt" | "table" | "checklist";
 
 export interface ResponseContract {
   answerMode: AnswerMode;
   length: ResponseLength;
   outputFormat: OutputFormat;
-  /** Is Nick allowed to ask a clarifying question this turn? */
+  /** Desired final-answer size. A target is guidance; hardMaxWords is a contract. */
+  targetWords: number;
+  hardMaxWords: number;
   shouldAskClarifying: boolean;
-  /** Must the answer be grounded in the actual repo/codebase (not generic)? */
   mustBeRepoGrounded: boolean;
-  /** Must claims be backed by evidence (citations, files, receipts)? */
   mustIncludeEvidence: boolean;
-  /** Must Nick NOT assert it performed actions (this is a question/plan turn)? */
   mustNotClaimActions: boolean;
-  /** Did the user request a ranked / top-N list? */
   mustRankOptions: boolean;
-  /** The N in "top N" / "give me 5", if stated. */
   rankCount: number | null;
-  /** Must the reply end with a concrete next move / recommendation? */
   mustGiveNextMove: boolean;
   userIsCorrectingDirection: boolean;
   userIsAskingForCoderPrompt: boolean;
   userIsManagingConcurrentSessions: boolean;
-  /** The user PASTED a status report (don't treat reported status as verified). */
   isStatusUpdate: boolean;
-  /** The user issued a COMMAND or FINALIZED a decision ("do it", "my decision is
-   *  final", "stop arguing"). Execute it — do NOT re-open with unsolicited
-   *  counter-views. Gates the adversarial critic + objection injector. An
-   *  explicit /spar or brainstorm turn overrides (that IS a request to challenge). */
   executeFinalized: boolean;
   forbiddenMoves: string[];
   requiredMoves: string[];
   reasons: string[];
 }
 
-// ── Detection libraries ──────────────────────────────────────────────
-
 const RE = {
-  // length
   ultraConcise: /\b(one word|in a word|yes or no|just (the )?(answer|number)|tl;?dr it)\b/i,
   concise: /\b(concise|be brief|keep it (short|brief|tight)|short( answer)?|quick(ly)?|no (fluff|preamble|filler)|don'?t ramble|tldr|few words|bullet(s| me)?)\b/i,
   detailed: /\b(detailed|in[- ]depth|thorough(ly)?|comprehensive|long( ?ass)?|deep[- ]dive|full (breakdown|writeup|rundown)|walk me through everything|as much detail|exhaustive)\b/i,
-
-  // answer modes (priority order applied in code)
   coderPrompt: /\b(prompt for (the )?(coder|claude|agent|cursor|codex)|(give|write|create|draft|make) (me )?(a|an|one|the)? ?(long ?ass )?prompt|prompt (i|you) can (paste|copy|give)|copy[- ]?paste(able)? prompt|prompt to (give|hand|send)|spin up a prompt)\b/i,
   operatorCommand: /\b(what should (the )?(coder|claude|other session|agent|he|they) do|instructions? for (the )?(coder|agent|session)|tell (the )?(coder|agent|session)|what do i (tell|give|send)|next (move|step) for (the )?(coder|session|agent)|hand (the )?(coder|agent) )\b/i,
   correction: /\b(no,?\s|nope,?\s|actually,?\s|instead( of)?|that'?s not (what|it|right)|stop (doing|with)|don'?t (do|build|add) (that|this)|scrap (that|this|it)|replace .{0,40} with|more useful (functions|features|things)|no more (internal|busy ?work|cleanup)|not (internal|busywork))\b/i,
@@ -88,52 +63,25 @@ const RE = {
   audit: /\b(audit|review (the|my|this)|go through (the|my|all)|check (the|my|all|every) .{0,30}(file|code|page|surface|module)|find (the )?(gaps?|issues?|bugs?|problems?))\b/i,
   digest: /\b(recap|digest|what changed|summari[sz]e (the|this|my|what)|tl;?dr of|catch me up|bring me up to speed)\b/i,
   brainstorm: /\b(brainstorm|come up with|ideas? for|what could we|spitball|riff on)\b/i,
-
-  // execute / finalized posture — the user issued a command or closed the
-  // decision. Signal to DO the thing and stop re-opening it. Kept phrase-based
-  // (low false-positive) — an explicit /spar or brainstorm still overrides.
-  // Phrase-based, IMPERATIVE-anchored to avoid firing on deliberation questions
-  // ("should I ship it?", "how do I execute this?"). Ambiguous verbs (do it / ship
-  // it / execute) require a command modifier (just/go/please) or a now/already
-  // suffix or terminal punctuation; the unambiguous phrases match plainly.
   executeFinalized:
     /\b(?:just|go|please) do it\b|\bdo it (?:now|already|then)\b|\b(?:just|go) ship it\b|\bship it (?:now|already)\b|\bship it[.!]|\b(?:just|go|please) execute (?:it|this|the plan)\b|\bexecute (?:it|this|the plan) (?:now|already)\b|\b(make it happen|get it done|just (?:answer|tell me|give me the answer)|my (?:decision|call|mind) is (?:final|made up)|i(?:'ve| have) (?:decided|made up my mind)|stop (?:arguing|debating|pushing back|second[- ]guessing)|no more (?:objections?|debate|pushback|counter[- ]?views?)|don'?t (?:argue|debate|push back|second[- ]guess)|final decision|it'?s decided|decision'?s final)\b/i,
-
-  // ranking / top-N
   rank: /\b(top|best|first)\s+(\d+)\b|\b(rank|prioriti[sz]e|order)\b|\b(give|show|list) me (\d+)\b/i,
   rankCountTop: /\b(?:top|best|first|give me|show me|list)\s+(\d{1,3})\b/i,
-
-  // clarification suppression
   dontAsk: /\b(don'?t ask|no (clarifying )?questions?|stop asking|without asking|just (do|answer|give|build) it|don'?t ask me|quit asking|no need to ask)\b/i,
-
-  // repo grounding
   repoGrounded: /\b(look at (the )?(repo|code|codebase|files?)|check (the )?(repo|code|codebase|actual (code|files?))|double[- ]?check (the )?(repo|code)|in the (repo|codebase|code)|read (the )?(file|code|source)|grep (the|for)|based on (the )?actual|verify (against|in) (the )?(repo|code)|first (look|check|read)|don'?t (guess|assume).{0,20}(repo|code|file))\b/i,
-
-  // evidence
   evidence: /\b(show me where|cite|citation|with (evidence|proof|sources?)|prove it|back (it|that) up|reference the|point to the)\b/i,
-
-  // multi-session
   multiSession: /\b(\d+ sessions?|other session|another (claude|session|agent)|concurrent sessions?|multiple sessions?|sessions? (going|running|active)|parallel sessions?|3 (claudes?|agents?|windows?))\b/i,
-
-  // status-update paste (reported, not verified)
   statusVerb: /\b(deployed?|deploying|pushed|committed?|build (passed|verified|green|succeeded|failed)|tests? (pass|passed|green|fail)|migration (applied|live)|shipped|merged|landed on (main|origin)|railway|commit `?[0-9a-f]{7}|verified live)\b/i,
   reportedFraming: /\b(here'?s (an |the )?(update|status)|status (update|from)|update from (the )?(other )?session|the other session (says|reports|did|finished)|session reports?|fyi|for context|reporting that|per the (other )?session)\b/i,
-
-  // next-move
   nextMove: /\b(what (should i|do i|now)|next (step|move)|what'?s next|your call|recommend|decide for me|should i)\b/i,
-
-  // imperative action (forces action, vs a question about an action)
   imperativeAction: /^(add|create|send|schedule|set|text|email|message|book|log|delete|remove|pin|move|update|mark)\b|:\s*(call|email|text|buy|do|finish)\b/i,
-  // question framing about an action ("should I add", "can you add")
   actionQuestion: /\b(should i|can you|could you|would you|do you think i should|is it worth)\b.{0,30}\b(add|create|send|schedule|do|build|make)\b/i,
 };
 
 function detectLength(text: string, turn?: TurnSignal): ResponseLength {
   if (RE.ultraConcise.test(text)) return "ultra_concise";
-  // detailed + a prompt request ("one long ass prompt") → detailed wins for length
   if (RE.detailed.test(text)) return "detailed";
   if (RE.concise.test(text)) return "concise";
-  // casual one-liners stay short even without an explicit cue
   if (turn?.intent === "casual") return "concise";
   return "normal";
 }
@@ -153,7 +101,6 @@ function detectAnswerMode(
   isStatusUpdate: boolean,
   rankCount: number | null,
 ): AnswerMode {
-  // Priority: most distinctive intent first.
   if (isStatusUpdate) return "session_update";
   if (RE.coderPrompt.test(text)) return "copy_paste_prompt";
   if (RE.operatorCommand.test(text)) return "operator_command";
@@ -180,20 +127,39 @@ function detectOutputFormat(
     mode === "ranked_recommendation" ||
     shape === "list" ||
     /\b(bullets?|list|points?)\b/i.test(text)
-  )
-    return "bullets";
+  ) return "bullets";
   return "prose";
 }
 
 /**
- * Build the response contract for a turn. `turn` and `shape` are the
- * existing classifier outputs — pass them when available so the contract
- * reuses their work; the function still works standalone for testing.
+ * Persona default is <=80 words for ordinary chat, but artifact/research
+ * requests need room to finish. One compiler owns both the generation target
+ * and the verification ceiling so there is no 80-vs-300 split-brain.
  */
-/** True when the user issued a command or finalized a decision — the signal to
- *  EXECUTE and stop re-opening the question. Pure + phrase-based. Exported so the
- *  brain-context (objection injector) and persist-turn (adversarial critic) gate
- *  sites can suppress unsolicited opposition without rebuilding the full contract. */
+function deriveWordBudget(
+  mode: AnswerMode,
+  length: ResponseLength,
+  format: OutputFormat,
+  rankCount: number | null,
+): { targetWords: number; hardMaxWords: number } {
+  if (length === "ultra_concise") return { targetWords: 12, hardMaxWords: 25 };
+  if (length === "concise") return { targetWords: 45, hardMaxWords: 80 };
+  if (length === "detailed") return { targetWords: 700, hardMaxWords: 1400 };
+
+  if (mode === "audit") return { targetWords: 650, hardMaxWords: 1400 };
+  if (mode === "copy_paste_prompt") return { targetWords: 550, hardMaxWords: 1400 };
+  if (mode === "operator_command") return { targetWords: 220, hardMaxWords: 600 };
+  if (mode === "brainstorm") return { targetWords: 300, hardMaxWords: 700 };
+  if (mode === "digest") return { targetWords: 200, hardMaxWords: 500 };
+  if (mode === "ranked_recommendation") {
+    const targetWords = Math.min(900, Math.max(140, (rankCount ?? 5) * 45));
+    return { targetWords, hardMaxWords: Math.min(1400, targetWords * 2) };
+  }
+  if (format === "table" || format === "checklist") return { targetWords: 220, hardMaxWords: 600 };
+
+  return { targetWords: 45, hardMaxWords: 80 };
+}
+
 export function detectExecuteFinalized(text: string): boolean {
   return RE.executeFinalized.test((text || "").trim());
 }
@@ -208,7 +174,6 @@ export function buildResponseContract(
   const forbiddenMoves: string[] = [];
   const requiredMoves: string[] = [];
 
-  // ── flags ──
   const isStatusUpdate = RE.reportedFraming.test(text) && RE.statusVerb.test(text);
   const userIsManagingConcurrentSessions = RE.multiSession.test(text);
   const userIsAskingForCoderPrompt = RE.coderPrompt.test(text);
@@ -221,15 +186,13 @@ export function buildResponseContract(
   const mode = detectAnswerMode(text, turn, isStatusUpdate, rankCount);
   const length = detectLength(text, turn);
   const outputFormat = detectOutputFormat(text, mode, turn, shape);
+  const { targetWords, hardMaxWords } = deriveWordBudget(mode, length, outputFormat, rankCount);
 
   const mustRankOptions =
     mode === "ranked_recommendation" ||
     (rankCount !== null && rankCount > 1) ||
     /\b(rank|prioriti[sz]e)\b/i.test(text);
 
-  // Don't claim actions when this is a question/plan turn rather than an
-  // imperative command. An explicit imperative ("add: call John") may act;
-  // a question ("should I add this task?") must not.
   const isImperativeAction = RE.imperativeAction.test(text);
   const isActionQuestion = RE.actionQuestion.test(text);
   const mustNotClaimActions =
@@ -250,11 +213,8 @@ export function buildResponseContract(
     mode === "audit" ||
     RE.nextMove.test(text);
 
-  const mustIncludeEvidence =
-    mustBeRepoGrounded || mode === "audit" || RE.evidence.test(text);
+  const mustIncludeEvidence = mustBeRepoGrounded || mode === "audit" || RE.evidence.test(text);
 
-  // Clarification: default allowed, but suppressed when the user said so,
-  // or when the turn is a produce-this-now mode where asking is friction.
   const shouldAskClarifying =
     !dontAsk &&
     mode !== "copy_paste_prompt" &&
@@ -262,8 +222,12 @@ export function buildResponseContract(
     mode !== "session_update" &&
     mode !== "wait_mode";
 
-  // ── reasons + required/forbidden moves ──
-  reasons.push(`mode:${mode}`, `length:${length}`, `format:${outputFormat}`);
+  reasons.push(
+    `mode:${mode}`,
+    `length:${length}`,
+    `format:${outputFormat}`,
+    `word-budget:${targetWords}/${hardMaxWords}`,
+  );
 
   if (length === "ultra_concise" || length === "concise") {
     forbiddenMoves.push("preamble / filler / throat-clearing");
@@ -284,9 +248,7 @@ export function buildResponseContract(
     reasons.push("user is correcting direction");
   }
   if (mode === "wait_mode") requiredMoves.push("do useful interim work; don't re-ask for the goal");
-  if (mustRankOptions) {
-    requiredMoves.push(rankCount ? `return exactly ${rankCount} ranked items` : "return a ranked list");
-  }
+  if (mustRankOptions) requiredMoves.push(rankCount ? `return exactly ${rankCount} ranked items` : "return a ranked list");
   if (mustBeRepoGrounded) {
     requiredMoves.push("cite specific files/functions from the repo");
     forbiddenMoves.push("generic answer with no repo references");
@@ -311,7 +273,6 @@ export function buildResponseContract(
     reasons.push("execute-finalized posture (no unsolicited opposition)");
   }
   if (userIsManagingConcurrentSessions) reasons.push("multi-session context");
-  // Direction-correction forbidden specifics
   if (/\bno more (internal|busy ?work|cleanup)\b|\bnot (internal|busywork)\b/i.test(text)) {
     forbiddenMoves.push("internal-only / cleanup work");
   }
@@ -324,6 +285,8 @@ export function buildResponseContract(
     answerMode: mode,
     length,
     outputFormat,
+    targetWords,
+    hardMaxWords,
     shouldAskClarifying,
     mustBeRepoGrounded,
     mustIncludeEvidence,
@@ -342,19 +305,12 @@ export function buildResponseContract(
   };
 }
 
-/**
- * Render the contract as a compact system-prompt directive. Kept tiny —
- * Nick already has a large prompt; this is a per-turn nudge, not a lecture.
- */
 export function buildContractDirective(c: ResponseContract): string {
   const bits: string[] = [];
-  const lengthHint: Record<ResponseLength, string> = {
-    ultra_concise: "Answer in one line.",
-    concise: "Be concise — no preamble.",
-    normal: "",
-    detailed: "Be thorough — cover every part.",
-  };
-  if (lengthHint[c.length]) bits.push(lengthHint[c.length]);
+  bits.push(`Target about ${c.targetWords} words; do not exceed ${c.hardMaxWords} words unless required to preserve requested code/data verbatim.`);
+  if (c.length === "ultra_concise") bits.push("Answer in one line.");
+  if (c.length === "concise") bits.push("Be concise — no preamble.");
+  if (c.length === "detailed") bits.push("Be thorough — cover every part.");
   if (c.answerMode === "copy_paste_prompt") bits.push("Output a ready-to-paste prompt in a fenced code block — nothing else.");
   if (c.answerMode === "operator_command") bits.push("Give concrete, executable instructions.");
   if (c.answerMode === "session_update") bits.push("This is a REPORTED status from the user — do not restate it as verified fact.");
@@ -364,6 +320,5 @@ export function buildContractDirective(c: ResponseContract): string {
   if (!c.shouldAskClarifying) bits.push("Do NOT ask clarifying questions — make a reasonable assumption and proceed.");
   if (c.mustGiveNextMove) bits.push("End with one concrete next move.");
   if (c.forbiddenMoves.length) bits.push(`Avoid: ${c.forbiddenMoves.join("; ")}.`);
-  if (bits.length === 0) return "";
   return `## This turn\n${bits.join(" ")}`;
 }

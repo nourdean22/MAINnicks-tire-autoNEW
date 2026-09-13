@@ -1,6 +1,6 @@
 /**
  * Response-contract tests — pins the per-turn compliance contract that
- * the reply gate enforces. Pure, deterministic, no model/DB.
+ * generation and the reply gate share. Pure, deterministic, no model/DB.
  */
 import { describe, it, expect } from "vitest";
 import { buildResponseContract, buildContractDirective, detectExecuteFinalized } from "@/lib/ai/response-contract";
@@ -9,21 +9,36 @@ import { classifyTurn } from "@/lib/ai/turn-intelligence";
 const c = (t: string) => buildResponseContract(t, classifyTurn(t));
 
 describe("response-contract · length", () => {
-  it("'keep it concise' → concise, forbids preamble", () => {
+  it("ordinary replies inherit the persona's <=80-word hard contract", () => {
+    const r = c("what's the capital of France");
+    expect(r.length).toBe("normal");
+    expect(r.targetWords).toBe(45);
+    expect(r.hardMaxWords).toBe(80);
+  });
+  it("'keep it concise' → concise, <=80, forbids preamble", () => {
     const r = c("Give me your read but keep it concise");
     expect(r.length).toBe("concise");
+    expect(r.hardMaxWords).toBe(80);
     expect(r.forbiddenMoves.join(" ")).toMatch(/preamble|filler/i);
   });
   it("'short answer' → concise", () => {
     expect(c("short answer: is the deploy green?").length).toBe("concise");
   });
-  it("'be detailed / in depth' → detailed", () => {
-    expect(c("be detailed and thorough about the migration plan").length).toBe("detailed");
+  it("'be detailed / in depth' → detailed and intentionally widens the artifact budget", () => {
+    const r = c("be detailed and thorough about the migration plan");
+    expect(r.length).toBe("detailed");
+    expect(r.hardMaxWords).toBeGreaterThan(80);
   });
   it("'one long ass prompt' → detailed length AND copy_paste_prompt mode", () => {
     const r = c("write me one long ass prompt for the coder");
     expect(r.length).toBe("detailed");
     expect(r.answerMode).toBe("copy_paste_prompt");
+    expect(r.hardMaxWords).toBe(1400);
+  });
+  it("audit/research work is not accidentally truncated to the ordinary-chat ceiling", () => {
+    const r = c("audit every file in the repo and show me the evidence");
+    expect(r.answerMode).toBe("audit");
+    expect(r.hardMaxWords).toBe(1400);
   });
 });
 
@@ -69,6 +84,7 @@ describe("response-contract · ranking", () => {
     expect(r.mustRankOptions).toBe(true);
     expect(r.rankCount).toBe(5);
     expect(r.outputFormat).toBe("bullets");
+    expect(r.hardMaxWords).toBeGreaterThan(80);
   });
   it("'rank these' → mustRankOptions, no fixed count", () => {
     const r = c("rank these options for me");
@@ -125,9 +141,12 @@ describe("response-contract · directive rendering", () => {
     expect(d).toMatch(/concise/i);
     expect(d).toMatch(/ranked|5/i);
     expect(d).toMatch(/do not ask/i);
+    expect(d).toMatch(/80 words/i);
   });
-  it("empty directive for an unconstrained, normal-length turn", () => {
-    expect(buildContractDirective(c("what's the capital of France"))).toBe("");
+  it("ordinary turns now carry the same <=80 ceiling the persona claims", () => {
+    const d = buildContractDirective(c("what's the capital of France"));
+    expect(d).toMatch(/80 words/i);
+    expect(d).toMatch(/45 words/i);
   });
   it("casual turn → concise directive (keep banter short)", () => {
     expect(buildContractDirective(c("hey"))).toMatch(/concise/i);
@@ -147,9 +166,7 @@ describe("response-contract · execute/finalized posture (no unsolicited opposit
       "just execute the plan",
       "ship it now",
       "go ahead and just do it",
-    ]) {
-      expect(detectExecuteFinalized(t)).toBe(true);
-    }
+    ]) expect(detectExecuteFinalized(t)).toBe(true);
   });
 
   it("does NOT fire on ordinary analysis / DELIBERATION questions", () => {
@@ -158,16 +175,13 @@ describe("response-contract · execute/finalized posture (no unsolicited opposit
       "analyze the $20 brake offer",
       "what's my revenue this month",
       "give me your read on retention",
-      "how do I do it right?", // 'do it' in a how-to question
+      "how do I do it right?",
       "can you do it by friday?",
-      // self-review-caught false positives — imperative anchoring must exclude these:
       "should we ship it or wait?",
       "should I ship it?",
       "how do I execute this migration?",
       "can you execute this query for me first?",
-    ]) {
-      expect(detectExecuteFinalized(t)).toBe(false);
-    }
+    ]) expect(detectExecuteFinalized(t)).toBe(false);
   });
 
   it("the contract carries executeFinalized + forbids re-opening the decision", () => {
