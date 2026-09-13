@@ -1,26 +1,14 @@
 /**
  * app/api/ai/chat/prepare-tools.ts — chat-route decomposition slice
  * (2026-07-25). The tool-pruning + token-budget block moved VERBATIM
- * from route.ts:
- *
- *   1. conversation-tail assembly (2026-07-15 · follow-up turns keep
- *      the tool families the CONVERSATION needed)
- *   2. pruneTools (mode + keyword/semantic ranking)
- *   3. aiConfig disabledTools blocklist (#13)
- *   4. aiConfig alwaysOnTools forcing
- *   5. action-intent expected-tool coherence forcing (2026-07-06)
- *   6. web-search coherence forcing (2026-07-15)
- *   7. maxOutputTokens derivation (mode default + query shape)
- *
- * Order preserved exactly — the blocklist applies BEFORE the always-on
- * and coherence forces, and the coherence forces respect the blocklist
- * (never re-add a tool the operator deliberately disabled).
+ * from route.ts.
  */
 
 import { pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
 import { markInvokeToolFired, markSearchToolsFired } from "@/lib/ai/tool-selection-telemetry";
 import { buildCapabilityPlan, type CapabilityPlan } from "@/lib/ai/chat/turn-control-plane";
 import { nourTools } from "@/lib/ai/tools";
+import { controlPlaneToolOverrides } from "@/lib/ai/tools/control-plane-overrides";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
@@ -31,6 +19,16 @@ type Logger = ReturnType<typeof rootLogger.withSurface>;
 type ExecutableTool = {
   execute?: (input: unknown, ...rest: unknown[]) => unknown;
 };
+
+/**
+ * Chat-local execution overrides keep the canonical tool names/catalog stable
+ * while tightening semantics that are specific to agentic chat. No global
+ * mutation: cron/direct domain imports continue to receive the legacy tools.
+ */
+const chatTools = {
+  ...nourTools,
+  ...controlPlaneToolOverrides,
+} as typeof nourTools;
 
 /**
  * Recovery tools are deliberately always available, but their execution is the
@@ -123,7 +121,7 @@ export async function prepareTools(args: {
 
   let prunedTools = (await pruneTools(
     mode,
-    nourTools as unknown as Record<string, unknown>,
+    chatTools as unknown as Record<string, unknown>,
     userContent,
     userEmbedding,
     { conversationTail, turnId: traceId, conversationId },
@@ -140,7 +138,7 @@ export async function prepareTools(args: {
 
   if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
     const selected = { ...prunedTools } as Record<string, unknown>;
-    const all = nourTools as unknown as Record<string, unknown>;
+    const all = chatTools as unknown as Record<string, unknown>;
     for (const name of aiConfig.alwaysOnTools) {
       if (all[name] && !selected[name]) {
         selected[name] = all[name];
@@ -151,7 +149,7 @@ export async function prepareTools(args: {
   }
 
   {
-    const all = nourTools as unknown as Record<string, unknown>;
+    const all = chatTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const selected = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["searchTools", "invokeTool"]) {
@@ -164,7 +162,7 @@ export async function prepareTools(args: {
   }
 
   if (actionIntent?.expectedTool) {
-    const all = nourTools as unknown as Record<string, unknown>;
+    const all = chatTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const selected = { ...prunedTools } as Record<string, unknown>;
     for (const raw of actionIntent.expectedTool.split("|")) {
@@ -178,7 +176,7 @@ export async function prepareTools(args: {
   }
 
   if (webSearchIntent) {
-    const all = nourTools as unknown as Record<string, unknown>;
+    const all = chatTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const selected = { ...prunedTools } as Record<string, unknown>;
     for (const name of ["arsenalWebSearch", "searchWebVerified"]) {
@@ -208,7 +206,7 @@ export async function prepareTools(args: {
   const capabilityPlan = buildCapabilityPlan({
     traceId,
     mode,
-    registered: Object.keys(nourTools),
+    registered: Object.keys(chatTools),
     initiallySelected,
     surfaced: Object.keys(prunedTools),
     disabled: aiConfig?.disabledTools ?? [],
