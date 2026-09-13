@@ -10,9 +10,9 @@
  *
  * 1. DETERMINISTIC REPAIR BEFORE GENERATIVE REPAIR. Stripping an
  *    unearned `[confirmed]`, dropping a list item naming a channel no
- *    tool resolved, and truncating to the shape ceiling are string
- *    operations. Reaching for a model call to do them would add seconds
- *    and a fresh chance to hallucinate, to fix a hallucination.
+ *    tool resolved, and truncating to the response-contract ceiling are
+ *    string operations. Reaching for a model call to do them would add
+ *    seconds and a fresh chance to hallucinate, to fix a hallucination.
  *
  * 2. EXACTLY ONE RE-GATE. A regenerate loop under an adversarial scorer
  *    is a reward-hacking machine with an unbounded latency tail: the
@@ -27,6 +27,7 @@
 
 import type { EvidenceGateDecision, GateEvidence, GateVerdict } from "@/lib/ai/reply-gate";
 import { runEvidenceGate } from "@/lib/ai/reply-gate";
+import { responseBudgetFor } from "./turn-control-plane";
 import type { NamedSourceReport } from "./named-source-claims";
 import { stripUnearnedConfidenceTags } from "./named-source-claims";
 import { normalizeName } from "./named-source-claims";
@@ -113,7 +114,7 @@ export function removeUnreceiptedClaims(text: string, names: readonly string[]):
 }
 
 /**
- * Truncate to the shape ceiling at a sentence boundary.
+ * Truncate to the visible-answer ceiling at a sentence boundary.
  *
  * Deliberately cuts at a sentence, never mid-clause: a reply chopped
  * mid-sentence reads as a crash, and the audit's whole subject is
@@ -145,6 +146,10 @@ export function truncateToCeiling(text: string, ceilingWords: number): RepairRes
  * removing claims (a stripped tag may be all that was wrong with an
  * otherwise-grounded line), and truncate last so the count reflects
  * what actually survived.
+ *
+ * The ceiling is an INPUT CONTRACT, not merely an evidence-gate signal.
+ * If text is over the ceiling, truncate even when the older evidence scorer
+ * calls the reply a pass. This prevents the historical 80-vs-300 split brain.
  */
 export function repairDeterministically(
   text: string,
@@ -155,6 +160,7 @@ export function repairDeterministically(
   let current = text;
   const applied: string[] = [];
   let gutted = false;
+  void gate; // gate still belongs to the API; ceiling enforcement is independent.
 
   if (namedSources && namedSources.unearnedConfidenceTags.length > 0) {
     current = stripUnearnedConfidenceTags(current, namedSources);
@@ -170,7 +176,7 @@ export function repairDeterministically(
     gutted = gutted || r.gutted;
   }
 
-  if (gate.evidenceSignals.lengthOverrun && ceilingWords > 0) {
+  if (ceilingWords > 0) {
     const r = truncateToCeiling(current, ceilingWords);
     current = r.text;
     applied.push(...r.applied);
@@ -211,7 +217,11 @@ export interface GatedReplyInput {
   contract: Parameters<typeof runEvidenceGate>[4];
   evidence: GateEvidence;
   namedSources: NamedSourceReport | null;
-  /** SHAPE_LENGTH[shape].max for this turn. */
+  /**
+   * Legacy output-shape ceiling. Retained for callers/telemetry and used when
+   * no ResponseContract is available. When a contract exists, its visible
+   * answer budget is authoritative.
+   */
   ceilingWords: number;
   /**
    * Re-derive evidence for repaired text. Required because the
@@ -232,10 +242,14 @@ export interface GatedReplyInput {
 export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
   const { draft, userText, critic, turnSignal, contract, evidence } = input;
   const actions: string[] = [];
+  const effectiveCeiling = contract
+    ? responseBudgetFor(contract).hardMaxWords
+    : input.ceilingWords;
+  const contractOverrun = effectiveCeiling > 0 && wordCount(draft) > effectiveCeiling;
 
   const initial = runEvidenceGate(draft, userText, critic, turnSignal, contract, evidence);
 
-  if (initial.verdict === "pass") {
+  if (initial.verdict === "pass" && !contractOverrun) {
     return {
       text: draft,
       verdict: "pass",
@@ -246,9 +260,14 @@ export function enforceGate(input: GatedReplyInput): GatedReplyOutcome {
     };
   }
 
-  actions.push(`gate ${initial.verdict} (severity ${initial.severity}): ${initial.blockingReasons.join("; ")}`);
+  if (initial.verdict !== "pass") {
+    actions.push(`gate ${initial.verdict} (severity ${initial.severity}): ${initial.blockingReasons.join("; ")}`);
+  }
+  if (contractOverrun) {
+    actions.push(`visible-answer contract overrun (${wordCount(draft)} > ${effectiveCeiling} words)`);
+  }
 
-  const repair = repairDeterministically(draft, initial, input.namedSources, input.ceilingWords);
+  const repair = repairDeterministically(draft, initial, input.namedSources, effectiveCeiling);
   actions.push(...repair.applied);
 
   if (repair.gutted) {
