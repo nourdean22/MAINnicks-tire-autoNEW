@@ -4,10 +4,10 @@
  * QualityBar — Apr 19. Tiny strip under assistant messages that
  * surfaces the output critic + reply gate verdicts.
  *
- * Shows nothing when the reply is clean (critic overall >= 80 AND
- * gate severity is 0). That's on purpose — silence = everything's
- * fine. Low-quality replies draw a subtle red or amber hint with a
- * "regen" button that re-runs the same prompt (caller handles).
+ * Shows nothing when the reply is clean. Important: the critic axes are
+ * deterministic heuristic indices, not calibrated probabilities or claims of
+ * perfect prose. Truth/receipt warnings are control-plane evidence and surface
+ * even when the style critic itself is clean.
  *
  * Mount as a sibling to ContextBlockBadges inside AssistantMessageShell.
  */
@@ -15,45 +15,16 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ShieldAlert, ShieldCheck, AlertCircle, RotateCcw } from "lucide-react";
+import {
+  CRITIC_HEURISTIC_NOTE,
+  criticDiagnosticLine,
+  qualityHasIssue,
+  receiptHasIssue,
+  truthWarningCount,
+  type QualityDiagnosticPayload,
+} from "@/lib/ai/chat/quality-diagnostics";
 
-export interface QualityPayload {
-  critic?: {
-    overall?: number;
-    specificity?: number;
-    cliche?: number;
-    antiNour?: number;
-    length?: number;
-    wordCount?: number;
-    shouldRegen?: boolean;
-    reasons?: string[];
-    // v6 · BATCH 2 · Apr 28 — 7-axis content scoring extras
-    contentMode?: boolean;
-    brandElement?: number;
-    cta?: number;
-    hashtagQuality?: number;
-  };
-  gate?: {
-    severity?: number;
-    shouldRegen?: boolean;
-    reasons?: string[];
-  };
-  factCheck?: {
-    total?: number;
-    unverified?: number;
-  };
-  /** WP-11 (2026-07-29) · known-truth guard flags persisted with the turn. */
-  truth?: {
-    total?: number;
-    flags?: Array<{ kind?: string; rule?: string; snippet?: string; severity?: number }>;
-  };
-  /** WP-11 (2026-07-29) · action-receipt verdict: were this reply's
-   *  action claims backed by successful tool calls? */
-  receipt?: {
-    ok?: boolean;
-    toolsFired?: Array<{ toolName?: string; status?: string }>;
-    offenders?: Array<{ toolName?: string; status?: string; label?: string }>;
-  };
-}
+export type QualityPayload = QualityDiagnosticPayload;
 
 interface Props {
   payload: QualityPayload | undefined;
@@ -72,12 +43,19 @@ export function QualityBar({ payload, onRegen }: Props) {
   const severity = gate.severity ?? 0;
   const shouldRegen = critic.shouldRegen || gate.shouldRegen;
   const unverified = fc.unverified ?? 0;
+  const truthCount = truthWarningCount(payload);
+  const receiptIssue = receiptHasIssue(payload);
 
-  const isClean = overall >= 80 && severity === 0 && unverified === 0;
-  if (isClean) return null;
+  if (!qualityHasIssue(payload)) return null;
 
-  // Color: red when regen recommended, amber when warn, gold for mild hint.
-  const tone = shouldRegen ? "red" : severity >= 50 || unverified >= 2 ? "amber" : "gold";
+  // Receipt trouble is red because it concerns action truth, but does NOT by
+  // itself enable the regen button: prose regeneration is not reconciliation.
+  const tone =
+    receiptIssue || shouldRegen
+      ? "red"
+      : truthCount > 0 || severity >= 50 || unverified >= 2
+        ? "amber"
+        : "gold";
   const toneClass =
     tone === "red"
       ? "border-red-500/30 bg-red-500/5 text-red-300"
@@ -85,21 +63,39 @@ export function QualityBar({ payload, onRegen }: Props) {
         ? "border-amber-500/30 bg-amber-500/5 text-amber-300"
         : "border-[var(--gold)]/20 bg-[var(--gold)]/5 text-[var(--gold)]";
 
-  const Icon = shouldRegen ? ShieldAlert : unverified > 0 ? AlertCircle : ShieldCheck;
+  const Icon =
+    receiptIssue || shouldRegen
+      ? ShieldAlert
+      : unverified > 0 || truthCount > 0
+        ? AlertCircle
+        : ShieldCheck;
+
+  const label = receiptIssue
+    ? "action unverified"
+    : truthCount > 0
+      ? `${truthCount} truth warning${truthCount === 1 ? "" : "s"}`
+      : shouldRegen
+        ? "regen recommended"
+        : unverified > 0
+          ? `${unverified} unverified`
+          : "critic warn";
+
+  const diagnosticLine = criticDiagnosticLine(critic);
+  const receiptOffenders = payload.receipt?.offenders ?? [];
 
   return (
     <div className={cn("mt-1.5 rounded-md border px-2 py-1", toneClass)}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-1.5 text-left"
-        title="Tap to toggle quality detail"
+        title="Tap to toggle diagnostic detail"
       >
         <Icon size={10} />
         <span className="text-[9px] font-mono uppercase tracking-wider">
-          {shouldRegen ? "regen recommended" : unverified > 0 ? `${unverified} unverified` : "quality warn"}
-          {overall < 100 ? ` · ${overall}` : ""}
+          {label}
+          {overall < 100 ? ` · critic ${overall}` : ""}
         </span>
-        {onRegen && shouldRegen && (
+        {onRegen && shouldRegen && !receiptIssue && (
           <span
             role="button"
             tabIndex={0}
@@ -124,15 +120,11 @@ export function QualityBar({ payload, onRegen }: Props) {
 
       {expanded && (
         <div className="mt-1 text-[9px] font-mono leading-[1.4] opacity-80 space-y-0.5">
-          {typeof critic.overall === "number" && (
-            <div>
-              critic · overall={critic.overall} · spec={critic.specificity} · cliche={critic.cliche} · voice={critic.antiNour} · len={critic.length} · words={critic.wordCount}
-            </div>
-          )}
-          {/* v6 · BATCH 2 · Apr 28 — 7-axis content score row */}
+          {diagnosticLine && <div>{diagnosticLine}</div>}
+          {diagnosticLine && <div>{CRITIC_HEURISTIC_NOTE}</div>}
           {critic.contentMode && (
             <div>
-              content · brand={critic.brandElement} · cta={critic.cta} · hashtag={critic.hashtagQuality}
+              content heuristics · brand={critic.brandElement} · cta={critic.cta} · hashtag={critic.hashtagQuality}
             </div>
           )}
           {critic.reasons && critic.reasons.length > 0 && (
@@ -147,6 +139,22 @@ export function QualityBar({ payload, onRegen }: Props) {
           {unverified > 0 && (
             <div>
               fact-check · {fc.total} claim{fc.total === 1 ? "" : "s"} · {unverified} unverified (no brain-context match)
+            </div>
+          )}
+          {truthCount > 0 && (
+            <div>
+              truth guard · {truthCount} flag{truthCount === 1 ? "" : "s"}
+            </div>
+          )}
+          {receiptIssue && (
+            <div>
+              action receipt · unverified
+              {receiptOffenders.length > 0
+                ? ` · ${receiptOffenders
+                    .slice(0, 3)
+                    .map((o) => `${o.label || o.toolName || "action"}:${o.status || "unknown"}`)
+                    .join(", ")}`
+                : ""}
             </div>
           )}
         </div>
