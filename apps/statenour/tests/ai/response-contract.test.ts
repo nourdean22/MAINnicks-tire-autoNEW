@@ -126,8 +126,10 @@ describe("response-contract · directive rendering", () => {
     expect(d).toMatch(/ranked|5/i);
     expect(d).toMatch(/do not ask/i);
   });
-  it("empty directive for an unconstrained, normal-length turn", () => {
-    expect(buildContractDirective(c("what's the capital of France"))).toBe("");
+  it("normal turn carries the default <=80-word visible-answer budget", () => {
+    const d = buildContractDirective(c("what's the capital of France"));
+    expect(d).toMatch(/visible-answer budget/i);
+    expect(d).toMatch(/80 words/i);
   });
   it("casual turn → concise directive (keep banter short)", () => {
     expect(buildContractDirective(c("hey"))).toMatch(/concise/i);
@@ -158,9 +160,8 @@ describe("response-contract · execute/finalized posture (no unsolicited opposit
       "analyze the $20 brake offer",
       "what's my revenue this month",
       "give me your read on retention",
-      "how do I do it right?", // 'do it' in a how-to question
+      "how do I do it right?",
       "can you do it by friday?",
-      // self-review-caught false positives — imperative anchoring must exclude these:
       "should we ship it or wait?",
       "should I ship it?",
       "how do I execute this migration?",
