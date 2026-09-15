@@ -104,7 +104,10 @@ jobs:
 
       - name: post episode results to the evidence ledger
         # Either key opens the evidence door; the scoped one is the right one for CI.
-        if: ${{ always() && (secrets.EVIDENCE_LEDGER_KEY != '' || secrets.STATENOUR_SYNC_KEY != '') }}
+        # `env.*` here reads THIS step's env (proven: this step ran on main run
+        # 34975001748). `secrets.*` is NOT a valid context in a step `if` — using it
+        # made the whole workflow file invalid (run 34978069055, zero jobs).
+        if: ${{ always() && (env.EVIDENCE_LEDGER_KEY != '' || env.STATENOUR_SYNC_KEY != '') }}
         env:
           STATENOUR_SYNC_URL: ${{ secrets.STATENOUR_SYNC_URL }}
           EVIDENCE_LEDGER_KEY: ${{ secrets.EVIDENCE_LEDGER_KEY }}
