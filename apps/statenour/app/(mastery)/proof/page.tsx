@@ -112,7 +112,7 @@ export default async function ProofPage() {
       <section aria-labelledby="timeline" className="mb-8">
         <h2 id="timeline" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Repo Time Machine · judged commits</h2>
         {timeline.commits.length === 0 ? (
-          <p className="text-sm text-fg-secondary">No judged commits yet. Every proof run records the commit nickstire.org actually served; rows appear here, newest first, with the delta against the previous judged commit.</p>
+          <p className="text-sm text-fg-secondary">No judged commits yet. Every proof run records the commit the live site actually served; rows appear here, newest first, with the delta against the previous judged commit.</p>
         ) : (
           <ul className="divide-y divide-glass">
             {timeline.commits.map((c) => (
