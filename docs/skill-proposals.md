@@ -1690,3 +1690,95 @@ statenour primitives documented (existence re-verified at
   task, and do not absorb it."
 - **Confidence:** high (witnessed on three PRs at once)
 - **Status:** applied 2026-09-09 — added to `nickstire-shared-main-push` as new "A red gate whose own log says 'unmodified tree'" section (operator directive: clear the pending-proposal backlog)
+
+## 2026-09-15 · execution truth + Dream-to-Proof waves 2-3 (#2335 #2336 #2338 #2339 #2340 merged, #2342 open)
+
+### P1 · `nickstire-shared-main-push` (rule 3 exists — it did not FIRE) + root `AGENTS.md` merge recipe
+- **Trigger (witnessed):** I merged #2340 at 21:33Z while #2338's and #2339's `node` jobs were mid-sweep; both were killed
+  at 21:36Z / 21:40Z with the exact rule-3 signature ("The runner has received a shutdown signal … Force killed Turborepo
+  tasks: @statenour/web#build, #check", 5/8 tasks done). I spent ~20 min diagnosing "runner resource death" before this queue
+  showed the rule was applied on 2026-08-26 — I had never loaded the skill, because nothing in the merge path invokes it.
+  One more kill (21:10Z, #2338 attempt 1) had NO main merge in its window, so the rule is the first hypothesis, not the only one.
+- **Cost:** two false reds on green PRs, 2 reruns (~30 min of CI), ~20 min of diagnosis, and a memory note written before the
+  prior verdict was found.
+- **Proposed edit:** (a) root `AGENTS.md` › Branching, the merge one-liner gains a pre-step: "`gh pr list --state open --json
+  number,statusCheckRollup` — if another PR's `node`/`e2e` is in progress, wait for it before `gh pr merge`" (the rule must
+  live where the merge is typed, not only in a skill a session may never load); (b) rule 3 adds: "the same signature with no
+  merge in the window is runner resource death during `@statenour/web#build` + `#check` in parallel — rerun once; if it
+  recurs, the lever is `--concurrency=1` in `test.yml`, never a code hunt".
+- **Confidence:** high (2026-08-26 ×3 + 2026-09-15 ×3; the applied rule was bypassed by non-invocation)
+- **Status:** proposed
+
+### P2 · `positive-control-first` — a resolution / availability control must run in the CONSUMER's runtime
+- **Trigger (witnessed):** #2339 (67936deab): the first draft of the sharp-resolution control asserted that a bare
+  `createRequire(import.meta.url).resolve("sharp")` throws — it did NOT, because vitest sets `NODE_PATH` to pnpm's hoisted
+  store (`node_modules/.pnpm/node_modules`), so inside a test worker every bare specifier resolves and the control proved
+  nothing. Same class an hour later: a scratchpad probe script failed `Cannot find module '@playwright/test'` because Node
+  resolves relative to the IMPORTING FILE, not the cwd. The working control spawns `tsx` with `NODE_PATH` deleted and imports
+  the real `sharpPath()`; the mutation (bare specifier) then reddens only that child control.
+- **Cost:** one false-green control committed locally before the mutation exposed it; ~15 min.
+- **Proposed edit:** add under "Prove the instrument fired": "A test about module RESOLUTION, binary availability or
+  environment shape is only evidence in the runtime the consumer uses. Vitest workers carry `NODE_PATH` to the pnpm store and
+  make bare specifiers resolve; scripts resolve from their own file's directory. Spawn the consumer's runtime (tsx/node child,
+  `NODE_PATH` removed, cwd as in production), import the REAL symbol, and mutate the resolution to prove the child sees it."
+- **Confidence:** high (two instances, same session)
+- **Status:** proposed
+
+### P3 · `assert-the-consumer` — a field that names a PERSISTED state is written only by the code that saw the write succeed
+- **Trigger (witnessed):** #2338 Codex P1 (fixed 3ca841c9b): `sendTelegram` set `ledgerState: "SUCCEEDED_UNVERIFIED"` and
+  `attemptId` inside its own `run()` result, before `settleAttempt` ran — so the missing-table bridge fallback (no row at all)
+  and a failed settle (row still EXECUTING) both told the model a durable transition had happened. Fix: the wrapper stamps the
+  result only after the store's promise resolved (`durable.stamp`), and the hook that leaked the id early was deleted.
+- **Cost:** a P1 review round on the PR whose whole point was execution truth.
+- **Proposed edit:** add a rule: "When a writer's result carries a state that lives in a store (`ledgerState`, `persisted`,
+  `receiptId`), the ONLY code allowed to set it is the branch that awaited the store's success. Canary: make the store write
+  reject and assert the field is absent; make the store absent (fallback path) and assert the same."
+- **Confidence:** medium (once, clear; same family as the 2026-09-10 empty-vs-error wave's `{error, data: []}` restamp)
+- **Status:** proposed
+
+### P4 · NEW: `claim-before-act` (no repo skill covers a read-then-write that decides WHO acts)
+- **Trigger (witnessed):** #2338 Codex P1 (fixed 3ca841c9b): the expired-row reclaim in `beginAttempt` was `findUnique` →
+  unconditional `update where { id }`; two identical calls after the same expiry both read the reclaimable row, both updates
+  succeeded, both callers got `claimed` and both would have sent the Telegram. `grep -ril "compare-and-swap|updateMany"
+  .claude/skills` → nothing; `database-architect` (global) names optimistic locking in a capabilities list, not as a rule.
+- **Cost:** a real double-send path in the contract built to prevent double-sends, caught only by review.
+- **Proposed edit:** a 30-line skill: "Any read-then-write that decides which caller acts (claims, leases, dedupe markers,
+  reclaims, approvals) is a compare-and-swap: `updateMany` pinned to the observed version fields (`attemptNo`, `state`,
+  `updatedAt`), `count === 1` wins, `0` re-reads and reports the winner; or a serializable transaction. The test spawns two
+  callers on the same stale read and asserts exactly one `claimed`." Triggers: editing `tool-idempotency.ts`,
+  `action-attempts.ts`, any `create` → `P2002` → `update` sequence.
+- **Confidence:** medium (once, clear, and the class is structural — every future claim store will face it)
+- **Status:** proposed
+
+### P5 · `answer-first` — a PR status sentence carries the check tally read at report time
+- **Trigger (witnessed):** the operator had to redirect three times in one day — "merge it when green and keep going, but
+  looks red" (twice) and "red too" — each time a PR I had just reported on had a red or cancelled `node` check I had not read
+  (`gh pr checks` showed `fail node` while my sentence said "CI running" / "green").
+- **Cost:** three operator interrupts; the operator, on a phone, was doing the check I should have done.
+- **Proposed edit:** under "Output shape": "Any sentence about a PR's CI state quotes `gh pr checks <n>` read in THAT turn as a
+  tally (`13 pass · 1 fail (node, cancelled) · 2 skipping`) and names every non-pass check. 'Merged when green' is not a
+  status; the tally is."
+- **Confidence:** high (three corrections, same day)
+- **Status:** proposed
+
+### P6 · `harness-worktree-setup` — trap row: `pnpm exec playwright` is silent from a harness worktree
+- **Trigger (witnessed):** two invocations of `pnpm exec playwright test …` from
+  `.claude/worktrees/stack-architecture-research-02f76c/apps/nickstire` produced 0 bytes of output and exit 1 (the junctioned
+  `node_modules/.bin` has no playwright shim); `node node_modules/@playwright/test/cli.js test …` ran the suite (installed
+  1.62.1 while `package.json` pins 1.63.0 — CI installs the pin).
+- **Cost:** ~5 min and one false "browser missing" hypothesis.
+- **Proposed edit:** add the row: "`pnpm exec playwright` → no output, exit 1 | the `.bin` shim is missing in a junctioned
+  worktree; call `node node_modules/@playwright/test/cli.js` directly; expect the installed version to trail the pin".
+- **Confidence:** medium (once, reproduced twice in a row)
+- **Status:** proposed
+
+### P7 · `statenour-wave-reconcile` — where to insert when a sibling session's same-day entries are already on top
+- **Trigger (witnessed):** Session B's #2337 had prepended two 2026-09-15 entries (lines 3 and 38) and its #2341 is open;
+  prepending mine at line 3 would have guaranteed a merge conflict on whichever PR lands second. I inserted below their
+  same-day entries (before the 2026-09-10 entry) and said so in the commit.
+- **Cost:** none yet; the conflict was avoided, which is the point.
+- **Proposed edit:** step 1 adds: "If another open branch already carries a same-day entry at the top, insert yours BELOW that
+  day's entries and name the placement in the commit — a queue conflict on `RECONCILIATION.md` is the most common way a docs
+  commit stalls a merge."
+- **Confidence:** low (one avoidance, no witnessed conflict)
+- **Status:** proposed
