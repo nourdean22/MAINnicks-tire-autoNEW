@@ -130,8 +130,15 @@ Inter exists in `--font-body` ONLY as a fallback after Geist Sans. Never load In
 - Per-action departure (directional · approve slides right, reject slides left, snooze fades up)
 - 240ms timeout before state mutation so animation can't get stuck mid-frame
 - No hover micro-motion spam · single transition on color/border per element
+- View transitions · React 19.3 `<ViewTransition>` has ONE consumer: the inspector's open / close
+  (`components/inspector/inspector-host.tsx`). The dock slides in and out; the phone sheet keeps its CSS
+  entrance and gains an exit; peek is a synchronous update and stays instant. Never wrap a route or a
+  list in one — "fade every route" is on the kill list (`docs/UPSTREAMS.md`).
 
 Implemented via `<style jsx>` blocks scoped to the component (link-review pattern). No global motion library.
+The one exception is the view-transition keyframes in `app/styles/effects.css`: the browser's transition
+pseudo-elements hang off `<html>`, so a scoped block can never reach them — and the reduced-motion pin for
+them lives in the same file's `prefers-reduced-motion` block.
 
 ---
 

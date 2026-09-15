@@ -16,6 +16,7 @@ import { TaskInspector } from "@/components/inspector/panels/task-inspector";
 import { PersonInspector } from "@/components/inspector/panels/person-inspector";
 import { AlertInspector } from "@/components/inspector/panels/alert-inspector";
 import { CronInspector } from "@/components/inspector/panels/cron-inspector";
+import { ToolInspector } from "@/components/inspector/panels/tool-inspector";
 
 export interface InspectorRenderer {
   kind: EntityKind;
@@ -28,6 +29,7 @@ export const INSPECTORS: Partial<Record<EntityKind, InspectorRenderer>> = {
   person: { kind: "person", Panel: PersonInspector },
   alert: { kind: "alert", Panel: AlertInspector },
   cron: { kind: "cron", Panel: CronInspector },
+  tool: { kind: "tool", Panel: ToolInspector },
 };
 
 export function inspectorFor(kind: EntityKind): InspectorRenderer | null {

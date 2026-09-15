@@ -7,6 +7,8 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+// 2026-09-15 · UI workbench wave 3: a registry row is an inspectable object.
+import { useInspector } from "@/hooks/use-inspector";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -28,6 +30,7 @@ export default function SystemToolsPage() {
   });
 
   const load = () => void refetch();
+  const { openInspector } = useInspector();
 
   if (isLoading && !tools) {
     return (
@@ -180,7 +183,7 @@ export default function SystemToolsPage() {
                 <th className="px-3 py-2 font-normal">Missing Env</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-default)]/40 font-mono text-[11px]">
+            <tbody className="divide-y divide-[var(--border-default)]/40 font-mono text-[11px]" data-selection-scope="system-tools">
               {tools.map((t) => {
                 const statusColor =
                   t.status === "active" ? "text-emerald-400"
@@ -203,10 +206,25 @@ export default function SystemToolsPage() {
                   : "text-[var(--text-tertiary)]";
 
                 return (
-                  <tr key={t.id} className="hover:bg-[var(--bg-void)]/40 group">
+                  <tr
+                    key={t.id}
+                    data-entity={`tool:${t.id}`}
+                    data-entity-label={t.label}
+                    className="hover:bg-[var(--bg-void)]/40 group data-[entity-focused=true]:bg-[var(--gold)]/[0.04] data-[entity-selected=true]:bg-[var(--gold)]/[0.08]"
+                  >
                     {/* Tool Info */}
                     <td className="px-3 py-2.5">
-                      <div className="font-semibold text-white group-hover:text-[var(--gold)] transition-colors">{t.label}</div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold text-white group-hover:text-[var(--gold)] transition-colors">{t.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => openInspector({ kind: "tool", id: t.id })}
+                          aria-label="inspect tool"
+                          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:text-[var(--gold)] md:min-h-[28px] md:min-w-[28px]"
+                        >
+                          <Eye size={12} strokeWidth={2} />
+                        </button>
+                      </div>
                       <div className="text-[10px] text-[var(--text-tertiary)] max-w-xs truncate" title={t.description}>
                         {t.description}
                       </div>

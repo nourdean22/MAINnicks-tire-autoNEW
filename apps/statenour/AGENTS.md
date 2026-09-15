@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-15 · Execution truth + Dream-to-Proof waves 2-3 (#2335/#2336/#2338/#2339/#2340, #2342 open):
-truthful Telegram, durable ActionAttempt (prod table), ledger ceilings, exact-id recall, check:scripts ratchet. RECONCILIATION.
+**Last refreshed:** 2026-09-15 · UI workbench #2337 + #2341 SHIPPED (one inspector for any object, ChangeSet, e2e instrument, React 19.3 +
+Base UI 1.8, ViewTransition) · Execution truth + Dream-to-Proof #2335–#2342 (ActionAttempt, ledger ceilings). RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

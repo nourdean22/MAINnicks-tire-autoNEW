@@ -25,6 +25,7 @@ import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import { EvidenceMark } from "@/components/ui/evidence-mark";
 import { Metric } from "@/components/ui/metric";
 import { useInspectorStore } from "@/lib/state/inspector-store";
+import { useInspector } from "@/hooks/use-inspector";
 import type { ProvenanceInput } from "@/lib/brain/evidence-label";
 
 /** Frozen so "recorded 3d ago" / "valid until Oct 1" never drift. */
@@ -78,6 +79,20 @@ const EVIDENCE_FIXTURES: Array<{ title: string; provenance: ProvenanceInput }> =
   },
 ];
 
+/**
+ * Fixture rows for the selection grammar. Kind `content` has no renderer, so
+ * Enter shows the honest "no inspector for this kind yet" notice and nothing
+ * needs a database — which is what lets tests/e2e/selection-grammar.spec.ts
+ * exercise j/k · Space · Enter · x · Esc and the route-change reset against
+ * the hermetic (empty) CI database.
+ */
+const FIXTURE_ROWS = [
+  { id: "fx-1", label: "Fixture row one · a draft reel about tire rotation" },
+  { id: "fx-2", label: "Fixture row two · a draft post about the Euclid Ave shop" },
+  { id: "fx-3", label: "Fixture row three · a draft reply to a review" },
+  { id: "fx-4", label: "Fixture row four · a draft carousel on brake wear" },
+] as const;
+
 /** A fixture body for the frame demo — what a memory inspector renders. */
 function FixtureMemoryBody() {
   return (
@@ -102,6 +117,7 @@ export default function UiLabPage() {
   const [frameOpen, setFrameOpen] = useState<InspectorMode | null>(null);
   const realityMode = useInspectorStore((s) => s.realityMode);
   const setRealityMode = useInspectorStore((s) => s.setRealityMode);
+  const { openInspector } = useInspector();
 
   return (
     <div className="px-4 pb-[var(--bottom-chrome-h)] max-w-2xl mx-auto space-y-4">
@@ -224,6 +240,31 @@ export default function UiLabPage() {
         <p className="mt-3 text-[11px] text-fg-tertiary">
           Hover a chip for the full provenance. The toggle above is the same persisted flag ⌘K → Modes flips; it
           changes every mark in the app, not just these.
+        </p>
+      </Panel>
+
+      <Panel>
+        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70">
+          Selection grammar — fixture rows · j/k move · Space peeks · Enter opens · x selects · Esc unwinds
+        </p>
+        <ul className="space-y-1" data-selection-scope="ui-lab-fixtures">
+          {FIXTURE_ROWS.map((r) => (
+            <li
+              key={r.id}
+              role="button"
+              tabIndex={0}
+              data-entity={`content:${r.id}`}
+              data-entity-label={r.label}
+              onClick={() => openInspector({ kind: "content", id: r.id })}
+              className="flex min-h-[44px] cursor-pointer items-center rounded-lg border border-glass px-3 text-[13px] text-fg-secondary transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06]"
+            >
+              {r.label}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[11px] text-fg-tertiary">
+          These are fixtures of a kind with no renderer yet, so opening one shows the honest no-renderer notice. The same
+          grammar runs on Brain, Missions, People, alerts, crons and tools rows.
         </p>
       </Panel>
 

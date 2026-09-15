@@ -14,7 +14,7 @@
  * answers `?inspect=person:` with its own dossier panel.
  */
 
-import { Suspense, useEffect, useMemo, useSyncExternalStore } from "react";
+import { Suspense, ViewTransition, useEffect, useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useInspectorStore } from "@/lib/state/inspector-store";
 import { readInspect } from "@/lib/ui/inspect-url";
@@ -49,6 +49,19 @@ export function reserveInspectorLane(root: {
 }
 
 const subscribeNoop = () => () => {};
+
+/**
+ * The `enter` / `exit` classes of the ONE `<ViewTransition>` in the app
+ * (docs/DESIGN.md Motion philosophy: row -> inspector, never every route).
+ * Their keyframes live in app/styles/effects.css — React puts these class
+ * names on the browser's transition pseudo-elements, which hang off <html>,
+ * so a component-scoped style block could never reach them.
+ */
+const INSPECTOR_TRANSITION = {
+  panelIn: "inspector-panel-in",
+  panelOut: "inspector-panel-out",
+  sheetOut: "inspector-sheet-out",
+} as const;
 
 function InspectorHostInner() {
   const searchParams = useSearchParams();
@@ -91,22 +104,37 @@ function InspectorHostInner() {
 
   const renderer = inspectorFor(target.kind);
   const onClose = mode === "peek" ? () => setPeek(null) : closeInspector;
+  const presentation = isWide ? "panel" : "sheet";
 
+  // Only Transition updates animate. The URL-backed OPEN and CLOSE travel
+  // through the router (a transition), so the dock slides in and out and the
+  // sheet gets the exit it never had (its entrance stays the CSS keyframe,
+  // hence `enter="none"` there). The store-backed PEEK is a synchronous
+  // update and stays instant by design — Space while arrowing must not wait
+  // on an animation. `update="none"`: arrowing between rows swaps the
+  // panel's content without a cross-fade.
   return (
     <>
-      <InspectorFrame
-        kind={target.kind}
-        mode={mode}
-        presentation={isWide ? "panel" : "sheet"}
-        onClose={onClose}
-        actions={renderer ? undefined : <EntityActionRow entities={[target]} />}
+      <ViewTransition
+        enter={presentation === "panel" ? INSPECTOR_TRANSITION.panelIn : "none"}
+        exit={presentation === "panel" ? INSPECTOR_TRANSITION.panelOut : INSPECTOR_TRANSITION.sheetOut}
+        update="none"
+        default="none"
       >
-        {renderer ? (
-          <renderer.Panel key={formatEntityRef(target)} entity={target} mode={mode} />
-        ) : (
-          <InspectorNotice state="unknown-kind" kind={target.kind} />
-        )}
-      </InspectorFrame>
+        <InspectorFrame
+          kind={target.kind}
+          mode={mode}
+          presentation={presentation}
+          onClose={onClose}
+          actions={renderer ? undefined : <EntityActionRow entities={[target]} />}
+        >
+          {renderer ? (
+            <renderer.Panel key={formatEntityRef(target)} entity={target} mode={mode} />
+          ) : (
+            <InspectorNotice state="unknown-kind" kind={target.kind} />
+          )}
+        </InspectorFrame>
+      </ViewTransition>
       <SelectionActionBar />
     </>
   );

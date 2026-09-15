@@ -34,6 +34,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { getMemoryDetail } from "@/lib/services/brain/memory-detail";
+import { buildBrainChangesSince } from "@/lib/services/brain/changes-since";
 import {
   buildWisdomFeed,
   updateWisdom,
@@ -1461,6 +1462,15 @@ export const brainRouter = router({
    * supersession chain. Soft-delete filtered in the service — a deleted
    * memory is `null`, never a live fact.
    */
+  /**
+   * 2026-09-15 · "since your last visit" for the Changed view (the ChangeSet
+   * primitive's second consumer). `since` is the client's cursor (ms epoch);
+   * the clamp, the queries and the labels are decided server-side.
+   */
+  changesSince: operatorProcedure
+    .input(z.object({ since: z.number().int().nonnegative() }))
+    .query(async ({ input }) => buildBrainChangesSince(input.since)),
+
   memoryById: operatorProcedure
     .input(z.object({ id: z.string().min(1).max(200) }))
     .query(async ({ input }) => getMemoryDetail(input.id)),
