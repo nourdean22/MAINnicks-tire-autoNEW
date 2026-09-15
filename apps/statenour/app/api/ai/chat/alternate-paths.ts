@@ -62,6 +62,14 @@ export async function runAlternatePaths(args: {
    * the pre-flush lane leaves it streaming. Defaults to `!!actionIntent`.
    */
   toolsExpected?: boolean;
+  /**
+   * 2026-09-15 · Codex #2335 P2: the streaming path pins arsenalWebSearch on
+   * step 0 for an explicit web-search ask (build-stream-config.ts). A buffered
+   * lane that drops that pin lets the model skip the search, after which the
+   * gate strips the very results the operator asked for. The pre-flush lane
+   * mirrors the pin when this is true.
+   */
+  webSearchIntent?: boolean;
   convId: string | undefined;
   traceId: string;
   modeOverride: ChatMode | undefined;
@@ -143,16 +151,40 @@ export async function runAlternatePaths(args: {
     const { isMultiPartQuestion } = await import(
       "@/lib/ai/chat/multi-agent-detect"
     );
-    // Mutually-exclusive gates · priority multi-agent > deep > regen > self-consistency.
+    // 2026-09-15 · Codex #2335 P2: the risk assessment is computed FIRST.
+    // It is pure and deterministic (same inputs the E3 shadow stamp in
+    // persist-assistant-turn.ts records), and once the operator has turned
+    // the evidence gate on, a buffer-worthy turn must reach a lane the gate
+    // can actually judge. The deep lane returns its reasoning stream BEFORE
+    // the enforcement block (it cannot call tools, so it has nothing to
+    // gate), and the regen / self-consistency lanes reach the block
+    // receipt-BLIND (blind suppresses blocking). So a buffer-worthy turn
+    // pre-empts those three and takes the receipted pre-flush lane.
+    let preflushRisk: import("@/lib/ai/chat/turn-risk").TurnRiskAssessment | null = null;
+    if (__preflushLane) {
+      const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
+      preflushRisk = assessTurnRisk(userContent, {
+        toolsExpected: args.toolsExpected ?? Boolean(actionIntent),
+        intent: turnSignal.intent,
+      });
+    }
+    const mustGate = Boolean(preflushRisk?.buffer);
+
+    // Mutually-exclusive gates · priority multi-agent > pre-flush (only when
+    // the gate must act) > deep > regen > self-consistency. Multi-agent keeps
+    // the top: a decomposition is a different product behaviour, and its
+    // winner still passes through the (blind) enforcement block below.
     const multiAgentOn =
       __multiAgentAutoFlag && isMultiPartQuestion(userContent);
     const deepOn =
       !multiAgentOn &&
+      !mustGate &&
       __deepReasonFlag &&
       turnSignal.complexity === "complex" &&
       (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
     const regenOn =
       !multiAgentOn &&
+      !mustGate &&
       !deepOn &&
       __verifiedRegenFlag &&
       shouldGateForIntent(
@@ -160,25 +192,14 @@ export async function runAlternatePaths(args: {
       );
     const selfConsistencyOn =
       !multiAgentOn &&
+      !mustGate &&
       !deepOn &&
       !regenOn &&
       __selfConsistencyFlag &&
       (turnSignal.intent === "factual" ||
         turnSignal.intent === "decision" ||
         turnSignal.intent === "analytical");
-    // Lowest priority: every other lane already buffers. Pure + deterministic
-    // (same inputs the E3 shadow stamp in persist-assistant-turn.ts records),
-    // so the share of turns this lane would take is a number before it is on.
-    let preflushOn = false;
-    let preflushRisk: import("@/lib/ai/chat/turn-risk").TurnRiskAssessment | null = null;
-    if (__preflushLane && !multiAgentOn && !deepOn && !regenOn && !selfConsistencyOn) {
-      const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
-      preflushRisk = assessTurnRisk(userContent, {
-        toolsExpected: args.toolsExpected ?? Boolean(actionIntent),
-        intent: turnSignal.intent,
-      });
-      preflushOn = preflushRisk.buffer;
-    }
+    const preflushOn = mustGate && !multiAgentOn;
 
     // v10.0.534 · action requests must NEVER route to a reasoning path —
     // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
@@ -373,11 +394,25 @@ export async function runAlternatePaths(args: {
         // is not a better draft, it is a draft that exists BEFORE the flush so
         // the enforcement block below can strip an unearned claim.
         const { generateText } = await import("ai");
+        // Mirror build-stream-config.ts's prepareStep ladder for the one
+        // force this lane can meet: an explicit web-search ask pins
+        // arsenalWebSearch on step 0 (Codex #2335 P2 — without the pin the
+        // model may skip the search, and the gate then strips the very
+        // results the operator asked for). The last allowed step is
+        // text-only so the buffered reply always ends in prose.
+        const lastStep = (mode === "deep" ? 5 : 3) - 1;
+        const webSearchPinned = Boolean(args.webSearchIntent);
         const r = await generateText({
           ...genBase,
           experimental_telemetry: langfuseTelemetry({ functionId: "chat-evidence-preflush", privateMode }),
           system: finalSystemPrompt,
           temperature: turnSignal.temperature,
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === 0 && webSearchPinned
+              ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
+              : stepNumber >= lastStep
+                ? { toolChoice: "none" as const }
+                : { toolChoice: "auto" as const },
         } as Parameters<typeof generateText>[0]);
         winner = r.text;
         // Receipts for the gate: what fired and a digest of what came back.
@@ -401,6 +436,7 @@ export async function runAlternatePaths(args: {
           register: preflushRisk.register,
           reasons: preflushRisk.reasons,
           toolCalls: laneToolCalls.length,
+          webSearchPinned,
         });
       }
 

@@ -55,9 +55,17 @@ shaped values, `objects[].id`, `source.uri`, claim text).
 the PreToolUse policy denies `gh pr merge`, REST/GraphQL merge and auto-merge, `/merges`, rulesets,
 branch protection, secrets, workflow toggles, `gh alias set`/`extension install`, any push to a branch
 other than `night-shift/*`, and any Write/Edit of a judge in `config/agent-os/evaluator-paths.json`
-(plus `.claude/settings.json` and `lefthook.yml`, which decide whether guards run at all). Probed
-through the real hook in `scripts/agent-os/nightShiftPolicy.test.mjs`. The credential-level boundary
-(a GitHub identity that structurally cannot merge) is still the stronger fix and remains open.
+(plus `.claude/settings.json` and `lefthook.yml`, which decide whether guards run at all). The same
+judge list is denied through the shell (Codex review of #2335): a redirect into a judge, `tee`,
+`sed -i`/`perl -pi`, `cp`/`mv`/`rm`, `Set-Content`/`Out-File`/`Copy-Item`, `git rm`/`mv`/`checkout`
+of the file, inline `node -e`/`python -c` naming it, and `curl -o`/`-OutFile` sinks — and the
+engine's read-only skip no longer swallows `cat x > judge` (a redirect is a write). Reading or
+running a judge stays allowed. Probed through the real hook in
+`scripts/agent-os/nightShiftPolicy.test.mjs`. Residual, stated on purpose: a script file the run
+authors that writes a judge path without naming it in the command is beyond any command-text hook;
+`evaluator-separation.yml` catches that after the push, and the merge ban holds regardless. The
+credential-level boundary (a GitHub identity that structurally cannot merge) is still the stronger
+fix and remains open.
 
 ## Operating it
 

@@ -21,7 +21,8 @@
  *  3. Read-only mention scan — a single unchained search/print command
  *     (`rg -n -- "--no-verify" scripts/`, `git log --grep "reset --hard"`)
  *     cannot execute anything; command rules are skipped for it. Any chaining
- *     character (; & | backtick newline $() disables the skip.
+ *     character (; & | backtick newline $() disables the skip — and so does a
+ *     `>` redirect, which turns a read into a write (2026-09-15).
  *
  * Rule shapes (config/agent-os/policy.json):
  *   pattern             — regex vs the (preprocessed) shell command string
@@ -55,7 +56,12 @@ export function loadPolicy(path = POLICY_PATH) {
  * @returns {string|null} the command to match, or null to skip command rules entirely.
  */
 export function preprocessCommand(command) {
-  const chained = /[;&|`\n]|\$\(/.test(command);
+  // 2026-09-15 (Codex #2335 P1): an output redirect is a WRITE, so `>` ends
+  // the read-only skip too. `cat evil.json > config/agent-os/policy.json`
+  // started with `cat`, contained no chain character, and skipped every
+  // command rule — a judge could be overwritten through the one path the
+  // engine had declared harmless.
+  const chained = /[;&|`\n>]|\$\(/.test(command);
   // A single, unchained read-only tool invocation is mention, not execution.
   if (
     !chained &&

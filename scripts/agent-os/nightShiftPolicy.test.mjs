@@ -28,7 +28,12 @@ const ROOT = resolve(HERE, "..", "..");
 const policy = loadPolicy();
 const NIGHT = "C:/Users/nourd/NOURCITY/.worktrees/night-shift-2026-09-15";
 const NORMAL = "C:/Users/nourd/NOURCITY/.claude/worktrees/stack-architecture-research-02f76c";
-const NIGHT_RULES = ["night-shift-no-merge", "night-shift-push-scope", "night-shift-no-judge-edits"];
+const NIGHT_RULES = [
+  "night-shift-no-merge",
+  "night-shift-push-scope",
+  "night-shift-no-judge-edits",
+  "night-shift-no-judge-edits-shell",
+];
 
 const ruleById = (id) => {
   const r = policy.rules.find((x) => x.id === id);
@@ -74,6 +79,27 @@ test("drift: the judge-edit rule covers EVERY path in evaluator-paths.json (plus
   assert.ok(!probe("apps/nickstire/client/src/pages/Home.tsx").denied, "a product file must stay editable");
 });
 
+test("drift (shell arm): a redirect INTO every evaluator path is denied; reading or running the same path is not", () => {
+  // Codex #2335 P1: the Write/Edit rule never saw a shell write. The shell
+  // arm is built from the same evaluator-paths.json list, so a new judge
+  // added there without regenerating the arm shows up here, not in prod.
+  const ev = JSON.parse(readFileSync(resolve(ROOT, "config", "agent-os", "evaluator-paths.json"), "utf8"));
+  const rule = ruleById("night-shift-no-judge-edits-shell");
+  const probe = (command) => evaluate({ toolName: "Bash", command, cwd: NIGHT }, policy);
+  for (const entry of [...ev.evaluatorPaths, ".claude/settings.json", "lefthook.yml"]) {
+    const sample = entry.endsWith("/") ? `${entry}some-file.ts` : entry;
+    assert.equal(probe(`echo x > ${sample}`).rule?.id, rule.id, `shell write not covered: ${entry}`);
+    assert.equal(probe(`printf x | tee ${sample}`).rule?.id, rule.id, `tee not covered: ${entry}`);
+    assert.ok(!probe(`cat ${sample}`).denied, `reading a judge must stay allowed: ${entry}`);
+    assert.ok(!probe(`git diff -- ${sample}`).denied, `diffing a judge must stay allowed: ${entry}`);
+  }
+  // The read-only skip used to swallow `cat x > judge` whole (starts with cat,
+  // no chain character). A redirect is a write; it must reach the rules now.
+  assert.equal(probe("cat evil.json > config/agent-os/policy.json").rule?.id, rule.id);
+  // positive control: the same redirect into a product file is fine
+  assert.ok(!probe("cat notes.txt > apps/nickstire/client/src/pages/Home.tsx").denied);
+});
+
 test("end-to-end through the real hook: exit 2 + attribution inside the night-shift cwd, exit 0 outside", () => {
   const hook = resolve(HERE, "pretool.mjs");
   // Strip GIT_* so a hook-spawned process can never touch the real repo state
@@ -92,7 +118,20 @@ test("end-to-end through the real hook: exit 2 + attribution inside the night-sh
 
   const judge = run("Edit", { file_path: `${NIGHT}/apps/nickstire/goals/index.ts` }, NIGHT);
   assert.equal(judge.status, 2);
-  assert.match(judge.stderr, /BLOCKED by repo policy: night-shift-no-judge-edits/);
+  assert.match(judge.stderr, /BLOCKED by repo policy: night-shift-no-judge-edits\b/);
+
+  // The shell shapes Codex #2335 P1 showed slipping past the Write/Edit rule.
+  for (const command of [
+    "cat evil.json > config/agent-os/policy.json",
+    "sed -i 's/night-shift-no-merge//' config/agent-os/policy.json",
+    "Set-Content -Path .claude/settings.json -Value '{}'",
+  ]) {
+    const shell = run("Bash", { command }, NIGHT);
+    assert.equal(shell.status, 2, `expected exit 2 for ${command}: ${shell.stderr}`);
+    assert.match(shell.stderr, /BLOCKED by repo policy: night-shift-no-judge-edits-shell/);
+  }
+  const readJudge = run("Bash", { command: "cat config/agent-os/policy.json" }, NIGHT);
+  assert.equal(readJudge.status, 0, `reading a judge must pass: ${readJudge.stderr}`);
 
   const ownBranch = run("Bash", { command: "git push -u origin night-shift/2026-09-15" }, NIGHT);
   assert.equal(ownBranch.status, 0, `own-branch push must pass: ${ownBranch.stderr}`);
