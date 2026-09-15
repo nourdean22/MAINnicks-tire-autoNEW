@@ -244,7 +244,7 @@ entity focus in three URL channels (`?tab=`, `?focus=`, `#hash`), no selection m
 - **Kinds are a closed registry** (`lib/ui/entity-ref.ts`). Add a kind only with a real read behind it.
 - **A page that renders its own panel for a kind declares it** (`useInspectorOwnership(["person"])`, `/people`) — the host stays silent there and the page answers the same URL.
 - **Chrome:** `InspectorFrame` — docked 380px panel at ≥1280px (reserves `--inspector-lane`, docks left of the Nick pane via `--nick-pane-open-w`), bottom sheet below (z 60/61). Do not add a 21st overlay; render inside this one.
-- **Non-content states are four, and look different:** loading · error (`ERROR` provenance, code only, never the raw message) · not-found (`ZERO`) · no-renderer-yet (`UNMEASURED`). Gallery: `/system/chat-states`.
+- **Non-content states are four, and look different:** loading · error (`ERROR` provenance, code only, never the raw message) · not-found (`ZERO`) · no-renderer-yet (`UNMEASURED`). Gallery: `/system/ui-lab` (frozen clock; `/system/chat-states` is pinned by screenshot baselines and stays chat-only).
 - **Numbers:** `<Metric result={MetricResult<number>} spec={{ baseline, range, window, unit, higherIsBetter }} />` — `unavailable` renders "unknown", never a zero; no baseline → no delta.
 
 ## UI Constitution (2026-09-15)

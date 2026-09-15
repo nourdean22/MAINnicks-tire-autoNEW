@@ -1,6 +1,6 @@
 // Mutation receipt (2026-09-15): cron-inspector.tsx zero-runs branch disabled (`h.counts.total === -1`) so an empty
-// window renders the metrics -> 1 failed | 3 passed; red: "zero runs is a ZERO empty state" expected not to contain
-// 'data-metric-status' (the unavailable metric rendered over nothing). Restored byte-for-byte from the scratchpad copy.
+// window renders the metrics -> 1 failed | 3 passed; red: "zero runs is a ZERO empty state" expected the markup to
+// contain 'data-provenance="ZERO"' (the metrics rendered over nothing instead). Restored byte-for-byte from the scratchpad copy.
 /**
  * CronInspector states (2026-09-15). Two reads: the deck row and the run
  * history. A name the deck does not know is NOT-FOUND (not an empty

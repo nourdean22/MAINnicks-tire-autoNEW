@@ -175,17 +175,23 @@ registry (`components/inspector/inspector-registry.tsx`), and renders `Inspector
   and the page's own panel answers the URL -- how `/people` keeps its dossier panel and still becomes
   URL-addressable.
 
-### 3.4 Renderers shipped (the three flagship slices)
+### 3.4 Renderers shipped (five kinds, two slices)
 
 | Kind | Read | Shows | Entry points wired |
 |---|---|---|---|
 | `memory` | new `trpc.brain.memoryById` -> `lib/services/brain/memory-detail.ts` (soft-delete filtered) | content, category, evidence class + provenance, trust tier, seen x N, age, TTL, validity interval, supersedes / superseded-by chain, neighbourhood | Cmd+K semantic hits; Brain "Changed" rows; the graph node panel's Inspect action; any `?inspect=memory:` link |
-| `task` | `trpc.task.byId` | next physical action, definition of done, mission, status, due, effort/energy/context, waiting-on, priority explanation string | Missions task rows (44px eye button; title keeps edit, pencil keeps the sheet), keyboard from the mission board scope, chat tool links via the bridge fix |
-| `person` | `trpc.task.personProfile` (page-owned on `/people`) | the existing dossier panel, now at `?inspect=person:<id>` | People list rows |
+| `task` | `trpc.task.byId` (now `activeOnly`; carries `priorityBreakdown` + `priorityManual`) | next physical action, definition of done, mission, status, due, effort/energy/context, waiting-on, and WHY: the scorer's per-term breakdown (`PriorityBreakdownView`: terms largest-first with bars, multipliers, `Σ × factor → score`), the manual-override line, or the stored string as the deploy-window fallback | Missions task rows (44px eye button; title keeps edit, pencil keeps the sheet), keyboard from the mission board scope, chat tool links via the bridge fix, Home brief lead (Inspect beside the CTA) |
+| `person` | `trpc.task.personProfile` (page-owned on `/people`, statically via `ROUTE_OWNED_KINDS`) | the existing dossier panel, now at `?inspect=person:<id>` | People list rows |
+| `alert` | `trpc.brain.memoryById` (alerts ARE BrainMemory rows) | category, age, content, key, evidence chip; verbs: resolve (two-tap, soft-delete, closes) · mute category 7d — the ActiveAlertsCard's procedures | `/system/alerts` rows (eye button, selection scope) |
+| `cron` | `trpc.systemAutomation.cronDeck` (row) + `cronRunHistory` (7d, 12 runs) | schedule, mode / kill state, description, last + next run, success-rate / median / p95 as Metrics (95-100 band), counts, runs with error previews; ZERO empty state for no runs, not-found for a name the deck lacks | `/system/crons` rows (eye button in the name cell, per-category selection scopes) |
 
-Actions available on all three: Open on its page · Ask Nick (prefilled `/chat?prompt=`) · Add to workset ·
-Copy link. Mutations (complete / snooze / park) stay page-provided until a global dispatch exists; the
-footer says so instead of showing dead buttons.
+Actions available on every kind: Open on its page · Ask Nick (prefilled `/chat?prompt=`) · Add to workset ·
+Copy link (the object's canonical route). **Page-lent actions** (slice 2): a page registers verbs for a kind
+with `useRegisterInspectorActions(kind, actions)` (store `pageActions`, released on unmount); the Missions
+board lends complete / snooze-tomorrow / snooze-next-Monday through its OWN `useMissionDispatch` handlers,
+so the inspector runs the board's optimistic update, completion prompt and telemetry — one mutation path.
+Off the board the footer says where to act instead of showing dead buttons. Alert verbs are inspector-owned
+because the list had none; cron run-now / kill stay on the row, where their pending state and confirm live.
 
 ### 3.5 Workset
 
@@ -210,8 +216,35 @@ cadence line ("usual every 8-12d · current gap 29d").
 - **Page archetypes** -- a layout prop that no page consumes is a knip orphan. The table stands as design
   intent (Command / Workspace / Stream / Lab / Control Tower / Utility); adopt it when Brain or People are
   restructured.
-- **Desktop left rail, Time Travel scrubber, Counterfactual mode, semantic zoom, priority breakdown,
-  NourUI protocol, UI Lab route** -- see §5.
+- **Desktop left rail, Time Travel scrubber, Counterfactual mode, semantic zoom, NourUI protocol** --
+  see §5. (Priority breakdown and the UI Lab route were on this list in slice 1; both shipped in slice 2.)
+
+### 3.8 Hostile review of slice 1 — what it found, what changed
+
+An adversarial read-only pass over the slice-1 diff (2 P1, 8 P2, 8 P3; none in `tsc`, all in behaviour)
+landed as commit `ba227588a`, each fix with a test where the shape allows:
+
+- Selection / focus / peek survived route changes and could not be cleared off a scoped page → the hook's
+  cleanup calls `resetTransient()`; Clear falls back to the store.
+- `/people` deep links SSR-rendered the global sheet over the dossier (ownership was effect-time) →
+  `ROUTE_OWNED_KINDS` is static; the host renders nothing until mounted, which also ends the desktop
+  scrim-then-dock flash.
+- One Esc closed two layers (MORE sheet never moves focus into itself; the Nick pane's window listener) →
+  the hook yields when any foreign modal is open on the document and while the pane is open.
+- Tab-reached rows (`role="button"`) ignored Enter → the grammar adopts the DOM-focused row.
+- The docked panel was overlapped by the FAB and the selection bar, and covered content with the Nick pane
+  open → the lane is panel + pane width; the bar and the FAB stand clear of it.
+- Sheet a11y: two controls named "Close inspector", no focus move → scrim `aria-hidden`/`tabIndex=-1`,
+  focus lands on the header close button.
+- `getTaskById` had no soft-delete filter (a deleted task rendered as live from a stale workset chip) →
+  `findFirst` + `activeOnly`; `task.byId` id cap 200; a deleted `supersededBy` is no successor.
+- Palette Inspect / Workset went through `router.push` (scroll-to-top, no replace) → `openInspector`;
+  store setters no-op on equal input; Copy link copies the canonical route; peek skipped for page-owned kinds.
+- `font-[var(--font-display)]` was being read as a font-WEIGHT arbitrary value and dropped by
+  tailwind-merge against `font-bold` (visible in the UI Lab render) → the `.font-display` class.
+
+Not taken from the review: recolouring the graph panel's `prediction` chip back to violet (the header of
+`lib/brain/evidence-label.ts` records the change; zinc is the doctrine — no purple as "AI").
 
 ---
 
@@ -250,16 +283,21 @@ entity-actions}.ts`, `lib/state/{inspector-store,workset-store}.ts`, `lib/brain/
 
 ## 5. Build order after this branch (NOW / NEXT / LATER / KILL)
 
-**NOW (this branch):** substrate + memory/task/person slices + Reality Mode + Workset + `/proof` nav.
+**NOW (this branch):** slice 1 — substrate + memory/task/person slices + Reality Mode + Workset + `/proof`
+nav; slice 2 — the hostile-review fixes (§3.8), `/system/ui-lab`, the priority breakdown + page-lent
+actions, alert + cron inspectors, Inspect on the Home brief lead.
 
 **NEXT:**
-1. Alert / cron / tool inspectors (System flagship): `brain.activeAlerts` has resolve/mute; crons have
-   kill switches; tools have the registry -- each is a by-id read away.
-2. Task mutations in the inspector via a global dispatch (extract from `useMissionDispatch`).
-3. `ChangeSet` with Brain's Changed view as the second consumer; then People ("cadence crossed threshold").
-4. Priority breakdown: refactor `scoreTaskPriority` to return per-term contributions; render in the task inspector.
-5. Base UI 1.8 + React 19.3 dependency PR; then `<ViewTransition>` on row -> inspector only.
-6. The program's §5.1 type floor on `bottom-tab-bar.tsx` / `more-sheet.tsx` (9px -> 11px).
+1. Tool inspector (kind `tool`, the registry at `/system/tools` -- the last System kind without a renderer)
+   and a `device` renderer once the camera-bridge heartbeats land (ADR-0017).
+2. `ChangeSet` with Brain's Changed view as the second consumer; then People ("cadence crossed threshold").
+3. Base UI 1.8 + React 19.3 dependency PR; then `<ViewTransition>` on row -> inspector only.
+4. The program's §5.1 type floor on `bottom-tab-bar.tsx` / `more-sheet.tsx` (9px -> 11px) -- with the
+   chat-states screenshot baselines re-cut in the same PR, since they pin the bottom chrome.
+5. `execution-panel.tsx` still carries its private copy of the snooze presets; import
+   `lib/missions/snooze-presets.ts` there when that file is next touched.
+6. A browser-level test for the selection grammar (route-change reset, one-Esc-one-layer) -- the two P1s
+   of §3.8 live in DOM code that the Node vitest lane cannot exercise; Playwright is the instrument.
 
 **LATER:** Time Travel scrubber (after Brain Wave 2 stamps `valid_from`); page archetypes on the first
 restructured page; TanStack Virtual on the first named long list; Observable Plot with the Stats surgery;

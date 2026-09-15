@@ -1,20 +1,25 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-15 (UI workbench slice 1 on top of the camera vision wave 0)
+**Updated:** 2026-09-15 (UI workbench slices 1 + 2 on top of the camera vision wave 0)
 
-## UI workbench slice 1 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf`, PR pending)
+## UI workbench slices 1 + 2 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf`, one draft PR)
 **Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical
 slices. Spec + verdict: `docs/design/ui-workbench-2026-09-15.md` (read THAT before proposing any inspector,
 drawer, selection or "spatial" work). Ship entry: RECONCILIATION top.
-**What now exists:** `?inspect=<kind>:<id>` opens ONE inspector for memory / task / person from any page
-(`components/inspector/inspector-host.tsx`, mounted in the layout); rows with `data-entity` inside a
-`[data-selection-scope]` get j/k/Space/Enter/x; ⌘K leads with the focused object's actions; a workset shelf;
-Reality Mode (⌘K → Modes) renders provenance inline; `/proof` is in NAV; the chat bridge reads `?inspect=`.
-**Next (in order, spec §5):** alert/cron/tool inspectors (System flagship, each a by-id read away) · task
-mutations in the inspector via a shared dispatch extracted from `useMissionDispatch` · ChangeSet with Brain's
-Changed view as the second consumer · priority breakdown (`scoreTaskPriority` per-term) · Base UI 1.8 + React
-19.3 dependency PR, then `<ViewTransition>` on row → inspector only · the §5.1 type floor on
-`bottom-tab-bar.tsx` / `more-sheet.tsx` (9px → 11px, still open).
+**What now exists:** `?inspect=<kind>:<id>` opens ONE inspector for memory / task / person / alert / cron
+from any page (`components/inspector/inspector-host.tsx`, mounted in the layout; registry in
+`inspector-registry.tsx`); rows with `data-entity` inside a `[data-selection-scope]` get j/k/Space/Enter/x
+(Brain Changed, Missions, People, /system/alerts, /system/crons); ⌘K leads with the focused object's actions;
+a workset shelf; Reality Mode (⌘K → Modes) renders provenance inline; `/proof` is in NAV; the chat bridge
+reads `?inspect=`; the task inspector shows the scorer's per-term breakdown (`task.byId` →
+`priorityBreakdown`) and runs the Missions board's complete / snooze through page-lent actions
+(`useRegisterInspectorActions`); `/system/ui-lab` is the primitives gallery (frozen clock). Slice-1 hostile
+review: 18 findings, all fixed in `ba227588a` — spec §3.8 lists them; read it before touching the hook.
+**Next (in order, spec §5):** `tool` inspector (`/system/tools` registry) · ChangeSet with Brain's Changed
+view as the second consumer · Base UI 1.8 + React 19.3 dependency PR, then `<ViewTransition>` on row →
+inspector only · the §5.1 type floor on `bottom-tab-bar.tsx` / `more-sheet.tsx` with the chat-states
+baselines re-cut in the same PR · `execution-panel.tsx` → `lib/missions/snooze-presets.ts` · a Playwright
+case for route-change reset + one-Esc-one-layer (DOM code the Node lane cannot see).
 **Not this branch's, reproduced on `origin/main` in the container:** `tests/repo/obsidian-ingest-server-only`
 ("chain moved: persistKnowledgeCandidate missing") and `check:policy-coverage` (`server-only` under plain tsx
 at `lib/ai/budget.ts:9`). CI was green on the same code (#2334); if CI is red on these here, it is the

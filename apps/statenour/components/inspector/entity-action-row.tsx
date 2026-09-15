@@ -13,7 +13,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Bookmark, BookmarkCheck, Brain, ExternalLink, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,6 @@ const ICON: Record<EntityAction["id"], typeof Brain> = {
 
 export function EntityActionRow({ entities, labelOf, extra, compact, className }: EntityActionRowProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const worksetAdd = useWorksetStore((s) => s.add);
   const worksetRemove = useWorksetStore((s) => s.remove);
   const worksetEntries = useWorksetStore((s) => s.entries);
@@ -93,7 +92,7 @@ export function EntityActionRow({ entities, labelOf, extra, compact, className }
           return;
       }
     },
-    [entities, labelOf, router, pathname, worksetAdd, worksetRemove, allInWorkset],
+    [entities, labelOf, router, worksetAdd, worksetRemove, allInWorkset],
   );
 
   if (entities.length === 0) return null;
