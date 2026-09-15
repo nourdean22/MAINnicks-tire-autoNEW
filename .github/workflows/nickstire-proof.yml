@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@ea9139fb6e2f2fb4f4d55ac3bfcc5f0d94d21b59 # v4.2.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -71,7 +71,7 @@ jobs:
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
         # The Argos CLI is used via dlx, pinned; no SDK dependency is added to the app.
-        run: pnpm dlx @argos-ci/cli@3.4.0 upload apps/nickstire/test-results/argos --token "$ARGOS_TOKEN" --build-name nickstire-critical-pages
+        run: pnpm dlx @argos-ci/cli@6.9.4 upload apps/nickstire/test-results/argos --token "$ARGOS_TOKEN" --build-name nickstire-critical-pages
 
       - name: post episode results to the evidence ledger
         if: ${{ always() && env.STATENOUR_SYNC_KEY != '' }}
@@ -82,7 +82,7 @@ jobs:
           OUTCOME: ${{ steps.pw.outcome }}
         run: node apps/nickstire/scripts/proof/post-run-evidence.mjs
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: playwright-results
@@ -115,7 +115,7 @@ jobs:
             --outputFolder /sitespeed.io \
             /config/urls.txt
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: sitespeed-desktop

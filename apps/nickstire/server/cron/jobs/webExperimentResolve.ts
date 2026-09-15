@@ -46,6 +46,10 @@ export async function gatherArmCounts(def: WebExperimentDefinition): Promise<Arm
     const result = (await d.execute(q)) as unknown;
     return Array.isArray(result) && Array.isArray(result[0]) ? (result[0] as Record<string, unknown>[]) : [];
   };
+  // MySQL/TiDB DATETIME literal — an ISO string with 'T' and a trailing 'Z' is
+  // not a portable comparison operand. Exposures before pre-registration are
+  // excluded by construction (there are none), so the bound is a guard, not a filter.
+  const since = new Date(def.preregisteredAt).toISOString().slice(0, 19).replace("T", " ");
 
   const out: ArmMetricCounts[] = [];
   for (const arm of def.arms) {
@@ -57,7 +61,7 @@ export async function gatherArmCounts(def: WebExperimentDefinition): Promise<Arm
           AND sessionId IS NOT NULL
           AND JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.element')) = ${def.experimentId}
           AND JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.props.armId')) = ${arm.armId}
-          AND createdAt >= ${def.preregisteredAt}
+          AND createdAt >= ${since}
         GROUP BY sessionId
       ) exposed
     `);
@@ -73,7 +77,7 @@ export async function gatherArmCounts(def: WebExperimentDefinition): Promise<Arm
             AND sessionId IS NOT NULL
             AND JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.element')) = ${def.experimentId}
             AND JSON_UNQUOTE(JSON_EXTRACT(eventData, '$.props.armId')) = ${arm.armId}
-            AND createdAt >= ${def.preregisteredAt}
+            AND createdAt >= ${since}
           GROUP BY sessionId
         ) e
         JOIN customer_events c
