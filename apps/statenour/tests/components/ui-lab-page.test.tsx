@@ -18,8 +18,17 @@
  * a page that opened the sheet on load would trap every visit).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+
+// The fixture rows open the inspector through useInspector(), which reads
+// the app router — absent in a static render (the other inspector tests
+// stub it the same way).
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {} }),
+  usePathname: () => "/system/ui-lab",
+  useSearchParams: () => new URLSearchParams(""),
+}));
 
 import UiLabPage from "@/app/(mastery)/system/ui-lab/page";
 
@@ -55,6 +64,12 @@ describe("/system/ui-lab · the gallery shows every primitive", () => {
       expect(html, `missing ladder word ${word}`).toContain(word);
     }
     expect(html).toContain('aria-pressed="false"');
+  });
+
+  it("carries four fixture rows in a selection scope for the keyboard grammar (the e2e subject)", () => {
+    expect(html).toContain('data-selection-scope="ui-lab-fixtures"');
+    expect(count(html, 'data-entity="content:fx-')).toBe(4);
+    expect(count(html, 'role="button" tabindex="0" data-entity="content:')).toBe(4);
   });
 
   it("NEGATIVE CONTROL: the frame sheet is closed on load", () => {

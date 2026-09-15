@@ -39,6 +39,13 @@ export const FOCUSED_ATTR = "data-entity-focused";
 export const SELECTED_ATTR = "data-entity-selected";
 /** Dispatch on `window` to clear the current selection from anywhere (the action bar's Clear). */
 export const SELECTION_CLEAR_EVENT = "nour:selection-clear";
+/**
+ * Set on <html> while the document listener is attached — the host is
+ * Suspense-wrapped, so it can arm a commit AFTER the rest of the layout
+ * hydrated; a key pressed before that is lost. Tests wait on this instead
+ * of guessing (tests/e2e/selection-grammar.spec.ts).
+ */
+export const SELECTION_ARMED_ATTR = "data-selection-grammar";
 
 function cssEscape(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
@@ -268,7 +275,9 @@ export function useSelectionKeyboard(): void {
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener(SELECTION_CLEAR_EVENT, onClear);
+    document.documentElement.setAttribute(SELECTION_ARMED_ATTR, "1");
     return () => {
+      document.documentElement.removeAttribute(SELECTION_ARMED_ATTR);
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener(SELECTION_CLEAR_EVENT, onClear);
