@@ -2,6 +2,20 @@ import { create } from "zustand";
 import { formatEntityRef, sameEntity, type EntityKind, type EntityRef } from "@/lib/ui/entity-ref";
 
 /**
+ * An action the CURRENT PAGE lends to the inspector for one kind — the
+ * Missions board registers complete / snooze for `task` through its own
+ * dispatch, so the inspector runs the page's mutation path (optimistic
+ * board update, completion prompt, telemetry) instead of a second one.
+ * `run` receives the entity id; the inspector invalidates its own read after.
+ */
+export interface InspectorPageAction {
+  id: string;
+  label: string;
+  run: (id: string) => void | Promise<void>;
+  tone?: "primary" | "default";
+}
+
+/**
  * Inspector store · 2026-09-15 (UI workbench slice 1).
  *
  * Cross-component UI state for the universal inspector, in the Zustand
@@ -25,6 +39,8 @@ export interface InspectorState {
   ownedKinds: EntityKind[];
   realityMode: boolean;
   hydrated: boolean;
+  /** Per kind, the actions the current page registered (see InspectorPageAction). */
+  pageActions: Partial<Record<EntityKind, InspectorPageAction[]>>;
 
   setPeek: (ref: EntityRef | null) => void;
   togglePeek: (ref: EntityRef) => void;
@@ -37,6 +53,8 @@ export interface InspectorState {
   hydrate: () => void;
   /** Route change: peek, focus and selection belong to the page that made them. */
   resetTransient: () => void;
+  /** Register a page's actions for a kind; returns the release. A second registration replaces the first. */
+  registerPageActions: (kind: EntityKind, actions: InspectorPageAction[]) => () => void;
 }
 
 function sameKeys(a: readonly string[], b: readonly string[]): boolean {
@@ -71,6 +89,7 @@ export const useInspectorStore = create<InspectorState>((set, get) => ({
   ownedKinds: [],
   realityMode: false,
   hydrated: false,
+  pageActions: {},
 
   setPeek: (ref) => set({ peek: ref }),
   togglePeek: (ref) => set((s) => ({ peek: sameEntity(s.peek, ref) ? null : ref })),
@@ -94,6 +113,19 @@ export const useInspectorStore = create<InspectorState>((set, get) => ({
     set({ selected: [], selectionScope: null });
   },
   resetTransient: () => set({ peek: null, focused: null, selected: [], selectionScope: null }),
+  registerPageActions: (kind, actions) => {
+    set((s) => ({ pageActions: { ...s.pageActions, [kind]: actions } }));
+    return () => {
+      // Release only what THIS registration put there — a later registration
+      // for the same kind must survive an earlier one's unmount.
+      if (get().pageActions[kind] !== actions) return;
+      set((s) => {
+        const next = { ...s.pageActions };
+        delete next[kind];
+        return { pageActions: next };
+      });
+    };
+  },
   ownKinds: (kinds) => set((s) => ({ ownedKinds: [...new Set([...s.ownedKinds, ...kinds])] })),
   releaseKinds: (kinds) => set((s) => ({ ownedKinds: s.ownedKinds.filter((k) => !kinds.includes(k)) })),
   setRealityMode: (on) => {

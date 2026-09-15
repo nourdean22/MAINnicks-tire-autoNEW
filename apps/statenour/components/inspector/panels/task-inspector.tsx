@@ -4,20 +4,27 @@
  * TaskInspector · the task as an object, not a row · 2026-09-15 (flagship slice 2).
  *
  * The Missions row is built for scanning; this is built for deciding: the
- * next physical action, the definition of done, the mission, due state, the
- * scorer's real explanation string (never a fabricated confidence — Home
- * doctrine §2, lib/home/operator-brief.ts), what it is waiting on, and how
- * long it has sat untouched. Mutations (complete, snooze, park) stay on the
- * row until a global dispatch exists — the footer says so rather than
- * showing dead buttons.
+ * next physical action, the definition of done, the mission, due state, what
+ * it is waiting on, how long it has sat untouched — and WHY it ranks where it
+ * does: the scorer's own per-term breakdown (lib/scoring/task-priority.ts
+ * `PriorityBreakdown`, carried by task.byId), never a fabricated confidence
+ * (Home doctrine §2). Mutations run through the PAGE's dispatch when the page
+ * lends them (Missions registers complete / snooze via
+ * useRegisterInspectorActions) so the board's own mutation path — optimistic
+ * update, completion prompt, telemetry — is the only one; elsewhere the
+ * footer says where to go instead of showing dead buttons.
  */
 
+import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { errorCodeOf } from "@/lib/services/metric-result";
-import type { EntityRef } from "@/lib/ui/entity-ref";
+import type { PriorityBreakdown } from "@/lib/scoring/task-priority";
+import { useInspectorStore, type InspectorPageAction } from "@/lib/state/inspector-store";
 import { formatAge } from "@/lib/ui/metric-datum";
+import { cn } from "@/lib/utils";
 import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import { EntityActionRow } from "@/components/inspector/entity-action-row";
+import { PriorityBreakdownView } from "@/components/inspector/priority-breakdown";
 import type { InspectorPanelProps } from "@/components/inspector/panels/memory-inspector";
 
 function dueLine(dueDate: string | null | undefined, now: Date): string | null {
@@ -43,33 +50,73 @@ function Row({ label, value, tone }: { label: string; value: string | null | und
   );
 }
 
+/** The page's lent actions, run then the inspector's own read invalidated. */
+function PageActions({ taskId, actions }: { taskId: string; actions: InspectorPageAction[] }) {
+  const utils = trpc.useUtils();
+  const [busy, setBusy] = useState<string | null>(null);
+  if (actions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2" data-inspector-page-actions={actions.length}>
+      {actions.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          disabled={busy !== null}
+          onClick={async () => {
+            setBusy(a.id);
+            try {
+              await a.run(taskId);
+              await utils.task.byId.invalidate({ id: taskId });
+            } finally {
+              setBusy(null);
+            }
+          }}
+          className={cn(
+            "inline-flex min-h-[44px] items-center rounded-lg border px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors md:min-h-[36px]",
+            a.tone === "primary"
+              ? "border-[var(--gold)]/40 bg-[var(--gold)]/10 text-gold hover:bg-[var(--gold)]/[0.16]"
+              : "border-glass text-fg-secondary hover:text-fg",
+            busy === a.id && "opacity-60",
+          )}
+        >
+          {a.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type TaskDetail = Record<string, unknown> & {
+  id: string;
+  title: string;
+  status: string;
+  nextPhysicalAction?: string | null;
+  finishCondition?: string | null;
+  dueDate?: string | Date | null;
+  effort?: string | null;
+  energyRequired?: string | null;
+  context?: string | null;
+  waitingOn?: string | null;
+  autoPriority?: number | null;
+  autoPriorityExplanation?: string | null;
+  effectivePriority?: number | null;
+  priorityBreakdown?: PriorityBreakdown | null;
+  priorityManual?: boolean;
+  manualPriorityOverride?: number | null;
+  lastTouchedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+  mission?: { title: string; domain: string } | null;
+  promiseTo?: string | null;
+};
+
 export function TaskInspector({ entity }: InspectorPanelProps) {
   const query = trpc.task.byId.useQuery({ id: entity.id }, { staleTime: 15_000, retry: 1 });
+  const pageActions = useInspectorStore((s) => s.pageActions.task);
   const now = new Date();
 
   if (query.isLoading) return <InspectorNotice state="loading" kind="task" />;
   if (query.isError) return <InspectorNotice state="error" kind="task" code={errorCodeOf(query.error)} />;
-  const t = query.data as
-    | (Record<string, unknown> & {
-        id: string;
-        title: string;
-        status: string;
-        nextPhysicalAction?: string | null;
-        finishCondition?: string | null;
-        dueDate?: string | Date | null;
-        effort?: string | null;
-        energyRequired?: string | null;
-        context?: string | null;
-        waitingOn?: string | null;
-        autoPriority?: number | null;
-        autoPriorityExplanation?: string | null;
-        lastTouchedAt?: string | Date | null;
-        createdAt?: string | Date | null;
-        mission?: { title: string; domain: string } | null;
-        promiseTo?: string | null;
-      })
-    | null
-    | undefined;
+  const t = query.data as TaskDetail | null | undefined;
   if (!t) {
     return (
       <div className="space-y-4">
@@ -84,6 +131,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
   const meta = [t.effort, t.energyRequired ? `${t.energyRequired} energy` : null, t.context].filter(Boolean).join(" · ");
   const why = t.autoPriorityExplanation?.replace(/^picked because: /, "") ?? null;
   const nextAction = t.nextPhysicalAction && t.nextPhysicalAction !== t.title ? t.nextPhysicalAction : null;
+  const manualScore = typeof t.manualPriorityOverride === "number" ? t.manualPriorityOverride : null;
 
   return (
     <div className="space-y-5" data-task-inspector={t.id}>
@@ -101,6 +149,8 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
         <h2 className="font-display text-xl font-bold leading-tight text-fg">{t.title}</h2>
       </header>
 
+      {pageActions && pageActions.length > 0 ? <PageActions taskId={t.id} actions={pageActions} /> : null}
+
       <dl className="space-y-3">
         <Row label="next physical action" value={nextAction} tone="gold" />
         <Row label="definition of done" value={t.finishCondition ?? null} />
@@ -113,7 +163,14 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
 
       <section aria-label="Why">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-tertiary">why this priority</p>
-        {why ? (
+        {t.priorityManual && manualScore !== null ? (
+          <p className="font-mono text-[12px] text-fg-secondary" data-priority-manual={manualScore}>
+            manual override {manualScore} · set by you; the scorer is not consulted
+          </p>
+        ) : t.priorityBreakdown ? (
+          <PriorityBreakdownView breakdown={t.priorityBreakdown} />
+        ) : why ? (
+          // An older server payload (deploy window) carries only the string.
           <p className="font-mono text-[12px] text-fg-secondary">
             {why}
             {typeof t.autoPriority === "number" ? ` → ${t.autoPriority}` : ""}
@@ -124,7 +181,9 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
       </section>
 
       <EntityActionRow entities={[entity]} labelOf={() => t.title} />
-      <p className="font-mono text-[10px] text-fg-tertiary">complete · snooze · park stay on the Missions row until a shared dispatch exists</p>
+      {!pageActions || pageActions.length === 0 ? (
+        <p className="font-mono text-[10px] text-fg-tertiary">complete · snooze · park run from the Missions board — open it there to act</p>
+      ) : null}
     </div>
   );
 }

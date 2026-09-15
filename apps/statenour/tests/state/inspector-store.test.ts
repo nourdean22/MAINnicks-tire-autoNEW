@@ -136,3 +136,20 @@ describe("identity · a set that changes nothing does not notify (review 2026-09
     expect(st.realityMode).toBe(true);
   });
 });
+
+describe("page actions (2026-09-15)", () => {
+  it("register → visible per kind; release removes only its own registration", () => {
+    const s = useInspectorStore.getState();
+    const first = [{ id: "complete", label: "complete", run: () => {} }];
+    const release1 = s.registerPageActions("task", first);
+    expect(useInspectorStore.getState().pageActions.task).toBe(first);
+    const second = [{ id: "snooze", label: "snooze", run: () => {} }];
+    const release2 = s.registerPageActions("task", second);
+    expect(useInspectorStore.getState().pageActions.task).toBe(second);
+    // A stale release (the first page unmounting late) must not drop the live one.
+    release1();
+    expect(useInspectorStore.getState().pageActions.task).toBe(second);
+    release2();
+    expect(useInspectorStore.getState().pageActions.task).toBeUndefined();
+  });
+});

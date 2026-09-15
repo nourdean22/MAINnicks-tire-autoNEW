@@ -60,27 +60,9 @@ export interface MissionTaskRowProps {
   rationale?: string;
 }
 
-/** Tomorrow at 6am local · the resurface cron flips WAITING→READY when
- *  snoozedUntil ≤ now · 6am gives the operator a soft morning re-entry
- *  rather than 12:01am churn. Pure helper · client-safe. */
-function tomorrow6am(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
-}
-
-/** Next Monday at 6am local · "next week" presets to the start of the
- *  next operator-cadence week (Mon · matches the brain-week mental model). */
-function nextMonday6am(): string {
-  const d = new Date();
-  const dow = d.getDay(); // 0 Sun · 1 Mon · ...
-  const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilNextMon);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
-}
-
+// 2026-09-15 · tomorrow6am / nextMonday6am moved to lib/missions/snooze-presets.ts
+// so the task inspector's page actions snooze to the same instants as this row.
+import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
 import { useMissionDispatch } from "@/app/(mastery)/missions/context/mission-dispatch-context";
 
 export function MissionTaskRow({

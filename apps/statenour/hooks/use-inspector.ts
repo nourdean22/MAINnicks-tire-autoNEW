@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useInspectorStore } from "@/lib/state/inspector-store";
+import { useInspectorStore, type InspectorPageAction } from "@/lib/state/inspector-store";
 import type { EntityKind, EntityRef } from "@/lib/ui/entity-ref";
 import { inspectHref, readInspect } from "@/lib/ui/inspect-url";
 
@@ -64,4 +64,15 @@ export function useInspectorOwnership(kinds: readonly EntityKind[]): void {
     ownKinds(list);
     return () => releaseKinds(list);
   }, [key, ownKinds, releaseKinds]);
+}
+
+/**
+ * Lend the current page's actions for a kind to the inspector (complete /
+ * snooze from the Missions dispatch, resolve / mute from the alerts page).
+ * Pass a MEMOISED array — the registration is keyed on its identity, and a
+ * fresh array per render would re-register per render.
+ */
+export function useRegisterInspectorActions(kind: EntityKind, actions: InspectorPageAction[]): void {
+  const register = useInspectorStore((s) => s.registerPageActions);
+  useEffect(() => register(kind, actions), [register, kind, actions]);
 }

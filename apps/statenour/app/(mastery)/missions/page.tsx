@@ -58,6 +58,7 @@ import { useMissionFilters } from "./hooks/use-mission-filters";
 import { useExecutionFocus } from "./hooks/use-execution-focus";
 import { useMissionActions } from "./hooks/use-mission-actions";
 import { MissionDispatchProvider } from "./context/mission-dispatch-context";
+import { MissionInspectorActions } from "./components/mission-inspector-actions";
 import { useMissionUIStore } from "./state/use-mission-ui-store";
 import { MissionModalsManager } from "./components/mission-modals-manager";
 import { missionBoardReadState } from "./mission-board-read-state";
@@ -196,6 +197,7 @@ function MissionsPageInner() {
 
   return (
     <MissionDispatchProvider actions={actions}>
+      <MissionInspectorActions />
       <div className="mx-auto w-full max-w-5xl space-y-4 xl:max-w-[1360px]">
         {!executionModeActive && (
           <PageHeader
