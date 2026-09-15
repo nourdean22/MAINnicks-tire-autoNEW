@@ -5290,6 +5290,16 @@
       "file": "apps/nickstire/goals/index.ts",
       "symbol": "GOAL_CONTRACTS",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The parsed goal-contract registry; the runtime consumer is goalContractFor in the same module (used by the web-experiment resolver). It is exported so shared/goalContract.test.ts can walk EVERY contract and pin its surfaces to registered routes and its hash to key order — a check that cannot be expressed through goalContractFor alone."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": null,
+      "reason": "STAGED GENERIC GATE (Dream-to-Proof wave, 2026-09-15) — the WHOLE MODULE has no runtime importer yet BY DESIGN. It is shared/reelApproval.ts with the reel nouns removed, staged dry-run so one door is hardened before the next autonomous lane (Night Shift proposal approval) exists; shared/approvalGate.test.ts pins it to agree with the live reel gate on 600 generated cases. Its first runtime consumer is the proposal-approval lane; routing the live reel gate through it is a separate, reviewable change to a publish control."
+    },
+    {
+      "file": "apps/nickstire/server/services/webExperimentFlags.ts",
+      "symbol": "WEB_EXPERIMENT_FLAGS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The literal experimentId -> FlagKey table; the runtime consumer is armedWebExperimentIds in the same module (router + resolver). Exported so webExperimentFlags.test.ts and shared/goalContract.test.ts can pin every literal to the naming convention and to FLAG_DEFINITIONS in both directions — the literal is what server/featureFlagReaders.test.ts greps for, so it must be a value a test can also hold to the rule."
     }
   ]
 }

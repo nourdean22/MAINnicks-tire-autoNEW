@@ -4,10 +4,11 @@
  * hash travels with every verdict, and a definition cannot be edited after
  * the fact without a diff someone reviews.
  *
- * A registered experiment is INERT until its feature flag is on
- * (`web_experiment_<id>` in server/services/featureFlags.ts). Off = control
- * renders, nothing is logged. That is the human sign-off: flipping the flag
- * is the decision to expose real customers.
+ * A registered experiment is INERT until its feature flag is on — the literal
+ * `web_experiment_<id>` key in server/services/webExperimentFlags.ts, defined
+ * in server/services/featureFlags.ts. Off = control renders, nothing is
+ * logged. That is the human sign-off: flipping the flag is the decision to
+ * expose real customers.
  *
  * Exposure and conversion both land in `customer_events` through the hook
  * the site already uses (useConversionTracking) — no new table, no new
@@ -59,11 +60,6 @@ export const WEB_EXPERIMENTS: readonly WebExperimentDefinition[] = [HOME_HERO_SU
 
 export function webExperimentById(id: string): WebExperimentDefinition | undefined {
   return WEB_EXPERIMENTS.find((e) => e.experimentId === id);
-}
-
-/** Flag key convention. Adding an experiment means adding its flag definition too. */
-export function webExperimentFlagKey(experimentId: string): string {
-  return `web_experiment_${experimentId.replace(/[^a-z0-9]+/gi, "_")}`;
 }
 
 /**

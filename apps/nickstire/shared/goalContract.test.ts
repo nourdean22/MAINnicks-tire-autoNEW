@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ALL_ROUTES } from "./routes";
 import { authorityFor, contractHash, gradeSatisfies, type GoalContract } from "./goalContract";
-import { WEB_EXPERIMENTS, webExperimentFlagKey } from "./webExperiments";
+import { WEB_EXPERIMENTS } from "./webExperiments";
 import { FLAG_DEFINITIONS } from "../server/services/featureFlags";
+import { WEB_EXPERIMENT_FLAGS } from "../server/services/webExperimentFlags";
 import { findConfoundsIn } from "./experimentKernel";
 import { GOAL_CONTRACTS, goalContractFor } from "../goals";
 
@@ -45,8 +46,12 @@ describe("web experiments are contract-bound and flag-gated", () => {
     expect(goalContractFor({ surfaces: ["/tires"], primaryMetric: "nonexistent_metric" })).toBeNull();
     expect(goalContractFor({ surfaces: ["/nowhere"], primaryMetric: "page_cta_primary_clicked" })).toBeNull();
   });
-  it("every experiment has a flag definition (off by default)", () => {
+  it("every experiment has a literal flag that is a defined flag (off by default)", () => {
     const keys = new Set(FLAG_DEFINITIONS.map((f) => f.key as string));
-    for (const e of WEB_EXPERIMENTS) expect(keys.has(webExperimentFlagKey(e.experimentId)), webExperimentFlagKey(e.experimentId)).toBe(true);
+    for (const e of WEB_EXPERIMENTS) {
+      const flag = WEB_EXPERIMENT_FLAGS[e.experimentId as keyof typeof WEB_EXPERIMENT_FLAGS];
+      expect(flag, `${e.experimentId} has no literal flag`).toBeDefined();
+      expect(keys.has(flag), flag).toBe(true);
+    }
   });
 });
