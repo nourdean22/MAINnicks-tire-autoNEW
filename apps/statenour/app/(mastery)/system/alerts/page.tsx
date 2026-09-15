@@ -29,6 +29,10 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 // procedure already shipped in the brain-domain slice). React Query
 // keys on `{ sinceDays }` so changing the window refetches.
 import { trpc } from "@/lib/trpc/client";
+// 2026-09-15 · UI workbench: rows are inspectable objects (resolve / mute
+// live in the alert inspector — this list had no verbs at all).
+import { Eye } from "lucide-react";
+import { useInspector } from "@/hooks/use-inspector";
 
 interface Alert {
   id: string;
@@ -124,6 +128,7 @@ export default function AlertsInspectorPage() {
 
   // Phase B.7a · React Query keys on `{ sinceDays }` · changing the
   // window refetches automatically. `limit:50` matches the legacy URL.
+  const { openInspector } = useInspector();
   const alertsQuery = trpc.brain.activeAlerts.useQuery({
     sinceDays,
     limit: 50,
@@ -339,13 +344,18 @@ export default function AlertsInspectorPage() {
         )}
 
         {totalVisible > 0 && (
-          <ul className="space-y-2 stagger-in">
+          <ul className="space-y-2 stagger-in" data-selection-scope="system-alerts">
             {flattened.map((alert) => {
               const meta = CATEGORY_META[alert.category];
               return (
                 <li
                   key={alert.id}
-                  className={"rounded-lg border p-3 " + (meta?.tint ?? "")}
+                  data-entity={`alert:${alert.id}`}
+                  data-entity-label={alert.content.slice(0, 80)}
+                  className={
+                    "rounded-lg border p-3 data-[entity-focused=true]:ring-1 data-[entity-focused=true]:ring-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06] " +
+                    (meta?.tint ?? "")
+                  }
                 >
                   <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-wider">
                     <span>
@@ -353,6 +363,14 @@ export default function AlertsInspectorPage() {
                     </span>
                     <span className="opacity-60">·</span>
                     <span className="opacity-80">{relTime(alert.createdAt)}</span>
+                    <button
+                      type="button"
+                      onClick={() => openInspector({ kind: "alert", id: alert.id })}
+                      aria-label="inspect alert"
+                      className="ml-auto inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 md:min-h-[28px] md:min-w-[28px]"
+                    >
+                      <Eye size={13} strokeWidth={2} />
+                    </button>
                   </div>
                   <p className="text-[12px] leading-snug">{alert.content}</p>
                 </li>

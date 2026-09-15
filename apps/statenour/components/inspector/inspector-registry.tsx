@@ -14,6 +14,8 @@ import type { EntityKind } from "@/lib/ui/entity-ref";
 import { MemoryInspector, type InspectorPanelProps } from "@/components/inspector/panels/memory-inspector";
 import { TaskInspector } from "@/components/inspector/panels/task-inspector";
 import { PersonInspector } from "@/components/inspector/panels/person-inspector";
+import { AlertInspector } from "@/components/inspector/panels/alert-inspector";
+import { CronInspector } from "@/components/inspector/panels/cron-inspector";
 
 export interface InspectorRenderer {
   kind: EntityKind;
@@ -24,6 +26,8 @@ export const INSPECTORS: Partial<Record<EntityKind, InspectorRenderer>> = {
   memory: { kind: "memory", Panel: MemoryInspector },
   task: { kind: "task", Panel: TaskInspector },
   person: { kind: "person", Panel: PersonInspector },
+  alert: { kind: "alert", Panel: AlertInspector },
+  cron: { kind: "cron", Panel: CronInspector },
 };
 
 export function inspectorFor(kind: EntityKind): InspectorRenderer | null {

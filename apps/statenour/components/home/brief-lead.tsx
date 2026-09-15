@@ -15,9 +15,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import type { BriefLeadSection } from "@/lib/home/operator-brief";
 import { cn } from "@/lib/utils/cn";
+import { useInspector } from "@/hooks/use-inspector";
 
 /** Section-kind accents — one semantic color per meaning, nothing else. */
 const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
@@ -39,6 +40,10 @@ export function BriefLead({
 }) {
   const [showWhy, setShowWhy] = useState(false);
   const [showAlternatives, setShowAlternatives] = useState(false);
+  // 2026-09-15 · a concrete task lead opens the universal task inspector in
+  // place: the scorer's per-term breakdown, next action, definition of done —
+  // without leaving Home. The CTA still goes to the board.
+  const { openInspector } = useInspector();
 
   if (loading) {
     return (
@@ -75,6 +80,18 @@ export function BriefLead({
               className="transition-transform duration-150 motion-safe:group-hover:translate-x-0.5"
             />
           </Link>
+        )}
+
+        {lead.taskId && (
+          <button
+            type="button"
+            onClick={() => openInspector({ kind: "task", id: lead.taskId! })}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-glass px-3 text-[12px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            data-brief-inspect={lead.taskId}
+          >
+            <Eye size={13} />
+            Inspect
+          </button>
         )}
 
         <button
