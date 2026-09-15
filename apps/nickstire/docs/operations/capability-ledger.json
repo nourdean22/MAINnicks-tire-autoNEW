@@ -1775,6 +1775,25 @@
         "deploymentId": "railway MAINnicks-tire-auto main auto-deploy of dd61b8a1d (#2334), health deploy.commit == sha verified by the proof workflow run 34983700370"
       },
       "verificationExpiresAt": "2026-10-06"
+    },
+    {
+      "capabilityId": "proof-hidden-holdout-and-time-machine",
+      "name": "Hidden holdout evaluator (episodes the optimising agent cannot see) + Repo Time Machine (the proof lane read back per judged commit)",
+      "owner": "operator",
+      "operationalState": "integration_verified",
+      "codeState": "merged",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-09-15",
+      "evidence": {
+        "codeCommit": "#2342 (branch repo/hidden-holdout-time-machine, 21230057f): apps/nickstire/tests/e2e/episodes.spec.ts holdout mode (EPISODES_DIR / EPISODES_HOLDOUT / EPISODES_RESULTS_DIR; id-only titles, oracle KIND-only labels, fixed-phrase failure records via tests/episodes/schema.ts), scripts/proof/unpack-holdout.mjs (secret -> $RUNNER_TEMP, count only), scripts/proof/holdout-summary.mjs (ids + counts; UNMEASURED when absent) wired into post-run-evidence.mjs as a `proof.holdout` event on EVERY run, .github/workflows/nickstire-proof.yml (unpack + replay, nothing uploaded, a holdout failure fails the job); apps/statenour/lib/services/proof-timeline.ts + GET /api/proof/timeline (owner) + the Repo Time Machine section on /proof, grouped on payload.liveCommit with deltas naming failures fixed and introduced.",
+        "tests": [
+          "shared/proofHoldout.test.ts (10): holdout title is the id only, assertion labels name only the oracle's kind, failure text is a fixed phrase; HO-xxx accepted by the schema and separated from EP-xxx; summary reduction (flaky is not a failure, stray EP titles not counted); an ABSENT holdout is posted as unmeasured, never success; a playwright failure with zero judged specs is still a failure; payload carries ids and numbers only",
+          "apps/statenour/tests/services/proof-timeline.test.ts (8): grouping on the judged commit newest-first, latest run wins, failures unioned across runs, deltas name fixed/new failures, an unmeasured holdout never becomes a zero inside a delta, unknown-commit bucket, limit after grouping, garbage payloads tolerated, P2021 degrades while other errors surface"
+        ],
+        "liveRuns": "2026-09-15 pre-arming replay against nickstire.org through the real unpack script and the real runner in holdout mode: 3 passed / 6 skipped (other viewports) in 4.0 s, titles `HO-001 · holdout`..`HO-003 · holdout`, summary {expected:3, unexpected:0, total:3, failedIds:[]}, nothing written under apps/nickstire/test-results. Secret HOLDOUT_EPISODES_B64 set the same day (three HO-xxx episodes on routes the five visible episodes never touch; plain copy outside every checkout). No CI run has posted a `proof.holdout` event yet - that is the next proof run on main after merge, which is why this row stops at integration_verified.",
+        "limits": "The holdout is only as hidden as the secret: a repo admin can read it, a read collaborator cannot; rotate it by replacing the plain file and re-setting the secret. Three holdout episodes is a smoke, not a distribution - grow it from real customer failures, never from the visible set. The Time Machine groups on what the site SERVED; a run that never recorded a live commit lands in an 'unknown commit' bucket rather than being attributed.",
+        "deploymentId": "not yet deployed - lands with the merge of #2342 (main auto-deploy for statenour-web; the nickstire half runs in GitHub Actions, not on Railway)"
+      }
     }
   ],
   "axes": {
