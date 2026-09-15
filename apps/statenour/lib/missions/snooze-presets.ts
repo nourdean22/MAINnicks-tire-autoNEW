@@ -12,6 +12,10 @@
  *   next Mon 6am   "next week" = the start of the next operator-cadence week.
  */
 
+// Both helpers are called from client components only (the Missions row and
+// MissionInspectorActions); the local clock is the operator's clock there —
+// check-et-clock.mjs waives client components for exactly this reason, and
+// the inline waiver below says so on the one line the lint would flag.
 export function tomorrow6am(now: Date = new Date()): string {
   const d = new Date(now);
   d.setDate(d.getDate() + 1);
@@ -21,7 +25,7 @@ export function tomorrow6am(now: Date = new Date()): string {
 
 export function nextMonday6am(now: Date = new Date()): string {
   const d = new Date(now);
-  const dow = d.getDay(); // 0 Sun · 1 Mon · ...
+  const dow = d.getDay(); // 0 Sun · 1 Mon · ... — et-clock-allow: browser-only helper (mission row + inspector page actions); the operator's LOCAL clock is the right "next Monday", the lint's own client-component policy
   const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
   d.setDate(d.getDate() + daysUntilNextMon);
   d.setHours(6, 0, 0, 0);

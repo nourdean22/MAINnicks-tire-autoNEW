@@ -308,7 +308,9 @@ export function scoreTaskPriority(
       label: "energy fit",
       input: energyBonus,
       weight: NOW_WEIGHTS.energy,
-      note: `${task.energyRequired.toLowerCase()} energy · ${daypart}`,
+      // Nullish-safe: quick-add payloads and test mocks omit energyRequired
+      // (getEnergyFit already tolerated it); a NOTE must never throw the scorer.
+      note: `${(task.energyRequired ?? "unknown").toLowerCase()} energy · ${daypart}`,
     },
     { key: "active", label: "in progress", input: activeBonus, weight: NOW_WEIGHTS.active, note: isDoing ? "started — resuming beats switching" : "not started" },
   ];

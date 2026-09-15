@@ -62,7 +62,7 @@ export function expiryFor(horizon: WorksetHorizon, now: Date): number | null {
     }
     case "week": {
       const d = new Date(now.getTime());
-      const dow = d.getDay(); // 0 Sun · 1 Mon · …
+      const dow = d.getDay(); // 0 Sun · 1 Mon · … — et-clock-allow: browser-only (workset store); the operator's LOCAL week is the horizon, the lint's client-component policy
       const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
       d.setDate(d.getDate() + daysUntilNextMon);
       d.setHours(6, 0, 0, 0);

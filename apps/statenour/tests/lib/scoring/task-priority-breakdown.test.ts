@@ -99,6 +99,13 @@ describe("scoreTaskPriority · breakdown", () => {
     expect(note(CANDIDATES.plain!, "energy")).toBe("high energy · morning");
   });
 
+  it("a row with no energyRequired still scores (CI 2026-09-15: the note threw on a thin quick-add payload)", () => {
+    const thin = { ...base, energyRequired: undefined as unknown as string };
+    const r = scoreTaskPriority(thin, missions, NOW);
+    expect(r.breakdown!.terms.find((t) => t.key === "energy")!.note).toBe("unknown energy · morning");
+    expect(Number.isFinite(r.score)).toBe(true);
+  });
+
   it("a manual override carries no breakdown — there are no terms behind it", () => {
     const r = scoreTaskPriority({ ...base, manualPriorityOverride: 88 }, missions, NOW);
     expect(r.manual).toBe(true);
