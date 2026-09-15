@@ -385,7 +385,9 @@ function MissionsPageInner() {
             )}
 
             {/* 5 · MISSIONS — finite projects, WIP-capped */}
-            <section aria-labelledby="mission-board-heading" className="space-y-3">
+            {/* data-selection-scope · 2026-09-15 · task rows carry data-entity, so
+                j/k/Space/Enter/x work here (hooks/use-selection-keyboard.ts). */}
+            <section aria-labelledby="mission-board-heading" className="space-y-3" data-selection-scope="missions">
               <div className="flex items-end justify-between gap-3 px-1">
                 <h2 id="mission-board-heading" className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
                   <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">missions</span>

@@ -34,6 +34,7 @@ import {
   Flame,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useInspector } from "@/hooks/use-inspector";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
 import {
@@ -313,7 +314,10 @@ function RecentColumn({
         <p className="text-[10px] text-[var(--text-tertiary)] italic text-center py-2">{emptyMsg}</p>
       ) : (
         <>
-          <div className="space-y-1">
+          {/* data-selection-scope · 2026-09-15 · rows carry data-entity, so a
+              memory here opens the SAME inspector a graph node or a ⌘K hit
+              does (`?inspect=memory:<id>`); j/k/Space/Enter work in this list. */}
+          <div className="space-y-1" data-selection-scope={`brain-changed-${title.toLowerCase().replace(/\s+/g, "-")}`}>
             {visible.map((m) => (
               <MemoryRow key={m.id} m={m} now={now} />
             ))}
@@ -344,8 +348,18 @@ function MemoryRow({ m, now }: { m: Memory; now: number }) {
     tone === "hot" ? "text-emerald-400" : tone === "warm" ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]";
   const ageMs = now - new Date(m.lastSeen).getTime();
   const ageLabel = ageMs < 60_000 ? "just now" : ageMs < 3_600_000 ? `${Math.floor(ageMs / 60_000)}m` : ageMs < 86_400_000 ? `${Math.floor(ageMs / 3_600_000)}h` : `${Math.floor(ageMs / 86_400_000)}d`;
+  // 2026-09-15 · tap opens the universal memory inspector (Enter/Space are
+  // handled by the global selection keyboard once the row is focused).
+  const { openInspector } = useInspector();
   return (
-    <div className="group px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-[var(--border-default)]/70 transition-colors">
+    <div
+      role="button"
+      tabIndex={0}
+      data-entity={`memory:${m.id}`}
+      data-entity-label={m.content.slice(0, 80)}
+      onClick={() => openInspector({ kind: "memory", id: m.id })}
+      className="group min-h-[44px] cursor-pointer px-2 py-1.5 rounded bg-[var(--bg-base)]/50 border border-[var(--border-default)] hover:border-[var(--gold)]/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06] transition-colors"
+    >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

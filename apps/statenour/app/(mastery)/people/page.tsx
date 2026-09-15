@@ -21,9 +21,13 @@
  * only). This matches the executor brief.
  */
 
-import { useState, useEffect, useMemo, useCallback, Component } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback, Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
+// 2026-09-15 · UI workbench · the dossier is URL-addressable (`?inspect=person:<id>`).
+import { useInspector, useInspectorOwnership } from "@/hooks/use-inspector";
+import { readInspect } from "@/lib/ui/inspect-url";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -62,6 +66,9 @@ import {
   OpenPromisesPanel,
 } from "@/components/power-atlas/PersonInsights";
 import { rawFetch } from "@/lib/utils/api-fetch";
+
+/** The kind this page renders itself (hooks/use-inspector.ts `useInspectorOwnership`). */
+const PERSON_KIND = ["person"] as const;
 
 interface PersonRow {
   id: string;
@@ -114,19 +121,58 @@ function relativeTime(daysSince: number | null): string {
   return `${Math.round(daysSince / 365)}y ago`;
 }
 
+/**
+ * 2026-09-15 · `useSearchParams` (the `?inspect=person:` selection) needs a
+ * Suspense boundary for `next build` — the stats / logs / schema-history
+ * precedent. The inner component is the page as it always was.
+ */
 export default function RelationshipsPage() {
+  return (
+    <Suspense fallback={null}>
+      <RelationshipsPageInner />
+    </Suspense>
+  );
+}
+
+function RelationshipsPageInner() {
   const [sortKey, setSortKey] = useLocalStorageState<SortKey>(
     "relationships:sortKey",
     "recent",
     VALID_SORTS,
   );
-  const [showAll, setShowAll] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [showAllState, setShowAll] = useState(false);
+  // 2026-09-15 · UI workbench · the selected person IS the URL
+  // (`?inspect=person:<id>`): Back/Forward, reload, a ⌘K hit and a chat
+  // receipt all land on the dossier, and there is no second copy of the
+  // selection to drift out of sync (the old useState was that copy). This
+  // page OWNS the `person` kind — the global inspector host stays silent here
+  // and this panel answers the URL.
+  useInspectorOwnership(PERSON_KIND);
+  const { openInspector, closeInspector } = useInspector();
+  const searchParams = useSearchParams();
+  const inspected = readInspect(searchParams.toString());
+  const selectedPersonId = inspected?.kind === "person" ? inspected.id : null;
+  /** Select (or clear) THROUGH the URL so every entry point shares one state. */
+  const selectPerson = useCallback(
+    (personId: string | null) => {
+      if (personId) openInspector({ kind: "person", id: personId });
+      else closeInspector();
+    },
+    [openInspector, closeInspector],
+  );
+  // A selected person must be VISIBLE — browse open, cap lifted — the way
+  // revealPerson has always done it; derived, so a URL arrival needs no
+  // effect. The operator can still collapse either while a person is selected:
+  // that collapse records the person as dismissed and the derivation yields.
+  const [revealDismissedFor, setRevealDismissedFor] = useState<string | null>(null);
+  const revealForSelection = selectedPersonId !== null && revealDismissedFor !== selectedPersonId;
+  const showAll = showAllState || revealForSelection;
   // Wave AS · 2026-05-28 · controlled <details> so external CTAs (e.g.
   // RelationshipsWatchlist Link href="/people#person-X") can auto-open
   // the collapsed-by-default browse-all section. Without this, the row
   // anchor sits in display:none and the smooth-scroll silently no-ops.
-  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browseOpenState, setBrowseOpen] = useState(false);
+  const browseOpen = browseOpenState || revealForSelection;
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logModalDirection, setLogModalDirection] = useState<
     "deposit" | "withdraw"
@@ -165,12 +211,15 @@ export default function RelationshipsPage() {
   // defect with zero behavior change; rewriting the state model of a
   // 1,002-line page carries regression risk that nothing observed justifies.
 
-  /** Reveal a specific person's row: open browse, lift the cap, select them. */
-  const revealPerson = useCallback((personId: string) => {
-    setBrowseOpen(true);
-    setSelectedPersonId(personId);
-    setShowAll(true); // ensure the row isn't past VISIBLE_CAP
-  }, []);
+  /** Reveal a specific person's row: open browse, lift the cap, select them (via the URL). */
+  const revealPerson = useCallback(
+    (personId: string) => {
+      setBrowseOpen(true);
+      setShowAll(true); // ensure the row isn't past VISIBLE_CAP
+      selectPerson(personId);
+    },
+    [selectPerson],
+  );
 
   /** Reveal the browse list itself, optionally re-sorted by a stat tile. */
   const revealBrowse = useCallback(
@@ -273,7 +322,7 @@ export default function RelationshipsPage() {
       { personId },
       {
         onSuccess: () => {
-          if (selectedPersonId === personId) setSelectedPersonId(null);
+          if (selectedPersonId === personId) selectPerson(null);
           telemetry.event("deletePersonInline", { personId });
           reload();
         },
@@ -381,7 +430,10 @@ export default function RelationshipsPage() {
        *  anchors can pop the section open when targeting a row inside. */}
       <details
         open={browseOpen}
-        onToggle={(e) => setBrowseOpen(e.currentTarget.open)}
+        onToggle={(e) => {
+          setBrowseOpen(e.currentTarget.open);
+          if (!e.currentTarget.open && selectedPersonId) setRevealDismissedFor(selectedPersonId);
+        }}
         className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]"
       >
         <summary
@@ -423,7 +475,7 @@ export default function RelationshipsPage() {
       )}
 
       {data && data.people.length > 0 && (
-        <div className="grid gap-2">
+        <div className="grid gap-2" data-selection-scope="people">
           {visiblePeople.map((p) => {
             const tone = trustTone(p.trustScore);
             const isSelected = selectedPersonId === p.id;
@@ -433,8 +485,10 @@ export default function RelationshipsPage() {
                 id={`person-${p.id}`}
                 role="button"
                 tabIndex={0}
+                data-entity={`person:${p.id}`}
+                data-entity-label={p.name}
                 onClick={() =>
-                  setSelectedPersonId(isSelected ? null : p.id)
+                  selectPerson(isSelected ? null : p.id)
                 }
                 onKeyDown={(e) => {
                   // Row is a div-as-button so the inner edit/delete buttons
@@ -445,7 +499,7 @@ export default function RelationshipsPage() {
                     e.target === e.currentTarget
                   ) {
                     e.preventDefault();
-                    setSelectedPersonId(isSelected ? null : p.id);
+                    selectPerson(isSelected ? null : p.id);
                   }
                 }}
                 // Wave AS · 2026-05-28 · row anchor · RelationshipsWatchlist
@@ -602,7 +656,10 @@ export default function RelationshipsPage() {
           {data.people.length > VISIBLE_CAP && (
             <button
               type="button"
-              onClick={() => setShowAll((s) => !s)}
+              onClick={() => {
+                if (showAll && selectedPersonId) setRevealDismissedFor(selectedPersonId);
+                setShowAll(!showAll);
+              }}
               className="text-xs text-[var(--text-tertiary)] hover:text-[var(--gold)] py-2 transition-colors"
             >
               {showAll

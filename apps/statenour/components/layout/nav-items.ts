@@ -13,6 +13,7 @@ import {
   Users,
   Link2,
   GraduationCap,
+  FlaskConical,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════
@@ -97,6 +98,11 @@ export const NAV: NavEntry[] = [
   // operator to a surface that no longer exists. The personal /money page
   // predeceased them (2026-07-29, WP-9 verdict).
   { href: "/system", label: "System", icon: Activity, section: "operate" },
+  // 2026-09-15 · /proof (the Reality Ledger's mission control, #2330) shipped
+  // with zero references from nav, hub, palette or links — a 132-line page
+  // nobody could reach. Its "ledger not migrated yet" banner is honest, so
+  // exposing it before the migration is applied is safe.
+  { href: "/proof", label: "Proof", icon: FlaskConical, section: "operate", flatRow: true },
 
   // ── FOOTER ──
   { href: "/settings", label: "Settings", icon: Settings, section: "operate", footer: true },

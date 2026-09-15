@@ -62,6 +62,13 @@ export const NICK_FAB_LANE_VAR = "--nick-fab-lane";
 /** Window event that opens a mounted pane (dispatched by the More sheet on phones). */
 export const NICK_PANE_OPEN_EVENT = "nick-side-pane:open";
 export const NICK_PANE_MOUNTED_ATTR = "nickPane";
+/**
+ * 2026-09-15 · published on <html> while the pane is OPEN so the universal
+ * inspector's docked panel (components/inspector/inspector-frame.tsx) docks to
+ * the left of this pane instead of under it. Same pattern as the FAB lane.
+ */
+export const NICK_PANE_OPEN_WIDTH_VAR = "--nick-pane-open-w";
+export const NICK_PANE_OPEN_WIDTH = "380px";
 
 /** Pure: reserve the lane on `root` and return the release. Testable without a DOM. */
 export function reserveFabLane(root: {
@@ -127,6 +134,16 @@ export function NickSidePane({
       /* private browsing · stay closed */
     }
   }, []);
+
+  // 2026-09-15 · tell the inspector how wide the open pane is (see the const).
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.style.setProperty(NICK_PANE_OPEN_WIDTH_VAR, NICK_PANE_OPEN_WIDTH);
+    return () => {
+      root.style.removeProperty(NICK_PANE_OPEN_WIDTH_VAR);
+    };
+  }, [open]);
 
   // Listen for the custom "statenour:open-nick" event to automatically open the side pane.
   useEffect(() => {

@@ -31,8 +31,10 @@
  * The bridge is invisible · zero DOM output.
  */
 
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { toPageContextAnchor } from "@/lib/ui/entity-ref";
+import { readInspect } from "@/lib/ui/inspect-url";
 
 export interface PageContextPayload {
   // Which entity is the operator currently viewing? Mirrors the
@@ -58,10 +60,11 @@ export interface PageContextPayload {
 const STORAGE_KEY = "nour:page-context";
 const EVENT_NAME = "nour:page-context-changed";
 
-/** Extract entity anchors from a (pathname, hash) pair. */
+/** Extract entity anchors from a (pathname, hash, search) triple. */
 function extractEntity(
   pathname: string,
   hash: string,
+  search: string,
 ): Partial<PageContextPayload> {
   const out: Partial<PageContextPayload> = {};
 
@@ -81,8 +84,19 @@ function extractEntity(
       out.lastPinId = cleanHash.slice(4);
     } else if (pathname.startsWith("/missions") && cleanHash.startsWith("task-row-")) {
       out.lastTaskId = cleanHash.slice(9);
+    } else if (pathname.startsWith("/missions") && cleanHash.startsWith("task-")) {
+      // 2026-09-15 · the row's REAL id is `task-<id>` (mission-task-row.tsx);
+      // chat receipts emit `task-row-<id>`, which scrolled nowhere and never
+      // reached this bridge. Both spellings now anchor the task.
+      out.lastTaskId = cleanHash.slice(5);
     }
   }
+
+  // 2026-09-15 · UI workbench · the universal inspector carries the object
+  // in `?inspect=<kind>:<id>` on ANY page. It is the operator's declared
+  // focus, so it wins over a hash anchor when both are present.
+  const inspected = readInspect(search);
+  if (inspected) Object.assign(out, toPageContextAnchor(inspected));
 
   return out;
 }
@@ -102,9 +116,10 @@ function extractEntity(
 export function computeNextPayload(
   pathname: string,
   hash: string,
+  search = "",
 ): PageContextPayload | null {
   if (pathname.startsWith("/chat")) return null;
-  const entity = extractEntity(pathname, hash);
+  const entity = extractEntity(pathname, hash, search);
   return { ...entity, contextRoute: pathname, ts: Date.now() };
 }
 
@@ -136,14 +151,18 @@ export function onPageContextChanged(
   return () => window.removeEventListener(EVENT_NAME, handler as EventListener);
 }
 
-export function PageContextBridge() {
+function PageContextBridgeInner() {
   const pathname = usePathname();
+  // 2026-09-15 · subscribe to the query string too: `?inspect=` changes via
+  // router.push without a pathname change, and the bridge must see it.
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
 
   useEffect(() => {
     if (typeof window === "undefined" || !pathname) return;
 
     const apply = () => {
-      const payload = computeNextPayload(pathname, window.location.hash || "");
+      const payload = computeNextPayload(pathname, window.location.hash || "", window.location.search || "");
       // null = /chat — preserve the SOURCE page's stored context so the
       // chat request can actually send it (see computeNextPayload).
       if (payload === null) return;
@@ -162,7 +181,16 @@ export function PageContextBridge() {
     const onHashChange = () => apply();
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [pathname]);
+  }, [pathname, search]);
 
   return null;
+}
+
+/** `useSearchParams` needs a Suspense boundary under static rendering (the page-tabs.tsx precedent). */
+export function PageContextBridge() {
+  return (
+    <Suspense fallback={null}>
+      <PageContextBridgeInner />
+    </Suspense>
+  );
 }

@@ -26,6 +26,7 @@ import {
   Bot,
   Check,
   Clock,
+  Eye,
   Pencil,
   Play,
   Trash2,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { describeCompletion } from "@/lib/services/completion-frame";
+import { useInspector } from "@/hooks/use-inspector";
 import type { Task } from "@/components/actions/shared";
 import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 import { StreakBadge } from "@/components/missions/streak-badge";
@@ -193,10 +195,17 @@ export function MissionTaskRow({
   })();
 
   const dueHint = formatDueHint(task.dueDate);
+  // 2026-09-15 · UI workbench · the row is an addressable object: data-entity
+  // makes j/k/Space/Enter/x work inside the board's selection scope, and the
+  // eye button (44px, like every other control here — the e2e target-size
+  // floor) opens the universal inspector at `?inspect=task:<id>`.
+  const { openInspector } = useInspector();
 
   return (
     <div
       id={`task-${task.id}`}
+      data-entity={`task:${task.id}`}
+      data-entity-label={task.title}
       draggable={!isDone && isDraggable}
       onDragStart={(e) => {
         e.dataTransfer.setData("application/vnd.nour.task-id", task.id);
@@ -226,6 +235,7 @@ export function MissionTaskRow({
         // column to ~1 char wide (which made `break-words` stack the title
         // vertically, one letter per line). On desktop it stays single-line.
         "group flex flex-wrap items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/40 data-[entity-selected=true]:bg-[var(--gold)]/[0.05]",
         isDoing
           ? "border-amber-500/30 bg-amber-500/[0.03] shadow-[0_0_12px_rgba(253,185,19,0.04)] animate-breath"
           : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
@@ -490,6 +500,14 @@ export function MissionTaskRow({
         // (right-aligned) under the title instead of crushing it; lg:basis-auto
         // keeps it inline on desktop.
         <div className="flex items-center gap-0.5 shrink-0 basis-full justify-end lg:basis-auto lg:justify-normal lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={() => openInspector({ kind: "task", id: task.id })}
+            aria-label="inspect task"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
+          >
+            <Eye size={12} strokeWidth={2} />
+          </button>
           <button
             type="button"
             onClick={() => actions.handleEditTask(task)}
