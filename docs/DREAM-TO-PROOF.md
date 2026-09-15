@@ -48,8 +48,11 @@ for more, or for `createdBy: "operator"` through a key, is refused by index — 
 from the resolver rests on a **measured** rule since 2026-09-15: `shared/experimentKernelCalibration.ts`
 runs the kernel on seeded A/A, injected-effect and broken-split traffic (any-peek false positives 1.3%
 over 30 daily reads, 2.2% over 90, against a naive peeked z-test at 26% / 34%; +5pp found 98.7% of the
-time with zero wrong-arm calls; a 60/40 split refused 100%; a balanced split falsely refused 1.5% —
-the SRM alarm is peeked daily, a known cost pinned in the test, not hidden). The GrowthBook cross-check
+time with zero wrong-arm calls; a 60/40 split refused 100%). The harness also found and fixed its first
+defect the same day: the SRM alarm is peeked daily too, and at the "conventional" per-look p<0.001 it
+falsely refused a balanced split in 1.45% of 30-day runs — `DEFAULT_SRM_ALPHA` is 1e-4 now (0.05%
+false refusal, 60/40 still caught 100%, 55/45 95.1%), with the old alpha kept as a CONTROL in the
+test so the defect stays reproducible. The GrowthBook cross-check
 (UPSTREAMS) is still the external oracle to run. Lineage is structural: a claim names `sourceEventIndexes` into its
 own batch and the ledger stores the created event ids in `sourceEventKeys`, so a verdict rests on its
 verdict event instead of travelling beside it. PII is refused recursively (nested keys, email/phone/VIN

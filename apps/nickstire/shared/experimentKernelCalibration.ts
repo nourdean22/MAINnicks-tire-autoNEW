@@ -50,6 +50,18 @@ export interface CalibrationScenario {
   alpha?: number;
   tau?: number;
   minExposuresPerArm?: number;
+  /** SRM alarm settings under test (kernel defaults when omitted). */
+  srmMinTotal?: number;
+  srmAlpha?: number;
+}
+
+/** The evaluation settings a decision rule receives, resolved from the scenario. */
+export interface EvalSettings {
+  alpha: number;
+  tau: number;
+  minExposuresPerArm: number;
+  srmMinTotal?: number;
+  srmAlpha?: number;
 }
 
 export interface CalibrationRun {
@@ -95,13 +107,19 @@ const DEF: WebExperimentDefinition = {
 };
 
 /** A decision rule: given cumulative counts, does it declare a winner, and which arm? */
-export type DecisionRule = (control: ArmMetricCounts, variant: ArmMetricCounts, s: Required<Pick<CalibrationScenario, "alpha" | "tau" | "minExposuresPerArm">>) =>
+export type DecisionRule = (control: ArmMetricCounts, variant: ArmMetricCounts, s: EvalSettings) =>
   | { declared: false; status: WebExperimentVerdict["status"] }
   | { declared: true; winnerArmId: string; status: "winner" };
 
 /** THE KERNEL under test, unchanged: evaluateWebExperiment with the real refusals. */
 export const kernelRule: DecisionRule = (control, variant, s) => {
-  const v = evaluateWebExperiment(DEF, [control, variant], { alpha: s.alpha, tau: s.tau, minExposuresPerArm: s.minExposuresPerArm });
+  const v = evaluateWebExperiment(DEF, [control, variant], {
+    alpha: s.alpha,
+    tau: s.tau,
+    minExposuresPerArm: s.minExposuresPerArm,
+    srmMinTotal: s.srmMinTotal,
+    srmAlpha: s.srmAlpha,
+  });
   if (v.status === "winner") return { declared: true, winnerArmId: v.armId, status: "winner" };
   return { declared: false, status: v.status };
 };
@@ -144,7 +162,13 @@ export const naivePeekingZRule: DecisionRule = (control, variant, s) => {
 };
 
 export function simulateOne(scenario: CalibrationScenario, rng: () => number, rule: DecisionRule = kernelRule): CalibrationRun {
-  const s = { alpha: scenario.alpha ?? 0.05, tau: scenario.tau ?? 0.02, minExposuresPerArm: scenario.minExposuresPerArm ?? 50 };
+  const s: EvalSettings = {
+    alpha: scenario.alpha ?? 0.05,
+    tau: scenario.tau ?? 0.02,
+    minExposuresPerArm: scenario.minExposuresPerArm ?? 50,
+    srmMinTotal: scenario.srmMinTotal,
+    srmAlpha: scenario.srmAlpha,
+  };
   const controlShare = scenario.controlShare ?? 0.5;
   const control: ArmMetricCounts = { armId: "control", exposures: 0, conversions: { converted: 0 } };
   const variant: ArmMetricCounts = { armId: "variant", exposures: 0, conversions: { converted: 0 } };

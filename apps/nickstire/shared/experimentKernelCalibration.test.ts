@@ -11,9 +11,10 @@
  *   A/A, 90 daily peeks      kernel 2.2 %           · naive 34.1 %
  *   +2pp / +3pp / +5pp       power 30.5 % / 67.8 % / 98.7 %, wrong arm 0 %
  *   60/40 randomiser         refused 100 %          · naive scores 25.3 % of them
- *   balanced A/A refused     1.5 % (the SRM alarm is ALSO peeked daily — a
- *                            real, small false-refusal cost; propose-only, so
- *                            loud and recoverable; pinned below, not hidden)
+ *   balanced A/A refused     1.45 % under the ORIGINAL per-look SRM alpha of
+ *                            0.001 (the alarm is peeked daily too). Fixed the
+ *                            same day: DEFAULT_SRM_ALPHA 1e-4 → 0.05 %, with
+ *                            60/40 still refused 100 % and 55/45 95.1 %.
  *
  * The thresholds here run 400 runs to stay fast and leave sampling margin.
  * The OPPONENT assertion is the harness's own positive control: if the naive
@@ -54,10 +55,23 @@ describe("A/A — the always-valid promise, measured", () => {
     expect(r.anyPeekDeclareRate).toBeLessThanOrEqual(0.05);
   });
 
-  it("FINDING pinned: a balanced split is falsely refused as SRM in a small fraction of runs (daily-peeked alarm)", () => {
-    const r = calibrate(CALIBRATION_SCENARIOS.aa5, RUNS, SEED, kernelRule);
-    expect(r.refusedDesignRate).toBeGreaterThan(0); // it happens — this line fails if someone "fixes" the number away
-    expect(r.refusedDesignRate).toBeLessThanOrEqual(0.04); // measured 0.015; a jump means srmCheck changed
+  it("a balanced split is (almost) never refused as SRM under the default alarm; the OLD per-look 0.001 alarm refused 1.45%", () => {
+    // The harness found this: peeked daily, the "conventional" p<0.001 SRM alarm
+    // falsely refused a perfectly balanced split in 1.45% of 30-day runs. The
+    // sweep (floor x alpha) showed the floor does nothing and alpha 1e-4 takes
+    // it to 0.05% with 60/40 still caught 100% of the time. CONTROL first: the
+    // old alpha must still reproduce the defect through this harness, or the
+    // green below would prove nothing about the fix.
+    const old = calibrate({ ...CALIBRATION_SCENARIOS.aa5, srmAlpha: 1e-3 }, RUNS, SEED, kernelRule);
+    expect(old.refusedDesignRate).toBeGreaterThan(0.004); // measured 0.0145 at 2,000 runs
+    const now = calibrate(CALIBRATION_SCENARIOS.aa5, RUNS, SEED, kernelRule);
+    expect(now.refusedDesignRate).toBeLessThanOrEqual(0.005); // measured 0.0005 at 2,000 runs
+    expect(now.refusedDesignRate).toBeLessThan(old.refusedDesignRate);
+  });
+
+  it("the tightened alarm still refuses a mildly broken 55/45 randomiser in the large majority of runs", () => {
+    const r = calibrate({ ...CALIBRATION_SCENARIOS.brokenSplit, controlShare: 0.55, name: "55/45" }, RUNS, SEED, kernelRule);
+    expect(r.refusedDesignRate).toBeGreaterThanOrEqual(0.9); // measured 0.951 (was 0.984 at the old alpha)
   });
 });
 
