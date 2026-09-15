@@ -21,7 +21,7 @@
  * rule did NOT blow past alpha, the harness could not tell valid from invalid.
  */
 import { describe, expect, it } from "vitest";
-import { CALIBRATION_SCENARIOS, calibrate, kernelRule, mulberry32, naivePeekingZRule, simulateOne } from "./experimentKernelCalibration";
+import { CALIBRATION_SCENARIOS, calibrate, kernelRule, mulberry32, naivePeekingZRule, simulateOne, simulateStream } from "./experimentKernelCalibration";
 
 const RUNS = 400;
 const SEED = 20260915;
@@ -114,6 +114,41 @@ describe("simulateOne", () => {
       // a declaration ends the run: exposures cannot exceed what that many days could produce
       expect(a.finalExposuresPerArm).toBeLessThanOrEqual(a.declaredDay * CALIBRATION_SCENARIOS.plus5pp.sessionsPerDay);
       expect(a.finalStatus).toBe("winner");
+    }
+  });
+});
+
+describe("simulateStream — the counts an external engine is fed", () => {
+  it("is cumulative and monotone, never stops early, reports p=1 below the floor, and is deterministic", () => {
+    const s = CALIBRATION_SCENARIOS.plus5pp;
+    const a = simulateStream(s, mulberry32(11));
+    const b = simulateStream(s, mulberry32(11));
+    expect(a).toEqual(b);
+    expect(a).toHaveLength(s.days); // a declaration must NOT truncate the stream
+    for (let i = 1; i < a.length; i++) {
+      expect(a[i].nc).toBeGreaterThanOrEqual(a[i - 1].nc);
+      expect(a[i].nv).toBeGreaterThanOrEqual(a[i - 1].nv);
+      expect(a[i].xc).toBeGreaterThanOrEqual(a[i - 1].xc);
+      expect(a[i].xv).toBeGreaterThanOrEqual(a[i - 1].xv);
+      expect(a[i].nc + a[i].nv).toBe((i + 1) * s.sessionsPerDay);
+    }
+    expect(a[a.length - 1].kernelStatus).toBe("winner"); // +5pp over 30 days is found essentially always
+    expect(a[a.length - 1].kernelP).toBeLessThan(0.05);
+    // below the per-arm floor the kernel reports no evidence (p = 1), not a noisy p
+    const floored = simulateStream({ ...s, minExposuresPerArm: 100_000 }, mulberry32(11));
+    expect(floored.every((d) => d.kernelStatus === "insufficient_data" && d.kernelP === 1)).toBe(true);
+    expect(floored.map((d) => [d.nc, d.xc, d.nv, d.xv])).toEqual(a.map((d) => [d.nc, d.xc, d.nv, d.xv])); // same counts, same seed
+  });
+
+  it("carries the kernel's REAL verdict: a 60/40 stream is refused, never declared, whatever its p", () => {
+    // Codex review of #2336: a raw p on a broken split "declared" runs the
+    // kernel refuses. The stream must expose the decision, not a number
+    // upstream of it.
+    for (let seed = 1; seed <= 5; seed++) {
+      const days = simulateStream(CALIBRATION_SCENARIOS.brokenSplit, mulberry32(seed));
+      expect(days.some((d) => d.kernelStatus === "winner")).toBe(false);
+      expect(days[days.length - 1].kernelStatus).toBe("invalid_design");
+      expect(days[days.length - 1].kernelP).toBe(1); // a refusal carries no p
     }
   });
 });

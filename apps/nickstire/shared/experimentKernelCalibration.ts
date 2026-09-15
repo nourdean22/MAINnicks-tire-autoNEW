@@ -197,6 +197,70 @@ export function simulateOne(scenario: CalibrationScenario, rng: () => number, ru
   return { declaredDay, finalStatus, declaredCorrect, refusedDesign, finalExposuresPerArm: Math.min(control.exposures, variant.exposures) };
 }
 
+/** One day's cumulative counts plus the kernel's ACTUAL verdict on that day. */
+export interface DailySnapshot {
+  day: number;
+  nc: number;
+  xc: number;
+  nv: number;
+  xv: number;
+  /**
+   * The real kernel verdict on the cumulative counts — every gate included
+   * (floor, sample-ratio mismatch, no-signal), not a bare p-value. Codex
+   * review of #2336: a raw mSprt p on a 60/40 stream "declared" runs the
+   * kernel actually refuses; an external engine must be compared with the
+   * kernel's decision, not with one of its intermediate numbers.
+   */
+  kernelStatus: WebExperimentVerdict["status"];
+  /** The always-valid p behind that verdict; 1 when the verdict carries none (floor, refusal, no signal). */
+  kernelP: number;
+}
+
+/**
+ * The full daily stream of ONE run, never stopped early: an external engine
+ * (GrowthBook's gbstats, see scripts/proof/growthbook-crosscheck.py) can be
+ * fed exactly the counts the kernel saw and apply its own stopping rule, so
+ * the two engines are compared on identical data rather than on two
+ * different simulations that merely share a seed.
+ */
+export function simulateStream(scenario: CalibrationScenario, rng: () => number): DailySnapshot[] {
+  const opts = {
+    alpha: scenario.alpha ?? 0.05,
+    tau: scenario.tau ?? 0.02,
+    minExposuresPerArm: scenario.minExposuresPerArm ?? 50,
+    srmMinTotal: scenario.srmMinTotal,
+    srmAlpha: scenario.srmAlpha,
+  };
+  const controlShare = scenario.controlShare ?? 0.5;
+  let nc = 0;
+  let xc = 0;
+  let nv = 0;
+  let xv = 0;
+  const out: DailySnapshot[] = [];
+  for (let day = 1; day <= scenario.days; day++) {
+    for (let i = 0; i < scenario.sessionsPerDay; i++) {
+      if (rng() < controlShare) {
+        nc += 1;
+        if (rng() < scenario.controlRate) xc += 1;
+      } else {
+        nv += 1;
+        if (rng() < scenario.variantRate) xv += 1;
+      }
+    }
+    const verdict = evaluateWebExperiment(
+      DEF,
+      [
+        { armId: "control", exposures: nc, conversions: { converted: xc } },
+        { armId: "variant", exposures: nv, conversions: { converted: xv } },
+      ],
+      opts,
+    );
+    const kernelP = "primary" in verdict ? verdict.primary.pValue : 1;
+    out.push({ day, nc, xc, nv, xv, kernelStatus: verdict.status, kernelP });
+  }
+  return out;
+}
+
 export function calibrate(scenario: CalibrationScenario, runs: number, seed = 20260915, rule: DecisionRule = kernelRule): CalibrationReport {
   const rng = mulberry32(seed);
   const results: CalibrationRun[] = [];

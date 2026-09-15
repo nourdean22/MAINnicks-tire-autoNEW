@@ -53,8 +53,10 @@ time with zero wrong-arm calls; a 60/40 split refused 100%). The harness also fo
 defect the same day: the SRM alarm is peeked daily too, and at the "conventional" per-look p<0.001 it
 falsely refused a balanced split in 1.45% of 30-day runs — `DEFAULT_SRM_ALPHA` is 1e-4 now (0.05%
 false refusal, 60/40 still caught 100%, 55/45 95.1%), with the old alpha kept as a CONTROL in the
-test so the defect stays reproducible. The GrowthBook cross-check
-(UPSTREAMS) is still the external oracle to run. Lineage is structural: a claim names `sourceEventIndexes` into its
+test so the defect stays reproducible. The GrowthBook cross-check is done too
+(`scripts/proof/growthbook-crosscheck.py` feeds gbstats' sequential test the SAME daily counts, via
+`pnpm calibrate:kernel -- --stream`): the two engines agree run-for-run — A/A 0.8% vs 0.8% on the same
+runs, +3pp 66.8% vs 66.6%, +5pp 98.4% vs 98.6%, wrong arm 0% for both (UPSTREAMS row). Lineage is structural: a claim names `sourceEventIndexes` into its
 own batch and the ledger stores the created event ids in `sourceEventKeys`, so a verdict rests on its
 verdict event instead of travelling beside it. PII is refused recursively (nested keys, email/phone/VIN
 shaped values, `objects[].id`, `source.uri`, claim text).

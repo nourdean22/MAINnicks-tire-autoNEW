@@ -24,6 +24,7 @@ import {
   mulberry32,
   naivePeekingZRule,
   simulateOne,
+  simulateStream,
   type CalibrationReport,
 } from "../shared/experimentKernelCalibration";
 
@@ -31,6 +32,35 @@ const args = process.argv.slice(2);
 const json = args.includes("--json");
 const runs = Number(args.find((a) => /^\d+$/.test(a)) ?? 2000);
 const SEED = 20260915;
+
+// --stream <scenario> [runs]: the full daily count streams of N runs, with the
+// kernel's per-day p, as JSON — the input of scripts/proof/growthbook-crosscheck.py,
+// which applies GrowthBook's gbstats sequential test to the SAME counts.
+const streamAt = args.indexOf("--stream");
+if (streamAt !== -1) {
+  const key = args[streamAt + 1] ?? "aa5";
+  const scenario = CALIBRATION_SCENARIOS[key];
+  if (!scenario) {
+    console.error(`unknown scenario "${key}" — one of: ${Object.keys(CALIBRATION_SCENARIOS).join(", ")}`);
+    process.exit(2);
+  }
+  const rng = mulberry32(SEED);
+  const streams = Array.from({ length: runs }, () => simulateStream(scenario, rng));
+  console.log(
+    JSON.stringify({
+      scenario: key,
+      name: scenario.name,
+      runs,
+      seed: SEED,
+      alpha: scenario.alpha ?? 0.05,
+      tau: scenario.tau ?? 0.02,
+      minExposuresPerArm: scenario.minExposuresPerArm ?? 50,
+      trulyBetter: scenario.variantRate > scenario.controlRate ? "variant" : scenario.variantRate < scenario.controlRate ? "control" : null,
+      streams,
+    }),
+  );
+  process.exit(0);
+}
 
 const sampleAt = args.indexOf("--sample");
 if (sampleAt !== -1) {
