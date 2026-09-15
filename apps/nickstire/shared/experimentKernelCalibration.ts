@@ -21,7 +21,7 @@
  *
  * Pure. No DB, no network, no Math.random — a mulberry32 stream from a seed.
  */
-import { evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "./experimentKernel";
+import { evaluateWebExperiment, mSprt, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "./experimentKernel";
 
 /** Small, fast, seedable PRNG (mulberry32). Deterministic per seed. */
 export function mulberry32(seed: number): () => number {
@@ -195,6 +195,50 @@ export function simulateOne(scenario: CalibrationScenario, rng: () => number, ru
     }
   }
   return { declaredDay, finalStatus, declaredCorrect, refusedDesign, finalExposuresPerArm: Math.min(control.exposures, variant.exposures) };
+}
+
+/** One day's cumulative counts plus the kernel's always-valid p on that day. */
+export interface DailySnapshot {
+  day: number;
+  nc: number;
+  xc: number;
+  nv: number;
+  xv: number;
+  /** mSprt p-value on the cumulative counts (1 when below the per-arm floor). */
+  kernelP: number;
+}
+
+/**
+ * The full daily stream of ONE run, never stopped early: an external engine
+ * (GrowthBook's gbstats, see scripts/proof/growthbook-crosscheck.py) can be
+ * fed exactly the counts the kernel saw and apply its own stopping rule, so
+ * the two engines are compared on identical data rather than on two
+ * different simulations that merely share a seed.
+ */
+export function simulateStream(scenario: CalibrationScenario, rng: () => number): DailySnapshot[] {
+  const tau = scenario.tau ?? 0.02;
+  const floor = scenario.minExposuresPerArm ?? 50;
+  const controlShare = scenario.controlShare ?? 0.5;
+  let nc = 0;
+  let xc = 0;
+  let nv = 0;
+  let xv = 0;
+  const out: DailySnapshot[] = [];
+  for (let day = 1; day <= scenario.days; day++) {
+    for (let i = 0; i < scenario.sessionsPerDay; i++) {
+      if (rng() < controlShare) {
+        nc += 1;
+        if (rng() < scenario.controlRate) xc += 1;
+      } else {
+        nv += 1;
+        if (rng() < scenario.variantRate) xv += 1;
+      }
+    }
+    const kernelP =
+      Math.min(nc, nv) < floor ? 1 : mSprt({ exposures: nc, conversions: xc }, { exposures: nv, conversions: xv }, { tau }).pValue;
+    out.push({ day, nc, xc, nv, xv, kernelP });
+  }
+  return out;
 }
 
 export function calibrate(scenario: CalibrationScenario, runs: number, seed = 20260915, rule: DecisionRule = kernelRule): CalibrationReport {
