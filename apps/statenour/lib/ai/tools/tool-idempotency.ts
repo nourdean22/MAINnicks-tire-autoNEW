@@ -9,11 +9,17 @@
  * committed but the response was lost" can opt into the stricter semantics
  * below. UNKNOWN completion keeps the marker and suppresses blind retries.
  *
- * This is intentionally a bridge, not the final durable Operation Ledger.
- * BrainMemory remains the existing short-lived claim store until a dedicated
- * operation schema can be introduced and migrated deliberately.
+ * Two claim stores, one contract (2026-09-15):
+ *   · `options.durable` → action_attempts (lib/services/action-attempts.ts),
+ *     the durable Operation Ledger the 2026-09-13 note said would come once a
+ *     dedicated schema was migrated deliberately. It is migrated. One row per
+ *     operation key with the full state machine; sendTelegram is the first
+ *     consumer. A missing table falls back to the bridge below.
+ *   · otherwise → the BrainMemory `tool_idempotency` marker bridge, unchanged,
+ *     for every caller that has not opted in yet.
  */
 import { createHash } from "node:crypto";
+import type { SettledState } from "@/lib/services/action-attempts";
 
 const CATEGORY = "tool_idempotency";
 
@@ -23,6 +29,10 @@ export interface IdempotencyDuplicateContext {
   /** UNKNOWN means the prior attempt may have committed; never imply "done". */
   state: "claimed" | "unknown";
   expiresAt: Date | null;
+  /** Present when the durable ActionAttempt store answered (2026-09-15). */
+  attemptId?: string;
+  /** The prior attempt's real ledger state — SUCCEEDED_UNVERIFIED, UNKNOWN, EXECUTING, VERIFIED. */
+  attemptState?: string;
 }
 
 export interface ToolIdempotencyOptions<T> {
@@ -37,6 +47,27 @@ export interface ToolIdempotencyOptions<T> {
    * idempotency claim store is unavailable. Existing callers stay fail-open.
    */
   onClaimUnavailable?: (error: unknown) => T | Promise<T>;
+  /**
+   * 2026-09-15 · opt into the DURABLE claim store: one action_attempts row per
+   * operation key with the full state machine (lib/services/action-attempts.ts),
+   * instead of a BrainMemory marker. sendTelegram is the first consumer. If the
+   * table does not exist in this environment the call falls back to the bridge
+   * below and logs `durable-missing-table` — never crash the API on a missing table.
+   */
+  durable?: {
+    tool: string;
+    effectClass?: "write" | "read" | "unknown";
+    /**
+     * Decorate the result with the ledger's verdict. Called ONLY after
+     * `settleAttempt` resolved — never on the missing-table fallback (no row
+     * exists) and never when the settle itself failed (the row is still
+     * EXECUTING). A result that carries `ledgerState` therefore always names a
+     * transition the ledger confirmed (Codex review of #2338).
+     */
+    stamp?: (result: T, ledger: { attemptId: string; state: SettledState }) => T;
+  };
+  /** The provider's own reference for a successful effect (message id, sid...), recorded on the attempt. */
+  externalReference?: (result: T) => string | undefined;
 }
 
 /** Stable 16-hex content fingerprint for the dedup key. */
@@ -65,6 +96,12 @@ export async function withToolIdempotency<T>(
   succeeded?: (result: T) => boolean,
   options: ToolIdempotencyOptions<T> = {},
 ): Promise<T> {
+  if (options.durable) {
+    const durable = await runDurable(key, windowMs, run, onDuplicate, succeeded, options, options.durable);
+    if (durable.handled) return durable.value;
+    // table missing in this environment — fall through to the BrainMemory bridge
+  }
+
   let prisma: typeof import("@/lib/prisma").prisma;
   try {
     ({ prisma } = await import("@/lib/prisma"));
@@ -172,6 +209,93 @@ export async function withToolIdempotency<T>(
     }
     throw error;
   }
+}
+
+function dispose<T>(result: T, succeeded: ((result: T) => boolean) | undefined, options: ToolIdempotencyOptions<T>): ToolCompletionDisposition {
+  if (options.classifyResult) return options.classifyResult(result);
+  if (succeeded) return succeeded(result) ? "success" : "known_failure";
+  return "success";
+}
+
+/**
+ * The durable path (2026-09-15): claim → run → settle against action_attempts.
+ * Returns `handled: false` ONLY when the table is missing, so the caller can
+ * fall back to the BrainMemory bridge; every other store failure is decided
+ * here by the caller's own fail-open / fail-closed policy.
+ */
+async function runDurable<T>(
+  key: string,
+  windowMs: number,
+  run: () => Promise<T>,
+  onDuplicate: (context?: IdempotencyDuplicateContext) => T,
+  succeeded: ((result: T) => boolean) | undefined,
+  options: ToolIdempotencyOptions<T>,
+  durable: NonNullable<ToolIdempotencyOptions<T>["durable"]>,
+): Promise<{ handled: true; value: T } | { handled: false }> {
+  const svc = await import("@/lib/services/action-attempts");
+  const operationKey = key.slice(0, 190);
+  let begun: Awaited<ReturnType<typeof svc.beginAttempt>>;
+  try {
+    begun = await svc.beginAttempt({
+      operationKey,
+      tool: durable.tool,
+      effectClass: durable.effectClass,
+      argumentsHash: operationKey.slice(operationKey.indexOf(":") + 1),
+      windowMs,
+    });
+  } catch (error) {
+    if (svc.isMissingTableError(error)) {
+      await logIdemError("durable-missing-table", operationKey, error);
+      return { handled: false };
+    }
+    await logIdemError("durable-begin", operationKey, error);
+    if (options.onClaimUnavailable) return { handled: true, value: await options.onClaimUnavailable(error) };
+    return { handled: true, value: await run() };
+  }
+
+  if (begun.kind === "duplicate") {
+    return {
+      handled: true,
+      value: onDuplicate({
+        state: begun.state === "UNKNOWN" ? "unknown" : "claimed",
+        expiresAt: begun.holdUntil,
+        attemptId: begun.attemptId,
+        attemptState: begun.state,
+      }),
+    };
+  }
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    const disposition = options.classifyError?.(error) ?? "known_failure";
+    await svc
+      .settleAttempt(begun.attemptId, {
+        disposition,
+        unknownHoldMs: options.unknownWindowMs,
+        reason: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      })
+      .catch((settleError) => logIdemError("durable-settle-after-throw", operationKey, settleError));
+    throw error;
+  }
+
+  // Settle, then stamp. The stamp runs only on a CONFIRMED settlement: if the
+  // ledger write fails the row is still EXECUTING and the caller gets the raw
+  // result — no attemptId, no ledgerState — because claiming a transition the
+  // store never made is exactly the lie this contract exists to end.
+  const disposition = dispose(result, succeeded, options);
+  let settled: SettledState;
+  try {
+    settled = await svc.settleAttempt(begun.attemptId, {
+      disposition,
+      unknownHoldMs: options.unknownWindowMs,
+      externalReference: disposition === "success" ? options.externalReference?.(result) : undefined,
+    });
+  } catch (error) {
+    await logIdemError("durable-settle", operationKey, error);
+    return { handled: true, value: result };
+  }
+  return { handled: true, value: durable.stamp ? durable.stamp(result, { attemptId: begun.attemptId, state: settled }) : result };
 }
 
 async function logIdemError(stage: string, key: string, error: unknown): Promise<void> {
