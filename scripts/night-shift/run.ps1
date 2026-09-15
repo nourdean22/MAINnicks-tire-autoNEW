@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Night Shift — one unattended Claude Code run that proposes ONE scoped PR.
+  Night Shift - one unattended Claude Code run that proposes ONE scoped PR.
 
 .DESCRIPTION
   1. Fresh worktree via scripts/worktree-setup.ps1 (junctions, env copy)
@@ -10,10 +10,10 @@
 
   Never merges. The prompt forbids it, the evaluator-separation CI job fails a
   candidate branch that edits its judges, and root AGENTS.md's protected
-  operations cover the rest. The operator merges — or doesn't.
+  operations cover the rest. The operator merges - or doesn't.
 
   Requires: `claude` on PATH and logged in; `gh` authenticated; env
-  STATENOUR_SYNC_URL + EVIDENCE_LEDGER_KEY (the SCOPED ledger key — it opens
+  STATENOUR_SYNC_URL + EVIDENCE_LEDGER_KEY (the SCOPED ledger key - it opens
   /api/sync/evidence and nothing else). Never hand this run STATENOUR_SYNC_KEY:
   that is the whole cross-app bridge (queue, nour-os, devices, cron/mega), and
   the headless agent inherits every variable in its environment. Without a
@@ -23,13 +23,18 @@
 .PARAMETER Model
   Model for the headless run. Default: the CLI default.
 .PARAMETER MaxTurns
-  Hard cap on agent turns — the run ends with no PR rather than looping.
+  Hard cap on agent turns - the run ends with no PR rather than looping.
 #>
 param(
   [string]$Model = "",
   [int]$MaxTurns = 80,
   [string]$RepoRoot = "C:\Users\nourd\NOURCITY"
 )
+# ASCII ONLY in this file. register-task.ps1 runs it under Windows PowerShell 5.1, which
+# reads a BOM-less file as cp1252: an em dash inside a double-quoted string decodes to a
+# smart quote, which 5.1 accepts as a string terminator - the first launch died on exactly
+# that ("The Try statement is missing its Catch or Finally block") while pwsh 7 parsed it
+# clean. Check with: powershell.exe -NoProfile -Command "[Parser]::ParseFile(...)".
 # NOT "Stop": git, worktree-setup and claude all write ordinary progress to stderr, and
 # under Windows PowerShell 5.1 (what register-task.ps1 runs) "Stop" + `2>&1` turns the
 # first such line into a terminating error. Failures are checked explicitly below.
@@ -53,7 +58,7 @@ function Post-Ledger([hashtable]$event) {
 
 # The headless agent inherits this process's environment. The bridge key lives in
 # the operator's user environment on this machine (local device agents use it), so
-# scrub it here — process scope only, the user variable is untouched — and the
+# scrub it here - process scope only, the user variable is untouched - and the
 # agent holds exactly one credential: the scoped ledger key, if any.
 $env:STATENOUR_SYNC_KEY = $null
 
@@ -61,10 +66,10 @@ Add-Content $log "=== night shift $date start $(Get-Date -Format o)"
 Push-Location $RepoRoot
 try {
   git fetch origin main 2>&1 | Add-Content $log
-  if (Test-Path $wtDir) { throw "worktree $wtDir already exists — a previous run did not tear down; inspect it before re-running" }
+  if (Test-Path $wtDir) { throw "worktree $wtDir already exists - a previous run did not tear down; inspect it before re-running" }
   powershell -NoProfile -File scripts\worktree-setup.ps1 -branchName $branch -targetDir ".worktrees\$wtName" 2>&1 | Add-Content $log
-  if (-not (Test-Path $wtDir)) { throw "worktree-setup did not create $wtDir — see $log" }
-  if (-not (Test-Path (Join-Path $wtDir "node_modules"))) { throw "worktree $wtDir has no node_modules junction (pnpm-lock.yaml differs from origin/main under -RepoRoot?) — see $log" }
+  if (-not (Test-Path $wtDir)) { throw "worktree-setup did not create $wtDir - see $log" }
+  if (-not (Test-Path (Join-Path $wtDir "node_modules"))) { throw "worktree $wtDir has no node_modules junction (pnpm-lock.yaml differs from origin/main under -RepoRoot?) - see $log" }
 
   Push-Location $wtDir
   try {
@@ -93,7 +98,7 @@ try {
     Add-Content $log "result: $(if ($prUrl) { $prUrl } else { 'no proposal' })"
   } finally { Pop-Location }
 } finally {
-  # Teardown removes junctions safely (never a bare recursive delete — they point OUT of the tree).
+  # Teardown removes junctions safely (never a bare recursive delete - they point OUT of the tree).
   if (Test-Path $wtDir) {
     powershell -NoProfile -File scripts\worktree-teardown.ps1 -targetDir ".worktrees\$wtName" 2>&1 | Add-Content $log
   }

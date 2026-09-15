@@ -3,7 +3,7 @@
   Register (or remove) the nightly Windows Scheduled Task for Night Shift.
 
 .DESCRIPTION
-  NOT run automatically by any agent — registering a standing task that runs
+  NOT run automatically by any agent - registering a standing task that runs
   Claude unattended on this machine is an operator decision. Run it yourself:
 
     powershell -File scripts\night-shift\register-task.ps1            # 02:30 local, daily
@@ -28,4 +28,4 @@ $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfil
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 3) -StartWhenAvailable -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Description "One scoped PR proposal per night; never merges." -Force | Out-Null
-Write-Host "registered '$name' daily at $At — first run: powershell -File `"$script`""
+Write-Host "registered '$name' daily at $At - first run: powershell -File `"$script`""

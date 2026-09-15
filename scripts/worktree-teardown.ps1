@@ -266,7 +266,11 @@ foreach ($key in $baseline.Keys) {
     $after = Get-EntryCount -Path $key
     # Fail closed on LOSS. A concurrent `pnpm install` in another session can
     # legitimately raise the count, so only a decrease is treated as damage.
-    if (($after -lt $before) -or ($after -le 0)) {
+    # A target that was ALREADY empty before the unlink (deploy/node_modules is
+    # 0 entries in every checkout) cannot have lost anything: 0 -> 0 is not
+    # damage. It aborted the first Night Shift teardown (2026-09-15) and left
+    # the worktree registered.
+    if (($after -lt $before) -or (($after -le 0) -and ($before -gt 0))) {
         $targetsDamaged++
         Write-Host ("  [X] {0,-7} -> {1,-7} {2}  DAMAGED" -f $before, $after, $key) -ForegroundColor Red
     } else {
