@@ -10,12 +10,19 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertEpisode, type EpisodeStep, type ExperienceEpisode } from "../episodes/schema";
+import { assertEpisode, episodeTitle, failureErrorText, oracleLabel, type EpisodeStep, type ExperienceEpisode } from "../episodes/schema";
 
+// Hidden holdout (2026-09-15): the proof workflow runs this spec a second time
+// with EPISODES_DIR pointing at episodes unpacked from a secret into the
+// runner's temp dir, EPISODES_HOLDOUT=1 (id-only titles, oracle values withheld
+// from every label and record) and EPISODES_RESULTS_DIR outside the uploaded
+// artifact. See tests/episodes/schema.ts.
+const HOLDOUT = process.env.EPISODES_HOLDOUT === "1";
 // ESM package ("type": "module"): no __dirname.
-const DIR = fileURLToPath(new URL("../episodes/", import.meta.url));
+const DIR = process.env.EPISODES_DIR ? resolve(process.env.EPISODES_DIR) : fileURLToPath(new URL("../episodes/", import.meta.url));
+const RESULTS_DIR = process.env.EPISODES_RESULTS_DIR ?? "test-results/episodes";
 const episodes: ExperienceEpisode[] = readdirSync(DIR)
   .filter((f) => f.endsWith(".json"))
   .map((f) => assertEpisode(JSON.parse(readFileSync(join(DIR, f), "utf8")), f));
@@ -48,7 +55,7 @@ async function runStep(page: Page, s: EpisodeStep): Promise<void> {
 // Only the project whose viewport matches the episode's runs it; episodes
 // name their own device because the failures they encode were device-specific.
 for (const ep of episodes) {
-  test(`${ep.id} · ${ep.task}`, async ({ page }, info) => {
+  test(episodeTitle(ep, HOLDOUT), async ({ page }, info) => {
     const vp = info.project.use.viewport;
     test.skip(!vp || vp.width !== ep.viewport.width, `episode is for ${ep.viewport.width}px, project is ${vp?.width}px`);
 
@@ -57,7 +64,7 @@ for (const ep of episodes) {
     // A retry that passes must not leave the first attempt's failure record
     // behind: the evidence poster reads this directory, and a flaky pass is
     // not an H2 claim. (It also cross-checks the final JSON report.)
-    const failurePath = `test-results/episodes/${ep.id}.failure.json`;
+    const failurePath = join(RESULTS_DIR, `${ep.id}.failure.json`);
     rmSync(failurePath, { force: true });
     try {
       await page.goto(ep.startPath, { waitUntil: "domcontentloaded" });
@@ -72,19 +79,19 @@ for (const ep of episodes) {
       // carry the same words in a hidden node ahead of the visible one, and
       // "first match is hidden" must not read as "the customer cannot see it".
       for (const t of ep.success.visibleText ?? []) {
-        await expect(page.getByText(toRegex(t)!).filter({ visible: true }).first(), `visible text: ${t}`).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText(toRegex(t)!).filter({ visible: true }).first(), oracleLabel("visible text", t, HOLDOUT)).toBeVisible({ timeout: 10_000 });
       }
-      if (ep.success.urlMatches) await expect(page).toHaveURL(toRegex(ep.success.urlMatches)!);
+      if (ep.success.urlMatches) await expect(page, oracleLabel("url", ep.success.urlMatches, HOLDOUT)).toHaveURL(toRegex(ep.success.urlMatches)!);
       for (const r of ep.success.visibleRole ?? []) {
-        await expect(page.getByRole(r.role as never, { name: toRegex(r.name) }).filter({ visible: true }).first(), `visible ${r.role} ${r.name ?? ""}`).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole(r.role as never, { name: toRegex(r.name) }).filter({ visible: true }).first(), oracleLabel(`visible ${r.role}`, r.name ?? "", HOLDOUT)).toBeVisible({ timeout: 10_000 });
       }
       const elapsed = Date.now() - started;
       expect(elapsed, "time budget").toBeLessThanOrEqual(ep.budget.ms);
     } catch (err) {
-      failure.error = err instanceof Error ? err.message : String(err);
+      failure.error = failureErrorText(err, HOLDOUT);
       failure.elapsedMs = Date.now() - started;
       failure.finalUrl = page.url();
-      mkdirSync("test-results/episodes", { recursive: true });
+      mkdirSync(RESULTS_DIR, { recursive: true });
       writeFileSync(failurePath, JSON.stringify(failure, null, 2));
       throw err;
     }

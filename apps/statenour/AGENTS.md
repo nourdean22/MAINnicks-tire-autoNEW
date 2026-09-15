@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-15 · UI workbench #2337 SHIPPED + LIVE `7164b69` (one inspector for any object, `?inspect=`, selection
-grammar, why-this-priority, UI Lab); wave 3 on branch (tool inspector, ChangeSet, e2e, deps, ViewTransition). Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-09-15 · UI workbench #2337 + #2341 SHIPPED (one inspector for any object, ChangeSet, e2e instrument, React 19.3 +
+Base UI 1.8, ViewTransition) · Execution truth + Dream-to-Proof #2335–#2342 (ActionAttempt, ledger ceilings). RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
