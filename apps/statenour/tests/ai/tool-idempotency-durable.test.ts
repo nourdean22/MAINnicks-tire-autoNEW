@@ -35,23 +35,43 @@ beforeEach(() => {
 const durable = { tool: "sendTelegram", effectClass: "write" as const };
 
 describe("withToolIdempotency · durable", () => {
-  it("claims through the service BEFORE running, hands the attempt id to the caller, settles success with the provider reference", async () => {
-    const seen: string[] = [];
-    const run = vi.fn(async () => ({ ok: true, id: 42 }));
-    const r = await withToolIdempotency("sendTelegram:abcdef0123456789", 5000, run, () => ({ ok: false, id: 0 }), undefined, {
-      durable,
-      onAttempt: (id) => seen.push(id),
+  it("claims through the service BEFORE running, settles success with the provider reference, then stamps the CONFIRMED ledger state", async () => {
+    type R = { ok: boolean; id: number; attemptId?: string; ledgerState?: string };
+    const run = vi.fn(async (): Promise<R> => ({ ok: true, id: 42 }));
+    const stamp = vi.fn((x: R, ledger: { attemptId: string; state: string }) => ({ ...x, attemptId: ledger.attemptId, ledgerState: ledger.state }));
+    const r = await withToolIdempotency<R>("sendTelegram:abcdef0123456789", 5000, run, () => ({ ok: false, id: 0 }), undefined, {
+      durable: { ...durable, stamp },
       classifyResult: (x) => (x.ok ? "success" : "known_failure"),
       externalReference: (x) => `telegram:message:${x.id}`,
     });
-    expect(r).toEqual({ ok: true, id: 42 });
+    expect(r).toEqual({ ok: true, id: 42, attemptId: "a1", ledgerState: "SUCCEEDED_UNVERIFIED" });
     expect(svc.beginAttempt).toHaveBeenCalledWith(
       expect.objectContaining({ operationKey: "sendTelegram:abcdef0123456789", tool: "sendTelegram", effectClass: "write", argumentsHash: "abcdef0123456789", windowMs: 5000 }),
     );
     expect(svc.beginAttempt.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[0]);
-    expect(seen).toEqual(["a1"]);
     expect(svc.settleAttempt).toHaveBeenCalledWith("a1", expect.objectContaining({ disposition: "success", externalReference: "telegram:message:42" }));
+    // the stamp carries what the LEDGER returned, and runs after the settle resolved
+    expect(stamp).toHaveBeenCalledWith({ ok: true, id: 42 }, { attemptId: "a1", state: "SUCCEEDED_UNVERIFIED" });
+    expect(svc.settleAttempt.mock.invocationCallOrder[0]).toBeLessThan(stamp.mock.invocationCallOrder[0]);
     expect(brainMemory.create).not.toHaveBeenCalled();
+  });
+
+  it("BREAKS (Codex, #2338): a failed settle returns the raw result UNSTAMPED — no ledger state is claimed for a row still EXECUTING", async () => {
+    svc.settleAttempt.mockRejectedValueOnce(new Error("write timeout"));
+    const stamp = vi.fn((x: { ok: boolean }) => ({ ...x, ledgerState: "SUCCEEDED_UNVERIFIED" }));
+    const r = await withToolIdempotency("k:1", 5000, async () => ({ ok: true }), () => ({ ok: false }), undefined, { durable: { ...durable, stamp } });
+    expect(r).toEqual({ ok: true }); // the side effect DID run; only the ledger claim is withheld
+    expect(stamp).not.toHaveBeenCalled();
+  });
+
+  it("the stamp reports FAILED / UNKNOWN exactly as the ledger settled them", async () => {
+    const stamp = vi.fn((x: { v: string }, ledger: { state: string }) => ({ ...x, ledgerState: ledger.state }));
+    svc.settleAttempt.mockResolvedValueOnce("UNKNOWN");
+    const r = await withToolIdempotency("k:1", 5000, async () => ({ v: "?" }), () => ({ v: "dup" }), undefined, {
+      durable: { ...durable, stamp },
+      classifyResult: () => "unknown",
+    });
+    expect(r).toEqual({ v: "?", ledgerState: "UNKNOWN" });
   });
 
   it("POSITIVE CONTROL: a duplicate does not run and the duplicate context carries the real ledger state", async () => {
@@ -100,14 +120,16 @@ describe("withToolIdempotency · durable", () => {
     expect(svc.settleAttempt).toHaveBeenLastCalledWith("a3", expect.objectContaining({ disposition: "unknown" }));
   });
 
-  it("a missing table falls back to the BrainMemory bridge and still runs exactly once", async () => {
+  it("a missing table falls back to the BrainMemory bridge, still runs exactly once, and never stamps (no row exists to name)", async () => {
     svc.beginAttempt.mockRejectedValueOnce({ code: "P2021" });
     const run = vi.fn(async () => "ran");
-    const r = await withToolIdempotency("k:1", 5000, run, () => "dup", undefined, { durable });
+    const stamp = vi.fn(() => "stamped");
+    const r = await withToolIdempotency("k:1", 5000, run, () => "dup", undefined, { durable: { ...durable, stamp } });
     expect(r).toBe("ran");
     expect(run).toHaveBeenCalledOnce();
     expect(brainMemory.create).toHaveBeenCalledOnce();
     expect(svc.settleAttempt).not.toHaveBeenCalled();
+    expect(stamp).not.toHaveBeenCalled();
   });
 
   it("any other store failure is the caller's policy: fail closed when onClaimUnavailable is given, fail open otherwise", async () => {

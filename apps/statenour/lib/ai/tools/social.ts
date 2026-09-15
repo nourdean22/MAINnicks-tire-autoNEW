@@ -11,6 +11,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import type { SettledState } from "@/lib/services/action-attempts";
 
 /**
  * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
@@ -71,12 +72,14 @@ export const socialTools = {
          * under (lib/services/action-attempts.ts). ledgerState is the state the
          * row settled to — SUCCEEDED_UNVERIFIED is the honest ceiling for a
          * Telegram send: the provider accepted it, nothing has read it back.
+         * Both fields are stamped by the wrapper ONLY after the ledger confirmed
+         * the settlement; absent means the ledger did not answer (missing
+         * table → bridge, or the settle failed), never "assume it did".
          */
         attemptId?: string;
-        ledgerState?: "SUCCEEDED_UNVERIFIED" | "FAILED" | "UNKNOWN";
+        ledgerState?: SettledState;
         priorAttemptState?: string;
       };
-      let attemptId: string | undefined;
       return withToolIdempotency<Result>(
         idempotencyKey("sendTelegram", fullMessage),
         5 * 60_000,
@@ -89,8 +92,6 @@ export const socialTools = {
               urgency,
               messageLength: fullMessage.length,
               messageId: outcome.messageId,
-              attemptId,
-              ledgerState: "SUCCEEDED_UNVERIFIED",
             };
           }
           return {
@@ -99,8 +100,6 @@ export const socialTools = {
             urgency,
             messageLength: fullMessage.length,
             reason: outcome.reason,
-            attemptId,
-            ledgerState: outcome.state === "unknown_completion" ? "UNKNOWN" : "FAILED",
             error:
               outcome.state === "unknown_completion"
                 ? `Telegram completion is unknown (${outcome.reason}); do not claim sent and do not retry blindly.`
@@ -131,9 +130,11 @@ export const socialTools = {
           // per operation key, claimed BEFORE the send and settled with the
           // provider's message id. sendTelegram is the one consequential mission
           // the contract is proven on before it is generalised.
-          durable: { tool: "sendTelegram", effectClass: "write" },
-          onAttempt: (id) => {
-            attemptId = id;
+          durable: {
+            tool: "sendTelegram",
+            effectClass: "write",
+            // Runs only after action_attempts confirmed the settlement.
+            stamp: (r, ledger) => ({ ...r, attemptId: ledger.attemptId, ledgerState: ledger.state }),
           },
           externalReference: (r) => (r.messageId !== undefined ? `telegram:message:${r.messageId}` : undefined),
           classifyResult: (r) =>

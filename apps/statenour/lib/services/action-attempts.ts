@@ -45,6 +45,9 @@ export type AttemptState =
 
 export type AttemptDisposition = "success" | "known_failure" | "unknown";
 
+/** The states an EXECUTING attempt can settle to. VERIFIED is reconciliation's alone. */
+export type SettledState = "SUCCEEDED_UNVERIFIED" | "FAILED" | "UNKNOWN";
+
 /** States in which an identical operation inside its hold window is a duplicate. */
 export const ACTIVE_STATES: ReadonlySet<AttemptState> = new Set<AttemptState>([
   "EXECUTING",
@@ -167,12 +170,31 @@ export async function beginAttempt(input: BeginAttemptInput, override?: Partial<
       attemptNo: existing.attemptNo,
     };
   }
-  const reclaimed = await prisma.actionAttempt.update({
-    where: { id: existing.id },
+  // Compare-and-swap on the row we observed (Codex review of #2338): two
+  // identical calls arriving after the same expiry both read this reclaimable
+  // row; an unconditional update by id would let BOTH win and both send. The
+  // WHERE pins the observed (attemptNo, state) — a settle changes the state, a
+  // reclaim bumps attemptNo — so exactly one update matches. The loser re-reads
+  // the winner's row and is reported as a duplicate with that row's real state.
+  const reclaimed = await prisma.actionAttempt.updateMany({
+    where: { id: existing.id, attemptNo: existing.attemptNo, state: existing.state },
     data: { ...fresh, attemptNo: existing.attemptNo + 1, tool: input.tool.slice(0, 80), argumentsHash: input.argumentsHash.slice(0, 64) },
-    select: { id: true, attemptNo: true },
   });
-  return { kind: "claimed", attemptId: reclaimed.id, attemptNo: reclaimed.attemptNo };
+  if (reclaimed.count === 1) {
+    return { kind: "claimed", attemptId: existing.id, attemptNo: existing.attemptNo + 1 };
+  }
+  const winner = await prisma.actionAttempt.findUnique({
+    where: { id: existing.id },
+    select: { id: true, state: true, attemptNo: true, holdUntil: true },
+  });
+  if (!winner) throw new Error(`action_attempts: lost the reclaim race on ${key} but no row readable`);
+  return {
+    kind: "duplicate",
+    attemptId: winner.id,
+    state: winner.state as AttemptState,
+    holdUntil: winner.holdUntil,
+    attemptNo: winner.attemptNo,
+  };
 }
 
 export interface SettleAttemptInput {
@@ -184,14 +206,18 @@ export interface SettleAttemptInput {
   unknownHoldMs?: number;
 }
 
-const DISPOSITION_STATE: Record<AttemptDisposition, AttemptState> = {
+const DISPOSITION_STATE: Record<AttemptDisposition, SettledState> = {
   success: "SUCCEEDED_UNVERIFIED",
   known_failure: "FAILED",
   unknown: "UNKNOWN",
 };
 
-/** Record how the side effect came back. Never moves to VERIFIED — that takes reconciliation. */
-export async function settleAttempt(attemptId: string, input: SettleAttemptInput, override?: Partial<Deps>): Promise<AttemptState> {
+/**
+ * Record how the side effect came back. Never moves to VERIFIED — that takes
+ * reconciliation. Resolves ONLY after the row is written: a caller may report
+ * the returned state as the ledger's, and nothing before this resolves is.
+ */
+export async function settleAttempt(attemptId: string, input: SettleAttemptInput, override?: Partial<Deps>): Promise<SettledState> {
   const { prisma, now } = await deps(override);
   const at = now!();
   const to = DISPOSITION_STATE[input.disposition];

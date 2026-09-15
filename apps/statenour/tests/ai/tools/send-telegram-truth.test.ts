@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const actionAttempt = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
+const actionAttempt = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() };
 const brainMemory = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn() };
 vi.mock("@/lib/prisma", () => ({ prisma: { actionAttempt, brainMemory } }));
 
@@ -47,6 +47,7 @@ beforeEach(() => {
   actionAttempt.create.mockResolvedValue({ id: "a1", attemptNo: 1 });
   actionAttempt.findUnique.mockResolvedValue(executing());
   actionAttempt.update.mockResolvedValue({});
+  actionAttempt.updateMany.mockResolvedValue({ count: 1 });
   brainMemory.create.mockResolvedValue({});
   brainMemory.findUnique.mockResolvedValue(null);
   brainMemory.update.mockResolvedValue({});
@@ -88,14 +89,34 @@ describe("sendTelegram tool · completion truth (durable ActionAttempt)", () => 
     expect(r.error).toMatch(/unknown completion/);
   });
 
-  it("a FAILED prior attempt is re-claimable: attempt 2 runs", async () => {
+  it("a FAILED prior attempt is re-claimable: attempt 2 runs, claimed by compare-and-swap on the observed row", async () => {
     actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
     actionAttempt.findUnique.mockResolvedValueOnce({ id: "a-prior", state: "FAILED", attemptNo: 1, holdUntil: null });
-    actionAttempt.update.mockResolvedValueOnce({ id: "a-prior", attemptNo: 2 }); // the re-claim
     sendTelegramObserved.mockResolvedValueOnce({ state: "provider_accepted", messageId: 7 });
     const r = await run({ message: "hi", urgency: "medium" });
     expect(r).toMatchObject({ sent: true, attemptId: "a-prior", ledgerState: "SUCCEEDED_UNVERIFIED" });
-    expect(actionAttempt.update.mock.calls[0][0].data).toMatchObject({ state: "EXECUTING", attemptNo: 2 });
+    const cas = actionAttempt.updateMany.mock.calls[0][0];
+    expect(cas.where).toEqual({ id: "a-prior", attemptNo: 1, state: "FAILED" });
+    expect(cas.data).toMatchObject({ state: "EXECUTING", attemptNo: 2 });
+  });
+
+  it("THE RACE: when another caller reclaimed the same expired row first, this caller sends NOTHING and reports the winner's state", async () => {
+    actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
+    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a-prior", state: "FAILED", attemptNo: 1, holdUntil: null });
+    actionAttempt.updateMany.mockResolvedValueOnce({ count: 0 }); // the swap matched nothing: someone else got there
+    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a-prior", state: "EXECUTING", attemptNo: 2, holdUntil: new Date(Date.now() + 60_000) });
+    const r = await run({ message: "hi", urgency: "medium" });
+    expect(sendTelegramObserved).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ sent: false, state: "duplicate_suppressed", priorAttemptState: "EXECUTING", attemptId: "a-prior" });
+  });
+
+  it("BREAKS: when the settle write fails the send is reported, but NO attemptId / ledgerState is claimed (the row is still EXECUTING)", async () => {
+    sendTelegramObserved.mockResolvedValueOnce({ state: "provider_accepted", messageId: 11 });
+    actionAttempt.update.mockRejectedValueOnce(new Error("write timeout")); // the settle
+    const r = await run({ message: "hi", urgency: "medium" });
+    expect(r).toMatchObject({ sent: true, state: "provider_accepted", messageId: 11 });
+    expect(r.attemptId).toBeUndefined();
+    expect(r.ledgerState).toBeUndefined();
   });
 
   it("a transport timeout is UNKNOWN completion: sent:false, an error the model sees, the row settles UNKNOWN and stays held (no blind retry)", async () => {
@@ -131,6 +152,7 @@ describe("sendTelegram tool · completion truth (durable ActionAttempt)", () => 
     const r = await run({ message: "hi", urgency: "medium" });
     expect(r).toMatchObject({ sent: true, state: "provider_accepted", messageId: 9 });
     expect(r.attemptId).toBeUndefined(); // the ledger did not answer
+    expect(r.ledgerState).toBeUndefined(); // so no ledger transition is claimed (Codex, #2338)
     expect(brainMemory.create).toHaveBeenCalledOnce(); // the bridge did
   });
 });

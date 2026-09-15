@@ -20,7 +20,7 @@ import {
   type AttemptState,
 } from "@/lib/services/action-attempts";
 
-const actionAttempt = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() };
+const actionAttempt = { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() };
 const prisma = { actionAttempt } as never;
 const NOW = new Date("2026-09-15T18:00:00.000Z");
 const deps = { prisma, now: () => NOW };
@@ -78,21 +78,38 @@ describe("beginAttempt", () => {
     expect(actionAttempt.update).not.toHaveBeenCalled();
   });
 
-  it("re-claims a FAILED row as attemptNo + 1", async () => {
+  it("re-claims a FAILED row as attemptNo + 1 — through a compare-and-swap on the observed row, never an update by id", async () => {
     actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
     actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "FAILED", attemptNo: 1, holdUntil: null });
-    actionAttempt.update.mockResolvedValueOnce({ id: "a1", attemptNo: 2 });
+    actionAttempt.updateMany.mockResolvedValueOnce({ count: 1 });
     const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
     expect(r).toEqual({ kind: "claimed", attemptId: "a1", attemptNo: 2 });
-    expect(actionAttempt.update.mock.calls[0][0].data).toMatchObject({ state: "EXECUTING", attemptNo: 2, externalReference: null });
+    const cas = actionAttempt.updateMany.mock.calls[0][0];
+    expect(cas.where).toEqual({ id: "a1", attemptNo: 1, state: "FAILED" }); // the observed row, pinned
+    expect(cas.data).toMatchObject({ state: "EXECUTING", attemptNo: 2, externalReference: null });
+    expect(actionAttempt.update).not.toHaveBeenCalled();
   });
 
   it("re-claims an expired SUCCEEDED_UNVERIFIED row (the window is the dedupe bound, not forever)", async () => {
     actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
     actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: new Date(NOW.getTime() - 1) });
-    actionAttempt.update.mockResolvedValueOnce({ id: "a1", attemptNo: 4 });
+    actionAttempt.updateMany.mockResolvedValueOnce({ count: 1 });
     const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
     expect(r).toEqual({ kind: "claimed", attemptId: "a1", attemptNo: 4 });
+  });
+
+  it("THE RACE (Codex, #2338): two callers read the same reclaimable row — the one whose swap matched nothing is a duplicate, not a second claim", async () => {
+    // Caller B observed FAILED/attemptNo 1, but caller A reclaimed it first: the
+    // row is now EXECUTING/attemptNo 2, so B's pinned WHERE matches 0 rows.
+    actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
+    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "FAILED", attemptNo: 1, holdUntil: null });
+    actionAttempt.updateMany.mockResolvedValueOnce({ count: 0 });
+    const winnersHold = new Date(NOW.getTime() + 1000);
+    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "EXECUTING", attemptNo: 2, holdUntil: winnersHold });
+    const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
+    expect(r).toEqual({ kind: "duplicate", attemptId: "a1", state: "EXECUTING", holdUntil: winnersHold, attemptNo: 2 });
+    expect(actionAttempt.updateMany).toHaveBeenCalledOnce(); // no second swap, no retry loop
+    expect(actionAttempt.update).not.toHaveBeenCalled();
   });
 
   it("propagates a non-conflict store error (the caller decides fail-open vs fail-closed)", async () => {

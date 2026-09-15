@@ -19,6 +19,7 @@
  *     for every caller that has not opted in yet.
  */
 import { createHash } from "node:crypto";
+import type { SettledState } from "@/lib/services/action-attempts";
 
 const CATEGORY = "tool_idempotency";
 
@@ -53,9 +54,18 @@ export interface ToolIdempotencyOptions<T> {
    * table does not exist in this environment the call falls back to the bridge
    * below and logs `durable-missing-table` — never crash the API on a missing table.
    */
-  durable?: { tool: string; effectClass?: "write" | "read" | "unknown" };
-  /** Receives the attempt id as soon as the operation is claimed (durable mode only). */
-  onAttempt?: (attemptId: string) => void;
+  durable?: {
+    tool: string;
+    effectClass?: "write" | "read" | "unknown";
+    /**
+     * Decorate the result with the ledger's verdict. Called ONLY after
+     * `settleAttempt` resolved — never on the missing-table fallback (no row
+     * exists) and never when the settle itself failed (the row is still
+     * EXECUTING). A result that carries `ledgerState` therefore always names a
+     * transition the ledger confirmed (Codex review of #2338).
+     */
+    stamp?: (result: T, ledger: { attemptId: string; state: SettledState }) => T;
+  };
   /** The provider's own reference for a successful effect (message id, sid...), recorded on the attempt. */
   externalReference?: (result: T) => string | undefined;
 }
@@ -254,19 +264,9 @@ async function runDurable<T>(
       }),
     };
   }
-  options.onAttempt?.(begun.attemptId);
-
+  let result: T;
   try {
-    const result = await run();
-    const disposition = dispose(result, succeeded, options);
-    await svc
-      .settleAttempt(begun.attemptId, {
-        disposition,
-        unknownHoldMs: options.unknownWindowMs,
-        externalReference: disposition === "success" ? options.externalReference?.(result) : undefined,
-      })
-      .catch((error) => logIdemError("durable-settle", operationKey, error));
-    return { handled: true, value: result };
+    result = await run();
   } catch (error) {
     const disposition = options.classifyError?.(error) ?? "known_failure";
     await svc
@@ -278,6 +278,24 @@ async function runDurable<T>(
       .catch((settleError) => logIdemError("durable-settle-after-throw", operationKey, settleError));
     throw error;
   }
+
+  // Settle, then stamp. The stamp runs only on a CONFIRMED settlement: if the
+  // ledger write fails the row is still EXECUTING and the caller gets the raw
+  // result — no attemptId, no ledgerState — because claiming a transition the
+  // store never made is exactly the lie this contract exists to end.
+  const disposition = dispose(result, succeeded, options);
+  let settled: SettledState;
+  try {
+    settled = await svc.settleAttempt(begun.attemptId, {
+      disposition,
+      unknownHoldMs: options.unknownWindowMs,
+      externalReference: disposition === "success" ? options.externalReference?.(result) : undefined,
+    });
+  } catch (error) {
+    await logIdemError("durable-settle", operationKey, error);
+    return { handled: true, value: result };
+  }
+  return { handled: true, value: durable.stamp ? durable.stamp(result, { attemptId: begun.attemptId, state: settled }) : result };
 }
 
 async function logIdemError(stage: string, key: string, error: unknown): Promise<void> {
