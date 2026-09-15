@@ -66,7 +66,12 @@ async function ensureMissionExists(db: DbClient, missionId: string) {
 
 function buildTaskViewModels(
   tasks: Array<DemoTask & { mission: DemoMission }>,
-  missions: DemoMission[]
+  missions: DemoMission[],
+  opts: {
+    /** 2026-09-15 · the per-term scorer breakdown, for the by-id read only —
+     *  eight terms per row is dead weight on a 200-row board fetch. */
+    withBreakdown?: boolean;
+  } = {}
 ) {
   const serializedTasks = serializeForJson(tasks);
   const missionRanking = rankMissions(serializeForJson(missions));
@@ -99,7 +104,13 @@ function buildTaskViewModels(
       effectivePriorityExplanation: automation.explanation,
       missionRank: mission?.rank || null,
       stale,
-      originSource
+      originSource,
+      ...(opts.withBreakdown
+        ? {
+            priorityBreakdown: automation.breakdown ?? null,
+            priorityManual: automation.manual,
+          }
+        : {}),
     };
   });
 }
@@ -304,12 +315,17 @@ export async function getTaskById(id: string) {
           mission
         }
       ],
-      state.missions
+      state.missions,
+      { withBreakdown: true }
     )[0];
   }
 
-  const task = await prisma.task.findUnique({
-    where: { id },
+  // 2026-09-15 · activeOnly: a soft-deleted task rendered as live in the
+  // universal inspector (a workset chip or a chat receipt pinned before the
+  // delete). Both callers (task.byId, GET /api/tasks/[id]) read live rows;
+  // admin/undo views use listTasks({ deletedAt: "all" }).
+  const task = await prisma.task.findFirst({
+    where: activeOnly({ id }),
     include: {
       mission: true
     }
@@ -325,7 +341,7 @@ export async function getTaskById(id: string) {
   const missions = await prisma.mission.findMany({
     where: activeOnly(),
   });
-  return buildTaskViewModels([task], missions)[0];
+  return buildTaskViewModels([task], missions, { withBreakdown: true })[0];
 }
 
 export async function createTask(input: unknown, tx?: Prisma.TransactionClient) {

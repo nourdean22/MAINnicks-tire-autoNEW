@@ -116,10 +116,45 @@ export type RankedMissionRef = {
   domain?: string | null;
 };
 
+export type PriorityTermKey = keyof typeof NOW_WEIGHTS;
+
+/** One term of the weighted sum: the 0-100 input, its weight, and what it means for THIS task. */
+export type PriorityTerm = {
+  key: PriorityTermKey;
+  label: string;
+  input: number;
+  weight: number;
+  /** input × weight — this term's share of the pre-multiplier score. */
+  contribution: number;
+  /** The input in operator words: "due in 3d", "untouched 12d", "$846", "mission #1". */
+  note: string;
+};
+
+export type PriorityMultiplier = {
+  key: "habit" | "blocked" | "shop";
+  factor: number;
+  note: string;
+};
+
+/**
+ * 2026-09-15 · the scorer's own arithmetic, exposed so the task inspector can
+ * show WHY a number is what it is instead of a bare `→ 63`. Computed from the
+ * same terms that produce `score` (the sum below is reduced over `terms`, in
+ * the same order as the old expression), so it cannot drift from the score.
+ * Absent for a manual override, which has no terms.
+ */
+export type PriorityBreakdown = {
+  terms: PriorityTerm[];
+  weightedSum: number;
+  multipliers: PriorityMultiplier[];
+  score: number;
+};
+
 export type TaskPriorityResult = {
   score: number;
   explanation: string;
   manual: boolean;
+  breakdown?: PriorityBreakdown;
 };
 
 /**
@@ -225,23 +260,71 @@ export function scoreTaskPriority(
   const isShopDampened =
     (mission?.domain ?? "").toUpperCase() === "BUSINESS" && dueUrgency < SHOP_OVERDUE_EXEMPT_MIN;
 
-  const weighted =
-    task.roiScore * NOW_WEIGHTS.roi +
-    dueUrgency * NOW_WEIGHTS.dueUrgency +
-    staleness * NOW_WEIGHTS.staleness +
-    dollarUrgency * NOW_WEIGHTS.dollar +
-    missionWeight * NOW_WEIGHTS.mission +
-    inverseFriction * NOW_WEIGHTS.friction +
-    energyBonus * NOW_WEIGHTS.energy +
-    activeBonus * NOW_WEIGHTS.active;
-  const multiplier =
-    (isHabit ? HABIT_CLASS_MULTIPLIER : 1) *
-    (isBlocked ? BLOCKED_MULTIPLIER : 1) *
-    (isShopDampened ? SHOP_CLASS_MULTIPLIER : 1);
+  const remaining = daysUntil(task.dueDate, now);
+  const hour = hourET(now);
+  const daypart = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+
+  // The weighted sum, term by term, in the ORDER of the original expression
+  // (floating-point addition is order-sensitive; keeping it keeps every
+  // existing score byte-identical).
+  const rawTerms: Array<Omit<PriorityTerm, "contribution">> = [
+    { key: "roi", label: "roi", input: task.roiScore, weight: NOW_WEIGHTS.roi, note: `roi ${task.roiScore} (hand-assigned)` },
+    {
+      key: "dueUrgency",
+      label: "deadline",
+      input: dueUrgency,
+      weight: NOW_WEIGHTS.dueUrgency,
+      note:
+        remaining === null
+          ? "no due date"
+          : remaining <= 0
+            ? `overdue ${Math.abs(Math.round(remaining))}d`
+            : `due in ${Math.round(remaining)}d`,
+    },
+    {
+      key: "staleness",
+      label: "staleness",
+      input: staleness,
+      weight: NOW_WEIGHTS.staleness,
+      note: touchDays === null ? "never touched" : touchDays === 0 ? "touched today" : `untouched ${touchDays}d`,
+    },
+    {
+      key: "dollar",
+      label: "dollars",
+      input: dollarUrgency,
+      weight: NOW_WEIGHTS.dollar,
+      note: dollars > 0 ? `$${dollars.toLocaleString("en-US")} in the title` : "no $ in the title",
+    },
+    {
+      key: "mission",
+      label: "mission rank",
+      input: missionWeight,
+      weight: NOW_WEIGHTS.mission,
+      note: mission ? `mission #${mission.rank}` : "no ranked mission",
+    },
+    { key: "friction", label: "low friction", input: inverseFriction, weight: NOW_WEIGHTS.friction, note: `friction ${task.frictionScore}` },
+    {
+      key: "energy",
+      label: "energy fit",
+      input: energyBonus,
+      weight: NOW_WEIGHTS.energy,
+      // Nullish-safe: quick-add payloads and test mocks omit energyRequired
+      // (getEnergyFit already tolerated it); a NOTE must never throw the scorer.
+      note: `${(task.energyRequired ?? "unknown").toLowerCase()} energy · ${daypart}`,
+    },
+    { key: "active", label: "in progress", input: activeBonus, weight: NOW_WEIGHTS.active, note: isDoing ? "started — resuming beats switching" : "not started" },
+  ];
+  const terms: PriorityTerm[] = rawTerms.map((t) => ({ ...t, contribution: t.input * t.weight }));
+  const weighted = terms.reduce((sum, t) => sum + t.contribution, 0);
+
+  const multipliers: PriorityMultiplier[] = [];
+  if (isHabit) multipliers.push({ key: "habit", factor: HABIT_CLASS_MULTIPLIER, note: "daily/weekly loop — maintenance, not attention" });
+  if (isBlocked) multipliers.push({ key: "blocked", factor: BLOCKED_MULTIPLIER, note: `waiting on ${task.waitingOn!.trim()}` });
+  if (isShopDampened) multipliers.push({ key: "shop", factor: SHOP_CLASS_MULTIPLIER, note: `business domain, due ramp ${dueUrgency} < ${SHOP_OVERDUE_EXEMPT_MIN}` });
+  const multiplier = multipliers.reduce((m, x) => m * x.factor, 1);
   const score = Math.round(weighted * multiplier);
 
   // One line, material terms only — "picked because: $846 · overdue 108d".
-  const remaining = daysUntil(task.dueDate, now);
   const parts: string[] = [];
   if (dollars > 0) parts.push(`$${dollars.toLocaleString("en-US")}`);
   if (remaining !== null) {
@@ -260,7 +343,8 @@ export function scoreTaskPriority(
   return {
     score,
     explanation: `picked because: ${parts.join(" · ")} → ${score}`,
-    manual: false
+    manual: false,
+    breakdown: { terms, weightedSum: weighted, multipliers, score },
   };
 }
 

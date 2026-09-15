@@ -58,6 +58,7 @@ import { useMissionFilters } from "./hooks/use-mission-filters";
 import { useExecutionFocus } from "./hooks/use-execution-focus";
 import { useMissionActions } from "./hooks/use-mission-actions";
 import { MissionDispatchProvider } from "./context/mission-dispatch-context";
+import { MissionInspectorActions } from "./components/mission-inspector-actions";
 import { useMissionUIStore } from "./state/use-mission-ui-store";
 import { MissionModalsManager } from "./components/mission-modals-manager";
 import { missionBoardReadState } from "./mission-board-read-state";
@@ -196,6 +197,7 @@ function MissionsPageInner() {
 
   return (
     <MissionDispatchProvider actions={actions}>
+      <MissionInspectorActions />
       <div className="mx-auto w-full max-w-5xl space-y-4 xl:max-w-[1360px]">
         {!executionModeActive && (
           <PageHeader
@@ -385,7 +387,9 @@ function MissionsPageInner() {
             )}
 
             {/* 5 · MISSIONS — finite projects, WIP-capped */}
-            <section aria-labelledby="mission-board-heading" className="space-y-3">
+            {/* data-selection-scope · 2026-09-15 · task rows carry data-entity, so
+                j/k/Space/Enter/x work here (hooks/use-selection-keyboard.ts). */}
+            <section aria-labelledby="mission-board-heading" className="space-y-3" data-selection-scope="missions">
               <div className="flex items-end justify-between gap-3 px-1">
                 <h2 id="mission-board-heading" className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
                   <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">missions</span>

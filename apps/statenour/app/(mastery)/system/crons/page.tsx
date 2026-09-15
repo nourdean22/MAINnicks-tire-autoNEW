@@ -46,6 +46,10 @@ import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 // `trpc.systemAutomation.runManifestCron` mutations. The 30s poll maps to
 // `refetchInterval`; per-job busy state stays as local Sets.
 import { trpc } from "@/lib/trpc/client";
+// 2026-09-15 · UI workbench: a cron row is an inspectable object (run history
+// + schedule in the universal inspector; run-now / kill stay on the row).
+import { Eye } from "lucide-react";
+import { useInspector } from "@/hooks/use-inspector";
 
 type CronMode = "active" | "folded" | "retired" | "dormant";
 type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert" | "action";
@@ -448,7 +452,7 @@ export default function CronsPage() {
             <h2 className={cn("text-xs font-semibold uppercase tracking-wider", groupMeta.tint)}>
               {groupMeta.label} · <span className="text-zinc-500 font-normal normal-case">{list.length}</span>
             </h2>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" data-selection-scope={`crons-${category}`}>
               {list.map((row) => (
                 <CronRowView
                   key={row.name}
@@ -503,11 +507,15 @@ function CronRowView({
   const meta = CATEGORY_META[row.category] ?? FALLBACK_META;
   const canTrigger = row.mode === "active";
   const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : "—";
+  const { openInspector } = useInspector();
 
   return (
     <div
+      data-entity={`cron:${row.name}`}
+      data-entity-label={row.name}
       className={cn(
         "group grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 rounded-lg border border-zinc-800/50 bg-[var(--bg-raised)]/[0.02] px-3 py-2.5 transition hover:border-zinc-700/60",
+        "data-[entity-focused=true]:border-[var(--gold)]/50 data-[entity-selected=true]:bg-[var(--gold)]/[0.06]",
         row.mode === "retired" && "opacity-40",
         !row.enabled && row.mode === "active" && "border-amber-500/20 bg-amber-500/[0.02]",
         isRunning && "chat-tool-shimmer",
@@ -519,6 +527,14 @@ function CronRowView({
           <span className={cn("truncate font-mono text-sm", row.enabled ? "text-zinc-100" : "text-zinc-500 line-through")}>
             {row.name}
           </span>
+          <button
+            type="button"
+            onClick={() => openInspector({ kind: "cron", id: row.name })}
+            aria-label="inspect cron"
+            className="inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:text-[var(--gold)] md:min-h-[28px] md:min-w-[28px]"
+          >
+            <Eye size={12} strokeWidth={2} />
+          </button>
           <span className={cn("flex-shrink-0 rounded px-1.5 py-[1px] text-[9px] uppercase tracking-wider", meta.tint, "bg-white/[0.04]")}>
             {row.mode === "folded" ? `folded → ${row.foldedInto}` : row.mode === "retired" ? "retired" : meta.label}
           </span>

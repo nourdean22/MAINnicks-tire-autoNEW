@@ -62,6 +62,13 @@ export const NICK_FAB_LANE_VAR = "--nick-fab-lane";
 /** Window event that opens a mounted pane (dispatched by the More sheet on phones). */
 export const NICK_PANE_OPEN_EVENT = "nick-side-pane:open";
 export const NICK_PANE_MOUNTED_ATTR = "nickPane";
+/**
+ * 2026-09-15 · published on <html> while the pane is OPEN so the universal
+ * inspector's docked panel (components/inspector/inspector-frame.tsx) docks to
+ * the left of this pane instead of under it. Same pattern as the FAB lane.
+ */
+export const NICK_PANE_OPEN_WIDTH_VAR = "--nick-pane-open-w";
+export const NICK_PANE_OPEN_WIDTH = "380px";
 
 /** Pure: reserve the lane on `root` and return the release. Testable without a DOM. */
 export function reserveFabLane(root: {
@@ -127,6 +134,16 @@ export function NickSidePane({
       /* private browsing · stay closed */
     }
   }, []);
+
+  // 2026-09-15 · tell the inspector how wide the open pane is (see the const).
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.style.setProperty(NICK_PANE_OPEN_WIDTH_VAR, NICK_PANE_OPEN_WIDTH);
+    return () => {
+      root.style.removeProperty(NICK_PANE_OPEN_WIDTH_VAR);
+    };
+  }, [open]);
 
   // Listen for the custom "statenour:open-nick" event to automatically open the side pane.
   useEffect(() => {
@@ -199,7 +216,10 @@ export function NickSidePane({
           // INSIDE the fixed tab bar's ~96px z-[55] band, painted under it.
           // Dock it above the measured chrome height and above the bar.
           // 2026-09-08 · hidden below md: on phones the More sheet opens the pane.
-          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-4 z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
+          // 2026-09-15 · shifted left by the inspector lane while a panel is
+          // docked (inspector-host.tsx) — at right-4 it painted over the
+          // panel's footer, where the entity actions live.
+          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-[calc(var(--inspector-lane,0px)_+_1rem)] z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
           "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
           "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
           "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",

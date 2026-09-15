@@ -248,7 +248,7 @@ export const taskRouter = router({
    * with its view model properties by ID.
    */
   byId: operatorProcedure
-    .input(z.object({ id: z.string().min(1).max(64) }))
+    .input(z.object({ id: z.string().min(1).max(200) }))
     .query(async ({ input }) => {
       const task = await getTaskById(input.id);
       if (!task) return null;

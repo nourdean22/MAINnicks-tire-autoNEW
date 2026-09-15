@@ -28,6 +28,15 @@ const SHORTCUTS = [
   { keys: ["G", "P"], action: "Go to /system/power",   section: "System Ops" },
   { keys: ["R"],      action: "Refresh Data",          section: "Actions" },
   { keys: ["Esc"],    action: "Close Panel / Dialog",  section: "Actions" },
+  // 2026-09-15 · UI workbench · the object grammar over any list whose rows
+  // carry data-entity (hooks/use-selection-keyboard.ts). Esc unwinds one
+  // level: peek → selection → inspector.
+  { keys: ["J"],      action: "Focus next object",        section: "Objects" },
+  { keys: ["K"],      action: "Focus previous object",    section: "Objects" },
+  { keys: ["Space"],  action: "Peek the focused object",  section: "Objects" },
+  { keys: ["Enter"],  action: "Open the inspector",       section: "Objects" },
+  { keys: ["X"],      action: "Select / deselect",        section: "Objects" },
+  { keys: ["⇧", "J"], action: "Extend the selection",     section: "Objects" },
 ];
 
 const GO_ROUTES: Record<string, string> = {

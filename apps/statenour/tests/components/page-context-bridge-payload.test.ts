@@ -37,4 +37,33 @@ describe("computeNextPayload", () => {
     expect(p?.lastTaskId).toBeUndefined();
     expect(p?.lastDecisionId).toBeUndefined();
   });
+
+  // 2026-09-15 · UI workbench · the universal inspector carries the object in
+  // `?inspect=<kind>:<id>` on ANY page, and the live task-row anchor is
+  // `task-<id>` (mission-task-row.tsx), not the `task-row-<id>` chat receipts
+  // emit. Positive control: both cases below FAILED against the pre-change
+  // bridge (lastTaskId undefined) before the fix landed.
+  it("reads the inspected object from the query string on any page", () => {
+    const p = computeNextPayload("/brain", "", "?tab=memory&inspect=task:t1");
+    expect(p?.lastTaskId).toBe("t1");
+    expect(p?.contextRoute).toBe("/brain");
+    const q = computeNextPayload("/stats", "", "inspect=decision:d7");
+    expect(q?.lastDecisionId).toBe("d7");
+  });
+
+  it("accepts the row's real `#task-<id>` anchor on /missions", () => {
+    const p = computeNextPayload("/missions", "#task-t2", "");
+    expect(p?.lastTaskId).toBe("t2");
+  });
+
+  it("the inspected object wins over a hash anchor when both are present", () => {
+    const p = computeNextPayload("/missions", "#task-row-a", "?inspect=task:b");
+    expect(p?.lastTaskId).toBe("b");
+  });
+
+  it("an inspected kind the bridge has no field for still stores the route (no field invented)", () => {
+    const p = computeNextPayload("/brain", "", "?inspect=memory:m1");
+    expect(p?.contextRoute).toBe("/brain");
+    expect(Object.keys(p ?? {}).sort()).toEqual(["contextRoute", "ts"]);
+  });
 });

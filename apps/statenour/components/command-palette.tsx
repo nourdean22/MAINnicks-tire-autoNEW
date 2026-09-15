@@ -70,8 +70,22 @@ import {
   KeyIcon,
   RocketIcon,
   HistoryIcon,
+  BookmarkIcon,
+  FlaskConicalIcon,
 } from "lucide-react";
 import { apiFetch } from "@/lib/utils/api-fetch";
+// 2026-09-15 · UI workbench · the palette becomes the Intent Resolver: when an
+// object is focused (a list row) or open (`?inspect=`), ⌘K leads with the
+// actions FOR THAT OBJECT (the Raycast action-panel idea, not its look); the
+// workset rides as its own group; a memory hit opens the universal inspector;
+// Reality Mode is toggled from here. Spec: docs/design/ui-workbench-2026-09-15.md.
+import { useInspectorStore } from "@/lib/state/inspector-store";
+import { useWorksetStore } from "@/lib/state/workset-store";
+import { ENTITY_KIND_LABEL, formatEntityRef, type EntityRef } from "@/lib/ui/entity-ref";
+import { askNickPrompt, homeRouteFor } from "@/lib/ui/entity-actions";
+import { useInspector } from "@/hooks/use-inspector";
+import { inspectHref, readInspect } from "@/lib/ui/inspect-url";
+import { entityLabelFromDom } from "@/hooks/use-selection-keyboard";
 
 interface CommandAction {
   id: string;
@@ -132,6 +146,32 @@ export function CommandPalette() {
   >([]);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const router = useRouter();
+  // Inspect actions go through the inspector contract (no scroll-to-top,
+  // replace-when-open) instead of a bare router.push (review 2026-09-15).
+  const { openInspector } = useInspector();
+  // 2026-09-15 · Intent Resolver inputs. `urlFocus` is read when the palette
+  // OPENS from window.location, not useSearchParams: this component mounts in
+  // the ROOT layout, where a search-params hook would force a Suspense bailout
+  // on static routes such as sign-in.
+  const focused = useInspectorStore((s) => s.focused);
+  const realityMode = useInspectorStore((s) => s.realityMode);
+  const setRealityMode = useInspectorStore((s) => s.setRealityMode);
+  const hydrateInspector = useInspectorStore((s) => s.hydrate);
+  const worksetEntries = useWorksetStore((s) => s.entries);
+  const worksetAdd = useWorksetStore((s) => s.add);
+  const hydrateWorkset = useWorksetStore((s) => s.hydrate);
+  const [urlFocus, setUrlFocus] = useState<EntityRef | null>(null);
+  // The URL focus is captured in the OPEN handlers (below), not in an effect —
+  // a synchronous setState in an effect is a cascading render. The store
+  // hydrations are external-system syncs and idempotent.
+  useEffect(() => {
+    if (!open) return;
+    hydrateInspector();
+    hydrateWorkset();
+  }, [open, hydrateInspector, hydrateWorkset]);
+  const captureUrlFocus = useCallback(() => {
+    setUrlFocus(readInspect(window.location.search));
+  }, []);
   // scattered-components REST→tRPC slice (2026-05-22 · prerender fix) ·
   // the eight CommandPalette system probes migrated off `authedFetch`
   // onto tRPC. CommandPalette mounts in the ROOT layout
@@ -170,25 +210,30 @@ export function CommandPalette() {
               }
             }
             // No recent yet — fall through to just open the palette.
+            captureUrlFocus();
             setOpen(true);
           }
           return;
         }
+        if (!open) captureUrlFocus();
         setOpen((o) => !o);
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [open]);
+  }, [open, captureUrlFocus]);
 
   // 2026-06-18 · IA reorg Phase 1 · tap-to-open. On the iOS PWA there is no
   // ⌘K — the FloatingHome "Search" button (and the future bottom-bar search)
   // dispatch COMMAND_PALETTE_OPEN_EVENT to open the palette by tap.
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      captureUrlFocus();
+      setOpen(true);
+    };
     window.addEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
-  }, []);
+  }, [captureUrlFocus]);
 
   // Refresh recents every time the palette opens — cheap, and makes
   // ranking reflect what he actually just used (multi-tab safe).
@@ -289,6 +334,7 @@ export function CommandPalette() {
       { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
       { id: "sys-proactive", label: "Proactive Preview · push dry-run", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/proactive-preview"), keywords: ["proactive", "push", "preview", "dry run", "telemetry"] },
       { id: "sys-cockpit", label: "Cockpit Observability · traces", group: "System", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/cockpit-observability"), keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"] },
+      { id: "sys-ui-lab", label: "UI Lab · inspector + metric + evidence fixtures", group: "System", icon: <FlaskConicalIcon className="size-4" />, action: () => navigate("/system/ui-lab"), keywords: ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"] },
 
       // ═══ QUICK ACTIONS ═══
       { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help"] },
@@ -469,6 +515,89 @@ export function CommandPalette() {
 
   const groups = [...new Set(actions.map((a) => a.group))];
 
+  // 2026-09-15 · Intent Resolver · the actions for the focused / inspected
+  // object lead the palette. Label from the row's own DOM (data-entity-label)
+  // so nothing has to be plumbed through props.
+  const focusTarget = urlFocus ?? focused;
+  const objectActions: CommandAction[] = useMemo(() => {
+    if (!focusTarget) return [];
+    const ref = focusTarget;
+    const key = formatEntityRef(ref);
+    const label = entityLabelFromDom(key) ?? `${ENTITY_KIND_LABEL[ref.kind]} ${ref.id}`;
+    const group = `Focused · ${ENTITY_KIND_LABEL[ref.kind]}`;
+    return [
+      {
+        id: `object:inspect:${key}`,
+        label: `Inspect · ${label}`,
+        group,
+        icon: <EyeIcon className="size-4" />,
+        action: () => openInspector(ref),
+        keywords: ["inspect", "open", "peek", ref.kind],
+      },
+      {
+        id: `object:open:${key}`,
+        label: "Open on its page",
+        group,
+        icon: <ZapIcon className="size-4" />,
+        action: () => navigate(homeRouteFor(ref)),
+        keywords: ["page", "go", "jump"],
+      },
+      {
+        id: `object:ask:${key}`,
+        label: "Ask Nick about it",
+        group,
+        icon: <BrainIcon className="size-4" />,
+        action: () =>
+          navigate(`/chat?prompt=${encodeURIComponent(askNickPrompt([ref], { labelOf: () => label }))}`),
+        keywords: ["nick", "why", "ask", "explain"],
+      },
+      {
+        id: `object:workset:${key}`,
+        label: "Add to workset · today",
+        group,
+        icon: <BookmarkIcon className="size-4" />,
+        action: () => {
+          worksetAdd(ref, label, "today");
+          toast.success(`Added to workset · ${label}`);
+        },
+        keywords: ["workset", "pin", "carry", "shelf"],
+      },
+    ];
+  }, [focusTarget, navigate, openInspector, worksetAdd]);
+
+  const worksetActions: CommandAction[] = useMemo(
+    () =>
+      worksetEntries.map((entry) => ({
+        id: `workset:${formatEntityRef(entry.ref)}`,
+        label: entry.label,
+        group: "Workset",
+        icon: <BookmarkIcon className="size-4" />,
+        action: () => openInspector(entry.ref),
+        keywords: ["workset", entry.ref.kind, entry.horizon],
+      })),
+    [worksetEntries, openInspector],
+  );
+
+  const modeActions: CommandAction[] = useMemo(
+    () => [
+      {
+        id: "mode-reality",
+        label: realityMode
+          ? "Reality Mode · on — turn off (provenance back to chips)"
+          : "Reality Mode · show provenance inline on every evidence mark",
+        group: "Modes",
+        icon: <EyeIcon className="size-4" />,
+        action: () => {
+          const next = !realityMode;
+          setRealityMode(next);
+          toast.success(next ? "Reality Mode on · every evidence mark now reads inline" : "Reality Mode off");
+        },
+        keywords: ["reality", "provenance", "evidence", "proof", "truth", "mode"],
+      },
+    ],
+    [realityMode, setRealityMode],
+  );
+
   // 2026-05-24 · Wave W Phase 2 · debounced hybrid spotlight fetch.
   // 250ms debounce · only fires for queries ≥ 3 chars · clears
   // results immediately when query empties so cmdk's own
@@ -539,7 +668,10 @@ export function CommandPalette() {
     (hit: { id: string; sourceType: string }) => {
       setOpen(false);
       if (hit.sourceType === "brain_memory") {
-        router.push(`/brain?tab=wisdom&focus=${encodeURIComponent(hit.id)}`);
+        // 2026-09-15 · a memory hit opens the universal memory inspector on the
+        // Brain memory tab (was: the wisdom tab's KEY-based ?focus= fed a ROW id,
+        // a deep link that could never resolve).
+        router.push(inspectHref("/brain", "tab=memory", { kind: "memory", id: hit.id }));
       } else if (hit.sourceType === "chat_message") {
         router.push(`/chat#${encodeURIComponent(hit.id)}`);
       } else {
@@ -569,6 +701,41 @@ export function CommandPalette() {
           query={query.trim()}
           onLogged={() => setOpen(false)}
         />
+
+        {/* 2026-09-15 · Intent Resolver · the focused / inspected object's
+            actions lead; the workset follows. Both empty on a cold palette. */}
+        {objectActions.length > 0 && (
+          <CommandGroup heading={objectActions[0]!.group}>
+            {objectActions.map((action) => (
+              <CommandItem
+                key={action.id}
+                value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
+                onSelect={() => runAction(action.id, action.action)}
+                disabled={loading === action.id}
+              >
+                {action.icon}
+                <span>{loading === action.id ? "Running..." : action.label}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {worksetActions.length > 0 && (
+          <CommandGroup heading={`Workset · ${worksetActions.length}`}>
+            {worksetActions.map((action) => (
+              <CommandItem
+                key={action.id}
+                value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
+                onSelect={() => runAction(action.id, action.action)}
+              >
+                {action.icon}
+                <span>{action.label}</span>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                  {action.keywords?.[1]}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {/* 2026-05-24 · Wave W Phase 2 · semantic spotlight group ·
             top-5 RRF-fused hits across brain_memory + chat_message.
@@ -654,6 +821,20 @@ export function CommandPalette() {
             </CommandGroup>
           </div>
         ))}
+
+        <CommandSeparator />
+        <CommandGroup heading="Modes">
+          {modeActions.map((action) => (
+            <CommandItem
+              key={action.id}
+              value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
+              onSelect={() => runAction(action.id, action.action)}
+            >
+              {action.icon}
+              <span>{action.label}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
       </CommandList>
     </CommandDialog>
   );

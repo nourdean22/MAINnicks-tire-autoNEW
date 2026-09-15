@@ -1,5 +1,100 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-15 · UI workbench slice 2 (same branch): hostile-review fixes, `/system/ui-lab`, why-this-priority, page-lent actions, alert + cron inspectors
+>
+> **Review pass first.** A read-only adversarial review of slice 1 found 2 P1 + 8 P2 + 8 P3, none in `tsc`,
+> all in behaviour: selection/focus/peek survived route changes; `/people` deep links SSR-rendered the global
+> sheet over the dossier (ownership was effect-time); one Esc closed two layers; Tab-reached rows ignored
+> Enter; the docked panel was overlapped by the FAB / selection bar and covered content with the Nick pane
+> open; the sheet named two "Close inspector" controls; `getTaskById` had no soft-delete filter; palette
+> Inspect scrolled the page to the top; `font-[var(--font-display)]` was dropped by tailwind-merge as a
+> font-WEIGHT conflict. All fixed in `ba227588a` (spec §3.8), with tests where the shape allows — the two P1s
+> live in DOM code the Node lane cannot exercise; a Playwright case is on the NEXT list.
+>
+> **Built.** `/system/ui-lab` (hub card + palette entry; the inspector chrome, its four states, the metric
+> grammar and the evidence mark against fixtures on a FROZEN clock; `/system/chat-states` restored to `main`
+> byte-for-byte because `tests/e2e/chat-states.spec.ts` pins it with full-page screenshot baselines) ·
+> `scoreTaskPriority` returns `breakdown` (terms · weightedSum · multipliers · score, reduced from the same
+> term list in the original order so every existing score is byte-identical — polarity / now-card / follow-up
+> canaries green) → `task.byId` carries it → `PriorityBreakdownView` in the task inspector, manual-override
+> line, stored-string fallback · store `pageActions` + `useRegisterInspectorActions`; `MissionInspectorActions`
+> lends complete / snooze-tomorrow / snooze-next-Monday through the board's own dispatch (one mutation path);
+> `lib/missions/snooze-presets.ts` lifted out of `mission-task-row.tsx` · `alert` inspector (brain.memoryById +
+> resolve two-tap / mute 7d) and `cron` inspector (cronDeck row + cronRunHistory 7d: success / median / p95
+> Metrics, runs with error previews; ZERO for no runs, not-found for an unknown name) · rows on
+> `/system/alerts` and `/system/crons` carry `data-entity` + eye buttons under selection scopes · Home brief
+> lead gets Inspect when the lead is a concrete task.
+>
+> **Receipts (commits `ba227588a` · `f750745c6` · `801713af2` + this docs commit).** Per slice: 21 files /
+> 133 tests; 16 / 96; 5 / 31 — all exit 0. Positive controls, each red then restored: ui-lab notice deleted;
+> `getTaskById` on `findUnique`; roi contribution ×2 ("plain/roi: expected 14.3 to be close to 7.15");
+> cron zero-runs branch disabled (red on the missing `data-provenance="ZERO"` — `801713af2`'s message
+> names the wrong assertion; the test header carries the correct one). Whole-branch gates in the PR body.
+>
+> **Not built, with the reason:** the `tool` inspector (next: registry at `/system/tools`), ChangeSet (still
+> one consumer), the §5.1 type floor (would re-cut the chat-states baselines), Time Travel (Brain Wave 2),
+> the dependency bumps (own PR), `execution-panel.tsx`'s duplicate snooze presets (not this branch's file).
+
+> ## 2026-09-15 · UI workbench slice 1: one inspector for any object, `?inspect=`, selection grammar, workset, Reality Mode · branch `claude/statenour-ui-architecture-intmaf`
+>
+> Operator instruction: check the accuracy of a pasted 38-section "NOUR Spatial Workbench" UI plan, make it
+> top-level, then build it — while a sibling session works the same app (PR #2335, backend only; overlap
+> limited to `docs/UPSTREAMS.md`, rows placed at opposite ends of the table).
+>
+> **The gate (plan-gate, `docs/design/ui-workbench-2026-09-15.md`).** ~60% of the plan was already built,
+> ~10% refuted or stale, ~30% genuinely new. Refuted/corrected: "current CI issue" (15/15 green on #2334),
+> "H0/H1/H2" (the ledger has H0–H5; `H1`/`H2PLUS` are effort bands), Brain group "REVIEW" is `RULE`,
+> "14 custom drawers" (20 bespoke overlays, 6 entity drawers), TanStack Virtual "use now" (declared, zero
+> imports), the wave order ("substrate first, pages later" fails `ui-mount-graph.test.ts` + the knip gate),
+> Cmd+Shift+R (browser hard-reload). Missed by the plan: `/proof` fully built and unreachable (fixed: one NAV
+> row), `docs/design/warroom-spatial-os-phase1.md` (validated, unbuilt), the §5 design program already owning
+> the type floor and colour semantics, `brain-node-detail-panel.tsx` as an existing memory inspector,
+> `lib/services/metric-result.ts` as the metric substrate, `EmptyState` type-gating Constitution #10.
+>
+> **Built (vertical slices, each primitive with its first consumer and a test that failed first):**
+> `lib/ui/{entity-ref,inspect-url,selection-model,workset,metric-datum,entity-actions}.ts` ·
+> `lib/state/{inspector,workset}-store.ts` · `lib/brain/evidence-label.ts` (extracted from the graph panel) ·
+> `lib/services/brain/memory-detail.ts` + `trpc.brain.memoryById` (the app's first by-id memory read,
+> soft-delete filtered) · `hooks/{use-inspector,use-selection-keyboard,use-min-width}.ts` ·
+> `components/inspector/**` (host in the layout, frame = docked 380px panel at ≥1280px reserving
+> `--inspector-lane` / bottom sheet below, honest loading·error·not-found·no-renderer states, memory/task/person
+> panels, entity action row, selection bar) · `components/ui/{evidence-mark,metric}.tsx` ·
+> `components/workset/workset-shelf.tsx`. Wired: `(mastery)/layout.tsx`, the page-context bridge reads
+> `?inspect=` (and the row's real `#task-<id>` anchor — chat receipts emitted `#task-row-<id>`, which scrolled
+> nowhere), ⌘K leads with the focused object's actions + a Workset group + a Reality Mode toggle and sends memory
+> hits to the inspector (was: a row id into the wisdom tab's key-based `?focus=`), Brain "Changed" rows, the
+> graph panel's Inspect action, Missions rows (data-entity + eye button, 44px), `/people` selection is the URL
+> and the page owns the `person` kind, `/proof` in NAV, the Nick pane publishes `--nick-pane-open-w`,
+> (the inspector states first landed on `/system/chat-states` and moved to `/system/ui-lab` in slice 2 — that
+> page is pinned by screenshot baselines), `docs/DESIGN.md` gains the object grammar +
+> the 20-rule UI Constitution, `docs/UPSTREAMS.md` gains 9 technology verdicts.
+>
+> **Deliberately not built, with the reason on record (spec §3.7/§5):** ChangeSet (one live consumer), page
+> archetypes (no consumer → knip orphan), Time Travel scrubber (`valid_from` on 0 of 40,889 rows — Brain plan
+> Wave 2, not UI), the System incident inspector and task mutations in the inspector (both landed in slice 2,
+> above), a desktop left rail, React 19.3 / Base UI 1.8 bumps (lockfile PRs of their own).
+>
+> **Receipts.** This slice: 17 test files, 115 passed, exit 0 (`tests/ui/*`, `tests/state/*`,
+> `tests/services/memory-detail.test.ts`, `tests/components/{page-context-bridge-payload,inspector-*,
+> memory-inspector-states,person-inspector-cadence,evidence-mark-modes}.test.*`). Positive controls run against
+> the unfixed code: 3 of 4 new bridge assertions red pre-fix; the soft-delete canary red without `activeOnly`;
+> 5 component mutations red (receipts at the top of each file). Full app suite once: 795 files, 792 passed,
+> 1 failed, 2 skipped · 8,126 tests, 8,119 passed, 1 failed, 6 skipped — the failure
+> (`tests/repo/obsidian-ingest-server-only.test.ts`, `CHAIN_THREW: persistKnowledgeCandidate missing`)
+> reproduces identically on a pristine `origin/main` worktree in this container, as does
+> `check:policy-coverage` (`server-only` under plain tsx at `lib/ai/budget.ts:9`); neither touches this diff
+> and CI was green on the same code this morning. `tsc --noEmit` exit 0 (after building lenses,
+> ai-capabilities, social-assets). eslint 0 errors; lint-baseline 132 ≤ 132. `check:anti-slop` ✓ ·
+> `check:get-auth` 179/179 ✓ · `check:soft-delete` ✓ · `check:mutations:strict` ✓ · `check:crons` ✓ ·
+> `check:stale-docs` strict 0 critical ✓ · `prompt:size-check` needs DATABASE_URL (not measured) ·
+> `ui-mount-graph` / `brain-nav-tabs` / `market-moved` ✓.
+>
+> **Behaviour changes to eyeball on a phone (no browser in this container):** the Missions row grew an eye
+> button in its action cluster; `/people` selection now writes `?inspect=person:<id>` (Back closes the dossier);
+> Reality Mode renders provenance inline after hydration only (zustand's server snapshot is the initial state —
+> the server always emits the chip).
+
+
 > ## 2026-09-10 · "Empty is not error" wave: five layers where a failed read looked like a fact · PR #2271 (`c518a48a2`)
 >
 > Operator instruction: implement the pasted NICK audit + APEX brief, "check the accuracy of everything",

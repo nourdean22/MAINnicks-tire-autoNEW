@@ -30,6 +30,11 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
 import type { BrainGraphNode, BrainGraphEdge } from "@/lib/brain/brain-graph";
+// 2026-09-15 · the label map moved to lib/brain/evidence-label.ts so the
+// universal inspector, the evidence mark and this panel share ONE ladder
+// (it used to be a local constant here — the only UI copy).
+import { EVIDENCE_LABEL } from "@/lib/brain/evidence-label";
+import { useInspector } from "@/hooks/use-inspector";
 
 interface BrainNodeDetailPanelProps {
   node: BrainGraphNode;
@@ -57,18 +62,6 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number; className?
   project: Sparkles,
 };
 
-/** Commit-gateway class → operator-facing label. Mirrors the recall
- *  provenance vocabulary — one ladder, not a fourth taxonomy. */
-const EVIDENCE_LABEL: Record<string, { text: string; cls: string }> = {
-  operator_stated: { text: "you stated", cls: "border-emerald-500/30 text-emerald-300 bg-emerald-500/10" },
-  system_receipt: { text: "receipt", cls: "border-emerald-500/25 text-emerald-300/90 bg-emerald-500/5" },
-  direct_observation: { text: "observed", cls: "border-cyan-500/25 text-cyan-300 bg-cyan-500/5" },
-  external_source: { text: "external", cls: "border-blue-500/25 text-blue-300 bg-blue-500/5" },
-  supported_inference: { text: "inferred", cls: "border-amber-500/25 text-amber-300 bg-amber-500/5" },
-  generated_summary: { text: "summary", cls: "border-zinc-500/25 text-zinc-300 bg-zinc-500/5" },
-  prediction: { text: "prediction", cls: "border-violet-500/25 text-violet-300 bg-violet-500/5" },
-  weak_inference: { text: "weak signal", cls: "border-zinc-600/30 text-zinc-400 bg-zinc-600/10" },
-};
 
 /** graph node type → memory_edges sourceType vocabulary. Types with no
  *  presence in memory_edges skip the stored-neighborhood fetch. */
@@ -108,6 +101,10 @@ export function BrainNodeDetailPanel({
 }: BrainNodeDetailPanelProps) {
   const router = useRouter();
   const IconComponent = TYPE_ICONS[node.type] || FileText;
+  // 2026-09-15 · a memory node and a Brain "Changed" row now open the SAME
+  // memory object (`?inspect=memory:<id>`); this panel keeps the graph-only
+  // affordances (focus, in-view connections) and hands off for the rest.
+  const { openInspector } = useInspector();
 
   // In-view connections — from the payload already on screen. Free.
   const inViewConnections = useMemo(() => {
@@ -309,6 +306,15 @@ Connected in view: ${inViewConnections.map((c) => `${c.node.label} (${c.type})`)
           <MessageSquare size={12} />
           ask nick about this
         </button>
+        {node.type === "memory" && (
+          <button
+            onClick={() => openInspector({ kind: "memory", id: node.id })}
+            className="w-full text-[9px] font-mono uppercase tracking-wider rounded border border-(--border-default) bg-(--bg-elevated) text-(--text-secondary) hover:border-(--gold)/20 transition-colors min-h-[48px] flex items-center justify-center gap-1"
+          >
+            <Eye size={11} />
+            inspect memory · proof + time
+          </button>
+        )}
         <div className="grid grid-cols-2 gap-1.5">
           {/* A node with no in-view edges cannot HAVE a neighbourhood: the
               focus BFS walks the same edge list rendered here, finds

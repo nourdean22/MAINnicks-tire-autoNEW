@@ -1,5 +1,33 @@
 # Session ledger — statenour
 
+**Updated:** 2026-09-15 (UI workbench slices 1 + 2 on top of the camera vision wave 0)
+
+## UI workbench slices 1 + 2 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf`, one draft PR)
+**Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical
+slices. Spec + verdict: `docs/design/ui-workbench-2026-09-15.md` (read THAT before proposing any inspector,
+drawer, selection or "spatial" work). Ship entry: RECONCILIATION top.
+**What now exists:** `?inspect=<kind>:<id>` opens ONE inspector for memory / task / person / alert / cron
+from any page (`components/inspector/inspector-host.tsx`, mounted in the layout; registry in
+`inspector-registry.tsx`); rows with `data-entity` inside a `[data-selection-scope]` get j/k/Space/Enter/x
+(Brain Changed, Missions, People, /system/alerts, /system/crons); ⌘K leads with the focused object's actions;
+a workset shelf; Reality Mode (⌘K → Modes) renders provenance inline; `/proof` is in NAV; the chat bridge
+reads `?inspect=`; the task inspector shows the scorer's per-term breakdown (`task.byId` →
+`priorityBreakdown`) and runs the Missions board's complete / snooze through page-lent actions
+(`useRegisterInspectorActions`); `/system/ui-lab` is the primitives gallery (frozen clock). Slice-1 hostile
+review: 18 findings, all fixed in `ba227588a` — spec §3.8 lists them; read it before touching the hook.
+**Next (in order, spec §5):** `tool` inspector (`/system/tools` registry) · ChangeSet with Brain's Changed
+view as the second consumer · Base UI 1.8 + React 19.3 dependency PR, then `<ViewTransition>` on row →
+inspector only · the §5.1 type floor on `bottom-tab-bar.tsx` / `more-sheet.tsx` with the chat-states
+baselines re-cut in the same PR · `execution-panel.tsx` → `lib/missions/snooze-presets.ts` · a Playwright
+case for route-change reset + one-Esc-one-layer (DOM code the Node lane cannot see).
+**Not this branch's, reproduced on `origin/main` in the container:** `tests/repo/obsidian-ingest-server-only`
+("chain moved: persistKnowledgeCandidate missing") and `check:policy-coverage` (`server-only` under plain tsx
+at `lib/ai/budget.ts:9`). CI was green on the same code (#2334); if CI is red on these here, it is the
+environment, not the diff.
+**Sibling session (PR #2335, execution truth):** backend only; the only shared file is `docs/UPSTREAMS.md`
+(my rows at the top of the table, theirs at the bottom). Ownership map: spec §4.
+
+## Camera vision wave 0 (2026-09-08; superseded stamp)
 **Updated:** 2026-09-08 (camera vision wave 0 on top of the design pass + Brain plan/Wave 0-1)
 
 ## Camera vision wave 0 (2026-09-08; PRs #2221 nickstire, #2222 statenour, #2223 docs; edge PR pending)
