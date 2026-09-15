@@ -152,6 +152,11 @@ apps/statenour/logs/
 # NOTE: do NOT ignore all of .claude/ - .claude/skills/ is tracked + shared.
 .serena/
 .claude/worktrees/
+# .worktrees/ = the house worktree location (scripts/worktree-setup.ps1 -targetDir .worktrees/<name>);
+# scripts/night-shift/run.ps1 creates .worktrees/night-shift-<date> under -RepoRoot and writes its
+# run log to scripts/night-shift/logs/<date>.log. Neither is source.
+.worktrees/
+scripts/night-shift/logs/
 
 # Local context packs and agent memory
 docs/LOCAL-CONTEXT-PACK.md

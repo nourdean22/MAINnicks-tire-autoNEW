@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { auth, authEnabled } from "@/auth";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
+import { evidenceDoorAccepts, presentedLedgerKey } from "@/lib/security/evidence-ledger-auth";
 
 // v10.0.529.105 · Wave 49 · structured logger surface for auth-bypass
 // events. Pre-Wave-49 console.error was the only signal · meant the
@@ -57,6 +58,24 @@ export function requireSyncAuth(req: Request): void {
     req.headers.get("x-sync-key") ??
     req.headers.get("authorization")?.replace("Bearer ", "");
   if (!SYNC_KEY || !safeEqual(syncKey ?? "", SYNC_KEY)) {
+    throw new ServiceError("Unauthorized", 401);
+  }
+}
+
+/**
+ * Validate the Reality Ledger's scoped key — or the bridge key. Throws ServiceError on failure.
+ *
+ * EVIDENCE_LEDGER_KEY opens ONLY /api/sync/evidence (the ledger door). It exists so an
+ * unattended caller (Night Shift, the proof workflow) can read and append evidence without
+ * holding STATENOUR_SYNC_KEY, which is the whole cross-app bridge (queue, nour-os, devices,
+ * nickstire/query, cron/mega). The bridge key still opens this door so nickstire's server keeps
+ * posting with the credential it already has; the scoped key opens nothing else, because
+ * requireSyncAuth never looks at it. The decision itself lives in
+ * lib/security/evidence-ledger-auth.ts (next-auth-free, so its test imports the real thing).
+ */
+export function requireEvidenceAuth(req: Request): void {
+  const env = { EVIDENCE_LEDGER_KEY: process.env.EVIDENCE_LEDGER_KEY, STATENOUR_SYNC_KEY: process.env.STATENOUR_SYNC_KEY };
+  if (!evidenceDoorAccepts(presentedLedgerKey(req.headers), env)) {
     throw new ServiceError("Unauthorized", 401);
   }
 }

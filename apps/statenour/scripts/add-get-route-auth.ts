@@ -33,7 +33,7 @@ const SENSITIVE_PATHS = [
 ];
 
 const AUTH_PATTERNS =
-  /auth:\s*"(owner|cron|sync)"|requireSession|requireCronAuth|requireSyncAuth|EXPECTED_SECRET|SYNC_KEY|\/\/ public:/;
+  /auth:\s*"(owner|cron|sync|evidence)"|requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|EXPECTED_SECRET|SYNC_KEY|\/\/ public:/;
 const HAS_GET = /^export (async )?(function|const) GET/m;
 const USES_API_HANDLER = /apiHandler\s*\(/;
 

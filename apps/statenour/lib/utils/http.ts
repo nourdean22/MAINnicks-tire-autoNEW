@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger } from "@/lib/logger";
 import { prisma, resetQueryCount, getQueryCount } from "@/lib/prisma";
-import { requireCronAuth, requireSyncAuth, requireSession } from "@/lib/auth-guard";
+import { requireCronAuth, requireSyncAuth, requireEvidenceAuth, requireSession } from "@/lib/auth-guard";
 import { isQuotaError, markQuotaExhausted, isQuotaExhausted } from "@/lib/db/safe-prisma";
 import { cronJobName } from "@/lib/utils/cron-job-name";
 // Note: cronJobName is NOT re-exported here. New callers should import
@@ -152,7 +152,7 @@ type RouteHandler = (
 ) => Promise<Response | unknown>;
 
 interface ApiHandlerOptions {
-  auth?: "cron" | "sync" | "owner" | "none";
+  auth?: "cron" | "sync" | "evidence" | "owner" | "none";
   rateLimit?: "general" | "ai" | "auth" | "sync";
 }
 
@@ -185,6 +185,7 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
       // Auth guard
       if (options.auth === "cron") requireCronAuth(req);
       if (options.auth === "sync") requireSyncAuth(req);
+      if (options.auth === "evidence") requireEvidenceAuth(req);
       if (options.auth === "owner") await requireSession(req);
 
       // Rate limiting
@@ -216,9 +217,11 @@ export function apiHandler(handler: RouteHandler, options: ApiHandlerOptions = {
           ? "system" // cronHandler will narrow to cron:<jobName>
           : options.auth === "sync"
             ? "bridge:nickstire"
-            : options.auth === "owner"
-              ? "user"
-              : resolveActor(req);
+            : options.auth === "evidence"
+              ? "bridge:evidence" // ledger door: the scoped key or the bridge key
+              : options.auth === "owner"
+                ? "user"
+                : resolveActor(req);
       const result = await withActor(actor, () =>
         handler(req, { params: routeCtx?.params as Promise<Record<string, string>> | undefined, requestId }),
       );
@@ -435,4 +438,9 @@ export function cronHandler(handler: RouteHandler) {
 /** apiHandler pre-configured with sync auth */
 export function syncHandler(handler: RouteHandler) {
   return apiHandler(handler, { auth: "sync" });
+}
+
+/** apiHandler pre-configured with the Reality Ledger's scoped auth (EVIDENCE_LEDGER_KEY, or the bridge key). */
+export function evidenceHandler(handler: RouteHandler) {
+  return apiHandler(handler, { auth: "evidence" });
 }

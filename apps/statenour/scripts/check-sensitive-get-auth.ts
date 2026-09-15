@@ -59,7 +59,7 @@ const SENSITIVE_PREFIXES = [
 // otherwise: `await auth()` is NOT a signal — routes should use the
 // canonical requireSession so one grep-able idiom guards them all.
 const AUTH_SIGNAL =
-  /(requireSession|requireCronAuth|requireSyncAuth|validateToken|EXPECTED_SECRET|SYNC_KEY|auth:\s*"(owner|cron|sync)"|\/\/\s*public:)/;
+  /(requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|validateToken|EXPECTED_SECRET|SYNC_KEY|auth:\s*"(owner|cron|sync|evidence)"|\/\/\s*public:)/;
 
 interface Violation {
   file: string;

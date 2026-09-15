@@ -41,12 +41,12 @@ GOAL CONTRACT ──► REALITY LEDGER ◄── code / site / shop
 
 ## Operating it
 
-1. **Arm the first experiment**: flip `web_experiment_home_hero_subline_2026_09` in the admin flags panel. Control renders until then. The daily `web-experiment-resolve` cron proposes a verdict over Telegram; nothing is applied.
+1. **The first experiment is armed** (`web_experiment_home_hero_subline_2026_09` flipped on 2026-09-15; `GET /api/trpc/experiments.active` lists it). Flip it off in the admin flags panel to return every visitor to control. The daily `web-experiment-resolve` cron proposes a verdict over Telegram; nothing is applied.
 2. **Read `/proof`** (statenour): claims by grade, recent reality, standing claims, your judgments, Night Shift proposals.
 3. **Record taste**: `POST /api/proof/taste` with two candidates, a winner, reason codes from `TASTE_REASON_CODES`. It mirrors into BrainMemory at OPERATOR trust.
-4. **Turn on the lot band** only when you are satisfied the aggregate is what the code says it is: flag `shopstate_lot_band`.
-5. **Night Shift**: run `scripts/night-shift/run.ps1` by hand first; register with `register-task.ps1` when you trust it.
-6. **Apply the migration** by hand: `apps/statenour/prisma/migrations/20260915140000_reality_ledger/migration.sql` (additive; verify with `prisma migrate status`).
+4. **The lot band is on** (`shopstate_lot_band`, 2026-09-15). It reads `unknown` until the camera bridge heartbeats again — `shopStatus.getState` says `lot:offline (no recent observation)` when the flag is on but `camera_runtime.receivedAt` is stale, and bare `lot:offline` when the flag is off.
+5. **Night Shift**: run `scripts/night-shift/run.ps1` by hand first; register with `register-task.ps1` when you trust it. Give it `EVIDENCE_LEDGER_KEY` (statenour env var; opens `/api/sync/evidence` only) — never `STATENOUR_SYNC_KEY`, which is the whole cross-app bridge. `run.ps1` scrubs the bridge key from the child process on purpose.
+6. **The migration is applied** (`20260915140000_reality_ledger`, 2026-09-15; `prisma migrate status` clean). `/proof` shows a not-migrated banner if a future environment lacks it.
 
 ## Kill criteria
 
