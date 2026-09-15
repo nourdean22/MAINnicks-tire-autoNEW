@@ -82,13 +82,28 @@ function episodeIdOf(objects: unknown): string | null {
   return o && typeof rec(o).id === "string" ? (rec(o).id as string) : null;
 }
 
+/**
+ * The commit an event was judged against. `proof.run` and `proof.holdout`
+ * carry it as `payload.liveCommit` AND as a `{ type: "commit", role: "judged" }`
+ * object; `proof.episode_failed` carries it ONLY as that object (its payload is
+ * version / error / elapsedMs — Codex review of #2342). Payload first, then
+ * the judged object, then any commit object.
+ */
+export function judgedCommitOf(e: Pick<TimelineEventLike, "payload" | "objects">): string | null {
+  const live = rec(e.payload).liveCommit;
+  if (typeof live === "string" && live.length > 0) return live;
+  if (!Array.isArray(e.objects)) return null;
+  const commits = e.objects.map(rec).filter((o) => o.type === "commit" && typeof o.id === "string" && (o.id as string).length > 0);
+  const judged = commits.find((o) => o.role === "judged") ?? commits[0];
+  return judged ? (judged.id as string) : null;
+}
+
 /** Newest judged commit first. Events may arrive in any order. */
 export function groupProofTimeline(events: TimelineEventLike[], limit = 10): ProofCommitRow[] {
   const sorted = [...events].sort((a, b) => at(b) - at(a));
   const groups = new Map<string | null, TimelineEventLike[]>();
   for (const e of sorted) {
-    const live = rec(e.payload).liveCommit;
-    const key = typeof live === "string" && live.length > 0 ? live : null;
+    const key = judgedCommitOf(e);
     const g = groups.get(key);
     if (g) g.push(e);
     else groups.set(key, [e]);

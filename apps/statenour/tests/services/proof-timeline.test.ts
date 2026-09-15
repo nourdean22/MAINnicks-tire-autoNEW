@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { eventsFindMany } = vi.hoisted(() => ({ eventsFindMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { realityEvent: { findMany: eventsFindMany } } }));
 
-import { groupProofTimeline, proofTimeline, PROOF_TIMELINE_EVENT_TYPES, type TimelineEventLike } from "@/lib/services/proof-timeline";
+import { groupProofTimeline, judgedCommitOf, proofTimeline, PROOF_TIMELINE_EVENT_TYPES, type TimelineEventLike } from "@/lib/services/proof-timeline";
 
 const T = (h: number) => new Date(Date.UTC(2026, 8, 15, h)).toISOString();
 const run = (live: string | null, at: number, p: Record<string, unknown> = {}, uri = "https://ci/run/1"): TimelineEventLike => ({
@@ -22,14 +22,40 @@ const holdout = (live: string, at: number, p: Record<string, unknown>): Timeline
   observedAt: T(at),
   payload: { liveCommit: live, ...p },
 });
+/**
+ * The REAL producer shape (apps/nickstire/scripts/proof/post-run-evidence.mjs):
+ * a failure event's payload is version / error / elapsedMs — the judged commit
+ * travels ONLY as a commit object. A fixture with `payload.liveCommit` here
+ * masked exactly that (Codex review of #2342).
+ */
 const failed = (live: string, at: number, id: string): TimelineEventLike => ({
   eventType: "proof.episode_failed",
   observedAt: T(at),
-  payload: { liveCommit: live },
-  objects: [{ type: "episode", id }, { type: "commit", id: live, role: "judged" }],
+  payload: { version: 1, error: "visible text: …", elapsedMs: 1234 },
+  objects: [{ type: "episode", id }, { type: "route", id: "/tires" }, { type: "commit", id: live, role: "judged" }],
+});
+
+describe("judgedCommitOf", () => {
+  it("payload.liveCommit first, then the judged commit object, then any commit object, else null", () => {
+    expect(judgedCommitOf({ payload: { liveCommit: "p" }, objects: [{ type: "commit", id: "o", role: "judged" }] })).toBe("p");
+    expect(judgedCommitOf({ payload: {}, objects: [{ type: "commit", id: "x" }, { type: "commit", id: "j", role: "judged" }] })).toBe("j");
+    expect(judgedCommitOf({ payload: {}, objects: [{ type: "site", id: "nickstire.org" }, { type: "commit", id: "only" }] })).toBe("only");
+    expect(judgedCommitOf({ payload: { liveCommit: "" }, objects: [{ type: "site", id: "nickstire.org" }] })).toBeNull();
+    expect(judgedCommitOf({ payload: null, objects: "nope" })).toBeNull();
+  });
 });
 
 describe("groupProofTimeline", () => {
+  it("BREAKS (Codex, #2342): an episode failure carrying its commit ONLY as an object groups under that commit — never a duplicate 'unknown' row", () => {
+    const rows = groupProofTimeline([
+      run("aaa", 9, { outcome: "failure", unexpected: 1, episodeFailures: ["EP-002"] }),
+      failed("aaa", 9, "EP-002"),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ liveCommit: "aaa", episodeFailures: ["EP-002"] });
+    expect(rows.some((r) => r.liveCommit === null)).toBe(false);
+  });
+
   it("POSITIVE CONTROL: groups on the JUDGED commit, newest first, latest run's verdict, failures unioned across runs", () => {
     const rows = groupProofTimeline([
       run("aaa", 9, { outcome: "failure", unexpected: 1, episodeFailures: ["EP-002"] }),
