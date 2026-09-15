@@ -5285,6 +5285,11 @@
       "file": "apps/nickstire/shared/approvalGate.ts",
       "symbol": "GATE_TTL_HOURS",
       "reason": "STAGED GENERIC GATE — the 72h TTL adopted from contentApprovals/reelApproval; same status and reason as gateProblem."
+    },
+    {
+      "file": "apps/nickstire/goals/index.ts",
+      "symbol": "GOAL_CONTRACTS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The parsed goal-contract registry; the runtime consumer is goalContractFor in the same module (used by the web-experiment resolver). It is exported so shared/goalContract.test.ts can walk EVERY contract and pin its surfaces to registered routes and its hash to key order — a check that cannot be expressed through goalContractFor alone."
     }
   ]
 }
