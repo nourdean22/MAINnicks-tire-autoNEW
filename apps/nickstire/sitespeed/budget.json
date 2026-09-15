@@ -1,11 +1,13 @@
 {
-  "$comment": "sitespeed.io performance budget for the Tier-1 public pages. Numbers are Core Web Vitals 'good' thresholds (Google, 2024+): LCP 2.5s, CLS 0.1, TTFB 800ms; FCP 1.8s. A budget breach is a signal to the operator, not a deploy block — nickstire has no branch protection.",
+  "$comment": "sitespeed.io performance budget for the Tier-1 public pages. Numbers are Core Web Vitals 'good' thresholds (Google, 2024+): LCP 2.5s, CLS 0.1, TTFB 800ms; FCP 1.8s. A budget breach is a signal to the operator, not a deploy block — nickstire has no branch protection. Keys are sitespeed.io 42.7.0 friendly names (lib/support/friendlynames.js, browsertime.*): an unknown key CRASHES the budget plugin (TypeError on .path), it is not ignored — 'ttfb' is spelled backEndTime, CLS lives under pageinfo, not timings.",
   "budget": {
     "timings": {
       "largestContentfulPaint": 2500,
       "firstContentfulPaint": 1800,
-      "ttfb": 800
+      "backEndTime": 800
     },
-    "cumulativeLayoutShift": 0.1
+    "pageinfo": {
+      "cumulativeLayoutShift": 0.1
+    }
   }
 }
