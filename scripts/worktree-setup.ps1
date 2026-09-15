@@ -40,12 +40,15 @@ try {
 
 # 2. Copy env files
 Write-Host "`nCopying environment files..." -ForegroundColor Yellow
-$envFiles = Get-ChildItem -Path $currentAbsPath -Filter ".env*" -Recurse -File | 
-    Where-Object { $_.FullName -notmatch "node_modules" -and $_.FullName -notmatch "\.git" -and $_.FullName -notmatch "\.worktrees" }
+# Selection lives in its own script so the rule is testable without building a
+# worktree -- it must copy real local secrets (.env / .env.local) and never a
+# git-TRACKED template (.env.example) nor anything inside a sibling worktree.
+# See scripts/worktree-env-files.ps1 for the two defects this prevents.
+$envFiles = & (Join-Path $PSScriptRoot "worktree-env-files.ps1") -SourceRoot $currentAbsPath
 
 foreach ($file in $envFiles) {
     # Calculate relative path
-    $relativePath = Resolve-Path -Path $file.FullName -Relative
+    $relativePath = Resolve-Path -Path $file -Relative
     # Remove leading .\
     if ($relativePath.StartsWith(".\")) {
         $relativePath = $relativePath.Substring(2)
@@ -59,7 +62,7 @@ foreach ($file in $envFiles) {
     }
     
     Write-Host "Copying $relativePath -> $destPath" -ForegroundColor Gray
-    Copy-Item -Path $file.FullName -Destination $destPath -Force
+    Copy-Item -Path $file -Destination $destPath -Force
 }
 
 # 3. Parse and check critical keys in destination env files
@@ -120,6 +123,13 @@ if ([string]::IsNullOrEmpty($lockfileDiff)) {
 } else {
     Write-Host "Differences in pnpm-lock.yaml detected. Bypassing node_modules link." -ForegroundColor Yellow
     Write-Host "Please run 'pnpm install' in '$targetAbsPath' manually to install dependencies." -ForegroundColor Cyan
+    # Until that install runs the worktree has NO node_modules, so lefthook is not
+    # resolvable and BOTH git hooks silently no-op ("Can't find lefthook in PATH").
+    # Observed 2026-09-15: PR #2329 was committed and pushed from such a worktree
+    # with neither the pre-commit checks nor the pre-push build ever running.
+    Write-Host "  WARNING: until then this worktree has NO node_modules, so lefthook is" -ForegroundColor Red
+    Write-Host "  absent and pre-commit/pre-push hooks will NOT run. CI becomes your only" -ForegroundColor Red
+    Write-Host "  gate -- run the verify gates in the primary checkout and say so in the PR." -ForegroundColor Red
 }
 
 Write-Host "`nGit Worktree Setup Complete!" -ForegroundColor Green
