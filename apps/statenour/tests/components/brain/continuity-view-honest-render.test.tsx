@@ -46,12 +46,17 @@ vi.mock("@/lib/trpc/client", () => ({
     },
   },
 }));
-// Both children own their own tRPC reads; neither is under test here.
+// All three children own their own tRPC reads; none is under test here.
+// (BrainChangeLine — `brain.changesSince`, 2026-09-15 wave 3 — has its own
+// states test in tests/components/change-set-line-states.test.tsx.)
 vi.mock("@/components/brain/receipts-timeline", () => ({
   ReceiptsTimeline: () => null,
 }));
 vi.mock("@/components/brain/judgment-quality-panel", () => ({
   JudgmentQualityPanel: () => null,
+}));
+vi.mock("@/components/brain/brain-change-line", () => ({
+  BrainChangeLine: () => null,
 }));
 
 import { BrainContinuityView } from "@/components/brain/continuity-view";
