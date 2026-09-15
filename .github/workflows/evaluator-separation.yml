@@ -1,0 +1,44 @@
+# Evaluator separation (Dream-to-Proof wave, 2026-09-15)
+#
+# A candidate branch (darwin/*, night-shift/*) may change the product, never
+# its own judges — goal contracts, episodes, the experiment kernel, the
+# approval gate, lint gates, CI — in the same change. Otherwise the nightly
+# loop learns that moving a goalpost is cheaper than moving the page.
+#
+# Pure logic + canaries live in scripts/agent-os (picked up by agent:verify);
+# this job is what makes it bite on the PR's actual diff. Node only, seconds.
+# No branch protection exists here: red is a stop by convention.
+
+name: Evaluator separation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  separation:
+    name: candidate branch may not edit its judges
+    if: ${{ startsWith(github.head_ref, 'darwin/') || startsWith(github.head_ref, 'night-shift/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      - name: assess the diff
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          PATHS=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          # shellcheck disable=SC2086
+          node scripts/agent-os/check-evaluator-separation.mjs --branch "$HEAD_REF" --paths $PATHS

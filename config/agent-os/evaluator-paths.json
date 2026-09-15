@@ -1,0 +1,23 @@
+{
+  "$comment": "EVALUATOR SEPARATION. A candidate branch (prefix listed below) may change the PRODUCT, never the things that JUDGE the product, in the same change. Otherwise the loop learns that weakening a test is cheaper than improving the page. Changing an evaluator is a different class of authority: a normal branch, reviewed on its own. Checked by scripts/agent-os/check-evaluator-separation.mjs; canaried by evaluatorSeparation.test.mjs.",
+  "candidateBranchPrefixes": ["darwin/", "night-shift/"],
+  "evaluatorPaths": [
+    "apps/nickstire/goals/",
+    "apps/nickstire/tests/",
+    "apps/nickstire/playwright.config.ts",
+    "apps/nickstire/shared/experimentKernel.ts",
+    "apps/nickstire/shared/goalContract.ts",
+    "apps/nickstire/shared/approvalGate.ts",
+    "apps/nickstire/shared/webExperiments.ts",
+    "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+    "apps/nickstire/scripts/lint-brand-voice.ts",
+    "apps/nickstire/scripts/lint-source.mjs",
+    "apps/nickstire/docs/eval-rubrics/",
+    "apps/statenour/tests/",
+    "apps/statenour/lib/services/reality-ledger.ts",
+    "config/agent-os/",
+    "scripts/agent-os/",
+    "scripts/night-shift/",
+    ".github/workflows/"
+  ]
+}
