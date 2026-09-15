@@ -59,7 +59,8 @@ Each bullet names the file pattern that arms it. Fire on the trigger, not on a v
 - **Before any commit or push out of `apps/statenour/` → `statenour-verify`.** `pnpm verify:hard`
   is the full gate, but prove the instrument sees the target before trusting a green:
   `tsconfig.json` excludes **both `tests` and `scripts`**, so `tsc --noEmit` has never read
-  either; and `@statenour/lenses` must be built first
+  either (`scripts/` is ratchet-gated separately by `pnpm check:scripts` since 2026-09-15 — it fails
+  only on a file getting WORSE than `.scripts-tsc-baseline.json`); and `@statenour/lenses` must be built first
   (`turbo build --filter=@statenour/lenses`) or ~5 strategic-frameworks files fail on import
   rather than on their own merits. Never export real API keys or a prod `DATABASE_URL` into the
   test shell — provider-chain tests reorder and the empty-DB smoke sees real data.

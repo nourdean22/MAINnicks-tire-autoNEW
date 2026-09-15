@@ -495,6 +495,22 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
               namedSources: named,
             },
           );
+          // 2026-09-15 · E3 shadow: would the pre-flush lane have buffered
+          // this turn? Same pure classifier the lane uses (assessTurnRisk),
+          // fed what actually happened (tools fired or not), so a week of
+          // rows answers "what share of turns would stop streaming" before
+          // NICK_EVIDENCE_PREFLUSH is turned on.
+          let turnRisk: unknown = null;
+          try {
+            const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
+            const risk = assessTurnRisk(userContent, {
+              toolsExpected: capturedToolCalls.length > 0,
+              intent: turnSignal.intent,
+            });
+            turnRisk = { buffer: risk.buffer, risk: risk.risk, register: risk.register, reasons: risk.reasons, toolsFired: capturedToolCalls.length };
+          } catch {
+            /* measurement only */
+          }
           evidenceGate = {
             verdict: decision.verdict,
             severity: decision.severity,
@@ -503,6 +519,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             namedClaims: named.claims.length,
             unreceipted: named.unreceipted.map((c) => c.name),
             shadowOnly: true,
+            turnRisk,
           };
           log.info("evidence_gate_shadow", {
             verdict: decision.verdict,

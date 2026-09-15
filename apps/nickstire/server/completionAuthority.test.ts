@@ -144,8 +144,25 @@ describe("the rendered ledger may not know what day it is", () => {
   });
 });
 
+/**
+ * The production registry. A capability is listed here when something other
+ * than the operator's own hands can reach it in production, and the ledger
+ * row carries the live proof. Adding an id here IS the promotion decision;
+ * the canary below keeps an unlisted `production` row a failure.
+ *
+ *   reel-pipeline-assembly           — the original entry (see the note below).
+ *   shopstate-lot-band               — 2026-09-15: public tRPC shopStatus.getState
+ *                                      renders the lot band on nickstire.org;
+ *                                      flag ON, live-verified (row evidence).
+ *   web-experiment-home-hero-subline — 2026-09-15: every public visitor is
+ *                                      assigned an arm and the hero subline
+ *                                      differs by arm; the resolver is
+ *                                      PROPOSE-ONLY (no flag/copy write).
+ */
+const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly", "shopstate-lot-band", "web-experiment-home-hero-subline"]);
+
 describe("the repo's own ledger", () => {
-  it("passes its own law, and nothing claims business verification or production exposure beyond the reel pipeline", () => {
+  it("passes its own law, and nothing claims business verification or production exposure beyond the registry above", () => {
     const ledger = JSON.parse(readFileSync(resolve(process.cwd(), "docs/operations/capability-ledger.json"), "utf8"));
     expect(validateLedger(ledger)).toEqual([]);
     expect(ledger.capabilities.every((c: { operationalState: string }) => c.operationalState !== "business_verified")).toBe(true);
@@ -161,7 +178,6 @@ describe("the repo's own ledger", () => {
     // this test, whose stated intent the correction satisfies. A guard that forbids
     // telling the truth is pinning a falsehood, which is the failure mode this repo keeps
     // removing. An EMPTY production set is a strictly safer state and must pass.
-    const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly"]);
     const unexpected = ledger.capabilities
       .filter((c: { exposure: string }) => c.exposure === "production")
       .map((c: { capabilityId: string }) => c.capabilityId)
@@ -173,7 +189,6 @@ describe("the repo's own ledger", () => {
     // The canary for the loosening above. Without this, turning the exact-set assertion
     // into a ceiling could have removed the guard's teeth entirely and scored green.
     const ledger = JSON.parse(readFileSync(resolve(process.cwd(), "docs/operations/capability-ledger.json"), "utf8"));
-    const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly"]);
     const withIntruder = {
       ...ledger,
       capabilities: [

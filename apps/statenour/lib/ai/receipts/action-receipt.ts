@@ -328,3 +328,43 @@ export function compareClaimDoneShadow(
     strictOffenders: strict.offenders,
   };
 }
+
+/**
+ * The persisted shape of the shadow comparison — JSON-safe, small, and keyed
+ * by tool + category so the gap can be aggregated per tool before VERIFIED is
+ * ever required for "Done".
+ *
+ * 2026-09-15 · compareClaimDoneShadow() had existed since 2026-09-13 with no
+ * production caller: the strict guard was declared, tested and unwired, so
+ * there was no measurement to promote from. Both production canClaimDone()
+ * sites now persist/log this on every turn (tokenUsage.claimDoneShadow on the
+ * assistant row; `claim_done_shadow` in the structured log). Pure; changes no
+ * behavior.
+ */
+export interface ClaimDoneShadowSummary {
+  legacyOk: boolean;
+  strictOk: boolean;
+  /** Legacy would let the reply say "Done"; strict would not. THE metric. */
+  gap: boolean;
+  receipts: number;
+  consequential: number;
+  /** Only the receipts strict refuses — what would need a VERIFIED postcondition. */
+  strictOffenders: Array<{ toolName: string; category: string; status: ReceiptStatus; verificationState: OperationState | null }>;
+}
+
+export function summarizeClaimDoneShadow(receipts: ReadonlyArray<ActionReceipt>): ClaimDoneShadowSummary {
+  const c = compareClaimDoneShadow(receipts);
+  return {
+    legacyOk: c.legacyOk,
+    strictOk: c.strictOk,
+    gap: c.legacyStrictGap,
+    receipts: receipts.length,
+    consequential: receipts.filter((r) => r.sideEffecting || r.verifiable === false).length,
+    strictOffenders: c.strictOffenders.map((r) => ({
+      toolName: r.toolName,
+      category: r.category,
+      status: r.status,
+      verificationState: r.verificationState ?? null,
+    })),
+  };
+}

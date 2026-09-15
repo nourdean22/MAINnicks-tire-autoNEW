@@ -30,23 +30,93 @@ export const socialTools = {
       urgency: z.enum(["low", "medium", "high"]).default("medium"),
     }),
     execute: async ({ message, title, urgency }) => {
-      const { sendTelegram, formatTelegramNotification } = await import("@/lib/services/telegram");
+      const { formatTelegramNotification } = await import("@/lib/services/telegram");
+      const { sendTelegramObserved } = await import("@/lib/services/telegram-observed");
       const { withToolIdempotency, idempotencyKey } = await import("./tool-idempotency");
       const prefix = urgency === "high" ? "🚨" : urgency === "medium" ? "📌" : "💬";
       const fullMessage = title
         ? formatTelegramNotification(title, `${prefix} ${message}`)
         : `${prefix} ${message}`;
-      // Idempotent: a re-run of this turn (auto-regen / retry / best-of-2) with the
-      // same message inside 5 min does not send a duplicate.
-      return withToolIdempotency(
+
+      // 2026-09-15 · execution truth (salvaged from the nick-turn-control-plane
+      // draft, PR #2326). Three things the legacy shape got wrong:
+      //   · a live dedupe marker proves only that an identical attempt was
+      //     CLAIMED — it is not a provider receipt. The old onDuplicate returned
+      //     `sent: true`, fabricating a successful send from the marker alone.
+      //   · legacy sendTelegram() folds a timeout/socket error into `false`, and
+      //     the `succeeded` predicate then RELEASED the marker — so a send that
+      //     may have committed was retried blindly (possible duplicate).
+      //   · the model could not tell "failed" from "unknown". Now the result
+      //     carries a state, and an `error` field on anything that is not
+      //     provider_accepted, which existing tool telemetry reads as a soft
+      //     failure — nothing downstream can mistake it for Done.
+      type SendState =
+        | "provider_accepted"
+        | "known_failure"
+        | "unknown_completion"
+        | "duplicate_suppressed"
+        | "idempotency_unavailable";
+      type Result = {
+        sent: boolean;
+        state: SendState;
+        urgency: typeof urgency;
+        messageLength: number;
+        deduped?: boolean;
+        priorState?: "claimed" | "unknown";
+        reason?: string;
+        messageId?: number;
+        error?: string;
+      };
+      return withToolIdempotency<Result>(
         idempotencyKey("sendTelegram", fullMessage),
         5 * 60_000,
         async () => {
-          const sent = await sendTelegram(fullMessage);
-          return { sent, urgency, messageLength: fullMessage.length };
+          const outcome = await sendTelegramObserved(fullMessage);
+          if (outcome.state === "provider_accepted") {
+            return { sent: true, state: "provider_accepted", urgency, messageLength: fullMessage.length, messageId: outcome.messageId };
+          }
+          return {
+            sent: false,
+            state: outcome.state,
+            urgency,
+            messageLength: fullMessage.length,
+            reason: outcome.reason,
+            error:
+              outcome.state === "unknown_completion"
+                ? `Telegram completion is unknown (${outcome.reason}); do not claim sent and do not retry blindly.`
+                : `Telegram send failed (${outcome.reason}).`,
+          };
         },
-        () => ({ sent: true, deduped: true, urgency, messageLength: fullMessage.length }),
-        (r) => r.sent === true, // sendTelegram returns false (no throw) on failure — release the marker then
+        (ctx) => {
+          const reason =
+            ctx?.state === "unknown"
+              ? "A prior identical send has unknown completion; not retried."
+              : "An identical send is already claimed inside the dedupe window; not re-executed.";
+          return {
+            sent: false,
+            state: "duplicate_suppressed",
+            urgency,
+            messageLength: fullMessage.length,
+            deduped: true,
+            priorState: ctx?.state ?? "claimed",
+            reason,
+            error: reason,
+          };
+        },
+        undefined,
+        {
+          classifyResult: (r) =>
+            r.state === "provider_accepted" ? "success" : r.state === "known_failure" ? "known_failure" : "unknown",
+          // An unknown transport outcome stays fenced long enough that an eager
+          // model/client retry cannot double-send while the provider settles.
+          unknownWindowMs: 30 * 60_000,
+          // An externally visible send is worse duplicated than delayed: if the
+          // claim store itself is unavailable, fail closed instead of sending untracked.
+          onClaimUnavailable: () => {
+            const reason = "Idempotency store unavailable; send blocked to prevent an untracked duplicate.";
+            return { sent: false, state: "idempotency_unavailable", urgency, messageLength: fullMessage.length, reason, error: reason };
+          },
+        },
       );
     },
   }),

@@ -56,6 +56,20 @@ export async function runAlternatePaths(args: {
   finalSystemPrompt: string;
   turnSignal: ReturnType<typeof classifyTurn>;
   actionIntent: ReturnType<typeof detectActionIntent> | null;
+  /**
+   * 2026-09-15 · will a tool fire this turn (action or web-search intent)?
+   * Feeds assessTurnRisk: a lookup that WILL hit a tool gets a receipt, so
+   * the pre-flush lane leaves it streaming. Defaults to `!!actionIntent`.
+   */
+  toolsExpected?: boolean;
+  /**
+   * 2026-09-15 · Codex #2335 P2: the streaming path pins arsenalWebSearch on
+   * step 0 for an explicit web-search ask (build-stream-config.ts). A buffered
+   * lane that drops that pin lets the model skip the search, after which the
+   * gate strips the very results the operator asked for. The pre-flush lane
+   * mirrors the pin when this is true.
+   */
+  webSearchIntent?: boolean;
   convId: string | undefined;
   traceId: string;
   modeOverride: ChatMode | undefined;
@@ -108,12 +122,23 @@ export async function runAlternatePaths(args: {
   const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
   const __selfConsistencyFlag = getFlag("NICK_SELF_CONSISTENCY")?.isOn ?? false;
   const __multiAgentAutoFlag = getFlag("NICK_MULTI_AGENT_AUTO")?.isOn ?? false;
+  // 2026-09-15 · SELECTIVE PRE-FLUSH EVIDENCE LANE. assessTurnRisk() has
+  // returned `buffer: true` for the turns whose reply can ship a falsifiable
+  // claim (named resources, health figures, lookups with no tool, number
+  // asks) since 2026-09-10 — and nothing consumed it. This lane is that
+  // consumer: generate the whole reply first so the enforcement block below
+  // can be a gate, then ship it as a simulated stream. It only makes sense
+  // when the gate can act, so it needs BOTH flags on.
+  const __preflushFlag = getFlag("NICK_EVIDENCE_PREFLUSH")?.isOn ?? false;
+  const __enforcementFlag = getFlag("NICK_EVIDENCE_ENFORCEMENT")?.isOn ?? false;
+  const __preflushLane = __preflushFlag && __enforcementFlag;
   if (
     !(
       __deepReasonFlag ||
       __verifiedRegenFlag ||
       __selfConsistencyFlag ||
-      __multiAgentAutoFlag
+      __multiAgentAutoFlag ||
+      __preflushLane
     )
   ) {
     return null;
@@ -126,16 +151,40 @@ export async function runAlternatePaths(args: {
     const { isMultiPartQuestion } = await import(
       "@/lib/ai/chat/multi-agent-detect"
     );
-    // Mutually-exclusive gates · priority multi-agent > deep > regen > self-consistency.
+    // 2026-09-15 · Codex #2335 P2: the risk assessment is computed FIRST.
+    // It is pure and deterministic (same inputs the E3 shadow stamp in
+    // persist-assistant-turn.ts records), and once the operator has turned
+    // the evidence gate on, a buffer-worthy turn must reach a lane the gate
+    // can actually judge. The deep lane returns its reasoning stream BEFORE
+    // the enforcement block (it cannot call tools, so it has nothing to
+    // gate), and the regen / self-consistency lanes reach the block
+    // receipt-BLIND (blind suppresses blocking). So a buffer-worthy turn
+    // pre-empts those three and takes the receipted pre-flush lane.
+    let preflushRisk: import("@/lib/ai/chat/turn-risk").TurnRiskAssessment | null = null;
+    if (__preflushLane) {
+      const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
+      preflushRisk = assessTurnRisk(userContent, {
+        toolsExpected: args.toolsExpected ?? Boolean(actionIntent),
+        intent: turnSignal.intent,
+      });
+    }
+    const mustGate = Boolean(preflushRisk?.buffer);
+
+    // Mutually-exclusive gates · priority multi-agent > pre-flush (only when
+    // the gate must act) > deep > regen > self-consistency. Multi-agent keeps
+    // the top: a decomposition is a different product behaviour, and its
+    // winner still passes through the (blind) enforcement block below.
     const multiAgentOn =
       __multiAgentAutoFlag && isMultiPartQuestion(userContent);
     const deepOn =
       !multiAgentOn &&
+      !mustGate &&
       __deepReasonFlag &&
       turnSignal.complexity === "complex" &&
       (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
     const regenOn =
       !multiAgentOn &&
+      !mustGate &&
       !deepOn &&
       __verifiedRegenFlag &&
       shouldGateForIntent(
@@ -143,12 +192,14 @@ export async function runAlternatePaths(args: {
       );
     const selfConsistencyOn =
       !multiAgentOn &&
+      !mustGate &&
       !deepOn &&
       !regenOn &&
       __selfConsistencyFlag &&
       (turnSignal.intent === "factual" ||
         turnSignal.intent === "decision" ||
         turnSignal.intent === "analytical");
+    const preflushOn = mustGate && !multiAgentOn;
 
     // v10.0.534 · action requests must NEVER route to a reasoning path —
     // the deepOn branch CANNOT call tools (it pre-fetches a snapshot and
@@ -159,8 +210,16 @@ export async function runAlternatePaths(args: {
     // (incl. python-execute), suppress ALL reasoning gates so the turn
     // falls through to the normal tool-FORCING streamText path, where
     // toolChoice:"required" makes the model call the real tool.
-    if (!actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn)) {
+    if (!actionIntent && (deepOn || regenOn || selfConsistencyOn || multiAgentOn || preflushOn)) {
       let winner = "";
+      // 2026-09-15 · tool receipts captured by a buffered lane. The
+      // enforcement block below was receipt-BLIND on every lane (it had no
+      // way to see what generateText called), which limited it to length and
+      // tag repair. The pre-flush lane fills these in, so a named resource
+      // with no receipt can actually be judged there.
+      let laneToolCalls: Array<{ name: string }> = [];
+      let laneEvidenceText = "";
+      let laneReceiptsAvailable = false;
       // Shared generateText config for the regen + self-consistency
       // branches (identical shape) — hoisted so a new field is added
       // once, not in two places that could silently disagree.
@@ -330,6 +389,55 @@ export async function runAlternatePaths(args: {
           samples: sc.samples,
           intent: turnSignal.intent,
         });
+      } else if (preflushOn && preflushRisk) {
+        // ONE full generation, no regen, no sampling: the point of this lane
+        // is not a better draft, it is a draft that exists BEFORE the flush so
+        // the enforcement block below can strip an unearned claim.
+        const { generateText } = await import("ai");
+        // Mirror build-stream-config.ts's prepareStep ladder for the one
+        // force this lane can meet: an explicit web-search ask pins
+        // arsenalWebSearch on step 0 (Codex #2335 P2 — without the pin the
+        // model may skip the search, and the gate then strips the very
+        // results the operator asked for). The last allowed step is
+        // text-only so the buffered reply always ends in prose.
+        const lastStep = (mode === "deep" ? 5 : 3) - 1;
+        const webSearchPinned = Boolean(args.webSearchIntent);
+        const r = await generateText({
+          ...genBase,
+          experimental_telemetry: langfuseTelemetry({ functionId: "chat-evidence-preflush", privateMode }),
+          system: finalSystemPrompt,
+          temperature: turnSignal.temperature,
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber === 0 && webSearchPinned
+              ? { toolChoice: { type: "tool" as const, toolName: "arsenalWebSearch" as const } }
+              : stepNumber >= lastStep
+                ? { toolChoice: "none" as const }
+                : { toolChoice: "auto" as const },
+        } as Parameters<typeof generateText>[0]);
+        winner = r.text;
+        // Receipts for the gate: what fired and a digest of what came back.
+        // Empty toolCalls here is a FINDING ("no tool fired"), not blindness —
+        // this lane can see everything generateText did.
+        const calls = (r.toolCalls ?? []) as Array<{ toolName?: string }>;
+        laneToolCalls = calls.map((c) => ({ name: String(c.toolName ?? "") })).filter((c) => c.name);
+        laneEvidenceText = ((r.toolResults ?? []) as Array<{ output?: unknown; result?: unknown }>)
+          .map((t) => {
+            try {
+              return JSON.stringify(t.output ?? t.result ?? "").slice(0, 2000);
+            } catch {
+              return "";
+            }
+          })
+          .filter(Boolean)
+          .join(" | ");
+        laneReceiptsAvailable = true;
+        log.info("evidence_preflush_path", {
+          intent: turnSignal.intent,
+          register: preflushRisk.register,
+          reasons: preflushRisk.reasons,
+          toolCalls: laneToolCalls.length,
+          webSearchPinned,
+        });
       }
 
       if (winner && winner.trim().length > 0) {
@@ -360,16 +468,17 @@ export async function runAlternatePaths(args: {
               import("@/lib/ai/chat/named-source-claims"),
               import("@/lib/ai/chat/output-guardian"),
             ]);
-            // No tool receipts are readable on this path, so the
-            // receipt channel is BLIND -- not "no tool fired". That
-            // distinction is load-bearing: blind suppresses blocking,
-            // so enforcement here can only repair length and strip
-            // unearned tags, never delete a named resource on the
-            // assumption it was invented.
+            // The regen/self-consistency/multi-agent lanes do not surface
+            // their tool calls, so for them the receipt channel is BLIND --
+            // not "no tool fired". That distinction is load-bearing: blind
+            // suppresses blocking, so enforcement there can only repair
+            // length and strip unearned tags. The pre-flush lane DOES
+            // surface its receipts (laneReceiptsAvailable), so a named
+            // resource with no receipt can be judged on that lane.
             const receipts = {
-              toolCalls: [] as Array<{ name: string }>,
-              evidenceText: "",
-              receiptsAvailable: false,
+              toolCalls: laneToolCalls,
+              evidenceText: laneEvidenceText,
+              receiptsAvailable: laneReceiptsAvailable,
               userText: userContent,
             };
             const named = checkNamedSources(winner, receipts);

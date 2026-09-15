@@ -331,14 +331,15 @@ complete — an unlisted control is not a covered one.
 
 | Surface | Controls | With a canary | Notes |
 |---|---:|---:|---|
-| Claude policy **matcher** — `policy.mjs`, 13 rules / 57 denyExamples | 1 | **1** | Proven by `policy.test.mjs` |
+| Claude policy **matcher** — `policy.mjs`, 17 rules / 120 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the four night-shift rules through the real hook, 2026-09-15 — the fourth is the shell-write arm added after Codex #2335 P1 showed a redirect/tee/sed/cp/Set-Content could rewrite a judge past the Write/Edit-only rule) |
 | Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | 0 | **Never exercised.** See [proven ≠ connected](#proven-is-not-connected) |
 | Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 135 checks, proven as of this PR |
 | lefthook `pre-commit` | 9 | 0 | 2 of the 9 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`) |
 | lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
-| statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** |
+| statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** — ratchet-gated by `check:scripts` since 2026-09-15 (its own row below) |
 | statenour `check:policy-coverage` | 1 | **1** | Was wired into **nothing** for months; wired into `verify:hard` and canaried 2026-08-22 — see [the dead control](#the-dead-control) |
+| statenour `check:scripts` | 1 | **1** | `scripts/` was excluded from every tsconfig the chain runs — 50 type errors and 5 dead imports on the day it was first measured (2026-09-15), including two smoke scripts importing a deleted component. Ratchet against `.scripts-tsc-baseline.json`, wired into `verify:hard`; `tests/scripts/check-scripts-typecheck.test.ts` breaks it first (a regression and a new file must FAIL), then proves the happy paths |
 | nickstire `verify` | 16 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
 | Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
@@ -360,7 +361,7 @@ complete — an unlisted control is not a covered one.
 | GitHub Actions SHA-pinning — every workflow `uses:` | 1 | 1 | supply chain: **40 of 40 refs rode mutable tags** until 2026-09-09, two of them third-party — the class `tj-actions/changed-files` belonged to (CVE-2025-30066, ~23k repos). Proven by `actionPinning.test.mjs`: a mutation unpins one LIVE ref and asserts that exact line is named, and a positive control cross-counts `uses:` lines against an independent counter so a clean verdict cannot come from a scanner that matched nothing |
 | Workspace roster is documented — every `apps/*` + `packages/*` package appears in the README | 1 | 1 | the **invisible-capability** shape: 6 of 9 packages were undocumented for months, so a session grepping the README concluded they did not exist. Proven by `workspaceDocCoverage.test.mjs` — deletes a real package's name from the README and asserts THAT name is reported, plus a roster positive control so "documented" cannot mean "enumerated nothing" |
 | Container scan — the runtime OS layer Dependabot cannot read | 1 | 1 | `dependabot.yml` declares `npm` + `github-actions` only, so **imagemagick, ffmpeg, chromium and 14 pinned pip packages** in the two Railway-built images had no watcher at all. `container-scan.yml` scans a layer DERIVED from the real Dockerfile (`extract-runtime-oslayer.mjs`, 7 canaries incl. the `\`-continuation case that would silently drop every package name). Canaried twice: an EOL `alpine:3.10` must report findings (proves the vuln DB loaded) and each leg must enumerate >0 packages (proves it is looking at a real image) |
-| **Total** | **68** | **22** | **32.4 %** |
+| **Total** | **69** | **23** | **33.3 %** |
 
 ---
 
@@ -372,7 +373,7 @@ complete — an unlisted control is not a covered one.
 
 | Control | Guards | Canary | Runs in |
 |---|---|---|---|
-| `config/agent-os/policy.json` (13 rules, 57 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
+| `config/agent-os/policy.json` (17 rules, 120 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
 | `scripts/agent-os/check-adapters.mjs` (135 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 17 tests: 11 breaks, 3 spare-cases, a cap boundary pair, 1 invariant, 1 positive control | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
 | `scripts/agent-os/check-gate-reachability.mjs` | that every `check:*`/`lint:*` script is invoked by CI, lefthook, or a `verify` chain | `gateReachability.test.mjs` — 6 arms: an orphan is named, three wirings are spared, the alias/fixer rules are proven not to swallow the real 2026-08-23 defect, the allowlist is checked for stale entries, a blinded copy of the checker is required to pass differently, and **arm 6 runs the checker against the live repo** so a new orphan reddens CI | `pnpm agent:verify`, CI |
@@ -488,7 +489,7 @@ The failure class in its purest form: **a control that works correctly, whose ha
 2026-05-10, and which has never once run inside a gate.**
 
 `apps/statenour/scripts/check-policy-coverage.ts` was defined as `check:policy-coverage` in
-`package.json` and invoked by **nothing** — not `verify:hard` (19 links today; it was 16, then 17, then 18, and none of
+`package.json` and invoked by **nothing** — not `verify:hard` (20 links today; it was 16, then 17, then 18, then 19, and none of
 them was this), not `.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exited **1**
 immediately. Verbatim, not reconstructed:
 

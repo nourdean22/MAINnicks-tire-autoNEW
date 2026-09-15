@@ -346,9 +346,14 @@ export async function buildBrainContext(
       // accept `|| forceRecall`, this one does not -- so an embedding
       // blip silently zeroes the ONE lane the panel counts. That is the
       // turn-to-turn inconsistency the audit observed.
+      //
+      // 2026-09-15 · queryPlan.exactTerms was computed and logged on every
+      // turn but consumed by nothing (a dark wire). It now drives the
+      // exact-identifier lane inside recallMemoriesForQuery. (The call must
+      // stay within 120 chars of withTimeout( for the timeout-contract pin.)
       userContent.length > 10 && memoryRecallMod && userEmbedding.length > 0
         ? withTimeout(
-            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5 }),
+            memoryRecallMod.recallMemoriesForQuery(userContent, { embedding: userEmbedding, limit: mode === "deep" ? 8 : 5, exactTerms: queryPlan.exactTerms }),
             3000,
             // withTimeout cannot distinguish a rejection from an expiry;
             // both are a FAILED read, so both must say so.

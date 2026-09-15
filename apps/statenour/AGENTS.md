@@ -41,7 +41,7 @@ in RECONCILIATION, not here (a pinned count is a cache with no invalidation). Fo
 3. Read the vitest **summary line**, not the exit status.
 4. Run the test files your change touched, explicitly. `tsconfig.json` and
    `tsconfig.typecheck.json` **both exclude `tests/` and `scripts/`** — a green typecheck says
-   nothing about either directory.
+   nothing about `tests/`; `scripts/` is ratchet-gated by `pnpm check:scripts` (in `verify:hard`).
 
 ## 2 · How we work
 
@@ -55,7 +55,7 @@ script inside this app is active — do not resurrect one.
    **Operator exception (settled 2026-09-09):** when the operator asks for a batched wave —
    "one big merge", "minimal PRs, the checks take forever" — ship ONE PR with staged commits
    inside it and say so in the PR body. Their stated preference wins; do not fragment it back.
-3. **The push must build clean.** Full gate: `pnpm verify:hard` — **16 checks, composition at
+3. **The push must build clean.** Full gate: `pnpm verify:hard` — **17 checks, composition at
    `package.json:12`. Read it there;** any prose list goes stale the next time one is added.
 4. **Auth is gated, not advisory.** Operator-private GET routes need `auth: "owner"`; mutating
    routes need an explicit auth wrapper. `pnpm check:get-auth`

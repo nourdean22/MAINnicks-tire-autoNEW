@@ -25,6 +25,7 @@ import { recordError } from "@/lib/errors/record-error";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
 import { assertSafeVectorLiteral } from "@/lib/db/pgvector";
 import { reciprocalRankFusion } from "@/lib/brain/rrf";
+import { withTimeout } from "@/lib/utils/with-timeout";
 // 2026-09-10 · lib/brain/memory-trust.ts was written and unit-tested and
 // had ZERO production importers -- the schema even carries a trust_tier
 // column with an index and no reader or writer. This is that module's
@@ -274,8 +275,12 @@ export type RecallProvenance = "OK" | "ZERO" | "ERROR" | "UNMEASURED";
  * either way) — this lane, not more HNSW effort, is what closes the gap.
  */
 const DURABLE_KNN_LIMIT = 10;
-/** main + durable + lexical. Used to tell "all lanes failed" from "some did". */
-const LANE_COUNT = 3;
+/** main + durable + lexical -- the lanes that run on EVERY query. The exact
+ *  lane (2026-09-15) is conditional on planner terms, so the per-call count
+ *  is `BASE_LANE_COUNT + (exact ran ? 1 : 0)`; a fixed 3 would call a query
+ *  whose exact lane survived "every lane failed", and one whose four lanes
+ *  all died "a partial outage". */
+const BASE_LANE_COUNT = 3;
 
 /**
  * RRF-merge the two lane orderings (k=60, equal weights — exactly the
@@ -292,13 +297,21 @@ export function rrfMergeHitOrders(
    * two-lane behaviour.
    */
   lexical: RecallHit[] = [],
+  /**
+   * 2026-09-15 · the EXACT-IDENTIFIER ordering (ILIKE on the planner's
+   * exactTerms: ticket ids, PR numbers, symbol names). Optional for the
+   * same reason as `lexical`: every three-lane caller and canary keeps its
+   * exact behaviour when no exact rows exist.
+   */
+  exact: RecallHit[] = [],
 ): RecallHit[] {
-  if (durable.length === 0 && lexical.length === 0) return main;
+  if (durable.length === 0 && lexical.length === 0 && exact.length === 0) return main;
   const lanes = [
     main.map((h) => ({ id: h.memoryId, item: h })),
     durable.map((h) => ({ id: h.memoryId, item: h })),
   ];
   if (lexical.length > 0) lanes.push(lexical.map((h) => ({ id: h.memoryId, item: h })));
+  if (exact.length > 0) lanes.push(exact.map((h) => ({ id: h.memoryId, item: h })));
   const fused = reciprocalRankFusion(lanes, { k: 60 });
   return fused.map((f) => f.item);
 }
@@ -455,6 +468,74 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
     });
 }
 
+/** `%term%` with LIKE metacharacters escaped, so "BDN-310" cannot become a wildcard. */
+export function likePattern(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/**
+ * 2026-09-15 · THE EXACT-IDENTIFIER LANE.
+ *
+ * `planQuery()` (lib/brain/query-plan.ts) had extracted `exactTerms` —
+ * ticket ids like BDN-310, PR numbers like #2196, symbol names — since it
+ * was written, and nothing queried them: the value was logged in
+ * brain-context.ts and dropped. Neither dense lane can find "BDN-310"
+ * (an id has no embedding neighbourhood) and the tsvector lane tokenises
+ * hyphens and hashes away, so an identifier the operator typed verbatim
+ * was the one thing recall was structurally blind to.
+ *
+ * This lane is a plain ILIKE over key + content, on the same row filters as
+ * the lexical lane, presented as distance 0 (an exact hit is the best
+ * evidence a lane can give) and ordered by recency. It runs only when the
+ * planner produced terms, and it enters the SAME RRF fusion as the other
+ * lanes — an id that also appears in a dense lane outranks one that only
+ * appears here, exactly as with the lexical lane.
+ *
+ * BOUNDED on its own: a leading-wildcard ILIKE cannot use an index, and the
+ * chat path races the WHOLE recall against a 3s withTimeout. Without a
+ * per-lane deadline a slow scan here would take the two dense lanes and the
+ * lexical lane down with it -- the opposite of "one dead lane must not take
+ * the turn down". On expiry the lane records itself as failed and the other
+ * three answer as usual.
+ */
+const EXACT_LANE_TIMEOUT_MS = 1500;
+
+function exactLane(terms: string[], limit: number, onFail?: () => void): Promise<KnnRow[]> {
+  const patterns = terms.map(likePattern).slice(0, 8);
+  if (patterns.length === 0) return Promise.resolve([] as KnnRow[]);
+  return withTimeout(
+    prisma.$queryRawUnsafe<KnnRow[]>(
+      `SELECT bm.id::text AS memory_id, bm.category::text AS category,
+              bm.key::text AS key,
+              substring(bm.content, 1, ${MAX_CONTENT_LEN})::text AS content,
+              bm.confidence::float AS confidence, bm.seen_count::int AS seen_count,
+              bm.last_seen, bm.created_at,
+              bm.source::text AS source, bm.created_by::text AS created_by,
+              0.0::float AS distance
+       FROM brain_memories bm
+       WHERE bm.deleted_at IS NULL
+         AND bm.confidence >= 0.3
+         AND bm.superseded_by_id IS NULL
+         AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
+         AND bm.category = ANY($2)
+         AND (bm.key ILIKE ANY($1) OR bm.content ILIKE ANY($1))
+       ORDER BY bm.last_seen DESC
+       LIMIT ${limit}`,
+      patterns,
+      [...CONTEXT_CATEGORIES],
+    ),
+    EXACT_LANE_TIMEOUT_MS,
+    "exact lane",
+  )
+    .catch((err) => {
+      log.warn("exact_lane_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      onFail?.();
+      return [] as KnnRow[];
+    });
+}
+
 function padToTargetDim(arr: number[]): number[] {
   if (arr.length === TARGET_DIM) return arr;
   if (arr.length > TARGET_DIM) return arr.slice(0, TARGET_DIM);
@@ -470,7 +551,12 @@ function padToTargetDim(arr: number[]): number[] {
  */
 export async function recallMemoriesForQuery(
   query: string,
-  opts: { limit?: number; embedding?: number[] } = {},
+  opts: {
+    limit?: number;
+    embedding?: number[];
+    /** 2026-09-15 · identifiers the query planner extracted (BDN-310, #2196, a symbol). Feeds the exact lane. */
+    exactTerms?: string[];
+  } = {},
 ): Promise<RecallReport> {
   const t0 = Date.now();
   const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
@@ -658,10 +744,17 @@ export async function recallMemoriesForQuery(
   // the lexical lane runs alongside the two dense lanes.
   // KNN_TOP is reused as its ceiling so one lane cannot swamp the fusion.
   const lexicalPromise = lexicalLane(query, KNN_TOP, () => laneFailures.push("lexical"));
-  const [rows, durableRows, lexicalRows] = await Promise.all([
+  // 2026-09-15 · the exact-identifier lane runs only when the planner found
+  // identifiers; an empty term list costs no query and changes no ordering.
+  const exactTerms = (opts.exactTerms ?? []).filter((t) => t.trim().length > 0);
+  const exactLaneRan = exactTerms.length > 0;
+  const laneCount = BASE_LANE_COUNT + (exactLaneRan ? 1 : 0);
+  const exactPromise = exactLane(exactTerms, KNN_TOP, () => laneFailures.push("exact"));
+  const [rows, durableRows, lexicalRows, exactRows] = await Promise.all([
     mainPromise,
     durablePromise,
     lexicalPromise,
+    exactPromise,
   ]);
 
   // 3. Score both lanes with the SAME formula, then RRF-merge the orderings.
@@ -681,10 +774,16 @@ export async function recallMemoriesForQuery(
   const lexicalScored: RecallHit[] = lexicalRows
     .map(toHit)
     .sort((a, b) => a.knnDistance - b.knnDistance);
+  // Exact rows arrive with distance 0 and recency order from SQL; the
+  // scorer's recency term keeps that order, so the lane is its own ranking.
+  const exactScored: RecallHit[] = exactRows
+    .map(toHit)
+    .sort((a, b) => a.knnDistance - b.knnDistance);
   const scored: RecallHit[] = rrfMergeHitOrders(
     mainScored,
     durableScored,
     lexicalScored,
+    exactScored,
   ).slice(0, limit);
   const mainIds = new Set(rows.map((r) => r.memory_id));
   const scannedCount =
@@ -764,7 +863,7 @@ export async function recallMemoriesForQuery(
     provenanceReason:
       laneFailures.length === 0
         ? undefined
-        : laneFailures.length === LANE_COUNT
+        : laneFailures.length === laneCount
           ? `every retrieval lane failed (${laneFailures.join(", ")}) -- recall state unknown, not empty`
           : scored.length > 0
             ? `${laneFailures.join(", ")} lane(s) failed; results are from the surviving lane(s) and ranking is weaker than usual`
