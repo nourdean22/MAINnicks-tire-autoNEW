@@ -11,6 +11,7 @@ import {
   readEngineStatus,
   writeEngineStatus,
 } from "../lib/obsidian/engine-config";
+import { withServerOnlyShim } from "../lib/obsidian/child-env";
 import { dirHasIgnoreMarker } from "../lib/obsidian/ignore";
 import type {
   ObsidianEngineStatus,
@@ -69,16 +70,22 @@ function runScript(scriptName: string, runArgs: string[] = []): boolean {
     // command line or inject — inside double quotes cmd treats them literally.
     const isWin = process.platform === "win32";
     const winArgs = runArgs.map((a) => `"${a}"`).join(" ");
+    // These scripts import app modules that transitively reach lib/ai/budget.ts,
+    // whose `server-only` import throws under plain tsx. withServerOnlyShim adds
+    // the condition that maps server-only to its empty module — see child-env.ts.
+    const childEnv = withServerOnlyShim();
     const result = isWin
       ? spawnSync(`${NPX_COMMAND} tsx "${scriptPath}" ${winArgs}`.trim(), {
           stdio: "inherit",
           cwd: process.cwd(),
           shell: true,
+          env: childEnv,
         })
       : spawnSync(NPX_COMMAND, ["tsx", scriptPath, ...runArgs], {
           stdio: "inherit",
           cwd: process.cwd(),
           shell: false,
+          env: childEnv,
         });
     // spawnSync reports spawn failures on result.error (it does NOT throw), so
     // the catch below never saw them — surface them loudly instead of a silent false.
