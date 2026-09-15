@@ -106,12 +106,16 @@ const events = [
     payload: { version: f.version, error: String(f.error ?? "").slice(0, 500), elapsedMs: f.elapsedMs },
   })),
 ];
-const claims = failures.map((f) => ({
+// Each failure claim rests on its own proof.episode_failed event: events[0] is
+// the run summary, events[i + 1] is failure i. The ledger resolves the index to
+// the event id it created (structural lineage; the grade is capped by the door
+// this key opens, H2 for the proof lane).
+const claims = failures.map((f, i) => ({
   claimText: `Episode ${f.id} (v${f.version}) fails on the live site: ${String(f.error ?? "").slice(0, 200)}`,
   grade: "H2",
   hypothesisId: f.id,
   disposition: "supported",
-  createdBy: "cron",
+  sourceEventIndexes: [i + 1],
 }));
 
 function safePath(u) {

@@ -251,6 +251,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/chat/gate-enforcement.ts",
   },
   {
+    key: "NICK_EVIDENCE_PREFLUSH",
+    description:
+      "WIRED (2026-09-15). Routes the turns assessTurnRisk() marks `buffer: true` (named-resource asks, health/pharmacology figures, lookups and number asks with no tool expected) through a buffered lane: ONE full generation, then the NICK_EVIDENCE_ENFORCEMENT gate on the complete reply, then a simulated stream. Requires NICK_EVIDENCE_ENFORCEMENT on as well — buffering without a gate is latency for nothing. Action turns never enter it (tool forcing needs real streamText). OFF = every turn streams as today; the share of turns this WOULD take is recorded per turn at tokenUsage.evidenceGate.turnRisk (experiment E3).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "OFF: high-risk turns stream; the evidence gate still runs post-flush as shadow telemetry and turnRisk is stamped for measurement.",
+    ownerDoc: "app/api/ai/chat/alternate-paths.ts",
+  },
+  {
     key: "NICK_DEPTH_UNCAP",
     description: "Removes the master-persona hard word-count ceilings (40-60 default / 150 on analysis) and the no-structure line so length + structure follow the question intent (deferring to the Response style section), instead of a fixed counter that — appended last — out-weighted it even in deep mode. OFF = today's capped master persona.",
     status: "experimental",

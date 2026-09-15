@@ -99,6 +99,11 @@ function runEslint(repoRoot: string): ESLintFileResult[] {
       /* ignore */
     }
   }
+  // 2026-09-15 · unreachable: every path above returned or exited. Under
+  // strict control-flow analysis a `finally` makes the function end
+  // reachable, and this file had never been typechecked (scripts/ is
+  // excluded from tsconfig) — TS2366 was the first thing check:scripts saw.
+  return [];
 }
 
 function buildWarningMap(

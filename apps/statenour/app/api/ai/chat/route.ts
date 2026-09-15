@@ -985,6 +985,13 @@ ${priorsBlock}`;
       finalSystemPrompt,
       turnSignal,
       actionIntent: __actionIntent,
+      // 2026-09-15 · the pre-flush evidence lane buffers only turns whose
+      // answer is likely to carry an unreceipted claim; a turn that will hit a
+      // tool anyway (action or web search) gets its receipt and streams.
+      toolsExpected: Boolean(__actionIntent) || __webSearchIntent || __webSearchRecency,
+      // Same signal the step-0 toolChoice force keys on downstream
+      // (build-stream-config.ts) — the buffered lane mirrors that pin.
+      webSearchIntent: __webSearchIntent,
       convId,
       traceId: __traceId,
       modeOverride,

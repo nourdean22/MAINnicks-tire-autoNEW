@@ -31,16 +31,62 @@ export type RealityEventInput = z.infer<typeof RealityEventInputSchema>;
 
 export const EvidenceClaimInputSchema = z.object({
   claimText: z.string().min(5).max(4000),
+  /** The grade the producer ASKS for. The ledger grants at most the producer's ceiling (see PRODUCER_CEILING). */
   grade: z.enum(EVIDENCE_GRADES),
   hypothesisId: z.string().max(120).optional(),
   goalId: z.string().max(80).optional(),
   contractHash: z.string().max(32).optional(),
+  /** External keys (rows outside this ledger) the claim rests on. */
   sourceEventKeys: z.array(z.string().max(200)).max(50).optional(),
+  /**
+   * Indexes into THIS batch's `events` array. The ledger resolves them to the
+   * created RealityEvent ids, so a claim can rest on events it posts in the
+   * same request without knowing ids in advance — structural lineage, not a
+   * sentence saying "see the event next to me".
+   */
+  sourceEventIndexes: z.array(z.number().int().min(0).max(199)).max(20).optional(),
   confidence: z.number().min(0).max(1).optional(),
   disposition: z.enum(["supported", "refuted", "inconclusive"]).default("inconclusive"),
-  createdBy: z.enum(["agent", "cron", "operator"]).default("agent"),
+  /**
+   * 2026-09-15 · NOT authoritative. Provenance is derived from the door the
+   * request came through (PRODUCER_AUTHOR); a payload that asks for "operator"
+   * from any keyed door is refused as authority laundering. Kept in the schema
+   * so old producers still validate.
+   */
+  createdBy: z.enum(["agent", "cron", "operator"]).optional(),
 });
 export type EvidenceClaimInput = z.infer<typeof EvidenceClaimInputSchema>;
+
+/**
+ * Who is posting, derived from AUTHENTICATION, never from the payload.
+ *   ledger   — the scoped EVIDENCE_LEDGER_KEY (proof workflow, Night Shift)
+ *   bridge   — STATENOUR_SYNC_KEY (nickstire's server: crons, the experiment resolver)
+ *   operator — an owner-authenticated surface (/api/proof/*), never a key
+ */
+export type EvidenceProducer = "ledger" | "bridge" | "operator";
+
+/**
+ * The most a producer can be believed. A key can report what it observed; it
+ * cannot decide how much authority the observation deserves. Grades above the
+ * ceiling are refused at the door (loud), never silently clamped.
+ *   ledger   ≤ H2 · deterministic CI/evaluator results and a hypothesis (Night Shift ≤ H1 by its prompt)
+ *   bridge   ≤ H4 · the calibrated randomized path (the experiment resolver) — provisional until the
+ *                   kernel passes its A/A + injected-effect calibration (see docs/DREAM-TO-PROOF.md)
+ *   operator ≤ H5 · a verified physical/business postcondition, asserted by the owner
+ */
+export const PRODUCER_CEILING: Record<EvidenceProducer, (typeof EVIDENCE_GRADES)[number]> = {
+  ledger: "H2",
+  bridge: "H4",
+  operator: "H5",
+};
+export const PRODUCER_AUTHOR: Record<EvidenceProducer, "AGENT" | "CRON" | "OPERATOR"> = {
+  ledger: "AGENT",
+  bridge: "CRON",
+  operator: "OPERATOR",
+};
+export function gradeRank(g: (typeof EVIDENCE_GRADES)[number]): number {
+  return EVIDENCE_GRADES.indexOf(g);
+}
 
 export const EvidenceBatchSchema = z.object({
   events: z.array(z.unknown()).max(200).default([]),
@@ -55,73 +101,156 @@ export interface BatchReceipt {
   rejected: Array<{ kind: "event" | "claim"; index: number; error: string }>;
 }
 
-/** PII must not enter the ledger — a coarse tripwire on payload keys, not a substitute for the writer's discipline. */
-const PII_KEY = /plate|customer_?id|customerId|phone|email|vin\b|last_?name|first_?name/i;
+/**
+ * PII must not enter the ledger. Two tripwires, both recursive (2026-09-15 —
+ * the first version looked only at top-level payload keys, so
+ * `customer: { phone }` and an email inside a string value walked straight in):
+ *   · a KEY anywhere in the payload/objects that names a person-identifying field;
+ *   · a string VALUE anywhere (payload, objects, source.uri, claim text) shaped
+ *     like an email, a phone number or a VIN.
+ * Not a substitute for typed per-event schemas; a last line, not the line.
+ */
+const PII_KEY = /plate|customer_?id|customerId|phone|email|vin\b|last_?name|first_?name|full_?name|ssn|dob|date_?of_?birth|address/i;
+const PII_VALUE: Array<[RegExp, string]> = [
+  [/[\w.+-]+@[\w-]+\.[\w.-]{2,}/, "email"],
+  [/(?:^|[^\d])(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/, "phone"],
+  [/\b[A-HJ-NPR-Z0-9]{11}\d{6}\b/, "vin"],
+];
 
-export async function recordEvidenceBatch(raw: unknown): Promise<BatchReceipt> {
+/** First PII-shaped key or value under `value`, as a dotted path + reason; null when clean. */
+export function findPii(value: unknown, path = ""): { path: string; reason: string } | null {
+  if (typeof value === "string") {
+    for (const [re, reason] of PII_VALUE) if (re.test(value)) return { path: path || "(value)", reason: `value looks like ${reason}` };
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const hit = findPii(value[i], `${path}[${i}]`);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const p = path ? `${path}.${k}` : k;
+      if (PII_KEY.test(k)) return { path: p, reason: "key looks like PII" };
+      const hit = findPii(v, p);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/**
+ * Producers submit observations; the ledger computes authority.
+ *
+ * `ctx.producer` comes from the route's authentication (which key opened the
+ * door, or an owner session) — never from the body. A claim that asks for more
+ * than its producer's ceiling, or for OPERATOR provenance through a keyed door,
+ * is refused by index so the producer sees exactly what it tried to launder.
+ */
+export async function recordEvidenceBatch(raw: unknown, ctx: { producer: EvidenceProducer }): Promise<BatchReceipt> {
   const batch = EvidenceBatchSchema.parse(raw);
   const receipt: BatchReceipt = { eventsWritten: 0, claimsWritten: 0, rejected: [] };
+  const ceiling = PRODUCER_CEILING[ctx.producer];
+  const author = PRODUCER_AUTHOR[ctx.producer];
 
-  const events: RealityEventInput[] = [];
   const issues = (err: z.ZodError) => err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+
+  // Events keep their batch index (claims reference it), so a rejected event
+  // leaves a hole that a claim pointing at it must not silently fall through.
+  const events: Array<{ index: number; data: RealityEventInput }> = [];
   batch.events.forEach((e, index) => {
     const r = RealityEventInputSchema.safeParse(e);
     if (!r.success) {
       receipt.rejected.push({ kind: "event", index, error: issues(r.error) });
       return;
     }
-    const piiKey = Object.keys(r.data.payload ?? {}).find((k) => PII_KEY.test(k));
-    if (piiKey) {
-      receipt.rejected.push({ kind: "event", index, error: `payload key "${piiKey}" looks like PII — the ledger is aggregate-only` });
+    const pii = findPii({ payload: r.data.payload ?? {}, objects: r.data.objects, sourceUri: r.data.source.uri ?? "" });
+    if (pii) {
+      receipt.rejected.push({ kind: "event", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
       return;
     }
-    events.push(r.data);
+    events.push({ index, data: r.data });
   });
-  const claims: EvidenceClaimInput[] = [];
+
+  const claims: Array<{ index: number; data: EvidenceClaimInput }> = [];
   batch.claims.forEach((c, index) => {
     const r = EvidenceClaimInputSchema.safeParse(c);
     if (!r.success) {
       receipt.rejected.push({ kind: "claim", index, error: issues(r.error) });
       return;
     }
-    claims.push(r.data);
+    if (gradeRank(r.data.grade) > gradeRank(ceiling)) {
+      receipt.rejected.push({ kind: "claim", index, error: `grade ${r.data.grade} exceeds this producer's ceiling ${ceiling} — submit the observation, not the authority` });
+      return;
+    }
+    if (r.data.createdBy === "operator" && ctx.producer !== "operator") {
+      receipt.rejected.push({ kind: "claim", index, error: `createdBy "operator" is not available through a keyed door (provenance is derived: ${author})` });
+      return;
+    }
+    const pii = findPii({ claimText: r.data.claimText });
+    if (pii) {
+      receipt.rejected.push({ kind: "claim", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
+      return;
+    }
+    claims.push({ index, data: r.data });
   });
 
-  if (events.length) {
-    const res = await prisma.realityEvent.createMany({
-      data: events.map((e) => ({
-        eventType: e.eventType,
-        observedAt: e.observedAt ? new Date(e.observedAt) : new Date(),
-        objects: e.objects as Prisma.InputJsonValue,
-        sourceSystem: e.source.system,
-        sourceUri: e.source.uri ?? null,
-        experimentId: e.experiment?.experimentId ?? null,
-        variantId: e.experiment?.variantId ?? null,
-        contractHash: e.experiment?.contractHash ?? null,
-        quality: e.quality,
-        privacy: e.privacy,
-        payload: (e.payload ?? undefined) as Prisma.InputJsonValue | undefined,
-        sender: batch.sender,
-      })),
-    });
-    receipt.eventsWritten = res.count;
-  }
-  if (claims.length) {
-    const res = await prisma.evidenceClaim.createMany({
-      data: claims.map((c) => ({
-        claimText: c.claimText,
-        grade: c.grade,
-        disposition: c.disposition.toUpperCase() as "SUPPORTED" | "REFUTED" | "INCONCLUSIVE",
-        hypothesisId: c.hypothesisId ?? null,
-        goalId: c.goalId ?? null,
-        contractHash: c.contractHash ?? null,
-        sourceEventKeys: c.sourceEventKeys ?? undefined,
-        confidence: c.confidence ?? null,
-        createdBy: c.createdBy.toUpperCase() as "AGENT" | "CRON" | "OPERATOR",
-      })),
-    });
-    receipt.claimsWritten = res.count;
-  }
+  await prisma.$transaction(async (tx) => {
+    const idByIndex = new Map<number, string>();
+    for (const { index, data: e } of events) {
+      const row = await tx.realityEvent.create({
+        data: {
+          eventType: e.eventType,
+          observedAt: e.observedAt ? new Date(e.observedAt) : new Date(),
+          objects: e.objects as Prisma.InputJsonValue,
+          sourceSystem: e.source.system,
+          sourceUri: e.source.uri ?? null,
+          experimentId: e.experiment?.experimentId ?? null,
+          variantId: e.experiment?.variantId ?? null,
+          contractHash: e.experiment?.contractHash ?? null,
+          quality: e.quality,
+          privacy: e.privacy,
+          payload: (e.payload ?? undefined) as Prisma.InputJsonValue | undefined,
+          sender: batch.sender,
+        },
+        select: { id: true },
+      });
+      idByIndex.set(index, row.id);
+      receipt.eventsWritten += 1;
+    }
+    for (const { index, data: c } of claims) {
+      const linked: string[] = [];
+      let broken: number | null = null;
+      for (const i of c.sourceEventIndexes ?? []) {
+        const id = idByIndex.get(i);
+        if (!id) { broken = i; break; }
+        linked.push(id);
+      }
+      if (broken !== null) {
+        // A claim that says it rests on an event this batch did not land has no lineage — refuse it.
+        receipt.rejected.push({ kind: "claim", index, error: `sourceEventIndexes[${broken}] does not name an event written by this batch` });
+        continue;
+      }
+      const sourceEventKeys = [...(c.sourceEventKeys ?? []), ...linked];
+      await tx.evidenceClaim.create({
+        data: {
+          claimText: c.claimText,
+          grade: c.grade,
+          disposition: c.disposition.toUpperCase() as "SUPPORTED" | "REFUTED" | "INCONCLUSIVE",
+          hypothesisId: c.hypothesisId ?? null,
+          goalId: c.goalId ?? null,
+          contractHash: c.contractHash ?? null,
+          sourceEventKeys: sourceEventKeys.length ? sourceEventKeys : undefined,
+          confidence: c.confidence ?? null,
+          createdBy: author,
+        },
+        select: { id: true },
+      });
+      receipt.claimsWritten += 1;
+    }
+  });
   return receipt;
 }
 

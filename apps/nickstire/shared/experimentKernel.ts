@@ -199,15 +199,40 @@ export interface SrmResult {
 
 /**
  * Sample-ratio mismatch: chi-square goodness of fit of exposure counts
- * against the intended allocation (equal by default). p < 0.001 is the
- * conventional alarm — at that level a mismatch is a broken randomiser, not
- * bad luck. Below 100 total exposures the test has no power and reports ok.
+ * against the intended allocation (equal by default). The alarm is a
+ * per-look p-value (DEFAULT_SRM_ALPHA — see the note there: it is read DAILY,
+ * so the per-look threshold is set for the peeked family rate, not for one
+ * look). At that level a mismatch is a broken randomiser, not bad luck. Below
+ * DEFAULT_SRM_MIN_TOTAL exposures the test has no power and reports ok.
  */
-export function srmCheck(exposures: readonly number[], expectedShares?: readonly number[]): SrmResult {
+export interface SrmOptions {
+  /** Below this many total exposures the test has no power and reports ok. */
+  minTotal?: number;
+  /** Alarm threshold on the chi-square p-value. */
+  alpha?: number;
+}
+
+const DEFAULT_SRM_MIN_TOTAL = 100;
+/**
+ * 2026-09-15 · was 0.001, "the conventional alarm" — conventional for ONE look.
+ * The resolver looks every day, and experimentKernelCalibration.ts measured
+ * that peeked daily for 30 days the 0.001 alarm falsely refuses a perfectly
+ * balanced split in 1.45% of experiments. Sweeping floor x alpha (2,000 seeded
+ * runs each): the floor changed nothing (100 -> 1000 total: 1.45% -> 0.8%),
+ * alpha 1e-4 took the false refusal to 0.05% while a 60/40 randomiser is still
+ * caught in 100% of runs and a mild 55/45 in 95.1% (was 98.4%). A per-look
+ * 1e-4 is what makes the any-peek family rate land near the 0.1% the old
+ * number was reaching for.
+ */
+const DEFAULT_SRM_ALPHA = 1e-4;
+
+export function srmCheck(exposures: readonly number[], expectedShares?: readonly number[], opts: SrmOptions = {}): SrmResult {
   const k = exposures.length;
   const total = exposures.reduce((a, b) => a + b, 0);
   const shares = expectedShares ?? exposures.map(() => 1 / k);
-  if (k < 2 || total < 100) return { ok: true, chiSquare: 0, pValue: 1, note: "too few exposures to test the split" };
+  const minTotal = opts.minTotal ?? DEFAULT_SRM_MIN_TOTAL;
+  const alpha = opts.alpha ?? DEFAULT_SRM_ALPHA;
+  if (k < 2 || total < minTotal) return { ok: true, chiSquare: 0, pValue: 1, note: "too few exposures to test the split" };
   let chi = 0;
   for (let i = 0; i < k; i++) {
     const expected = total * shares[i];
@@ -216,10 +241,10 @@ export function srmCheck(exposures: readonly number[], expectedShares?: readonly
   }
   const p = chiSquareSurvival(chi, k - 1);
   return {
-    ok: p >= 0.001,
+    ok: p >= alpha,
     chiSquare: chi,
     pValue: p,
-    note: p >= 0.001 ? "split matches the intended allocation" : `split is off (p=${p.toExponential(2)}) — randomisation or exposure logging is broken`,
+    note: p >= alpha ? "split matches the intended allocation" : `split is off (p=${p.toExponential(2)}) — randomisation or exposure logging is broken`,
   };
 }
 
@@ -276,6 +301,9 @@ export interface EvaluateOptions extends SequentialOptions {
   alpha?: number;
   /** Floor before any sequential read is trusted; the variance estimate is unstable below it. */
   minExposuresPerArm?: number;
+  /** Sample-ratio-mismatch alarm settings (defaults in srmCheck). Exposed for calibration. */
+  srmMinTotal?: number;
+  srmAlpha?: number;
 }
 
 const DEFAULT_MIN_EXPOSURES_PER_ARM = 50;
@@ -306,7 +334,7 @@ export function evaluateWebExperiment(
   const cc = counts.find((c) => c.armId === control.armId) ?? { armId: control.armId, exposures: 0, conversions: {} };
   const vc = counts.find((c) => c.armId === variant.armId) ?? { armId: variant.armId, exposures: 0, conversions: {} };
 
-  const srm = srmCheck([cc.exposures, vc.exposures]);
+  const srm = srmCheck([cc.exposures, vc.exposures], undefined, { minTotal: opts.srmMinTotal, alpha: opts.srmAlpha });
   if (!srm.ok) return { status: "invalid_design", note: `sample ratio mismatch: ${srm.note}` };
 
   const thinnest = Math.min(cc.exposures, vc.exposures);

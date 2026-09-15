@@ -39,6 +39,42 @@ GOAL CONTRACT ──► REALITY LEDGER ◄── code / site / shop
 
 **Evaluator separation.** `config/agent-os/evaluator-paths.json` lists the judges. A `darwin/*` or `night-shift/*` branch that edits one is red (`scripts/agent-os/check-evaluator-separation.mjs`, canaried in `evaluatorSeparation.test.mjs`, enforced on PRs by `.github/workflows/evaluator-separation.yml`). Changing a judge is a normal branch, reviewed as a judge change.
 
+**Producers submit observations; the ledger computes authority (2026-09-15).** The door a request came
+through decides how much its claims may be believed and who they are recorded as
+(`apps/statenour/lib/services/reality-ledger.ts` `PRODUCER_CEILING` / `PRODUCER_AUTHOR`): the scoped
+`EVIDENCE_LEDGER_KEY` (proof workflow, Night Shift) ≤ H2 as AGENT · the bridge key (nickstire's server,
+the experiment resolver) ≤ H4 as CRON · only an owner surface asserts H5 as OPERATOR. A claim that asks
+for more, or for `createdBy: "operator"` through a key, is refused by index — loud, never clamped. H4
+from the resolver rests on a **measured** rule since 2026-09-15: `shared/experimentKernelCalibration.ts`
+(re-run it any time with `pnpm calibrate:kernel` from `apps/nickstire/`)
+runs the kernel on seeded A/A, injected-effect and broken-split traffic (any-peek false positives 1.3%
+over 30 daily reads, 2.2% over 90, against a naive peeked z-test at 26% / 34%; +5pp found 98.7% of the
+time with zero wrong-arm calls; a 60/40 split refused 100%). The harness also found and fixed its first
+defect the same day: the SRM alarm is peeked daily too, and at the "conventional" per-look p<0.001 it
+falsely refused a balanced split in 1.45% of 30-day runs — `DEFAULT_SRM_ALPHA` is 1e-4 now (0.05%
+false refusal, 60/40 still caught 100%, 55/45 95.1%), with the old alpha kept as a CONTROL in the
+test so the defect stays reproducible. The GrowthBook cross-check
+(UPSTREAMS) is still the external oracle to run. Lineage is structural: a claim names `sourceEventIndexes` into its
+own batch and the ledger stores the created event ids in `sourceEventKeys`, so a verdict rests on its
+verdict event instead of travelling beside it. PII is refused recursively (nested keys, email/phone/VIN
+shaped values, `objects[].id`, `source.uri`, claim text).
+
+**Night Shift cannot merge — as a capability, not a sentence.** Inside a `.worktrees/night-shift-*` cwd
+the PreToolUse policy denies `gh pr merge`, REST/GraphQL merge and auto-merge, `/merges`, rulesets,
+branch protection, secrets, workflow toggles, `gh alias set`/`extension install`, any push to a branch
+other than `night-shift/*`, and any Write/Edit of a judge in `config/agent-os/evaluator-paths.json`
+(plus `.claude/settings.json` and `lefthook.yml`, which decide whether guards run at all). The same
+judge list is denied through the shell (Codex review of #2335): a redirect into a judge, `tee`,
+`sed -i`/`perl -pi`, `cp`/`mv`/`rm`, `Set-Content`/`Out-File`/`Copy-Item`, `git rm`/`mv`/`checkout`
+of the file, inline `node -e`/`python -c` naming it, and `curl -o`/`-OutFile` sinks — and the
+engine's read-only skip no longer swallows `cat x > judge` (a redirect is a write). Reading or
+running a judge stays allowed. Probed through the real hook in
+`scripts/agent-os/nightShiftPolicy.test.mjs`. Residual, stated on purpose: a script file the run
+authors that writes a judge path without naming it in the command is beyond any command-text hook;
+`evaluator-separation.yml` catches that after the push, and the merge ban holds regardless. The
+credential-level boundary (a GitHub identity that structurally cannot merge) is still the stronger
+fix and remains open.
+
 ## Operating it
 
 1. **The first experiment is armed** (`web_experiment_home_hero_subline_2026_09` flipped on 2026-09-15; `GET /api/trpc/experiments.active` lists it). Flip it off in the admin flags panel to return every visitor to control. The daily `web-experiment-resolve` cron proposes a verdict over Telegram; nothing is applied.

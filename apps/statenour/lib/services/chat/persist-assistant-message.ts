@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
-import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { buildMessageParts } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
@@ -180,6 +180,22 @@ export async function persistAssistantMessage(a: {
     // Honesty Enforcement: SDK Tool Call Check
     const receipts = capturedToolCalls.map((t) => toReceipt({ toolName: t.name, ok: t.ok }));
     const verdict = canClaimDone(receipts);
+    // 2026-09-15 · strict-completion SHADOW (measure before promotion). The
+    // legacy verdict above still decides the banner; this records, per turn,
+    // whether the strict guard (VERIFIED required for every consequential
+    // receipt) would have disagreed — persisted below in tokenUsage and
+    // logged, keyed by tool/category. Pure and never affects the reply.
+    const claimDoneShadow = receipts.length > 0 ? summarizeClaimDoneShadow(receipts) : null;
+    if (claimDoneShadow) {
+      log.info("claim_done_shadow", {
+        site: "sdk-tool-calls",
+        gap: claimDoneShadow.gap,
+        legacyOk: claimDoneShadow.legacyOk,
+        strictOk: claimDoneShadow.strictOk,
+        consequential: claimDoneShadow.consequential,
+        offenders: claimDoneShadow.strictOffenders.map((o) => `${o.toolName}:${o.verificationState ?? "none"}`),
+      });
+    }
     if (!verdict.ok) {
       // 2026-07-11 review · this site previously prepended
       // UNCONDITIONALLY (no idempotency guard) with a third
@@ -395,6 +411,11 @@ export async function persistAssistantMessage(a: {
               // `unknown` is deliberately opaque at the seam above.
               evidenceGate: evidenceGate
                 ? (JSON.parse(JSON.stringify(evidenceGate)) as Prisma.InputJsonValue)
+                : undefined,
+              // 2026-09-15 · legacy-vs-strict "Done" gap for this turn's SDK
+              // tool receipts (see summarizeClaimDoneShadow). Shadow only.
+              claimDoneShadow: claimDoneShadow
+                ? (JSON.parse(JSON.stringify(claimDoneShadow)) as Prisma.InputJsonValue)
                 : undefined,
               factCheck: factClaims.length > 0
                 ? {

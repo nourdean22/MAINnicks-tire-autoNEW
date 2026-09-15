@@ -13,7 +13,7 @@ import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabricat
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
 import { detectFailedActionClaims, detectPhantomActionClaims } from "@/lib/ai/chat/action-result-verifier";
 import { logError } from "@/lib/utils/error-log";
-import { canClaimDone, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
 import { summarizeAndStoreConversation } from "@/lib/brain/conversation-memory";
 import { maybeAutoRename } from "@/lib/chat/auto-rename";
@@ -379,6 +379,20 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             // Action-write verifier receipts check
             const actionReceipts = results.map((r) => toReceipt({ toolName: r.action, ok: r.success, error: r.error }));
             const actionVerdict = canClaimDone(actionReceipts);
+            // 2026-09-15 · strict-completion SHADOW for action blocks (the second
+            // of the two production canClaimDone() sites). Logged, never acted on;
+            // the assistant row is already persisted by the time this runs.
+            if (actionReceipts.length > 0) {
+              const shadow = summarizeClaimDoneShadow(actionReceipts);
+              log.info("claim_done_shadow", {
+                site: "action-blocks",
+                gap: shadow.gap,
+                legacyOk: shadow.legacyOk,
+                strictOk: shadow.strictOk,
+                consequential: shadow.consequential,
+                offenders: shadow.strictOffenders.map((o) => `${o.toolName}:${o.verificationState ?? "none"}`),
+              });
+            }
             if (!actionVerdict.ok) {
               // 2026-07-11 review · banner via the single shared builder
               // (fabrication-rewriter) — no more hand-duplicated wording.
