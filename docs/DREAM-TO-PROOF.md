@@ -74,8 +74,14 @@ running a judge stays allowed. Probed through the real hook in
 `scripts/agent-os/nightShiftPolicy.test.mjs`. Residual, stated on purpose: a script file the run
 authors that writes a judge path without naming it in the command is beyond any command-text hook;
 `evaluator-separation.yml` catches that after the push, and the merge ban holds regardless. The
-credential-level boundary (a GitHub identity that structurally cannot merge) is still the stronger
-fix and remains open.
+credential-level boundary landed the same day: `run.ps1` refuses to start unless `NIGHT_SHIFT_GH_TOKEN`
+names a SEPARATE identity that `scripts/night-shift/identity-preflight.mjs` (run as the operator)
+judges structurally unable to land a change on `main` — read/triage permission with the fork flow, or
+write only behind an ACTIVE ruleset that does not bypass it. On the Free plan a private repo has no
+rulesets or branch protection (the API answers 403), so read/triage + fork is the boundary; the ruleset
+for a Pro repo is in `scripts/night-shift/ruleset-night-shift-boundary.json`. A refusal is a
+`darwin.run_refused` ledger event, and the child process holds the token only as `GH_TOKEN`. What the
+operator still owns: creating the machine account and its token (README, Identity).
 
 ## Operating it
 

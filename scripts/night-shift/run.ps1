@@ -12,7 +12,9 @@
   candidate branch that edits its judges, and root AGENTS.md's protected
   operations cover the rest. The operator merges - or doesn't.
 
-  Requires: `claude` on PATH and logged in; `gh` authenticated; env
+  Requires: `claude` on PATH and logged in; `gh` authenticated as the OPERATOR (for the
+  identity preflight) plus NIGHT_SHIFT_GH_TOKEN, a token for a SEPARATE machine identity
+  that structurally cannot land a change on main (README, Identity); env
   STATENOUR_SYNC_URL + EVIDENCE_LEDGER_KEY (the SCOPED ledger key - it opens
   /api/sync/evidence and nothing else). Never hand this run STATENOUR_SYNC_KEY:
   that is the whole cross-app bridge (queue, nour-os, devices, cron/mega), and
@@ -65,6 +67,52 @@ $env:STATENOUR_SYNC_KEY = $null
 Add-Content $log "=== night shift $date start $(Get-Date -Format o)"
 Push-Location $RepoRoot
 try {
+  # Credential-level boundary (2026-09-15). The headless agent must NOT run as the
+  # operator's own GitHub identity: that identity can merge, and every prompt-level
+  # "never merge" is then a sentence. NIGHT_SHIFT_GH_TOKEN is a token for a separate
+  # machine identity; scripts/night-shift/identity-preflight.mjs decides, as the
+  # operator, whether that identity structurally cannot land a change on main
+  # (read/triage -> fork flow; write only behind an ACTIVE ruleset). Fail CLOSED:
+  # no token or a refused verdict means no run - recorded, never silent.
+  function Refuse-Run([string]$reason, [string]$detail) {
+    Post-Ledger @{
+      eventType  = "darwin.run_refused"
+      observedAt = (Get-Date).ToUniversalTime().ToString("o")
+      objects    = @(@{ type = "branch"; id = $branch })
+      source     = @{ system = "night-shift"; uri = $log }
+      quality    = "observed"
+      privacy    = "internal"
+      payload    = @{ reason = $reason; detail = $detail }
+    }
+    Add-Content $log "result: RUN REFUSED - $reason"
+    throw "night shift refused: $reason (see $log)"
+  }
+  if (-not $env:NIGHT_SHIFT_GH_TOKEN) {
+    Refuse-Run "NIGHT_SHIFT_GH_TOKEN not set - the run would inherit the operator's GitHub identity (README, Identity)" ""
+  }
+  $preflight = & node (Join-Path $RepoRoot "scripts\night-shift\identity-preflight.mjs") --json 2>&1
+  $preflightExit = $LASTEXITCODE
+  $preflightText = ($preflight | ForEach-Object { "$_" }) -join "`n"
+  Add-Content $log "identity preflight (exit $preflightExit): $preflightText"
+  if ($preflightExit -ne 0) { Refuse-Run "identity preflight refused" $preflightText }
+  $verdict = $null
+  try { $verdict = $preflightText | ConvertFrom-Json } catch { $verdict = $null }
+  # Only the child holds the Night Shift token, and only as GH_TOKEN (gh honours it over
+  # the keyring; git goes through gh's credential helper so pushes carry the same identity).
+  $env:GH_TOKEN = $env:NIGHT_SHIFT_GH_TOKEN
+  $env:GITHUB_TOKEN = $null
+  $env:GIT_CONFIG_COUNT = "1"
+  $env:GIT_CONFIG_KEY_0 = "credential.helper"
+  $env:GIT_CONFIG_VALUE_0 = "!gh auth git-credential"
+  # fork mode: the identity cannot push here, so its branch lives on its fork and the PR is cross-repo
+  $env:NIGHT_SHIFT_PUSH_REMOTE = "origin"
+  $env:NIGHT_SHIFT_PR_HEAD = $branch
+  if ($verdict -and $verdict.mode -eq "fork") {
+    $env:NIGHT_SHIFT_PUSH_REMOTE = "fork"
+    $env:NIGHT_SHIFT_PR_HEAD = "$($verdict.nsLogin):$branch"
+  }
+  Add-Content $log "identity: $($verdict.nsLogin) mode=$($verdict.mode) push=$($env:NIGHT_SHIFT_PUSH_REMOTE) prHead=$($env:NIGHT_SHIFT_PR_HEAD)"
+
   git fetch origin main 2>&1 | Add-Content $log
   if (Test-Path $wtDir) { throw "worktree $wtDir already exists - a previous run did not tear down; inspect it before re-running" }
   powershell -NoProfile -File scripts\worktree-setup.ps1 -branchName $branch -targetDir ".worktrees\$wtName" 2>&1 | Add-Content $log
@@ -73,6 +121,12 @@ try {
 
   Push-Location $wtDir
   try {
+    if ($env:NIGHT_SHIFT_PUSH_REMOTE -eq "fork") {
+      # gh repo fork is idempotent (an existing fork is reused); the remote is added in
+      # this worktree only. Under GH_TOKEN both run as the Night Shift identity.
+      gh repo fork nourdean22/MAINnicks-tire-autoNEW --clone=false 2>&1 | Add-Content $log
+      git remote add fork "https://github.com/$($verdict.nsLogin)/MAINnicks-tire-autoNEW.git" 2>&1 | Add-Content $log
+    }
     $prompt = Get-Content (Join-Path $RepoRoot "scripts\night-shift\PROMPT.md") -Raw
     # Not `$args`: that is PowerShell's automatic parameter array.
     # --dangerously-skip-permissions: nobody answers a permission prompt at 02:30, and
