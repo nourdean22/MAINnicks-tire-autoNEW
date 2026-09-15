@@ -1,8 +1,13 @@
 /**
  * Headless Obsidian Engine CLI Runner & Watch Daemon — Statenour OS.
  */
-import "dotenv/config";
-import dotenv from "dotenv";
+// 2026-09-15 · dotenv replaced by Node's built-in process.loadEnvFile (no dependency);
+// the cwd .env that `dotenv/config` used to read is loaded first, the repo-root .env below.
+try {
+  process.loadEnvFile(".env");
+} catch {
+  /* no cwd .env */
+}
 import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -27,7 +32,11 @@ import type {
 // overrides an already-set key, so a real environment variable still wins, and a
 // future apps/statenour/.env (loaded above) still wins over the root. Must run
 // before getObsidianEngineConfig(), which reads OBSIDIAN_* at call time.
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+try {
+  process.loadEnvFile(path.resolve(__dirname, "../../../.env"));
+} catch {
+  /* no repo-root .env -- rely on the environment */
+}
 
 const args = process.argv.slice(2);
 const command = args[0] || "sync";

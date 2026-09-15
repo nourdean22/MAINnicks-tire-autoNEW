@@ -19,7 +19,25 @@
  * generated PNGs alongside source SVG.
  */
 
-import sharp from "sharp";
+// 2026-09-15 · `sharp` is NOT a dependency of this app (this is a one-off generator; the
+// PNGs it wrote on 2026-05-23 are committed). It is loaded through a const specifier so
+// tsc does not try to resolve it (check:scripts saw TS2307 for four months of nobody
+// noticing). Run it with the package present:
+//   pnpm dlx --package=sharp --package=tsx tsx scripts/generate-pwa-icons.ts
+type SharpLike = (input: Buffer, opts: { density: number }) => {
+  resize(w: number, h: number, o: { fit: "contain"; background: { r: number; g: number; b: number; alpha: number } }): {
+    png(o: { compressionLevel: number }): { toBuffer(): Promise<Buffer> };
+  };
+};
+async function loadSharp(): Promise<SharpLike> {
+  const specifier = "sharp";
+  try {
+    const mod = (await import(specifier)) as { default: SharpLike };
+    return mod.default;
+  } catch {
+    throw new Error("sharp is not installed here — run: pnpm dlx --package=sharp --package=tsx tsx scripts/generate-pwa-icons.ts");
+  }
+}
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -39,6 +57,7 @@ const TARGETS: Target[] = [
 ];
 
 async function main() {
+  const sharp = await loadSharp();
   const svg = await readFile(SOURCE);
   console.log(`source · ${SOURCE} · ${svg.byteLength} bytes`);
 

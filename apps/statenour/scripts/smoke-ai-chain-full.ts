@@ -226,12 +226,9 @@ async function main() {
     return { detail: "fires on legit task · skips conversational" };
   });
 
-  await check("chat", "mode-persona helpers", async () => {
-    const { applyMode, nextMode } = await import("@/components/chat/mode-persona-chip");
-    if (applyMode("hello", "battle") !== "/battle hello") throw new Error("battle prefix");
-    if (nextMode("execute") !== "default") throw new Error("cycle wrap");
-    return { detail: "applyMode + nextMode green" };
-  });
+  // "mode-persona helpers" check REMOVED 2026-09-15: components/chat/mode-persona-chip was
+  // deleted in #689; the dynamic import made this script fail at that step ever since
+  // (caught by check:scripts, TS2307).
 
   // ── AUTONICKS · OTHER AI SURFACES ──────────────────────────
   await check("autonicks", "structured · adversarial-critic", async () => {
