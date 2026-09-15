@@ -1,0 +1,11 @@
+{
+  "name": "night-shift-boundary",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" },
+    { "actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always" }
+  ],
+  "rules": [{ "type": "update" }, { "type": "non_fast_forward" }, { "type": "deletion" }]
+}

@@ -28,6 +28,26 @@ is the whole cross-app bridge, so `run.ps1` deliberately scrubs it from the chil
 "fix" that. Until the operator sets `EVIDENCE_LEDGER_KEY` on Railway (statenour-web) and
 locally, the run still works and simply skips reading and posting evidence.
 
+**Identity — the credential-level boundary (2026-09-15).** The PreToolUse rules stop a *spelling*
+of "merge"; only an identity that cannot land a change on `main` stops the *ability*. `run.ps1`
+therefore refuses to start unless `NIGHT_SHIFT_GH_TOKEN` is set and
+`scripts/night-shift/identity-preflight.mjs` (run as the operator) accepts the identity behind it: a
+login that is **not** the operator's, with **read or triage** permission on the repo — the run then
+pushes to that identity's **fork** and opens a cross-repo PR it cannot merge — or with **write** only
+behind an ACTIVE repository ruleset restricting updates to `main` that does not bypass it. On the
+GitHub **Free** plan a private repo has neither rulesets nor branch protection (the API answers 403),
+so read/triage + fork is the only structural boundary available today; `ruleset-night-shift-boundary.json`
+is the ruleset to apply if the repo moves to Pro (`gh api -X POST repos/<owner>/<repo>/rulesets --input
+scripts/night-shift/ruleset-night-shift-boundary.json`; it restricts updates, force-pushes and deletion
+of `main` to repository admins — RepositoryRole id 5 — and to the GitHub Actions app — Integration id
+15368 — so the weekly prerender push keeps working; verify that bypass on first activation). Operator steps, once: create a machine account; add it
+as a collaborator with **read**; under Settings → Actions enable workflows on pull requests from forks;
+on that account mint a fine-grained token (its fork: contents read+write, pull requests read+write,
+metadata read) and store it as the user env var `NIGHT_SHIFT_GH_TOKEN` — never the operator's own token.
+A refusal is recorded as `darwin.run_refused` in the ledger. The child process receives the token only
+as `GH_TOKEN`, and git pushes go through `gh auth git-credential` so they carry the same identity.
+Canaried in `scripts/agent-os/nightShiftIdentity.test.mjs` (`pnpm agent:verify`).
+
 **Auth.** The run needs `CLAUDE_CODE_OAUTH_TOKEN` (user env var). Mint it once, interactively,
 with `claude setup-token` — a one-year subscription token built for scripts and scheduled tasks.
 An ordinary `/login` credential is what the first run (2026-09-15) died on: "OAuth session expired

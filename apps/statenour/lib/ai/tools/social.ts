@@ -11,6 +11,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import type { SettledState } from "@/lib/services/action-attempts";
 
 /**
  * fenceContent (lib/ai/tool-result-fencing.ts) caps its body at 4000
@@ -66,6 +67,18 @@ export const socialTools = {
         reason?: string;
         messageId?: number;
         error?: string;
+        /**
+         * 2026-09-15 · the durable ActionAttempt row this send is recorded
+         * under (lib/services/action-attempts.ts). ledgerState is the state the
+         * row settled to — SUCCEEDED_UNVERIFIED is the honest ceiling for a
+         * Telegram send: the provider accepted it, nothing has read it back.
+         * Both fields are stamped by the wrapper ONLY after the ledger confirmed
+         * the settlement; absent means the ledger did not answer (missing
+         * table → bridge, or the settle failed), never "assume it did".
+         */
+        attemptId?: string;
+        ledgerState?: SettledState;
+        priorAttemptState?: string;
       };
       return withToolIdempotency<Result>(
         idempotencyKey("sendTelegram", fullMessage),
@@ -73,7 +86,13 @@ export const socialTools = {
         async () => {
           const outcome = await sendTelegramObserved(fullMessage);
           if (outcome.state === "provider_accepted") {
-            return { sent: true, state: "provider_accepted", urgency, messageLength: fullMessage.length, messageId: outcome.messageId };
+            return {
+              sent: true,
+              state: "provider_accepted",
+              urgency,
+              messageLength: fullMessage.length,
+              messageId: outcome.messageId,
+            };
           }
           return {
             sent: false,
@@ -99,12 +118,25 @@ export const socialTools = {
             messageLength: fullMessage.length,
             deduped: true,
             priorState: ctx?.state ?? "claimed",
+            attemptId: ctx?.attemptId,
+            priorAttemptState: ctx?.attemptState,
             reason,
             error: reason,
           };
         },
         undefined,
         {
+          // 2026-09-15 · the durable delegation contract: one action_attempts row
+          // per operation key, claimed BEFORE the send and settled with the
+          // provider's message id. sendTelegram is the one consequential mission
+          // the contract is proven on before it is generalised.
+          durable: {
+            tool: "sendTelegram",
+            effectClass: "write",
+            // Runs only after action_attempts confirmed the settlement.
+            stamp: (r, ledger) => ({ ...r, attemptId: ledger.attemptId, ledgerState: ledger.state }),
+          },
+          externalReference: (r) => (r.messageId !== undefined ? `telegram:message:${r.messageId}` : undefined),
           classifyResult: (r) =>
             r.state === "provider_accepted" ? "success" : r.state === "known_failure" ? "known_failure" : "unknown",
           // An unknown transport outcome stays fenced long enough that an eager

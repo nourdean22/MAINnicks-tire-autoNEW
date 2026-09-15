@@ -7,8 +7,13 @@
  * Run: pnpm tsx scripts/ingest-archives-direct.ts
  */
 
-import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+// 2026-09-15 · dotenv is declared but not installed in every checkout (check:scripts saw
+// TS2307); Node's built-in loader needs no dependency. Missing file = rely on the env.
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  /* no .env.local -- the environment is the environment */
+}
 import fs from "fs";
 import path from "path";
 import { prisma } from "../lib/prisma";

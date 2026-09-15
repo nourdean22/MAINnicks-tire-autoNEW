@@ -13,15 +13,44 @@
  * the iPhone homescreen install rendered a blank or screenshot
  * thumbnail.
  *
- * Run:  pnpm tsx scripts/generate-pwa-icons.ts
+ * Run (from apps/statenour):  pnpm tsx scripts/generate-pwa-icons.ts
  *
  * Idempotent · safe to re-run (always overwrites). Commit the
  * generated PNGs alongside source SVG.
+ *
+ * Where `sharp` comes from (2026-09-15). It is not a dependency of this app —
+ * it is an OPTIONAL dependency of `next` (next@16 declares `sharp ^0.35`), so
+ * it is installed wherever the app's own image pipeline works, one directory
+ * away from `next/package.json`. It is resolved from THERE, not from this
+ * file: `check:scripts` carried a TS2307 on the bare import for four months,
+ * and a `pnpm dlx --package=sharp` environment cannot rescue a bare import
+ * either, because Node resolves it relative to this file while dlx installs
+ * into its own temporary directory (Codex review of #2339). The resolution is
+ * exercised for real by tests/scripts/generate-pwa-icons-sharp.test.ts.
  */
 
-import sharp from "sharp";
 import { readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+type SharpLike = (input: Buffer, opts: { density: number }) => {
+  resize(w: number, h: number, o: { fit: "contain"; background: { r: number; g: number; b: number; alpha: number } }): {
+    png(o: { compressionLevel: number }): { toBuffer(): Promise<Buffer> };
+  };
+};
+
+/** The absolute path of `sharp`'s entry, resolved from next's own directory. */
+export function sharpPath(): string {
+  const nextPackageJson = createRequire(import.meta.url).resolve("next/package.json");
+  return createRequire(nextPackageJson).resolve("sharp");
+}
+
+export function loadSharp(): SharpLike {
+  const path = sharpPath();
+  const mod = createRequire(path)(path) as SharpLike | { default: SharpLike };
+  return typeof mod === "function" ? mod : mod.default;
+}
 
 const PUBLIC = resolve(process.cwd(), "public");
 const SOURCE = resolve(PUBLIC, "icon-nour.svg");
@@ -39,6 +68,7 @@ const TARGETS: Target[] = [
 ];
 
 async function main() {
+  const sharp = loadSharp();
   const svg = await readFile(SOURCE);
   console.log(`source · ${SOURCE} · ${svg.byteLength} bytes`);
 
@@ -56,7 +86,10 @@ async function main() {
   console.log("\ndone · commit the generated PNGs alongside the source SVG.");
 }
 
-main().catch((err) => {
-  console.error("generate-pwa-icons failed:", err);
-  process.exitCode = 1;
-});
+// Direct execution only — the resolution test imports this module without generating.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error("generate-pwa-icons failed:", err);
+    process.exitCode = 1;
+  });
+}
