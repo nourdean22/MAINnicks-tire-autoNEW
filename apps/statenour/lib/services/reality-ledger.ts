@@ -313,7 +313,7 @@ export async function recordTasteJudgment(raw: unknown) {
  * Prisma reports a missing table as P2021 (and a missing enum/column as
  * P2022); anything else is a real error and still surfaces.
  */
-async function ledgerRead<T>(read: () => Promise<T>, fallback: T, missing: string[]): Promise<T> {
+export async function ledgerRead<T>(read: () => Promise<T>, fallback: T, missing: string[]): Promise<T> {
   try {
     return await read();
   } catch (err) {

@@ -19,6 +19,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { holdoutEvent, summarizeHoldout } from "./holdout-summary.mjs";
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RESULTS = join(APP, "test-results");
@@ -106,6 +107,33 @@ const events = [
     payload: { version: f.version, error: String(f.error ?? "").slice(0, 500), elapsedMs: f.elapsedMs },
   })),
 ];
+// Hidden holdout (2026-09-15): the second, secret episode set. Its report stays
+// on the runner; only ids + counts travel. Posted EVERY run — "unmeasured" when
+// the secret is absent or the unpack produced nothing — so a missing holdout
+// can never be read as a passing one. Appended AFTER the failure events so the
+// claim indexes below stay events[i + 1].
+let holdoutSummary = null;
+let holdoutReason = "no holdout secret";
+const holdoutResults = process.env.HOLDOUT_RESULTS;
+if (holdoutResults && existsSync(holdoutResults)) {
+  try {
+    holdoutSummary = summarizeHoldout(JSON.parse(readFileSync(holdoutResults, "utf8")));
+  } catch {
+    holdoutReason = "holdout report unreadable";
+  }
+} else if (process.env.HOLDOUT_UNPACKED && process.env.HOLDOUT_UNPACKED !== "0") {
+  holdoutReason = "holdout unpacked but no report written";
+}
+const holdout = holdoutEvent({
+  summary: holdoutSummary,
+  outcome: process.env.HOLDOUT_OUTCOME || "unknown",
+  reason: holdoutReason,
+  liveCommit,
+  wantCommit,
+  runUrl,
+  now,
+});
+
 // Each failure claim rests on its own proof.episode_failed event: events[0] is
 // the run summary, events[i + 1] is failure i. The ledger resolves the index to
 // the event id it created (structural lineage; the grade is capped by the door
@@ -126,6 +154,8 @@ function safePath(u) {
   }
 }
 
+events.push(holdout);
+
 try {
   const res = await fetch(`${base}/api/sync/evidence`, {
     method: "POST",
@@ -133,7 +163,7 @@ try {
     body: JSON.stringify({ events, claims, sentAt: now, sender: "nickstire-proof" }),
     signal: AbortSignal.timeout(10_000),
   });
-  console.log(`evidence: ${res.status} — ${events.length} event(s), ${claims.length} claim(s)`);
+  console.log(`evidence: ${res.status} — ${events.length} event(s), ${claims.length} claim(s), holdout ${holdout.payload.outcome}`);
 } catch (err) {
   console.log(`evidence: unreachable (${err.message}) — skipped`);
 }

@@ -9,6 +9,22 @@
  */
 import { StandardPage } from "@/components/layout/standard-page";
 import { proofSummary } from "@/lib/services/reality-ledger";
+import { proofTimeline, type ProofCommitRow } from "@/lib/services/proof-timeline";
+
+const REPO_COMMIT_URL = "https://github.com/nourdean22/MAINnicks-tire-autoNEW/commit/";
+
+function delta(n: number | null): string {
+  if (n === null) return "";
+  if (n === 0) return " (=)";
+  return n > 0 ? ` (+${n})` : ` (${n})`;
+}
+
+function holdoutText(h: ProofCommitRow["holdout"], d: number | null): string {
+  if (!h) return "holdout: not run";
+  if (h.outcome === "unmeasured") return "holdout: unmeasured";
+  const counts = h.total !== null ? ` ${h.unexpected ?? "?"}/${h.total} failed` : "";
+  return `holdout: ${h.outcome}${counts}${delta(d)}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +42,7 @@ function when(d: Date | string): string {
 }
 
 export default async function ProofPage() {
-  const s = await proofSummary(12);
+  const [s, timeline] = await Promise.all([proofSummary(12), proofTimeline(10)]);
   const totalClaims = Object.values(s.byGrade).reduce((a, b) => a + b, 0);
 
   return (
@@ -87,6 +103,42 @@ export default async function ProofPage() {
                 <span className="text-fg-secondary text-xs">{e.sourceSystem}</span>
                 <span className="text-fg-secondary text-xs">{(e.objects as Array<{ type: string; id: string }>).map((o) => `${o.type}:${o.id}`).join(" · ")}</span>
                 <span className="text-fg-secondary text-xs ml-auto">{when(e.observedAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="timeline" className="mb-8">
+        <h2 id="timeline" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">Repo Time Machine · judged commits</h2>
+        {timeline.commits.length === 0 ? (
+          <p className="text-sm text-fg-secondary">No judged commits yet. Every proof run records the commit the live site actually served; rows appear here, newest first, with the delta against the previous judged commit.</p>
+        ) : (
+          <ul className="divide-y divide-glass">
+            {timeline.commits.map((c) => (
+              <li key={c.liveCommit ?? "unknown"} className="py-3 text-sm">
+                <div className="flex flex-wrap gap-x-3 items-baseline">
+                  {c.liveCommit ? (
+                    <a href={`${REPO_COMMIT_URL}${c.liveCommit}`} className="font-mono text-xs text-gold underline-offset-2 hover:underline">{c.liveCommit.slice(0, 9)}</a>
+                  ) : (
+                    <span className="font-mono text-xs text-fg-secondary">unknown commit</span>
+                  )}
+                  <span className="font-mono text-xs">
+                    run: {c.runOutcome ?? "—"}
+                    {c.unexpected !== null ? ` ${c.unexpected} failed${delta(c.deltas.unexpected)}` : ""}
+                  </span>
+                  <span className={`font-mono text-xs ${c.holdout?.outcome === "failure" ? "text-gold" : "text-fg-secondary"}`}>{holdoutText(c.holdout, c.deltas.holdoutUnexpected)}</span>
+                  <span className="text-fg-secondary text-xs ml-auto">
+                    {c.runs} run{c.runs === 1 ? "" : "s"} · {when(c.judgedAt)}
+                  </span>
+                </div>
+                {(c.episodeFailures.length > 0 || c.deltas.fixedFailures.length > 0) && (
+                  <p className="text-[11px] text-fg-secondary mt-1">
+                    {c.episodeFailures.length > 0 && <>failing: {c.episodeFailures.join(", ")}</>}
+                    {c.deltas.newFailures.length > 0 && <> · new: {c.deltas.newFailures.join(", ")}</>}
+                    {c.deltas.fixedFailures.length > 0 && <> · fixed since previous: {c.deltas.fixedFailures.join(", ")}</>}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

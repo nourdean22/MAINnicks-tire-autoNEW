@@ -21,6 +21,9 @@
 #                        the evidence door too, but it opens /api/sync/*, nour-os,
 #                        devices and cron/mega as well. Remove it from this repo's
 #                        secrets once EVIDENCE_LEDGER_KEY is set.
+#   HOLDOUT_EPISODES_B64 the hidden holdout: base64 of a JSON array of HO-xxx
+#                        episodes (tests/episodes/schema.ts shape). Never in the
+#                        tree. Absent = the ledger records the holdout as unmeasured.
 #
 # No branch protection exists in this repo: red is a stop by convention.
 
@@ -101,6 +104,45 @@ jobs:
           E2E_BASE_URL: https://nickstire.org
         run: pnpm --filter nicks-tire-auto exec playwright test
 
+      # Hidden holdout (2026-09-15): episodes the optimising agent never sees.
+      # HOLDOUT_EPISODES_B64 is a base64 JSON array of HO-xxx episodes (never in
+      # the tree; the operator keeps the plain copy outside every checkout). It is
+      # unpacked into the runner's temp dir and replayed with id-only titles;
+      # the report, traces, screenshots and the run's own stdout all stay under
+      # $RUNNER_TEMP, and only ids + counts reach the ledger as `proof.holdout`.
+      # Without the secret the ledger records the holdout as UNMEASURED — an
+      # absent holdout must never read as a passing one. A read collaborator
+      # (the Night Shift identity) cannot read secrets, and nothing below is
+      # uploaded as an artifact.
+      - name: unpack the hidden holdout
+        id: holdout_unpack
+        if: ${{ always() && env.HOLDOUT_EPISODES_B64 != '' }}
+        env:
+          HOLDOUT_EPISODES_B64: ${{ secrets.HOLDOUT_EPISODES_B64 }}
+          HOLDOUT_OUT_DIR: ${{ runner.temp }}/holdout/episodes
+        run: node apps/nickstire/scripts/proof/unpack-holdout.mjs
+
+      - name: run the hidden holdout
+        id: holdout
+        if: ${{ always() && steps.holdout_unpack.outputs.count != '' && steps.holdout_unpack.outputs.count != '0' }}
+        continue-on-error: true
+        env:
+          E2E_BASE_URL: https://nickstire.org
+          EPISODES_DIR: ${{ runner.temp }}/holdout/episodes
+          EPISODES_HOLDOUT: "1"
+          EPISODES_RESULTS_DIR: ${{ runner.temp }}/holdout/results/episodes
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/holdout/results.json
+        run: |
+          mkdir -p "$RUNNER_TEMP/holdout"
+          set +e
+          pnpm --filter nicks-tire-auto exec playwright test tests/e2e/episodes.spec.ts \
+            --reporter=dot,json --output "$RUNNER_TEMP/holdout/output" > "$RUNNER_TEMP/holdout/run.log" 2>&1
+          status=$?
+          set -e
+          # Counts only. The log names the oracles and stays on the runner.
+          echo "holdout: playwright exit $status; report $( [ -s "$RUNNER_TEMP/holdout/results.json" ] && echo written || echo MISSING )"
+          exit $status
+
       - name: upload screenshots to Argos
         if: ${{ env.ARGOS_TOKEN != '' }}
         env:
@@ -122,6 +164,11 @@ jobs:
           OUTCOME: ${{ steps.pw.outcome }}
           WANT_COMMIT: ${{ github.sha }}
           # LIVE_COMMIT comes from "record the live commit" via GITHUB_ENV
+          # Hidden holdout: the report path (runner-local), the step outcome
+          # ('' / skipped when there was no secret) and the unpacked count.
+          HOLDOUT_RESULTS: ${{ runner.temp }}/holdout/results.json
+          HOLDOUT_OUTCOME: ${{ steps.holdout.outcome }}
+          HOLDOUT_UNPACKED: ${{ steps.holdout_unpack.outputs.count }}
         run: node apps/nickstire/scripts/proof/post-run-evidence.mjs
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -133,8 +180,8 @@ jobs:
             apps/nickstire/playwright-report
           retention-days: 14
 
-      - name: fail the job if the suite failed
-        if: ${{ steps.pw.outcome == 'failure' }}
+      - name: fail the job if the suite or the hidden holdout failed
+        if: ${{ steps.pw.outcome == 'failure' || steps.holdout.outcome == 'failure' }}
         run: exit 1
 
   sitespeed:
