@@ -24,10 +24,16 @@ const PAGES = [
   { path: "/booking", name: "booking" },
 ] as const;
 
+// Live regions the storefront legitimately changes minute to minute. Each
+// selector is one the components actually render (data-testid added on the
+// widgets in this wave; role/aria-live covers the shop status + visitor
+// counter's own attributes) — a mask that matches nothing is a silent no-op.
 const DYNAMIC = [
-  '[data-testid="live-visitor-counter"]',
-  '[data-testid="fomo-ticker"]',
   '[data-testid="weather-banner"]',
+  '[data-testid="shop-status-widget"]',
+  '[data-testid="live-visitor-counter"]',
+  '[role="status"]',
+  "[aria-live]",
   "iframe",
   "video",
 ];

@@ -28,22 +28,40 @@ if (!base || !key) {
 }
 
 const summary = { expected: 0, unexpected: 0, flaky: 0, skipped: 0 };
+/** Episode ids whose FINAL outcome in the Playwright report is a failure. */
+const finallyFailed = new Set();
+let reportReadable = false;
 const resultsFile = join(RESULTS, "results.json");
 if (existsSync(resultsFile)) {
   try {
     const r = JSON.parse(readFileSync(resultsFile, "utf8"));
     Object.assign(summary, r.stats ?? {});
+    reportReadable = true;
+    const walk = (suite) => {
+      for (const s of suite.suites ?? []) walk(s);
+      for (const spec of suite.specs ?? []) {
+        const id = /^(EP-\d+)\b/.exec(spec.title ?? "")?.[1];
+        if (!id) continue;
+        // "unexpected" = failed after every retry. "flaky" = failed then passed — NOT a failure.
+        if ((spec.tests ?? []).some((t) => t.status === "unexpected")) finallyFailed.add(id);
+      }
+    };
+    walk(r);
   } catch {
-    /* unreadable report — the run event still says so via OUTCOME */
+    /* unreadable report — fall back to the per-attempt files below */
   }
 }
 
+// Per-attempt failure records are written by the runner and cleared on the
+// next attempt, but the FINAL report is the authority: a record whose episode
+// ended up passing on retry is a flake, not evidence.
 const failures = [];
 const epDir = join(RESULTS, "episodes");
 if (existsSync(epDir)) {
   for (const f of readdirSync(epDir).filter((f) => f.endsWith(".failure.json"))) {
     try {
-      failures.push(JSON.parse(readFileSync(join(epDir, f), "utf8")));
+      const rec = JSON.parse(readFileSync(join(epDir, f), "utf8"));
+      if (!reportReadable || finallyFailed.has(rec.id)) failures.push(rec);
     } catch {
       /* skip */
     }

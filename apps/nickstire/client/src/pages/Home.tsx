@@ -654,7 +654,7 @@ function WeatherBanner() {
         : "bg-foreground/[0.04] border-border/30 text-foreground/80";
 
   return (
-    <section className={`border-b ${tone} px-4 py-2.5`}>
+    <section className={`border-b ${tone} px-4 py-2.5`} data-testid="weather-banner">
       <div className="container flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2.5">
           {cta.urgency === "high" ? (

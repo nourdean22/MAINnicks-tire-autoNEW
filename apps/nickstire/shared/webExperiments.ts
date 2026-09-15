@@ -65,3 +65,14 @@ export function webExperimentById(id: string): WebExperimentDefinition | undefin
 export function webExperimentFlagKey(experimentId: string): string {
   return `web_experiment_${experimentId.replace(/[^a-z0-9]+/gi, "_")}`;
 }
+
+/**
+ * The ONE assignment key. The client derives the arm from it to render; the
+ * resolver re-derives it from the recorded visitor id and REFUSES any exposure
+ * whose reported arm disagrees — the beacon endpoint is public and best-effort,
+ * so the arm stored in eventData is a claim, not a fact.
+ */
+export function experimentAssignmentKey(visitorId: string, experimentId: string): string {
+  return `${visitorId}:${experimentId}`;
+}
+

@@ -29,6 +29,22 @@ test("FIRES: a night-shift/ branch that edits the kernel or an episode", () => {
   assert.equal(assess("night-shift/2026-09-16", [".github/workflows/nickstire-proof.yml"], cfg).ok, false);
 });
 
+test("FIRES: the MEASUREMENT PATH is a judge — assignment, exposure/conversion sink, visitor id, the instrumentation test", () => {
+  for (const p of [
+    "apps/nickstire/client/src/hooks/useWebExperimentArm.ts",
+    "apps/nickstire/client/src/hooks/useConversionTracking.ts",
+    "apps/nickstire/client/src/lib/session.ts",
+    "apps/nickstire/server/routes/analyticsRoutes.ts",
+    "apps/nickstire/client/src/__tests__/experiment-instrumentation.test.tsx",
+    "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+    "apps/statenour/app/api/sync/evidence/route.ts",
+  ]) {
+    const v = assess("night-shift/2026-09-16", ["apps/nickstire/client/src/pages/Home.tsx", p], cfg);
+    assert.equal(v.ok, false, `${p} must be rejected on a candidate branch`);
+    assert.deepEqual(v.violations, [p]);
+  }
+});
+
 test("PASSES: a candidate branch that only touches product code", () => {
   const v = assess("darwin/hero-subline", ["apps/nickstire/client/src/pages/Home.tsx", "apps/nickstire/shared/webExperimentsCopy.ts"], cfg);
   assert.equal(v.triggered, true);

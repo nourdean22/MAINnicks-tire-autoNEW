@@ -3,11 +3,12 @@
  * deriver in shared/shopState.ts. Every input is best-effort and independent:
  * a dead weather fetch does not blank the capacity band, and vice versa.
  *
- * LOT INPUT IS AN AGGREGATE. The query below selects a COUNT and a MAX
- * timestamp from vehicle_visits and nothing else — no plateText, no
- * customerId, no per-row data ever leaves this function. It is also
- * flag-gated (`shopstate_lot_band`): until the operator flips it, the lot band
- * is "unknown", which is exactly what the public site showed before.
+ * LOT INPUT IS AN AGGREGATE. The queries below select a COUNT from
+ * vehicle_visits and the latest producer heartbeat from camera_runtime and
+ * nothing else — no plateText, no customerId, no per-row data ever leaves
+ * this function. It is also flag-gated (`shopstate_lot_band`): until the
+ * operator flips it, the lot band is "unknown", which is exactly what the
+ * public site showed before.
  */
 import { sql } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
@@ -23,20 +24,24 @@ async function lotInput(): Promise<ShopStateInputs["lot"]> {
     const { db } = await import("../lib/db-helper");
     const d = await db();
     if (!d) return null;
+    const exec = async (q: ReturnType<typeof sql>) => {
+      const result = (await d.execute(q)) as unknown;
+      return Array.isArray(result) && Array.isArray(result[0]) ? (result[0] as Record<string, unknown>[]) : [];
+    };
     // PRODUCTION rows only (dataClass): a commissioning drive is not a customer.
-    const result = (await d.execute(sql`
-      SELECT
-        SUM(CASE WHEN arrivedAt IS NOT NULL AND departedAt IS NULL
-                  AND arrivedAt >= DATE_SUB(NOW(), INTERVAL 12 HOUR) THEN 1 ELSE 0 END) AS activeVisits,
-        MAX(GREATEST(COALESCE(arrivedAt, '1970-01-01'), COALESCE(departedAt, '1970-01-01'))) AS lastObservationAt
+    const [visitRow] = await exec(sql`
+      SELECT SUM(CASE WHEN arrivedAt IS NOT NULL AND departedAt IS NULL
+                       AND arrivedAt >= DATE_SUB(NOW(), INTERVAL 12 HOUR) THEN 1 ELSE 0 END) AS activeVisits
       FROM vehicle_visits
       WHERE dataClass = 'PRODUCTION'
-    `)) as unknown;
-    const rows = Array.isArray(result) && Array.isArray(result[0]) ? (result[0] as Record<string, unknown>[]) : [];
-    const row = rows[0];
-    if (!row) return null;
-    const last = row.lastObservationAt ? new Date(row.lastObservationAt as string | Date) : null;
-    return { activeVisits: Number(row.activeVisits ?? 0), lastObservationAt: last && Number.isFinite(last.getTime()) ? last : null };
+    `);
+    // FRESHNESS IS THE FEED'S, NOT THE LOT'S. A car that sits for an hour is a
+    // healthy feed with no transitions; a camera that died mid-visit is a dead
+    // feed with a recent transition. camera_runtime.receivedAt is the producer
+    // heartbeat (migration 0120) — the only thing that says "the sensor is alive".
+    const [feedRow] = await exec(sql`SELECT MAX(receivedAt) AS lastHeartbeatAt FROM camera_runtime`);
+    const last = feedRow?.lastHeartbeatAt ? new Date(feedRow.lastHeartbeatAt as string | Date) : null;
+    return { activeVisits: Number(visitRow?.activeVisits ?? 0), lastObservationAt: last && Number.isFinite(last.getTime()) ? last : null };
   } catch (err) {
     log.warn("lot aggregate unavailable — lot band unknown", { error: err instanceof Error ? err.message : String(err) });
     return null;

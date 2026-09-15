@@ -9,7 +9,7 @@
  * matters it lives here as a fixed episode.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertEpisode, type EpisodeStep, type ExperienceEpisode } from "../episodes/schema";
@@ -54,6 +54,11 @@ for (const ep of episodes) {
 
     const started = Date.now();
     const failure: Record<string, unknown> = { id: ep.id, version: ep.version, startedAt: new Date(started).toISOString(), baseURL: info.project.use.baseURL };
+    // A retry that passes must not leave the first attempt's failure record
+    // behind: the evidence poster reads this directory, and a flaky pass is
+    // not an H2 claim. (It also cross-checks the final JSON report.)
+    const failurePath = `test-results/episodes/${ep.id}.failure.json`;
+    rmSync(failurePath, { force: true });
     try {
       await page.goto(ep.startPath, { waitUntil: "domcontentloaded" });
       let taps = 0;
@@ -80,7 +85,7 @@ for (const ep of episodes) {
       failure.elapsedMs = Date.now() - started;
       failure.finalUrl = page.url();
       mkdirSync("test-results/episodes", { recursive: true });
-      writeFileSync(`test-results/episodes/${ep.id}.failure.json`, JSON.stringify(failure, null, 2));
+      writeFileSync(failurePath, JSON.stringify(failure, null, 2));
       throw err;
     }
   });

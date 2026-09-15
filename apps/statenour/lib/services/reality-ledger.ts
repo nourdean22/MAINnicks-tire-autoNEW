@@ -177,15 +177,45 @@ export async function recordTasteJudgment(raw: unknown) {
   return row;
 }
 
+/**
+ * A read that must survive the ledger tables not existing yet. The migration
+ * is hand-applied while `main` auto-deploys, so for a window the code is live
+ * and the tables are not; /proof must say "not migrated" rather than 500.
+ * Prisma reports a missing table as P2021 (and a missing enum/column as
+ * P2022); anything else is a real error and still surfaces.
+ */
+async function ledgerRead<T>(read: () => Promise<T>, fallback: T, missing: string[]): Promise<T> {
+  try {
+    return await read();
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "P2021" || code === "P2022") {
+      missing.push(code);
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 export async function proofSummary(limit = 12) {
+  const missing: string[] = [];
   const [claimsByGrade, events, claims, judgments, proposals] = await Promise.all([
-    prisma.evidenceClaim.groupBy({ by: ["grade"], _count: { _all: true } }),
-    prisma.realityEvent.findMany({ orderBy: { observedAt: "desc" }, take: limit }),
-    prisma.evidenceClaim.findMany({ orderBy: { createdAt: "desc" }, take: limit }),
-    prisma.tasteJudgment.findMany({ orderBy: { decidedAt: "desc" }, take: limit }),
-    prisma.workItem.findMany({ where: { type: "DREAM_TO_PROOF_PROPOSAL" }, orderBy: { createdAt: "desc" }, take: limit }),
+    ledgerRead(() => prisma.evidenceClaim.groupBy({ by: ["grade"], _count: { _all: true } }), [], missing),
+    ledgerRead(() => prisma.realityEvent.findMany({ orderBy: { observedAt: "desc" }, take: limit }), [], missing),
+    ledgerRead(() => prisma.evidenceClaim.findMany({ orderBy: { createdAt: "desc" }, take: limit }), [], missing),
+    ledgerRead(() => prisma.tasteJudgment.findMany({ orderBy: { decidedAt: "desc" }, take: limit }), [], missing),
+    ledgerRead(() => prisma.workItem.findMany({ where: { type: "DREAM_TO_PROOF_PROPOSAL" }, orderBy: { createdAt: "desc" }, take: limit }), [], missing),
   ]);
   const byGrade = Object.fromEntries(EVIDENCE_GRADES.map((g) => [g, 0])) as Record<(typeof EVIDENCE_GRADES)[number], number>;
   for (const row of claimsByGrade) byGrade[row.grade] = row._count._all;
-  return { byGrade, events, claims, judgments, proposals, generatedAt: new Date().toISOString() };
+  return {
+    /** false = at least one ledger table/enum is missing — the migration has not been applied. */
+    ledgerAvailable: missing.length === 0,
+    byGrade,
+    events,
+    claims,
+    judgments,
+    proposals,
+    generatedAt: new Date().toISOString(),
+  };
 }

@@ -1,0 +1,34 @@
+import type { GoalContract } from "../shared/goalContract";
+
+/** Frozen 2026-09-15. Evaluator path — see config/agent-os/evaluator-paths.json. */
+export const NICKS_PUBLIC_SHOP_STATE: GoalContract = {
+  goalId: "nicks-public-shop-state",
+  product: "nicks-public",
+  surfaces: ["/", "/booking"],
+  desiredOutcome:
+    "The storefront reflects the real shop: open or closed, how busy it is when that is actually known, and weather that genuinely changes what a driver should do — so visitors pull up when it is light and drop off when it is not.",
+  truthSources: [
+    "BUSINESS.hours.structured",
+    "getShopStatus (bookings mirror)",
+    "vehicle_visits aggregate count + camera_runtime heartbeat (no plate, no customer)",
+    "Open-Meteo current conditions",
+  ],
+  protectedInvariants: [
+    "a public ShopState never contains a plate, customer id, phone or per-vehicle field",
+    "no state says open when BUSINESS hours say closed",
+    "a failed or stale feed renders unknown, never a fabricated band",
+    "weather copy fires only on snow, ice or heat — never rain, never a clear day",
+    "every claim in weather copy is one the site already makes (free check, written quote first, first come first served)",
+  ],
+  mutationAxes: ["weather CTA copy per risk", "recommendation thresholds (light/steady/busy)"],
+  primaryMetric: "weather_cta_clicked",
+  guardrails: ["phone_number_clicked", "form_abandoned"],
+  minimumEvidence: "observational",
+  killCriteria: [
+    "any ShopState payload observed with a plate-shaped or customer field",
+    "open rendered outside BUSINESS hours",
+    "weather banner rate above one in three sessions in a non-winter month",
+  ],
+  rollbackPlan: "Disable the shopstate_lot_band flag to drop the lot input; the weather CTA returns null on any fetch failure by construction.",
+  frozenAt: "2026-09-15T00:00:00.000Z",
+};

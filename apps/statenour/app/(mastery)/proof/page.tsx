@@ -31,6 +31,14 @@ export default async function ProofPage() {
 
   return (
     <StandardPage eyebrow="System / proof" title="Proof" description="reality → hypothesis → proof → judgment → retained learning">
+      {!s.ledgerAvailable && (
+        <div role="status" className="mb-6 rounded-lg border border-glass bg-elevated px-4 py-3 text-sm">
+          <span className="font-semibold">Ledger not migrated yet.</span>{" "}
+          <span className="text-fg-secondary">
+            Apply <code className="font-mono text-xs">prisma/migrations/20260915140000_reality_ledger</code> and confirm with <code className="font-mono text-xs">prisma migrate status</code>. Until then every list below is empty by construction, not by fact.
+          </span>
+        </div>
+      )}
       <section aria-labelledby="grades" className="mb-8">
         <h2 id="grades" className="text-xs uppercase tracking-widest text-fg-secondary mb-3">
           Evidence on file · {totalClaims} claim{totalClaims === 1 ? "" : "s"}

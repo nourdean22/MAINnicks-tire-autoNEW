@@ -14,7 +14,7 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import { assignByKey } from "@shared/experimentKernel";
-import { EXPERIMENT_EXPOSURE_EVENT, webExperimentById } from "@shared/webExperiments";
+import { EXPERIMENT_EXPOSURE_EVENT, experimentAssignmentKey, webExperimentById } from "@shared/webExperiments";
 import { trpc } from "@/lib/trpc";
 import { getSessionId } from "@/lib/session";
 import { useConversionTracking } from "./useConversionTracking";
@@ -29,7 +29,7 @@ export function useWebExperimentArm(experimentId: string): { armId: string; acti
     if (!def || !active) return "control";
     const sid = typeof window === "undefined" ? null : getSessionId();
     if (!sid) return "control";
-    return assignByKey(def.arms.map((a) => a.armId), `${sid}:${experimentId}`);
+    return assignByKey(def.arms.map((a) => a.armId), experimentAssignmentKey(sid, experimentId));
   }, [def, active, experimentId]);
 
   const logged = useRef(false);

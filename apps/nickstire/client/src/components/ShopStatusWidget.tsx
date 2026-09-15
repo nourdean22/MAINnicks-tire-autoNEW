@@ -113,6 +113,7 @@ export default function ShopStatusWidget({
         className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md ${className}`}
         role="status"
         aria-live="polite"
+        data-testid="shop-status-widget"
       >
         {/* Status dot + label */}
         <div className="flex items-center gap-3 flex-1">

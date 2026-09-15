@@ -49,7 +49,11 @@ export interface ShopStateInputs {
   hours: Record<string, string>;
   /** From getShopStatus(); null when the service itself failed. */
   capacity: { openBays: number; totalBays: number; waitIsFresh: boolean } | null;
-  /** Aggregate only. null = lot feed disabled or unreadable. */
+  /**
+   * Aggregate only. null = lot feed disabled or unreadable. `lastObservationAt`
+   * is the FEED's last heartbeat (camera_runtime), never a visit transition: a
+   * car parked for an hour is a healthy feed, a dead camera mid-visit is not.
+   */
   lot: { activeVisits: number; lastObservationAt: Date | null } | null;
   /** From server/weather.ts; null = fetch failed and no cache. */
   weather: { code: number; tempF: number } | null;
