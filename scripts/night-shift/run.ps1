@@ -91,17 +91,40 @@ try {
     Add-Content $log "CLAUDE_CODE_OAUTH_TOKEN set: $([bool]$env:CLAUDE_CODE_OAUTH_TOKEN)"
     Add-Content $log "claude $($claudeArgs[2..($claudeArgs.Length-1)] -join ' ')"
     $out = & claude @claudeArgs 2>&1
-    Add-Content $log "claude exit: $LASTEXITCODE"
+    $claudeExit = $LASTEXITCODE
+    Add-Content $log "claude exit: $claudeExit"
     $out | Add-Content $log
+    $headSha = (git rev-parse HEAD).Trim()
+    $objects = @(@{ type = "branch"; id = $branch }, @{ type = "commit"; id = $headSha })
+    # A run that did not execute is not a night with no proposal. The first launch
+    # died on an expired CLI login in 1.9 s; recording that as darwin.no_proposal
+    # would have been false evidence that the agent read the inputs and declined.
+    # The CLI's JSON result carries is_error/result on API and auth failures too.
+    $outText = ($out | ForEach-Object { "$_" }) -join "`n"
+    $isError = ($outText -match '"is_error"\s*:\s*true')
+    if ($claudeExit -ne 0 -or $isError) {
+      $reason = ($out | Select-String -Pattern '"result"\s*:\s*"([^"]{1,300})"' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -Last 1)
+      if (-not $reason) { $reason = "claude exited $claudeExit" }
+      Post-Ledger @{
+        eventType  = "darwin.run_failed"
+        observedAt = (Get-Date).ToUniversalTime().ToString("o")
+        objects    = $objects
+        source     = @{ system = "night-shift"; uri = $log }
+        quality    = "observed"
+        privacy    = "internal"
+        payload    = @{ maxTurns = $MaxTurns; exitCode = $claudeExit; reason = $reason }
+      }
+      Add-Content $log "result: RUN FAILED (exit $claudeExit) - $reason"
+      throw "night shift did not run: $reason"
+    }
     # Single-quoted on purpose: a backslash does not escape a double quote inside a
     # double-quoted PowerShell string, so the old spelling ended the string early and
     # the whole file failed to parse (5 errors on origin/main, never runnable).
     $prUrl = ($out | Select-String -Pattern 'https://github\.com/[^\s"'']+/pull/\d+' -AllMatches | ForEach-Object { $_.Matches.Value } | Select-Object -Last 1)
-    $headSha = (git rev-parse HEAD).Trim()
     Post-Ledger @{
       eventType  = $(if ($prUrl) { "darwin.proposal_opened" } else { "darwin.no_proposal" })
       observedAt = (Get-Date).ToUniversalTime().ToString("o")
-      objects    = @(@{ type = "branch"; id = $branch }, @{ type = "commit"; id = $headSha }) + $(if ($prUrl) { @(@{ type = "pr"; id = $prUrl }) } else { @() })
+      objects    = $objects + $(if ($prUrl) { @(@{ type = "pr"; id = $prUrl }) } else { @() })
       source     = @{ system = "night-shift"; uri = $log }
       quality    = "observed"
       privacy    = "internal"

@@ -75,10 +75,16 @@ jobs:
         env:
           WANT: ${{ github.sha }}
         run: |
-          for i in $(seq 1 30); do
+          # Bounded by wall-clock (10 min), not by attempts: a stalled /api/health
+          # would otherwise cost 15 s of curl + 20 s of sleep per attempt (~17 min).
+          deadline=$(( $(date +%s) + 600 ))
+          while :; do
             live=$(curl -sS --max-time 15 https://nickstire.org/api/health | jq -r '.deploy.commit // ""' 2>/dev/null || echo "")
             if [ "$live" = "$WANT" ]; then echo "live: $live"; break; fi
-            echo "live=${live:-?} want=$WANT — waiting ($i/30)"; sleep 20
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then break; fi
+            echo "live=${live:-?} want=$WANT — waiting ($(( deadline - now ))s left)"
+            sleep $(( deadline - now < 20 ? deadline - now : 20 ))
           done
           [ "$live" = "$WANT" ] || echo "::warning::nickstire.org still serves ${live:-?}, not $WANT, after 10 min — judging what is live"
 
@@ -143,10 +149,15 @@ jobs:
         env:
           WANT: ${{ github.sha }}
         run: |
-          for i in $(seq 1 30); do
+          # Same wall-clock bound as the playwright job (10 min, no sleep past it).
+          deadline=$(( $(date +%s) + 600 ))
+          while :; do
             live=$(curl -sS --max-time 15 https://nickstire.org/api/health | jq -r '.deploy.commit // ""' 2>/dev/null || echo "")
             if [ "$live" = "$WANT" ]; then echo "live: $live"; break; fi
-            echo "live=${live:-?} want=$WANT — waiting ($i/30)"; sleep 20
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then break; fi
+            echo "live=${live:-?} want=$WANT — waiting ($(( deadline - now ))s left)"
+            sleep $(( deadline - now < 20 ? deadline - now : 20 ))
           done
           [ "$live" = "$WANT" ] || echo "::warning::nickstire.org still serves ${live:-?}, not $WANT, after 10 min — measuring what is live"
 
