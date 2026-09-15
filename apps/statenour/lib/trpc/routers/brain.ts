@@ -33,6 +33,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
+import { getMemoryDetail } from "@/lib/services/brain/memory-detail";
 import {
   buildWisdomFeed,
   updateWisdom,
@@ -1452,6 +1453,18 @@ export const brainRouter = router({
    * this. Returns `{ memories }` (explicit shallow `BrainMemoryRow[]` ·
    * the `metadata` Json column projected to `unknown` · TS2589 firewall).
    */
+  /**
+   * 2026-09-15 · UI workbench · the first by-id memory read the UI has had
+   * (every other procedure lists or aggregates). Backs the universal
+   * inspector (`?inspect=memory:<id>`): content, provenance (commit-gateway
+   * evidence class + trust tier), attention, the validity interval and the
+   * supersession chain. Soft-delete filtered in the service — a deleted
+   * memory is `null`, never a live fact.
+   */
+  memoryById: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(200) }))
+    .query(async ({ input }) => getMemoryDetail(input.id)),
+
   memories: operatorProcedure
     .input(
       z

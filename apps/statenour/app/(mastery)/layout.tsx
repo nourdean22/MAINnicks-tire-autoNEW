@@ -30,6 +30,12 @@ import { MegaConfirmHost } from "@/components/operator/mega-confirm-dialog";
 // BDN-205 (2026-08-13) · AppBadge · pending-approval count on the
 // installed PWA's icon via the Badge API. Must live INSIDE TRPCProvider.
 import { AppBadge } from "@/components/hud/app-badge";
+// 2026-09-15 · UI workbench · the ONE inspector for any object (`?inspect=`)
+// + the workset shelf. Both are inert until used: the host renders nothing
+// without an inspected/peeked object, the shelf nothing without a pin.
+// Spec: docs/design/ui-workbench-2026-09-15.md.
+import { InspectorHost } from "@/components/inspector/inspector-host";
+import { WorksetShelf } from "@/components/workset/workset-shelf";
 
 // ── Render mode (audit-2026-06-21 CSP follow-up) ──────────────────────────
 // MUST be force-dynamic. middleware.ts stamps a per-request CSP nonce onto
@@ -104,7 +110,11 @@ export default function MasteryLayout({
             NickSidePane set --nick-fab-lane on <html> so content never scrolls
             under the fixed FAB at the bottom-right (the ANSWER NOW / capture "+"
             collisions). 0px everywhere else. See components/mastery/nick-side-pane.tsx. */}
-        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)]">
+        {/* xl:pr-[calc(...)] · 2026-09-15 · the inspector host sets --inspector-lane
+            on <html> while its docked panel is showing at >=1280px, so content
+            reflows beside it instead of being covered. Summed with the FAB lane
+            because a single xl:pr- would otherwise REPLACE md:pr- and drop it. */}
+        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)] xl:pr-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px))]">
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and
@@ -137,6 +147,11 @@ export default function MasteryLayout({
           Renders nothing; feature-detected; count matches the Home
           header pill. */}
       <AppBadge />
+      {/* 2026-09-15 · UI workbench · universal inspector (URL-addressable
+          `?inspect=<kind>:<id>`, Space to peek, j/k to move, x to select) and
+          the workset shelf. Inside TRPCProvider: the panels read via tRPC. */}
+      <InspectorHost />
+      <WorksetShelf />
     </NourStateProvider>
     </TRPCProvider>
   );
