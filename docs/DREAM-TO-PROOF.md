@@ -45,8 +45,12 @@ through decides how much its claims may be believed and who they are recorded as
 `EVIDENCE_LEDGER_KEY` (proof workflow, Night Shift) ≤ H2 as AGENT · the bridge key (nickstire's server,
 the experiment resolver) ≤ H4 as CRON · only an owner surface asserts H5 as OPERATOR. A claim that asks
 for more, or for `createdBy: "operator"` through a key, is refused by index — loud, never clamped. H4
-from the resolver is **provisional** until the kernel passes its A/A + injected-effect calibration
-(UPSTREAMS: GrowthBook as oracle). Lineage is structural: a claim names `sourceEventIndexes` into its
+from the resolver rests on a **measured** rule since 2026-09-15: `shared/experimentKernelCalibration.ts`
+runs the kernel on seeded A/A, injected-effect and broken-split traffic (any-peek false positives 1.3%
+over 30 daily reads, 2.2% over 90, against a naive peeked z-test at 26% / 34%; +5pp found 98.7% of the
+time with zero wrong-arm calls; a 60/40 split refused 100%; a balanced split falsely refused 1.5% —
+the SRM alarm is peeked daily, a known cost pinned in the test, not hidden). The GrowthBook cross-check
+(UPSTREAMS) is still the external oracle to run. Lineage is structural: a claim names `sourceEventIndexes` into its
 own batch and the ledger stores the created event ids in `sourceEventKeys`, so a verdict rests on its
 verdict event instead of travelling beside it. PII is refused recursively (nested keys, email/phone/VIN
 shaped values, `objects[].id`, `source.uri`, claim text).

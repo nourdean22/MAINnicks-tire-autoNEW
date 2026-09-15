@@ -337,8 +337,9 @@ complete — an unlisted control is not a covered one.
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 135 checks, proven as of this PR |
 | lefthook `pre-commit` | 9 | 0 | 2 of the 9 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`) |
 | lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
-| statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** |
+| statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** — ratchet-gated by `check:scripts` since 2026-09-15 (its own row below) |
 | statenour `check:policy-coverage` | 1 | **1** | Was wired into **nothing** for months; wired into `verify:hard` and canaried 2026-08-22 — see [the dead control](#the-dead-control) |
+| statenour `check:scripts` | 1 | **1** | `scripts/` was excluded from every tsconfig the chain runs — 50 type errors and 5 dead imports on the day it was first measured (2026-09-15), including two smoke scripts importing a deleted component. Ratchet against `.scripts-tsc-baseline.json`, wired into `verify:hard`; `tests/scripts/check-scripts-typecheck.test.ts` breaks it first (a regression and a new file must FAIL), then proves the happy paths |
 | nickstire `verify` | 16 | **1** | `lint:brand-voice` proven by `lintGateFailClosed.test.ts` |
 | Product alert paths — daily brief end-to-end | 1 | 0 | See [instance ten](#the-worked-example--instance-ten) |
 | **This document** — its own derived numbers | 1 | **1** | [Instance twelve](#instance-twelve--this-document). Proven by `coverage-doc.test.mjs` |
@@ -360,7 +361,7 @@ complete — an unlisted control is not a covered one.
 | GitHub Actions SHA-pinning — every workflow `uses:` | 1 | 1 | supply chain: **40 of 40 refs rode mutable tags** until 2026-09-09, two of them third-party — the class `tj-actions/changed-files` belonged to (CVE-2025-30066, ~23k repos). Proven by `actionPinning.test.mjs`: a mutation unpins one LIVE ref and asserts that exact line is named, and a positive control cross-counts `uses:` lines against an independent counter so a clean verdict cannot come from a scanner that matched nothing |
 | Workspace roster is documented — every `apps/*` + `packages/*` package appears in the README | 1 | 1 | the **invisible-capability** shape: 6 of 9 packages were undocumented for months, so a session grepping the README concluded they did not exist. Proven by `workspaceDocCoverage.test.mjs` — deletes a real package's name from the README and asserts THAT name is reported, plus a roster positive control so "documented" cannot mean "enumerated nothing" |
 | Container scan — the runtime OS layer Dependabot cannot read | 1 | 1 | `dependabot.yml` declares `npm` + `github-actions` only, so **imagemagick, ffmpeg, chromium and 14 pinned pip packages** in the two Railway-built images had no watcher at all. `container-scan.yml` scans a layer DERIVED from the real Dockerfile (`extract-runtime-oslayer.mjs`, 7 canaries incl. the `\`-continuation case that would silently drop every package name). Canaried twice: an EOL `alpine:3.10` must report findings (proves the vuln DB loaded) and each leg must enumerate >0 packages (proves it is looking at a real image) |
-| **Total** | **68** | **22** | **32.4 %** |
+| **Total** | **69** | **23** | **33.3 %** |
 
 ---
 
@@ -488,7 +489,7 @@ The failure class in its purest form: **a control that works correctly, whose ha
 2026-05-10, and which has never once run inside a gate.**
 
 `apps/statenour/scripts/check-policy-coverage.ts` was defined as `check:policy-coverage` in
-`package.json` and invoked by **nothing** — not `verify:hard` (19 links today; it was 16, then 17, then 18, and none of
+`package.json` and invoked by **nothing** — not `verify:hard` (20 links today; it was 16, then 17, then 18, then 19, and none of
 them was this), not `.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exited **1**
 immediately. Verbatim, not reconstructed:
 
