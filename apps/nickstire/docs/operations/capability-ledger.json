@@ -1732,6 +1732,36 @@
           "description": "OPERATOR-BLOCKED, not agent-blocked. The rotation now holds 99 gated packs and advances past refusals, but NOTHING RENDERS: higgsfieldStudio reads HIGGSFIELD_CREDENTIALS_JSON, which IS set in prod and probes credsValid:false 'Session expired'. Re-checked upstream 2026-09-07, ten days after the UPSTREAMS REJECT row: the Higgsfield MCP is still OAuth-only ('no API keys live in your config'), the self-hosted variant authenticates by Clerk BROWSER SESSION token, and Higgsfield's own headless guidance says to use the CLI/API tokens instead. So the MCP still cannot serve a Railway cron and the UPSTREAMS reopen trigger has NOT fired. Two paths: re-login the CLI session (works, expires again), or fund the Cloud API lane whose key-based client server/services/higgsfieldApiClient.ts is already built. Only the second makes reel-pipeline safe to take off staging."
         }
       ]
+    },
+    {
+      "capabilityId": "shopstate-lot-band",
+      "name": "Public ShopState reads the lot's active-vehicle COUNT (aggregate, no plates) to render a light/steady/busy band",
+      "owner": "operator",
+      "operationalState": "live_verified",
+      "codeState": "merged",
+      "exposure": "production",
+      "lastVerifiedAt": "2026-09-15",
+      "evidence": {
+        "codeCommit": "ad38f7878 (#2330): server/services/shopState.ts is flag-gated (shopstate_lot_band) and selects only COUNT over vehicle_visits dataClass=PRODUCTION; freshness comes from MAX(receivedAt) on camera_runtime (the producer heartbeat). shared/shopState.test.ts property test, 400 cases: no plate/customer/phone-shaped key ever appears in the derived state; never 'open' outside BUSINESS.hours; a stale lot feed renders unknown.",
+        "liveRuns": "2026-09-15 ~14:32 UTC: flag flipped ON through the app's own /api/admin/flags/toggle (receipt {key:'shopstate_lot_band',value:true,toggled:true}); re-read value=true. GET https://nickstire.org/api/trpc/shopStatus.getState on deployed ad38f7878 -> lot {band:'unknown', sensorHealth:'offline'}, evidence 'lot:offline (no recent observation)' -- the flag-ON evidence string (flag-OFF is the bare 'lot:offline'), so the lane is live and honest: the camera heartbeat is stale and the band stays unknown until it resumes.",
+        "limits": "Renders 'unknown' until camera_runtime.receivedAt is within LOT_STALE_MS. No plate column is ever selected; the public surface never learns which vehicle is on the lot.",
+        "productionMeasurement": "Playwright critical pages + episodes on the exact deployed commit dd61b8a1d: 20 passed / 10 viewport-skipped (proof run 34983700370); weather banner + shop-status widget masked in Argos build 4."
+      }
+    },
+    {
+      "capabilityId": "web-experiment-home-hero-subline",
+      "name": "First randomized public-site experiment (home hero subline: control vs installed-price-first) with a propose-only daily resolver",
+      "owner": "operator",
+      "operationalState": "live_verified",
+      "codeState": "merged",
+      "exposure": "production",
+      "lastVerifiedAt": "2026-09-15",
+      "evidence": {
+        "codeCommit": "ad38f7878 (#2330): shared/webExperiments.ts (one primary variable, contract-bound), shared/experimentKernel.ts (two-sample mSPRT always-valid p, chi-square SRM, guardrail refusal, min 50 exposed sessions per arm), client/src/hooks/useWebExperimentArm.ts (deterministic assignment, exposure logged once), server/cron/jobs/webExperimentResolve.ts (re-derives every arm server-side from the session id, drops mismatches, >5% rejected = invalid_design, PROPOSE-ONLY over Telegram + the evidence ledger). f41664165: the H4 claim now rests on its verdict event by index (sourceEventIndexes) and the ledger caps the bridge key at H4 as CRON.",
+        "liveRuns": "2026-09-15: flag web_experiment_home_hero_subline_2026_09 flipped ON via /api/admin/flags/toggle and re-read true; GET https://nickstire.org/api/trpc/experiments.active -> {active:['home-hero-subline-2026-09']}. Read-only DB probe under railway run at 14:02 UTC: 20 experiment_exposure rows / 12 distinct sessions since 13:42 UTC, control 6 : variant 6 (eventData.element = experimentId, eventData.props.armId -- exactly the resolver's read path). A Browser-pane visit rendered the control subline and produced a control exposure row (positive control).",
+        "limits": "The resolver never writes a flag or copy; a verdict is a Telegram proposal + a ledger claim. No winner before 50 exposed sessions per arm. H4 is PROVISIONAL until the kernel's A/A + injected-effect calibration exists (docs/UPSTREAMS.md: GrowthBook as oracle) -- the ledger records it as CRON authority, never as a verified postcondition.",
+        "productionMeasurement": "Daily resolver cron registered (CRON-INVENTORY.md web-experiment-resolve); no verdict yet (n < 50 per arm on 2026-09-15)."
+      }
     }
   ],
   "axes": {
