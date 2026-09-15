@@ -1,0 +1,16 @@
+{
+  "id": "EP-004",
+  "version": 1,
+  "origin": "operator_failure",
+  "triggeringEvents": ["protected invariant: never imply a reservation or an appointment"],
+  "task": "A visitor who wants to 'book' lands on /booking and is told the truth up front: no appointments, just pull up, first come first served.",
+  "startPath": "/booking",
+  "viewport": { "width": 375, "height": 667 },
+  "budget": { "taps": 0, "ms": 15000 },
+  "steps": [],
+  "success": {
+    "visibleRole": [{ "role": "heading", "name": "/no appointments/i" }],
+    "visibleText": ["/pull up/i"]
+  },
+  "guardrails": ["no copy on this page may promise a time slot"]
+}

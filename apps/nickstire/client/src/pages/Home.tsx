@@ -49,6 +49,8 @@ import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
+import { useWebExperimentArm } from "@/hooks/useWebExperimentArm";
+import { HOME_HERO_SUBLINE } from "@shared/webExperiments";
 import LeadPopup from "@/components/LeadPopup";
 import DropOffRequestCard from "@/components/DropOffRequestCard";
 import { getUtmData } from "@/lib/utm";
@@ -104,6 +106,14 @@ function PrimaryLane({ href, onClick, ariaLabel, heading, sub }: {
 
 function IntentRouter({ personalization }: { personalization: HeroPersonalization }) {
   const brakesLead = personalization.leadIntent === "brakes";
+  // Dream-to-Proof wave (2026-09-15): the tires lane subline is the ONE
+  // variable of the registered home-hero-subline experiment. Inert until its
+  // flag is on — control is the copy that shipped before. The click also
+  // lands in customer_events (page_cta_primary_clicked) so the resolver can
+  // join it to the exposure on the same visitor id.
+  const { armId } = useWebExperimentArm(HOME_HERO_SUBLINE.experimentId);
+  const tiresArm = HOME_HERO_SUBLINE.arms.find((a) => a.armId === armId) ?? HOME_HERO_SUBLINE.arms[0];
+  const track = useConversionTracking();
   return (
     <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl motion-safe:animate-[fadeInUp_0.6s_ease-out_0.6s_both]">
       {brakesLead ? (
@@ -117,10 +127,13 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
       ) : (
         <PrimaryLane
           href="/tires"
-          onClick={() => trackEvent("tire_quote_cta_click", { source: "hero-router" })}
+          onClick={() => {
+            trackEvent("tire_quote_cta_click", { source: "hero-router" });
+            track({ type: "page_cta_primary_clicked", element: "hero-primary-lane", props: { experimentId: HOME_HERO_SUBLINE.experimentId, armId } });
+          }}
           ariaLabel="Get tires now: search your size, see installed prices"
           heading="Get tires now"
-          sub="Search your size · see installed prices · request online"
+          sub={String(tiresArm.subline)}
         />
       )}
       {/* Secondary slot 1 — tires (when brakes leads) or diagnose */}
@@ -154,7 +167,10 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
       {/* Dropping off */}
       <a
         href="#dropoff"
-        onClick={() => trackEvent("booking_cta_click", { source: "hero-router" })}
+        onClick={() => {
+          trackEvent("booking_cta_click", { source: "hero-router" });
+          track({ type: "page_cta_secondary_clicked", element: "hero-dropoff" });
+        }}
         className={SECONDARY_LANE_CLASS}
         aria-label="Dropping off: keys in, Uber out, first come first served"
       >
@@ -167,7 +183,10 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
       {/* Talk to someone */}
       <a
         href={BUSINESS.phone.href}
-        onClick={() => trackPhoneClick("hero-router")}
+        onClick={() => {
+          trackPhoneClick("hero-router");
+          track({ type: "phone_number_clicked", element: "hero-router" });
+        }}
         className={`${SECONDARY_LANE_CLASS} sm:col-span-2`}
         aria-label={`Talk to a human: call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
       >
@@ -635,7 +654,7 @@ function WeatherBanner() {
         : "bg-foreground/[0.04] border-border/30 text-foreground/80";
 
   return (
-    <section className={`border-b ${tone} px-4 py-2.5`}>
+    <section className={`border-b ${tone} px-4 py-2.5`} data-testid="weather-banner">
       <div className="container flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2.5">
           {cta.urgency === "high" ? (

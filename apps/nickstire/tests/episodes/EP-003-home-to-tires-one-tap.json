@@ -1,0 +1,16 @@
+{
+  "id": "EP-003",
+  "version": 1,
+  "origin": "synthetic_probe",
+  "triggeringEvents": ["goal contract nicks-public-tires-arrivals: hero primary lane"],
+  "task": "From the home page on a phone, reach the tire finder in ONE tap on the hero's primary lane.",
+  "startPath": "/",
+  "viewport": { "width": 390, "height": 844 },
+  "budget": { "taps": 1, "ms": 20000 },
+  "steps": [{ "action": "click", "role": "link", "name": "/get tires now/i" }],
+  "success": {
+    "urlMatches": "/\\/tires/",
+    "visibleRole": [{ "role": "heading", "name": "/find your tires/i" }]
+  },
+  "guardrails": ["the tires lane must remain the hero's primary lane for non-brake-campaign traffic"]
+}

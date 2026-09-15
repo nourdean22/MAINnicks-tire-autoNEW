@@ -7,6 +7,10 @@ dist/
 build/
 *.dist
 
+# Playwright run outputs (nickstire proof suite + statenour e2e)
+apps/*/test-results/
+apps/*/playwright-report/
+
 # Turborepo (local cache + daemon logs)
 .turbo/
 **/.turbo/

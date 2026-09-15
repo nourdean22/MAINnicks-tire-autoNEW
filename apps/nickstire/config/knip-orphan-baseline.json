@@ -5200,6 +5200,106 @@
       "file": "apps/nickstire/server/middleware/rateLimiters.ts",
       "symbol": "isPrerenderLoopbackRequest",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT, and a security one, exactly like its sibling clientIp two entries over. isPrerenderLoopbackRequest IS wired: apiLimiter passes it as its `skip` option in this same file, so the production path calls it on every /api/trpc request. knip counts neither same-file use nor a test file as a consumer, so this is a scope artifact rather than an unwired producer. It is exported ONLY so server/prerenderRateLimitBypass.test.ts can import THE REAL PREDICATE instead of restating it -- and restating it is the specific failure this repo keeps hitting: the previous version of rateLimitBypass.test.ts hand-copied clientIp under a comment claiming it was verbatim, omitted the IPv6 /64 normalisation, and so asserted behaviour the shipped function does not have while never exercising the one that gates header spoofing. Ten arms depend on this export, six of which assert the exemption does NOT open (flag off, non-loopback callers, a forged x-forwarded-for claiming loopback, near-miss flag values, a socketless request, formLimiter untouched), plus two that drive the real apiLimiter middleware 150 times with a positive control. Un-exporting it to satisfy this gate would delete the only honest way to test a rate-limit exemption."
+    },
+    {
+      "file": "apps/nickstire/shared/experimentKernel.ts",
+      "symbol": "findConfoundsIn",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The generic confound detector; composed into evaluateWebExperiment, and pinned by the kernel test to agree with contentExperiments.findConfounds on the same arms. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/experimentKernel.ts",
+      "symbol": "mSprt",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The two-sample mixture SPRT; composed into evaluateWebExperiment. The test runs the always-valid false-alarm simulation (with a real-effect positive control) against this function directly. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/experimentKernel.ts",
+      "symbol": "chiSquareSurvival",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Chi-square survival used by srmCheck; the test pins it to textbook critical values (3.841 -> 0.05, 10.828 -> 0.001). The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/experimentKernel.ts",
+      "symbol": "srmCheck",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Sample-ratio-mismatch check composed into evaluateWebExperiment; the test proves a 600/400 split alarms and a 505/495 split does not, and that assignByKey never trips it. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "LOT_FRESH_MS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Lot-feed freshness window; the test asserts the fresh/stale boundary one second either side of it. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "LOT_STALE_MS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Lot-feed offline window; the test asserts stale/offline at the boundary. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "localClock",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Timezone wall-clock helper composed into businessState; the test builds ET instants through it. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "businessState",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Open/closed derivation composed into deriveShopState; the property test cross-checks deriveShopState against it on 400 generated instants. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "capacityBand",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Capacity band derivation composed into deriveShopState; pinned so an unfresh booking count renders unknown, never a band. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "lotBand",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Lot band derivation composed into deriveShopState; pinned so a stale or offline feed renders unknown. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/shopState.ts",
+      "symbol": "weatherRisk",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). WMO-code risk mapping composed into deriveShopState; pinned so rain is NOT a risk and only snow/ice/heat fire the CTA. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+      "symbol": "deriveExposures",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Re-derives each visitor's arm from the visitor id and drops forged or double-reported exposures; composed into the resolver's gatherArmCounts. The test feeds a forged and a double-reporting visitor and a no-tampering positive control. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+      "symbol": "countConversions",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). Counts conversions only after first exposure per derived arm; composed into gatherArmCounts. The test proves a pre-exposure conversion is not counted. The runtime consumer is the module-level function it composes into; the export exists so the test imports the REAL symbol and mutates it (measurement-proxies rule) instead of re-implementing it beside the assertion."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": "gateProblem",
+      "reason": "STAGED GENERIC GATE (Dream-to-Proof wave, 2026-09-15). shared/reelApproval.ts with the reel nouns removed, for the NEXT autonomous lane (Night Shift proposal approval). No runtime consumer yet BY DESIGN: the report staged it dry-run so one door is hardened before a second lane exists. shared/approvalGate.test.ts pins it to agree with the live reel gate on 600 generated cases; wiring the reel gate through it is a separate change to a live publish control, deliberately not bundled here."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": "isApproved",
+      "reason": "STAGED GENERIC GATE — convenience predicate derived from gateProblem (never parallel to it); same status and reason as gateProblem."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": "GATE_BLOCK",
+      "reason": "STAGED GENERIC GATE — the stable block-code vocabulary the parity test asserts on; same status and reason as gateProblem."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": "GATE_TTL_HOURS",
+      "reason": "STAGED GENERIC GATE — the 72h TTL adopted from contentApprovals/reelApproval; same status and reason as gateProblem."
+    },
+    {
+      "file": "apps/nickstire/goals/index.ts",
+      "symbol": "GOAL_CONTRACTS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The parsed goal-contract registry; the runtime consumer is goalContractFor in the same module (used by the web-experiment resolver). It is exported so shared/goalContract.test.ts can walk EVERY contract and pin its surfaces to registered routes and its hash to key order — a check that cannot be expressed through goalContractFor alone."
+    },
+    {
+      "file": "apps/nickstire/shared/approvalGate.ts",
+      "symbol": null,
+      "reason": "STAGED GENERIC GATE (Dream-to-Proof wave, 2026-09-15) — the WHOLE MODULE has no runtime importer yet BY DESIGN. It is shared/reelApproval.ts with the reel nouns removed, staged dry-run so one door is hardened before the next autonomous lane (Night Shift proposal approval) exists; shared/approvalGate.test.ts pins it to agree with the live reel gate on 600 generated cases. Its first runtime consumer is the proposal-approval lane; routing the live reel gate through it is a separate, reviewable change to a publish control."
+    },
+    {
+      "file": "apps/nickstire/server/services/webExperimentFlags.ts",
+      "symbol": "WEB_EXPERIMENT_FLAGS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The literal experimentId -> FlagKey table; the runtime consumer is armedWebExperimentIds in the same module (router + resolver). Exported so webExperimentFlags.test.ts and shared/goalContract.test.ts can pin every literal to the naming convention and to FLAG_DEFINITIONS in both directions — the literal is what server/featureFlagReaders.test.ts greps for, so it must be a value a test can also hold to the rule."
     }
   ]
 }

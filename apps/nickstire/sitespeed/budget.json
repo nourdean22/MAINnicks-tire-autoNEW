@@ -1,0 +1,11 @@
+{
+  "$comment": "sitespeed.io performance budget for the Tier-1 public pages. Numbers are Core Web Vitals 'good' thresholds (Google, 2024+): LCP 2.5s, CLS 0.1, TTFB 800ms; FCP 1.8s. A budget breach is a signal to the operator, not a deploy block — nickstire has no branch protection.",
+  "budget": {
+    "timings": {
+      "largestContentfulPaint": 2500,
+      "firstContentfulPaint": 1800,
+      "ttfb": 800
+    },
+    "cumulativeLayoutShift": 0.1
+  }
+}

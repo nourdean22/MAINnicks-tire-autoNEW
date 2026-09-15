@@ -1,0 +1,16 @@
+{
+  "id": "EP-002",
+  "version": 1,
+  "origin": "real_customer",
+  "triggeringEvents": ["review theme: 'they showed me the worn part first'", "SMS theme: 'how much to look at my brakes'"],
+  "task": "A driver with grinding brakes lands on /brakes on a phone and learns, above the fold, that the check is free and the quote is written before any work.",
+  "startPath": "/brakes",
+  "viewport": { "width": 390, "height": 844 },
+  "budget": { "taps": 0, "ms": 15000 },
+  "steps": [],
+  "success": {
+    "visibleRole": [{ "role": "heading", "name": "/brake repair/i" }],
+    "visibleText": ["/free check/i", "/written quote/i"]
+  },
+  "guardrails": ["no price may be shown that is not a written-quote-first framing"]
+}

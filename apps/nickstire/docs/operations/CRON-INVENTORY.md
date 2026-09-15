@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-10 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-09-15 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -18,10 +18,10 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | heartbeat | every 5m | 3 / 1 |
 | pulse | every 15m | 22 / 0 |
 | hourly | every 2h | 34 / 1 |
-| daily | every 1d | 51 / 0 |
+| daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 118 tiered jobs (116 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 119 tiered jobs (117 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -152,6 +152,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `vapi-harness` | no | no | yes | — |
 | `vapi-latency-sync` | no | no | yes | — |
 | `warranty-alerts` | no | no | yes | Alert customers approaching warranty expiration |
+| `web-experiment-resolve` | no | no | yes | — |
 | `wo-auto-advance` | no | no | yes | — |
 | `wo-auto-close` | no | no | yes | — |
 

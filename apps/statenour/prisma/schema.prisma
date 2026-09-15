@@ -156,6 +156,11 @@ enum WorkItemType {
   AI_DRIFT_ANALYSIS
   AI_CLARIFY_MISSION
   ALE_REFRESH
+  /// 2026-09-15 · Dream-to-Proof. One nightly proposal run: requestPayload
+  /// carries the goal, the hypothesis, the candidate branch and the proof
+  /// receipts; the PR itself is the artifact and a human merge is the only
+  /// way it ships. See scripts/night-shift/.
+  DREAM_TO_PROOF_PROPOSAL
 }
 
 enum WorkItemStatus {
@@ -3543,4 +3548,112 @@ model BridgeCallLog {
   @@index([clientId])
   @@index([createdAt])
   @@map("bridge_call_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// REALITY LEDGER · 2026-09-15 · Dream-to-Proof wave
+//
+// The Evidence Substrate. Not a graph database and not a second analytics
+// stack: an append-only event log (OCEL-style — one event may belong to
+// several objects) plus the CLAIMS made on top of it, each carrying an
+// evidence grade so a click is never reported as a dollar.
+//
+//   H0 hypothesis · H1 heuristic · H2 synthetic (episode/probe) ·
+//   H3 observational · H4 randomized (sequential-tested) · H5 physical/revenue
+//
+// Writers: nickstire's cron + proof workflow (sync key), statenour's own
+// jobs, and the operator. Readers: /proof, the Night Shift prompt, recall.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum EvidenceGrade {
+  H0
+  H1
+  H2
+  H3
+  H4
+  H5
+}
+
+enum ClaimDisposition {
+  SUPPORTED
+  REFUTED
+  INCONCLUSIVE
+}
+
+enum LedgerAuthor {
+  AGENT
+  CRON
+  OPERATOR
+}
+
+model RealityEvent {
+  id           String   @id @default(cuid())
+  /// Low-cardinality, dotted: experiment.verdict · proof.run · proof.episode_failed · shopstate.transition
+  eventType    String   @map("event_type") @db.VarChar(80)
+  observedAt   DateTime @map("observed_at")
+  /// [{ type, id, role? }] — the objects this event belongs to (session, route, experiment, episode, vehicle_visit...)
+  objects      Json
+  sourceSystem String   @map("source_system") @db.VarChar(64)
+  sourceUri    String?  @map("source_uri") @db.VarChar(500)
+  experimentId String?  @map("experiment_id") @db.VarChar(120)
+  variantId    String?  @map("variant_id") @db.VarChar(64)
+  contractHash String?  @map("contract_hash") @db.VarChar(32)
+  /// observed | derived | inferred
+  quality      String   @default("observed") @db.VarChar(16)
+  /// public | internal — never pii; a PII-bearing event does not belong in this table
+  privacy      String   @default("internal") @db.VarChar(16)
+  payload      Json?
+  sender       String   @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([eventType, observedAt])
+  @@index([experimentId])
+  @@index([createdAt])
+  @@map("reality_events")
+}
+
+model EvidenceClaim {
+  id              String           @id @default(cuid())
+  claimText       String           @map("claim_text") @db.Text
+  grade           EvidenceGrade
+  disposition     ClaimDisposition @default(INCONCLUSIVE)
+  /// experiment id, episode id, or a free hypothesis key
+  hypothesisId    String?          @map("hypothesis_id") @db.VarChar(120)
+  goalId          String?          @map("goal_id") @db.VarChar(80)
+  contractHash    String?          @map("contract_hash") @db.VarChar(32)
+  /// keys of the RealityEvents (or external rows) this claim rests on
+  sourceEventKeys Json?            @map("source_event_keys")
+  confidence      Float?
+  createdBy       LedgerAuthor     @default(AGENT) @map("created_by")
+  /// A refuted or replaced claim is never deleted — it is the record that the idea was tried.
+  supersededById  String?          @map("superseded_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([grade, createdAt])
+  @@index([hypothesisId])
+  @@index([goalId])
+  @@map("evidence_claims")
+}
+
+/// Pairwise taste judgment — "Nour preferred B over A, because ...".
+/// Retrieval-first (no model is trained on this yet): the ten closest past
+/// judgments are shown to the critic before a new candidate is ranked, and
+/// the prediction stays "Nour probably prefers B", never "B is better".
+model TasteJudgment {
+  id          String   @id @default(cuid())
+  /// nickstire | statenour
+  surface     String   @db.VarChar(32)
+  context     String   @db.Text
+  candidateA  Json     @map("candidate_a")
+  candidateB  Json     @map("candidate_b")
+  /// A | B
+  winner      String   @db.VarChar(1)
+  reasonCodes String[] @map("reason_codes")
+  rationale   String?  @db.Text
+  goalId      String?  @map("goal_id") @db.VarChar(80)
+  decidedBy   String   @map("decided_by") @db.VarChar(64)
+  decidedAt   DateTime @default(now()) @map("decided_at")
+
+  @@index([surface, decidedAt])
+  @@map("taste_judgments")
 }

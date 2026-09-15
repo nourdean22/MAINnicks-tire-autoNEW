@@ -1,0 +1,16 @@
+{
+  "id": "EP-001",
+  "version": 1,
+  "origin": "real_customer",
+  "triggeringEvents": ["customer_events:tire_quote_cta_click:hero-router", "call theme: 'is installation included?'"],
+  "task": "Landing on /tires from the hero on a phone, see that used-tire pricing is INSTALLED and that a phone number is one tap away — without scrolling past the fold or opening a FAQ.",
+  "startPath": "/tires",
+  "viewport": { "width": 390, "height": 844 },
+  "budget": { "taps": 0, "ms": 15000 },
+  "steps": [],
+  "success": {
+    "visibleRole": [{ "role": "heading", "name": "/find your tires/i" }],
+    "visibleText": ["/installed/i"]
+  },
+  "guardrails": ["must not require opening a FAQ or leaving /tires"]
+}

@@ -136,6 +136,15 @@ export const FLAG_DEFINITIONS = [
   { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },
   { key: "skill_reel_script_enabled", description: "Augments brief generation with fast-paced visual storytelling instructions" },
   { key: "skill_trend_topics_enabled", description: "Augments topic selection with GSC/Service Affinity data" },
+  // 2026-09-15 · Dream-to-Proof wave. ShopState's lot input is an AGGREGATE
+  // (active-visit count + last observation time) over vehicle_visits — no
+  // plate, no customer column is ever selected. Flipping this ON is the
+  // human sign-off that the sanitised aggregate may reach the public state.
+  { key: "shopstate_lot_band", description: "ShopState reads the lot's active-vehicle COUNT (camera aggregate, no plates) to derive the light/steady/busy band shown on the public site. OFF = lot band renders unknown." },
+  // Web experiments are registered in shared/webExperiments.ts and are INERT
+  // until their flag is on: control renders, no exposure is logged. Turning a
+  // flag on is the decision to expose real customers to the variant.
+  { key: "web_experiment_home_hero_subline_2026_09", description: "Web experiment home-hero-subline-2026-09 (hero primary-lane subline). ON = deterministic 50/50 by visitor id, exposures + conversions logged to customer_events, daily sequential verdict proposed via Telegram — never auto-applied." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

@@ -1,0 +1,16 @@
+{
+  "id": "EP-005",
+  "version": 1,
+  "origin": "operator_failure",
+  "triggeringEvents": ["brand rule: 'Payment Programs', never 'financing' in customer-facing copy"],
+  "task": "On the desktop /financing page the offer is presented as Payment Programs, with the phone reachable, and the page identity renders.",
+  "startPath": "/financing",
+  "viewport": { "width": 1440, "height": 900 },
+  "budget": { "taps": 0, "ms": 15000 },
+  "steps": [],
+  "success": {
+    "visibleText": ["/payment programs/i"],
+    "visibleRole": [{ "role": "link", "name": "/\\(216\\)|216-|call/i" }]
+  },
+  "guardrails": ["the word 'financing' may appear in the URL, never as the headline framing"]
+}
