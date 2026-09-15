@@ -526,6 +526,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       edge-tts-universal:
         specifier: 1.4.0
         version: 1.4.0(bufferutil@4.1.0)
