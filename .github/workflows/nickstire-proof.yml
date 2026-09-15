@@ -104,13 +104,17 @@ jobs:
 
       - name: sitespeed.io against the live Tier-1 pages
         # Pinned image tag — bump deliberately, cite the release in the PR body.
+        # Desktop Chrome on purpose: the real-device mobile lane is sitespeed/android-canary.sh,
+        # which compares against THIS run. Budget keys must be sitespeed friendly names — an
+        # unknown key crashes the budget plugin (run 34975001748: `ttfb` → TypeError), it is
+        # not skipped.
         run: |
           mkdir -p apps/nickstire/test-results/sitespeed-desktop
           docker run --rm \
             -v "$PWD/apps/nickstire/test-results/sitespeed-desktop:/sitespeed.io" \
             -v "$PWD/apps/nickstire/sitespeed:/config:ro" \
             sitespeedio/sitespeed.io:42.7.0 \
-            --browser chrome -n 3 --mobile \
+            --browser chrome -n 3 \
             --budget.configPath /config/budget.json \
             --outputFolder /sitespeed.io \
             /config/urls.txt
