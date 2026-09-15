@@ -331,7 +331,7 @@ complete — an unlisted control is not a covered one.
 
 | Surface | Controls | With a canary | Notes |
 |---|---:|---:|---|
-| Claude policy **matcher** — `policy.mjs`, 13 rules / 57 denyExamples | 1 | **1** | Proven by `policy.test.mjs` |
+| Claude policy **matcher** — `policy.mjs`, 16 rules / 96 denyExamples | 1 | **1** | Proven by `policy.test.mjs` (+ `nightShiftPolicy.test.mjs`, which probes the three night-shift rules through the real hook, 2026-09-15) |
 | Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | 0 | **Never exercised.** See [proven ≠ connected](#proven-is-not-connected) |
 | Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 135 checks, proven as of this PR |
@@ -372,7 +372,7 @@ complete — an unlisted control is not a covered one.
 
 | Control | Guards | Canary | Runs in |
 |---|---|---|---|
-| `config/agent-os/policy.json` (13 rules, 57 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
+| `config/agent-os/policy.json` (16 rules, 96 denyExamples) | destructive git/DB/install commands | `scripts/agent-os/policy.test.mjs` — *"every denyExample is actually blocked, **by its own rule**"* | `pnpm agent:verify`, CI |
 | `scripts/agent-os/check-adapters.mjs` (135 checks) | adapter parity, line caps, line length, `@`-imports, stale claims | `scripts/agent-os/adapters.test.mjs` — 17 tests: 11 breaks, 3 spare-cases, a cap boundary pair, 1 invariant, 1 positive control | `pnpm agent:verify`, lefthook, CI |
 | nickstire `lint:brand-voice` | claim safety on staged content | `server/lintGateFailClosed.test.ts` — *"an UNREADABLE staged diff exits non-zero and prints NO pass line"* | `pnpm run verify`, lefthook |
 | `scripts/agent-os/check-gate-reachability.mjs` | that every `check:*`/`lint:*` script is invoked by CI, lefthook, or a `verify` chain | `gateReachability.test.mjs` — 6 arms: an orphan is named, three wirings are spared, the alias/fixer rules are proven not to swallow the real 2026-08-23 defect, the allowlist is checked for stale entries, a blinded copy of the checker is required to pass differently, and **arm 6 runs the checker against the live repo** so a new orphan reddens CI | `pnpm agent:verify`, CI |

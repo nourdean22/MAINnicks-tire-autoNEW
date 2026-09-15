@@ -18,11 +18,14 @@ const policy = loadPolicy();
 
 // Which tool a rule's examples should be evaluated against.
 const toolFor = (rule) => (Array.isArray(rule.tools) ? rule.tools[0] : "Bash");
-// Rules scoped to worktrees need a cwd that satisfies onlyWhenCwdMatches.
+// Rules scoped to worktrees need a cwd that satisfies onlyWhenCwdMatches. A rule
+// whose scope is narrower than "any worktree" (the night-shift rules, 2026-09-15)
+// names the cwd its examples must be judged under via `cwdExample`.
 const cwdFor = (rule) =>
-  rule.onlyWhenCwdMatches
+  rule.cwdExample ??
+  (rule.onlyWhenCwdMatches
     ? "C:/Users/nourd/NOURCITY/.claude/worktrees/repo-agent-os-architecture-6528d4"
-    : "C:/Users/nourd/NOURCITY";
+    : "C:/Users/nourd/NOURCITY");
 
 function check(rule, sample) {
   const isPath = Boolean(rule.pathPattern);

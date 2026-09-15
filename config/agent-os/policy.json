@@ -245,6 +245,105 @@
         "apps/nickstire/scripts/env-validate.mjs",
         "docs/agent-os/README.md"
       ]
+    },
+    {
+      "id": "night-shift-no-merge",
+      "tools": ["Bash", "PowerShell"],
+      "onlyWhenCwdMatches": "[\\\\/]\\.worktrees[\\\\/]night-shift-",
+      "cwdExample": "C:/Users/nourd/NOURCITY/.worktrees/night-shift-2026-09-15",
+      "pattern": "\\bgh\\s+pr\\s+merge\\b|\\bmergePullRequest\\b|\\benablePullRequestAutoMerge\\b|\\bgh\\s+api\\b[^;|&\\n]*?(?:pulls(?:\\/|%2[fF])\\d+(?:\\/|%2[fF])merge\\b|(?:\\/|%2[fF])merges\\b|\\brulesets\\b|branches(?:\\/|%2[fF])[^\\s\\/]+(?:\\/|%2[fF])protection\\b)|api\\.github\\.com(?:\\/|%2[fF])[^;|&\\n]*?(?:pulls(?:\\/|%2[fF])\\d+(?:\\/|%2[fF])merge\\b|(?:\\/|%2[fF])merges\\b|\\brulesets\\b|(?:\\/|%2[fF])protection\\b)|\\bgh\\s+(?:repo\\s+edit|secret\\s+set|ruleset\\b|alias\\s+set|extension\\s+(?:install|upgrade)|workflow\\s+(?:enable|disable))\\b",
+      "why": "scripts/night-shift/README.md: Night Shift NEVER merges — a human merge is the only way anything ships. Until 2026-09-15 that was a sentence in a prompt while the unattended agent held the same gh authority as any session (main is unprotected, and the general instructions teach `gh pr merge`). The cwd is the identity: run.ps1 always works in .worktrees/night-shift-<date>. Also denies the ways around the front door (REST/GraphQL merge, auto-merge, /merges, rulesets, branch protection, secrets, workflow toggles).",
+      "fix": "Open the PR (gh pr create --head night-shift/<date> --base main ...) and stop. The operator merges — or doesn't.",
+      "denyExamples": [
+        "gh pr merge 2401 --squash",
+        "gh pr merge 2401 --squash --delete-branch",
+        "gh pr merge 2401 --auto --squash",
+        "gh api -X PUT repos/nourdean22/MAINnicks-tire-autoNEW/pulls/2401/merge",
+        "gh api graphql -f query='mutation { mergePullRequest(input:{pullRequestId:\"PR_x\"}) { clientMutationId } }'",
+        "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input:{pullRequestId:\"PR_x\"}) { clientMutationId } }'",
+        "curl -X PUT -H \"Authorization: Bearer $T\" https://api.github.com/repos/o/r/pulls/2401/merge",
+        "gh api -X POST repos/o/r/merges -f base=main -f head=night-shift/2026-09-15",
+        "gh api -X PUT repos/o/r/rulesets/1 --input rules.json",
+        "gh api -X PUT repos/o/r/branches/main/protection --input p.json",
+        "gh repo edit --default-branch night-shift/2026-09-15",
+        "gh secret set EVIDENCE_LEDGER_KEY",
+        "gh workflow disable evaluator-separation.yml",
+        "pnpm test && gh pr merge 2401 --squash",
+        "gh api --method PUT repos/o/r/pulls%2F2401%2Fmerge",
+        "Invoke-RestMethod -Method Put -Uri https://api.github.com/repos/o/r/pulls/2401/merge -Headers $h",
+        "curl -X POST https://api.github.com/graphql -d '{\"query\":\"mutation { mergePullRequest(input:{pullRequestId:\\\"x\\\"}) { clientMutationId } }\"}'",
+        "node -e \"fetch('https://api.github.com/repos/o/r/pulls/2401/merge',{method:'PUT'})\"",
+        "gh alias set m 'pr merge'",
+        "gh extension install someone/gh-merge"
+      ],
+      "allowExamples": [
+        "gh pr create --head night-shift/2026-09-15 --base main --title \"x\" --body \"y\"",
+        "gh pr view 2401 --json state,mergeable",
+        "gh pr checks 2401 --watch",
+        "gh run view 34983700370 --log-failed",
+        "gh api repos/o/r/pulls/2401/comments",
+        "gh api repos/o/r/pulls/2401 --jq .mergeable",
+        "gh pr create --head night-shift/2026-09-15 --base main --title \"never gh pr merge\" --body \"docs: the operator merges\"",
+        "git push -u origin night-shift/2026-09-15",
+        "pnpm --filter nicks-tire-auto run check"
+      ]
+    },
+    {
+      "id": "night-shift-push-scope",
+      "tools": ["Bash", "PowerShell"],
+      "onlyWhenCwdMatches": "[\\\\/]\\.worktrees[\\\\/]night-shift-",
+      "cwdExample": "C:/Users/nourd/NOURCITY/.worktrees/night-shift-2026-09-15",
+      "pattern": "__GIT__push\\b(?![^;|&\\n]*?(?:refs\\/heads\\/)?night-shift\\/)|__GIT__push\\b[^;|&\\n]*?\\s(?:HEAD:)?(?!(?:refs\\/heads\\/)?night-shift\\/)(?:refs\\/heads\\/)?[a-z][\\w-]*\\/[\\w.\\/:-]+(?=[\\s\"']|$)",
+      "why": "A Night Shift run may push ONE thing: its own night-shift/<date> branch. Pushing to any other branch (a sibling's, a docs/ branch, a darwin/ branch) is a way to land a change outside the evaluator-separation check that keys on the branch prefix. Two arms: no night-shift ref named at all, OR any additional slash-shaped refspec that is not night-shift/ (a second refspec smuggled beside the legitimate one). push-to-main and push-implicit-dest still fire first for their own shapes.",
+      "fix": "git push -u origin night-shift/<date>  (the branch run.ps1 created for this run) — one refspec, nothing else",
+      "denyExamples": [
+        "git push -u origin chore/x",
+        "git push origin HEAD:statenour/fix-thing",
+        "git push origin darwin/2026-09-15",
+        "git -C . push origin nickstire/hero-copy",
+        "pnpm test && git push -u origin docs/notes",
+        "git push origin night-shift/2026-09-15 refs/heads/chore/x",
+        "git push origin night-shift/2026-09-15 chore/x",
+        "git push origin night-shift/2026-09-15 HEAD:statenour/x"
+      ],
+      "allowExamples": [
+        "git push -u origin night-shift/2026-09-15",
+        "git push origin HEAD:night-shift/2026-09-15",
+        "git push origin night-shift/2026-09-15 2>&1 | tail -3\ngh pr create --head night-shift/2026-09-15 --base main --title x --body y",
+        "git push -u origin refs/heads/night-shift/2026-09-15",
+        "git log origin/main..HEAD",
+        "git commit -m \"docs: never git push -u origin main from night shift\""
+      ]
+    },
+    {
+      "id": "night-shift-no-judge-edits",
+      "tools": ["Write", "Edit", "NotebookEdit"],
+      "onlyWhenCwdMatches": "[\\\\/]\\.worktrees[\\\\/]night-shift-",
+      "cwdExample": "C:/Users/nourd/NOURCITY/.worktrees/night-shift-2026-09-15",
+      "pathPattern": "(^|[\\\\/])(?:config[\\\\/]agent-os[\\\\/]|scripts[\\\\/]agent-os[\\\\/]|scripts[\\\\/]night-shift[\\\\/]|\\.github[\\\\/]workflows[\\\\/]|\\.claude[\\\\/]settings\\.json$|lefthook\\.yml$|apps[\\\\/]nickstire[\\\\/](?:goals[\\\\/]|tests[\\\\/]|playwright\\.config\\.ts$|scripts[\\\\/]proof[\\\\/]|docs[\\\\/]eval-rubrics[\\\\/]|shared[\\\\/](?:experimentKernel|goalContract|approvalGate|webExperiments)\\.ts$|client[\\\\/]src[\\\\/]hooks[\\\\/](?:useWebExperimentArm|useConversionTracking)\\.ts$|client[\\\\/]src[\\\\/]lib[\\\\/]session\\.ts$|client[\\\\/]src[\\\\/]__tests__[\\\\/]experiment-instrumentation\\.test\\.tsx$|server[\\\\/]routes[\\\\/]analyticsRoutes\\.ts$|server[\\\\/]cron[\\\\/]jobs[\\\\/]webExperimentResolve\\.ts$|server[\\\\/]services[\\\\/]evidenceLedger\\.ts$|scripts[\\\\/](?:lint-brand-voice\\.ts|lint-source\\.mjs)$)|apps[\\\\/]statenour[\\\\/](?:tests[\\\\/]|lib[\\\\/]proof[\\\\/]|lib[\\\\/]services[\\\\/]reality-ledger\\.ts$|app[\\\\/]api[\\\\/]sync[\\\\/]evidence[\\\\/]))",
+      "why": "config/agent-os/evaluator-paths.json: a candidate branch may change the PRODUCT, never the things that JUDGE it. CI (evaluator-separation.yml) catches this after the push; this rule catches it at the keyboard, and adds the two files that decide whether ANY guard runs at all (.claude/settings.json hooks, lefthook.yml). nightShiftPolicy.test.mjs asserts this pattern covers every path in evaluator-paths.json, so the two lists cannot drift apart silently.",
+      "fix": "If the right fix is an evaluator change, STOP and write it as a finding in the PR body (scripts/night-shift/PROMPT.md rule 1). A judge change is a normal branch, reviewed on its own.",
+      "denyExamples": [
+        "config/agent-os/policy.json",
+        ".github/workflows/nickstire-proof.yml",
+        ".claude/settings.json",
+        "lefthook.yml",
+        "scripts/night-shift/PROMPT.md",
+        "apps/nickstire/goals/nicks-public-tires-arrivals.ts",
+        "apps/nickstire/tests/episodes/EP-001.json",
+        "apps/nickstire/shared/experimentKernel.ts",
+        "apps/nickstire/server/cron/jobs/webExperimentResolve.ts",
+        "apps/statenour/lib/services/reality-ledger.ts",
+        "C:\\Users\\nourd\\NOURCITY\\.worktrees\\night-shift-2026-09-15\\apps\\nickstire\\shared\\goalContract.ts"
+      ],
+      "allowExamples": [
+        "apps/nickstire/client/src/pages/Home.tsx",
+        "apps/nickstire/shared/business.ts",
+        "apps/nickstire/server/services/shopState.ts",
+        "apps/nickstire/client/src/components/WeatherBanner.tsx",
+        "apps/statenour/lib/services/telegram.ts",
+        "docs/DREAM-TO-PROOF.md"
+      ]
     }
   ]
 }

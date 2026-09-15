@@ -39,6 +39,26 @@ GOAL CONTRACT ──► REALITY LEDGER ◄── code / site / shop
 
 **Evaluator separation.** `config/agent-os/evaluator-paths.json` lists the judges. A `darwin/*` or `night-shift/*` branch that edits one is red (`scripts/agent-os/check-evaluator-separation.mjs`, canaried in `evaluatorSeparation.test.mjs`, enforced on PRs by `.github/workflows/evaluator-separation.yml`). Changing a judge is a normal branch, reviewed as a judge change.
 
+**Producers submit observations; the ledger computes authority (2026-09-15).** The door a request came
+through decides how much its claims may be believed and who they are recorded as
+(`apps/statenour/lib/services/reality-ledger.ts` `PRODUCER_CEILING` / `PRODUCER_AUTHOR`): the scoped
+`EVIDENCE_LEDGER_KEY` (proof workflow, Night Shift) ≤ H2 as AGENT · the bridge key (nickstire's server,
+the experiment resolver) ≤ H4 as CRON · only an owner surface asserts H5 as OPERATOR. A claim that asks
+for more, or for `createdBy: "operator"` through a key, is refused by index — loud, never clamped. H4
+from the resolver is **provisional** until the kernel passes its A/A + injected-effect calibration
+(UPSTREAMS: GrowthBook as oracle). Lineage is structural: a claim names `sourceEventIndexes` into its
+own batch and the ledger stores the created event ids in `sourceEventKeys`, so a verdict rests on its
+verdict event instead of travelling beside it. PII is refused recursively (nested keys, email/phone/VIN
+shaped values, `objects[].id`, `source.uri`, claim text).
+
+**Night Shift cannot merge — as a capability, not a sentence.** Inside a `.worktrees/night-shift-*` cwd
+the PreToolUse policy denies `gh pr merge`, REST/GraphQL merge and auto-merge, `/merges`, rulesets,
+branch protection, secrets, workflow toggles, `gh alias set`/`extension install`, any push to a branch
+other than `night-shift/*`, and any Write/Edit of a judge in `config/agent-os/evaluator-paths.json`
+(plus `.claude/settings.json` and `lefthook.yml`, which decide whether guards run at all). Probed
+through the real hook in `scripts/agent-os/nightShiftPolicy.test.mjs`. The credential-level boundary
+(a GitHub identity that structurally cannot merge) is still the stronger fix and remains open.
+
 ## Operating it
 
 1. **The first experiment is armed** (`web_experiment_home_hero_subline_2026_09` flipped on 2026-09-15; `GET /api/trpc/experiments.active` lists it). Flip it off in the admin flags panel to return every visitor to control. The daily `web-experiment-resolve` cron proposes a verdict over Telegram; nothing is applied.

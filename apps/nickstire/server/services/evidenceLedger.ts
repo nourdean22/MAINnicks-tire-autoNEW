@@ -32,14 +32,27 @@ export interface RealityEventInput {
 
 export interface EvidenceClaimInput {
   claimText: string;
+  /**
+   * The grade this producer asks for. The ledger grants at most the ceiling of
+   * the door the request came through (this server holds the bridge key → ≤ H4)
+   * and REFUSES a higher ask by index — authority is computed there, not here.
+   */
   grade: EvidenceGrade;
   hypothesisId?: string;
   goalId?: string;
   contractHash?: string;
+  /** Keys of rows outside the ledger the claim rests on. */
   sourceEventKeys?: string[];
+  /**
+   * Indexes into the `events` array of the SAME post. The ledger resolves them
+   * to the RealityEvent ids it created, so a verdict claim structurally rests
+   * on its verdict event instead of merely travelling beside it.
+   */
+  sourceEventIndexes?: number[];
   confidence?: number;
   disposition?: "supported" | "refuted" | "inconclusive";
-  createdBy?: "agent" | "cron" | "operator";
+  /** Advisory only: provenance is derived from the credential (bridge key → CRON). "operator" is refused. */
+  createdBy?: "agent" | "cron";
 }
 
 function endpoint(): { url: string; key: string } | null {

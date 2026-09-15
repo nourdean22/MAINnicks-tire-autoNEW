@@ -228,6 +228,9 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
                 contractHash: owning.hash,
                 disposition: verdict.status === "winner" ? "supported" : "refuted",
                 createdBy: "cron",
+                // Lineage: this claim rests on the verdict event posted in the same
+                // batch (index 0). The ledger resolves the index to the event's id.
+                sourceEventIndexes: [0],
                 confidence: 1 - ("primary" in verdict ? verdict.primary.pValue : 1),
               },
             ]
