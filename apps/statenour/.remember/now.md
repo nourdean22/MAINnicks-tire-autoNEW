@@ -1,5 +1,28 @@
 # Session ledger — statenour
 
+**Updated:** 2026-09-15 (UI workbench slice 1 on top of the camera vision wave 0)
+
+## UI workbench slice 1 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf`, PR pending)
+**Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical
+slices. Spec + verdict: `docs/design/ui-workbench-2026-09-15.md` (read THAT before proposing any inspector,
+drawer, selection or "spatial" work). Ship entry: RECONCILIATION top.
+**What now exists:** `?inspect=<kind>:<id>` opens ONE inspector for memory / task / person from any page
+(`components/inspector/inspector-host.tsx`, mounted in the layout); rows with `data-entity` inside a
+`[data-selection-scope]` get j/k/Space/Enter/x; ⌘K leads with the focused object's actions; a workset shelf;
+Reality Mode (⌘K → Modes) renders provenance inline; `/proof` is in NAV; the chat bridge reads `?inspect=`.
+**Next (in order, spec §5):** alert/cron/tool inspectors (System flagship, each a by-id read away) · task
+mutations in the inspector via a shared dispatch extracted from `useMissionDispatch` · ChangeSet with Brain's
+Changed view as the second consumer · priority breakdown (`scoreTaskPriority` per-term) · Base UI 1.8 + React
+19.3 dependency PR, then `<ViewTransition>` on row → inspector only · the §5.1 type floor on
+`bottom-tab-bar.tsx` / `more-sheet.tsx` (9px → 11px, still open).
+**Not this branch's, reproduced on `origin/main` in the container:** `tests/repo/obsidian-ingest-server-only`
+("chain moved: persistKnowledgeCandidate missing") and `check:policy-coverage` (`server-only` under plain tsx
+at `lib/ai/budget.ts:9`). CI was green on the same code (#2334); if CI is red on these here, it is the
+environment, not the diff.
+**Sibling session (PR #2335, execution truth):** backend only; the only shared file is `docs/UPSTREAMS.md`
+(my rows at the top of the table, theirs at the bottom). Ownership map: spec §4.
+
+## Camera vision wave 0 (2026-09-08; superseded stamp)
 **Updated:** 2026-09-08 (camera vision wave 0 on top of the design pass + Brain plan/Wave 0-1)
 
 ## Camera vision wave 0 (2026-09-08; PRs #2221 nickstire, #2222 statenour, #2223 docs; edge PR pending)

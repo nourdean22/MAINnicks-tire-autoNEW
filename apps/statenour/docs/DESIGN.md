@@ -218,3 +218,49 @@ Don't add tokens speculatively. Three gold variants and four text levels covered
 **Reconciled 2026-07-07** · post frontend-consistency-wave (PR #595) · stylesheet layers, bridge utilities, GlassCard canonical, --bottom-chrome-h added; token tables corrected against `app/styles/tokens.css` (the previously documented `--bg-card`, `--text-quaternary`, `--border-soft/strong/divider`, `--success/--warn/--info` names did not exist in code).
 
 **Reconciled at v10.0.484** · 2026-05-08 EOD · this doc was reviewed against the live state of the OS in the v10.0.442-484 sprint reconciliation pass. See `docs/cohort-2026-05-08-eod-summary.md` for the sprint summary and which sections of this doc were touched. If a claim in this doc contradicts code reality, the code wins · open an issue.
+
+---
+
+## Object grammar · the universal inspector (2026-09-15)
+
+Above `StandardPage` there was no shared way to focus, inspect or act on an object: 20 bespoke overlays,
+entity focus in three URL channels (`?tab=`, `?focus=`, `#hash`), no selection model. The workbench
+(spec: `docs/design/ui-workbench-2026-09-15.md`) adds ONE grammar every list can opt into with two attributes:
+
+```
+<div data-selection-scope="missions">            ← the list
+  <div data-entity="task:abc" data-entity-label="Renew insurance">…</div>   ← each row
+```
+
+| Slot | Mechanism | Primitive |
+|---|---|---|
+| FOCUS | j/k · Up/Down · Home/End · x toggles · Shift+arrows extend · click / Shift-click / Cmd-click | `lib/ui/selection-model.ts` · `hooks/use-selection-keyboard.ts` |
+| PEEK | Space — transient, follows focus, never in the URL | `lib/state/inspector-store.ts` |
+| INSPECT | Enter / tap / ⌘K → `?inspect=<kind>:<id>` (push; close = replace) | `lib/ui/inspect-url.ts` · `hooks/use-inspector.ts` · `components/inspector/inspector-host.tsx` |
+| ACT | the same action row in the inspector footer, the selection bar and the palette's "Focused" group | `lib/ui/entity-actions.ts` · `components/inspector/entity-action-row.tsx` |
+| PROOF | `<EvidenceMark provenance={…} />` — chip + tooltip; inline everywhere when Reality Mode is on (⌘K → Modes) | `components/ui/evidence-mark.tsx` · `lib/brain/evidence-label.ts` |
+| TIME | validity interval + supersession chain in the memory inspector; `asOf` reserved, not built | `lib/services/brain/memory-detail.ts` |
+
+- **Kinds are a closed registry** (`lib/ui/entity-ref.ts`). Add a kind only with a real read behind it.
+- **A page that renders its own panel for a kind declares it** (`useInspectorOwnership(["person"])`, `/people`) — the host stays silent there and the page answers the same URL.
+- **Chrome:** `InspectorFrame` — docked 380px panel at ≥1280px (reserves `--inspector-lane`, docks left of the Nick pane via `--nick-pane-open-w`), bottom sheet below (z 60/61). Do not add a 21st overlay; render inside this one.
+- **Non-content states are four, and look different:** loading · error (`ERROR` provenance, code only, never the raw message) · not-found (`ZERO`) · no-renderer-yet (`UNMEASURED`). Gallery: `/system/chat-states`.
+- **Numbers:** `<Metric result={MetricResult<number>} spec={{ baseline, range, window, unit, higherIsBetter }} />` — `unavailable` renders "unknown", never a zero; no baseline → no delta.
+
+## UI Constitution (2026-09-15)
+
+Kept from the workbench plan where the code already obeys the rule; **[gate]** marks a mechanical check, everything else is on you.
+
+1. Objects before pages. 2. Answer before controls. 3. Exceptions before healthy state (`hub-grid.tsx` needs-attention lift).
+4. Focus before navigation — a click on a recommendation focuses its object; leaving the page is the operator's choice.
+5. Selection creates actions. 6. Never destroy context unnecessarily (peek and inspect keep the list under them).
+7. Stable structure; adaptive ranking — personalisation changes order, filters and previews, never where things live.
+8. Depth on demand. 9. Every important claim can reveal its proof (`EvidenceMark`).
+10. Unknown is visually different from zero, empty and healthy **[gate: `EmptyState` type-gates the positive tone; ui-mount-graph + empty-vs-error canaries]**.
+11. Time and change are first-class. 12. AI composes from sanctioned primitives, never arbitrary UI (`typed-tool-cards.tsx`).
+13. The same object behaves the same everywhere (one inspector per kind). 14. Phone and desktop share semantics, not layout.
+15. Every page earns one memorable interaction, not fifteen visual tricks (the DFII anchor above).
+16. Nothing is tiny merely to look technical — 11px floor on phones (program §5.1, still open in `bottom-tab-bar.tsx`).
+17. No control without a reason for existing **[gate: target-size e2e, 44px]**. 18. No metric without "relative to what?" (`<Metric>`).
+19. No score without an explanation path (`autoPriorityExplanation` is the real string; a breakdown is next).
+20. No new dependency before proving the installed stack can't do it **[gate: `docs/UPSTREAMS.md` register + plan-gate]**.
