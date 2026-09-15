@@ -134,7 +134,7 @@
   "devDependencies": {
     "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
     "@higgsfield/cli": "0.2.3",
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^6.9.1",
