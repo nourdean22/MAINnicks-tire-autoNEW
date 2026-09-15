@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useInspector } from "@/hooks/use-inspector";
+import { BrainChangeLine } from "@/components/brain/brain-change-line";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
 import {
@@ -132,6 +133,11 @@ export function BrainContinuityView() {
 
   return (
     <div className="space-y-4">
+      {/* 2026-09-15 · cursor-based "since your last visit" (ChangeSet
+          primitive, second consumer) — a different question from the 24h
+          buckets below it. */}
+      <BrainChangeLine />
+
       {/* BDN-003 (2026-08-12) · ONE merged activity/receipts timeline —
           the fold ORGANIZATION-WIRING-AUDIT §6/§7 prescribed. Supersedes
           the entity-audit-only GlobalActivityStream here: the receipt
