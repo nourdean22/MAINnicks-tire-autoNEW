@@ -1,17 +1,14 @@
 {
-  "generatedAt": "2026-09-15T16:50:14.892Z",
-  "totalErrors": 49,
+  "generatedAt": "2026-09-15T21:04:04.736Z",
+  "totalErrors": 44,
   "files": {
     "scripts/check-env.ts": 1,
     "scripts/commit-sweep.ts": 2,
     "scripts/drain-brain-embeddings.ts": 1,
     "scripts/fetch-railway-vars.ts": 1,
     "scripts/fetch-railway-workspaces.ts": 1,
-    "scripts/generate-pwa-icons.ts": 1,
-    "scripts/ingest-archives-direct.ts": 1,
     "scripts/ingest-notebooklm-candidates.ts": 3,
     "scripts/nour-os-system-health-reset.ts": 4,
-    "scripts/obsidian-engine-runner.ts": 1,
     "scripts/probe-empty-responses.ts": 1,
     "scripts/probe-langfuse-trace.ts": 1,
     "scripts/prompt-judge-comparator.ts": 1,
@@ -19,8 +16,7 @@
     "scripts/restore-orphaned-memories.ts": 1,
     "scripts/run-data-cleanup.ts": 11,
     "scripts/seed-judge-calibration.ts": 1,
-    "scripts/smoke-7day-wave.ts": 1,
-    "scripts/smoke-ai-chain-full.ts": 7,
+    "scripts/smoke-ai-chain-full.ts": 6,
     "scripts/smoke-trajectory-grader.ts": 3
   }
 }

@@ -27,7 +27,6 @@ import {
   getOperatorPolicyBlock,
 } from "@/lib/ai/prompt/policy/operator-rules";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
-import { applyMode, nextMode } from "@/components/chat/mode-persona-chip";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface SmokeResult { layer: string; pass: boolean; detail: string; ms: number }
@@ -77,16 +76,9 @@ async function main() {
     }),
   );
 
-  // v10.0.413 · mode-persona pure helpers
-  results.push(
-    await check("mode-persona.helpers", async () => {
-      if (applyMode("hello", "default") !== "hello") throw new Error("default should be unchanged");
-      if (applyMode("hello", "battle") !== "/battle hello") throw new Error("battle prefix");
-      if (applyMode("/battle hi", "battle") !== "/battle hi") throw new Error("double-prefix bug");
-      if (nextMode("execute") !== "default") throw new Error("cycle wrap");
-      return "applyMode + nextMode green";
-    }),
-  );
+  // v10.0.413 mode-persona helpers: REMOVED 2026-09-15. components/chat/mode-persona-chip
+  // was deleted in #689 (dead-component sweep) and this import had made the whole
+  // script unrunnable since -- caught by check:scripts (TS2307).
 
   // v10.0.405 · improve-agent (live DB)
   results.push(
