@@ -21,7 +21,7 @@
  *
  * Pure. No DB, no network, no Math.random — a mulberry32 stream from a seed.
  */
-import { evaluateWebExperiment, mSprt, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "./experimentKernel";
+import { evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "./experimentKernel";
 
 /** Small, fast, seedable PRNG (mulberry32). Deterministic per seed. */
 export function mulberry32(seed: number): () => number {
@@ -197,14 +197,22 @@ export function simulateOne(scenario: CalibrationScenario, rng: () => number, ru
   return { declaredDay, finalStatus, declaredCorrect, refusedDesign, finalExposuresPerArm: Math.min(control.exposures, variant.exposures) };
 }
 
-/** One day's cumulative counts plus the kernel's always-valid p on that day. */
+/** One day's cumulative counts plus the kernel's ACTUAL verdict on that day. */
 export interface DailySnapshot {
   day: number;
   nc: number;
   xc: number;
   nv: number;
   xv: number;
-  /** mSprt p-value on the cumulative counts (1 when below the per-arm floor). */
+  /**
+   * The real kernel verdict on the cumulative counts — every gate included
+   * (floor, sample-ratio mismatch, no-signal), not a bare p-value. Codex
+   * review of #2336: a raw mSprt p on a 60/40 stream "declared" runs the
+   * kernel actually refuses; an external engine must be compared with the
+   * kernel's decision, not with one of its intermediate numbers.
+   */
+  kernelStatus: WebExperimentVerdict["status"];
+  /** The always-valid p behind that verdict; 1 when the verdict carries none (floor, refusal, no signal). */
   kernelP: number;
 }
 
@@ -216,8 +224,13 @@ export interface DailySnapshot {
  * different simulations that merely share a seed.
  */
 export function simulateStream(scenario: CalibrationScenario, rng: () => number): DailySnapshot[] {
-  const tau = scenario.tau ?? 0.02;
-  const floor = scenario.minExposuresPerArm ?? 50;
+  const opts = {
+    alpha: scenario.alpha ?? 0.05,
+    tau: scenario.tau ?? 0.02,
+    minExposuresPerArm: scenario.minExposuresPerArm ?? 50,
+    srmMinTotal: scenario.srmMinTotal,
+    srmAlpha: scenario.srmAlpha,
+  };
   const controlShare = scenario.controlShare ?? 0.5;
   let nc = 0;
   let xc = 0;
@@ -234,9 +247,16 @@ export function simulateStream(scenario: CalibrationScenario, rng: () => number)
         if (rng() < scenario.variantRate) xv += 1;
       }
     }
-    const kernelP =
-      Math.min(nc, nv) < floor ? 1 : mSprt({ exposures: nc, conversions: xc }, { exposures: nv, conversions: xv }, { tau }).pValue;
-    out.push({ day, nc, xc, nv, xv, kernelP });
+    const verdict = evaluateWebExperiment(
+      DEF,
+      [
+        { armId: "control", exposures: nc, conversions: { converted: xc } },
+        { armId: "variant", exposures: nv, conversions: { converted: xv } },
+      ],
+      opts,
+    );
+    const kernelP = "primary" in verdict ? verdict.primary.pValue : 1;
+    out.push({ day, nc, xc, nv, xv, kernelStatus: verdict.status, kernelP });
   }
   return out;
 }

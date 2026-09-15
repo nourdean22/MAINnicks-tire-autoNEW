@@ -132,11 +132,24 @@ describe("simulateStream — the counts an external engine is fed", () => {
       expect(a[i].xv).toBeGreaterThanOrEqual(a[i - 1].xv);
       expect(a[i].nc + a[i].nv).toBe((i + 1) * s.sessionsPerDay);
     }
-    expect(a[a.length - 1].kernelP).toBeLessThan(0.05); // +5pp over 30 days is found essentially always
+    expect(a[a.length - 1].kernelStatus).toBe("winner"); // +5pp over 30 days is found essentially always
+    expect(a[a.length - 1].kernelP).toBeLessThan(0.05);
     // below the per-arm floor the kernel reports no evidence (p = 1), not a noisy p
     const floored = simulateStream({ ...s, minExposuresPerArm: 100_000 }, mulberry32(11));
-    expect(floored.every((d) => d.kernelP === 1)).toBe(true);
+    expect(floored.every((d) => d.kernelStatus === "insufficient_data" && d.kernelP === 1)).toBe(true);
     expect(floored.map((d) => [d.nc, d.xc, d.nv, d.xv])).toEqual(a.map((d) => [d.nc, d.xc, d.nv, d.xv])); // same counts, same seed
+  });
+
+  it("carries the kernel's REAL verdict: a 60/40 stream is refused, never declared, whatever its p", () => {
+    // Codex review of #2336: a raw p on a broken split "declared" runs the
+    // kernel refuses. The stream must expose the decision, not a number
+    // upstream of it.
+    for (let seed = 1; seed <= 5; seed++) {
+      const days = simulateStream(CALIBRATION_SCENARIOS.brokenSplit, mulberry32(seed));
+      expect(days.some((d) => d.kernelStatus === "winner")).toBe(false);
+      expect(days[days.length - 1].kernelStatus).toBe("invalid_design");
+      expect(days[days.length - 1].kernelP).toBe(1); // a refusal carries no p
+    }
   });
 });
 
