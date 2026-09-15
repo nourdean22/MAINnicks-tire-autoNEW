@@ -3612,6 +3612,38 @@ model RealityEvent {
   @@map("reality_events")
 }
 
+/// Durable delegation contract (docs/NICK-TRUST-ARCHITECTURE-V2-2026-09-10.md §6.5) —
+/// one row per consequential tool attempt, keyed by a stable operation key and
+/// checked BEFORE the side effect. Replaces the BrainMemory `tool_idempotency`
+/// bridge as the claim store for tools that opt in (sendTelegram first).
+/// state: PLANNED | WAITING_APPROVAL | EXECUTING | SUCCEEDED_UNVERIFIED | VERIFIED
+///        | FAILED | COMPENSATED | UNKNOWN — only VERIFIED earns the word "done".
+model ActionAttempt {
+  id                String    @id @default(cuid())
+  operationKey      String    @unique @map("operation_key") @db.VarChar(190)
+  tool              String    @db.VarChar(80)
+  /// write | read | unknown (lib/ai/receipts/action-receipt.ts classifyToolEffect)
+  effectClass       String    @default("unknown") @map("effect_class") @db.VarChar(16)
+  argumentsHash     String    @map("arguments_hash") @db.VarChar(64)
+  state             String    @db.VarChar(24)
+  attemptNo         Int       @default(1) @map("attempt_no")
+  authorityGrantId  String?   @map("authority_grant_id") @db.VarChar(120)
+  inputEvidenceIds  String[]  @default([]) @map("input_evidence_ids")
+  /// The provider's own reference for the effect (Telegram message id, SMS sid...)
+  externalReference String?   @map("external_reference") @db.VarChar(200)
+  receiptId         String?   @map("receipt_id") @db.VarChar(120)
+  reason            String?   @db.VarChar(500)
+  /// While this is in the future and the state is active, an identical operation is a duplicate.
+  holdUntil         DateTime? @map("hold_until")
+  startedAt         DateTime  @default(now()) @map("started_at")
+  settledAt         DateTime? @map("settled_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([tool, state])
+  @@index([startedAt])
+  @@map("action_attempts")
+}
+
 model EvidenceClaim {
   id              String           @id @default(cuid())
   claimText       String           @map("claim_text") @db.Text

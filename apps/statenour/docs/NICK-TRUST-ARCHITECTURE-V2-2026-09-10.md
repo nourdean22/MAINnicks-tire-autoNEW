@@ -271,7 +271,7 @@ AuthorizationGrant  principal, capability, resources, destinations,
 
 That last field is the whole point, and it connects directly to §2.5: a grant may never be created from an inference. **More autonomy and more safety at the same time** — the alternative pair (unlimited autonomy, or a prompt per click) is worse on both axes.
 
-**Status: DESIGNED, not built.** Nothing in this section is in the codebase. It is the next vertical slice, and it should be proven on exactly one consequential mission before it is generalised.
+**Status: FIRST SLICE BUILT 2026-09-15.** `ActionAttempt` is a Prisma model (`action_attempts`, migration `20260915180000_action_attempts`, applied to prod Neon and verified: 16 columns, 4 indexes) with the state machine above in `lib/services/action-attempts.ts` (claim → settle; VERIFIED only through `verifyAttempt`; illegal transitions throw). `withToolIdempotency({ durable })` routes a tool's claim through it instead of the BrainMemory marker bridge; a missing table falls back to the bridge. Proven on exactly one consequential mission — `sendTelegram` — whose result now carries `attemptId` + `ledgerState` (SUCCEEDED_UNVERIFIED is its honest ceiling: Telegram has no read-back). One deviation, stated in the service header: without an `AuthorizationGrant` in the operation key, duplicates are bounded by the tool's hold window, not forever. `Mission`, `MissionEvent` and `AuthorizationGrant` remain DESIGNED, not built.
 
 ---
 
