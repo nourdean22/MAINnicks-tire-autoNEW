@@ -40,7 +40,9 @@ export type ConversionEventType =
   | "phone_number_clicked"
   | "form_started"
   | "form_completed"
-  | "form_abandoned";
+  | "form_abandoned"
+  /** Web experiment exposure: element = experimentId, props.armId = arm. See shared/webExperiments.ts. */
+  | "experiment_exposure";
 
 export interface ConversionEvent {
   type: ConversionEventType;

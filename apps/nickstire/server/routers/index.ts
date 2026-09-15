@@ -57,6 +57,7 @@ export { intelligenceRouter } from "./intelligence";
 export { snapRouter } from "./snap";
 export { trafficFunnelRouter } from "./trafficFunnel";
 export { conversionRouter } from "./conversion";
+export { experimentsRouter } from "./experiments";
 export { seoToolsRouter } from "./seoTools";
 export { smsPerformanceRouter } from "./smsPerformance";
 export { localGrowthRouter } from "./localGrowth";

@@ -2044,6 +2044,19 @@ function buildTiers(): void {
           return processContentExperimentResolve();
         },
       },
+      // 2026-09-15 · Dream-to-Proof wave. The same experiment discipline,
+      // pointed at the public site: for every ARMED web experiment
+      // (shared/webExperiments.ts + its flag) count exposed visitors per arm
+      // from customer_events, run the sequential kernel, PROPOSE the verdict
+      // over Telegram and record it in the evidence ledger. Never applies a
+      // winner. One flag read when nothing is armed.
+      {
+        name: "web-experiment-resolve",
+        handler: async () => {
+          const { processWebExperimentResolve } = await import("./jobs/webExperimentResolve");
+          return processWebExperimentResolve();
+        },
+      },
       // 2026-07-07 · the missing WRITER for the service-affinity closed
       // loop: resolves matured predictions into prediction_outcomes
       // (invoice within 14d via last-10 phone join). The table + its
