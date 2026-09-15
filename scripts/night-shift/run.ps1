@@ -75,8 +75,20 @@ try {
   try {
     $prompt = Get-Content (Join-Path $RepoRoot "scripts\night-shift\PROMPT.md") -Raw
     # Not `$args`: that is PowerShell's automatic parameter array.
-    $claudeArgs = @("-p", $prompt, "--max-turns", "$MaxTurns", "--output-format", "json")
+    # --dangerously-skip-permissions: nobody answers a permission prompt at 02:30, and
+    # without it every Bash/Edit call is denied and the night ends with "no proposal".
+    # The guard is the agent-os PreToolUse hook (config/agent-os/policy.json): per the
+    # Claude Code docs (hooks-guide, "Hooks and permission modes") PreToolUse fires
+    # before any permission-mode check and a deny blocks the tool even under this flag;
+    # and settings-file hooks are used even in a folder that was never trusted (only
+    # permissions.allow / additionalDirectories are ignored there). Evaluator
+    # separation CI and the push-to-main rule cover the rest.
+    $claudeArgs = @("-p", $prompt, "--max-turns", "$MaxTurns", "--output-format", "json", "--dangerously-skip-permissions")
     if ($Model) { $claudeArgs += @("--model", $Model) }
+    # Auth for an unattended run is CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`,
+    # one year, subscription). An interactive /login credential expires and cannot be
+    # refreshed headless - the first run died on exactly that. Presence only, never the value.
+    Add-Content $log "CLAUDE_CODE_OAUTH_TOKEN set: $([bool]$env:CLAUDE_CODE_OAUTH_TOKEN)"
     Add-Content $log "claude $($claudeArgs[2..($claudeArgs.Length-1)] -join ' ')"
     $out = & claude @claudeArgs 2>&1
     Add-Content $log "claude exit: $LASTEXITCODE"
