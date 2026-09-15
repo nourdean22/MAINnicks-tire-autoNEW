@@ -216,7 +216,10 @@ export function NickSidePane({
           // INSIDE the fixed tab bar's ~96px z-[55] band, painted under it.
           // Dock it above the measured chrome height and above the bar.
           // 2026-09-08 · hidden below md: on phones the More sheet opens the pane.
-          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-4 z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
+          // 2026-09-15 · shifted left by the inspector lane while a panel is
+          // docked (inspector-host.tsx) — at right-4 it painted over the
+          // panel's footer, where the entity actions live.
+          "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-[calc(var(--inspector-lane,0px)_+_1rem)] z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
           "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
           "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
           "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",

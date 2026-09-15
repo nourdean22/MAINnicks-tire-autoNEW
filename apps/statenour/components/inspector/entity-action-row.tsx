@@ -19,8 +19,7 @@ import { Bookmark, BookmarkCheck, Brain, ExternalLink, Link2 } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { useWorksetStore } from "@/lib/state/workset-store";
 import { ENTITY_KIND_LABEL, type EntityRef } from "@/lib/ui/entity-ref";
-import { actionsFor, type EntityAction } from "@/lib/ui/entity-actions";
-import { inspectHref } from "@/lib/ui/inspect-url";
+import { actionsFor, homeRouteFor, type EntityAction } from "@/lib/ui/entity-actions";
 import { HORIZON_LABEL } from "@/lib/ui/workset";
 
 export interface EntityActionRowProps {
@@ -78,7 +77,10 @@ export function EntityActionRow({ entities, labelOf, extra, compact, className }
         case "copy-link": {
           const first = entities[0];
           if (!first || typeof window === "undefined") return;
-          const href = `${window.location.origin}${inspectHref(pathname ?? window.location.pathname, window.location.search, first)}`;
+          // The object's canonical route, not the page it happened to be
+          // inspected from — a link copied on /missions to a memory must
+          // open /brain.
+          const href = `${window.location.origin}${homeRouteFor(first)}`;
           const write = navigator.clipboard?.writeText?.(href);
           if (write) {
             write.then(() => toast.success("Link copied")).catch(() => toast.error("Could not copy the link"));

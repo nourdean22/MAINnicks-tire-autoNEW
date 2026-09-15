@@ -308,8 +308,12 @@ export async function getTaskById(id: string) {
     )[0];
   }
 
-  const task = await prisma.task.findUnique({
-    where: { id },
+  // 2026-09-15 · activeOnly: a soft-deleted task rendered as live in the
+  // universal inspector (a workset chip or a chat receipt pinned before the
+  // delete). Both callers (task.byId, GET /api/tasks/[id]) read live rows;
+  // admin/undo views use listTasks({ deletedAt: "all" }).
+  const task = await prisma.task.findFirst({
+    where: activeOnly({ id }),
     include: {
       mission: true
     }

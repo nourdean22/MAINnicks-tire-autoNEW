@@ -75,3 +75,13 @@ describe("getMemoryDetail", () => {
     expect(detail.seenCount).toBe(4);
   });
 });
+
+describe("supersededBy is a to-one relation Prisma cannot filter — the service does", () => {
+  it("a soft-deleted successor renders as no successor; a live one links", async () => {
+    const successor = { id: "m2", content: "newer", createdAt: new Date("2026-09-05T10:00:00Z") };
+    mocks.brainMemory.findFirst.mockResolvedValue({ ...ROW, supersededBy: { ...successor, deletedAt: new Date("2026-09-06T10:00:00Z") } });
+    expect((await getMemoryDetail("m1"))!.supersededBy).toBeNull();
+    mocks.brainMemory.findFirst.mockResolvedValue({ ...ROW, supersededBy: { ...successor, deletedAt: null } });
+    expect((await getMemoryDetail("m1"))!.supersededBy).toEqual({ id: "m2", content: "newer", createdAt: "2026-09-05T10:00:00.000Z" });
+  });
+});

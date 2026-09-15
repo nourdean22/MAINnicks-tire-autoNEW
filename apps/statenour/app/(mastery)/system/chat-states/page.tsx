@@ -19,10 +19,6 @@ import { PageHeader } from "@/components/layout/ui";
 import { Panel } from "@/components/panel";
 import { MemoryInspectorSidebar } from "@/components/chat/memory-inspector-sidebar";
 import { TypedToolCards } from "@/features/chat-v2/components/typed-tool-cards";
-// 2026-09-15 · UI workbench · the universal inspector's chrome + its honest
-// non-content states, against fixtures (plain props only — the gallery rule).
-import { InspectorFrame } from "@/components/inspector/inspector-frame";
-import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import type { UIMessage } from "ai";
 
 const fleetMessage = {
@@ -106,7 +102,6 @@ const SECTIONS = [
 
 export default function ChatStatesPage() {
   const [evidenceOpen, setEvidenceOpen] = useState<"fresh" | "unfetched" | null>(null);
-  const [frameOpen, setFrameOpen] = useState<"peek" | "inspect" | null>(null);
 
   return (
     <div className="px-4 pb-[var(--bottom-chrome-h)] max-w-2xl mx-auto space-y-4">
@@ -158,40 +153,6 @@ export default function ChatStatesPage() {
           {"**Action receipts**\n✅ telegram.send — receipt verified\n⏸ shop.sendSms — awaiting your approval (ID apr_x1). Approve in System → Actions.\n❌ task.create — failed: validation error\n\n— receipts · trace tr_demo1234"}
         </div>
       </Panel>
-
-      <Panel>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-2">Inspector — the four non-content states must never look alike</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          <InspectorNotice state="loading" kind="memory" />
-          <InspectorNotice state="error" kind="memory" code="P2024" />
-          <InspectorNotice state="not-found" kind="task" />
-          <InspectorNotice state="unknown-kind" kind="cron" />
-        </div>
-      </Panel>
-
-      <Panel>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-fg-secondary/70 mb-2">Inspector frame — sheet chrome (peek vs inspect)</p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFrameOpen("peek")}
-            className="rounded-lg border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg"
-          >
-            Open — peek
-          </button>
-          <button
-            onClick={() => setFrameOpen("inspect")}
-            className="rounded-lg border border-glass px-3 py-2 text-[12px] text-fg-secondary hover:text-fg"
-          >
-            Open — inspect
-          </button>
-        </div>
-      </Panel>
-
-      {frameOpen !== null && (
-        <InspectorFrame kind="memory" mode={frameOpen} presentation="sheet" onClose={() => setFrameOpen(null)}>
-          <InspectorNotice state="not-found" kind="memory" />
-        </InspectorFrame>
-      )}
 
       <MemoryInspectorSidebar
         open={evidenceOpen !== null}

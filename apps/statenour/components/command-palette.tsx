@@ -27,7 +27,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 import {
@@ -71,6 +71,7 @@ import {
   RocketIcon,
   HistoryIcon,
   BookmarkIcon,
+  FlaskConicalIcon,
 } from "lucide-react";
 import { apiFetch } from "@/lib/utils/api-fetch";
 // 2026-09-15 · UI workbench · the palette becomes the Intent Resolver: when an
@@ -82,6 +83,7 @@ import { useInspectorStore } from "@/lib/state/inspector-store";
 import { useWorksetStore } from "@/lib/state/workset-store";
 import { ENTITY_KIND_LABEL, formatEntityRef, type EntityRef } from "@/lib/ui/entity-ref";
 import { askNickPrompt, homeRouteFor } from "@/lib/ui/entity-actions";
+import { useInspector } from "@/hooks/use-inspector";
 import { inspectHref, readInspect } from "@/lib/ui/inspect-url";
 import { entityLabelFromDom } from "@/hooks/use-selection-keyboard";
 
@@ -144,7 +146,9 @@ export function CommandPalette() {
   >([]);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
+  // Inspect actions go through the inspector contract (no scroll-to-top,
+  // replace-when-open) instead of a bare router.push (review 2026-09-15).
+  const { openInspector } = useInspector();
   // 2026-09-15 · Intent Resolver inputs. `urlFocus` is read when the palette
   // OPENS from window.location, not useSearchParams: this component mounts in
   // the ROOT layout, where a search-params hook would force a Suspense bailout
@@ -330,6 +334,7 @@ export function CommandPalette() {
       { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
       { id: "sys-proactive", label: "Proactive Preview · push dry-run", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/proactive-preview"), keywords: ["proactive", "push", "preview", "dry run", "telemetry"] },
       { id: "sys-cockpit", label: "Cockpit Observability · traces", group: "System", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/cockpit-observability"), keywords: ["cockpit", "observability", "trace", "metric", "decay", "prompt version"] },
+      { id: "sys-ui-lab", label: "UI Lab · inspector + metric + evidence fixtures", group: "System", icon: <FlaskConicalIcon className="size-4" />, action: () => navigate("/system/ui-lab"), keywords: ["ui", "lab", "gallery", "inspector", "fixture", "metric", "evidence", "reality mode"] },
 
       // ═══ QUICK ACTIONS ═══
       { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help"] },
@@ -526,7 +531,7 @@ export function CommandPalette() {
         label: `Inspect · ${label}`,
         group,
         icon: <EyeIcon className="size-4" />,
-        action: () => navigate(inspectHref(pathname ?? "/", window.location.search, ref)),
+        action: () => openInspector(ref),
         keywords: ["inspect", "open", "peek", ref.kind],
       },
       {
@@ -558,7 +563,7 @@ export function CommandPalette() {
         keywords: ["workset", "pin", "carry", "shelf"],
       },
     ];
-  }, [focusTarget, navigate, pathname, worksetAdd]);
+  }, [focusTarget, navigate, openInspector, worksetAdd]);
 
   const worksetActions: CommandAction[] = useMemo(
     () =>
@@ -567,10 +572,10 @@ export function CommandPalette() {
         label: entry.label,
         group: "Workset",
         icon: <BookmarkIcon className="size-4" />,
-        action: () => navigate(inspectHref(pathname ?? "/", window.location.search, entry.ref)),
+        action: () => openInspector(entry.ref),
         keywords: ["workset", entry.ref.kind, entry.horizon],
       })),
-    [worksetEntries, navigate, pathname],
+    [worksetEntries, openInspector],
   );
 
   const modeActions: CommandAction[] = useMemo(

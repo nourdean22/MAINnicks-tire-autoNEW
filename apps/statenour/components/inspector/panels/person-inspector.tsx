@@ -102,7 +102,7 @@ export function PersonInspector({ entity }: InspectorPanelProps) {
             </span>
           ) : null}
         </div>
-        <h2 className="font-[var(--font-display)] text-xl font-bold leading-tight text-fg">{p.name}</h2>
+        <h2 className="font-display text-xl font-bold leading-tight text-fg">{p.name}</h2>
         {p.relationship ? <p className="text-[13px] text-fg-secondary">{p.relationship}</p> : null}
       </header>
 

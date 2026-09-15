@@ -98,3 +98,41 @@ describe("reality mode", () => {
     expect(useInspectorStore.getState().realityMode).toBe(false);
   });
 });
+
+describe("identity · a set that changes nothing does not notify (review 2026-09-15)", () => {
+  it("setFocused / setSelection / clearSelection are no-ops for equal input", () => {
+    const seen: number[] = [];
+    const unsub = useInspectorStore.subscribe(() => seen.push(1));
+    const s = useInspectorStore.getState();
+    s.setFocused({ kind: "task", id: "t1" });
+    s.setSelection(["task:t1", "task:t2"], "missions");
+    const after = seen.length;
+    // Fresh identities, same values — every pointerdown in a scope does this.
+    s.setFocused({ kind: "task", id: "t1" });
+    s.setSelection(["task:t1", "task:t2"], "missions");
+    s.setFocused(null);
+    s.setFocused(null);
+    expect(seen.length).toBe(after + 1); // only the first setFocused(null) changed anything
+    s.clearSelection();
+    s.clearSelection();
+    expect(seen.length).toBe(after + 2);
+    unsub();
+  });
+
+  it("resetTransient drops peek, focus and selection together, keeps ownership and reality mode", () => {
+    const s = useInspectorStore.getState();
+    s.setPeek({ kind: "memory", id: "m1" });
+    s.setFocused({ kind: "memory", id: "m1" });
+    s.setSelection(["memory:m1"], "brain");
+    s.ownKinds(["person"]);
+    s.setRealityMode(true);
+    s.resetTransient();
+    const st = useInspectorStore.getState();
+    expect(st.peek).toBeNull();
+    expect(st.focused).toBeNull();
+    expect(st.selected).toEqual([]);
+    expect(st.selectionScope).toBeNull();
+    expect(st.ownedKinds).toEqual(["person"]);
+    expect(st.realityMode).toBe(true);
+  });
+});

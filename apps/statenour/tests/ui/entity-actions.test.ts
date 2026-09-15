@@ -6,7 +6,7 @@
  * object by its wire id so Nick and the page can resolve it.
  */
 import { describe, expect, it } from "vitest";
-import { actionsFor, askNickPrompt, ENTITY_ACTIONS, homeRouteFor } from "@/lib/ui/entity-actions";
+import { actionsFor, askNickPrompt, ENTITY_ACTIONS, homeRouteFor, routeOwnsKind } from "@/lib/ui/entity-actions";
 
 describe("actionsFor", () => {
   it("one object → every action; many → only the multi-capable ones", () => {
@@ -53,5 +53,18 @@ describe("askNickPrompt", () => {
     expect(many).toContain("- Mumu (person:p1)");
     expect(many).toContain("- memory m1 (memory:m1)");
     expect(askNickPrompt([])).toBe("");
+  });
+});
+
+describe("routeOwnsKind", () => {
+  it("/people owns person — statically, so SSR and the first client render honour it", () => {
+    expect(routeOwnsKind("/people", "person")).toBe(true);
+  });
+
+  it("owns nothing else, and nothing on an unknown or missing route (the control)", () => {
+    expect(routeOwnsKind("/people", "task")).toBe(false);
+    expect(routeOwnsKind("/missions", "person")).toBe(false);
+    expect(routeOwnsKind(null, "person")).toBe(false);
+    expect(routeOwnsKind(undefined, "person")).toBe(false);
   });
 });

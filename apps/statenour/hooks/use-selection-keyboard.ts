@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useInspectorStore } from "@/lib/state/inspector-store";
 import { parseEntityRef } from "@/lib/ui/entity-ref";
+import { routeOwnsKind } from "@/lib/ui/entity-actions";
 import { readInspect } from "@/lib/ui/inspect-url";
 import {
   EMPTY_SELECTION,
@@ -66,6 +67,20 @@ export function entityLabelFromDom(key: string): string | undefined {
 }
 
 const INTERACTIVE = new Set(["BUTTON", "A", "INPUT", "TEXTAREA", "SELECT", "SUMMARY"]);
+
+/** A modal that is not ours (⌘K, the MORE sheet, a confirm) is up anywhere on the page. */
+function foreignModalOpen(): boolean {
+  return document.querySelector('[role="dialog"][aria-modal="true"]:not([data-inspector])') !== null;
+}
+
+/**
+ * The Nick side pane publishes its open width on <html> (nick-side-pane.tsx,
+ * `--nick-pane-open-w`) and closes itself on Esc. While it is open, Esc is
+ * its key — the inspector underneath must not close in the same stroke.
+ */
+function nickPaneOpen(): boolean {
+  return document.documentElement.style.getPropertyValue("--nick-pane-open-w").trim().length > 0;
+}
 
 /** True when Space/Enter would already mean something to the focused element (a button inside the row). */
 function targetIsInteractive(target: EventTarget | null, row: HTMLElement | null): boolean {
@@ -147,7 +162,13 @@ export function useSelectionKeyboard(): void {
 
     const onClear = () => {
       const scope = activeScope ?? resolveScope();
-      if (!scope) return;
+      if (!scope) {
+        // No scope on this page (the selection was made elsewhere): the bar
+        // still shows the store's count, so clear the store directly.
+        state = EMPTY_SELECTION;
+        useInspectorStore.getState().clearSelection();
+        return;
+      }
       apply(scope, reduceSelection(state, { type: "clear" }, orderIn(scope)), false);
     };
 
@@ -156,18 +177,20 @@ export function useSelectionKeyboard(): void {
       if (isTypingTarget(e.target as HTMLElement | null)) return;
       // A modal that is not ours (⌘K, MORE sheet, a confirm dialog) owns the
       // keyboard while it is up — Esc must close IT, and j/k must not move
-      // focus in the list underneath it.
-      const modal = (e.target as HTMLElement | null)?.closest?.('[role="dialog"][aria-modal="true"]');
-      if (modal && !modal.hasAttribute("data-inspector")) return;
+      // focus in the list underneath it. Checked on the DOCUMENT, not the
+      // event target: the MORE sheet never moves focus into itself, so a
+      // target-based check saw the page and one Esc closed two layers.
+      if (foreignModalOpen()) return;
       const intent = keyToIntent(e);
       if (!intent) return;
 
       const store = useInspectorStore.getState();
 
       if (intent.intent === "escape") {
+        if (nickPaneOpen()) return;
         const step = escapeStep({
           peek: store.peek !== null,
-          hasSelection: state.selected.length > 0,
+          hasSelection: state.selected.length > 0 || store.selected.length > 0,
           inspecting: readInspect(window.location.search) !== null,
         });
         if (step === "none") return;
@@ -182,7 +205,16 @@ export function useSelectionKeyboard(): void {
       if (!scope) return;
       const order = orderIn(scope);
       if (order.length === 0) return;
-      const base = reconcileSelection(scope === activeScope ? state : EMPTY_SELECTION, order);
+      const reconciled = reconcileSelection(scope === activeScope ? state : EMPTY_SELECTION, order);
+      // A row reached by Tab (role="button" rows are tabbable) has DOM focus
+      // but no grammar focus yet — adopt it, so Enter/Space/x act on the row
+      // the operator is actually on.
+      const domRow = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>(`[${ENTITY_ATTR}]`) ?? null;
+      const domKey = domRow && scope.contains(domRow) ? domRow.getAttribute(ENTITY_ATTR) : null;
+      const base =
+        domKey && domKey !== reconciled.focus && order.includes(domKey)
+          ? reduceSelection(reconciled, { type: "focus", key: domKey }, order)
+          : reconciled;
       const focusedRow = base.focus ? entityElement(scope, base.focus) : null;
 
       switch (intent.intent) {
@@ -213,6 +245,9 @@ export function useSelectionKeyboard(): void {
           if (!base.focus || targetIsInteractive(e.target, focusedRow)) return;
           const ref = parseEntityRef(base.focus);
           if (!ref) return;
+          // A kind this page renders itself has no global peek to show —
+          // setting one would only cost the next Esc.
+          if (store.ownedKinds.includes(ref.kind) || routeOwnsKind(window.location.pathname, ref.kind)) return;
           e.preventDefault();
           store.togglePeek(ref);
           return;
@@ -238,6 +273,11 @@ export function useSelectionKeyboard(): void {
       document.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener(SELECTION_CLEAR_EVENT, onClear);
       clearAttrs(activeScope);
+      // The deps change with the pathname (openInspector closes over it), so
+      // this runs on every route change: focus, selection and peek belong
+      // to the page that made them. Without it "2 selected" followed the
+      // operator to a page with no rows and no way to clear it.
+      useInspectorStore.getState().resetTransient();
     };
   }, [openInspector, closeInspector]);
 }

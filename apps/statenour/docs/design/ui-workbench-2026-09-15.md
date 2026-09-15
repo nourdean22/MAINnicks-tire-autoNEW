@@ -93,7 +93,7 @@ the evidence vocabulary it needs already exists and is the product's actual moat
 10. Two things called "ledger": `app/(mastery)/intelligence/ledger/page.tsx` (`DecisionLedgerPage`, opportunity queue) and the Reality Ledger. `/intelligence/brief` and `/intelligence/ledger` are live and unnavigable; `/goals` and `/scoreboard` are redirect tombstones.
 11. `lib/feature-flags.ts:16` says `/system/migrations` renders the registry; that page is gone. The registry is write-only.
 12. `components/hud/keyboard-shortcuts.tsx:45,49,50` route `G D / G Q / G P` to `/system/devices`, `/system/quality`, `/system/power` -- none exist. Cmd+K is bound in three independent listeners (`:60-70`, `command-palette.tsx:151-182`, `hooks/chat/use-chat-keyboard.ts`).
-13. The plan's proposed Reality Mode shortcut Cmd+Shift+R is the browser's hard-reload on macOS Chrome and Safari. Not bindable.
+13. The plan's proposed Reality Mode shortcut Cmd+Shift+R is already taken by the browser on macOS (Chrome: hard reload; Safari: Reader view). Not bindable; Reality Mode lives under Cmd+K → Modes.
 
 ### 1.4 Technology verdicts (rows added to `docs/UPSTREAMS.md`)
 
@@ -180,7 +180,7 @@ registry (`components/inspector/inspector-registry.tsx`), and renders `Inspector
 | Kind | Read | Shows | Entry points wired |
 |---|---|---|---|
 | `memory` | new `trpc.brain.memoryById` -> `lib/services/brain/memory-detail.ts` (soft-delete filtered) | content, category, evidence class + provenance, trust tier, seen x N, age, TTL, validity interval, supersedes / superseded-by chain, neighbourhood | Cmd+K semantic hits; Brain "Changed" rows; the graph node panel's Inspect action; any `?inspect=memory:` link |
-| `task` | `trpc.task.byId` | next physical action, definition of done, mission, status, due, effort/energy/context, waiting-on, priority explanation string | Missions task rows (title tap; pencil keeps edit), keyboard from the mission board scope, chat tool links via the bridge fix |
+| `task` | `trpc.task.byId` | next physical action, definition of done, mission, status, due, effort/energy/context, waiting-on, priority explanation string | Missions task rows (44px eye button; title keeps edit, pencil keeps the sheet), keyboard from the mission board scope, chat tool links via the bridge fix |
 | `person` | `trpc.task.personProfile` (page-owned on `/people`) | the existing dossier panel, now at `?inspect=person:<id>` | People list rows |
 
 Actions available on all three: Open on its page · Ask Nick (prefilled `/chat?prompt=`) · Add to workset ·
@@ -235,7 +235,7 @@ entity-actions}.ts`, `lib/state/{inspector-store,workset-store}.ts`, `lib/brain/
 6. `components/home/brain-node-detail-panel.tsx` -- imports the shared label map; Inspect action.
 7. `app/(mastery)/people/page.tsx` -- the selection IS `?inspect=person:` (the old `useState` copy is gone);
    ownership registration; a Suspense boundary for `useSearchParams` (the stats/logs precedent).
-8. `components/missions/mission-task-row.tsx` + `app/(mastery)/missions/page.tsx` -- `data-entity` on rows, selection scope on the board, title opens the inspector.
+8. `components/missions/mission-task-row.tsx` + `app/(mastery)/missions/page.tsx` -- `data-entity` on rows, selection scope on the board, a 44px eye button opens the inspector (title tap still edits — a title-as-button would have failed the e2e 44px target floor).
 9. `components/layout/nav-items.ts` -- `/proof` row under OPERATE.
 10. `components/mastery/nick-side-pane.tsx` -- publishes `--nick-pane-open-w` while open.
 11. `app/(mastery)/system/chat-states/page.tsx` -- inspector-frame states section (the UI Lab seed).

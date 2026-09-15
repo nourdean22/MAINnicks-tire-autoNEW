@@ -35,6 +35,12 @@ export interface InspectorState {
   releaseKinds: (kinds: EntityKind[]) => void;
   setRealityMode: (on: boolean) => void;
   hydrate: () => void;
+  /** Route change: peek, focus and selection belong to the page that made them. */
+  resetTransient: () => void;
+}
+
+function sameKeys(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((k, i) => k === b[i]);
 }
 
 export const REALITY_MODE_STORAGE_KEY = "nour:reality-mode:v1";
@@ -68,9 +74,26 @@ export const useInspectorStore = create<InspectorState>((set, get) => ({
 
   setPeek: (ref) => set({ peek: ref }),
   togglePeek: (ref) => set((s) => ({ peek: sameEntity(s.peek, ref) ? null : ref })),
-  setFocused: (ref) => set({ focused: ref }),
-  setSelection: (keys, scope) => set({ selected: [...new Set(keys)], selectionScope: keys.length ? scope : null }),
-  clearSelection: () => set({ selected: [], selectionScope: null }),
+  // Every pointerdown in a scope calls these with fresh identities; a no-op
+  // when nothing changed keeps the action bar and the palette from
+  // re-rendering per click (review 2026-09-15).
+  setFocused: (ref) => {
+    const cur = get().focused;
+    if (ref === null ? cur === null : sameEntity(cur, ref)) return;
+    set({ focused: ref });
+  },
+  setSelection: (keys, scope) => {
+    const next = [...new Set(keys)];
+    const nextScope = next.length ? scope : null;
+    const cur = get();
+    if (sameKeys(cur.selected, next) && cur.selectionScope === nextScope) return;
+    set({ selected: next, selectionScope: nextScope });
+  },
+  clearSelection: () => {
+    if (get().selected.length === 0 && get().selectionScope === null) return;
+    set({ selected: [], selectionScope: null });
+  },
+  resetTransient: () => set({ peek: null, focused: null, selected: [], selectionScope: null }),
   ownKinds: (kinds) => set((s) => ({ ownedKinds: [...new Set([...s.ownedKinds, ...kinds])] })),
   releaseKinds: (kinds) => set((s) => ({ ownedKinds: s.ownedKinds.filter((k) => !kinds.includes(k)) })),
   setRealityMode: (on) => {

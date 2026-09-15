@@ -14,11 +14,12 @@
  * answers `?inspect=person:` with its own dossier panel.
  */
 
-import { Suspense, useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useInspectorStore } from "@/lib/state/inspector-store";
 import { readInspect } from "@/lib/ui/inspect-url";
 import { formatEntityRef } from "@/lib/ui/entity-ref";
+import { routeOwnsKind } from "@/lib/ui/entity-actions";
 import { INSPECTOR_PANEL_WIDTH, InspectorFrame } from "@/components/inspector/inspector-frame";
 import { InspectorNotice } from "@/components/inspector/inspector-notice";
 import { EntityActionRow } from "@/components/inspector/entity-action-row";
@@ -31,13 +32,23 @@ import { useSelectionKeyboard } from "@/hooks/use-selection-keyboard";
 export const INSPECTOR_LANE_VAR = "--inspector-lane";
 export const INSPECTOR_BREAKPOINT_PX = 1280;
 
+/**
+ * The lane <main> and the fixed chrome keep clear of while the panel is
+ * docked: the panel's own width plus the Nick pane's when that is open
+ * (the panel docks to the LEFT of the pane, `right: var(--nick-pane-open-w)`
+ * in inspector-frame.tsx), so content reflows instead of sitting under it.
+ */
+export const INSPECTOR_LANE_VALUE = `calc(${INSPECTOR_PANEL_WIDTH} + var(--nick-pane-open-w, 0px))`;
+
 /** Pure: reserve the lane on `root`, return the release. Testable without a DOM. */
 export function reserveInspectorLane(root: {
   style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
 }): () => void {
-  root.style.setProperty(INSPECTOR_LANE_VAR, INSPECTOR_PANEL_WIDTH);
+  root.style.setProperty(INSPECTOR_LANE_VAR, INSPECTOR_LANE_VALUE);
   return () => root.style.removeProperty(INSPECTOR_LANE_VAR);
 }
+
+const subscribeNoop = () => () => {};
 
 function InspectorHostInner() {
   const searchParams = useSearchParams();
@@ -49,6 +60,10 @@ function InspectorHostInner() {
   const hydrate = useInspectorStore((s) => s.hydrate);
   const { closeInspector } = useInspector();
   const isWide = useMinWidth(INSPECTOR_BREAKPOINT_PX);
+  // The width is unknown on the server, so a `?inspect=` URL would SSR the
+  // phone sheet (scrim and all) and swap to the dock after hydration. The
+  // inspector is a client layer: render nothing until mounted.
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   useSelectionKeyboard();
 
@@ -63,14 +78,15 @@ function InspectorHostInner() {
 
   const target = open ?? peek;
   const mode: "peek" | "inspect" = open ? "inspect" : "peek";
-  const owned = target ? ownedKinds.includes(target.kind) : false;
-  const showing = Boolean(target) && !owned;
+  const owned = target ? ownedKinds.includes(target.kind) || routeOwnsKind(pathname, target.kind) : false;
+  const showing = mounted && Boolean(target) && !owned;
 
   useEffect(() => {
     if (!showing || !isWide || typeof document === "undefined") return;
     return reserveInspectorLane(document.documentElement);
   }, [showing, isWide]);
 
+  if (!mounted) return null;
   if (!target || owned) return <SelectionActionBar />;
 
   const renderer = inspectorFor(target.kind);

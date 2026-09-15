@@ -40,6 +40,7 @@ import {
   Clock,
   DollarSign,
   FileText,
+  FlaskConical,
   Inbox,
   MessageSquare,
   Radio,
@@ -295,6 +296,18 @@ export const CARDS: HubCard[] = [
     icon: MessageSquare,
     group: "data",
     description: "Real chat components against fixtures — eyeball after UI changes",
+    chip: () => ({ label: "gallery", severity: "info" }),
+  },
+  {
+    // 2026-09-15 · UI workbench. The inspector chrome, its four honest
+    // non-content states, the metric grammar and the evidence mark against
+    // fixtures. Split from Chat States because that page is pinned by
+    // full-page screenshot baselines (tests/e2e/chat-states.spec.ts).
+    href: "/system/ui-lab",
+    title: "UI Lab",
+    icon: FlaskConical,
+    group: "data",
+    description: "Inspector, metric + evidence primitives against fixtures — frozen clock, nothing mocked",
     chip: () => ({ label: "gallery", severity: "info" }),
   },
   {

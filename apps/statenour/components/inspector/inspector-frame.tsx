@@ -21,7 +21,7 @@
  * to commit or leave, no URL entry.
  */
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ENTITY_KIND_LABEL, type EntityKind } from "@/lib/ui/entity-ref";
@@ -44,6 +44,15 @@ export const INSPECTOR_PANEL_WIDTH = "380px";
 
 export function InspectorFrame({ kind, mode, presentation, onClose, actions, children, className }: InspectorFrameProps) {
   const eyebrow = kind ? ENTITY_KIND_LABEL[kind] : "object";
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // The sheet is `aria-modal`: focus moves INTO it on open (the header close
+  // button), so Tab does not land on the page underneath and Esc from the
+  // selection hook reaches a dialog that owns focus. The panel is non-modal
+  // and leaves focus on the row that opened it.
+  useEffect(() => {
+    if (presentation === "sheet") closeRef.current?.focus({ preventScroll: true });
+  }, [presentation, kind]);
 
   const header = (
     <div className="flex items-start justify-between gap-3 border-b border-glass px-4 pb-2 pt-3">
@@ -60,6 +69,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
         ) : null}
       </div>
       <button
+        ref={closeRef}
         type="button"
         onClick={onClose}
         aria-label="Close inspector"
@@ -109,7 +119,8 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
       data-inspector-mode={mode}
       data-inspector-kind={kind ?? "unknown"}
     >
-      <button type="button" aria-label="Close inspector" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Scrim: tap-to-close, but not a second "Close inspector" in the tab order. */}
+      <button type="button" aria-hidden tabIndex={-1} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
         className={cn(
           "relative z-[61] flex max-h-[85vh] min-h-[40vh] flex-col rounded-t-2xl border-t border-[var(--gold)]/30 bg-void",

@@ -129,6 +129,25 @@ export const ENTITY_ACTIONS: readonly EntityAction[] = [
   },
 ];
 
+/**
+ * Routes that render a kind THEMSELVES — the page is the inspector for it
+ * (/people answers `?inspect=person:` with its own dossier panel). Static so
+ * the global host can honour it during SSR and the first client render;
+ * `useInspectorOwnership` (dynamic, effect-time) still exists for pages that
+ * own a kind conditionally. Review 2026-09-15: ownership registered only in
+ * an effect let the server render the phone sheet over the dossier on every
+ * /people deep link.
+ */
+export const ROUTE_OWNED_KINDS: Readonly<Record<string, readonly EntityKind[]>> = {
+  "/people": ["person"],
+};
+
+export function routeOwnsKind(pathname: string | null | undefined, kind: EntityKind): boolean {
+  if (!pathname) return false;
+  const owned = ROUTE_OWNED_KINDS[pathname];
+  return owned ? owned.includes(kind) : false;
+}
+
 /** Actions applicable to this selection: kind-filtered, and multi-only when there is more than one. */
 export function actionsFor(refs: readonly EntityRef[]): EntityAction[] {
   if (refs.length === 0) return [];

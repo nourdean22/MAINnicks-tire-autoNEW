@@ -34,7 +34,7 @@ export function Metric({ result, spec, now, className }: MetricProps) {
       <p className="flex items-baseline gap-1">
         <span
           className={cn(
-            "font-[var(--font-display)] text-2xl font-bold tabular-nums",
+            "font-display text-2xl font-bold tabular-nums",
             view.status === "unavailable" ? "text-fg-tertiary" : view.outOfRange ? "text-amber-300" : "text-fg",
           )}
         >

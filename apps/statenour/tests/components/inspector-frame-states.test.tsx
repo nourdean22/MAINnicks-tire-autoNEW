@@ -119,3 +119,11 @@ describe("InspectorFrame / kind and footer", () => {
     expect(without).not.toContain("border-t border-glass");
   });
 });
+
+describe("InspectorFrame / sheet a11y (review 2026-09-15)", () => {
+  it("names exactly ONE close control; the scrim is out of the tab order and hidden from AT", () => {
+    const html = render({ presentation: "sheet" });
+    expect(html.split('aria-label="Close inspector"').length - 1).toBe(1);
+    expect(html).toMatch(/<button[^>]*aria-hidden="true"[^>]*tabindex="-1"[^>]*class="absolute inset-0/);
+  });
+});

@@ -98,7 +98,7 @@ export function TaskInspector({ entity }: InspectorPanelProps) {
             </span>
           ) : null}
         </div>
-        <h2 className="font-[var(--font-display)] text-xl font-bold leading-tight text-fg">{t.title}</h2>
+        <h2 className="font-display text-xl font-bold leading-tight text-fg">{t.title}</h2>
       </header>
 
       <dl className="space-y-3">

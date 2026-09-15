@@ -76,7 +76,8 @@ export async function getMemoryDetail(id: string): Promise<MemoryDetail | null> 
       validUntil: true,
       lastVerifiedAt: true,
       discoveryVerdict: true,
-      supersededBy: { select: { id: true, content: true, createdAt: true } },
+      // To-one relations take no `where`; the deleted check is below.
+      supersededBy: { select: { id: true, content: true, createdAt: true, deletedAt: true } },
       supersedes: {
         where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
@@ -105,7 +106,7 @@ export async function getMemoryDetail(id: string): Promise<MemoryDetail | null> 
     validFrom: iso(row.validFrom),
     validUntil: iso(row.validUntil),
     lastVerifiedAt: iso(row.lastVerifiedAt),
-    supersededBy: row.supersededBy
+    supersededBy: row.supersededBy && !row.supersededBy.deletedAt
       ? { id: row.supersededBy.id, content: snippet(row.supersededBy.content), createdAt: row.supersededBy.createdAt.toISOString() }
       : null,
     supersedes: row.supersedes.map((m) => ({ id: m.id, content: snippet(m.content), createdAt: m.createdAt.toISOString() })),
