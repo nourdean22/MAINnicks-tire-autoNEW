@@ -61,6 +61,9 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "conversion.recentActivity",
   "conversion.shopCapacity",
   "customerEvents.log",
+  // 2026-09-15 (Dream-to-Proof) · which registered web experiments are armed — ids only,
+  // read on every home load; arm copy ships in the client bundle. Cached 60s.
+  "experiments.active",
   // 2026-09-08 (D14) · the public PhotoRibbon reads photo src + view count, no customer data; 5-min cache.
   "customerEvents.topRibbonPhotosPublic",
   "reviewRequests.trackClick",
@@ -122,6 +125,10 @@ const PUBLIC_ALLOWLIST: readonly string[] = [
   "coupons.active",
   "loyalty.rewards",
   "shopStatus.getLineOfCars",
+  // 2026-09-15 (Dream-to-Proof) · ShopState: hours + capacity band + lot band (aggregate
+  // count, no plate column) + weather risk. Public by construction — see shared/shopState.ts
+  // and its property test that no plate/customer/phone-shaped key can appear.
+  "shopStatus.getState",
   "shopStatus.getStatus",
   "specials.getActive",
   "system.health",

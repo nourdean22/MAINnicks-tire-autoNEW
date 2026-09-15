@@ -7,19 +7,13 @@
  * become a second source of truth for what the arms say.
  */
 import { router, publicProcedure } from "../_core/trpc";
-import { WEB_EXPERIMENTS, webExperimentFlagKey } from "@shared/webExperiments";
-import type { FlagKey } from "../services/featureFlags";
 
 export const experimentsRouter = router({
   active: publicProcedure.query(async () => {
     const { cached } = await import("../lib/cache");
     return cached("experiments:active", 60, async () => {
-      const { isEnabled } = await import("../services/featureFlags");
-      const active: string[] = [];
-      for (const e of WEB_EXPERIMENTS) {
-        if (await isEnabled(webExperimentFlagKey(e.experimentId) as FlagKey)) active.push(e.experimentId);
-      }
-      return { active };
+      const { armedWebExperimentIds } = await import("../services/webExperimentFlags");
+      return { active: await armedWebExperimentIds() };
     });
   }),
 });

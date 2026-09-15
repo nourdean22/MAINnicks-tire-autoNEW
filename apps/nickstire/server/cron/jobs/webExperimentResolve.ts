@@ -23,7 +23,7 @@
 import { sql } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { assignByKey, evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "../../../shared/experimentKernel";
-import { EXPERIMENT_EXPOSURE_EVENT, WEB_EXPERIMENTS, experimentAssignmentKey, webExperimentFlagKey } from "../../../shared/webExperiments";
+import { EXPERIMENT_EXPOSURE_EVENT, WEB_EXPERIMENTS, experimentAssignmentKey } from "../../../shared/webExperiments";
 import { authorityFor, gradeSatisfies } from "../../../shared/goalContract";
 import { goalContractFor } from "../../../goals";
 
@@ -158,11 +158,9 @@ function telegramLine(def: WebExperimentDefinition, v: WebExperimentVerdict): st
 }
 
 export async function processWebExperimentResolve(): Promise<ProcessResult> {
-  const { isEnabled } = await import("../../services/featureFlags");
-  const armed: WebExperimentDefinition[] = [];
-  for (const e of WEB_EXPERIMENTS) {
-    if (await isEnabled(webExperimentFlagKey(e.experimentId) as Parameters<typeof isEnabled>[0])) armed.push(e);
-  }
+  const { armedWebExperimentIds } = await import("../../services/webExperimentFlags");
+  const armedIds = new Set(await armedWebExperimentIds());
+  const armed: WebExperimentDefinition[] = WEB_EXPERIMENTS.filter((e) => armedIds.has(e.experimentId));
   if (!armed.length) return { recordsProcessed: 0, details: "no armed web experiments" };
 
   const outcomes: string[] = [];
