@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-08 · Camera vision wave 0 (ADR-0017: device-id P0, sentinel cron, plate link); earlier
-today #2202/#2204/#2213 (tap-target floor in code is 44px, not this file's 48×48). Earlier: RECONCILIATION top.
+**Last refreshed:** 2026-09-15 · UI workbench #2337 SHIPPED + DEPLOYED-VERIFIED `7164b69` (one inspector for any object, `?inspect=`,
+selection grammar, why-this-priority, UI Lab); wave 3 on branch (tool inspector, ChangeSet, Playwright instrument). Earlier: RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

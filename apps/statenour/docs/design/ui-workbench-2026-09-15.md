@@ -175,7 +175,7 @@ registry (`components/inspector/inspector-registry.tsx`), and renders `Inspector
   and the page's own panel answers the URL -- how `/people` keeps its dossier panel and still becomes
   URL-addressable.
 
-### 3.4 Renderers shipped (five kinds, two slices)
+### 3.4 Renderers shipped (six kinds, three slices)
 
 | Kind | Read | Shows | Entry points wired |
 |---|---|---|---|
@@ -184,6 +184,7 @@ registry (`components/inspector/inspector-registry.tsx`), and renders `Inspector
 | `person` | `trpc.task.personProfile` (page-owned on `/people`, statically via `ROUTE_OWNED_KINDS`) | the existing dossier panel, now at `?inspect=person:<id>` | People list rows |
 | `alert` | `trpc.brain.memoryById` (alerts ARE BrainMemory rows) | category, age, content, key, evidence chip; verbs: resolve (two-tap, soft-delete, closes) · mute category 7d — the ActiveAlertsCard's procedures | `/system/alerts` rows (eye button, selection scope) |
 | `cron` | `trpc.systemAutomation.cronDeck` (row) + `cronRunHistory` (7d, 12 runs) | schedule, mode / kill state, description, last + next run, success-rate / median / p95 as Metrics (95-100 band), counts, runs with error previews; ZERO empty state for no runs, not-found for a name the deck lacks | `/system/crons` rows (eye button in the name cell, per-category selection scopes) |
+| `tool` | `trpc.system.getTools` (found by id) | full description, every access flag with its meaning (off = crossed out), risk, approval policy, audit-log requirement, limits + cost class, domains, env verdict (missing keys named), the registry's currentLimitations; read-only — evaluateTool is a probe, not a toggle | `/system/tools` rows (eye button beside the label, the table body is the scope) |
 
 Actions available on every kind: Open on its page · Ask Nick (prefilled `/chat?prompt=`) · Add to workset ·
 Copy link (the object's canonical route). **Page-lent actions** (slice 2): a page registers verbs for a kind
@@ -211,8 +212,12 @@ cadence line ("usual every 8-12d · current gap 29d").
 
 ### 3.7 Not built, and why
 
-- **ChangeSet / universal "since last visit"** -- one live consumer (Home); Brain's Changed view computes
-  its own deltas server-side. Generalise when a second consumer with a cursor exists.
+- **ChangeSet** -- BUILT in wave 3: `lib/ui/change-cursor.ts` (cursor rules + the sentence's honesty
+  rules, pure) · `hooks/use-change-cursor.ts` · `components/ui/change-set-line.tsx`; Home's line
+  refactored onto it (same storage key), Brain's Changed view is the second consumer
+  (`brain.changesSince`: new = createdAt ≥ cursor, reinforced = lastSeen ≥ cursor AND createdAt < cursor
+  — never updatedAt, which recall bumps —, tombstoned = deletedAt ≥ cursor). Third consumer when People
+  gets "cadence crossed threshold".
 - **Page archetypes** -- a layout prop that no page consumes is a knip orphan. The table stands as design
   intent (Command / Workspace / Stream / Lab / Control Tower / Utility); adopt it when Brain or People are
   restructured.
@@ -283,21 +288,28 @@ entity-actions}.ts`, `lib/state/{inspector-store,workset-store}.ts`, `lib/brain/
 
 ## 5. Build order after this branch (NOW / NEXT / LATER / KILL)
 
-**NOW (this branch):** slice 1 — substrate + memory/task/person slices + Reality Mode + Workset + `/proof`
-nav; slice 2 — the hostile-review fixes (§3.8), `/system/ui-lab`, the priority breakdown + page-lent
-actions, alert + cron inspectors, Inspect on the Home brief lead.
+**SHIPPED (#2337, deployed-verified `7164b69`):** slice 1 — substrate + memory/task/person slices + Reality
+Mode + Workset + `/proof` nav; slice 2 — the hostile-review fixes (§3.8), `/system/ui-lab`, the priority
+breakdown + page-lent actions, alert + cron inspectors, Inspect on the Home brief lead.
+
+**NOW (wave 3, this branch):** the `tool` inspector (§3.4); ChangeSet as a primitive with Brain as the
+second consumer (§3.7); the Playwright instrument for the two DOM-only P1s
+(`tests/e2e/selection-grammar.spec.ts`, run green in a real browser against the hermetic stack, each P1
+mutated red first); `execution-panel.tsx` on the shared snooze presets.
+
+**REFUTED (stale claim in slice 1's own list):** "the §5.1 type floor is still open". It is not: the floor is
+a CSS media block in `app/styles/base.css` (9px → 11px, 10px → 12px below md, since 2026-09-08) pinned by
+`tests/repo/phone-type-floor.test.ts`; the tab-bar and MORE-sheet classes still READ `text-[9px]` but
+render 11px on phones. Nothing to re-cut.
 
 **NEXT:**
-1. Tool inspector (kind `tool`, the registry at `/system/tools` -- the last System kind without a renderer)
-   and a `device` renderer once the camera-bridge heartbeats land (ADR-0017).
-2. `ChangeSet` with Brain's Changed view as the second consumer; then People ("cadence crossed threshold").
-3. Base UI 1.8 + React 19.3 dependency PR; then `<ViewTransition>` on row -> inspector only.
-4. The program's §5.1 type floor on `bottom-tab-bar.tsx` / `more-sheet.tsx` (9px -> 11px) -- with the
-   chat-states screenshot baselines re-cut in the same PR, since they pin the bottom chrome.
-5. `execution-panel.tsx` still carries its private copy of the snooze presets; import
-   `lib/missions/snooze-presets.ts` there when that file is next touched.
-6. A browser-level test for the selection grammar (route-change reset, one-Esc-one-layer) -- the two P1s
-   of §3.8 live in DOM code that the Node vitest lane cannot exercise; Playwright is the instrument.
+1. Base UI 1.8 + React 19.3 dependency PR (own PR, lockfile); then `<ViewTransition>` on row -> inspector only.
+2. A `device` renderer once the camera-bridge heartbeats land (ADR-0017).
+3. ChangeSet's third consumer: People ("cadence crossed threshold since your last visit").
+4. `next dev` (Next 16 `agentRules`) appends a `nextjs-agent-rules` block to `apps/statenour/AGENTS.md`
+   and rewrites `next-env.d.ts` on every start; both must be reverted before committing (measured
+   2026-09-15 in the session container). Either set `agentRules: false` in `next.config.ts` or commit
+   the block once — an operator call, since it edits a policy file.
 
 **LATER:** Time Travel scrubber (after Brain Wave 2 stamps `valid_from`); page archetypes on the first
 restructured page; TanStack Virtual on the first named long list; Observable Plot with the Stats surgery;

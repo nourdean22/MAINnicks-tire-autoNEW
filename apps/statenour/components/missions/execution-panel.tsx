@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, Project } from "@/components/actions/shared";
+// 2026-09-15 · the snooze instants are shared with the task row and the inspector (lib/missions/snooze-presets.ts).
+import { nextMonday6am, tomorrow6am } from "@/lib/missions/snooze-presets";
 
 interface ExecutionPanelProps {
   task: Task;
@@ -45,22 +47,6 @@ interface ExecutionPanelProps {
    *  note. When absent, Pause falls back to a bare status flip. */
   onPark?: (id: string, note: string, record?: ResumeRecordInput) => void | Promise<void>;
   onExit: () => void;
-}
-
-function tomorrow6am(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
-}
-
-function nextMonday6am(): string {
-  const d = new Date();
-  const dow = d.getDay();
-  const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilNextMon);
-  d.setHours(6, 0, 0, 0);
-  return d.toISOString();
 }
 
 export function ExecutionPanel({

@@ -1,8 +1,22 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-15 (UI workbench slices 1 + 2 on top of the camera vision wave 0)
+**Updated:** 2026-09-15 (UI workbench #2337 shipped + deployed-verified; wave 3 on the same branch name, second PR)
 
-## UI workbench slices 1 + 2 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf`, one draft PR)
+## UI workbench wave 3 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf` restarted by merging main — force-push is policy-blocked)
+**Shipped this wave:** `tool` inspector + inspectable `/system/tools` rows · ChangeSet primitive
+(`lib/ui/change-cursor.ts`, `hooks/use-change-cursor.ts`, `components/ui/change-set-line.tsx`; Home refactored,
+Brain `changesSince` second consumer) · `tests/e2e/selection-grammar.spec.ts` on `/system/ui-lab` fixture rows
+(4/4 green in Chromium against a hermetic Postgres + pgvector — both P1s mutated red first) ·
+`execution-panel.tsx` on the shared snooze presets. **Refuted:** "type floor still open" (CSS block since 09-08).
+**Traps measured:** `next dev` appends a `nextjs-agent-rules` block to `AGENTS.md` and rewrites `next-env.d.ts`
+— revert before committing · the repo pins @playwright/test 1.63 but the container ships Chromium 1194: run
+Playwright with a scratch config under `.next/` pointing `launchOptions.executablePath` at
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` · the grammar's document listener attaches a commit after
+the layout hydrates; wait on `html[data-selection-grammar="1"]`, not on the tab bar.
+**Next:** the dependency PR (Base UI 1.8 + React 19.3, own lockfile PR), then `<ViewTransition>` row → inspector ·
+`device` renderer after ADR-0017 heartbeats · ChangeSet third consumer (People cadence).
+
+## UI workbench slices 1 + 2 (2026-09-15; #2337 merged 19:27Z, live 19:32Z)
 **Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical
 slices. Spec + verdict: `docs/design/ui-workbench-2026-09-15.md` (read THAT before proposing any inspector,
 drawer, selection or "spatial" work). Ship entry: RECONCILIATION top.
