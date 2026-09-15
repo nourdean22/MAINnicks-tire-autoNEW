@@ -358,6 +358,48 @@ button:active, [role="button"]:active {
      land at the resting visual we want under reduced motion. */
   .animate-breath { animation: none; opacity: 1; }
   .animate-fade-in-scale { animation: none; opacity: 1; transform: none; }
+  /* The View Transition pseudo-elements hang off <html> and are NOT matched
+     by the `*::before / *::after` rule above — pin them explicitly, or the
+     inspector's slide (below) would be the one animation that ignores the
+     preference. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   VIEW TRANSITIONS · React 19.3 <ViewTransition> · 2026-09-15
+   ═══════════════════════════════════════════════════════
+   ONE consumer by design: the inspector's open / close in
+   components/inspector/inspector-host.tsx (row → inspector). Never
+   "fade every route" — docs/DESIGN.md Motion philosophy, docs/UPSTREAMS.md.
+   These class names are the host's `enter` / `exit` props; React puts them
+   on the browser's transition pseudo-elements, which hang off <html>, so
+   this cannot live in a component-scoped <style jsx> block. The docked
+   panel slides in from its edge and back out; the phone sheet keeps its own
+   CSS entrance (animate-fadeSlideUp) and only gains the exit. */
+@keyframes inspector-panel-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes inspector-panel-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(16px); }
+}
+@keyframes inspector-sheet-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(24px); }
+}
+::view-transition-new(.inspector-panel-in) {
+  animation: inspector-panel-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+::view-transition-old(.inspector-panel-out) {
+  animation: inspector-panel-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-old(.inspector-sheet-out) {
+  animation: inspector-sheet-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 /* ═══════════════════════════════════════════════════════

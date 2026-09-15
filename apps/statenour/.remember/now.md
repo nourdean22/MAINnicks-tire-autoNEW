@@ -13,8 +13,15 @@ Brain `changesSince` second consumer) · `tests/e2e/selection-grammar.spec.ts` o
 Playwright with a scratch config under `.next/` pointing `launchOptions.executablePath` at
 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` · the grammar's document listener attaches a commit after
 the layout hydrates; wait on `html[data-selection-grammar="1"]`, not on the tab bar.
-**Next:** the dependency PR (Base UI 1.8 + React 19.3, own lockfile PR), then `<ViewTransition>` row → inspector ·
-`device` renderer after ADR-0017 heartbeats · ChangeSet third consumer (People cadence).
+**Wave 3.6 (same branch, same PR):** React catalog floor `^19.3.0` (lock 19.3.0 for BOTH apps) ·
+`@types/react(-dom)` ON the catalog (statenour, nickstire, reel-engine, social-assets) · Base UI `^1.8.0` ·
+`<ViewTransition>` on the inspector only (`inspector-host.tsx`; keyframes + reduced-motion pin in `effects.css`;
+instrument `tests/e2e/inspector-view-transition.spec.ts` counts `document.startViewTransition`).
+**Traps measured:** bumping ONE app's `@types/react` leaves two copies in the tree and every peer on the old one —
+four `Key` TS2322 errors in files the diff never touched; the fix is the catalog, never a per-app pin ·
+`next build` wipes `.next/`, so a scratch Playwright config under it must be rewritten before each e2e run ·
+Next 16.3.4 already vendors the stable `ViewTransition` (no `viewTransition` config flag exists in 16.3.4).
+**Next:** `device` renderer after ADR-0017 heartbeats · ChangeSet third consumer (People cadence).
 
 ## UI workbench slices 1 + 2 (2026-09-15; #2337 merged 19:27Z, live 19:32Z)
 **Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical

@@ -297,16 +297,29 @@ second consumer (§3.7); the Playwright instrument for the two DOM-only P1s
 (`tests/e2e/selection-grammar.spec.ts`, run green in a real browser against the hermetic stack, each P1
 mutated red first); `execution-panel.tsx` on the shared snooze presets.
 
+**NOW · wave 3.6 (same branch):** the dependency step, then the transition. React catalog floor `^19.3.0`
+(the lock resolves 19.3.0 for BOTH apps); `@types/react(-dom)` moved ONTO the catalog after the first bump
+left TWO copies in the tree (19.2.14 for everything else, 19.3.0 for statenour — four `Key`/`ReactNode`
+TS2322 errors in files this diff never touched); Base UI `^1.8.0` (CHANGELOG 1.4.0–1.8.0 read first: nothing
+breaking for Dialog, Tooltip, Button, Input, Separator, useRender, mergeProps). Then `<ViewTransition>`
+with ONE consumer: the inspector's open / close in `inspector-host.tsx` — the dock slides in and out, the
+phone sheet keeps its CSS entrance and gains an exit, PEEK (a synchronous store update) stays instant;
+keyframes + the reduced-motion pin in `effects.css`; instrument `tests/e2e/inspector-view-transition.spec.ts`
+counts `document.startViewTransition` calls (open ≥ 1, close +1, peek 0). Measured before deciding: Next
+16.3.4's vendored react / react-dom already ship the stable `ViewTransition` and 16.3.4 has no
+`viewTransition` config flag — the App Router bundle runs the vendored copy — so the runtime bump serves the
+vitest lane and nickstire, and `@types/react` 19.3.0 supplies the type (19.2.x had it only under
+`react/canary`).
+
 **REFUTED (stale claim in slice 1's own list):** "the §5.1 type floor is still open". It is not: the floor is
 a CSS media block in `app/styles/base.css` (9px → 11px, 10px → 12px below md, since 2026-09-08) pinned by
 `tests/repo/phone-type-floor.test.ts`; the tab-bar and MORE-sheet classes still READ `text-[9px]` but
 render 11px on phones. Nothing to re-cut.
 
 **NEXT:**
-1. Base UI 1.8 + React 19.3 dependency PR (own PR, lockfile); then `<ViewTransition>` on row -> inspector only.
-2. A `device` renderer once the camera-bridge heartbeats land (ADR-0017).
-3. ChangeSet's third consumer: People ("cadence crossed threshold since your last visit").
-4. `next dev` (Next 16 `agentRules`) appends a `nextjs-agent-rules` block to `apps/statenour/AGENTS.md`
+1. A `device` renderer once the camera-bridge heartbeats land (ADR-0017).
+2. ChangeSet's third consumer: People ("cadence crossed threshold since your last visit").
+3. `next dev` (Next 16 `agentRules`) appends a `nextjs-agent-rules` block to `apps/statenour/AGENTS.md`
    and rewrites `next-env.d.ts` on every start; both must be reverted before committing (measured
    2026-09-15 in the session container). Either set `agentRules: false` in `next.config.ts` or commit
    the block once — an operator call, since it edits a policy file.

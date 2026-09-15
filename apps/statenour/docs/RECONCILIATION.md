@@ -29,8 +29,30 @@
 > **Trap for the next session:** `next dev` (Next 16 `agentRules`) appends a `nextjs-agent-rules` block to
 > `apps/statenour/AGENTS.md` and rewrites `next-env.d.ts` on start — revert both before committing.
 >
-> **Not built:** the dependency bump (own PR, next), a `device` renderer (needs ADR-0017 heartbeats),
-> ChangeSet's third consumer (People cadence).
+> **Wave 3.6 (same PR, after the draft opened):** the dependency step, then the transition. React catalog
+> floor `^19.3.0` (lock 19.3.0 for BOTH apps); `@types/react(-dom)` moved ONTO the catalog for statenour,
+> nickstire, reel-engine and social-assets — measured first: bumping statenour's copy alone left two
+> `@types/react` in the tree (19.2.14 for everything else) and every peer on the old one, four `Key` /
+> `ReactNode` TS2322 errors in files the diff never touched (command.tsx, decision-spread.tsx,
+> bottom-pulse-ticker.tsx); Base UI `^1.8.0` (CHANGELOG 1.4.0–1.8.0 read: nothing breaking for the five
+> consumers, useRender or mergeProps). Then React 19.3's stable `<ViewTransition>` with ONE consumer, the
+> inspector's open / close in `inspector-host.tsx`: the dock slides in and out, the phone sheet keeps its
+> CSS entrance and gains an exit, PEEK (a synchronous store update) stays instant, `update="none"` so
+> arrowing swaps content without a cross-fade; keyframes + the reduced-motion pin in `effects.css` (the
+> transition pseudo-elements hang off `<html>`, out of reach of the `*::before/after` rule). Measured before
+> deciding: Next 16.3.4's vendored react / react-dom already ship the stable `ViewTransition` and 16.3.4 has
+> no `viewTransition` config flag, so the runtime bump serves the vitest lane and nickstire; `@types/react`
+> 19.3.0 supplies the type (19.2.x had it only under `react/canary`).
+>
+> **Wave-3 miss, found by the FULL statenour vitest run this step forced:** `continuity-view-honest-render`
+> mocks `trpc.brain` with only `continuityReport`, and wave 3 had mounted `BrainChangeLine`
+> (`brain.changesSince`) inside the view — 6 tests red, #2341's `node` job red. The slice-scoped verification
+> ran the files the branch ADDED, not the tests of every component it CHANGED. Fixed by mocking the third
+> tRPC-owning child out like the other two (`83ccbdfe3`).
+>
+> **Receipts (wave 3.6).** Typecheck: statenour `tsc --noEmit` 0 errors (1m47s) · nickstire `typecheck:raw` exit 0 (1m35s), after `turbo build --filter="nicks-tire-auto^..."` (the unbuilt `@nour/gbp-publisher` had produced 15 phantom errors). Tests on React 19.3.0 in the vitest lane: statenour 818 files — 814 passed, 2 failed, 2 skipped · 8,270 tests — 8,257 passed, 7 failed, 6 skipped, exit 1 (the two reds: `continuity-view-honest-render`, the wave-3 miss above, 6/6 green after `83ccbdfe3`; and `obsidian-ingest-server-only`, container-only, green in CI); nickstire 640 files — 638 passed, 2 skipped · 7,919 tests — 7,860 passed, 58 skipped, 1 todo, exit 0. Builds: statenour `pnpm build` exit 0 (3m14s) with the three `::view-transition-*` rules, the three keyframes and the reduced-motion pin present in the emitted CSS chunk (`grep` on `.next/static/chunks/*.css`); nickstire `vite build` exit 0 (17.4s). Base UI 1.8.0 consumers covered by the same runs. E2E in Chromium against the hermetic stack: `inspector-view-transition.spec.ts` 3/3 green, mutated red (Fragment for the wrapper → tests 1 and 3 red at the count assertions, the peek control green), restored (diff 0 lines), 7/7 green with `selection-grammar.spec.ts` in the same run. Measured on the way: the production client bundle ships Next's vendored `19.3.0-canary-cbb046ab-20260731`, not the installed 19.3.0 — the catalog bump is invisible to the browser and real for vitest + nickstire; and the local e2e mirror must warm `/` like CI does — unwarmed, the tab-bar navigation's RSC fetch sat behind Turbopack's first compile of Home for longer than the 5s `toHaveURL` window (one red, no request in the dev log; 4.5s green once warmed).
+>
+> **Not built:** a `device` renderer (needs ADR-0017 heartbeats), ChangeSet's third consumer (People cadence).
 
 > ## 2026-09-15 · UI workbench slice 2 (same branch): hostile-review fixes, `/system/ui-lab`, why-this-priority, page-lent actions, alert + cron inspectors
 >
