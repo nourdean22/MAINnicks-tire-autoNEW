@@ -212,7 +212,7 @@ export interface SrmOptions {
   alpha?: number;
 }
 
-export const DEFAULT_SRM_MIN_TOTAL = 100;
+const DEFAULT_SRM_MIN_TOTAL = 100;
 /**
  * 2026-09-15 · was 0.001, "the conventional alarm" — conventional for ONE look.
  * The resolver looks every day, and experimentKernelCalibration.ts measured
@@ -224,7 +224,7 @@ export const DEFAULT_SRM_MIN_TOTAL = 100;
  * 1e-4 is what makes the any-peek family rate land near the 0.1% the old
  * number was reaching for.
  */
-export const DEFAULT_SRM_ALPHA = 1e-4;
+const DEFAULT_SRM_ALPHA = 1e-4;
 
 export function srmCheck(exposures: readonly number[], expectedShares?: readonly number[], opts: SrmOptions = {}): SrmResult {
   const k = exposures.length;

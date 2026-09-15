@@ -46,6 +46,7 @@ through decides how much its claims may be believed and who they are recorded as
 the experiment resolver) ≤ H4 as CRON · only an owner surface asserts H5 as OPERATOR. A claim that asks
 for more, or for `createdBy: "operator"` through a key, is refused by index — loud, never clamped. H4
 from the resolver rests on a **measured** rule since 2026-09-15: `shared/experimentKernelCalibration.ts`
+(re-run it any time with `pnpm calibrate:kernel` from `apps/nickstire/`)
 runs the kernel on seeded A/A, injected-effect and broken-split traffic (any-peek false positives 1.3%
 over 30 daily reads, 2.2% over 90, against a naive peeked z-test at 26% / 34%; +5pp found 98.7% of the
 time with zero wrong-arm calls; a 60/40 split refused 100%). The harness also found and fixed its first
