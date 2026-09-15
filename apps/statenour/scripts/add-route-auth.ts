@@ -24,7 +24,7 @@ import { execSync } from "node:child_process";
 
 const DRY = process.argv.includes("--dry");
 const AUTH_PATTERNS =
-  /apiHandler|cronHandler|syncHandler|requireSession|requireCronAuth|requireSyncAuth|assertRunnerRequest|EXPECTED_SECRET|SYNC_KEY|\/\/ public:/;
+  /apiHandler|cronHandler|syncHandler|evidenceHandler|requireSession|requireCronAuth|requireSyncAuth|requireEvidenceAuth|assertRunnerRequest|EXPECTED_SECRET|SYNC_KEY|\/\/ public:/;
 
 const REQ_AUTH_IMPORT = `import { requireSession } from "@/lib/auth-guard";`;
 const AUTH_CALL = `await requireSession(req);`;

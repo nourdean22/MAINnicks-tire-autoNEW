@@ -56,6 +56,7 @@ export const ENV_SPEC: Spec[] = [
 
   { key: "CRON_SECRET",         tier: "required", when: (prod) => prod, description: "Cron auth header (Railway cron / Inngest)" },
   { key: "STATENOUR_SYNC_KEY",  tier: "required", when: (prod) => prod, description: "Shared secret for /api/sync" },
+  { key: "EVIDENCE_LEDGER_KEY", tier: "runtime", description: "Scoped key for /api/sync/evidence only (Night Shift, proof workflow); unset = bridge key only" },
 
   // AI — at least one provider must be set. Validated as a group below.
   { key: "OPENAI_API_KEY",    tier: "runtime", description: "Fallback AI provider" },

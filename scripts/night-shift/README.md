@@ -17,8 +17,36 @@ Guards that hold regardless of what the prompt says:
 First run, by hand, with the ledger door set:
 
 ```powershell
-$env:STATENOUR_SYNC_URL = "https://bdnick.info"; $env:STATENOUR_SYNC_KEY = "<key>"
+$env:STATENOUR_SYNC_URL = "https://bdnick.info"; $env:EVIDENCE_LEDGER_KEY = "<scoped key>"
 powershell -File scripts\night-shift\run.ps1 -MaxTurns 60
 ```
+
+**Which key.** `EVIDENCE_LEDGER_KEY` is a statenour env var accepted by `/api/sync/evidence`
+and by nothing else (`lib/auth-guard.ts` `requireEvidenceAuth`). It exists so the unattended
+agent holds one narrow credential. `STATENOUR_SYNC_KEY` also opens the evidence door — but it
+is the whole cross-app bridge, so `run.ps1` deliberately scrubs it from the child process; do not
+"fix" that. Until the operator sets `EVIDENCE_LEDGER_KEY` on Railway (statenour-web) and
+locally, the run still works and simply skips reading and posting evidence.
+
+**Auth.** The run needs `CLAUDE_CODE_OAUTH_TOKEN` (user env var). Mint it once, interactively,
+with `claude setup-token` — a one-year subscription token built for scripts and scheduled tasks.
+An ordinary `/login` credential is what the first run (2026-09-15) died on: "OAuth session expired
+and could not be refreshed" — it cannot renew itself headless. `run.ps1` logs only whether the
+token is set, never its value.
+
+**Permissions and trust.** `run.ps1` passes `--dangerously-skip-permissions`: nobody answers a
+prompt at 02:30, and without it every Bash/Edit call is denied. The guard is the agent-os
+`PreToolUse` hook, which the Claude Code docs say fires before any permission-mode check and
+still blocks under that flag; settings-file hooks are used even in a folder that was never
+trusted (only `permissions.allow` / `additionalDirectories` are ignored there, which is the
+"this workspace has not been trusted" line in the log). Evaluator separation CI and the
+push-to-main rule cover the rest.
+
+`-RepoRoot` (default `C:\Users\nourd\NOURCITY`) is where the worktree, the env copies, the
+`node_modules` junctions AND `PROMPT.md` come from. If the primary checkout is parked on a
+branch without `scripts/night-shift/`, or its `pnpm-lock.yaml` differs from `origin/main`
+(then `worktree-setup.ps1` links no `node_modules`), point `-RepoRoot` at a checkout that is
+on `main` or a clean descendant of it. The run log lands in `scripts/night-shift/logs/`
+(gitignored) under that root.
 
 Then read the PR like a hostile reviewer. Kill criteria (from the Reality Loop report): three consecutive proposals rejected for something a deterministic gate should have caught → stop the task, fix the gate, add its canary, only then re-register.

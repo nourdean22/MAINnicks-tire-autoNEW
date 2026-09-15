@@ -11,8 +11,10 @@
  *     prompt reads first.
  *
  * Best-effort: exits 0 on any ledger error so it never masks the suite's
- * own verdict. Needs STATENOUR_SYNC_URL + STATENOUR_SYNC_KEY; RUN_URL and
- * OUTCOME come from the workflow.
+ * own verdict. Needs STATENOUR_SYNC_URL + a ledger key — EVIDENCE_LEDGER_KEY
+ * (scoped to /api/sync/evidence; what CI should hold) or, as a fallback,
+ * STATENOUR_SYNC_KEY (the whole bridge). RUN_URL and OUTCOME come from the
+ * workflow.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -21,9 +23,9 @@ import { fileURLToPath } from "node:url";
 const APP = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RESULTS = join(APP, "test-results");
 const base = process.env.STATENOUR_SYNC_URL?.replace(/\/+$/, "");
-const key = process.env.STATENOUR_SYNC_KEY;
+const key = process.env.EVIDENCE_LEDGER_KEY || process.env.STATENOUR_SYNC_KEY;
 if (!base || !key) {
-  console.log("evidence: STATENOUR_SYNC_URL / STATENOUR_SYNC_KEY not set — skipped");
+  console.log("evidence: STATENOUR_SYNC_URL / EVIDENCE_LEDGER_KEY not set — skipped");
   process.exit(0);
 }
 
@@ -70,20 +72,34 @@ if (existsSync(epDir)) {
 
 const now = new Date().toISOString();
 const runUrl = process.env.RUN_URL ?? null;
+// What was actually judged. A push-triggered run can measure the PREVIOUS deploy
+// when Railway is still building (the workflow waits, bounded, then records what
+// is live); a statenour-only push never redeploys nickstire at all. Both shas
+// travel with the event so a reader never attributes a result to the wrong build.
+const liveCommit = process.env.LIVE_COMMIT || null;
+const wantCommit = process.env.WANT_COMMIT || null;
+const commitObjects = liveCommit ? [{ type: "commit", id: liveCommit, role: "judged" }] : [];
 const events = [
   {
     eventType: "proof.run",
     observedAt: now,
-    objects: [{ type: "site", id: "nickstire.org" }],
+    objects: [{ type: "site", id: "nickstire.org" }, ...commitObjects],
     source: { system: "github-actions", uri: runUrl ?? undefined },
     quality: "observed",
     privacy: "internal",
-    payload: { outcome: process.env.OUTCOME ?? "unknown", ...summary, episodeFailures: failures.map((f) => f.id) },
+    payload: {
+      outcome: process.env.OUTCOME ?? "unknown",
+      ...summary,
+      episodeFailures: failures.map((f) => f.id),
+      liveCommit,
+      wantCommit,
+      judgedRequestedCommit: liveCommit && wantCommit ? liveCommit === wantCommit : null,
+    },
   },
   ...failures.map((f) => ({
     eventType: "proof.episode_failed",
     observedAt: f.startedAt ?? now,
-    objects: [{ type: "episode", id: f.id }, { type: "route", id: safePath(f.finalUrl) }],
+    objects: [{ type: "episode", id: f.id }, { type: "route", id: safePath(f.finalUrl) }, ...commitObjects],
     source: { system: "github-actions", uri: runUrl ?? undefined },
     quality: "observed",
     privacy: "internal",

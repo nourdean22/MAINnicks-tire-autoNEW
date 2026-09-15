@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { apiHandler } from "@/lib/utils/http";
-import { requireSession, requireCronAuth, requireSyncAuth } from "@/lib/auth-guard";
+import { requireSession, requireCronAuth, requireSyncAuth, requireEvidenceAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 
 /**
@@ -33,6 +33,7 @@ describe("apiHandler auth enforcement (audit #9)", () => {
     } as never);
     vi.mocked(requireCronAuth).mockReturnValue(undefined as never);
     vi.mocked(requireSyncAuth).mockReturnValue(undefined as never);
+    vi.mocked(requireEvidenceAuth).mockReturnValue(undefined as never);
   });
 
   it("owner route → 401 when requireSession throws (the negative-auth path)", async () => {
@@ -65,6 +66,17 @@ describe("apiHandler auth enforcement (audit #9)", () => {
     const route = apiHandler(okHandler, { auth: "sync" });
     const res = await route(req("POST"), { params: Promise.resolve({}) });
     expect(await statusOf(res)).toBe(401);
+  });
+
+  it("evidence route → 401 when requireEvidenceAuth throws, and it is the evidence guard that runs, not the bridge one", async () => {
+    vi.mocked(requireEvidenceAuth).mockImplementationOnce(() => {
+      throw new ServiceError("Unauthorized", 401);
+    });
+    const route = apiHandler(okHandler, { auth: "evidence" });
+    const res = await route(req("POST"), { params: Promise.resolve({}) });
+    expect(await statusOf(res)).toBe(401);
+    expect(vi.mocked(requireEvidenceAuth)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(requireSyncAuth)).not.toHaveBeenCalled();
   });
 
   it("auth:\"none\" route NEVER invokes the session guard (public-by-design)", async () => {

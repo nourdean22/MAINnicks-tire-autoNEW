@@ -8,12 +8,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { eventsCreateMany, claimsCreateMany, tasteCreate, brainCreate, requireSyncAuth } = vi.hoisted(() => ({
+const { eventsCreateMany, claimsCreateMany, tasteCreate, brainCreate, requireSyncAuth, requireEvidenceAuth } = vi.hoisted(() => ({
   eventsCreateMany: vi.fn(),
   claimsCreateMany: vi.fn(),
   tasteCreate: vi.fn(),
   brainCreate: vi.fn(),
   requireSyncAuth: vi.fn(),
+  requireEvidenceAuth: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/auth-guard", () => ({
   requireSyncAuth: (req: Request) => requireSyncAuth(req),
+  requireEvidenceAuth: (req: Request) => requireEvidenceAuth(req),
   requireCronAuth: vi.fn(),
   requireSession: vi.fn().mockResolvedValue({ user: "operator" }),
 }));
@@ -84,15 +86,19 @@ describe("recordEvidenceBatch", () => {
 });
 
 describe("POST /api/sync/evidence", () => {
-  it("runs the sync auth guard before touching the ledger", async () => {
+  it("runs the EVIDENCE auth guard (scoped key or bridge key) before touching the ledger — never the bridge-only guard", async () => {
     const { ServiceError } = await import("@/lib/utils/service-error");
-    requireSyncAuth.mockImplementationOnce(() => {
+    requireEvidenceAuth.mockImplementationOnce(() => {
       throw new ServiceError("Unauthorized", 401);
     });
     const { POST } = await import("@/app/api/sync/evidence/route");
     const res = await POST(new Request("http://x/api/sync/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ events: [validEvent] }) }), {} as never);
     expect(res.status).toBe(401);
     expect(eventsCreateMany).not.toHaveBeenCalled();
+    expect(requireEvidenceAuth).toHaveBeenCalledTimes(1);
+    // The door must be the scoped guard: if the route were still on syncHandler,
+    // EVIDENCE_LEDGER_KEY would open nothing and Night Shift would need the bridge key.
+    expect(requireSyncAuth).not.toHaveBeenCalled();
   });
 
   it("returns the receipt for an authenticated batch", async () => {

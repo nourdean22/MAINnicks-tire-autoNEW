@@ -9,13 +9,18 @@
 # Post-deploy and daily, NOT a PR gate: nickstire has no hermetic server
 # (prod TiDB only), so a PR cannot be judged before it deploys. Red here is a
 # regression on the real storefront and pages the operator via the evidence
-# ledger (episode failures + the run summary POST to statenour when
-# STATENOUR_SYNC_KEY is set).
+# ledger (episode failures + the run summary POST to statenour when a ledger
+# key is set).
 #
 # Secrets (all OPTIONAL — the job degrades to artifacts without them):
 #   ARGOS_TOKEN          screenshot diffs reviewed at argos-ci.com
 #   STATENOUR_SYNC_URL   e.g. https://bdnick.info — where evidence is POSTed
-#   STATENOUR_SYNC_KEY   the sync key statenour's /api/sync/* routes check
+#   EVIDENCE_LEDGER_KEY  the SCOPED key statenour's /api/sync/evidence accepts and
+#                        nothing else does — the right credential for CI.
+#   STATENOUR_SYNC_KEY   fallback only: the whole cross-app bridge key. Accepted by
+#                        the evidence door too, but it opens /api/sync/*, nour-os,
+#                        devices and cron/mega as well. Remove it from this repo's
+#                        secrets once EVIDENCE_LEDGER_KEY is set.
 #
 # No branch protection exists in this repo: red is a stop by convention.
 
@@ -59,6 +64,36 @@ jobs:
       - name: install chromium
         run: pnpm --filter nicks-tire-auto exec playwright install --with-deps chromium
 
+      # A push fires this workflow the moment main moves, minutes before Railway has
+      # built and swapped the container (main run 34975001748 judged the PREVIOUS
+      # deploy and got a 404 from a statenour route that was still deploying). Wait,
+      # bounded, for /api/health to report this commit; on a statenour-only or
+      # worker-only push nickstire is never redeployed, so a miss is a warning, not a
+      # failure — and LIVE_COMMIT records what was actually judged either way.
+      - name: wait for nickstire.org to serve this commit
+        if: ${{ github.event_name == 'push' }}
+        env:
+          WANT: ${{ github.sha }}
+        run: |
+          # Bounded by wall-clock (10 min), not by attempts: a stalled /api/health
+          # would otherwise cost 15 s of curl + 20 s of sleep per attempt (~17 min).
+          deadline=$(( $(date +%s) + 600 ))
+          while :; do
+            live=$(curl -sS --max-time 15 https://nickstire.org/api/health | jq -r '.deploy.commit // ""' 2>/dev/null || echo "")
+            if [ "$live" = "$WANT" ]; then echo "live: $live"; break; fi
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then break; fi
+            echo "live=${live:-?} want=$WANT — waiting ($(( deadline - now ))s left)"
+            sleep $(( deadline - now < 20 ? deadline - now : 20 ))
+          done
+          [ "$live" = "$WANT" ] || echo "::warning::nickstire.org still serves ${live:-?}, not $WANT, after 10 min — judging what is live"
+
+      - name: record the live commit
+        run: |
+          live=$(curl -sS --max-time 15 https://nickstire.org/api/health | jq -r '.deploy.commit // ""' 2>/dev/null || echo "")
+          echo "LIVE_COMMIT=$live" >> "$GITHUB_ENV"
+          echo "judging live commit: ${live:-unknown}"
+
       - name: run
         id: pw
         continue-on-error: true
@@ -74,12 +109,19 @@ jobs:
         run: pnpm dlx @argos-ci/cli@6.9.4 upload apps/nickstire/test-results/argos --token "$ARGOS_TOKEN" --build-name nickstire-critical-pages
 
       - name: post episode results to the evidence ledger
-        if: ${{ always() && env.STATENOUR_SYNC_KEY != '' }}
+        # Either key opens the evidence door; the scoped one is the right one for CI.
+        # `env.*` here reads THIS step's env (proven: this step ran on main run
+        # 34975001748). `secrets.*` is NOT a valid context in a step `if` — using it
+        # made the whole workflow file invalid (run 34978069055, zero jobs).
+        if: ${{ always() && (env.EVIDENCE_LEDGER_KEY != '' || env.STATENOUR_SYNC_KEY != '') }}
         env:
           STATENOUR_SYNC_URL: ${{ secrets.STATENOUR_SYNC_URL }}
+          EVIDENCE_LEDGER_KEY: ${{ secrets.EVIDENCE_LEDGER_KEY }}
           STATENOUR_SYNC_KEY: ${{ secrets.STATENOUR_SYNC_KEY }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.pw.outcome }}
+          WANT_COMMIT: ${{ github.sha }}
+          # LIVE_COMMIT comes from "record the live commit" via GITHUB_ENV
         run: node apps/nickstire/scripts/proof/post-run-evidence.mjs
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -101,6 +143,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: wait for nickstire.org to serve this commit
+        if: ${{ github.event_name == 'push' }}
+        env:
+          WANT: ${{ github.sha }}
+        run: |
+          # Same wall-clock bound as the playwright job (10 min, no sleep past it).
+          deadline=$(( $(date +%s) + 600 ))
+          while :; do
+            live=$(curl -sS --max-time 15 https://nickstire.org/api/health | jq -r '.deploy.commit // ""' 2>/dev/null || echo "")
+            if [ "$live" = "$WANT" ]; then echo "live: $live"; break; fi
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then break; fi
+            echo "live=${live:-?} want=$WANT — waiting ($(( deadline - now ))s left)"
+            sleep $(( deadline - now < 20 ? deadline - now : 20 ))
+          done
+          [ "$live" = "$WANT" ] || echo "::warning::nickstire.org still serves ${live:-?}, not $WANT, after 10 min — measuring what is live"
 
       - name: sitespeed.io against the live Tier-1 pages
         # Pinned image tag — bump deliberately, cite the release in the PR body.

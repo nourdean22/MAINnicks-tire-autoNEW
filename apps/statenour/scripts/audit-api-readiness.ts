@@ -196,7 +196,7 @@ function scoreAuthentication(
     source,
   );
   const hasCronHandler = /\bcronHandler\s*\(/.test(source);
-  const hasSyncHandler = /\bsyncHandler\s*\(/.test(source);
+  const hasSyncHandler = /\b(?:sync|evidence)Handler\s*\(/.test(source);
   const hasRequireSession = /\brequireSession\s*\(/.test(source);
   const hasRequireCron = /\brequireCronAuth\s*\(/.test(source);
   const hasRequireSync = /\brequireSyncAuth\s*\(/.test(source);
@@ -265,7 +265,7 @@ function scoreErrorHandling(source: string): PillarResult {
   const hasServiceError = /\bServiceError\b/.test(source);
   const usesApiHandler = /\bapiHandler\b/.test(source);
   const usesCronHandler = /\bcronHandler\b/.test(source);
-  const usesSyncHandler = /\bsyncHandler\b/.test(source);
+  const usesSyncHandler = /\b(?:sync|evidence)Handler\b/.test(source);
   const wrapped = usesApiHandler || usesCronHandler || usesSyncHandler;
 
   // PII / stack leak markers — body that returns raw error or stack.
@@ -293,7 +293,7 @@ function scoreErrorHandling(source: string): PillarResult {
 function scoreResponseShape(source: string): PillarResult {
   const usesApiHandler = /\bapiHandler\b/.test(source);
   const usesCronHandler = /\bcronHandler\b/.test(source);
-  const usesSyncHandler = /\bsyncHandler\b/.test(source);
+  const usesSyncHandler = /\b(?:sync|evidence)Handler\b/.test(source);
   const usesEnvelope = usesApiHandler || usesCronHandler || usesSyncHandler;
   // Raw NextResponse without envelope is a yellow flag (the envelope
   // is what makes responses agent-callable).
