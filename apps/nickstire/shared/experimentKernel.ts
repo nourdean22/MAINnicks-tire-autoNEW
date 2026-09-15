@@ -52,7 +52,7 @@ export function findConfoundsIn<T extends Record<string, unknown>>(
 // lands in the same arm whichever module derives it.
 // ---------------------------------------------------------------------------
 
-export function hashKey(key: string): number {
+function hashKey(key: string): number {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return h;
@@ -148,7 +148,7 @@ function lnGamma(z: number): number {
   return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
 }
 
-export function upperIncompleteGammaQ(a: number, x: number): number {
+function upperIncompleteGammaQ(a: number, x: number): number {
   if (x <= 0) return 1;
   if (x < a + 1) {
     // series for P, Q = 1 - P
@@ -278,11 +278,11 @@ export interface EvaluateOptions extends SequentialOptions {
   minExposuresPerArm?: number;
 }
 
-export const DEFAULT_MIN_EXPOSURES_PER_ARM = 50;
-export const DEFAULT_ALPHA = 0.05;
+const DEFAULT_MIN_EXPOSURES_PER_ARM = 50;
+const DEFAULT_ALPHA = 0.05;
 
 /** The arm whose armId is "control" is control; otherwise the first arm. */
-export function controlArm(def: WebExperimentDefinition): WebExperimentArm {
+function controlArm(def: WebExperimentDefinition): WebExperimentArm {
   return def.arms.find((a) => a.armId === "control") ?? def.arms[0];
 }
 

@@ -17,10 +17,10 @@
  */
 import { z } from "zod";
 
-export const EVIDENCE_LEVELS = ["offline", "observational", "randomized", "physical_outcome"] as const;
+const EVIDENCE_LEVELS = ["offline", "observational", "randomized", "physical_outcome"] as const;
 export type MinimumEvidence = (typeof EVIDENCE_LEVELS)[number];
 
-export const GoalContractSchema = z.object({
+const GoalContractSchema = z.object({
   goalId: z.string().regex(/^[a-z0-9][a-z0-9-]{2,63}$/, "kebab-case id"),
   product: z.enum(["nicks-public", "nicks-admin", "statenour"]),
   /** Routes the goal is allowed to change. Must be registered routes (tested). */
@@ -45,7 +45,7 @@ export const GoalContractSchema = z.object({
 export type GoalContract = z.infer<typeof GoalContractSchema>;
 
 /** Stable key order so the hash does not depend on how a file was written. */
-export function canonicalJson(value: unknown): string {
+function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") {
     const o = value as Record<string, unknown>;
@@ -58,7 +58,7 @@ export function canonicalJson(value: unknown): string {
 }
 
 /** FNV-1a 64-bit, hex. A freeze fingerprint, not a security primitive. */
-export function fnv1a64(input: string): string {
+function fnv1a64(input: string): string {
   let h = 0xcbf29ce484222325n;
   const prime = 0x100000001b3n;
   for (let i = 0; i < input.length; i++) {

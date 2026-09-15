@@ -49,6 +49,7 @@
         "client/src/**/*.{ts,tsx}",
         "server/**/*.ts",
         "shared/**/*.ts",
+        "goals/**/*.ts",
         "!**/*.test.ts",
         "!**/*.spec.ts",
         "!client/src/__tests__/**"

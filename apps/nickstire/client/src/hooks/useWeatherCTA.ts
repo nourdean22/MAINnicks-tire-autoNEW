@@ -16,7 +16,7 @@ import { weatherCtaFromShopState, type ShopState, type WeatherCTA } from "@share
 
 export type { WeatherCTA };
 
-export function useShopState(): ShopState | null {
+function useShopState(): ShopState | null {
   const { data } = trpc.shopStatus.getState.useQuery(undefined, {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,

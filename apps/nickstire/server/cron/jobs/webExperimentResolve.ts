@@ -24,6 +24,7 @@ import { sql } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import { assignByKey, evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "../../../shared/experimentKernel";
 import { EXPERIMENT_EXPOSURE_EVENT, WEB_EXPERIMENTS, experimentAssignmentKey, webExperimentFlagKey } from "../../../shared/webExperiments";
+import { authorityFor, gradeSatisfies } from "../../../shared/goalContract";
 import { goalContractFor } from "../../../goals";
 
 const log = createLogger("cron:web-experiment-resolve");
@@ -44,7 +45,7 @@ export interface ExposureIntegrity {
 }
 
 /** Above this share of rejected visitors the randomisation itself is suspect. */
-export const MAX_REJECTED_SHARE = 0.05;
+const MAX_REJECTED_SHARE = 0.05;
 
 /**
  * Exposed visitors -> accepted arm (derived, never trusted) and first exposure
@@ -100,7 +101,7 @@ export function countConversions(
  * JSON_UNQUOTE(JSON_EXTRACT(...)), never ->> sugar; DATETIME bounds are
  * 'YYYY-MM-DD HH:MM:SS' literals, never ISO strings with 'T' and 'Z'.
  */
-export async function gatherArmCounts(def: WebExperimentDefinition): Promise<{ counts: ArmMetricCounts[]; integrity: ExposureIntegrity }> {
+async function gatherArmCounts(def: WebExperimentDefinition): Promise<{ counts: ArmMetricCounts[]; integrity: ExposureIntegrity }> {
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { counts: [], integrity: { visitors: 0, accepted: 0, rejected: 0 } };
@@ -196,6 +197,13 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
 
       const { postToEvidenceLedger } = await import("../../services/evidenceLedger");
       const decisive = verdict.status === "winner" || verdict.status === "guardrail_breach";
+      // Evidence thermostat: a randomized verdict is H4. What that grade may
+      // AUTHORISE (a promotion recommendation, never a merge) and whether it
+      // meets the contract's minimum are written beside the verdict, so the
+      // operator reads the authority with the number instead of inferring it.
+      const grade = "H4" as const;
+      const authority = decisive ? authorityFor(grade) : authorityFor("H1");
+      const meetsContractMinimum = decisive && gradeSatisfies(grade, owning.contract.minimumEvidence);
       await postToEvidenceLedger({
         events: [
           {
@@ -209,14 +217,14 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
             experiment: { experimentId: def.experimentId, contractHash: owning.hash },
             quality: "derived",
             privacy: "internal",
-            payload: { status: verdict.status, note: verdict.note, counts, integrity },
+            payload: { status: verdict.status, note: verdict.note, counts, integrity, authority, meetsContractMinimum, minimumEvidence: owning.contract.minimumEvidence },
           },
         ],
         claims: decisive
           ? [
               {
-                claimText: verdict.note,
-                grade: "H4",
+                claimText: `${verdict.note} [authority: ${authority}; ${meetsContractMinimum ? "meets" : "does NOT meet"} the contract minimum of ${owning.contract.minimumEvidence}]`,
+                grade,
                 hypothesisId: def.experimentId,
                 goalId: owning.contract.goalId,
                 contractHash: owning.hash,
