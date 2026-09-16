@@ -71,7 +71,32 @@
 >   single-process). `--concurrency=1` is KEPT for a corrected reason — build alone leaves ~222MB so any companion
 >   task is fatal rather than tight, and all three deaths were at 2 — but it is not the fix. Remaining options are
 >   a larger runner, accepting flakes now that each death self-explains, or reducing what the app compiles.
->   **Billing decision: the operator's, not a commit's.**
+>   **DECIDED 2026-09-16, operator: no paid runner.** Nothing had been enabled to switch off — all 24 jobs across
+>   `.github/workflows/*.yml` are standard `ubuntu-latest` / `ubuntu-24.04`, with no larger-runner label, runner
+>   group or self-hosted entry anywhere. The larger runner was a proposal, never a config change, so declining it
+>   is a no-op on the repo. We accept the flakes; each death now self-explains via the sampler below.
+> - **Correction to the 97% figure above: it was one sample presented as the number.** The first completed run
+>   with the repaired sampler (#2370, `node` job on `e22031046`) reported:
+>
+>   ```
+>   --- runner memory during the sweep ---
+>     samples: 152 · min avail: 660MB · max avail: 7012MB
+>     last 12 samples (MB available, 5s apart): 6545 5854 5260 4618 4116 3834 3607 3344 3131 3077 3061 2989
+>   ```
+>
+>   That is a 6352MB peak and **90.6% utilisation**, not 97% — the floor moved 285MB → 660MB between two runs of
+>   the same shape. The operational conclusion is unchanged (660MB does not fit a companion task either, so
+>   `--concurrency=1` stays), but the spread is ~375MB run to run and any single reading should be quoted as one.
+>   **The instrument itself is now proven: it printed, from its own `if: always()` step, which is the whole point
+>   of #2362.**
+> - **The unpaid lever, confirmed from CI rather than inferred: turn on turbo remote caching.** The same run:
+>   `Remote caching disabled` · `Tasks: 8 successful, 8 total` · `Cached: 0 cached, 8 total` · `Time: 12m38.343s`
+>   — **zero of eight cached for a diff of three markdown files.** `turbo.json`'s build task already excludes
+>   `!docs/**` and `!*.md` from its inputs, so the task hash is unchanged by a prose edit (measured locally:
+>   `924b195c7bab32a2` before and after touching `AGENTS.md`). The exclusion is written correctly and is inert
+>   because there is no cache to hit. With a warm remote cache this job would restore instead of running a 6.3GB
+>   cold `next build`. NOT actioned: it needs a cache backend chosen, which is the operator's call, and the
+>   no-paid-runner decision above does not by itself answer it.
 > - **E4 cannot be re-run until ~2026-09-20.** The `isResourceTitle` repair deployed 12:56Z; only 11 shadow turns
 >   have accrued since, against E4's original 91. Early signal is 0 blocks in 11 (vs 21/91 = 23% before) — but if
 >   the true rate were still 23.1%, P(0 in 11) = 5.6%. Suggestive, NOT conclusive. Rate is ~20 turns/day. The verdict
